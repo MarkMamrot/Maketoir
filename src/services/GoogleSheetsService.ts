@@ -2,17 +2,67 @@ import { google } from 'googleapis';
 
 export class GoogleSheetsService {
   private sheets;
-  private spreadsheetId: string;
+  private drive;
+  private spreadsheetId?: string;
 
-  constructor(spreadsheetId: string) {
-    this.spreadsheetId = spreadsheetId;
+  constructor(spreadsheetId?: string) {
+    if (spreadsheetId) {
+      this.spreadsheetId = spreadsheetId;
+    }
     
     // Auth logic mapping to process.env parameters
-    const auth = new google.auth.GoogleAuth({
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
+    let authOptions: any = {
+      scopes: [
+        'https://www.googleapis.com/auth/spreadsheets',
+        'https://www.googleapis.com/auth/drive.file'
+      ],
+    };
+
+    if (process.env.GOOGLE_APPLICATION_CREDENTIALS_BASE64) {
+      const credentials = JSON.parse(
+        Buffer.from(process.env.GOOGLE_APPLICATION_CREDENTIALS_BASE64, 'base64').toString('ascii')
+      );
+      authOptions.credentials = credentials;
+    } 
+
+    const auth = new google.auth.GoogleAuth(authOptions);
 
     this.sheets = google.sheets({ version: 'v4', auth });
+    this.drive = google.drive({ version: 'v3', auth });
+  }
+
+  /**
+   * Create a new Google Sheet for a new User Workspace
+   * Returns the new Spreadsheet ID so the app can save it to the user's profile
+   */
+  async createWorkspaceDatabase(workspaceName: string, sharedDriveFolderId?: string): Promise<string> {
+    const fileMetadata: any = {
+      name: `Database - ${workspaceName}`,
+      mimeType: 'application/vnd.google-apps.spreadsheet',
+    };
+
+    if (sharedDriveFolderId) {
+      fileMetadata.parents = [sharedDriveFolderId];
+    }
+
+    const driveFile = await this.drive.files.create({
+      requestBody: fileMetadata,
+      supportsAllDrives: true,
+      fields: 'id',
+    });
+
+    const newSpreadsheetId = driveFile.data.id;
+    if (!newSpreadsheetId) {
+      throw new Error("Failed to create Google Sheet database.");
+    }
+    
+    // Set the internal ID so we can immediately initialize it
+    this.spreadsheetId = newSpreadsheetId;
+    
+    // Provision the tabs and headers
+    await this.initializeSchema();
+
+    return newSpreadsheetId;
   }
 
   // Phase 1: Core "Database" Read/Write Methods
@@ -30,7 +80,7 @@ export class GoogleSheetsService {
     
     try {
       await this.sheets.spreadsheets.batchUpdate({
-        spreadsheetId: this.spreadsheetId,
+        spreadsheetId: this.spreadsheetId!,
         requestBody: { requests: addSheetsRequests },
       });
     } catch (e: any) {
@@ -55,7 +105,7 @@ export class GoogleSheetsService {
     ];
 
     await this.sheets.spreadsheets.values.batchUpdate({
-      spreadsheetId: this.spreadsheetId,
+      spreadsheetId: this.spreadsheetId!,
       requestBody: {
         valueInputOption: 'USER_ENTERED',
         data: updateValuesRequests,
@@ -69,6 +119,7 @@ export class GoogleSheetsService {
    * Retrieves user preferences and configuration.
    */
   async getAccountData(): Promise<any> {
+    if (!this.spreadsheetId) throw new Error("Spreadsheet ID required.");
     const res = await this.sheets.spreadsheets.values.get({
       spreadsheetId: this.spreadsheetId,
       range: 'CoreData!A:D',
