@@ -10,11 +10,14 @@ const buildIdPath = path.join(__dirname, '.next', 'BUILD_ID');
 if (!fs.existsSync(buildIdPath)) {
   console.log('Next.js build not found. Server is automatically building it now...');
   try {
-    // FORCE cPanel Git to discard stuck cached files before building
-    console.log('Clearing cPanel git cache...');
-    execSync('git fetch origin && git reset --hard origin/main', { cwd: __dirname });
-    
+    // Check if node_modules exists, if not run npm install
+    if (!fs.existsSync(path.join(__dirname, 'node_modules', 'next'))) {
+      console.log('node_modules not found. Running npm install...');
+      execSync('npm install --production=false', { stdio: 'inherit', cwd: __dirname });
+    }
+
     // Explicitly use the local Next.js binary to bypass cPanel path errors
+    console.log('Running next build...');
     execSync('node ./node_modules/next/dist/bin/next build', {
       stdio: 'inherit',
       cwd: __dirname,
