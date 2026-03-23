@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    // Warning: This allows production builds to successfully complete even if
+  // Output a standalone folder that works better with cPanel Phusion Passenger environments
+  output: 'standalone',
     // your project has ESLint errors. Perfect for bypassing cPanel strictness.
     ignoreDuringBuilds: true,
   },
