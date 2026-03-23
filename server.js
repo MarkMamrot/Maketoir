@@ -13,12 +13,12 @@ if (!fs.existsSync(buildIdPath)) {
     // Check if node_modules exists, if not run npm install
     if (!fs.existsSync(path.join(__dirname, 'node_modules', 'next'))) {
       console.log('node_modules not found. Running npm install...');
-      execSync('npm install --production=false', { stdio: 'inherit', cwd: __dirname });
+      execSync('npm install --omit=dev --foreground-scripts=false --fund=false --audit=false --no-progress', { stdio: 'inherit', cwd: __dirname });
     }
 
     // Explicitly use the local Next.js binary to bypass cPanel path errors
     console.log('Running next build...');
-    execSync('node ./node_modules/next/dist/bin/next build', {
+    execSync('npm run build', {
       stdio: 'inherit',
       cwd: __dirname,
       env: { ...process.env, NEXT_TELEMETRY_DISABLED: '1' }
