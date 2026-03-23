@@ -2,5 +2,6 @@
 deployment:
   tasks:
     - export DEPLOYPATH=/home/readyedu/marketoir-app-code
-    - /bin/cp -R * $DEPLOYPATH
+    - /bin/cp -R ./* $DEPLOYPATH
+    - /bin/cp -R ./.cpanel.yml $DEPLOYPATH
 
