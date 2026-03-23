@@ -1,0 +1,5 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/username/marketoir.exam-ready.com.au
+    - /bin/cp -R * $DEPLOYPATH
