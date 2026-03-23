@@ -18,7 +18,7 @@ if (!fs.existsSync(buildIdPath)) {
 
     // Explicitly use the local Next.js binary to bypass cPanel path errors
     console.log('Running next build...');
-    execSync('npm run build', {
+    execSync('npx next build', {
       stdio: 'inherit',
       cwd: __dirname,
       env: { ...process.env, NEXT_TELEMETRY_DISABLED: '1' }
