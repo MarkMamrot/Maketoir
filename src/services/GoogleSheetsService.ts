@@ -18,6 +18,54 @@ export class GoogleSheetsService {
   // Phase 1: Core "Database" Read/Write Methods
 
   /**
+   * Initialize the database schema (Tabs and Headers)
+   */
+  async initializeSchema() {
+    // 1. Create the tabs (CoreData, ProductCatalog, CreativeMetadata)
+    const addSheetsRequests = [
+      { addSheet: { properties: { title: 'CoreData' } } },
+      { addSheet: { properties: { title: 'ProductCatalog' } } },
+      { addSheet: { properties: { title: 'CreativeMetadata' } } },
+    ];
+    
+    try {
+      await this.sheets.spreadsheets.batchUpdate({
+        spreadsheetId: this.spreadsheetId,
+        requestBody: { requests: addSheetsRequests },
+      });
+    } catch (e: any) {
+      // Ignore if sheets already exist (error 400 usually indicates this)
+      console.log('Sheets might already exist:', e.message);
+    }
+
+    // 2. Set the Headers for each tab
+    const updateValuesRequests = [
+      {
+        range: 'CoreData!A1:E1',
+        values: [['Workspace ID', 'Shopify Token', 'Meta Ads Token', 'Google Ads Token', 'Target Global ROAS']],
+      },
+      {
+        range: 'ProductCatalog!A1:G1',
+        values: [['SKU/Product ID', 'Product Name', 'Category', 'Retail Price', 'COGS', 'Gross Margin (%)', 'Absolute Break-Even ROAS']],
+      },
+      {
+        range: 'CreativeMetadata!A1:E1',
+        values: [['Creative ID', 'AI Tags', 'Format', 'Historical Win/Loss', 'Total Spend/CPA']],
+      }
+    ];
+
+    await this.sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: this.spreadsheetId,
+      requestBody: {
+        valueInputOption: 'USER_ENTERED',
+        data: updateValuesRequests,
+      },
+    });
+
+    return true;
+  }
+
+  /**
    * Retrieves user preferences and configuration.
    */
   async getAccountData(): Promise<any> {
