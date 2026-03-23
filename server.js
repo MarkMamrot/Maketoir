@@ -1,6 +1,26 @@
 // server.js for cPanel (Phusion Passenger)
 const http = require('http');
 const { parse } = require('url');
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+
+// Auto-build system for cPanel where NPM run build fails
+const buildIdPath = path.join(__dirname, '.next', 'BUILD_ID');
+if (!fs.existsSync(buildIdPath)) {
+  console.log('Next.js build not found. Server is automatically building it now...');
+  try {
+    // Explicitly use the local Next.js binary to bypass cPanel path errors
+    execSync('node ./node_modules/next/dist/bin/next build', {
+      stdio: 'inherit',
+      cwd: __dirname,
+      env: { ...process.env, NEXT_TELEMETRY_DISABLED: '1' }
+    });
+    console.log('Build completed successfully.');
+  } catch (err) {
+    console.error('Auto-build failed:', err);
+  }
+}
 
 // We have strictly isolated dependencies in Passenger sometimes.
 // By calling the full absolute path or ensuring execution happens locally, it can find node.
