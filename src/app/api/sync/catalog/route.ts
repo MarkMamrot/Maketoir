@@ -1,7 +1,7 @@
 // src/app/api/sync/catalog/route.ts
 import { NextResponse } from 'next/server';
-import { ShopifyService } from '@/services/ShopifyService';
-import { GoogleSheetsService } from '@/services/GoogleSheetsService';
+import { ShopifyService } from '../../../../services/ShopifyService';
+import { GoogleSheetsService } from '../../../../services/GoogleSheetsService';
 
 /**
  * Phase 1 + 2: "The Brain Sync" (Initial Audit & Margin Mapping)

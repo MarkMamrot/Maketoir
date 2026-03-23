@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { GoogleSheetsService } from '@/services/GoogleSheetsService';
+import { GoogleSheetsService } from '../../../../services/GoogleSheetsService';
 
 /**
  * Phase 1: Database Setup via API
