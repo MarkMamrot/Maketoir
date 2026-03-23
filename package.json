@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build || true",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "npm run build"
   },
   "dependencies": {
     "next": "14.1.0",
