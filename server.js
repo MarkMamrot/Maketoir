@@ -3,20 +3,25 @@ const http = require('http');
 const { parse } = require('url');
 const next = require('next');
 
-// cPanel Passenger handles the port dynamically
 const port = process.env.PORT || 3000;
-const dev = process.env.NODE_ENV !== 'production';
-const app = next({ dev: false, hostname: '0.0.0.0', port });
+const app = next({ dev: false });
 const handle = app.getRequestHandler();
 
 app.prepare().then(() => {
-  http.createServer((req, res) => {
+  const server = http.createServer((req, res) => {
     const parsedUrl = parse(req.url, true);
     handle(req, res, parsedUrl);
-  }).listen(port, () => {
-    console.log(`> App running on port ${port}`);
   });
+  
+  if (process.env.PASSENGER_APP_ENV) {
+    // Let Passenger manage the sockets automatically
+    server.listen(port, () => console.log('Listening via Passenger..'));
+  } else {
+    // Local fallback
+    server.listen(port, () => console.log(`Listening on ${port}`));
+  }
 }).catch((err) => {
   console.error("Next.js App failed to start", err);
 });
+
 
