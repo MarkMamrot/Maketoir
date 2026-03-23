@@ -1,5 +1,6 @@
 ---
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/username/marketoir.exam-ready.com.au
+    - export DEPLOYPATH=/home/readyedu/marketoir-app-code
     - /bin/cp -R * $DEPLOYPATH
+
