@@ -11,12 +11,12 @@ if (!fs.existsSync(buildIdPath)) {
   console.log('Next.js build not found. Server is automatically building it now...');
   try {
     // Check if node_modules exists, if not run npm install
-    if (!fs.existsSync(path.join(__dirname, 'node_modules', 'next'))) {
-      console.log('node_modules not found. Running npm install...');
+    if (!fs.existsSync(path.join(__dirname, 'node_modules', 'next', 'dist', 'build', 'index.js'))) {
+      console.log('node_modules not fully found. Running npm install...');
       execSync('npm install --omit=dev --foreground-scripts=false --fund=false --audit=false --no-progress', { stdio: 'inherit', cwd: __dirname });
     }
 
-    // Explicitly use the local Next.js binary to bypass cPanel path errors
+    // Explicitly use standard webpack next bypass to dodge turbopack bugs
     console.log('Running next build...');
     execSync('npx next build', {
       stdio: 'inherit',
