@@ -1,2 +1,9 @@
 ﻿node_modules
 .next
+
+deploy.zip
+
+# Environment secrets — never commit
+.env
+.env.local
+.env.production

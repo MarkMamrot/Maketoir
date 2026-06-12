@@ -1,0 +1,7085 @@
+'use client';
+
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+type ImsView =
+  | 'dashboard' | 'products' | 'stock' | 'brands'
+  | 'contacts' | 'locations'
+  | 'purchase-orders' | 'sales-orders' | 'branch-transfers'
+  | 'pos-sales' | 'online-sales' | 'stocktakes'
+  | 'reports' | 'report-sales-by-branch' | 'report-inventory-valuation' | 'report-product-margin';
+
+interface User { name: string; email: string; company: string }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Nav structure
+// ─────────────────────────────────────────────────────────────────────────────
+
+const NAV = [
+  { id: 'dashboard',       label: 'Dashboard',        section: null },
+  { id: '__products',      label: 'Products',         section: 'products', children: [
+    { id: 'products',      label: 'All Products' },
+    { id: 'stock',         label: 'Stock Levels' },
+    { id: 'brands',        label: 'Brands' },
+  ]},
+  { id: '__orders',        label: 'Orders',           section: 'orders', children: [
+    { id: 'purchase-orders',  label: 'Purchase Orders' },
+    { id: 'sales-orders',     label: 'Sales Orders' },
+    { id: 'branch-transfers', label: 'Branch Transfers' },
+    { id: 'pos-sales',        label: 'POS Sales' },
+    { id: 'online-sales',     label: 'Online Sales' },
+  ]},
+  { id: 'contacts',        label: 'Contacts',         section: null },
+  { id: 'locations',       label: 'Locations',        section: null },
+  { id: 'stocktakes',       label: '📋 Stocktakes',     section: null },
+  { id: 'reports',          label: '📊 Reports',         section: null },
+] as const;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Utility helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+const fmtCurrency = (n: number | null | undefined) =>
+  n == null ? '—' : `$${Number(n).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const fmtFx = (n: number | null | undefined, currency?: string) => {
+  if (n == null) return '—';
+  const num = Number(n).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (!currency || currency === 'AUD') ? `$${num}` : `${currency} ${num}`;
+};
+
+const fmtQty = (n: number | null | undefined) =>
+  n == null ? '—' : Number(n).toLocaleString('en-AU', { maximumFractionDigits: 4 });
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+const PAYMENT_TERMS = ['', '10 Days', '15 Days', '30 Days', '60 Days', '90 Days', 'COD'];
+
+function calcDueDate(orderDate: string | undefined, terms: string | undefined): string {
+  if (!terms) return '—';
+  if (terms === 'COD') return 'Cash on Delivery';
+  const days = parseInt(terms);
+  if (!orderDate || isNaN(days)) return '—';
+  const d = new Date(orderDate);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+async function apiFetch(url: string, opts?: RequestInit) {
+  const res = await fetch(url, opts);
+  const json = await res.json();
+  if (!json.success && json.error) throw new Error(json.error);
+  return json;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared settings hook  (fetches ims_settings for the current business)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function useImsSettings() {
+  const [settings, setSettings] = useState<Record<string, string>>({});
+  useEffect(() => {
+    fetch('/api/ims/settings').then(r => r.json()).then(d => {
+      if (d.success) setSettings(d.data || {});
+    }).catch(() => {});
+  }, []);
+  const saveSettings = useCallback(async (updates: Record<string, string>) => {
+    setSettings(prev => ({ ...prev, ...updates }));
+    try {
+      await fetch('/api/ims/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: updates }),
+      });
+    } catch {}
+  }, []);
+  return { settings, saveSettings };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Status badge
+// ─────────────────────────────────────────────────────────────────────────────
+
+const STATUS_COLORS: Record<string, string> = {
+  draft:       'background:rgba(100,116,139,.18);color:#94a3b8',
+  approved:    'background:rgba(37,99,235,.18);color:#60a5fa',
+  received:    'background:rgba(16,185,129,.18);color:#34d399',
+  confirmed:   'background:rgba(251,191,36,.15);color:#fbbf24',
+  fulfilled:   'background:rgba(16,185,129,.18);color:#34d399',
+  sent:        'background:rgba(139,92,246,.18);color:#a78bfa',
+  cancelled:   'background:rgba(248,113,113,.15);color:#f87171',
+  in_progress: 'background:rgba(251,191,36,.15);color:#fbbf24',
+  completed:   'background:rgba(16,185,129,.18);color:#34d399',
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const style = STATUS_COLORS[status] ?? STATUS_COLORS.draft;
+  return (
+    <span style={{ ...parseStyleStr(style), padding: '2px 10px', borderRadius: 99, fontSize: 12, fontWeight: 600, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>
+      {status}
+    </span>
+  );
+}
+
+function parseStyleStr(s: string): Record<string, string> {
+  const obj: Record<string, string> = {};
+  for (const part of s.split(';')) {
+    const [k, v] = part.split(':');
+    if (k && v) obj[k.trim().replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = v.trim();
+  }
+  return obj;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Modal
+// ─────────────────────────────────────────────────────────────────────────────
+
+function Modal({ title, onClose, children, wide, wider }: {
+  title: string; onClose: () => void; children: React.ReactNode; wide?: boolean; wider?: boolean
+}) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 40, paddingBottom: 40, background: 'rgba(0,0,0,.6)', overflowY: 'auto' }}>
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, width: wider ? 1120 : wide ? 860 : 560, maxWidth: '97vw', padding: 28, position: 'relative' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{title}</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>×</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Field helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+const inputStyle: React.CSSProperties = {
+  width: '100%', padding: '8px 10px', background: 'var(--sv-bg-2)',
+  border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)',
+  fontSize: 14, boxSizing: 'border-box',
+};
+
+const labelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 4, display: 'block' };
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <label style={labelStyle}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function Row2({ children }: { children: React.ReactNode }) {
+  return <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>{children}</div>;
+}
+
+function Row3({ children }: { children: React.ReactNode }) {
+  return <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>{children}</div>;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sidebar
+// ─────────────────────────────────────────────────────────────────────────────
+
+function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView) => void }) {
+  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: true, __orders: true });
+  const [collapsed, setCollapsed] = useState(false);
+
+  const toggleSection = (id: string) => setSectionOpen(p => ({ ...p, [id]: !p[id] }));
+
+  const ICONS: Record<string, string> = {
+    dashboard:          'M3 12l2-2m0 0l7-7 7 7m-14 0v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9m-14 0h14',
+    __products:         'M20 7H4a1 1 0 00-1 1v10a1 1 0 001 1h16a1 1 0 001-1V8a1 1 0 00-1-1zM16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2',
+    products:           'M20 7H4a1 1 0 00-1 1v10a1 1 0 001 1h16a1 1 0 001-1V8a1 1 0 00-1-1zM16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2',
+    stock:              'M3 6h18M3 10h18M3 14h18M3 18h18',
+    brands:             'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z',
+    __orders:           'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
+    'purchase-orders':  'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 12h6M9 16h4',
+    'sales-orders':     'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2 5h12',
+    'branch-transfers': 'M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4',
+    'pos-sales':        'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z',
+    'online-sales':     'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9',
+    contacts:           'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
+    locations:          'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z',
+    stocktakes:         'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 12l2 2 4-4',
+    reports:            'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
+    settings:           'M12 15a3 3 0 100-6 3 3 0 000 6z',
+  };
+
+  const NavIcon = ({ id }: { id: string }) => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      {ICONS[id] && <path d={ICONS[id]} />}
+    </svg>
+  );
+
+  const collapsedItemStyle = (isActive: boolean): React.CSSProperties => ({
+    width: '100%', height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: 'none', border: 'none', cursor: 'pointer',
+    borderLeft: isActive ? '3px solid var(--sv-action)' : '3px solid transparent',
+    backgroundColor: isActive ? 'rgba(37,99,235,.12)' : 'transparent',
+    color: isActive ? 'var(--sv-action)' : 'var(--sv-text-dim)',
+  });
+
+  return (
+    <aside style={{ width: collapsed ? 52 : 220, flexShrink: 0, background: 'var(--sv-bg-1)', borderRight: '1px solid var(--sv-etch)', display: 'flex', flexDirection: 'column', padding: '16px 0', transition: 'width .2s ease', overflow: 'hidden' }}>
+      {/* Header row: IMS label + collapse toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between', padding: collapsed ? '0 0 16px' : '0 8px 16px 16px', borderBottom: '1px solid var(--sv-etch)', marginBottom: 8 }}>
+        {!collapsed && <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: 'var(--sv-text-dim)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>IMS</div>}
+        <button
+          onClick={() => setCollapsed(c => !c)}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', padding: 4, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d={collapsed ? 'M9 18l6-6-6-6' : 'M15 18l-6-6 6-6'} />
+          </svg>
+        </button>
+      </div>
+
+      {/* Nav items */}
+      {NAV.map(item => {
+        const hasChildren = 'children' in item && (item as any).children?.length > 0;
+        const isGroupOpen = sectionOpen[item.id];
+        const isActive = active === item.id;
+
+        if (collapsed) {
+          if (hasChildren) {
+            return (
+              <div key={item.id}>
+                {(item as any).children.map((child: any) => (
+                  <button key={child.id} onClick={() => onSelect(child.id as ImsView)} title={child.label}
+                    style={collapsedItemStyle(active === child.id)}>
+                    <NavIcon id={child.id} />
+                  </button>
+                ))}
+              </div>
+            );
+          }
+          return (
+            <button key={item.id} onClick={() => onSelect(item.id as ImsView)} title={item.label}
+              style={collapsedItemStyle(isActive)}>
+              <NavIcon id={item.id} />
+            </button>
+          );
+        }
+
+        // Expanded mode
+        return (
+          <div key={item.id}>
+            <button
+              onClick={() => { if (hasChildren) toggleSection(item.id); else onSelect(item.id as ImsView); }}
+              style={{
+                width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+                padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8,
+                color: isActive ? 'var(--sv-text-strong)' : 'var(--sv-text-main)',
+                backgroundColor: isActive && !hasChildren ? 'rgba(37,99,235,.12)' : 'transparent',
+                textAlign: 'left', fontSize: 14, fontWeight: isActive ? 600 : 400,
+                borderLeft: isActive && !hasChildren ? '3px solid var(--sv-action)' : '3px solid transparent',
+                transition: 'all .15s',
+              }}
+            >
+              <NavIcon id={item.id} />
+              <span style={{ flex: 1, whiteSpace: 'nowrap' }}>{item.label}</span>
+              {hasChildren && (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                  style={{ transform: isGroupOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform .2s', opacity: .5, flexShrink: 0 }}>
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              )}
+            </button>
+            {hasChildren && isGroupOpen && (
+              <div>
+                {(item as any).children.map((child: any) => (
+                  <button key={child.id} onClick={() => onSelect(child.id as ImsView)}
+                    style={{
+                      width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+                      padding: '6px 16px 6px 40px', display: 'flex', alignItems: 'center',
+                      color: active === child.id ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)',
+                      backgroundColor: active === child.id ? 'rgba(37,99,235,.12)' : 'transparent',
+                      textAlign: 'left', fontSize: 13, fontWeight: active === child.id ? 600 : 400,
+                      borderLeft: active === child.id ? '3px solid var(--sv-action)' : '3px solid transparent',
+                    }}
+                  >
+                    {child.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      <div style={{ flex: 1 }} />
+      <div style={{ borderTop: '1px solid var(--sv-etch)', padding: collapsed ? '12px 0 0' : '12px 16px 0', display: 'flex', justifyContent: collapsed ? 'center' : 'flex-start' }}>
+        <a href="/dashboard" title="Back to Foresight"
+          style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--sv-text-dim)', fontSize: 13, textDecoration: 'none' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+          {!collapsed && 'Back to Foresight'}
+        </a>
+      </div>
+    </aside>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dashboard View
+// ─────────────────────────────────────────────────────────────────────────────
+
+function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch('/api/ims/dashboard').then(r => r.json()).then(d => {
+      if (d.success) setData(d.data);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  const stats = [
+    { label: 'Products',       value: data?.products  ?? 0, color: 'var(--sv-action)',  nav: 'products' as ImsView },
+    { label: 'Variants',       value: data?.variants  ?? 0, color: 'var(--sv-action)',  nav: 'products' as ImsView },
+    { label: 'Locations',      value: data?.locations ?? 0, color: 'var(--sv-mint)',    nav: 'locations' as ImsView },
+    { label: 'Open POs',       value: data?.openPOs   ?? 0, color: 'var(--sv-amber)',   nav: 'purchase-orders' as ImsView },
+    { label: 'Open SOs',       value: data?.openSOs   ?? 0, color: '#818cf8',           nav: 'sales-orders' as ImsView },
+    { label: 'Low Stock',      value: data?.lowStock  ?? 0, color: 'var(--sv-red)',     nav: 'stock' as ImsView },
+  ];
+
+  return (
+    <div>
+      <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 24 }}>Dashboard</h1>
+      {loading ? <Spinner /> : (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 14, marginBottom: 32 }}>
+            {stats.map(s => (
+              <button key={s.label} onClick={() => onNav(s.nav)}
+                style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '18px 16px', textAlign: 'left', cursor: 'pointer', transition: 'border-color .15s' }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = s.color)}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--sv-etch)')}>
+                <div style={{ fontSize: 28, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</div>
+                <div style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginTop: 4 }}>{s.label}</div>
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+            <RecentTable title="Recent Purchase Orders" rows={data?.recentPOs ?? []} columns={[
+              { key: 'po_number',     label: 'PO #'        },
+              { key: 'supplier_name', label: 'Supplier'    },
+              { key: 'status',        label: 'Status', render: (v: string) => <StatusBadge status={v} /> },
+              { key: 'total_amount',  label: 'Total', render: (v: number) => fmtCurrency(v) },
+            ]} />
+            <RecentTable title="Recent Sales Orders" rows={data?.recentSOs ?? []} columns={[
+              { key: 'so_number',     label: 'SO #'        },
+              { key: 'customer_name', label: 'Customer'    },
+              { key: 'status',        label: 'Status', render: (v: string) => <StatusBadge status={v} /> },
+              { key: 'total_amount',  label: 'Total', render: (v: number) => fmtCurrency(v) },
+            ]} />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function RecentTable({ title, rows, columns }: { title: string; rows: any[]; columns: { key: string; label: string; render?: (v: any) => React.ReactNode }[] }) {
+  return (
+    <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+      <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--sv-etch)', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{title}</div>
+      {rows.length === 0 ? (
+        <div style={{ padding: 20, color: 'var(--sv-text-dim)', fontSize: 13 }}>No records yet.</div>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>{columns.map(c => <th key={c.key} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: .8 }}>{c.label}</th>)}</tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                {columns.map(c => (
+                  <td key={c.key} style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>
+                    {c.render ? c.render(row[c.key]) : (row[c.key] ?? '—')}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Contacts View
+// ─────────────────────────────────────────────────────────────────────────────
+
+const BLANK_CONTACT = { type: 'supplier' as const, name: '', company: '', email: '', phone: '', address: '', city: '', state: '', postcode: '', country: 'Australia', notes: '', is_active: 1, price_tier: 'retail', order_frequency_days: 45 };
+
+function ContactsView() {
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
+  const [form, setForm] = useState({ ...BLANK_CONTACT });
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch('/api/ims/contacts').then(r => r.json()).then(d => {
+      if (d.success) setContacts(d.data);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const openNew = () => { setForm({ ...BLANK_CONTACT }); setModal({ open: true, edit: null }); };
+  const openEdit = (c: any) => { setForm({ ...BLANK_CONTACT, ...c }); setModal({ open: true, edit: c }); };
+  const closeModal = () => setModal({ open: false, edit: null });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const url  = modal.edit ? `/api/ims/contacts/${modal.edit.id}` : '/api/ims/contacts';
+      const method = modal.edit ? 'PUT' : 'POST';
+      await apiFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      load(); closeModal();
+    } catch (e: any) { alert(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const handleToggleActive = async (c: any) => {
+    const next = c.is_active ? 0 : 1;
+    const label = next === 0 ? `Inactivate "${c.name}"?` : `Reactivate "${c.name}"?`;
+    if (!confirm(label)) return;
+    try { await apiFetch(`/api/ims/contacts/${c.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active: next }) }); load(); }
+    catch (e: any) { alert(e.message); }
+  };
+
+  const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
+
+  const visible = contacts.filter(c =>
+    (!typeFilter || c.type === typeFilter || c.type === 'both') &&
+    (!filter || c.name.toLowerCase().includes(filter.toLowerCase()) || (c.company || '').toLowerCase().includes(filter.toLowerCase()))
+  );
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Contacts</h1>
+        <button onClick={openNew} style={btnStyle('action')}>+ New Contact</button>
+      </div>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+        <input placeholder="Search…" value={filter} onChange={e => setFilter(e.target.value)} style={{ ...inputStyle, width: 240 }} />
+        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ ...inputStyle, width: 160 }}>
+          <option value="">All Types</option>
+          <option value="supplier">Suppliers</option>
+          <option value="customer">Customers</option>
+          <option value="both">Both</option>
+        </select>
+      </div>
+      {loading ? <Spinner /> : (
+        <ImsTable
+          cols={['Name','Company','Type','Price Tier','Email','Phone','Order Freq.','Active','']}
+          rows={visible}
+          render={(c) => [
+            <button onClick={() => openEdit(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
+            c.company || '—',
+            <span style={{ textTransform: 'capitalize' }}>{c.type}</span>,
+            c.price_tier === 'wholesale'
+              ? <span style={{ background: 'rgba(139,92,246,.18)', color: '#a78bfa', borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600 }}>Wholesale</span>
+              : <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Retail</span>,
+            c.email || '—',
+            c.phone || '—',
+            (c.type === 'supplier' || c.type === 'both')
+              ? <span style={{ color: 'var(--sv-text-main)', fontVariantNumeric: 'tabular-nums' }}>{c.order_frequency_days ?? 45}d</span>
+              : <span style={{ color: 'var(--sv-text-dim)' }}>—</span>,
+            <ActiveDot active={c.is_active} />,
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button onClick={() => openEdit(c)} style={btnStyle('ghost', 'xs')}>Edit</button>
+              <button onClick={() => handleToggleActive(c)} style={btnStyle(c.is_active ? 'danger' : 'mint', 'xs')}>{c.is_active ? 'Inactivate' : 'Reactivate'}</button>
+            </div>,
+          ]}
+        />
+      )}
+
+      {modal.open && (
+        <Modal title={modal.edit ? 'Edit Contact' : 'New Contact'} onClose={closeModal}>
+          <form onSubmit={handleSubmit}>
+            <Row2>
+              <Field label="Type">
+                <select value={form.type} onChange={sf('type')} style={inputStyle}>
+                  <option value="supplier">Supplier</option>
+                  <option value="customer">Customer</option>
+                  <option value="both">Both</option>
+                </select>
+              </Field>
+              <Field label="Active">
+                <select value={form.is_active} onChange={sf('is_active')} style={inputStyle}>
+                  <option value={1}>Yes</option>
+                  <option value={0}>No</option>
+                </select>
+              </Field>
+            </Row2>
+            <Row2>
+              <Field label="Name *"><input required value={form.name} onChange={sf('name')} style={inputStyle} /></Field>
+              <Field label="Company"><input value={form.company} onChange={sf('company')} style={inputStyle} /></Field>
+            </Row2>
+            <Row2>
+              <Field label="Email"><input type="email" value={form.email} onChange={sf('email')} style={inputStyle} /></Field>
+              <Field label="Phone"><input value={form.phone} onChange={sf('phone')} style={inputStyle} /></Field>
+            </Row2>
+            <Field label="Address"><input value={form.address} onChange={sf('address')} style={inputStyle} /></Field>
+            <Row3>
+              <Field label="City"><input value={form.city} onChange={sf('city')} style={inputStyle} /></Field>
+              <Field label="State"><input value={form.state} onChange={sf('state')} style={inputStyle} /></Field>
+              <Field label="Postcode"><input value={form.postcode} onChange={sf('postcode')} style={inputStyle} /></Field>
+            </Row3>
+            <Field label="Notes"><textarea value={form.notes} onChange={sf('notes') as any} rows={3} style={{ ...inputStyle, resize: 'vertical' }} /></Field>
+            <Row2>
+              <Field label="Price Tier">
+                <select value={(form as any).price_tier ?? 'retail'} onChange={sf('price_tier')} style={inputStyle}>
+                  <option value="retail">Retail</option>
+                  <option value="wholesale">Wholesale</option>
+                </select>
+              </Field>
+              {(form.type === 'supplier' || form.type === 'both') && (
+                <Field label="Order Frequency (days)">
+                  <input type="number" min={1} value={(form as any).order_frequency_days ?? 45} onChange={e => setForm(p => ({ ...p, order_frequency_days: Math.max(1, parseInt(e.target.value) || 45) }))} style={inputStyle} />
+                </Field>
+              )}
+            </Row2>
+            <FormActions onCancel={closeModal} saving={saving} isEdit={!!modal.edit} />
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Locations View
+// ─────────────────────────────────────────────────────────────────────────────
+
+const BLANK_LOC = { name: '', code: '', address: '', city: '', state: '', postcode: '', country: 'Australia', is_active: 1 };
+
+function LocationsView() {
+  const [locations, setLocations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
+  const [form, setForm] = useState({ ...BLANK_LOC });
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch('/api/ims/locations').then(r => r.json()).then(d => {
+      if (d.success) setLocations(d.data);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const url  = modal.edit ? `/api/ims/locations/${modal.edit.id}` : '/api/ims/locations';
+      const method = modal.edit ? 'PUT' : 'POST';
+      await apiFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      load(); setModal({ open: false, edit: null });
+    } catch (e: any) { alert(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const handleDelete = async (l: any) => {
+    if (!confirm(`Delete location "${l.name}"?`)) return;
+    try { await apiFetch(`/api/ims/locations/${l.id}`, { method: 'DELETE' }); load(); }
+    catch (e: any) { alert(e.message); }
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Locations</h1>
+        <button onClick={() => { setForm({ ...BLANK_LOC }); setModal({ open: true, edit: null }); }} style={btnStyle('action')}>+ New Location</button>
+      </div>
+      {loading ? <Spinner /> : (
+        <ImsTable
+          cols={['Name','Code','City','State','Active','']}
+          rows={locations}
+          render={(l) => [
+            <strong style={{ color: 'var(--sv-text-strong)' }}>{l.name}</strong>,
+            l.code || '—', l.city || '—', l.state || '—',
+            <ActiveDot active={l.is_active} />,
+            <RowActions onEdit={() => { setForm({ ...BLANK_LOC, ...l }); setModal({ open: true, edit: l }); }} onDelete={() => handleDelete(l)} />,
+          ]}
+        />
+      )}
+      {modal.open && (
+        <Modal title={modal.edit ? 'Edit Location' : 'New Location'} onClose={() => setModal({ open: false, edit: null })}>
+          <form onSubmit={handleSubmit}>
+            <Row2>
+              <Field label="Name *"><input required value={form.name} onChange={sf('name')} style={inputStyle} /></Field>
+              <Field label="Code"><input value={form.code} onChange={sf('code')} style={inputStyle} /></Field>
+            </Row2>
+            <Field label="Address"><input value={form.address} onChange={sf('address')} style={inputStyle} /></Field>
+            <Row3>
+              <Field label="City"><input value={form.city} onChange={sf('city')} style={inputStyle} /></Field>
+              <Field label="State"><input value={form.state} onChange={sf('state')} style={inputStyle} /></Field>
+              <Field label="Postcode"><input value={form.postcode} onChange={sf('postcode')} style={inputStyle} /></Field>
+            </Row3>
+            <Row2>
+              <Field label="Country"><input value={form.country} onChange={sf('country')} style={inputStyle} /></Field>
+              <Field label="Active">
+                <select value={form.is_active} onChange={sf('is_active')} style={inputStyle}>
+                  <option value={1}>Yes</option><option value={0}>No</option>
+                </select>
+              </Field>
+            </Row2>
+            <FormActions onCancel={() => setModal({ open: false, edit: null })} saving={saving} isEdit={!!modal.edit} />
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Products View
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface VariantRow {
+  _tempId: string;
+  variant_id?: string;
+  option1_value: string;
+  option2_value: string;
+  option3_value: string;
+  sku: string;
+  barcode: string;
+  cost: string;
+  price: string;
+  discounted_price: string;
+  discount_start_date: string;
+  discount_end_date: string;
+  weight_kg: string;
+  wholesale_price: string;
+  bin: string;
+  zone: string;
+  is_active: number;
+  foreignCosts: Record<string, string>; // e.g. { USD: '10.50', THB: '380' }
+  _delete?: boolean;
+}
+interface OptionSet { name: string; values: string; }
+
+const BLANK_PRODUCT = { name: '', description: '', product_type: '', brand: '', tags: '', is_active: 1 };
+
+const blankRow = (): VariantRow => ({
+  _tempId: Math.random().toString(36).slice(2, 10),
+  option1_value: '', option2_value: '', option3_value: '',
+  sku: '', barcode: '', cost: '', price: '',
+  wholesale_price: '',
+  discounted_price: '', discount_start_date: '', discount_end_date: '',
+  weight_kg: '', bin: '', zone: '', is_active: 1, foreignCosts: {},
+});
+
+function cartesian(sets: OptionSet[]): [string, string, string][] {
+  const active = sets.filter(s => s.name.trim() && s.values.trim());
+  if (!active.length) return [['', '', '']];
+  const arrays = active.map(s => s.values.split(',').map(v => v.trim()).filter(Boolean));
+  let combos: string[][] = [[]];
+  for (const arr of arrays) combos = combos.flatMap(c => arr.map(v => [...c, v]));
+  return combos.map(c => [c[0] ?? '', c[1] ?? '', c[2] ?? ''] as [string, string, string]);
+}
+
+const PAGE_SIZE = 100;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Import Line Items Modal (shared by PO / SO / BT)
+// ─────────────────────────────────────────────────────────────────────────────
+type ImportMode = 'scan' | 'paste';
+
+function ImportLineItemsModal({
+  variants,
+  priceFn,
+  lineFactory,
+  onImport,
+  onClose,
+}: {
+  variants: any[];
+  priceFn: (v: any) => number;
+  lineFactory: (v: any, qty: number, price: number) => any;
+  onImport: (items: any[]) => void;
+  onClose: () => void;
+}) {
+  const [mode, setMode] = useState<ImportMode>('scan');
+  const [scanText, setScanText] = useState('');
+  const [scanOverrides, setScanOverrides] = useState<Record<string, { qty: number; price: number }>>({});
+  const [pasteText, setPasteText] = useState('');
+
+  const lookupVariant = (code: string) => {
+    const c = code.trim().toLowerCase();
+    return variants.find(v =>
+      (v.barcode && v.barcode.toLowerCase() === c) ||
+      (v.sku && v.sku.toLowerCase() === c)
+    );
+  };
+
+  // Tally barcodes: count occurrences per line, merge duplicates
+  const scanTally = (() => {
+    const counts: Record<string, { variant: any; count: number }> = {};
+    scanText.split('\n').map(l => l.trim()).filter(Boolean).forEach(code => {
+      const v = lookupVariant(code);
+      if (v) {
+        if (counts[v.variant_id]) counts[v.variant_id].count += 1;
+        else counts[v.variant_id] = { variant: v, count: 1 };
+      }
+    });
+    return counts;
+  })();
+
+  const scanUnmatched = scanText.split('\n').map(l => l.trim()).filter(l => l && !lookupVariant(l));
+
+  const scanItems = Object.entries(scanTally).map(([vid, { variant: v, count }]) => ({
+    variant: v,
+    qty: scanOverrides[vid]?.qty ?? count,
+    price: scanOverrides[vid]?.price ?? priceFn(v),
+  }));
+
+  const parsePaste = () =>
+    pasteText.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
+      const parts = line.split('\t');
+      const code = parts[0]?.trim() ?? '';
+      const qty = parseFloat(parts[1]?.trim() || '1') || 1;
+      const rawPrice = parseFloat(parts[2]?.trim() || '');
+      const variant = lookupVariant(code);
+      const price = isNaN(rawPrice) ? (variant ? priceFn(variant) : 0) : rawPrice;
+      return { code, variant, qty, price };
+    });
+
+  const handleImport = () => {
+    let newItems: any[] = [];
+    if (mode === 'scan') {
+      newItems = scanItems.map(({ variant: v, qty, price }) => lineFactory(v, qty, price));
+    } else {
+      newItems = parsePaste().filter(r => r.variant).map(r => lineFactory(r.variant!, r.qty, r.price));
+    }
+    if (newItems.length === 0) { alert('No valid items to import.'); return; }
+    onImport(newItems);
+    onClose();
+  };
+
+  const pasteRows = parsePaste();
+  const pasteValid = pasteRows.filter(r => r.variant).length;
+  const importCount = mode === 'scan' ? scanItems.length : pasteValid;
+
+  const toggleStyle = (active: boolean): React.CSSProperties => ({
+    padding: '7px 20px', fontSize: 13, fontWeight: 600, border: 'none',
+    cursor: 'pointer', transition: 'all .15s',
+    background: active ? 'var(--sv-action, #6366f1)' : 'var(--sv-bg-1)',
+    color: active ? '#fff' : 'var(--sv-text-dim)',
+  });
+
+  return (
+    <Modal title="Import Line Items" onClose={onClose}>
+      {/* Mode toggle */}
+      <div style={{ display: 'flex', marginBottom: 20, border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', width: 'fit-content' }}>
+        <button type="button" onClick={() => setMode('scan')} style={toggleStyle(mode === 'scan')}>📷 Barcode Scan</button>
+        <button type="button" onClick={() => setMode('paste')} style={toggleStyle(mode === 'paste')}>📋 Paste / Tab-delimited</button>
+      </div>
+
+      {mode === 'scan' && (
+        <div>
+          <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 6 }}>
+            Paste or scan barcodes/SKUs — one per line. Duplicates are tallied automatically.
+          </div>
+          <textarea
+            value={scanText}
+            onChange={e => { setScanText(e.target.value); setScanOverrides({}); }}
+            placeholder={'9312345000012\n9312345000012\n9312345000029'}
+            rows={8}
+            style={{ ...inputStyle, width: '100%', resize: 'vertical', fontFamily: 'monospace', fontSize: 13 }}
+            autoFocus
+          />
+          {scanItems.length > 0 && (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginTop: 10, marginBottom: 6, border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
+              <thead>
+                <tr style={{ background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)' }}>
+                  {['Product / SKU', 'Scanned', 'Qty', 'Unit Price', ''].map(h => (
+                    <th key={h} style={{ padding: '5px 8px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {scanItems.map(({ variant: v, qty, price }) => {
+                  const scannedCount = scanTally[v.variant_id]?.count ?? 0;
+                  return (
+                    <tr key={v.variant_id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                      <td style={{ padding: '4px 8px' }}>
+                        <div style={{ fontWeight: 500 }}>{v.product_name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{[v.sku, v.barcode].filter(Boolean).join(' · ')}</div>
+                      </td>
+                      <td style={{ padding: '4px 8px', width: 60, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 12 }}>{scannedCount}×</td>
+                      <td style={{ padding: '4px 4px', width: 72 }}>
+                        <input type="number" min="0.0001" step="any" value={qty}
+                          onChange={e => setScanOverrides(prev => ({ ...prev, [v.variant_id]: { qty: parseFloat(e.target.value) || 0, price: prev[v.variant_id]?.price ?? priceFn(v) } }))}
+                          style={{ ...inputStyle, fontSize: 12 }} />
+                      </td>
+                      <td style={{ padding: '4px 4px', width: 88 }}>
+                        <input type="number" min="0" step="0.01" value={price}
+                          onChange={e => setScanOverrides(prev => ({ ...prev, [v.variant_id]: { qty: prev[v.variant_id]?.qty ?? scannedCount, price: parseFloat(e.target.value) || 0 } }))}
+                          style={{ ...inputStyle, fontSize: 12 }} />
+                      </td>
+                      <td style={{ padding: '4px 4px', width: 28 }}>
+                        <button type="button"
+                          onClick={() => { setScanText(prev => prev.split('\n').filter(l => { const vv = lookupVariant(l.trim()); return !vv || vv.variant_id !== v.variant_id; }).join('\n')); }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16 }}>×</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+          {scanUnmatched.length > 0 && (
+            <div style={{ background: 'rgba(239,68,68,.1)', borderRadius: 6, padding: '8px 12px', marginTop: 6, fontSize: 12, color: 'var(--sv-red)' }}>
+              ⚠ Unrecognised ({scanUnmatched.length}): {scanUnmatched.slice(0, 10).join(', ')}{scanUnmatched.length > 10 ? ` +${scanUnmatched.length - 10} more` : ''}
+            </div>
+          )}
+        </div>
+      )}
+
+      {mode === 'paste' && (
+        <div>
+          <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 6 }}>
+            Paste tab-delimited rows: <code style={{ background: 'var(--sv-bg-2)', padding: '1px 4px', borderRadius: 3 }}>SKU or Barcode [Tab] Qty [Tab] Price (optional)</code>
+          </div>
+          <textarea
+            value={pasteText}
+            onChange={e => setPasteText(e.target.value)}
+            placeholder={'ABC123\t2\t15.00\nDEF456\t1'}
+            rows={8}
+            style={{ ...inputStyle, width: '100%', resize: 'vertical', fontFamily: 'monospace', fontSize: 13 }}
+            autoFocus
+          />
+          {pasteRows.length > 0 && (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginTop: 10, marginBottom: 6, border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
+              <thead>
+                <tr style={{ background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)' }}>
+                  {['Code', 'Product', 'Qty', 'Price', ''].map(h => (
+                    <th key={h} style={{ padding: '5px 8px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {pasteRows.map((row, idx) => (
+                  <tr key={idx} style={{ borderTop: '1px solid var(--sv-etch)', opacity: row.variant ? 1 : 0.5 }}>
+                    <td style={{ padding: '4px 8px', fontFamily: 'monospace', fontSize: 12 }}>{row.code}</td>
+                    <td style={{ padding: '4px 8px' }}>
+                      {row.variant
+                        ? <span>{row.variant.product_name}{row.variant.sku ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}> — {row.variant.sku}</span> : null}</span>
+                        : <span style={{ color: 'var(--sv-red)' }}>Not found — will skip</span>}
+                    </td>
+                    <td style={{ padding: '4px 8px', width: 60 }}>{row.qty}</td>
+                    <td style={{ padding: '4px 8px', width: 80 }}>{row.price.toFixed(2)}</td>
+                    <td style={{ padding: '4px 8px', width: 60, textAlign: 'center' }}>
+                      {row.variant
+                        ? <span style={{ color: '#4ade80', fontSize: 11, fontWeight: 600 }}>✓</span>
+                        : <span style={{ color: 'var(--sv-red)', fontSize: 11, fontWeight: 600 }}>✗</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
+        <button type="button" onClick={onClose} style={btnStyle('ghost')}>Cancel</button>
+        <button type="button" onClick={handleImport} style={btnStyle('action')}
+          disabled={(mode === 'scan' ? scanItems.length : pasteValid) === 0}>
+          Import {mode === 'scan' ? scanItems.length : pasteValid} item{(mode === 'scan' ? scanItems.length : pasteValid) !== 1 ? 's' : ''}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Import Products Modal
+// ─────────────────────────────────────────────────────────────────────────────
+
+const IMPORT_TEMPLATE_HEADERS = [
+  'Product_Name','SKU','Barcode','Description','Brand','Supplier','Product_Type',
+  'Tags','Style_Code','Online','Pack_Size','Bin','Zone',
+  'Option1_Name','Option1_Value','Option2_Name','Option2_Value','Option3_Name','Option3_Value',
+  'RRP','Wholesale_Price','Cost_AUD','Cost_USD','Cost_EUR','Cost_GBP','Cost_THB','Cost_CNY','Cost_JPY','Weight_KG',
+];
+
+type ImportProductsStage = 'paste' | 'prompts' | 'review' | 'importing' | 'done';
+
+interface ParsedImportRow {
+  raw: Record<string, string>;
+  product_name: string;
+  sku: string;
+  action: 'new_product' | 'new_variant' | 'update' | 'error';
+  errorMsg?: string;
+  existing_variant_id?: string;
+  existing_product_id?: string;
+  changedFields?: string[];
+}
+
+function ImportProductsModal({
+  products,
+  brands,
+  contacts,
+  onClose,
+  onDone,
+}: {
+  products: any[];
+  brands: { id: number; name: string }[];
+  contacts: { id: number; name: string; type: string }[];
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [stage, setStage] = useState<ImportProductsStage>('paste');
+  const [pasteText, setPasteText] = useState(IMPORT_TEMPLATE_HEADERS.join('\t'));
+  const [parsedRows, setParsedRows] = useState<ParsedImportRow[]>([]);
+  const [unknownBrands, setUnknownBrands] = useState<string[]>([]);
+  const [unknownSuppliers, setUnknownSuppliers] = useState<string[]>([]);
+  const [promptQueue, setPromptQueue] = useState<Array<{ kind: 'brand' | 'supplier'; name: string }>>([]);
+  const [currentPrompt, setCurrentPrompt] = useState<{ kind: 'brand' | 'supplier'; name: string } | null>(null);
+  const [promptChoice, setPromptChoice] = useState<'new' | 'existing'>('new');
+  const [promptSelected, setPromptSelected] = useState('');
+  // Maps unknown name → resolved name (after prompts)
+  const [brandResolutions, setBrandResolutions] = useState<Record<string, string>>({});
+  const [supplierResolutions, setSupplierResolutions] = useState<Record<string, string>>({});
+  const [result, setResult] = useState<{ created: number; updated: number; skipped: number } | null>(null);
+  const [importing, setImporting] = useState(false);
+
+  const normStr = (s: string) => (s || '').trim().toLowerCase();
+
+  const parseAndClassify = (): ParsedImportRow[] => {
+    const lines = pasteText.split('\n').map(l => l.trimEnd()).filter(l => l.trim());
+    if (lines.length < 2) return [];
+
+    // Detect if first line is headers (contains known header keywords, no purely numeric values)
+    const firstCells = lines[0].split('\t');
+    const isHeaderLine = firstCells.some(c => IMPORT_TEMPLATE_HEADERS.map(h => h.toLowerCase()).includes(c.trim().toLowerCase()));
+    const headers = isHeaderLine
+      ? firstCells.map(h => h.trim().toLowerCase())
+      : IMPORT_TEMPLATE_HEADERS.map(h => h.toLowerCase());
+    const dataLines = isHeaderLine ? lines.slice(1) : lines;
+
+    // Build variant lookup map from products
+    const variantBySkuMap = new Map<string, { variant: any; product: any }>();
+    const productByNameMap = new Map<string, any>();
+    for (const p of products) {
+      productByNameMap.set(normStr(p.name), p);
+      for (const v of (p.variants || [])) {
+        if (v.sku) variantBySkuMap.set(normStr(v.sku), { variant: v, product: p });
+      }
+    }
+
+    const brandNames = new Set(brands.map(b => normStr(b.name)));
+    const supplierNames = new Set(contacts.filter(c => c.type === 'supplier' || c.type === 'both').map(c => normStr(c.name)));
+
+    const foundUnknownBrands = new Set<string>();
+    const foundUnknownSuppliers = new Set<string>();
+
+    const rows: ParsedImportRow[] = dataLines.map(line => {
+      const cells = line.split('\t');
+      const raw: Record<string, string> = {};
+      headers.forEach((h, i) => { raw[h] = (cells[i] ?? '').trim(); });
+
+      const product_name = raw['product_name'] || '';
+      const sku = raw['sku'] || '';
+      const brand = raw['brand'] || '';
+      const supplier = raw['supplier'] || '';
+
+      if (!product_name && !sku) {
+        return { raw, product_name, sku, action: 'error' as const, errorMsg: 'Missing Product_Name and SKU' };
+      }
+
+      if (brand && !brandNames.has(normStr(brand))) foundUnknownBrands.add(brand.trim());
+      if (supplier && !supplierNames.has(normStr(supplier))) foundUnknownSuppliers.add(supplier.trim());
+
+      let action: ParsedImportRow['action'];
+      let existing_variant_id: string | undefined;
+      let existing_product_id: string | undefined;
+      let changedFields: string[] = [];
+
+      if (sku) {
+        const match = variantBySkuMap.get(normStr(sku));
+        if (match) {
+          action = 'update';
+          existing_variant_id = match.variant.variant_id;
+          existing_product_id = match.product.product_id;
+          // Compute changed fields for display
+          const v = match.variant;
+          const p = match.product;
+          const numOrNull = (s: string) => s === '' ? null : Number(s);
+          if (raw['rrp'] !== '' && numOrNull(raw['rrp']) !== (v.price ?? null)) changedFields.push('RRP');
+          if (raw['cost_aud'] !== '' && numOrNull(raw['cost_aud']) !== (v.cost ?? null)) changedFields.push('Cost');
+          if (raw['wholesale_price'] !== '' && numOrNull(raw['wholesale_price']) !== (v.wholesale_price ?? null)) changedFields.push('Wholesale');
+          if (raw['weight_kg'] !== '' && numOrNull(raw['weight_kg']) !== (v.weight_kg ?? null)) changedFields.push('Weight');
+          if (raw['barcode'] !== '' && raw['barcode'] !== (v.barcode ?? '')) changedFields.push('Barcode');
+          if (raw['brand'] !== '' && raw['brand'] !== (p.brand ?? '')) changedFields.push('Brand');
+          if (raw['bin'] !== '' && raw['bin'] !== (v.bin ?? '')) changedFields.push('Bin');
+          if (raw['zone'] !== '' && raw['zone'] !== (v.zone ?? '')) changedFields.push('Zone');
+        } else {
+          // SKU not found — new variant or new product
+          const existingProduct = productByNameMap.get(normStr(product_name));
+          if (existingProduct && product_name) {
+            action = 'new_variant';
+            existing_product_id = existingProduct.product_id;
+          } else {
+            action = 'new_product';
+          }
+        }
+      } else {
+        // No SKU — can only create
+        const existingProduct = productByNameMap.get(normStr(product_name));
+        if (existingProduct) {
+          action = 'new_variant';
+          existing_product_id = existingProduct.product_id;
+        } else {
+          action = 'new_product';
+        }
+      }
+
+      return { raw, product_name, sku, action, existing_variant_id, existing_product_id, changedFields };
+    }).filter(r => r.product_name || r.sku || r.action === 'error');
+
+    setUnknownBrands([...foundUnknownBrands]);
+    setUnknownSuppliers([...foundUnknownSuppliers]);
+    return rows;
+  };
+
+  const handleNext = () => {
+    const rows = parseAndClassify();
+    if (rows.length === 0) { alert('No data rows found. Paste your data below the header row.'); return; }
+    setParsedRows(rows);
+
+    // Re-parse to get unknowns (already set in parseAndClassify via state)
+    // Build prompt queue after short delay to get updated state
+    setTimeout(() => {
+      setStage('prompts');
+    }, 0);
+  };
+
+  // After parse, build prompt queue once in prompts stage
+  useEffect(() => {
+    if (stage !== 'prompts') return;
+    const queue: Array<{ kind: 'brand' | 'supplier'; name: string }> = [
+      ...unknownBrands.map(n => ({ kind: 'brand' as const, name: n })),
+      ...unknownSuppliers.map(n => ({ kind: 'supplier' as const, name: n })),
+    ];
+    if (queue.length === 0) {
+      setStage('review');
+      return;
+    }
+    setPromptQueue(queue.slice(1));
+    setCurrentPrompt(queue[0]);
+    setPromptChoice('new');
+    setPromptSelected(queue[0].kind === 'brand' ? brands[0]?.name ?? '' : contacts.find(c => c.type === 'supplier' || c.type === 'both')?.name ?? '');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage]);
+
+  const handlePromptConfirm = () => {
+    if (!currentPrompt) return;
+    if (currentPrompt.kind === 'brand') {
+      setBrandResolutions(prev => ({ ...prev, [currentPrompt.name]: promptChoice === 'new' ? currentPrompt.name : promptSelected }));
+    } else {
+      setSupplierResolutions(prev => ({ ...prev, [currentPrompt.name]: promptChoice === 'new' ? currentPrompt.name : promptSelected }));
+    }
+    if (promptQueue.length === 0) {
+      setCurrentPrompt(null);
+      setStage('review');
+    } else {
+      const [next, ...rest] = promptQueue;
+      setCurrentPrompt(next);
+      setPromptQueue(rest);
+      setPromptChoice('new');
+      setPromptSelected(next.kind === 'brand' ? brands[0]?.name ?? '' : contacts.find(c => c.type === 'supplier' || c.type === 'both')?.name ?? '');
+    }
+  };
+
+  const buildApiRows = () => {
+    return parsedRows.map(r => {
+      if (r.action === 'error') return { ...r.raw, action: 'error' };
+      const raw = r.raw;
+      const numOrNull = (s: string) => s === '' ? null : Number(s);
+
+      // Build cost_foreign_json from Cost_XXX columns
+      const foreignCosts: Record<string, number> = {};
+      for (const key of Object.keys(raw)) {
+        const m = key.match(/^cost_([a-z]{3})$/);
+        if (m && m[1] !== 'aud' && raw[key] !== '') {
+          foreignCosts[m[1].toUpperCase()] = Number(raw[key]);
+        }
+      }
+
+      const resolvedBrand = raw['brand'] ? (brandResolutions[raw['brand']] ?? raw['brand']) : '';
+      const resolvedSupplier = raw['supplier'] ? (supplierResolutions[raw['supplier']] ?? raw['supplier']) : '';
+
+      return {
+        action: r.action,
+        product_name: r.product_name,
+        description: raw['description'] || undefined,
+        product_type: raw['product_type'] || undefined,
+        brand: resolvedBrand || undefined,
+        supplier_name: resolvedSupplier || undefined,
+        tags: raw['tags'] || undefined,
+        style_code: raw['style_code'] || undefined,
+        is_online: raw['online'] !== '' ? (raw['online'] === '1' || raw['online'].toLowerCase() === 'yes' ? 1 : 0) : undefined,
+        sku: raw['sku'] || undefined,
+        barcode: raw['barcode'] || undefined,
+        cost: numOrNull(raw['cost_aud'] ?? ''),
+        price: numOrNull(raw['rrp'] ?? ''),
+        wholesale_price: numOrNull(raw['wholesale_price'] ?? ''),
+        weight_kg: numOrNull(raw['weight_kg'] ?? ''),
+        pack_size: numOrNull(raw['pack_size'] ?? ''),
+        bin: raw['bin'] || undefined,
+        zone: raw['zone'] || undefined,
+        option1_name: raw['option1_name'] || undefined,
+        option1_value: raw['option1_value'] || undefined,
+        option2_name: raw['option2_name'] || undefined,
+        option2_value: raw['option2_value'] || undefined,
+        option3_name: raw['option3_name'] || undefined,
+        option3_value: raw['option3_value'] || undefined,
+        cost_foreign_json: Object.keys(foreignCosts).length ? JSON.stringify(foreignCosts) : undefined,
+        existing_variant_id: r.existing_variant_id,
+        existing_product_id: r.existing_product_id,
+      };
+    });
+  };
+
+  const handleConfirm = async () => {
+    setImporting(true);
+    setStage('importing');
+    try {
+      const autoCreateBrands = Object.entries(brandResolutions).filter(([, v]) => v === Object.keys(brandResolutions).find(k => brandResolutions[k] === v) || unknownBrands.includes(v)).map(([k, v]) => v === k ? k : '').filter(Boolean);
+      // Simpler: brands to create are those where choice was 'new' (stored as same key=value)
+      const newBrands = Object.entries(brandResolutions).filter(([k, v]) => k === v).map(([k]) => k);
+      const newSuppliers = Object.entries(supplierResolutions).filter(([k, v]) => k === v).map(([k]) => k);
+
+      const res = await fetch('/api/ims/products/bulk-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rows: buildApiRows(),
+          autoCreateBrands: newBrands,
+          autoCreateSuppliers: newSuppliers,
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Import failed');
+      setResult({ created: data.created, updated: data.updated, skipped: data.skipped });
+      setStage('done');
+      onDone();
+    } catch (e: any) {
+      alert(e.message);
+      setStage('review');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const actionBadge = (action: ParsedImportRow['action']) => {
+    const styles: Record<string, React.CSSProperties> = {
+      new_product: { background: 'rgba(34,197,94,.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,.3)' },
+      new_variant: { background: 'rgba(59,130,246,.15)', color: '#60a5fa', border: '1px solid rgba(59,130,246,.3)' },
+      update: { background: 'rgba(234,179,8,.15)', color: '#facc15', border: '1px solid rgba(234,179,8,.3)' },
+      error: { background: 'rgba(239,68,68,.15)', color: '#f87171', border: '1px solid rgba(239,68,68,.3)' },
+    };
+    const labels = { new_product: 'New Product', new_variant: 'New Variant', update: 'Update', error: 'Error' };
+    return (
+      <span style={{ ...styles[action], padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>
+        {labels[action]}
+      </span>
+    );
+  };
+
+  const newCount = parsedRows.filter(r => r.action === 'new_product' || r.action === 'new_variant').length;
+  const updateCount = parsedRows.filter(r => r.action === 'update').length;
+  const errorCount = parsedRows.filter(r => r.action === 'error').length;
+
+  const supplierContacts = contacts.filter(c => c.type === 'supplier' || c.type === 'both');
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.7)' }}>
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 14, padding: 28, width: 900, maxWidth: '95vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto' }}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)', flex: 1 }}>Import Products</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>×</button>
+        </div>
+
+        {/* Stage: paste */}
+        {stage === 'paste' && (
+          <>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
+              The field headers are pre-filled below. <strong style={{ color: 'var(--sv-text-main)' }}>Copy them into Excel or Google Sheets</strong>, fill your data in the rows below the headers, then paste everything back here. SKU is used to match existing products — rows with a matching SKU will update that variant; rows without a matching SKU will create new products.
+            </p>
+            <textarea
+              value={pasteText}
+              onChange={e => setPasteText(e.target.value)}
+              spellCheck={false}
+              style={{
+                width: '100%', minHeight: 220, fontFamily: 'monospace', fontSize: 12,
+                background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8,
+                color: 'var(--sv-text-main)', padding: 12, resize: 'vertical', boxSizing: 'border-box',
+              }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button onClick={onClose} style={btnStyle('ghost')}>Cancel</button>
+              <button onClick={handleNext} style={btnStyle('action')}>Next: Preview →</button>
+            </div>
+          </>
+        )}
+
+        {/* Stage: prompts */}
+        {stage === 'prompts' && currentPrompt && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)' }}>
+              Unknown {currentPrompt.kind === 'brand' ? 'Brand' : 'Supplier'}
+            </h3>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--sv-text-dim)' }}>
+              <strong style={{ color: 'var(--sv-text-main)' }}>"{currentPrompt.name}"</strong> is not in your {currentPrompt.kind} list.
+              {promptQueue.length > 0 && <span style={{ marginLeft: 8, color: 'var(--sv-text-dim)', fontSize: 12 }}>({promptQueue.length} more to resolve)</span>}
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 12px', borderRadius: 8, border: `1px solid ${promptChoice === 'new' ? 'var(--sv-action)' : 'var(--sv-etch)'}`, background: promptChoice === 'new' ? 'rgba(37,99,235,.08)' : 'transparent' }}>
+                <input type="radio" checked={promptChoice === 'new'} onChange={() => setPromptChoice('new')} style={{ accentColor: 'var(--sv-action)' }} />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>Add "{currentPrompt.name}" as a new {currentPrompt.kind}</div>
+                  <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Creates it in the {currentPrompt.kind} list during import</div>
+                </div>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '10px 12px', borderRadius: 8, border: `1px solid ${promptChoice === 'existing' ? 'var(--sv-action)' : 'var(--sv-etch)'}`, background: promptChoice === 'existing' ? 'rgba(37,99,235,.08)' : 'transparent' }}>
+                <input type="radio" checked={promptChoice === 'existing'} onChange={() => setPromptChoice('existing')} style={{ accentColor: 'var(--sv-action)', marginTop: 2 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>Use an existing {currentPrompt.kind} instead</div>
+                  <select
+                    value={promptSelected}
+                    onChange={e => { setPromptChoice('existing'); setPromptSelected(e.target.value); }}
+                    style={{ width: '100%', padding: '6px 8px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: 13 }}
+                  >
+                    {currentPrompt.kind === 'brand'
+                      ? brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)
+                      : supplierContacts.map(c => <option key={c.id} value={c.name}>{c.name}</option>)
+                    }
+                  </select>
+                </div>
+              </label>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button onClick={onClose} style={btnStyle('ghost')}>Cancel</button>
+              <button onClick={handlePromptConfirm} style={btnStyle('action')}>Confirm →</button>
+            </div>
+          </div>
+        )}
+
+        {/* Stage: review */}
+        {stage === 'review' && (
+          <>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13, color: '#4ade80', fontWeight: 600 }}>✚ {newCount} new</span>
+              <span style={{ fontSize: 13, color: '#facc15', fontWeight: 600 }}>↑ {updateCount} updates</span>
+              {errorCount > 0 && <span style={{ fontSize: 13, color: '#f87171', fontWeight: 600 }}>✕ {errorCount} errors</span>}
+            </div>
+            <div style={{ overflowX: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 8, maxHeight: 400, overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: 'var(--sv-bg-2)', position: 'sticky', top: 0 }}>
+                    {['Product Name','SKU','Action','Details'].map(h => (
+                      <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {parsedRows.map((row, i) => (
+                    <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)', opacity: row.action === 'error' ? 0.6 : 1 }}>
+                      <td style={{ padding: '6px 12px', color: 'var(--sv-text-main)', fontWeight: 500 }}>{row.product_name || '—'}</td>
+                      <td style={{ padding: '6px 12px', color: 'var(--sv-text-dim)', fontFamily: 'monospace' }}>{row.sku || '—'}</td>
+                      <td style={{ padding: '6px 12px' }}>{actionBadge(row.action)}</td>
+                      <td style={{ padding: '6px 12px', color: 'var(--sv-text-dim)', fontSize: 11 }}>
+                        {row.action === 'error' && <span style={{ color: '#f87171' }}>{row.errorMsg}</span>}
+                        {row.action === 'update' && row.changedFields && row.changedFields.length > 0 && (
+                          <span>Updates: {row.changedFields.join(', ')}</span>
+                        )}
+                        {row.action === 'update' && (!row.changedFields || row.changedFields.length === 0) && (
+                          <span style={{ color: 'var(--sv-text-dim)' }}>No detected changes</span>
+                        )}
+                        {row.action === 'new_variant' && <span>Adding variant to existing product</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+              <button onClick={() => setStage('paste')} style={btnStyle('ghost')}>← Back</button>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={onClose} style={btnStyle('ghost')}>Cancel</button>
+                <button
+                  onClick={handleConfirm}
+                  disabled={parsedRows.filter(r => r.action !== 'error').length === 0}
+                  style={btnStyle('action')}
+                >
+                  Confirm & Import {parsedRows.filter(r => r.action !== 'error').length} row{parsedRows.filter(r => r.action !== 'error').length !== 1 ? 's' : ''}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Stage: importing */}
+        {stage === 'importing' && (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)', fontSize: 14 }}>
+            Importing… please wait.
+          </div>
+        )}
+
+        {/* Stage: done */}
+        {stage === 'done' && result && (
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>✓</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 8 }}>Import Complete</div>
+            <div style={{ fontSize: 14, color: 'var(--sv-text-dim)', marginBottom: 24 }}>
+              <span style={{ color: '#4ade80', fontWeight: 600 }}>Created {result.created}</span>
+              {' · '}
+              <span style={{ color: '#facc15', fontWeight: 600 }}>Updated {result.updated}</span>
+              {result.skipped > 0 && <>{' · '}<span style={{ color: '#f87171', fontWeight: 600 }}>Skipped {result.skipped}</span></>}
+            </div>
+            <button onClick={onClose} style={btnStyle('action')}>Close</button>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+
+function ProductsView() {
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('');
+  const [filterBrand, setFilterBrand] = useState('');
+  const [filterSupplier, setFilterSupplier] = useState('');
+  const [filterType, setFilterType] = useState('');
+  const [filterActive, setFilterActive] = useState<'all' | '1' | '0'>('all');
+  const [sortCol, setSortCol] = useState<string>('created_at');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkWorking, setBulkWorking] = useState(false);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [stockSoh, setStockSoh] = useState<Record<string, number> | null>(null);
+  const [stockSohLoading, setStockSohLoading] = useState(false);
+  const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
+  const [form, setForm] = useState<any>({ ...BLANK_PRODUCT });
+  const [optionSets, setOptionSets] = useState<OptionSet[]>([{ name: 'Size', values: '' }, { name: 'Colour', values: '' }]);
+  const [variantRows, setVariantRows] = useState<VariantRow[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [brands, setBrands] = useState<{ id: number; name: string }[]>([]);
+  const [brandPrompt, setBrandPrompt] = useState<{ inputBrand: string } | null>(null);
+  const [brandPromptChoice, setBrandPromptChoice] = useState<'new' | 'existing'>('new');
+  const [brandPromptSelected, setBrandPromptSelected] = useState('');
+  const [activeCurrencies, setActiveCurrencies] = useState<string[]>([]);
+  const [stockHistoryModal, setStockHistoryModal] = useState<{ productId: string; productName: string } | null>(null);
+  const [importProductsOpen, setImportProductsOpen] = useState(false);
+  const [contacts, setContacts] = useState<{ id: number; name: string; type: string }[]>([]);
+
+  const CURRENCIES = ['USD', 'EUR', 'GBP', 'THB', 'CNY', 'JPY'];
+
+  const normBrand = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+
+  const ensureStockSohLoaded = () => {
+    if (stockSoh === null && !stockSohLoading) {
+      setStockSohLoading(true);
+      fetch('/api/ims/stock')
+        .then(r => r.json())
+        .then(d => {
+          if (d.success) {
+            const soh: Record<string, number> = {};
+            for (const row of d.data) {
+              const vid = row.variant_id;
+              if (vid) soh[vid] = (soh[vid] ?? 0) + Number(row.qty_on_hand ?? 0);
+            }
+            setStockSoh(soh);
+          }
+        })
+        .catch(() => {})
+        .finally(() => setStockSohLoading(false));
+    }
+  };
+
+  const handleExpand = (productId: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(productId)) next.delete(productId);
+      else next.add(productId);
+      return next;
+    });
+    ensureStockSohLoaded();
+  };
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch('/api/ims/products').then(r => r.json()).then(d => {
+      if (d.success) setProducts(d.data);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  const loadBrands = useCallback(() => {
+    fetch('/api/ims/brands').then(r => r.json()).then(d => {
+      if (d.success) setBrands(d.data);
+    }).catch(() => {});
+  }, []);
+
+  const loadContacts = useCallback(() => {
+    fetch('/api/ims/contacts').then(r => r.json()).then(d => {
+      if (d.success) setContacts(d.data);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => { load(); loadBrands(); loadContacts(); }, [load, loadBrands, loadContacts]);
+
+  const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((p: any) => ({ ...p, [k]: e.target.value }));
+
+  const openNew = () => {
+    setForm({ ...BLANK_PRODUCT });
+    setOptionSets([{ name: 'Size', values: '' }, { name: 'Colour', values: '' }]);
+    setVariantRows([{ ...blankRow(), option1_value: 'Default' }]);
+    setActiveCurrencies([]);
+    setModal({ open: true, edit: null });
+  };
+
+  const openEdit = (p: any) => {
+    setForm({ ...BLANK_PRODUCT, ...p });
+    const variants: any[] = p.variants || [];
+    const sets: OptionSet[] = [1, 2, 3].map(i => {
+      const nameKey = `option${i}_name`;
+      const valKey = `option${i}_value`;
+      const name = variants[0]?.[nameKey] ?? (i === 1 ? 'Size' : i === 2 ? 'Colour' : '');
+      const vals = [...new Set(variants.map((v: any) => v[valKey]).filter(Boolean))];
+      return { name: name || '', values: vals.join(', ') };
+    });
+    setOptionSets(sets);
+    setVariantRows(variants.map(v => {
+      const fc: Record<string, string> = {};
+      try { const j = JSON.parse(v.cost_foreign_json ?? '{}'); for (const [k, val] of Object.entries(j)) fc[k] = String(val); } catch {}
+      return {
+        _tempId: v.variant_id,
+        variant_id: v.variant_id,
+        option1_value: v.option1_value ?? '',
+        option2_value: v.option2_value ?? '',
+        option3_value: v.option3_value ?? '',
+        sku: v.sku ?? '',
+        barcode: v.barcode ?? '',
+        cost: v.cost != null ? String(v.cost) : '',
+        price: v.price != null ? String(v.price) : '',
+        wholesale_price: v.wholesale_price != null ? String(v.wholesale_price) : '',
+        discounted_price: v.discounted_price != null ? String(v.discounted_price) : '',
+        discount_start_date: v.discount_start_date ? String(v.discount_start_date).slice(0, 10) : '',
+        discount_end_date: v.discount_end_date ? String(v.discount_end_date).slice(0, 10) : '',
+        weight_kg: v.weight_kg != null ? String(v.weight_kg) : '',
+        bin: v.bin ?? '',
+        zone: v.zone ?? '',
+        is_active: v.is_active ?? 1,
+        foreignCosts: fc,
+      };
+    }));
+    // Infer active currencies from existing data
+    const allKeys = new Set<string>();
+    variants.forEach((v: any) => { try { Object.keys(JSON.parse(v.cost_foreign_json ?? '{}')).forEach(k => allKeys.add(k)); } catch {} });
+    setActiveCurrencies([...allKeys]);
+    setModal({ open: true, edit: p });
+  };
+
+  const handleGenerate = () => {
+    const active = optionSets.filter(s => s.name.trim() && s.values.trim());
+    const combos = cartesian(optionSets);
+    setVariantRows(prev => {
+      // If user has actual option values, drop the default row and replace entirely
+      const isDefault = (r: VariantRow) => r.option1_value === 'Default' && !r.option2_value && !r.option3_value && !r.variant_id;
+      const base = active.length > 0 ? prev.filter(r => !isDefault(r)) : prev;
+      const newRows = combos.map(([v1, v2, v3]) => {
+        const existing = base.find(r => r.option1_value === v1 && r.option2_value === v2 && r.option3_value === v3 && !r._delete);
+        return existing ?? { ...blankRow(), option1_value: v1, option2_value: v2, option3_value: v3 };
+      });
+      return newRows;
+    });
+  };
+
+  const updateRow = (tempId: string, field: string, value: any) =>
+    setVariantRows(rows => rows.map(r => r._tempId === tempId ? { ...r, [field]: value } : r));
+
+  const deleteRow = (tempId: string) =>
+    setVariantRows(rows => {
+      const row = rows.find(r => r._tempId === tempId);
+      if (!row) return rows;
+      if (row.variant_id) return rows.map(r => r._tempId === tempId ? { ...r, _delete: true } : r);
+      return rows.filter(r => r._tempId !== tempId);
+    });
+
+  const doSave = async (brandOverride?: string) => {
+    setSaving(true);
+    try {
+      let productId: string = modal.edit?.product_id ?? '';
+      const [o1n, o2n, o3n] = optionSets.map(s => s.name.trim());
+      const saveForm = brandOverride !== undefined ? { ...form, brand: brandOverride } : form;
+      if (modal.edit) {
+        await apiFetch(`/api/ims/products/${productId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(saveForm) });
+      } else {
+        const res = await apiFetch('/api/ims/products', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(saveForm) });
+        productId = res.product_id;
+      }
+      for (const row of variantRows) {
+        if (row._delete) {
+          if (row.variant_id) await apiFetch(`/api/ims/variants/${row.variant_id}`, { method: 'DELETE' });
+          continue;
+        }
+        const fcObj: Record<string, number> = {};
+        for (const [cur, val] of Object.entries(row.foreignCosts)) {
+          if (val !== '') fcObj[cur] = Number(val);
+        }
+        const payload = {
+          product_id: productId,
+          option1_name: o1n || null, option1_value: row.option1_value || null,
+          option2_name: o2n || null, option2_value: row.option2_value || null,
+          option3_name: o3n || null, option3_value: row.option3_value || null,
+          sku: row.sku || null,
+          barcode: row.barcode || null,
+          cost: row.cost === '' ? null : Number(row.cost),
+          price: row.price === '' ? null : Number(row.price),
+          wholesale_price: row.wholesale_price === '' ? null : Number(row.wholesale_price),
+          discounted_price: row.discounted_price === '' ? null : Number(row.discounted_price),
+          discount_start_date: row.discount_start_date || null,
+          discount_end_date: row.discount_end_date || null,
+          weight_kg: row.weight_kg === '' ? null : Number(row.weight_kg),
+          bin: row.bin || null,
+          zone: row.zone || null,
+          is_active: row.is_active,
+          cost_foreign_json: Object.keys(fcObj).length ? JSON.stringify(fcObj) : null,
+        };
+        if (row.variant_id) {
+          await apiFetch(`/api/ims/variants/${row.variant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        } else {
+          await apiFetch('/api/ims/variants', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        }
+      }
+      load();
+      setModal({ open: false, edit: null });
+    } catch (e: any) { alert(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const handleSaveAll = async () => {
+    const inputBrand = (form.brand || '').trim();
+    if (inputBrand) {
+      const match = brands.find(b => normBrand(b.name) === normBrand(inputBrand));
+      if (!match) {
+        // Not in brand list — prompt user to add as new or pick existing
+        setBrandPromptChoice(brands.length > 0 ? 'existing' : 'new');
+        setBrandPromptSelected(brands[0]?.name ?? '');
+        setBrandPrompt({ inputBrand });
+        return;
+      }
+      // Normalise to canonical casing from DB
+      await doSave(match.name);
+      return;
+    }
+    await doSave();
+  };
+
+  const handleBrandResolved = async () => {
+    if (!brandPrompt) return;
+    if (brandPromptChoice === 'new') {
+      // Create the brand then save with original casing
+      try {
+        await apiFetch('/api/ims/brands', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: brandPrompt.inputBrand }) });
+        loadBrands();
+      } catch (e: any) { alert(e.message); return; }
+      setBrandPrompt(null);
+      await doSave(brandPrompt.inputBrand);
+    } else {
+      setBrandPrompt(null);
+      await doSave(brandPromptSelected);
+    }
+  };
+
+  const handleDeleteProduct = async (p: any) => {
+    if (!confirm(`Delete product "${p.name}" and all its variants?`)) return;
+    try { await apiFetch(`/api/ims/products/${p.product_id}`, { method: 'DELETE' }); load(); }
+    catch (e: any) { alert(e.message); }
+  };
+
+  const brandOptions  = [...new Set(products.map((p: any) => p.brand).filter(Boolean))].sort() as string[];
+  const supplierOptions = [...new Set(
+    products.filter((p: any) => p.supplier_is_active !== 0).map((p: any) => p.supplier_name).filter(Boolean)
+  )].sort() as string[];
+  const typeOptions    = [...new Set(products.map((p: any) => p.product_type).filter(Boolean))].sort() as string[];
+
+  const filtered = products.filter((p: any) => {
+    if (filterBrand && !(p.brand || '').toLowerCase().includes(filterBrand.toLowerCase())) return false;
+    if (filterSupplier && !(p.supplier_name || '').toLowerCase().includes(filterSupplier.toLowerCase())) return false;
+    if (filterType  && p.product_type !== filterType) return false;
+    if (filterActive !== 'all' && String(p.is_active) !== filterActive) return false;
+    if (filter) {
+      const q = filter.toLowerCase();
+      if (!p.name.toLowerCase().includes(q) &&
+          !(p.brand || '').toLowerCase().includes(q) &&
+          !(p.product_type || '').toLowerCase().includes(q) &&
+          !(p.variants || []).some((v: any) => (v.sku || '').toLowerCase().includes(q)))
+        return false;
+    }
+    return true;
+  });
+
+  const sortedFiltered = [...filtered].sort((a: any, b: any) => {
+    let av = a[sortCol]; let bv = b[sortCol];
+    if (sortCol === 'variants') { av = (a.variants || []).length; bv = (b.variants || []).length; }
+    av = av ?? ''; bv = bv ?? '';
+    const cmp = typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv), undefined, { sensitivity: 'base' });
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(sortedFiltered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const visible = sortedFiltered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const visibleIds = visible.map((p: any) => p.product_id);
+  const expandableVisibleIds = visible.filter((p: any) => (p.variants || []).length > 0).map((p: any) => p.product_id);
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id: string) => selected.has(id));
+  const allExpandableVisibleExpanded = expandableVisibleIds.length > 0 && expandableVisibleIds.every((id: string) => expandedIds.has(id));
+
+  const toggleSort = (col: string) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+    setPage(1);
+  };
+
+  const toggleSelect = (id: string) =>
+    setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+
+  const toggleSelectAll = () =>
+    setSelected(prev => {
+      const s = new Set(prev);
+      if (allVisibleSelected) visibleIds.forEach((id: string) => s.delete(id));
+      else visibleIds.forEach((id: string) => s.add(id));
+      return s;
+    });
+
+  const handleBulkSetActive = async (val: 0 | 1) => {
+    setBulkWorking(true);
+    try {
+      await Promise.all([...selected].map(id =>
+        apiFetch(`/api/ims/products/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active: val }) })
+      ));
+      setSelected(new Set()); load();
+    } catch (e: any) { alert(e.message); }
+    finally { setBulkWorking(false); }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`Delete ${selected.size} product(s) and all their variants? This cannot be undone.`)) return;
+    setBulkWorking(true);
+    try {
+      await Promise.all([...selected].map(id =>
+        apiFetch(`/api/ims/products/${id}`, { method: 'DELETE' })
+      ));
+      setSelected(new Set()); load();
+    } catch (e: any) { alert(e.message); }
+    finally { setBulkWorking(false); }
+  };
+
+  const SortIcon = ({ col }: { col: string }) => sortCol !== col ? null : (
+    <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
+  );
+
+  const cellInput: React.CSSProperties = {
+    width: '100%', padding: '4px 6px', background: 'var(--sv-bg-1)',
+    border: '1px solid var(--sv-etch)', borderRadius: 4, color: 'var(--sv-text-main)',
+    fontSize: 12, boxSizing: 'border-box',
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Products</h1>
+        <button onClick={() => setImportProductsOpen(true)} style={btnStyle('ghost')}>⬆ Import Products</button>
+        <button onClick={openNew} style={btnStyle('action')}>+ New Product</button>
+      </div>
+      {/* ── Filter bar ── */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+        <input placeholder="Search products or SKUs…" value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 220, flex: '1 1 220px' }} />
+        <input
+          list="brand-filter-list"
+          placeholder="Filter by brand…"
+          value={filterBrand}
+          onChange={e => { setFilterBrand(e.target.value); setPage(1); }}
+          style={{ ...inputStyle, minWidth: 150, flex: '1 1 150px' }}
+        />
+        <datalist id="brand-filter-list">
+          {brandOptions.map(b => <option key={b} value={b} />)}
+        </datalist>
+        <input
+          list="products-supplier-filter-list"
+          placeholder="Filter by supplier…"
+          value={filterSupplier}
+          onChange={e => { setFilterSupplier(e.target.value); setPage(1); }}
+          style={{ ...inputStyle, minWidth: 150, flex: '1 1 150px' }}
+        />
+        <datalist id="products-supplier-filter-list">
+          {supplierOptions.map(s => <option key={s} value={s} />)}
+        </datalist>
+        <select value={filterType} onChange={e => { setFilterType(e.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 150, flex: '1 1 150px' }}>
+          <option value="">All Product Types</option>
+          {typeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <select value={filterActive} onChange={e => { setFilterActive(e.target.value as any); setPage(1); }} style={{ ...inputStyle, minWidth: 120, flex: '0 0 120px' }}>
+          <option value="all">All Status</option>
+          <option value="1">Active</option>
+          <option value="0">Inactive</option>
+        </select>
+        {(filter || filterBrand || filterSupplier || filterType || filterActive !== 'all') && (
+          <button onClick={() => { setFilter(''); setFilterBrand(''); setFilterSupplier(''); setFilterType(''); setFilterActive('all'); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
+        )}
+      </div>
+
+      {/* ── Bulk actions bar ── */}
+      {selected.size > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, marginBottom: 10 }}>
+          <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', flex: 1 }}>{selected.size} product{selected.size !== 1 ? 's' : ''} selected</span>
+          <button disabled={bulkWorking} onClick={() => handleBulkSetActive(1)} style={btnStyle('secondary', 'sm')}>Make Active</button>
+          <button disabled={bulkWorking} onClick={() => handleBulkSetActive(0)} style={btnStyle('secondary', 'sm')}>Make Inactive</button>
+          <button disabled={bulkWorking} onClick={handleBulkDelete} style={btnStyle('danger', 'sm')}>Delete</button>
+          <button onClick={() => setSelected(new Set())} style={btnStyle('secondary', 'sm')}>Deselect all</button>
+        </div>
+      )}
+
+      {loading ? <Spinner /> : sortedFiltered.length === 0 ? <EmptyState text="No products match your filters." /> : (
+        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: 36 }} />{/* expand */}
+              <col style={{ width: 32 }} />{/* checkbox */}
+              <col />{/* name — fills remaining */}
+              <col style={{ width: 150 }} />{/* product type */}
+              <col style={{ width: 130 }} />{/* brand */}
+              <col style={{ width: 80 }} />{/* variants */}
+              <col style={{ width: 70 }} />{/* active */}
+              <col style={{ width: 100 }} />{/* created */}
+            </colgroup>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
+                <th style={{ padding: '10px 8px 10px 12px' }}>
+                  {expandableVisibleIds.length > 0 && (
+                    <button
+                      onClick={() => {
+                        ensureStockSohLoaded();
+                        setExpandedIds(prev => {
+                          const next = new Set(prev);
+                          if (allExpandableVisibleExpanded) {
+                            expandableVisibleIds.forEach((id: string) => next.delete(id));
+                          } else {
+                            expandableVisibleIds.forEach((id: string) => next.add(id));
+                          }
+                          return next;
+                        });
+                      }}
+                      title={allExpandableVisibleExpanded ? 'Collapse all on page' : 'Expand all on page'}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', padding: 0, display: 'inline-flex', alignItems: 'center' }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transform: allExpandableVisibleExpanded ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>
+                        <path d="M9 18l6-6-6-6" />
+                      </svg>
+                    </button>
+                  )}
+                </th>
+                <th style={{ padding: '10px 8px' }}>
+                  <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAll} style={{ cursor: 'pointer' }} />
+                </th>
+                {([['name','Product'],['product_type','Product Type'],['brand','Brand'],['variants','Variants'],['is_active','Active'],['created_at','Created']] as [string,string][]).map(([col, label]) => (
+                  <th key={col} onClick={() => toggleSort(col)}
+                    style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                    {label}<SortIcon col={col} />
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((p, i) => (
+                <>
+                  <tr key={p.product_id} style={{ borderTop: '1px solid var(--sv-etch)', background: selected.has(p.product_id) ? 'color-mix(in srgb, var(--sv-action) 10%, transparent)' : i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}>
+                    <td style={{ padding: '10px 8px 10px 12px' }}>
+                      {(p.variants || []).length > 0 && (
+                        <button onClick={() => handleExpand(p.product_id)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', padding: 0 }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transform: expandedIds.has(p.product_id) ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>
+                            <path d="M9 18l6-6-6-6" />
+                          </svg>
+                        </button>
+                      )}
+                    </td>
+                    <td style={{ padding: '10px 8px' }}>
+                      <input type="checkbox" checked={selected.has(p.product_id)} onChange={() => toggleSelect(p.product_id)} style={{ cursor: 'pointer' }} />
+                    </td>
+                    <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <strong
+                        onClick={() => openEdit(p)}
+                        style={{ color: 'var(--sv-text-strong)', cursor: 'pointer' }}
+                        onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
+                        onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
+                      >{p.name}</strong>
+                    </td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.product_type || '—'}</td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.brand || '—'}</td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13 }}>{(p.variants || []).length}</td>
+                    <td style={{ padding: '10px 12px' }}><ActiveDot active={p.is_active} /></td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{p.created_at ? String(p.created_at).slice(0, 10) : '—'}</td>
+                  </tr>
+                  {expandedIds.has(p.product_id) && (p.variants || []).map((v: any) => {
+                    const hasDiscount = v.discounted_price != null && Number(v.discounted_price) > 0;
+                    return (
+                      <tr key={v.variant_id} style={{ background: 'var(--sv-bg-1)', borderTop: '1px solid var(--sv-etch)' }}>
+                        <td />{/* expand */}
+                        <td />{/* checkbox */}
+                        <td style={{ padding: '8px 12px 8px 28px', fontSize: 13, color: 'var(--sv-text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{v.sku || '—'}</code>
+                          {v.barcode && <span style={{ color: 'var(--sv-text-dim)', fontSize: 11, marginLeft: 6 }}>#{v.barcode}</span>}
+                          {' '}{[v.option1_value, v.option2_value, v.option3_value].filter(Boolean).join(' / ')}
+                          {p.product_type && <span style={{ color: 'var(--sv-text-dim)', fontSize: 11, marginLeft: 8, background: 'var(--sv-bg-2)', borderRadius: 4, padding: '1px 6px' }}>{p.product_type}</span>}
+                        </td>
+                        <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{fmtCurrency(v.cost)} cost</td>
+                        <td style={{ padding: '8px 12px', fontSize: 13 }}>
+                          {hasDiscount ? (
+                            <>
+                              <span style={{ textDecoration: 'line-through', color: 'var(--sv-text-dim)', marginRight: 5 }}>{fmtCurrency(v.price)}</span>
+                              <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>{fmtCurrency(v.discounted_price)}</span>
+                            </>
+                          ) : (
+                            <span style={{ color: 'var(--sv-text-dim)' }}>{fmtCurrency(v.price)} sell</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 500 }}>
+                          {stockSoh === null
+                            ? (stockSohLoading ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>loading…</span> : '—')
+                            : (
+                              <button
+                                onClick={() => setStockHistoryModal({ productId: p.product_id, productName: p.name })}
+                                title="View stock history"
+                                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: (stockSoh[v.variant_id] ?? 0) === 0 ? 'var(--sv-text-dim)' : 'var(--sv-action)', fontWeight: 600, fontSize: 13, textDecoration: 'underline', textDecorationStyle: 'dotted' }}
+                              >
+                                {fmtQty(stockSoh[v.variant_id] ?? 0)}
+                              </button>
+                            )
+                          }
+                          {stockSoh !== null && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 400, marginLeft: 3 }}>SOH</span>}
+                        </td>
+                        <td />
+                      </tr>
+                    );
+                  })}
+                </>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ── Pagination ── */}
+      {!loading && totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14 }}>
+          <button onClick={() => setPage(1)} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>«</button>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>‹ Prev</button>
+          <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 8px' }}>Page {safePage} of {totalPages} ({sortedFiltered.length} products)</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>Next ›</button>
+          <button onClick={() => setPage(totalPages)} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>»</button>
+        </div>
+      )}
+
+      {/* ── Stock History Modal ── */}
+      {stockHistoryModal && (
+        <StockHistoryModal
+          productId={stockHistoryModal.productId}
+          productName={stockHistoryModal.productName}
+          onClose={() => setStockHistoryModal(null)}
+        />
+      )}
+
+      {/* ── Combined Product + Variants Modal ── */}
+      {modal.open && (
+        <Modal title={modal.edit ? `Edit: ${form.name || 'Product'}` : 'New Product'} onClose={() => setModal({ open: false, edit: null })} wider>
+          {/* ── Product Details ── */}
+          <div style={{ marginBottom: 20 }}>
+            <Field label="Name *"><input required value={form.name} onChange={sf('name')} style={inputStyle} /></Field>
+            <Row2>
+              <Field label="Product Type"><input value={form.product_type} onChange={sf('product_type')} style={inputStyle} /></Field>
+              <Field label="Brand">
+                <input list="brand-list" value={form.brand} onChange={sf('brand')} style={inputStyle} placeholder="Type or select…" />
+                <datalist id="brand-list">
+                  {brands.map(b => <option key={b.id} value={b.name} />)}
+                </datalist>
+              </Field>
+            </Row2>
+            <Row2>
+              <Field label="Tags (comma separated)"><input value={form.tags} onChange={sf('tags')} style={inputStyle} /></Field>
+              <Field label="Active">
+                <select value={form.is_active} onChange={sf('is_active')} style={inputStyle}>
+                  <option value={1}>Yes</option><option value={0}>No</option>
+                </select>
+              </Field>
+            </Row2>
+            <Field label="Description">
+              <textarea value={form.description} onChange={sf('description') as any} rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+            </Field>
+          </div>
+
+          {/* ── Section divider ── */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Variants</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+          </div>
+
+          {/* Option sets builder */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: .5 }}>Option Sets</div>
+            {optionSets.map((os, idx) => (
+              <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                <input placeholder={idx === 0 ? 'Size' : idx === 1 ? 'Colour' : 'Style'} value={os.name}
+                  onChange={e => setOptionSets(prev => prev.map((s, i) => i === idx ? { ...s, name: e.target.value } : s))}
+                  style={{ ...inputStyle, width: 130, flex: 'none' }} />
+                <input placeholder="Values comma-separated (e.g. S, M, L)" value={os.values}
+                  onChange={e => setOptionSets(prev => prev.map((s, i) => i === idx ? { ...s, values: e.target.value } : s))}
+                  style={{ ...inputStyle, flex: 1 }} />
+                {optionSets.length > 1 && (
+                  <button type="button" onClick={() => setOptionSets(prev => prev.filter((_, i) => i !== idx))}
+                    style={{ background: 'none', border: 'none', color: 'var(--sv-red)', cursor: 'pointer', fontSize: 20, lineHeight: 1, padding: '0 4px' }}>×</button>
+                )}
+              </div>
+            ))}
+            <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+              {optionSets.length < 3 && (
+                <button type="button" onClick={() => setOptionSets(prev => [...prev, { name: '', values: '' }])} style={btnStyle('ghost', 'xs')}>+ Option</button>
+              )}
+              <button type="button" onClick={handleGenerate} style={btnStyle('mint', 'xs')}>⚡ Generate Variants</button>
+              <button type="button" onClick={() => setVariantRows(prev => [...prev, blankRow()])} style={btnStyle('ghost', 'xs')}>+ Blank Row</button>
+              {/* Currency cost picker */}
+              <select
+                value=""
+                onChange={e => { if (e.target.value && !activeCurrencies.includes(e.target.value)) setActiveCurrencies(prev => [...prev, e.target.value]); }}
+                style={{ ...inputStyle, padding: '3px 8px', fontSize: 12, width: 'auto' }}
+              >
+                <option value="">+ Add Currency Cost…</option>
+                {CURRENCIES.filter(c => !activeCurrencies.includes(c)).map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Variant matrix table */}
+          {variantRows.filter(r => !r._delete).length > 0 ? (
+            <div style={{ overflowX: 'auto', marginBottom: 16, border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)' }}>
+                    {['Variant','SKU','Barcode','Cost $','Price $','Wholesale $','Disc. Price $','Disc. From','Disc. To','Wt kg','Bin','Zone',
+                      ...activeCurrencies.map(c => c),
+                      '✓',''].map((h, i) => (
+                      <th key={i} style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, whiteSpace: 'nowrap' }}>
+                        {activeCurrencies.includes(h as string) ? (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            {h}
+                            <button type="button" onClick={() => setActiveCurrencies(prev => prev.filter(c => c !== h))}
+                              style={{ background: 'none', border: 'none', color: 'var(--sv-red)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
+                          </span>
+                        ) : h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {variantRows.filter(r => !r._delete).map(row => {
+                    const label = [row.option1_value, row.option2_value, row.option3_value].filter(Boolean).join(' / ') || '(default)';
+                    return (
+                      <tr key={row._tempId} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                        <td style={{ padding: '4px 8px', whiteSpace: 'nowrap', color: 'var(--sv-text-dim)', fontWeight: 500, minWidth: 80 }}>{label}</td>
+                        <td style={{ padding: '2px 4px', minWidth: 80 }}><input value={row.sku} onChange={e => updateRow(row._tempId, 'sku', e.target.value)} style={cellInput} /></td>
+                        <td style={{ padding: '2px 4px', minWidth: 90 }}><input value={row.barcode} onChange={e => updateRow(row._tempId, 'barcode', e.target.value)} style={cellInput} /></td>
+                        <td style={{ padding: '2px 4px', minWidth: 72 }}><input type="number" step="0.0001" min="0" value={row.cost} onChange={e => updateRow(row._tempId, 'cost', e.target.value)} style={cellInput} /></td>
+                        <td style={{ padding: '2px 4px', minWidth: 72 }}><input type="number" step="0.01" min="0" value={row.price} onChange={e => updateRow(row._tempId, 'price', e.target.value)} style={cellInput} /></td>
+                        <td style={{ padding: '2px 4px', minWidth: 86 }}><input type="number" step="0.01" min="0" value={row.wholesale_price} onChange={e => updateRow(row._tempId, 'wholesale_price', e.target.value)} style={cellInput} placeholder="—" /></td>
+                        <td style={{ padding: '2px 4px', minWidth: 86 }}><input type="number" step="0.01" min="0" value={row.discounted_price} onChange={e => updateRow(row._tempId, 'discounted_price', e.target.value)} style={cellInput} /></td>
+                        <td style={{ padding: '2px 4px', minWidth: 120 }}><input type="date" value={row.discount_start_date} onChange={e => updateRow(row._tempId, 'discount_start_date', e.target.value)} style={cellInput} /></td>
+                        <td style={{ padding: '2px 4px', minWidth: 120 }}><input type="date" value={row.discount_end_date} onChange={e => updateRow(row._tempId, 'discount_end_date', e.target.value)} style={cellInput} /></td>
+                        <td style={{ padding: '2px 4px', minWidth: 60 }}><input type="number" step="0.001" min="0" value={row.weight_kg} onChange={e => updateRow(row._tempId, 'weight_kg', e.target.value)} style={cellInput} /></td>
+                        <td style={{ padding: '2px 4px', minWidth: 70 }}><input value={row.bin} onChange={e => updateRow(row._tempId, 'bin', e.target.value)} style={cellInput} placeholder="—" /></td>
+                        <td style={{ padding: '2px 4px', minWidth: 70 }}><input value={row.zone} onChange={e => updateRow(row._tempId, 'zone', e.target.value)} style={cellInput} placeholder="—" /></td>
+                        {activeCurrencies.map(cur => (
+                          <td key={cur} style={{ padding: '2px 4px', minWidth: 72 }}>
+                            <input type="number" step="0.01" min="0"
+                              value={row.foreignCosts[cur] ?? ''}
+                              onChange={e => updateRow(row._tempId, 'foreignCosts', { ...row.foreignCosts, [cur]: e.target.value })}
+                              style={cellInput} placeholder="0.00" />
+                          </td>
+                        ))}
+                        <td style={{ padding: '2px 4px', textAlign: 'center', minWidth: 28 }}>
+                          <input type="checkbox" checked={!!row.is_active} onChange={e => updateRow(row._tempId, 'is_active', e.target.checked ? 1 : 0)} />
+                        </td>
+                        <td style={{ padding: '2px 4px', textAlign: 'center' }}>
+                          <button type="button" onClick={() => deleteRow(row._tempId)}
+                            style={{ background: 'none', border: 'none', color: 'var(--sv-red)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '0 4px' }}>×</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p style={{ color: 'var(--sv-text-dim)', fontSize: 13, marginBottom: 16 }}>No variants yet — define options above and click ⚡ Generate Variants, or add a Blank Row.</p>
+          )}
+
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
+            <button type="button" onClick={() => setModal({ open: false, edit: null })} style={btnStyle('ghost')}>Cancel</button>
+            <button type="button" onClick={handleSaveAll} disabled={saving} style={btnStyle('action')}>{saving ? 'Saving\u2026' : 'Save All'}</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Brand resolution prompt ── */}
+      {brandPrompt && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.7)' }}>
+          <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: 28, width: 440, maxWidth: '90vw' }}>
+            <h3 style={{ margin: '0 0 10px', fontSize: 16, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Unknown Brand</h3>
+            <p style={{ margin: '0 0 18px', fontSize: 14, color: 'var(--sv-text-dim)' }}>
+              <strong style={{ color: 'var(--sv-text-main)' }}>"{brandPrompt.inputBrand}"</strong> is not in your brand list.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 12px', borderRadius: 8, border: `1px solid ${brandPromptChoice === 'new' ? 'var(--sv-action)' : 'var(--sv-etch)'}`, background: brandPromptChoice === 'new' ? 'rgba(37,99,235,.08)' : 'transparent' }}>
+                <input type="radio" name="bpc" checked={brandPromptChoice === 'new'} onChange={() => setBrandPromptChoice('new')} style={{ accentColor: 'var(--sv-action)' }} />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>Add "{brandPrompt.inputBrand}" as a new brand</div>
+                  <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Creates it in the brand list and saves the product</div>
+                </div>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '10px 12px', borderRadius: 8, border: `1px solid ${brandPromptChoice === 'existing' ? 'var(--sv-action)' : 'var(--sv-etch)'}`, background: brandPromptChoice === 'existing' ? 'rgba(37,99,235,.08)' : 'transparent' }}>
+                <input type="radio" name="bpc" checked={brandPromptChoice === 'existing'} onChange={() => setBrandPromptChoice('existing')} style={{ accentColor: 'var(--sv-action)', marginTop: 2 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>Use an existing brand instead</div>
+                  <select value={brandPromptSelected} onChange={e => { setBrandPromptChoice('existing'); setBrandPromptSelected(e.target.value); }} style={{ ...inputStyle, width: '100%' }}>
+                    {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+                  </select>
+                </div>
+              </label>
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setBrandPrompt(null)} style={btnStyle('ghost')}>Cancel</button>
+              <button onClick={handleBrandResolved} disabled={saving} style={btnStyle('action')}>{saving ? 'Saving\u2026' : 'Confirm & Save'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Import Products modal ── */}
+      {importProductsOpen && (
+        <ImportProductsModal
+          products={products}
+          brands={brands}
+          contacts={contacts}
+          onClose={() => setImportProductsOpen(false)}
+          onDone={() => { load(); loadBrands(); loadContacts(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Stock History Modal
+// ─────────────────────────────────────────────────────────────────────────────
+
+type StockHistoryData = {
+  variants: any[];
+  stockByLocation: any[];
+  openingBalances: any[];
+  movements: any[];
+  summary: {
+    total_in: number;
+    total_out: number;
+    net: number;
+    pos: { in: number; out: number; net: number };
+    online: { in: number; out: number; net: number };
+  };
+};
+
+function StockHistoryModal({ productId, productName, onClose }: {
+  productId: string; productName: string; onClose: () => void;
+}) {
+  const [data, setData] = useState<StockHistoryData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/ims/products/${productId}/stock-history`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) setData(d);
+        else setError(d.error ?? 'Failed to load history');
+      })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [productId]);
+
+  // Group stock by location name (aggregate across variants)
+  const locationTotals: Record<string, { name: string; qty_on_hand: number; qty_incoming: number; qty_committed: number }> = {};
+  if (data) {
+    for (const row of data.stockByLocation) {
+      const k = row.location_name;
+      if (!locationTotals[k]) locationTotals[k] = { name: k, qty_on_hand: 0, qty_incoming: 0, qty_committed: 0 };
+      locationTotals[k].qty_on_hand   += Number(row.qty_on_hand   ?? 0);
+      locationTotals[k].qty_incoming  += Number(row.qty_incoming  ?? 0);
+      locationTotals[k].qty_committed += Number(row.qty_committed ?? 0);
+    }
+  }
+  const locationRows = Object.values(locationTotals);
+
+  // Opening balance per variant+location (aggregate to product-level for display)
+  const openingByLoc: Record<string, { name: string; qty: number; date: string; inferred?: boolean }> = {};
+  if (data) {
+    for (const ob of data.openingBalances) {
+      const k = ob.location_name;
+      if (!openingByLoc[k]) openingByLoc[k] = { name: k, qty: 0, date: ob.created_at, inferred: !!ob.inferred };
+      openingByLoc[k].qty += Number(ob.qty_after_soh ?? 0);
+      if (ob.created_at > openingByLoc[k].date) openingByLoc[k].date = ob.created_at;
+      openingByLoc[k].inferred = openingByLoc[k].inferred || !!ob.inferred;
+    }
+  }
+  const openingRows = Object.values(openingByLoc).sort((a, b) => a.name.localeCompare(b.name));
+
+  const movementLabel: Record<string, string> = {
+    po_approved:    'PO Approved',
+    po_unapproved:  'PO Unapproved',
+    po_received:    'PO Received',
+    so_confirmed:   'SO Confirmed',
+    so_unconfirmed: 'SO Unconfirmed',
+    so_fulfilled:   'SO Fulfilled',
+    adjustment:     'Adjustment',
+    transfer_in:    'Transfer In',
+    transfer_out:   'Transfer Out',
+    pos_sale:       'POS Sale',
+    pos_return:     'POS Return',
+  };
+
+  const movementColor = (type: string, qty: number): string => {
+    if (qty > 0) return 'var(--sv-mint)';
+    if (qty < 0) return 'var(--sv-red)';
+    return 'var(--sv-text-dim)';
+  };
+
+  const refLabel = (m: any): string => {
+    if (m.po_number) return `${m.po_number}${m.supplier_name ? ` · ${m.supplier_name}` : ''}`;
+    if (m.is_online_order && m.so_number) return `Online ${m.so_number}${m.customer_name ? ` · ${m.customer_name}` : ''}`;
+    if (m.so_number) return `${m.so_number}${m.customer_name ? ` · ${m.customer_name}` : ''}`;
+    if (m.pos_sale_local_id) return `POS ${m.pos_sale_local_id}`;
+    if (m.notes) return m.notes;
+    return '—';
+  };
+
+  const totalSoh = locationRows.reduce((s, r) => s + r.qty_on_hand, 0);
+
+  return (
+    <Modal title={`Stock History — ${productName}`} onClose={onClose} wider>
+      {loading && <Spinner />}
+      {error && <div style={{ color: 'var(--sv-red)', padding: 12 }}>{error}</div>}
+      {data && !loading && (
+        <>
+          {/* ── Stock at every location ── */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8, marginBottom: 8 }}>
+              Current Stock by Location
+            </div>
+            {locationRows.length === 0 ? (
+              <p style={{ color: 'var(--sv-text-muted)', fontSize: 13 }}>No stock records found.</p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
+                {locationRows.map(loc => (
+                  <div key={loc.name} style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '10px 14px' }}>
+                    <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 4, fontWeight: 600 }}>{loc.name}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: loc.qty_on_hand === 0 ? 'var(--sv-text-dim)' : 'var(--sv-text-strong)' }}>{fmtQty(loc.qty_on_hand)}</div>
+                    <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 2 }}>
+                      {loc.qty_incoming > 0 && <span style={{ marginRight: 8 }}>+{fmtQty(loc.qty_incoming)} incoming</span>}
+                      {loc.qty_committed > 0 && <span>{fmtQty(loc.qty_committed)} committed</span>}
+                    </div>
+                  </div>
+                ))}
+                <div style={{ background: 'color-mix(in srgb, var(--sv-action) 12%, transparent)', border: '1px solid var(--sv-action)', borderRadius: 8, padding: '10px 14px' }}>
+                  <div style={{ fontSize: 12, color: 'var(--sv-action)', marginBottom: 4, fontWeight: 700 }}>TOTAL</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--sv-action)' }}>{fmtQty(totalSoh)}</div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div style={{ height: 1, background: 'var(--sv-etch)', marginBottom: 20 }} />
+
+          {/* ── 12-month summary ── */}
+          <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+            <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '10px 18px', flex: 1, minWidth: 120 }}>
+              <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .7, marginBottom: 4 }}>Total In (12 mo)</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--sv-mint)' }}>+{fmtQty(data.summary.total_in)}</div>
+            </div>
+            <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '10px 18px', flex: 1, minWidth: 120 }}>
+              <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .7, marginBottom: 4 }}>Total Out (12 mo)</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--sv-red)' }}>−{fmtQty(data.summary.total_out)}</div>
+            </div>
+            <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '10px 18px', flex: 1, minWidth: 120 }}>
+              <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .7, marginBottom: 4 }}>Net Change (12 mo)</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: data.summary.net >= 0 ? 'var(--sv-mint)' : 'var(--sv-red)' }}>
+                {data.summary.net >= 0 ? '+' : ''}{fmtQty(data.summary.net)}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 16 }}>
+            <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '9px 12px' }}>
+              <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .7, marginBottom: 4 }}>Online Orders (12 mo)</div>
+              <div style={{ fontSize: 13, color: 'var(--sv-text-main)' }}>
+                <span style={{ color: 'var(--sv-mint)', fontWeight: 700 }}>+{fmtQty(data.summary.online.in)}</span>
+                <span style={{ margin: '0 8px', color: 'var(--sv-text-dim)' }}>/</span>
+                <span style={{ color: 'var(--sv-red)', fontWeight: 700 }}>−{fmtQty(data.summary.online.out)}</span>
+                <span style={{ marginLeft: 8, color: data.summary.online.net >= 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 700 }}>
+                  net {data.summary.online.net >= 0 ? '+' : ''}{fmtQty(data.summary.online.net)}
+                </span>
+              </div>
+            </div>
+            <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '9px 12px' }}>
+              <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .7, marginBottom: 4 }}>POS Sales (12 mo)</div>
+              <div style={{ fontSize: 13, color: 'var(--sv-text-main)' }}>
+                <span style={{ color: 'var(--sv-mint)', fontWeight: 700 }}>+{fmtQty(data.summary.pos.in)}</span>
+                <span style={{ margin: '0 8px', color: 'var(--sv-text-dim)' }}>/</span>
+                <span style={{ color: 'var(--sv-red)', fontWeight: 700 }}>−{fmtQty(data.summary.pos.out)}</span>
+                <span style={{ marginLeft: 8, color: data.summary.pos.net >= 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 700 }}>
+                  net {data.summary.pos.net >= 0 ? '+' : ''}{fmtQty(data.summary.pos.net)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {Object.keys(openingByLoc).length > 0 && (
+            <div style={{ marginBottom: 16, background: 'color-mix(in srgb, var(--sv-amber) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sv-amber) 45%, var(--sv-etch))', borderRadius: 8, padding: '10px 12px', fontSize: 12, color: 'var(--sv-text-main)' }}>
+              Opening stock snapshot is shown below as an opening balance baseline for locations that have historical movement data before the 12-month window.
+            </div>
+          )}
+
+          <div style={{ height: 1, background: 'var(--sv-etch)', marginBottom: 16 }} />
+
+          {/* ── Transaction list ── */}
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8, marginBottom: 8 }}>
+            Transactions — Last 12 Months
+          </div>
+
+          {data.movements.length === 0 && Object.keys(openingByLoc).length === 0 ? (
+            <p style={{ color: 'var(--sv-text-muted)', fontSize: 13 }}>No transactions in the last 12 months.</p>
+          ) : (
+            <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden', maxHeight: 420, overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead style={{ position: 'sticky', top: 0, background: 'var(--sv-bg-2)', zIndex: 1 }}>
+                  <tr>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7, whiteSpace: 'nowrap' }}>Date</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Type</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Reference</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Location</th>
+                    {data.variants.length > 1 && <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Variant</th>}
+                    <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Qty</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>SOH After</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Opening balance rows (if any) */}
+                  {Object.values(openingByLoc).map(ob => (
+                    <tr key={`ob-${ob.name}`} style={{ borderTop: '1px solid var(--sv-etch)', background: 'color-mix(in srgb, var(--sv-amber) 8%, transparent)' }}>
+                      <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{String(ob.date).slice(0, 10)}</td>
+                      <td style={{ padding: '7px 12px' }}>
+                        <span style={{ background: 'color-mix(in srgb, var(--sv-amber) 20%, transparent)', color: 'var(--sv-amber)', borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 700 }}>Opening Balance</span>
+                      </td>
+                      <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)' }}>Balance before 12-month window</td>
+                      <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)' }}>{ob.name}</td>
+                      {data.variants.length > 1 && <td style={{ padding: '7px 12px' }} />}
+                      <td style={{ padding: '7px 12px', textAlign: 'right' }} />
+                      <td style={{ padding: '7px 12px', textAlign: 'right', color: 'var(--sv-amber)', fontWeight: 700 }}>{fmtQty(ob.qty)}</td>
+                    </tr>
+                  ))}
+                  {/* Movement rows */}
+                  {data.movements.map((m, i) => (
+                    <tr key={m.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 25%, transparent)' : undefined }}>
+                      <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{String(m.created_at).slice(0, 10)}</td>
+                      <td style={{ padding: '7px 12px' }}>
+                        <span style={{
+                          background: Number(m.qty_change) > 0 ? 'color-mix(in srgb, var(--sv-mint) 18%, transparent)' : Number(m.qty_change) < 0 ? 'color-mix(in srgb, var(--sv-red) 18%, transparent)' : 'var(--sv-bg-2)',
+                          color: movementColor(m.movement_type, Number(m.qty_change)),
+                          borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+                        }}>
+                          {m.is_online_order && m.movement_type === 'so_fulfilled' ? 'Online Order Fulfilled' : (movementLabel[m.movement_type] ?? m.movement_type)}
+                        </span>
+                      </td>
+                      <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>{refLabel(m)}</td>
+                      <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', fontSize: 12, whiteSpace: 'nowrap' }}>{m.location_name}</td>
+                      {data.variants.length > 1 && <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', fontSize: 12 }}>{m.variant_label}</td>}
+                      <td style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 700, color: movementColor(m.movement_type, Number(m.qty_change)) }}>
+                        {Number(m.qty_change) > 0 ? '+' : ''}{fmtQty(Number(m.qty_change))}
+                      </td>
+                      <td style={{ padding: '7px 12px', textAlign: 'right', color: 'var(--sv-text-dim)', fontSize: 12 }}>{fmtQty(Number(m.qty_after_soh))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Stock View
+// ─────────────────────────────────────────────────────────────────────────────
+
+function StockView() {
+  const [stock, setStock] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('');
+  const [filterBrand, setFilterBrand] = useState('');
+  const [filterSupplier, setFilterSupplier] = useState('');
+  const [showLowOnly, setShowLowOnly] = useState(false);
+  const [sortCol, setSortCol] = useState<string>('created_at');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [page, setPage] = useState(1);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch('/api/ims/stock').then(r => r.json()).then(d => {
+      if (d.success) setStock(d.data);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const brandOptions    = [...new Set(stock.map((s: any) => s.brand).filter(Boolean))].sort() as string[];
+  const supplierOptions = [...new Set(
+    stock.filter((s: any) => s.supplier_is_active !== 0).map((s: any) => s.supplier_name).filter(Boolean)
+  )].sort() as string[];
+
+  const filtered = stock.filter((s: any) => {
+    if (filterBrand && !(s.brand || '').toLowerCase().includes(filterBrand.toLowerCase())) return false;
+    if (filterSupplier && !(s.supplier_name || '').toLowerCase().includes(filterSupplier.toLowerCase())) return false;
+    if (showLowOnly && !(Number(s.qty_on_hand) <= Number(s.min_qty) && Number(s.min_qty) > 0)) return false;
+    if (filter) {
+      const q = filter.toLowerCase();
+      if (!(s.sku || '').toLowerCase().includes(q) &&
+          !(s.product_name || '').toLowerCase().includes(q) &&
+          !(s.variant_label || '').toLowerCase().includes(q) &&
+          !(s.location_name || '').toLowerCase().includes(q))
+        return false;
+    }
+    return true;
+  });
+
+  const sorted = [...filtered].sort((a: any, b: any) => {
+    let av = a[sortCol] ?? ''; let bv = b[sortCol] ?? '';
+    const cmp = typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv), undefined, { sensitivity: 'base' });
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const safePage   = Math.min(page, totalPages);
+  const visible    = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const toggleSort = (col: string) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+    setPage(1);
+  };
+  const SortIcon = ({ col }: { col: string }) => sortCol !== col ? null : (
+    <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
+  );
+  const thStyle = (col: string): React.CSSProperties => ({
+    padding: '10px 12px', textAlign: 'left', fontSize: 11,
+    color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)',
+    fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8,
+    cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
+  });
+  const thStyleFixed: React.CSSProperties = {
+    padding: '10px 12px', textAlign: 'left', fontSize: 11,
+    color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase',
+    letterSpacing: .8, whiteSpace: 'nowrap',
+  };
+
+  const anyFilter = filter || filterBrand || filterSupplier || showLowOnly;
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Stock Levels</h1>
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+        <input
+          placeholder="Search SKU, product or location…"
+          value={filter}
+          onChange={e => { setFilter(e.target.value); setPage(1); }}
+          style={{ ...inputStyle, minWidth: 220, flex: '1 1 220px' }}
+        />
+        <input
+          list="stock-brand-list"
+          placeholder="Filter by brand…"
+          value={filterBrand}
+          onChange={e => { setFilterBrand(e.target.value); setPage(1); }}
+          style={{ ...inputStyle, minWidth: 150, flex: '1 1 150px' }}
+        />
+        <datalist id="stock-brand-list">
+          {brandOptions.map(b => <option key={b} value={b} />)}
+        </datalist>
+        <input
+          list="stock-supplier-list"
+          placeholder="Filter by supplier…"
+          value={filterSupplier}
+          onChange={e => { setFilterSupplier(e.target.value); setPage(1); }}
+          style={{ ...inputStyle, minWidth: 150, flex: '1 1 150px' }}
+        />
+        <datalist id="stock-supplier-list">
+          {supplierOptions.map(s => <option key={s} value={s} />)}
+        </datalist>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--sv-text-dim)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          <input type="checkbox" checked={showLowOnly} onChange={e => { setShowLowOnly(e.target.checked); setPage(1); }} />
+          Low stock only
+        </label>
+        {anyFilter && (
+          <button onClick={() => { setFilter(''); setFilterBrand(''); setFilterSupplier(''); setShowLowOnly(false); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
+        )}
+      </div>
+
+      {loading ? <Spinner /> : sorted.length === 0 ? <EmptyState text="No stock records match your filters." /> : (
+        <>
+          <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: 'max-content', minWidth: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
+                  {([
+                    ['sku','SKU'],['product_name','Product'],['variant_label','Variant'],
+                    ['location_name','Location'],['zone','Zone'],['bin','Bin'],
+                  ] as [string,string][]).map(([col, label]) => (
+                    <th key={col} onClick={() => toggleSort(col)} style={thStyle(col)}>
+                      {label}<SortIcon col={col} />
+                    </th>
+                  ))}
+                  {(['qty_on_hand','qty_incoming','qty_committed','min_qty','reorder_qty'] as string[]).map(col => (
+                    <th key={col} onClick={() => toggleSort(col)} style={{ ...thStyle(col), textAlign: 'right' }}>
+                      {col === 'qty_on_hand' ? 'On Hand' : col === 'qty_incoming' ? 'Incoming' : col === 'qty_committed' ? 'Committed' : col === 'min_qty' ? 'Min Qty' : 'Reorder Qty'}
+                      <SortIcon col={col} />
+                    </th>
+                  ))}
+                  <th style={{ ...thStyleFixed, textAlign: 'right' }}>Avg Cost</th>
+                  <th style={{ ...thStyleFixed, textAlign: 'right' }}>Stock Value</th>
+                  {(['brand','supplier_name'] as string[]).map(col => (
+                    <th key={col} onClick={() => toggleSort(col)} style={thStyle(col)}>
+                      {col === 'brand' ? 'Brand' : 'Supplier'}<SortIcon col={col} />
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((s: any, i: number) => {
+                  const low = Number(s.qty_on_hand) <= Number(s.min_qty) && Number(s.min_qty) > 0;
+                  return (
+                    <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}>
+                      <td style={{ padding: '10px 12px', fontSize: 13 }}><code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{s.sku || '—'}</code></td>
+                      <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-main)', whiteSpace: 'nowrap' }}>{s.product_name}</td>
+                      <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.variant_label || 'Default'}</td>
+                      <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.location_name}</td>
+                      <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.zone || '—'}</td>
+                      <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.bin || '—'}</td>
+                      <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'right', color: low ? 'var(--sv-red)' : 'inherit', fontWeight: low ? 700 : 400 }}>{fmtQty(s.qty_on_hand)}</td>
+                      <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'right' }}>{fmtQty(s.qty_incoming)}</td>
+                      <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'right' }}>{fmtQty(s.qty_committed)}</td>
+                      <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'right' }}>{fmtQty(s.min_qty)}</td>
+                      <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'right', color: 'var(--sv-text-dim)' }}>{fmtQty(s.reorder_qty)}</td>
+                      <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'right' }}>{fmtCurrency(s.avg_cost)}</td>
+                      <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'right' }}>{fmtCurrency(Number(s.qty_on_hand) * Number(s.avg_cost || 0))}</td>
+                      <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.brand || '—'}</td>
+                      <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.supplier_name || '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            </div>
+          </div>
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, justifyContent: 'center' }}>
+              <button onClick={() => setPage(1)} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>«</button>
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>‹ Prev</button>
+              <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 8px' }}>Page {safePage} of {totalPages} ({sorted.length} rows)</span>
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>Next ›</button>
+              <button onClick={() => setPage(totalPages)} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>»</button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Purchase Orders View
+// ─────────────────────────────────────────────────────────────────────────────
+
+function PurchaseOrdersView() {
+  const [pos, setPos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
+  const [viewModal, setViewModal] = useState<{ open: boolean; po: any | null }>({ open: false, po: null });
+  const [poPayForm, setPoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string } | null>(null);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
+  const [variants, setVariants] = useState<any[]>([]);
+  const [form, setForm] = useState<any>({ supplier_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', supplier_invoice_number: '', payment_terms: '', freight: '', discount: '' });
+  const [lineItems, setLineItems] = useState<any[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [filterSupplier, setFilterSupplier] = useState('');
+  const [sortCol, setSortCol] = useState<string>('order_date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [page, setPage] = useState(1);
+  const { settings, saveSettings } = useImsSettings();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsDraft, setSettingsDraft] = useState<Record<string, string>>({});
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  useEffect(() => {
+    setSettingsDraft({
+      po_email_subject: 'Purchase Order {{order_number}}',
+      po_email_body: 'Dear {{contact_name}},\n\nPlease find attached Purchase Order {{order_number}} totalling {{total}}.\n\nKind regards',
+      ...settings,
+    });
+  }, [settings]);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch('/api/ims/purchase-orders').then(r => r.json()).then(d => {
+      if (d.success) setPos(d.data);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    fetch('/api/ims/contacts?type=supplier&active=1').then(r => r.json()).then(d => { if (d.success) setSuppliers(d.data); });
+    fetch('/api/ims/locations').then(r => r.json()).then(d => { if (d.success) setLocations(d.data); });
+    fetch('/api/ims/variants').then(r => r.json()).then(d => { if (d.success) setVariants(d.data); });
+  }, []);
+
+  const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((p: any) => ({ ...p, [k]: e.target.value }));
+
+  const addLine = () => setLineItems(p => [...p, { variant_id: '', qty_ordered: 1, unit_cost: 0, tax_rate: 0 }]);
+  const removeLine = (i: number) => setLineItems(p => p.filter((_, idx) => idx !== i));
+  const updateLine = (i: number, k: string, v: any) => setLineItems(p => p.map((item, idx) => idx === i ? { ...item, [k]: v } : item));
+
+  const selectPOVariant = (i: number, variant_id: string) => {
+    const v = variants.find((v: any) => v.variant_id === variant_id);
+    const unit_cost = v ? Number(v.cost ?? 0) : 0;
+    setLineItems(p => p.map((item, j) => j === i ? { ...item, variant_id, unit_cost } : item));
+  };
+
+  const lineTotal = (item: any) => Number(item.qty_ordered || 0) * Number(item.unit_cost || 0);
+  const poSubtotal = lineItems.reduce((s, i) => s + lineTotal(i), 0);
+  const poTax      = lineItems.reduce((s, i) => s + lineTotal(i) * Number(i.tax_rate || 0), 0);
+  const grandTotal = poSubtotal + poTax + Number(form.freight || 0) - Number(form.discount || 0);
+
+  const openNew = () => {
+    setForm({ supplier_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', supplier_invoice_number: '', payment_terms: '', freight: '', discount: '' });
+    setLineItems([{ variant_id: '', qty_ordered: 1, unit_cost: 0, tax_rate: 0 }]);
+    setModal({ open: true, edit: null });
+  };
+
+  const openEdit = async (po: any) => {
+    const d = await apiFetch(`/api/ims/purchase-orders/${po.id}`);
+    setForm({ supplier_id: d.data.supplier_id ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), expected_date: d.data.expected_date?.slice(0, 10) ?? '', notes: d.data.notes ?? '', supplier_invoice_number: d.data.supplier_invoice_number ?? '', payment_terms: d.data.payment_terms ?? '', freight: d.data.freight ?? '', discount: d.data.discount ?? '' });
+    setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_cost: i.unit_cost, tax_rate: i.tax_rate, notes: i.notes ?? '' })));
+    setModal({ open: true, edit: d.data });
+  };
+
+  const openView = async (po: any) => {
+    const d = await apiFetch(`/api/ims/purchase-orders/${po.id}`);
+    setViewModal({ open: true, po: d.data });
+    setPoPayForm(null);
+  };
+
+  const refreshPoView = async (id: number) => {
+    const d = await apiFetch(`/api/ims/purchase-orders/${id}`);
+    if (d.data) setViewModal(prev => ({ ...prev, po: d.data }));
+  };
+
+  const handleAddPoPayment = async () => {
+    if (!viewModal.po || !poPayForm || !poPayForm.date || !poPayForm.amount) return;
+    const currency = (viewModal.po.currency_code || 'AUD').toUpperCase();
+    const rate = Number(poPayForm.rate || 1);
+    try {
+      await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}/payments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_date: poPayForm.date, amount: Number(poPayForm.amount), currency_code: currency, exchange_rate: rate, notes: poPayForm.notes || undefined }),
+      });
+      setPoPayForm(null);
+      await refreshPoView(viewModal.po.id);
+    } catch (e: any) { alert(e.message); }
+  };
+
+  const handleDeletePoPayment = async (paymentId: number) => {
+    if (!viewModal.po) return;
+    try {
+      await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}/payments/${paymentId}`, { method: 'DELETE' });
+      await refreshPoView(viewModal.po.id);
+    } catch (e: any) { alert(e.message); }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.location_id) { alert('Location is required.'); return; }
+    if (lineItems.length === 0 || lineItems.some(i => !i.variant_id)) { alert('Add at least one line item with a variant selected.'); return; }
+    setSaving(true);
+    try {
+      const items = lineItems.map(i => ({ ...i, line_total: lineTotal(i) }));
+      if (modal.edit) {
+        await apiFetch(`/api/ims/purchase-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items }) });
+      } else {
+        await apiFetch('/api/ims/purchase-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items }) });
+      }
+      load(); setModal({ open: false, edit: null });
+    } catch (e: any) { alert(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const changeStatus = async (po: any, status: string) => {
+    const labels: Record<string, string> = { approved: 'approve', received: 'mark as received', draft: 'revert to draft', cancelled: 'cancel' };
+    if (!confirm(`${labels[status] || status} PO ${po.po_number}?`)) return;
+    try {
+      await apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+      load();
+      if (viewModal.open && viewModal.po?.id === po.id) {
+        const d = await apiFetch(`/api/ims/purchase-orders/${po.id}`);
+        setViewModal({ open: true, po: d.data });
+      }
+    } catch (e: any) { alert(e.message); }
+  };
+
+  const handleDelete = async (po: any) => {
+    if (!confirm(`Delete PO ${po.po_number}?`)) return;
+    try { await apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'DELETE' }); load(); }
+    catch (e: any) { alert(e.message); }
+  };
+
+  const supplierOptions = [...new Set(pos.map((p: any) => p.supplier_name).filter(Boolean))].sort() as string[];
+  const filteredPOs = pos.filter((p: any) => {
+    if (statusFilter && p.status !== statusFilter) return false;
+    if (filterSupplier && !(p.supplier_name || '').toLowerCase().includes(filterSupplier.toLowerCase())) return false;
+    return true;
+  });
+  const sortedFilteredPOs = [...filteredPOs].sort((a: any, b: any) => {
+    let av = a[sortCol]; let bv = b[sortCol];
+    av = av ?? ''; bv = bv ?? '';
+    const cmp = typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv), undefined, { sensitivity: 'base' });
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+  const totalPagesPO = Math.max(1, Math.ceil(sortedFilteredPOs.length / PAGE_SIZE));
+  const safePagePO = Math.min(page, totalPagesPO);
+  const visiblePOs = sortedFilteredPOs.slice((safePagePO - 1) * PAGE_SIZE, safePagePO * PAGE_SIZE);
+  const toggleSort = (col: string) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+    setPage(1);
+  };
+  const SortIcon = ({ col }: { col: string }) => sortCol !== col ? null : (
+    <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
+  );
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: settingsOpen ? 8 : 20 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Purchase Orders</h1>
+        <CogButton active={settingsOpen} onClick={() => setSettingsOpen(o => !o)} />
+        <button onClick={openNew} style={btnStyle('action')}>+ New PO</button>
+      </div>
+      {settingsOpen && (
+        <SettingsPanel>
+          <div style={{ marginBottom: 14, fontWeight: 700, color: 'var(--sv-text-strong)', fontSize: 14 }}>Purchase Order Settings</div>
+          <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 12 }}>Business name, address and logo are configured in <strong>⚙️ Settings</strong>.</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'start', marginBottom: 12 }}>
+            <div>
+              <label style={labelStyle}>Email Subject Template</label>
+              <input style={inputStyle} value={settingsDraft['po_email_subject'] || ''} onChange={e => setSettingsDraft(p => ({ ...p, po_email_subject: e.target.value }))} placeholder="Purchase Order {{order_number}}" />
+            </div>
+            <div style={{ paddingTop: 18 }}>
+              <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', lineHeight: 1.6, whiteSpace: 'nowrap' }}>
+                Variables: <code style={{ color: 'var(--sv-mint)' }}>{'{{order_number}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{contact_name}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{total}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{date}}'}</code>
+              </div>
+            </div>
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={labelStyle}>Email Body Template</label>
+            <textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' as const }} value={settingsDraft['po_email_body'] || ''} onChange={e => setSettingsDraft(p => ({ ...p, po_email_body: e.target.value }))} placeholder={'Dear {{contact_name}},\n\nPlease find attached Purchase Order {{order_number}} totalling {{total}}.\n\nKind regards'} />
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={labelStyle}>Terms &amp; Conditions (printed at the bottom of the PDF)</label>
+            <textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' as const }} value={settingsDraft['po_terms'] || ''} onChange={e => setSettingsDraft(p => ({ ...p, po_terms: e.target.value }))} placeholder="e.g. Payment due 30 days from order date. Prices are in AUD inclusive of GST." />
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button type="button" onClick={() => { setSettingsOpen(false); setSettingsDraft({ po_email_subject: 'Purchase Order {{order_number}}', po_email_body: 'Dear {{contact_name}},\n\nPlease find attached Purchase Order {{order_number}} totalling {{total}}.\n\nKind regards', ...settings }); }} style={btnStyle('ghost', 'sm')}>Cancel</button>
+            <button type="button" disabled={settingsSaving} onClick={async () => { setSettingsSaving(true); await saveSettings(settingsDraft); setSettingsSaving(false); setSettingsOpen(false); }} style={btnStyle('action', 'sm')}>{settingsSaving ? 'Saving…' : 'Save Settings'}</button>
+          </div>
+        </SettingsPanel>
+      )}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+        {['','draft','approved','received','cancelled'].map(s => (
+          <button key={s} onClick={() => { setStatusFilter(s); setPage(1); }} style={btnStyle(statusFilter === s ? 'action' : 'ghost', 'sm')}>
+            {s || 'All'}
+          </button>
+        ))}
+        <input
+          list="po-supplier-filter-list"
+          placeholder="Filter by supplier…"
+          value={filterSupplier}
+          onChange={e => { setFilterSupplier(e.target.value); setPage(1); }}
+          style={{ ...inputStyle, minWidth: 180, flex: '1 1 180px' }}
+        />
+        <datalist id="po-supplier-filter-list">
+          {supplierOptions.map(s => <option key={s} value={s} />)}
+        </datalist>
+        {(statusFilter || filterSupplier) && (
+          <button onClick={() => { setStatusFilter(''); setFilterSupplier(''); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
+        )}
+      </div>
+      {loading ? <Spinner /> : sortedFilteredPOs.length === 0 ? <EmptyState text="No purchase orders match your filters." /> : (
+        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <colgroup>
+              <col />
+              <col style={{ width: 160 }} />
+              <col style={{ width: 120 }} />
+              <col style={{ width: 100 }} />
+              <col style={{ width: 100 }} />
+              <col style={{ width: 90 }} />
+              <col style={{ width: 180 }} />
+            </colgroup>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
+                {([['po_number','PO #'],['supplier_name','Supplier'],['location_name','Location'],['order_date','Date'],['total_amount','Total'],['status','Status']] as [string,string][]).map(([col, label]) => (
+                  <th key={col} onClick={() => toggleSort(col)}
+                    style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                    {label}<SortIcon col={col} />
+                  </th>
+                ))}
+                <th style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8 }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visiblePOs.map((po: any, i: number) => (
+                <tr key={po.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}>
+                  <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <button onClick={() => openView(po)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{po.po_number}</button>
+                  </td>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.supplier_name || '—'}</td>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.location_name}</td>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{po.order_date?.slice(0, 10)}</td>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(po.total_amount)}</td>
+                  <td style={{ padding: '10px 12px' }}><StatusBadge status={po.status} /></td>
+                  <td style={{ padding: '10px 12px' }}><POActions po={po} onEdit={() => openEdit(po)} onDelete={() => handleDelete(po)} onStatus={changeStatus} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {!loading && totalPagesPO > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14 }}>
+          <button onClick={() => setPage(1)} disabled={safePagePO === 1} style={btnStyle('secondary', 'sm')}>«</button>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePagePO === 1} style={btnStyle('secondary', 'sm')}>‹ Prev</button>
+          <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 8px' }}>Page {safePagePO} of {totalPagesPO} ({sortedFilteredPOs.length} orders)</span>
+          <button onClick={() => setPage(p => Math.min(totalPagesPO, p + 1))} disabled={safePagePO === totalPagesPO} style={btnStyle('secondary', 'sm')}>Next ›</button>
+          <button onClick={() => setPage(totalPagesPO)} disabled={safePagePO === totalPagesPO} style={btnStyle('secondary', 'sm')}>»</button>
+        </div>
+      )}
+
+      {/* Create / Edit PO Modal */}
+      {modal.open && (
+        <Modal title={modal.edit ? `Edit ${modal.edit.po_number}` : 'New Purchase Order'} onClose={() => setModal({ open: false, edit: null })} wide>
+          <form onSubmit={handleSubmit}>
+            <Row3>
+              <Field label="Supplier">
+                <select value={form.supplier_id} onChange={sf('supplier_id')} style={inputStyle}>
+                  <option value="">— None —</option>
+                  {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </Field>
+              <Field label="Location *">
+                <select required value={form.location_id} onChange={sf('location_id')} style={inputStyle}>
+                  <option value="">— Select —</option>
+                  {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+              </Field>
+              <Field label="Order Date *"><input required type="date" value={form.order_date} onChange={sf('order_date')} style={inputStyle} /></Field>
+            </Row3>
+            <Row2>
+              <Field label="Expected Date"><input type="date" value={form.expected_date} onChange={sf('expected_date')} style={inputStyle} /></Field>
+              <Field label="Notes"><input value={form.notes} onChange={sf('notes')} style={inputStyle} /></Field>
+            </Row2>
+            <Row2>
+              <Field label="Supplier Invoice #"><input value={form.supplier_invoice_number} onChange={sf('supplier_invoice_number')} style={inputStyle} placeholder="e.g. INV-00123" /></Field>
+              <Field label="Payment Terms">
+                <select value={form.payment_terms} onChange={sf('payment_terms')} style={inputStyle}>
+                  {PAYMENT_TERMS.map(t => <option key={t} value={t}>{t || '— None —'}</option>)}
+                </select>
+              </Field>
+            </Row2>
+
+            {/* Line items */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>LINE ITEMS</span>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button type="button" onClick={() => setImportOpen(true)} style={btnStyle('secondary', 'xs')}>⬆ Import</button>
+                  <button type="button" onClick={addLine} style={btnStyle('ghost', 'xs')}>+ Add Line</button>
+                </div>
+              </div>
+              <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--sv-bg-1)' }}>
+                      {['Variant','Qty','Unit Cost','Tax %','Line Total',''].map(h => (
+                        <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600 }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lineItems.map((item, i) => (
+                      <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                        <td style={{ padding: 4 }}>
+                          <select value={item.variant_id} onChange={e => selectPOVariant(i, e.target.value)} style={{ ...inputStyle, fontSize: 12 }}>
+                            <option value="">— Select variant —</option>
+                            {variants.map(v => <option key={v.variant_id} value={v.variant_id}>{v.product_name} — {v.sku || v.variant_id.slice(0, 8)} {[v.option1_value, v.option2_value].filter(Boolean).join('/')}</option>)}
+                          </select>
+                        </td>
+                        <td style={{ padding: 4, width: 80 }}>
+                          <input type="number" min="0.0001" step="any" value={item.qty_ordered} onChange={e => updateLine(i, 'qty_ordered', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} />
+                        </td>
+                        <td style={{ padding: 4, width: 100 }}>
+                          <input type="number" min="0" step="0.0001" value={item.unit_cost} onChange={e => updateLine(i, 'unit_cost', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} />
+                        </td>
+                        <td style={{ padding: 4, width: 70 }}>
+                          <input type="number" min="0" max="1" step="0.01" value={item.tax_rate} onChange={e => updateLine(i, 'tax_rate', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0.1" />
+                        </td>
+                        <td style={{ padding: '4px 8px', width: 100, color: 'var(--sv-text-main)', fontSize: 13 }}>{fmtCurrency(lineTotal(item))}</td>
+                        <td style={{ padding: 4, width: 30 }}>
+                          <button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16 }}>×</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+                <div style={{ minWidth: 280 }}>
+                  {[['Subtotal', fmtCurrency(poSubtotal)], ['Tax', fmtCurrency(poTax)]].map(([l, v]) => (
+                    <div key={l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
+                      <span>{l}</span><span>{v}</span>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
+                    <span>Discount (−)</span>
+                    <input type="number" min="0" step="0.01" value={form.discount} onChange={sf('discount')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 8 }}>
+                    <span>Freight (+)</span>
+                    <input type="number" min="0" step="0.01" value={form.freight} onChange={sf('freight')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)', borderTop: '1px solid var(--sv-etch)', paddingTop: 6 }}>
+                    <span>Total (inc. tax)</span><span>{fmtCurrency(grandTotal)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <FormActions onCancel={() => setModal({ open: false, edit: null })} saving={saving} isEdit={!!modal.edit} />
+          </form>
+        </Modal>
+      )}
+
+      {importOpen && modal.open && (
+        <ImportLineItemsModal
+          variants={variants}
+          priceFn={(v) => Number(v.cost ?? 0)}
+          lineFactory={(v, qty, price) => ({ variant_id: v.variant_id, qty_ordered: qty, unit_cost: price, tax_rate: 0 })}
+          onImport={(items) => setLineItems(prev => [...prev.filter(i => i.variant_id), ...items])}
+          onClose={() => setImportOpen(false)}
+        />
+      )}
+
+      {/* View PO detail modal */}
+      {viewModal.open && viewModal.po && (
+        <Modal title={`${viewModal.po.po_number} — ${viewModal.po.status}`} onClose={() => { setViewModal({ open: false, po: null }); setPoPayForm(null); }} wide>
+          <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <POActions po={viewModal.po} onEdit={() => { setViewModal({ open: false, po: null }); openEdit(viewModal.po); }} onDelete={() => { setViewModal({ open: false, po: null }); handleDelete(viewModal.po); }} onStatus={changeStatus} />
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+              <button
+                onClick={() => { window.open(`/api/ims/purchase-orders/${viewModal.po.id}/pdf`, '_blank'); }}
+                style={btnStyle('secondary', 'sm')}
+              >⬇ Download PDF</button>
+              <button
+                onClick={() => {
+                  const po = viewModal.po;
+                  const subj = (settings['po_email_subject'] || 'Purchase Order {{order_number}}')
+                    .replace(/\{\{order_number\}\}/g, po.po_number)
+                    .replace(/\{\{contact_name\}\}/g, po.supplier_name || '')
+                    .replace(/\{\{total\}\}/g, fmtCurrency(po.total_amount))
+                    .replace(/\{\{date\}\}/g, po.order_date?.slice(0, 10) || '');
+                  const body = (settings['po_email_body'] || 'Dear {{contact_name}},\n\nPlease find attached Purchase Order {{order_number}} totalling {{total}}.\n\nKind regards')
+                    .replace(/\{\{order_number\}\}/g, po.po_number)
+                    .replace(/\{\{contact_name\}\}/g, po.supplier_name || '')
+                    .replace(/\{\{total\}\}/g, fmtCurrency(po.total_amount))
+                    .replace(/\{\{date\}\}/g, po.order_date?.slice(0, 10) || '');
+                  // Trigger PDF download first
+                  const a = document.createElement('a');
+                  a.href = `/api/ims/purchase-orders/${po.id}/pdf`;
+                  a.download = `${po.po_number}.pdf`;
+                  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                  // Then open mailto
+                  setTimeout(() => {
+                    window.location.href = `mailto:${encodeURIComponent(po.supplier_email || '')}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
+                  }, 400);
+                }}
+                style={btnStyle('mint', 'sm')}
+              >✉ Email</button>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+            <div><div style={labelStyle}>Supplier</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.supplier_name || '—'}</div></div>
+            <div><div style={labelStyle}>Location</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.location_name}</div></div>
+            <div><div style={labelStyle}>Status</div><StatusBadge status={viewModal.po.status} /></div>
+            <div><div style={labelStyle}>Order Date</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.order_date?.slice(0, 10)}</div></div>
+            <div><div style={labelStyle}>Expected</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.expected_date?.slice(0, 10) || '—'}</div></div>
+            <div><div style={labelStyle}>Received</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.received_date?.slice(0, 10) || '—'}</div></div>
+          </div>
+          {viewModal.po.notes && <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--sv-bg-2)', borderRadius: 6, fontSize: 13, color: 'var(--sv-text-dim)' }}>{viewModal.po.notes}</div>}
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
+            <thead>
+              <tr style={{ background: 'var(--sv-bg-1)' }}>
+                {['SKU','Product','Variant','Qty Ordered','Qty Received','Unit Cost','Tax','Line Total'].map(h => (
+                  <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {(viewModal.po.items || []).map((item: any, i: number) => (
+                <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                  <td style={{ padding: '8px 10px' }}><code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{item.sku || '—'}</code></td>
+                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{item.product_name}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{item.variant_label || 'Default'}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtQty(item.qty_ordered)}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtQty(item.qty_received)}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtCurrency(item.unit_cost)}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{(Number(item.tax_rate) * 100).toFixed(0)}%</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13, fontWeight: 600 }}>{fmtCurrency(item.line_total)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              {(Number(viewModal.po.discount) > 0 || Number(viewModal.po.freight) > 0) && (
+                <tr style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                  <td colSpan={7} style={{ padding: '6px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Subtotal</td>
+                  <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtCurrency(viewModal.po.subtotal)}</td>
+                </tr>
+              )}
+              {(Number(viewModal.po.discount) > 0 || Number(viewModal.po.freight) > 0) && (
+                <tr>
+                  <td colSpan={7} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Tax</td>
+                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtCurrency(viewModal.po.tax_amount)}</td>
+                </tr>
+              )}
+              {Number(viewModal.po.discount) > 0 && (
+                <tr>
+                  <td colSpan={7} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Discount (−)</td>
+                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-red)' }}>−{fmtCurrency(viewModal.po.discount)}</td>
+                </tr>
+              )}
+              {Number(viewModal.po.freight) > 0 && (
+                <tr>
+                  <td colSpan={7} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Freight (+)</td>
+                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>+{fmtCurrency(viewModal.po.freight)}</td>
+                </tr>
+              )}
+              <tr style={{ borderTop: '2px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
+                <td colSpan={7} style={{ padding: '8px 10px', textAlign: 'right', fontSize: 13, color: 'var(--sv-text-dim)' }}>Total</td>
+                <td style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--sv-text-strong)' }}>{fmtCurrency(viewModal.po.total_amount)}</td>
+              </tr>
+            </tfoot>
+          </table>
+
+          {/* ── Payments ── */}
+          {(() => {
+            const currency = (viewModal.po.currency_code || 'AUD').toUpperCase();
+            const isFx = currency !== 'AUD';
+            const amountPaid = Number(viewModal.po.amount_paid || 0);
+            const balance = Number(viewModal.po.balance ?? (Number(viewModal.po.total_amount) - amountPaid));
+            return (
+              <div style={{ marginTop: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Payments</div>
+                  {!poPayForm && (
+                    <button onClick={() => setPoPayForm({ date: today(), amount: '', rate: '1', notes: '' })} style={btnStyle('mint', 'xs')}>+ Add Payment</button>
+                  )}
+                </div>
+
+                {(viewModal.po.payments || []).length > 0 && (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 10, border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ background: 'var(--sv-bg-1)' }}>
+                        {(['Date', 'Amount', ...(isFx ? ['Rate', 'AUD'] : []), 'Notes', '']).map((h: string, idx: number) => (
+                          <th key={idx} style={{ padding: '5px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(viewModal.po.payments || []).map((p: any) => (
+                        <tr key={p.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                          <td style={{ padding: '5px 10px' }}>{p.payment_date?.slice(0, 10)}</td>
+                          <td style={{ padding: '5px 10px', fontWeight: 600 }}>{fmtFx(p.amount, currency)}</td>
+                          {isFx && <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{Number(p.exchange_rate).toFixed(4)}</td>}
+                          {isFx && <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{fmtCurrency(p.amount_local)}</td>}
+                          <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.notes || '—'}</td>
+                          <td style={{ padding: '5px 10px', textAlign: 'right' }}>
+                            <button onClick={() => handleDeletePoPayment(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>✕</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                <div style={{ display: 'flex', gap: 16, padding: '8px 12px', background: 'var(--sv-bg-2)', borderRadius: 6, fontSize: 13, marginBottom: poPayForm ? 10 : 0, flexWrap: 'wrap' }}>
+                  <span><span style={{ color: 'var(--sv-text-dim)' }}>Total: </span><strong>{fmtFx(viewModal.po.total_amount, currency)}</strong></span>
+                  <span><span style={{ color: 'var(--sv-text-dim)' }}>Paid: </span><strong style={{ color: 'var(--sv-mint,#0c9)' }}>{fmtFx(amountPaid, currency)}</strong></span>
+                  <span><span style={{ color: 'var(--sv-text-dim)' }}>Balance: </span><strong style={{ color: balance > 0.005 ? 'var(--sv-orange,#f80)' : 'var(--sv-mint,#0c9)' }}>{fmtFx(balance, currency)}</strong></span>
+                  {isFx && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>≈ {fmtCurrency(viewModal.po.balance_local)} AUD remaining</span>}
+                </div>
+
+                {poPayForm && (
+                  <div style={{ padding: '12px 14px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Date</div>
+                        <input type="date" value={poPayForm.date} onChange={e => setPoPayForm(f => f ? { ...f, date: e.target.value } : f)} style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13 }} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Amount ({currency})</div>
+                        <input type="number" min={0} step="0.01" value={poPayForm.amount} onChange={e => setPoPayForm(f => f ? { ...f, amount: e.target.value } : f)} style={{ width: 110, padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13 }} placeholder="0.00" />
+                      </div>
+                      {isFx && (
+                        <div>
+                          <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Rate (1 {currency} = ? AUD)</div>
+                          <input type="number" min={0} step="0.000001" value={poPayForm.rate} onChange={e => setPoPayForm(f => f ? { ...f, rate: e.target.value } : f)} style={{ width: 100, padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13 }} />
+                        </div>
+                      )}
+                      {isFx && poPayForm.amount && poPayForm.rate && (
+                        <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', paddingBottom: 6 }}>≈ {fmtCurrency(Number(poPayForm.amount) * Number(poPayForm.rate))} AUD</div>
+                      )}
+                      <div style={{ flex: 1, minWidth: 120 }}>
+                        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Notes</div>
+                        <input type="text" value={poPayForm.notes} onChange={e => setPoPayForm(f => f ? { ...f, notes: e.target.value } : f)} style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13 }} placeholder="Optional" />
+                      </div>
+                      <button onClick={handleAddPoPayment} disabled={!poPayForm.amount || !poPayForm.date} style={btnStyle('mint', 'sm')}>Save</button>
+                      <button onClick={() => setPoPayForm(null)} style={btnStyle('ghost', 'sm')}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function POActions({ po, onEdit, onDelete, onStatus }: { po: any; onEdit: () => void; onDelete: () => void; onStatus: (po: any, s: string) => void }) {
+  const isOpeningSnapshot =
+    po?.po_category === 'opening_stock' ||
+    po?.category === 'opening_stock' ||
+    po?.is_opening_stock === 1 ||
+    po?.is_opening_stock === true;
+
+  if (po.is_historical) {
+    return <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>Historical (Cin7)</span>;
+  }
+  const btns = [];
+  if (po.status === 'draft')    { btns.push(<button key="a" onClick={() => onStatus(po, 'approved')}  style={btnStyle('mint', 'xs')}>Approve</button>); }
+  if (po.status === 'approved') { btns.push(<button key="r" onClick={() => onStatus(po, 'received')}  style={btnStyle('mint', 'xs')}>Receive</button>); }
+  if (po.status === 'approved') { btns.push(<button key="b" onClick={() => onStatus(po, 'draft')}     style={btnStyle('ghost', 'xs')}>Revert</button>); }
+  if (po.status !== 'received' && po.status !== 'cancelled') {
+    btns.push(<button key="e" onClick={onEdit}  style={btnStyle('ghost', 'xs')}>Edit</button>);
+    btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
+  }
+  if (po.status === 'cancelled' || po.status === 'draft') {
+    btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>);
+  }
+  return (
+    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+      {isOpeningSnapshot && (
+        <span style={{ fontSize: 11, color: 'var(--sv-amber)', border: '1px solid color-mix(in srgb, var(--sv-amber) 55%, var(--sv-border,#444))', borderRadius: 4, padding: '2px 6px', background: 'color-mix(in srgb, var(--sv-amber) 12%, transparent)' }}>
+          Opening Stock Snapshot
+        </span>
+      )}
+      {btns}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sales Orders View
+// ─────────────────────────────────────────────────────────────────────────────
+
+function SalesOrdersView() {
+  const [sos, setSos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
+  const [viewModal, setViewModal] = useState<{ open: boolean; so: any | null }>({ open: false, so: null });
+  const [soPayForm, setSoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string } | null>(null);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
+  const [variants, setVariants] = useState<any[]>([]);
+  const [form, setForm] = useState<any>({ customer_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', payment_terms: '', freight: '', discount: '' });
+  const [lineItems, setLineItems] = useState<any[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [filterCustomer, setFilterCustomer] = useState('');
+  const [sortCol, setSortCol] = useState<string>('order_date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [page, setPage] = useState(1);
+  const { settings, saveSettings } = useImsSettings();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsDraft, setSettingsDraft] = useState<Record<string, string>>({});
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  useEffect(() => {
+    setSettingsDraft({
+      so_email_subject: 'Tax Invoice {{order_number}}',
+      so_email_body: 'Dear {{contact_name}},\n\nPlease find attached Tax Invoice {{order_number}} totalling {{total}}.\n\nKind regards',
+      ...settings,
+    });
+  }, [settings]);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch('/api/ims/sales-orders').then(r => r.json()).then(d => {
+      if (d.success) setSos(d.data);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    fetch('/api/ims/contacts?type=customer&active=1').then(r => r.json()).then(d => { if (d.success) setCustomers(d.data); });
+    fetch('/api/ims/locations').then(r => r.json()).then(d => { if (d.success) setLocations(d.data); });
+    fetch('/api/ims/variants').then(r => r.json()).then(d => { if (d.success) setVariants(d.data); });
+  }, []);
+
+  const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((p: any) => ({ ...p, [k]: e.target.value }));
+
+  const addLine = () => setLineItems(p => [...p, { variant_id: '', qty_ordered: 1, unit_price: 0, discount_pct: 0, tax_rate: 0 }]);
+  const removeLine = (i: number) => setLineItems(p => p.filter((_, idx) => idx !== i));
+  const updateLine = (i: number, k: string, v: any) => setLineItems(p => p.map((item, idx) => idx === i ? { ...item, [k]: v } : item));
+
+  // Auto-fill unit_price from variant pricing based on customer tier
+  const selectSOVariant = (i: number, variant_id: string) => {
+    const v = variants.find((v: any) => v.variant_id === variant_id);
+    const customer = customers.find((c: any) => String(c.id) === String(form.customer_id));
+    const isWholesale = customer?.price_tier === 'wholesale';
+    const unit_price = isWholesale && v?.wholesale_price ? Number(v.wholesale_price) : (v ? Number(v.price ?? 0) : 0);
+    setLineItems(p => p.map((item, j) => j === i ? { ...item, variant_id, unit_price } : item));
+  };
+
+  const lineTotal = (item: any) => Number(item.qty_ordered || 0) * Number(item.unit_price || 0) * (1 - Number(item.discount_pct || 0));
+  const soSubtotal = lineItems.reduce((s, i) => s + lineTotal(i), 0);
+  const soTax      = lineItems.reduce((s, i) => s + lineTotal(i) * Number(i.tax_rate || 0), 0);
+  const grandTotal = soSubtotal + soTax + Number(form.freight || 0) - Number(form.discount || 0);
+
+  const openNew = () => {
+    setForm({ customer_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', payment_terms: '', freight: '', discount: '' });
+    setLineItems([{ variant_id: '', qty_ordered: 1, unit_price: 0, discount_pct: 0, tax_rate: 0 }]);
+    setModal({ open: true, edit: null });
+  };
+
+  const openEdit = async (so: any) => {
+    const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);
+    setForm({ customer_id: d.data.customer_id ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), expected_date: d.data.expected_date?.slice(0, 10) ?? '', notes: d.data.notes ?? '', payment_terms: d.data.payment_terms ?? '', freight: d.data.freight ?? '', discount: d.data.discount ?? '' });
+    setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_price: i.unit_price, discount_pct: i.discount_pct, tax_rate: i.tax_rate })));
+    setModal({ open: true, edit: d.data });
+  };
+
+  const openView = async (so: any) => {
+    const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);
+    setViewModal({ open: true, so: d.data });
+    setSoPayForm(null);
+  };
+
+  const refreshSoView = async (id: number) => {
+    const d = await apiFetch(`/api/ims/sales-orders/${id}`);
+    if (d.data) setViewModal(prev => ({ ...prev, so: d.data }));
+  };
+
+  const handleAddSoPayment = async () => {
+    if (!viewModal.so || !soPayForm || !soPayForm.date || !soPayForm.amount) return;
+    const currency = (viewModal.so.currency_code || 'AUD').toUpperCase();
+    const rate = Number(soPayForm.rate || 1);
+    try {
+      await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}/payments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_date: soPayForm.date, amount: Number(soPayForm.amount), currency_code: currency, exchange_rate: rate, notes: soPayForm.notes || undefined }),
+      });
+      setSoPayForm(null);
+      await refreshSoView(viewModal.so.id);
+    } catch (e: any) { alert(e.message); }
+  };
+
+  const handleDeleteSoPayment = async (paymentId: number) => {
+    if (!viewModal.so) return;
+    try {
+      await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}/payments/${paymentId}`, { method: 'DELETE' });
+      await refreshSoView(viewModal.so.id);
+    } catch (e: any) { alert(e.message); }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.location_id) { alert('Location is required.'); return; }
+    if (lineItems.length === 0 || lineItems.some(i => !i.variant_id)) { alert('Add at least one line item with a variant selected.'); return; }
+    setSaving(true);
+    try {
+      const items = lineItems.map(i => ({ ...i, line_total: lineTotal(i) }));
+      if (modal.edit) {
+        await apiFetch(`/api/ims/sales-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items }) });
+      } else {
+        await apiFetch('/api/ims/sales-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items }) });
+      }
+      load(); setModal({ open: false, edit: null });
+    } catch (e: any) { alert(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const changeStatus = async (so: any, status: string) => {
+    const labels: Record<string, string> = { confirmed: 'confirm', fulfilled: 'mark as fulfilled', draft: 'revert to draft', cancelled: 'cancel' };
+    if (!confirm(`${labels[status] || status} SO ${so.so_number}?`)) return;
+    try {
+      await apiFetch(`/api/ims/sales-orders/${so.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+      load();
+      if (viewModal.open && viewModal.so?.id === so.id) {
+        const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);
+        setViewModal({ open: true, so: d.data });
+      }
+    } catch (e: any) { alert(e.message); }
+  };
+
+  const handleDelete = async (so: any) => {
+    if (!confirm(`Delete SO ${so.so_number}?`)) return;
+    try { await apiFetch(`/api/ims/sales-orders/${so.id}`, { method: 'DELETE' }); load(); }
+    catch (e: any) { alert(e.message); }
+  };
+
+  const customerOptions = [...new Set(sos.map((s: any) => s.customer_name).filter(Boolean))].sort() as string[];
+  const filteredSOs = sos.filter((s: any) => {
+    if (statusFilter && s.status !== statusFilter) return false;
+    if (filterCustomer && !(s.customer_name || '').toLowerCase().includes(filterCustomer.toLowerCase())) return false;
+    return true;
+  });
+  const sortedFilteredSOs = [...filteredSOs].sort((a: any, b: any) => {
+    let av = a[sortCol]; let bv = b[sortCol];
+    av = av ?? ''; bv = bv ?? '';
+    const cmp = typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv), undefined, { sensitivity: 'base' });
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+  const totalPagesSO = Math.max(1, Math.ceil(sortedFilteredSOs.length / PAGE_SIZE));
+  const safePageSO = Math.min(page, totalPagesSO);
+  const visibleSOs = sortedFilteredSOs.slice((safePageSO - 1) * PAGE_SIZE, safePageSO * PAGE_SIZE);
+  const toggleSort = (col: string) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+    setPage(1);
+  };
+  const SortIcon = ({ col }: { col: string }) => sortCol !== col ? null : (
+    <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
+  );
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: settingsOpen ? 8 : 20 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Sales Orders</h1>
+        <CogButton active={settingsOpen} onClick={() => setSettingsOpen(o => !o)} />
+        <button onClick={openNew} style={btnStyle('action')}>+ New SO</button>
+      </div>
+      {settingsOpen && (
+        <SettingsPanel>
+          <div style={{ marginBottom: 14, fontWeight: 700, color: 'var(--sv-text-strong)', fontSize: 14 }}>Tax Invoice Settings</div>
+          <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 12 }}>Business name, address and logo are configured in <strong>⚙️ Settings</strong>.</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'start', marginBottom: 12 }}>
+            <div>
+              <label style={labelStyle}>Email Subject Template</label>
+              <input style={inputStyle} value={settingsDraft['so_email_subject'] || ''} onChange={e => setSettingsDraft(p => ({ ...p, so_email_subject: e.target.value }))} placeholder="Tax Invoice {{order_number}}" />
+            </div>
+            <div style={{ paddingTop: 18 }}>
+              <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', lineHeight: 1.6, whiteSpace: 'nowrap' }}>
+                Variables: <code style={{ color: 'var(--sv-mint)' }}>{'{{order_number}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{contact_name}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{total}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{date}}'}</code>
+              </div>
+            </div>
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={labelStyle}>Email Body Template</label>
+            <textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' as const }} value={settingsDraft['so_email_body'] || ''} onChange={e => setSettingsDraft(p => ({ ...p, so_email_body: e.target.value }))} placeholder={'Dear {{contact_name}},\n\nPlease find attached Tax Invoice {{order_number}} totalling {{total}}.\n\nKind regards'} />
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={labelStyle}>Terms &amp; Conditions (printed at the bottom of the Tax Invoice PDF)</label>
+            <textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' as const }} value={settingsDraft['so_terms'] || ''} onChange={e => setSettingsDraft(p => ({ ...p, so_terms: e.target.value }))} placeholder="e.g. Payment due 14 days from invoice date. Goods remain the property of the seller until paid in full." />
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button type="button" onClick={() => { setSettingsOpen(false); setSettingsDraft({ so_email_subject: 'Tax Invoice {{order_number}}', so_email_body: 'Dear {{contact_name}},\n\nPlease find attached Tax Invoice {{order_number}} totalling {{total}}.\n\nKind regards', ...settings }); }} style={btnStyle('ghost', 'sm')}>Cancel</button>
+            <button type="button" disabled={settingsSaving} onClick={async () => { setSettingsSaving(true); await saveSettings(settingsDraft); setSettingsSaving(false); setSettingsOpen(false); }} style={btnStyle('action', 'sm')}>{settingsSaving ? 'Saving…' : 'Save Settings'}</button>
+          </div>
+        </SettingsPanel>
+      )}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+        {['','draft','confirmed','fulfilled','cancelled'].map(s => (
+          <button key={s} onClick={() => { setStatusFilter(s); setPage(1); }} style={btnStyle(statusFilter === s ? 'action' : 'ghost', 'sm')}>
+            {s || 'All'}
+          </button>
+        ))}
+        <input
+          list="so-customer-filter-list"
+          placeholder="Filter by customer…"
+          value={filterCustomer}
+          onChange={e => { setFilterCustomer(e.target.value); setPage(1); }}
+          style={{ ...inputStyle, minWidth: 180, flex: '1 1 180px' }}
+        />
+        <datalist id="so-customer-filter-list">
+          {customerOptions.map(c => <option key={c} value={c} />)}
+        </datalist>
+        {(statusFilter || filterCustomer) && (
+          <button onClick={() => { setStatusFilter(''); setFilterCustomer(''); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
+        )}
+      </div>
+      {loading ? <Spinner /> : sortedFilteredSOs.length === 0 ? <EmptyState text="No sales orders match your filters." /> : (
+        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <colgroup>
+              <col />
+              <col style={{ width: 160 }} />
+              <col style={{ width: 120 }} />
+              <col style={{ width: 100 }} />
+              <col style={{ width: 100 }} />
+              <col style={{ width: 90 }} />
+              <col style={{ width: 180 }} />
+            </colgroup>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
+                {([['so_number','SO #'],['customer_name','Customer'],['location_name','Location'],['order_date','Date'],['total_amount','Total'],['status','Status']] as [string,string][]).map(([col, label]) => (
+                  <th key={col} onClick={() => toggleSort(col)}
+                    style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                    {label}<SortIcon col={col} />
+                  </th>
+                ))}
+                <th style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8 }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleSOs.map((so: any, i: number) => (
+                <tr key={so.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}>
+                  <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <button onClick={() => openView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{so.so_number}</button>
+                  </td>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{so.customer_name || '—'}</td>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{so.location_name}</td>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{so.order_date?.slice(0, 10)}</td>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(so.total_amount)}</td>
+                  <td style={{ padding: '10px 12px' }}><StatusBadge status={so.status} /></td>
+                  <td style={{ padding: '10px 12px' }}><SOActions so={so} onEdit={() => openEdit(so)} onDelete={() => handleDelete(so)} onStatus={changeStatus} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {!loading && totalPagesSO > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14 }}>
+          <button onClick={() => setPage(1)} disabled={safePageSO === 1} style={btnStyle('secondary', 'sm')}>«</button>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePageSO === 1} style={btnStyle('secondary', 'sm')}>‹ Prev</button>
+          <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 8px' }}>Page {safePageSO} of {totalPagesSO} ({sortedFilteredSOs.length} orders)</span>
+          <button onClick={() => setPage(p => Math.min(totalPagesSO, p + 1))} disabled={safePageSO === totalPagesSO} style={btnStyle('secondary', 'sm')}>Next ›</button>
+          <button onClick={() => setPage(totalPagesSO)} disabled={safePageSO === totalPagesSO} style={btnStyle('secondary', 'sm')}>»</button>
+        </div>
+      )}
+
+      {/* Create / Edit SO Modal */}
+      {modal.open && (
+        <Modal title={modal.edit ? `Edit ${modal.edit.so_number}` : 'New Sales Order'} onClose={() => setModal({ open: false, edit: null })} wide>
+          <form onSubmit={handleSubmit}>
+            <Row3>
+              <Field label="Customer">
+                <select value={form.customer_id} onChange={sf('customer_id')} style={inputStyle}>
+                  <option value="">— None —</option>
+                  {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </Field>
+              <Field label="Location *">
+                <select required value={form.location_id} onChange={sf('location_id')} style={inputStyle}>
+                  <option value="">— Select —</option>
+                  {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+              </Field>
+              <Field label="Order Date *"><input required type="date" value={form.order_date} onChange={sf('order_date')} style={inputStyle} /></Field>
+            </Row3>
+            <Row2>
+              <Field label="Expected Date"><input type="date" value={form.expected_date} onChange={sf('expected_date')} style={inputStyle} /></Field>
+              <Field label="Notes"><input value={form.notes} onChange={sf('notes')} style={inputStyle} /></Field>
+            </Row2>
+            <Row2>
+              <Field label="Payment Terms">
+                <select value={form.payment_terms} onChange={sf('payment_terms')} style={inputStyle}>
+                  {PAYMENT_TERMS.map(t => <option key={t} value={t}>{t || '— None —'}</option>)}
+                </select>
+              </Field>
+              <div />
+            </Row2>
+
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>LINE ITEMS</span>
+                {form.customer_id && (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button type="button" onClick={() => setImportOpen(true)} style={btnStyle('secondary', 'xs')}>⬆ Import</button>
+                    <button type="button" onClick={addLine} style={btnStyle('ghost', 'xs')}>+ Add Line</button>
+                  </div>
+                )}
+              </div>
+              {!form.customer_id ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13, border: '1px dashed var(--sv-etch)', borderRadius: 6 }}>
+                  Select a customer above to set pricing and add line items
+                </div>
+              ) : (
+              <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--sv-bg-1)' }}>
+                      {['Variant','Qty','Unit Price','Disc %','Tax %','Line Total',''].map(h => (
+                        <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600 }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lineItems.map((item, i) => (
+                      <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                        <td style={{ padding: 4 }}>
+                          <select value={item.variant_id} onChange={e => selectSOVariant(i, e.target.value)} style={{ ...inputStyle, fontSize: 12 }}>
+                            <option value="">— Select variant —</option>
+                            {variants.map(v => <option key={v.variant_id} value={v.variant_id}>{v.product_name} — {v.sku || v.variant_id.slice(0, 8)} {[v.option1_value, v.option2_value].filter(Boolean).join('/')}</option>)}
+                          </select>
+                        </td>
+                        <td style={{ padding: 4, width: 70 }}><input type="number" min="0.0001" step="any" value={item.qty_ordered} onChange={e => updateLine(i, 'qty_ordered', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} /></td>
+                        <td style={{ padding: 4, width: 90 }}><input type="number" min="0" step="0.01" value={item.unit_price} onChange={e => updateLine(i, 'unit_price', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} /></td>
+                        <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="1" step="0.01" value={item.discount_pct} onChange={e => updateLine(i, 'discount_pct', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0.1" /></td>
+                        <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="1" step="0.01" value={item.tax_rate} onChange={e => updateLine(i, 'tax_rate', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0.1" /></td>
+                        <td style={{ padding: '4px 8px', width: 100, color: 'var(--sv-text-main)', fontSize: 13 }}>{fmtCurrency(lineTotal(item))}</td>
+                        <td style={{ padding: 4, width: 30 }}><button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16 }}>×</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+                <div style={{ minWidth: 280 }}>
+                  {[['Subtotal', fmtCurrency(soSubtotal)], ['Tax', fmtCurrency(soTax)]].map(([l, v]) => (
+                    <div key={l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
+                      <span>{l}</span><span>{v}</span>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
+                    <span>Discount (−)</span>
+                    <input type="number" min="0" step="0.01" value={form.discount} onChange={sf('discount')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 8 }}>
+                    <span>Freight (+)</span>
+                    <input type="number" min="0" step="0.01" value={form.freight} onChange={sf('freight')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)', borderTop: '1px solid var(--sv-etch)', paddingTop: 6 }}>
+                    <span>Total (inc. tax)</span><span>{fmtCurrency(grandTotal)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <FormActions onCancel={() => setModal({ open: false, edit: null })} saving={saving} isEdit={!!modal.edit} />
+          </form>
+        </Modal>
+      )}
+
+      {importOpen && modal.open && (
+        <ImportLineItemsModal
+          variants={variants}
+          priceFn={(v) => {
+            const customer = customers.find((c: any) => String(c.id) === String(form.customer_id));
+            return customer?.price_tier === 'wholesale' && v.wholesale_price ? Number(v.wholesale_price) : Number(v.price ?? 0);
+          }}
+          lineFactory={(v, qty, price) => ({ variant_id: v.variant_id, qty_ordered: qty, unit_price: price, discount_pct: 0, tax_rate: 0 })}
+          onImport={(items) => setLineItems(prev => [...prev.filter(i => i.variant_id), ...items])}
+          onClose={() => setImportOpen(false)}
+        />
+      )}
+
+      {/* View SO detail modal */}
+      {viewModal.open && viewModal.so && (
+        <Modal title={`${viewModal.so.so_number} — ${viewModal.so.status}`} onClose={() => { setViewModal({ open: false, so: null }); setSoPayForm(null); }} wide>
+          <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <SOActions so={viewModal.so} onEdit={() => { setViewModal({ open: false, so: null }); openEdit(viewModal.so); }} onDelete={() => { setViewModal({ open: false, so: null }); handleDelete(viewModal.so); }} onStatus={changeStatus} />
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+              <button
+                onClick={() => { window.open(`/api/ims/sales-orders/${viewModal.so.id}/pdf`, '_blank'); }}
+                style={btnStyle('secondary', 'sm')}
+              >⬇ Download PDF</button>
+              <button
+                onClick={() => {
+                  const so = viewModal.so;
+                  const soNum = so.so_number.replace('SO-', 'INV-');
+                  const subj = (settings['so_email_subject'] || 'Tax Invoice {{order_number}}')
+                    .replace(/\{\{order_number\}\}/g, soNum)
+                    .replace(/\{\{contact_name\}\}/g, so.customer_name || '')
+                    .replace(/\{\{total\}\}/g, fmtCurrency(so.total_amount))
+                    .replace(/\{\{date\}\}/g, so.order_date?.slice(0, 10) || '');
+                  const body = (settings['so_email_body'] || 'Dear {{contact_name}},\n\nPlease find attached Tax Invoice {{order_number}} totalling {{total}}.\n\nKind regards')
+                    .replace(/\{\{order_number\}\}/g, soNum)
+                    .replace(/\{\{contact_name\}\}/g, so.customer_name || '')
+                    .replace(/\{\{total\}\}/g, fmtCurrency(so.total_amount))
+                    .replace(/\{\{date\}\}/g, so.order_date?.slice(0, 10) || '');
+                  // Trigger PDF download first
+                  const a = document.createElement('a');
+                  a.href = `/api/ims/sales-orders/${so.id}/pdf`;
+                  a.download = `${soNum}.pdf`;
+                  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                  // Then open mailto
+                  setTimeout(() => {
+                    window.location.href = `mailto:${encodeURIComponent(so.customer_email || '')}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
+                  }, 400);
+                }}
+                style={btnStyle('mint', 'sm')}
+              >✉ Email</button>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+            <div><div style={labelStyle}>Customer</div><div>{viewModal.so.customer_name || '—'}</div></div>
+            <div><div style={labelStyle}>Location</div><div>{viewModal.so.location_name}</div></div>
+            <div><div style={labelStyle}>Status</div><StatusBadge status={viewModal.so.status} /></div>
+            <div><div style={labelStyle}>Order Date</div><div>{viewModal.so.order_date?.slice(0, 10)}</div></div>
+            <div><div style={labelStyle}>Expected</div><div>{viewModal.so.expected_date?.slice(0, 10) || '—'}</div></div>
+            <div><div style={labelStyle}>Fulfilled</div><div>{viewModal.so.fulfilled_date?.slice(0, 10) || '—'}</div></div>
+            <div><div style={labelStyle}>Payment Terms</div><div>{viewModal.so.payment_terms || '—'}</div></div>
+            <div><div style={labelStyle}>Due Date</div><div>{calcDueDate(viewModal.so.order_date, viewModal.so.payment_terms)}</div></div>
+            <div />
+          </div>
+          {viewModal.so.notes && <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--sv-bg-2)', borderRadius: 6, fontSize: 13, color: 'var(--sv-text-dim)' }}>{viewModal.so.notes}</div>}
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
+            <thead>
+              <tr style={{ background: 'var(--sv-bg-1)' }}>
+                {['SKU','Product','Variant','Qty','Fulfilled','Price','Cost','Disc','Tax','Total'].map(h => (
+                  <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {(viewModal.so.items || []).map((item: any, i: number) => (
+                <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                  <td style={{ padding: '8px 10px' }}><code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{item.sku || '—'}</code></td>
+                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{item.product_name}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{item.variant_label || 'Default'}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtQty(item.qty_ordered)}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtQty(item.qty_fulfilled)}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtCurrency(item.unit_price)}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtCurrency(item.unit_cost)}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{(Number(item.discount_pct) * 100).toFixed(0)}%</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{(Number(item.tax_rate) * 100).toFixed(0)}%</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13, fontWeight: 600 }}>{fmtCurrency(item.line_total)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              {(Number(viewModal.so.discount) > 0 || Number(viewModal.so.freight) > 0) && (
+                <tr style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                  <td colSpan={9} style={{ padding: '6px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Subtotal</td>
+                  <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtCurrency(viewModal.so.subtotal)}</td>
+                </tr>
+              )}
+              {(Number(viewModal.so.discount) > 0 || Number(viewModal.so.freight) > 0) && (
+                <tr>
+                  <td colSpan={9} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Tax</td>
+                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtCurrency(viewModal.so.tax_amount)}</td>
+                </tr>
+              )}
+              {Number(viewModal.so.discount) > 0 && (
+                <tr>
+                  <td colSpan={9} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Discount (−)</td>
+                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-red)' }}>−{fmtCurrency(viewModal.so.discount)}</td>
+                </tr>
+              )}
+              {Number(viewModal.so.freight) > 0 && (
+                <tr>
+                  <td colSpan={9} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Freight (+)</td>
+                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>+{fmtCurrency(viewModal.so.freight)}</td>
+                </tr>
+              )}
+              <tr style={{ borderTop: '2px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
+                <td colSpan={9} style={{ padding: '8px 10px', textAlign: 'right', fontSize: 13, color: 'var(--sv-text-dim)' }}>Total</td>
+                <td style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--sv-text-strong)' }}>{fmtCurrency(viewModal.so.total_amount)}</td>
+              </tr>
+            </tfoot>
+          </table>
+
+          {/* ── Payments ── */}
+          {(() => {
+            const currency = (viewModal.so.currency_code || 'AUD').toUpperCase();
+            const isFx = currency !== 'AUD';
+            const amountPaid = Number(viewModal.so.amount_paid || 0);
+            const balance = Number(viewModal.so.balance ?? (Number(viewModal.so.total_amount) - amountPaid));
+            return (
+              <div style={{ marginTop: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Payments</div>
+                  {!soPayForm && (
+                    <button onClick={() => setSoPayForm({ date: today(), amount: '', rate: '1', notes: '' })} style={btnStyle('mint', 'xs')}>+ Add Payment</button>
+                  )}
+                </div>
+
+                {(viewModal.so.payments || []).length > 0 && (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 10, border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ background: 'var(--sv-bg-1)' }}>
+                        {(['Date', 'Amount', ...(isFx ? ['Rate', 'AUD'] : []), 'Notes', '']).map((h: string, idx: number) => (
+                          <th key={idx} style={{ padding: '5px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(viewModal.so.payments || []).map((p: any) => (
+                        <tr key={p.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                          <td style={{ padding: '5px 10px' }}>{p.payment_date?.slice(0, 10)}</td>
+                          <td style={{ padding: '5px 10px', fontWeight: 600 }}>{fmtFx(p.amount, currency)}</td>
+                          {isFx && <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{Number(p.exchange_rate).toFixed(4)}</td>}
+                          {isFx && <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{fmtCurrency(p.amount_local)}</td>}
+                          <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.notes || '—'}</td>
+                          <td style={{ padding: '5px 10px', textAlign: 'right' }}>
+                            <button onClick={() => handleDeleteSoPayment(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>✕</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                <div style={{ display: 'flex', gap: 16, padding: '8px 12px', background: 'var(--sv-bg-2)', borderRadius: 6, fontSize: 13, marginBottom: soPayForm ? 10 : 0, flexWrap: 'wrap' }}>
+                  <span><span style={{ color: 'var(--sv-text-dim)' }}>Total: </span><strong>{fmtFx(viewModal.so.total_amount, currency)}</strong></span>
+                  <span><span style={{ color: 'var(--sv-text-dim)' }}>Paid: </span><strong style={{ color: 'var(--sv-mint,#0c9)' }}>{fmtFx(amountPaid, currency)}</strong></span>
+                  <span><span style={{ color: 'var(--sv-text-dim)' }}>Balance: </span><strong style={{ color: balance > 0.005 ? 'var(--sv-orange,#f80)' : 'var(--sv-mint,#0c9)' }}>{fmtFx(balance, currency)}</strong></span>
+                  {isFx && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>≈ {fmtCurrency(viewModal.so.balance_local)} AUD remaining</span>}
+                </div>
+
+                {soPayForm && (
+                  <div style={{ padding: '12px 14px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Date</div>
+                        <input type="date" value={soPayForm.date} onChange={e => setSoPayForm(f => f ? { ...f, date: e.target.value } : f)} style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13 }} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Amount ({currency})</div>
+                        <input type="number" min={0} step="0.01" value={soPayForm.amount} onChange={e => setSoPayForm(f => f ? { ...f, amount: e.target.value } : f)} style={{ width: 110, padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13 }} placeholder="0.00" />
+                      </div>
+                      {isFx && (
+                        <div>
+                          <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Rate (1 {currency} = ? AUD)</div>
+                          <input type="number" min={0} step="0.000001" value={soPayForm.rate} onChange={e => setSoPayForm(f => f ? { ...f, rate: e.target.value } : f)} style={{ width: 100, padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13 }} />
+                        </div>
+                      )}
+                      {isFx && soPayForm.amount && soPayForm.rate && (
+                        <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', paddingBottom: 6 }}>≈ {fmtCurrency(Number(soPayForm.amount) * Number(soPayForm.rate))} AUD</div>
+                      )}
+                      <div style={{ flex: 1, minWidth: 120 }}>
+                        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Notes</div>
+                        <input type="text" value={soPayForm.notes} onChange={e => setSoPayForm(f => f ? { ...f, notes: e.target.value } : f)} style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13 }} placeholder="Optional" />
+                      </div>
+                      <button onClick={handleAddSoPayment} disabled={!soPayForm.amount || !soPayForm.date} style={btnStyle('mint', 'sm')}>Save</button>
+                      <button onClick={() => setSoPayForm(null)} style={btnStyle('ghost', 'sm')}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function SOActions({ so, onEdit, onDelete, onStatus }: { so: any; onEdit: () => void; onDelete: () => void; onStatus: (so: any, s: string) => void }) {
+  if (so.is_historical) {
+    return <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>Historical (Cin7)</span>;
+  }
+  const btns = [];
+  if (so.status === 'draft')     { btns.push(<button key="c" onClick={() => onStatus(so, 'confirmed')} style={btnStyle('mint', 'xs')}>Confirm</button>); }
+  if (so.status === 'confirmed') { btns.push(<button key="f" onClick={() => onStatus(so, 'fulfilled')} style={btnStyle('mint', 'xs')}>Fulfill</button>); }
+  if (so.status === 'confirmed') { btns.push(<button key="b" onClick={() => onStatus(so, 'draft')}     style={btnStyle('ghost', 'xs')}>Revert</button>); }
+  if (so.status !== 'fulfilled' && so.status !== 'cancelled') {
+    btns.push(<button key="e" onClick={onEdit}  style={btnStyle('ghost', 'xs')}>Edit</button>);
+    btns.push(<button key="x" onClick={() => onStatus(so, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
+  }
+  if (so.status === 'cancelled' || so.status === 'draft') {
+    btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>);
+  }
+  return <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{btns}</div>;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared small components
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ImsTable({ cols, rows, render }: {
+  cols: string[];
+  rows: any[];
+  render: (row: any) => React.ReactNode[];
+}) {
+  if (rows.length === 0) return <EmptyState text="No records." />;
+  return (
+    <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+            {cols.map(c => <th key={c} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, whiteSpace: 'nowrap' }}>{c}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => (
+            <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+              {render(row).map((cell, j) => (
+                <td key={j} style={{ padding: '9px 12px', fontSize: 13, color: 'var(--sv-text-main)', verticalAlign: 'middle' }}>{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function Spinner() {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
+      <div style={{ width: 28, height: 28, border: '3px solid var(--sv-etch)', borderTopColor: 'var(--sv-action)', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
+
+function EmptyState({ text }: { text: string }) {
+  return (
+    <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 14 }}>{text}</div>
+  );
+}
+
+function ActiveDot({ active }: { active: number }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: active ? 'var(--sv-mint)' : 'var(--sv-text-dim)' }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: active ? 'var(--sv-mint)' : 'var(--sv-text-dim)', display: 'inline-block' }} />
+      {active ? 'Active' : 'Inactive'}
+    </span>
+  );
+}
+
+function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+  return (
+    <div style={{ display: 'flex', gap: 6 }}>
+      <button onClick={onEdit}   style={btnStyle('ghost', 'xs')}>Edit</button>
+      <button onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>
+    </div>
+  );
+}
+
+function FormActions({ onCancel, saving, isEdit }: { onCancel: () => void; saving: boolean; isEdit: boolean }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+      <button type="button" onClick={onCancel} style={btnStyle('ghost')}>Cancel</button>
+      <button type="submit" disabled={saving} style={btnStyle('action')}>{saving ? 'Saving…' : isEdit ? 'Update' : 'Create'}</button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section Settings — cog button + collapsible panel
+// ─────────────────────────────────────────────────────────────────────────────
+
+function CogButton({ active, onClick }: { active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      title="Section Settings"
+      onClick={onClick}
+      style={{
+        background: active ? 'rgba(var(--sv-action-rgb, 99,102,241),.12)' : 'none',
+        border: '1px solid var(--sv-etch)',
+        borderRadius: 6,
+        cursor: 'pointer',
+        color: active ? 'var(--sv-action)' : 'var(--sv-text-dim)',
+        fontSize: 14,
+        padding: '5px 9px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 5,
+        transition: 'all .15s',
+        lineHeight: 1,
+      }}
+    >
+      ⚙ <span style={{ fontSize: 12, fontWeight: 500 }}>Settings</span>
+    </button>
+  );
+}
+
+function SettingsPanel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      background: 'var(--sv-bg-1)',
+      border: '1px solid var(--sv-etch)',
+      borderRadius: 10,
+      padding: '18px 20px',
+      marginBottom: 16,
+      boxShadow: '0 4px 16px rgba(0,0,0,.15)',
+    }}>
+      {children}
+    </div>
+  );
+}
+
+type BtnVariant = 'action' | 'ghost' | 'secondary' | 'mint' | 'danger';
+type BtnSize    = 'sm' | 'xs' | undefined;
+
+function btnStyle(variant: BtnVariant, size?: BtnSize): React.CSSProperties {
+  const colors: Record<BtnVariant, string> = {
+    action:    'background:var(--sv-action);color:#fff',
+    ghost:     'background:var(--sv-bg-2);border:1px solid var(--sv-etch);color:var(--sv-text-main)',
+    secondary: 'background:var(--sv-bg-2);border:1px solid var(--sv-etch);color:var(--sv-text-main)',
+    mint:      'background:rgba(16,185,129,.15);color:var(--sv-mint);border:1px solid rgba(16,185,129,.3)',
+    danger:    'background:rgba(248,113,113,.12);color:var(--sv-red);border:1px solid rgba(248,113,113,.25)',
+  };
+  const base = parseStyleStr(colors[variant]);
+  const pad = size === 'xs' ? '3px 8px' : size === 'sm' ? '5px 12px' : '8px 16px';
+  return {
+    ...base,
+    padding: pad,
+    borderRadius: 6,
+    cursor: 'pointer',
+    fontSize: size === 'xs' ? 12 : size === 'sm' ? 13 : 14,
+    fontWeight: 500,
+    border: (base as any).border ?? 'none',
+    transition: 'opacity .15s',
+    whiteSpace: 'nowrap' as const,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Brands View
+// ─────────────────────────────────────────────────────────────────────────────
+
+function BrandsView() {
+  const [brands, setBrands] = useState<{ id: number; name: string; created_at: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newName, setNewName] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editName, setEditName] = useState('');
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch('/api/ims/brands').then(r => r.json()).then(d => {
+      if (d.success) setBrands(d.data);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim()) return;
+    setAdding(true);
+    try {
+      await apiFetch('/api/ims/brands', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName.trim() }) });
+      setNewName('');
+      load();
+    } catch (e: any) { alert(e.message); }
+    finally { setAdding(false); }
+  };
+
+  const handleRename = async (id: number) => {
+    if (!editName.trim()) return;
+    try {
+      await apiFetch(`/api/ims/brands/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editName.trim() }) });
+      setEditId(null);
+      load();
+    } catch (e: any) { alert(e.message); }
+  };
+
+  const handleDelete = async (id: number, name: string) => {
+    if (!confirm(`Delete brand "${name}"? This does not affect existing products.`)) return;
+    try {
+      await apiFetch(`/api/ims/brands/${id}`, { method: 'DELETE' });
+      load();
+    } catch (e: any) { alert(e.message); }
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Brands</h1>
+      </div>
+
+      {/* Add brand form */}
+      <form onSubmit={handleAdd} style={{ display: 'flex', gap: 8, marginBottom: 20, maxWidth: 420 }}>
+        <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="New brand name…" style={{ ...inputStyle, flex: 1 }} />
+        <button type="submit" disabled={adding || !newName.trim()} style={btnStyle('action')}>Add</button>
+      </form>
+
+      {loading ? <Spinner /> : brands.length === 0 ? <EmptyState text="No brands yet. Add one above." /> : (
+        <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden', maxWidth: 560 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                {['Brand Name', 'Added', ''].map((h, i) => (
+                  <th key={i} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {brands.map(b => (
+                <tr key={b.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                  <td style={{ padding: '8px 14px' }}>
+                    {editId === b.id ? (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <input autoFocus value={editName} onChange={e => setEditName(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') handleRename(b.id); if (e.key === 'Escape') setEditId(null); }}
+                          style={{ ...inputStyle, width: 200 }} />
+                        <button onClick={() => handleRename(b.id)} style={btnStyle('action', 'xs')}>Save</button>
+                        <button onClick={() => setEditId(null)} style={btnStyle('ghost', 'xs')}>×</button>
+                      </div>
+                    ) : (
+                      <span style={{ fontWeight: 500 }}>{b.name}</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '8px 14px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
+                    {new Date(b.created_at).toLocaleDateString('en-AU')}
+                  </td>
+                  <td style={{ padding: '8px 14px' }}>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => { setEditId(b.id); setEditName(b.name); }} style={btnStyle('ghost', 'xs')}>Rename</button>
+                      <button onClick={() => handleDelete(b.id, b.name)} style={btnStyle('danger', 'xs')}>Del</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POS Sales View — historical, grouped by day
+// ─────────────────────────────────────────────────────────────────────────────
+
+function PosSalesView() {
+  const [locationId, setLocationId] = useState<number | ''>('');
+  const [locations, setLocations]   = useState<{ id: number; name: string }[]>([]);
+  const [days, setDays]             = useState<any[]>([]);
+  const [daysLoading, setDaysLoading] = useState(false);
+  const [expandedDays, setExpandedDays]   = useState<Set<string>>(new Set());
+  const [dayData, setDayData]             = useState<Record<string, any[]>>({});
+  const [dayLoading, setDayLoading]       = useState<Set<string>>(new Set());
+  const [expandedSales, setExpandedSales] = useState<Set<number>>(new Set());
+
+  // Load IMS locations
+  useEffect(() => {
+    fetch('/api/ims/locations').then(r => r.json()).then(d => {
+      if (d.success) setLocations(d.data ?? []);
+    }).catch(() => {});
+  }, []);
+
+  // Load day summaries whenever location filter changes
+  const loadDays = useCallback(() => {
+    setDaysLoading(true);
+    const qs = locationId ? `?location_id=${locationId}` : '';
+    fetch(`/api/ims/pos-sales${qs}`)
+      .then(r => r.json())
+      .then(d => { if (d.success) setDays(d.days ?? []); })
+      .catch(() => {})
+      .finally(() => setDaysLoading(false));
+  }, [locationId]);
+
+  useEffect(() => {
+    loadDays();
+    // Reset expanded state when filter changes
+    setExpandedDays(new Set());
+    setDayData({});
+    setExpandedSales(new Set());
+  }, [loadDays]);
+
+  const toggleDay = async (date: string) => {
+    const next = new Set(expandedDays);
+    if (next.has(date)) { next.delete(date); setExpandedDays(next); return; }
+    next.add(date);
+    setExpandedDays(next);
+    // Lazy-load transactions for this day if not yet fetched
+    if (!dayData[date]) {
+      setDayLoading(prev => new Set(prev).add(date));
+      const qs = locationId ? `&location_id=${locationId}` : '';
+      try {
+        const d = await fetch(`/api/ims/pos-sales/day?date=${date}${qs}`).then(r => r.json());
+        if (d.success) setDayData(prev => ({ ...prev, [date]: d.sales ?? [] }));
+      } catch {}
+      setDayLoading(prev => { const s = new Set(prev); s.delete(date); return s; });
+    }
+  };
+
+  const toggleSale = (id: number) => {
+    setExpandedSales(prev => {
+      const s = new Set(prev);
+      s.has(id) ? s.delete(id) : s.add(id);
+      return s;
+    });
+  };
+
+  const fmtMoney = (n: any) => `$${Number(n).toFixed(2)}`;
+  const fmtDate  = (d: any) => {
+    const s = d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10);
+    return new Date(s + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  };
+  const fmtTime  = (dt: any) => {
+    // MySQL returns DATETIME as 'YYYY-MM-DD HH:MM:SS' — replace space with T for valid ISO parsing
+    const s = dt instanceof Date ? dt.toISOString() : String(dt).replace(' ', 'T');
+    return new Date(s).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true });
+  };
+
+  const totalRevenue = days.reduce((s, d) => s + Number(d.total), 0);
+  const totalTxns    = days.reduce((s, d) => s + Number(d.count), 0);
+
+  const selStyle: React.CSSProperties = { padding: '6px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'inherit', fontSize: 13 };
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', flex: 1 }}>POS Sales</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Branch:</span>
+          <select value={locationId} onChange={e => setLocationId(e.target.value ? Number(e.target.value) : '')} style={selStyle}>
+            <option value=''>All branches</option>
+            {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Summary strip */}
+      {!daysLoading && days.length > 0 && (
+        <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
+          <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '10px 18px' }}>
+            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 2 }}>TOTAL REVENUE</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{fmtMoney(totalRevenue)}</div>
+          </div>
+          <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '10px 18px' }}>
+            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 2 }}>TRANSACTIONS</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{totalTxns.toLocaleString()}</div>
+          </div>
+          <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '10px 18px' }}>
+            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 2 }}>TRADING DAYS</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{days.length}</div>
+          </div>
+        </div>
+      )}
+
+      {daysLoading && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</div>}
+
+      {!daysLoading && days.length === 0 && (
+        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No POS sales found. Import from Cin7 in Settings first.</div>
+      )}
+
+      {/* Day rows */}
+      {days.map(day => {
+        const isOpen   = expandedDays.has(day.day);
+        const isLoading = dayLoading.has(day.day);
+        const sales    = dayData[day.day] ?? [];
+        const dayTotal = Number(day.total);
+        const returns  = Number(day.returns);
+
+        return (
+          <div key={day.day} style={{ marginBottom: 8, border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+            {/* Day header row */}
+            <div
+              onClick={() => toggleDay(day.day)}
+              style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '11px 16px', cursor: 'pointer', background: isOpen ? 'color-mix(in srgb, var(--sv-action) 8%, var(--sv-bg-2))' : 'var(--sv-bg-2)', userSelect: 'none', borderBottom: isOpen ? '1px solid var(--sv-etch)' : 'none' }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)', minWidth: 160 }}>{fmtDate(day.day)}</span>
+              <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{day.locations}</span>
+              {Object.keys(day.payments ?? {}).length > 0 && (
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {Object.entries(day.payments ?? {}).map(([method, total]) => (
+                    <span key={method} style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, border: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', background: 'var(--sv-bg-2)' }}>
+                      {method}: {fmtMoney(total as number)}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <span style={{ flex: 1 }} />
+              {returns > 0 && (
+                <span style={{ fontSize: 11, color: 'var(--sv-red)', padding: '1px 7px', borderRadius: 99, border: '1px solid rgba(248,113,113,.3)', background: 'rgba(248,113,113,.08)' }}>
+                  {returns} return{returns !== 1 ? 's' : ''}
+                </span>
+              )}
+              <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{Number(day.count)} txn{Number(day.count) !== 1 ? 's' : ''}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', minWidth: 90, textAlign: 'right' }}>{fmtMoney(dayTotal)}</span>
+              <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginLeft: 4 }}>{isOpen ? '▲' : '▼'}</span>
+            </div>
+
+            {/* Expanded: transaction list */}
+            {isOpen && (
+              <div style={{ borderTop: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)' }}>
+                {isLoading && (
+                  <div style={{ padding: '16px 20px', fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading transactions…</div>
+                )}
+                {!isLoading && sales.length === 0 && (
+                  <div style={{ padding: '16px 20px', fontSize: 13, color: 'var(--sv-text-dim)' }}>No transactions found.</div>
+                )}
+                {!isLoading && sales.map((sale: any) => {
+                  const saleOpen  = expandedSales.has(sale.id);
+                  const isReturn  = sale.sale_type === 'return';
+                  return (
+                    <div key={sale.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                      {/* Sale row */}
+                      <div
+                        onClick={() => toggleSale(sale.id)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 20px', cursor: 'pointer', background: saleOpen ? 'rgba(255,255,255,.02)' : 'transparent' }}
+                      >
+                        <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 68 }}>{fmtTime(sale.completed_at)}</span>
+                        <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, fontWeight: 600,
+                          background: isReturn ? 'rgba(239,68,68,.12)' : 'rgba(16,185,129,.1)',
+                          color: isReturn ? 'var(--sv-red)' : 'var(--sv-mint)' }}>
+                          {isReturn ? 'Return' : 'Sale'}
+                        </span>
+                        {sale.location_name && !locationId && (
+                          <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', padding: '1px 7px', borderRadius: 99, border: '1px solid var(--sv-etch)' }}>{sale.location_name}</span>
+                        )}
+                        <span style={{ flex: 1, fontSize: 13, color: 'var(--sv-text-main)' }}>
+                          {sale.customer_name || <span style={{ color: 'var(--sv-text-dim)' }}>Walk-in</span>}
+                        </span>
+                        <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{sale.items.length} item{sale.items.length !== 1 ? 's' : ''}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: isReturn ? 'var(--sv-red)' : 'var(--sv-text-strong)', minWidth: 72, textAlign: 'right' }}>
+                          {isReturn ? '−' : ''}{fmtMoney(sale.total)}
+                        </span>
+                        <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginLeft: 4 }}>{saleOpen ? '▲' : '▼'}</span>
+                      </div>
+
+                      {/* Sale items */}
+                      {saleOpen && (
+                        <div style={{ padding: '0 20px 12px 20px', background: 'rgba(0,0,0,.15)' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                            <thead>
+                              <tr style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>
+                                <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 500 }}>Product</th>
+                                <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 500 }}>SKU</th>
+                                <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Qty</th>
+                                <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Unit</th>
+                                {sale.items.some((i: any) => Number(i.discount_amount) > 0) && (
+                                  <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Disc</th>
+                                )}
+                                <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {sale.items.map((item: any) => (
+                                <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                                  <td style={{ padding: '4px 6px', color: 'var(--sv-text-main)' }}>{item.name}</td>
+                                  <td style={{ padding: '4px 6px', color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 11 }}>{item.code || '—'}</td>
+                                  <td style={{ padding: '4px 6px', textAlign: 'right' }}>{Number(item.qty)}</td>
+                                  <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(item.unit_price)}</td>
+                                  {sale.items.some((i: any) => Number(i.discount_amount) > 0) && (
+                                    <td style={{ padding: '4px 6px', textAlign: 'right', color: 'var(--sv-red)' }}>
+                                      {Number(item.discount_amount) > 0 ? `−${fmtMoney(item.discount_amount)}` : '—'}
+                                    </td>
+                                  )}
+                                  <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 600 }}>{fmtMoney(item.line_total)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot>
+                              {Number(sale.discount_total) > 0 && (
+                                <tr>
+                                  <td colSpan={sale.items.some((i: any) => Number(i.discount_amount) > 0) ? 5 : 4} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Discount</td>
+                                  <td style={{ padding: '4px 6px', textAlign: 'right', color: 'var(--sv-red)' }}>−{fmtMoney(sale.discount_total)}</td>
+                                </tr>
+                              )}
+                              <tr style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                                <td colSpan={sale.items.some((i: any) => Number(i.discount_amount) > 0) ? 5 : 4} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Total</td>
+                                <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 700 }}>{fmtMoney(sale.total)}</td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function SummaryCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ background: 'var(--sv-bg-2)', borderRadius: 10, padding: '14px 16px', border: '1px solid var(--sv-border)' }}>
+      <div style={{ fontSize: 11, color: 'var(--sv-text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 700 }}>{value}</div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Online Sales View — sales orders from Cin7, grouped by day
+// ─────────────────────────────────────────────────────────────────────────────
+
+function OnlineSalesView() {
+  const [locationId, setLocationId] = useState<number | ''>('');
+  const [locations, setLocations]   = useState<{ id: number; name: string }[]>([]);
+  const [days, setDays]             = useState<any[]>([]);
+  const [daysLoading, setDaysLoading] = useState(false);
+  const [expandedDays, setExpandedDays]     = useState<Set<string>>(new Set());
+  const [dayData, setDayData]               = useState<Record<string, any[]>>({});
+  const [dayLoading, setDayLoading]         = useState<Set<string>>(new Set());
+  const [expandedOrders, setExpandedOrders] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    fetch('/api/ims/locations').then(r => r.json()).then(d => {
+      if (d.success) setLocations(d.data ?? []);
+    }).catch(() => {});
+  }, []);
+
+  const loadDays = useCallback(() => {
+    setDaysLoading(true);
+    const qs = locationId ? `?location_id=${locationId}` : '';
+    fetch(`/api/ims/online-sales${qs}`)
+      .then(r => r.json())
+      .then(d => { if (d.success) setDays(d.days ?? []); })
+      .catch(() => {})
+      .finally(() => setDaysLoading(false));
+  }, [locationId]);
+
+  useEffect(() => {
+    loadDays();
+    setExpandedDays(new Set());
+    setDayData({});
+    setExpandedOrders(new Set());
+  }, [loadDays]);
+
+  const toggleDay = async (date: string) => {
+    const next = new Set(expandedDays);
+    if (next.has(date)) { next.delete(date); setExpandedDays(next); return; }
+    next.add(date);
+    setExpandedDays(next);
+    if (!dayData[date]) {
+      setDayLoading(prev => new Set(prev).add(date));
+      const qs = locationId ? `&location_id=${locationId}` : '';
+      try {
+        const d = await fetch(`/api/ims/online-sales/day?date=${date}${qs}`).then(r => r.json());
+        if (d.success) setDayData(prev => ({ ...prev, [date]: d.orders ?? [] }));
+      } catch {}
+      setDayLoading(prev => { const s = new Set(prev); s.delete(date); return s; });
+    }
+  };
+
+  const toggleOrder = (id: number) => {
+    setExpandedOrders(prev => {
+      const s = new Set(prev);
+      s.has(id) ? s.delete(id) : s.add(id);
+      return s;
+    });
+  };
+
+  const fmtMoney = (n: any) => `$${Number(n).toFixed(2)}`;
+  const fmtDate  = (d: any) => {
+    const s = d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10);
+    return new Date(s + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  const getSourceBadge = (order: any): { label: string; bg: string; color: string } => {
+    if (order.shopify_order_id) return { label: 'Shopify', bg: 'rgba(16,185,129,.1)', color: 'var(--sv-mint)' };
+    if (order.cin7_order_id)    return { label: 'B2B', bg: 'rgba(99,102,241,.1)', color: '#818cf8' };
+    return { label: 'Manual', bg: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)' };
+  };
+
+  const totalRevenue  = days.reduce((s, d) => s + Number(d.total), 0);
+  const totalOrders   = days.reduce((s, d) => s + Number(d.count), 0);
+  const totalShopify  = days.reduce((s, d) => s + Number(d.shopify_count), 0);
+
+  const selStyle: React.CSSProperties = { padding: '6px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'inherit', fontSize: 13 };
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', flex: 1 }}>Online Sales</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Branch:</span>
+          <select value={locationId} onChange={e => setLocationId(e.target.value ? Number(e.target.value) : '')} style={selStyle}>
+            <option value=''>All branches</option>
+            {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Summary strip */}
+      {!daysLoading && days.length > 0 && (
+        <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
+          <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '10px 18px' }}>
+            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 2 }}>TOTAL REVENUE</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{fmtMoney(totalRevenue)}</div>
+          </div>
+          <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '10px 18px' }}>
+            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 2 }}>ORDERS</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{totalOrders.toLocaleString()}</div>
+          </div>
+          <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '10px 18px' }}>
+            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 2 }}>TRADING DAYS</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{days.length}</div>
+          </div>
+          {totalShopify > 0 && (
+            <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '10px 18px' }}>
+              <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 2 }}>SHOPIFY ORDERS</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--sv-mint)' }}>{totalShopify.toLocaleString()}</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {daysLoading && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</div>}
+
+      {!daysLoading && days.length === 0 && (
+        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No online sales found. Import from Cin7 in Settings first.</div>
+      )}
+
+      {/* Day rows */}
+      {days.map(day => {
+        const isOpen    = expandedDays.has(day.day);
+        const isLoading = dayLoading.has(day.day);
+        const orders    = dayData[day.day] ?? [];
+        const dayTotal  = Number(day.total);
+
+        return (
+          <div key={day.day} style={{ marginBottom: 8, border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+            {/* Day header */}
+            <div
+              onClick={() => toggleDay(day.day)}
+              style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '11px 16px', cursor: 'pointer', background: isOpen ? 'color-mix(in srgb, var(--sv-action) 8%, var(--sv-bg-2))' : 'var(--sv-bg-2)', userSelect: 'none', borderBottom: isOpen ? '1px solid var(--sv-etch)' : 'none' }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)', minWidth: 160 }}>{fmtDate(day.day)}</span>
+              <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{day.locations}</span>
+              {Number(day.shopify_count) > 0 && (
+                <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, border: '1px solid rgba(16,185,129,.3)', background: 'rgba(16,185,129,.1)', color: 'var(--sv-mint)' }}>
+                  {Number(day.shopify_count)} Shopify
+                </span>
+              )}
+              {Number(day.b2b_count) > 0 && (
+                <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, border: '1px solid rgba(99,102,241,.3)', background: 'rgba(99,102,241,.1)', color: '#818cf8' }}>
+                  {Number(day.b2b_count)} B2B
+                </span>
+              )}
+              <span style={{ flex: 1 }} />
+              <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{Number(day.count)} order{Number(day.count) !== 1 ? 's' : ''}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', minWidth: 90, textAlign: 'right' }}>{fmtMoney(dayTotal)}</span>
+              <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginLeft: 4 }}>{isOpen ? '▲' : '▼'}</span>
+            </div>
+
+            {/* Expanded: order list */}
+            {isOpen && (
+              <div style={{ borderTop: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)' }}>
+                {isLoading && <div style={{ padding: '16px 20px', fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading orders…</div>}
+                {!isLoading && orders.length === 0 && <div style={{ padding: '16px 20px', fontSize: 13, color: 'var(--sv-text-dim)' }}>No orders found.</div>}
+                {!isLoading && orders.map((order: any) => {
+                  const orderOpen = expandedOrders.has(order.id);
+                  const badge     = getSourceBadge(order);
+                  return (
+                    <div key={order.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                      {/* Order row */}
+                      <div
+                        onClick={() => toggleOrder(order.id)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 20px', cursor: 'pointer', background: orderOpen ? 'rgba(255,255,255,.02)' : 'transparent' }}
+                      >
+                        <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 100, fontFamily: 'monospace' }}>{order.so_number}</span>
+                        <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, fontWeight: 600, background: badge.bg, color: badge.color }}>
+                          {badge.label}
+                        </span>
+                        <span style={{ flex: 1, fontSize: 13, color: 'var(--sv-text-main)' }}>
+                          {order.customer_name || <span style={{ color: 'var(--sv-text-dim)' }}>—</span>}
+                        </span>
+                        {order.location_name && !locationId && (
+                          <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', padding: '1px 7px', borderRadius: 99, border: '1px solid var(--sv-etch)' }}>{order.location_name}</span>
+                        )}
+                        <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{(order.items?.length ?? 0)} item{(order.items?.length ?? 0) !== 1 ? 's' : ''}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)', minWidth: 72, textAlign: 'right' }}>{fmtMoney(order.total_amount)}</span>
+                        <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginLeft: 4 }}>{orderOpen ? '▲' : '▼'}</span>
+                      </div>
+
+                      {/* Order items */}
+                      {orderOpen && (
+                        <div style={{ padding: '0 20px 12px 20px', background: 'rgba(0,0,0,.15)' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                            <thead>
+                              <tr style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>
+                                <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 500 }}>Product</th>
+                                <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 500 }}>SKU</th>
+                                <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Qty</th>
+                                <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Unit</th>
+                                <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {order.items.map((item: any) => (
+                                <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                                  <td style={{ padding: '4px 6px', color: 'var(--sv-text-main)' }}>{item.product_name || item.name}</td>
+                                  <td style={{ padding: '4px 6px', color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 11 }}>{item.sku || item.code || '—'}</td>
+                                  <td style={{ padding: '4px 6px', textAlign: 'right' }}>{Number(item.qty_ordered)}</td>
+                                  <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(item.unit_price)}</td>
+                                  <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 600 }}>{fmtMoney(item.line_total)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot>
+                              {Number(order.tax_amount) > 0 && (
+                                <tr>
+                                  <td colSpan={4} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Tax</td>
+                                  <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(order.tax_amount)}</td>
+                                </tr>
+                              )}
+                              <tr style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                                <td colSpan={4} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Total</td>
+                                <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 700 }}>{fmtMoney(order.total_amount)}</td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reports Dashboard
+// ─────────────────────────────────────────────────────────────────────────────
+
+const REPORT_CATALOG = [
+  {
+    id: 'report-sales-by-branch' as ImsView,
+    title: 'Sales by Branch / Product',
+    description: 'Product sales performance with per-branch stock levels. Filter by brand, supplier, or keyword.',
+    icon: '📊',
+  },
+  {
+    id: 'report-inventory-valuation' as ImsView,
+    title: 'Inventory Valuation',
+    description: 'The total financial value of all stock currently on hand based on average cost.',
+    icon: '💰',
+  },
+  {
+    id: 'report-product-margin' as ImsView,
+    title: 'Product Profitability Margin',
+    description: 'Best and worst-selling items over the last 12 months sorted by gross profit and margin.',
+    icon: '📈',
+  },
+];
+
+function ReportsView({ onNav }: { onNav: (v: ImsView) => void }) {
+  return (
+    <div>
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0 }}>Reports</h1>
+        <p style={{ fontSize: 14, color: 'var(--sv-text-dim)', marginTop: 4 }}>Analytics and insights from your Solvantis IMS data.</p>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+        {REPORT_CATALOG.map(r => (
+          <button
+            key={r.id}
+            onClick={() => onNav(r.id)}
+            style={{
+              background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)',
+              borderRadius: 12, padding: '20px 22px', textAlign: 'left',
+              cursor: 'pointer', transition: 'border-color .15s, box-shadow .15s',
+              boxShadow: '0 1px 3px rgba(0,0,0,.1)',
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.borderColor = 'var(--sv-action)';
+              (e.currentTarget as HTMLElement).style.boxShadow = '0 0 0 3px color-mix(in srgb, var(--sv-action) 12%, transparent)';
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.borderColor = 'var(--sv-etch)';
+              (e.currentTarget as HTMLElement).style.boxShadow = '0 1px 3px rgba(0,0,0,.1)';
+            }}
+          >
+            <div style={{ fontSize: 30, marginBottom: 10 }}>{r.icon}</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 6 }}>{r.title}</div>
+            <div style={{ fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.55 }}>{r.description}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared: Unified Report Filter Combobox
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface FilterSelection {
+  type: 'product' | 'brand' | 'supplier' | 'product_type';
+  value: string;
+  label: string;
+  meta?: string;
+}
+
+interface FilterSuggestion {
+  type: 'product' | 'brand' | 'supplier' | 'product_type';
+  value: string;
+  label: string;
+  meta?: string;
+}
+
+const TYPE_PILL_COLORS: Record<FilterSelection['type'], { bg: string; text: string }> = {
+  product:      { bg: 'rgba(99,102,241,.15)',  text: 'var(--sv-action)' },
+  brand:        { bg: 'rgba(16,185,129,.15)',  text: 'var(--sv-mint)' },
+  supplier:     { bg: 'rgba(245,158,11,.15)',  text: '#d97706' },
+  product_type: { bg: 'rgba(139,92,246,.15)',  text: '#7c3aed' },
+};
+
+function ReportFilterCombobox({
+  selection,
+  onSelect,
+  onClear,
+  placeholder = 'Filter by product, brand, supplier or type…',
+}: {
+  selection: FilterSelection | null;
+  onSelect: (s: FilterSelection) => void;
+  onClear: () => void;
+  placeholder?: string;
+}) {
+  const [query, setQuery]               = useState('');
+  const [suggestions, setSuggestions]   = useState<FilterSuggestion[]>([]);
+  const [open, setOpen]                 = useState(false);
+  const [loading, setLoading]           = useState(false);
+  const [activeIdx, setActiveIdx]       = useState(-1);
+  const debounceRef                     = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef                    = useRef<HTMLDivElement>(null);
+
+  // Fetch suggestions with debounce
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!query.trim()) { setSuggestions([]); setOpen(false); return; }
+    debounceRef.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/ims/filters/search?q=${encodeURIComponent(query)}&limit=25`);
+        const d = await res.json();
+        setSuggestions(d.suggestions ?? []);
+        setOpen(true);
+        setActiveIdx(-1);
+      } catch { /* ignore */ } finally { setLoading(false); }
+    }, 250);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [query]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const choose = (s: FilterSuggestion) => {
+    onSelect({ type: s.type, value: s.value, label: s.label, meta: s.meta });
+    setQuery('');
+    setSuggestions([]);
+    setOpen(false);
+    setActiveIdx(-1);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!open || suggestions.length === 0) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, suggestions.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)); }
+    else if (e.key === 'Enter' && activeIdx >= 0) { e.preventDefault(); choose(suggestions[activeIdx]); }
+    else if (e.key === 'Escape') { setOpen(false); }
+  };
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', flex: 1, minWidth: 260, maxWidth: 500 }}>
+      {/* Selected pill or input */}
+      {selection ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          height: 36, padding: '0 10px 0 12px',
+          border: '1px solid var(--sv-action)', borderRadius: 8,
+          background: 'var(--sv-bg-0)', cursor: 'default',
+        }}>
+          <span style={{
+            fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5,
+            padding: '2px 7px', borderRadius: 4,
+            background: TYPE_PILL_COLORS[selection.type].bg,
+            color: TYPE_PILL_COLORS[selection.type].text,
+            flexShrink: 0,
+          }}>
+            {selection.type === 'product_type' ? 'Type' : selection.type}
+          </span>
+          <span style={{ fontSize: 13, color: 'var(--sv-text-strong)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {/* Strip the type prefix from label for the pill display */}
+            {selection.label.replace(/^(Product:|Brand:|Supplier:|Product Type:)\s*/i, '')}
+          </span>
+          <button
+            onClick={onClear}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 16, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
+            title="Clear filter"
+          >×</button>
+        </div>
+      ) : (
+        <div style={{ position: 'relative' }}>
+          <input
+            type="text"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onFocus={() => { if (suggestions.length > 0) setOpen(true); }}
+            placeholder={placeholder}
+            style={{
+              width: '100%', height: 36, padding: '0 36px 0 12px',
+              borderRadius: 8, border: '1px solid var(--sv-etch)',
+              background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)',
+              fontSize: 13, boxSizing: 'border-box',
+            }}
+          />
+          {loading && (
+            <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--sv-text-dim)' }}>…</span>
+          )}
+          {!loading && query && (
+            <button
+              onClick={() => { setQuery(''); setSuggestions([]); setOpen(false); }}
+              style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 16, lineHeight: 1, padding: 0 }}
+            >×</button>
+          )}
+        </div>
+      )}
+
+      {/* Suggestions dropdown */}
+      {open && suggestions.length > 0 && !selection && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+          background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)',
+          borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,.18)',
+          zIndex: 9999, overflow: 'hidden', maxHeight: 360, overflowY: 'auto',
+        }}>
+          {suggestions.map((s, i) => {
+            const colors = TYPE_PILL_COLORS[s.type];
+            return (
+              <div
+                key={`${s.type}:${s.value}`}
+                onMouseDown={() => choose(s)}
+                style={{
+                  padding: '9px 12px', cursor: 'pointer',
+                  background: i === activeIdx ? 'color-mix(in srgb, var(--sv-etch) 40%, transparent)' : 'transparent',
+                  borderBottom: '1px solid var(--sv-etch)',
+                  display: 'flex', alignItems: 'flex-start', gap: 9,
+                }}
+                onMouseEnter={() => setActiveIdx(i)}
+              >
+                <span style={{
+                  fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5,
+                  padding: '2px 6px', borderRadius: 4, marginTop: 2,
+                  background: colors.bg, color: colors.text, flexShrink: 0, whiteSpace: 'nowrap',
+                }}>
+                  {s.type === 'product_type' ? 'Type' : s.type}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, color: 'var(--sv-text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {s.label}
+                  </div>
+                  {s.meta && (
+                    <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 2 }}>{s.meta}</div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {open && query.length > 1 && suggestions.length === 0 && !loading && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+          background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)',
+          borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,.18)', zIndex: 9999,
+          padding: '12px 16px', fontSize: 13, color: 'var(--sv-text-dim)', textAlign: 'center',
+        }}>
+          No matches found
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sales by Branch / Product Report
+// ─────────────────────────────────────────────────────────────────────────────
+
+const WINDOW_OPTS = [
+  { value: 7,   label: '7 Days' },
+  { value: 90,  label: '90 Days' },
+  { value: 180, label: '180 Days' },
+  { value: 365, label: '12 Months' },
+];
+
+function SalesByBranchView({ onBack }: { onBack: () => void }) {
+  const [rows, setRows]             = useState<any[]>([]);
+  const [total, setTotal]           = useState(0);
+  const [locations, setLocations]   = useState<Array<{ id: number; name: string }>>([]);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState('');
+
+  const [filterSelection, setFilterSelection] = useState<FilterSelection | null>(null);
+  const [window_,        setWindow_]        = useState(90);
+  const [page,           setPage]           = useState(1);
+  const [pageSize,       setPageSize]       = useState(25);
+
+  const totalPages = Math.ceil(total / pageSize) || 1;
+
+  const load = useCallback(async (pg: number, sel: FilterSelection | null, win: number, ps: number) => {
+    setLoading(true);
+    setError('');
+    try {
+      const params = new URLSearchParams({
+        window: String(win), page: String(pg), pageSize: String(ps),
+      });
+      if (sel) {
+        params.set('filterType', sel.type);
+        params.set('filterValue', sel.value);
+      }
+      const data = await apiFetch(`/api/ims/reports/sales-by-branch?${params}`);
+      setRows(data.rows ?? []);
+      setTotal(data.total ?? 0);
+      setLocations(data.locations ?? []);
+    } catch (e: any) {
+      setError(e.message ?? 'Failed to load report');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(1, null, 90, 25); }, [load]);
+
+  const handleSelect = (sel: FilterSelection) => {
+    setFilterSelection(sel);
+    setPage(1);
+    load(1, sel, window_, pageSize);
+  };
+
+  const handleClear = () => {
+    setFilterSelection(null);
+    setPage(1);
+    load(1, null, window_, pageSize);
+  };
+
+  const goPage = (pg: number) => {
+    setPage(pg);
+    load(pg, filterSelection, window_, pageSize);
+  };
+
+  const changeWindow = (win: number) => {
+    setWindow_(win);
+    load(page, filterSelection, win, pageSize);
+  };
+
+  const changePageSize = (ps: number) => {
+    setPageSize(ps);
+    setPage(1);
+    load(1, filterSelection, window_, ps);
+  };
+
+  const salesKey = window_ <= 7 ? 'sales_qty_7d' : window_ <= 90 ? 'sales_qty_90d' : window_ <= 180 ? 'sales_qty_180d' : 'sales_qty_12m';
+  const salesLabel = WINDOW_OPTS.find(o => o.value === window_)?.label ?? '90 Days';
+
+  const pageRange = (): (number | '...')[] => {
+    const r: (number | '...')[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) r.push(i);
+    } else {
+      r.push(1);
+      if (page > 3) r.push('...');
+      for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) r.push(i);
+      if (page < totalPages - 2) r.push('...');
+      r.push(totalPages);
+    }
+    return r;
+  };
+
+  const cellStyle: React.CSSProperties = { padding: '9px 12px', borderBottom: '1px solid var(--sv-etch)', fontSize: 13, whiteSpace: 'nowrap' };
+  const hCell: React.CSSProperties    = { ...cellStyle, fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, background: 'var(--sv-bg-2)' };
+  const numCell: React.CSSProperties  = { ...cellStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' as any };
+  const numHCell: React.CSSProperties = { ...hCell, textAlign: 'right' };
+
+  return (
+    <div>
+      {/* Back + Title */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+        <button
+          onClick={onBack}
+          style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--sv-text-dim)' }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Reports
+        </button>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0 }}>Sales by Branch / Product</h1>
+      </div>
+
+      {/* Filters */}
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px', marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+        <ReportFilterCombobox
+          selection={filterSelection}
+          onSelect={handleSelect}
+          onClear={handleClear}
+          placeholder="Filter by product (name/SKU/barcode), brand, supplier or type…"
+        />
+
+        <div style={{ display: 'flex', gap: 4 }}>
+          {WINDOW_OPTS.map(o => (
+            <button
+              key={o.value}
+              onClick={() => changeWindow(o.value)}
+              style={{
+                height: 36, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)',
+                background: window_ === o.value ? 'var(--sv-action)' : 'var(--sv-bg-0)',
+                color: window_ === o.value ? '#fff' : 'var(--sv-text-main)',
+                fontSize: 12, fontWeight: window_ === o.value ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap',
+              }}
+            >{o.label}</button>
+          ))}
+        </div>
+
+        {!loading && total > 0 && (
+          <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginLeft: 4 }}>
+            {total.toLocaleString()} variant{total !== 1 ? 's' : ''}
+          </span>
+        )}
+        {loading && <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading…</span>}
+      </div>
+
+      {error && (
+        <div style={{ color: 'var(--sv-red)', fontSize: 13, marginBottom: 12, padding: '8px 12px', background: 'color-mix(in srgb, var(--sv-red) 10%, transparent)', borderRadius: 6 }}>{error}</div>
+      )}
+
+      {/* Table */}
+      <div style={{ overflowX: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr>
+              <th style={{ ...hCell, position: 'sticky', left: 0, zIndex: 2, background: 'var(--sv-bg-2)', minWidth: 220 }}>Product</th>
+              <th style={hCell}>SKU</th>
+              <th style={hCell}>Brand</th>
+              <th style={hCell}>Supplier</th>
+              <th style={{ ...numHCell, color: 'var(--sv-action)' }}>Sales ({salesLabel})</th>
+              <th style={numHCell}>Global SOH</th>
+              {locations.map(l => (
+                <th key={l.id} style={{ ...numHCell, maxWidth: 100, whiteSpace: 'normal', lineHeight: 1.3 }}>{l.name}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr>
+                <td colSpan={6 + locations.length} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>
+                  Loading…
+                </td>
+              </tr>
+            )}
+            {!loading && rows.length === 0 && (
+              <tr>
+                <td colSpan={6 + locations.length} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>
+                  No results found.
+                </td>
+              </tr>
+            )}
+            {!loading && rows.map((row, i) => {
+              const salesQty = Number(row[salesKey] ?? 0);
+              const locStockMap = new Map<number, any>(row.stock.map((s: any) => [s.location_id, s]));
+              const rowBg = i % 2 === 0 ? 'transparent' : 'color-mix(in srgb, var(--sv-etch) 35%, transparent)';
+              return (
+                <tr key={row.variant_id} style={{ background: rowBg }}>
+                  <td style={{ ...cellStyle, position: 'sticky', left: 0, zIndex: 1, background: rowBg, minWidth: 220 }}>
+                    <div style={{ fontWeight: 500, color: 'var(--sv-text-strong)' }}>{row.product_name}</div>
+                    {row.option_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 1 }}>{row.option_label}</div>}
+                  </td>
+                  <td style={{ ...cellStyle, color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 12 }}>{row.sku || '—'}</td>
+                  <td style={cellStyle}>{row.brand || '—'}</td>
+                  <td style={cellStyle}>{row.supplier_name || '—'}</td>
+                  <td style={{ ...numCell, color: salesQty > 0 ? 'var(--sv-mint)' : 'var(--sv-text-dim)', fontWeight: salesQty > 0 ? 600 : 400 }}>
+                    {salesQty.toLocaleString('en-AU', { maximumFractionDigits: 0 })}
+                  </td>
+                  <td style={{ ...numCell, fontWeight: row.global_soh > 0 ? 500 : 400, color: row.global_soh <= 0 ? 'var(--sv-text-dim)' : undefined }}>
+                    {Number(row.global_soh).toLocaleString('en-AU', { maximumFractionDigits: 0 })}
+                  </td>
+                  {locations.map(l => {
+                    const s = locStockMap.get(l.id);
+                    const soh = s ? Number(s.soh) : 0;
+                    return (
+                      <td key={l.id} style={{ ...numCell, color: soh > 0 ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', opacity: soh > 0 ? 1 : 0.45 }}>
+                        {soh > 0 ? soh.toLocaleString('en-AU', { maximumFractionDigits: 0 }) : '—'}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button
+              onClick={() => goPage(page - 1)} disabled={page <= 1 || loading}
+              style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.4 : 1, fontSize: 13, color: 'var(--sv-text-main)' }}
+            >←</button>
+            {pageRange().map((p, i) =>
+              p === '...' ?
+                <span key={`e${i}`} style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 4px' }}>…</span> :
+                <button
+                  key={p}
+                  onClick={() => goPage(p as number)}
+                  disabled={loading}
+                  style={{ height: 30, minWidth: 30, borderRadius: 6, border: '1px solid var(--sv-etch)', background: p === page ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: p === page ? '#fff' : 'var(--sv-text-main)', fontWeight: p === page ? 600 : 400, cursor: 'pointer', fontSize: 13 }}
+                >{p}</button>
+            )}
+            <button
+              onClick={() => goPage(page + 1)} disabled={page >= totalPages || loading}
+              style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', cursor: page >= totalPages ? 'not-allowed' : 'pointer', opacity: page >= totalPages ? 0.4 : 1, fontSize: 13, color: 'var(--sv-text-main)' }}
+            >→</button>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--sv-text-dim)' }}>
+            <span>Page {page} of {totalPages} · {total.toLocaleString()} variants</span>
+            <select
+              value={pageSize} onChange={e => changePageSize(Number(e.target.value))}
+              style={{ height: 28, padding: '0 6px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12, cursor: 'pointer' }}
+            >
+              {[10, 25, 50, 100].map(n => <option key={n} value={n}>{n} / page</option>)}
+            </select>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Inventory Valuation Report
+// ─────────────────────────────────────────────────────────────────────────────
+
+function InventoryValuationView({ onBack }: { onBack: () => void }) {
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [filterSelection, setFilterSelection] = useState<FilterSelection | null>(null);
+
+  const load = useCallback(async (sel: FilterSelection | null) => {
+    setLoading(true);
+    setError('');
+    try {
+      const params = new URLSearchParams();
+      if (sel) { params.set('filterType', sel.type); params.set('filterValue', sel.value); }
+      const res = await fetch(`/api/ims/reports/inventory-valuation?${params}`);
+      const d = await res.json();
+      if (d.success) setRows(d.data);
+      else setError(d.error);
+    } catch (e: any) { setError(e.message); } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(null); }, [load]);
+
+  const handleSelect = (sel: FilterSelection) => { setFilterSelection(sel); load(sel); };
+  const handleClear  = () => { setFilterSelection(null); load(null); };
+
+  const downloadCsv = () => {
+    const headers = ['SKU', 'Product Name', 'Brand', 'Supplier', 'Cost', 'SOH', 'Total Value'];
+    const lines = [headers.join(',')];
+    for (const r of rows) {
+      lines.push([
+        r.sku,
+        `"${(r.name || '').replace(/"/g, '""')}"`,
+        `"${(r.brand || '').replace(/"/g, '""')}"`,
+        `"${(r.supplier_name || '').replace(/"/g, '""')}"`,
+        r.cost,
+        r.soh,
+        r.total_value
+      ].join(','));
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `inventory-valuation-${today()}.csv`; a.click();
+  };
+
+  const cellStyle: React.CSSProperties = { padding: '10px 12px', borderBottom: '1px solid var(--sv-etch)', fontSize: 13 };
+  const numCell: React.CSSProperties = { ...cellStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
+  
+  const grandTotal = rows.reduce((s, r) => s + (r.total_value || 0), 0);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div>
+          <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', padding: 0, marginBottom: 8, fontSize: 13 }}>← Back to Reports</button>
+          <h2 style={{ fontSize: 20, fontWeight: 600, color: 'var(--sv-text-strong)', margin: 0 }}>Inventory Valuation</h2>
+          <div style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginTop: 4 }}>Total value of all physical stock on hand.</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={downloadCsv} disabled={rows.length === 0} style={btnStyle('ghost', 'sm')}>⬇ Export CSV</button>
+        </div>
+      </div>
+
+      {/* Filter */}
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <ReportFilterCombobox
+          selection={filterSelection}
+          onSelect={handleSelect}
+          onClear={handleClear}
+          placeholder="Filter by product (name/SKU/barcode), brand, supplier or type…"
+        />
+        {loading && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Loading…</span>}
+      </div>
+      
+      {error && <div style={{ color: 'var(--sv-coral)', marginBottom: 16 }}>{error}</div>}
+      
+      <div style={{ background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)', padding: '16px 20px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Total Inventory Value</div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{fmtCurrency(grandTotal)}</div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Unique SKUs Counted</div>
+          <div style={{ fontSize: 16, fontWeight: 500, color: 'var(--sv-text-main)' }}>{rows.length.toLocaleString()}</div>
+        </div>
+      </div>
+
+      <div style={{ flex: 1, overflow: 'auto', background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead style={{ position: 'sticky', top: 0, background: 'var(--sv-bg-1)', zIndex: 1, boxShadow: '0 1px 0 var(--sv-etch)' }}>
+            <tr>
+              <th style={{ ...cellStyle, textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>SKU</th>
+              <th style={{ ...cellStyle, textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Product Name</th>
+              <th style={{ ...cellStyle, textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Brand</th>
+              <th style={{ ...numCell, fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Unit Cost</th>
+              <th style={{ ...numCell, fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>SOH</th>
+              <th style={{ ...numCell, fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Total Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading...</td></tr> : null}
+            {!loading && rows.map((r, i) => (
+              <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' }}>
+                <td style={{ ...cellStyle, fontFamily: 'monospace' }}>{r.sku}</td>
+                <td style={{ ...cellStyle, fontWeight: 500 }}>{r.name}</td>
+                <td style={cellStyle}>{r.brand || '—'}</td>
+                <td style={numCell}>{fmtCurrency(r.cost)}</td>
+                <td style={numCell}>{r.soh.toLocaleString()}</td>
+                <td style={{ ...numCell, fontWeight: 600 }}>{fmtCurrency(r.total_value)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Product Margin Report
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ProductMarginView({ onBack }: { onBack: () => void }) {
+  const [rows, setRows]       = useState<any[]>([]);
+  const [total, setTotal]     = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState('');
+  const [filterSelection, setFilterSelection] = useState<FilterSelection | null>(null);
+  const [window_, setWindow_] = useState(365);
+  const [page, setPage]       = useState(1);
+  const PAGE_SIZE = 100;
+
+  const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
+
+  const load = useCallback(async (sel: FilterSelection | null, win: number, pg: number) => {
+    setLoading(true);
+    setError('');
+    try {
+      const params = new URLSearchParams({ window: String(win), page: String(pg), pageSize: String(PAGE_SIZE) });
+      if (sel) { params.set('filterType', sel.type); params.set('filterValue', sel.value); }
+      const res = await fetch(`/api/ims/reports/product-margin?${params}`);
+      const d = await res.json();
+      if (d.success) { setRows(d.data); setTotal(d.total ?? 0); }
+      else setError(d.error);
+    } catch (e: any) { setError(e.message); } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(null, 365, 1); }, [load]);
+
+  const handleSelect = (sel: FilterSelection) => { setFilterSelection(sel); setPage(1); load(sel, window_, 1); };
+  const handleClear  = () => { setFilterSelection(null); setPage(1); load(null, window_, 1); };
+  const changeWindow = (win: number) => { setWindow_(win); setPage(1); load(filterSelection, win, 1); };
+  const goPage = (pg: number) => { setPage(pg); load(filterSelection, window_, pg); };
+
+  const winLabel = WINDOW_OPTS.find(o => o.value === window_)?.label ?? '12 Months';
+
+  const downloadCsv = () => {
+    const headers = ['SKU', 'Product Name', 'Brand', 'Unit Cost', 'Unit Price', `Qty Sold (${winLabel})`, 'Gross Rev', 'COGS', 'Gross Profit', 'Margin %'];
+    const lines = [headers.join(',')];
+    for (const r of rows) {
+      lines.push([
+        r.sku,
+        `"${(r.name || '').replace(/"/g, '""')}"`,
+        `"${(r.brand || '').replace(/"/g, '""')}"`,
+        r.cost, r.price, r.qty, r.rev, r.cogs, r.profit, r.margin.toFixed(2),
+      ].join(','));
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `product-margin-${today()}.csv`; a.click();
+  };
+
+  const pageRange = (): (number | '...')[] => {
+    const r: (number | '...')[] = [];
+    if (totalPages <= 7) { for (let i = 1; i <= totalPages; i++) r.push(i); }
+    else {
+      r.push(1);
+      if (page > 3) r.push('...');
+      for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) r.push(i);
+      if (page < totalPages - 2) r.push('...');
+      r.push(totalPages);
+    }
+    return r;
+  };
+
+  const cellStyle: React.CSSProperties = { padding: '9px 12px', borderBottom: '1px solid var(--sv-etch)', fontSize: 13 };
+  const numCell: React.CSSProperties   = { ...cellStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' as any };
+  const hCell: React.CSSProperties     = { ...cellStyle, fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase' as any, letterSpacing: 0.6, background: 'var(--sv-bg-2)' };
+  const numHCell: React.CSSProperties  = { ...hCell, textAlign: 'right' };
+
+  const totalProfit = rows.reduce((s, r) => s + (r.profit || 0), 0);
+  const totalRev    = rows.reduce((s, r) => s + (r.rev    || 0), 0);
+  const blendedMargin = totalRev > 0 ? (totalProfit / totalRev) * 100 : 0;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+
+      {/* ── Header row ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <button onClick={onBack} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--sv-text-dim)', flexShrink: 0 }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Reports
+        </button>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Product Profitability</h1>
+        <button onClick={downloadCsv} disabled={rows.length === 0} style={btnStyle('ghost', 'sm')}>⬇ Export CSV</button>
+      </div>
+
+      {/* ── Filter + Window bar ── */}
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 12, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
+        <ReportFilterCombobox
+          selection={filterSelection}
+          onSelect={handleSelect}
+          onClear={handleClear}
+          placeholder="Filter by product (name/SKU/barcode), brand, supplier or type…"
+        />
+        <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+          {WINDOW_OPTS.map(o => (
+            <button key={o.value} onClick={() => changeWindow(o.value)} style={{
+              height: 36, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)',
+              background: window_ === o.value ? 'var(--sv-action)' : 'var(--sv-bg-0)',
+              color: window_ === o.value ? '#fff' : 'var(--sv-text-main)',
+              fontSize: 12, fontWeight: window_ === o.value ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap',
+            }}>{o.label}</button>
+          ))}
+        </div>
+        {loading && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Loading…</span>}
+        {!loading && total > 0 && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{total.toLocaleString()} results</span>}
+      </div>
+
+      {error && <div style={{ color: 'var(--sv-coral)', marginBottom: 12, fontSize: 13 }}>{error}</div>}
+
+      {/* ── Summary cards ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 12, marginBottom: 12 }}>
+        {[
+          { label: `${winLabel} Revenue`,     value: fmtCurrency(totalRev),           color: 'var(--sv-text-strong)' },
+          { label: `${winLabel} Gross Profit`, value: fmtCurrency(totalProfit),        color: 'var(--sv-mint)' },
+          { label: 'Blended Margin',           value: `${blendedMargin.toFixed(1)}%`,  color: 'var(--sv-text-strong)' },
+        ].map(c => (
+          <div key={c.label} style={{ background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)', padding: '14px 18px' }}>
+            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>{c.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: c.color }}>{c.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Table — scrolls independently ── */}
+      <div style={{ flex: 1, overflow: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
+            <tr>
+              <th style={{ ...hCell, textAlign: 'left' }}>SKU</th>
+              <th style={{ ...hCell, textAlign: 'left', minWidth: 200 }}>Product Name</th>
+              <th style={{ ...hCell, textAlign: 'left' }}>Brand</th>
+              <th style={numHCell}>Qty Sold</th>
+              <th style={numHCell}>Gross Rev</th>
+              <th style={numHCell}>COGS</th>
+              <th style={{ ...numHCell, color: 'var(--sv-mint)' }}>Gross Profit</th>
+              <th style={numHCell}>Margin %</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr><td colSpan={8} style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
+            )}
+            {!loading && rows.length === 0 && (
+              <tr><td colSpan={8} style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)' }}>No results found.</td></tr>
+            )}
+            {!loading && rows.map((r, i) => (
+              <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' }}>
+                <td style={{ ...cellStyle, fontFamily: 'monospace', fontSize: 12, color: 'var(--sv-text-dim)' }}>{r.sku || '—'}</td>
+                <td style={{ ...cellStyle, fontWeight: 500 }}>{r.name}</td>
+                <td style={cellStyle}>{r.brand || '—'}</td>
+                <td style={numCell}>{r.qty.toLocaleString()}</td>
+                <td style={numCell}>{fmtCurrency(r.rev)}</td>
+                <td style={numCell}>{fmtCurrency(r.cogs)}</td>
+                <td style={{ ...numCell, fontWeight: 600, color: 'var(--sv-mint)' }}>{fmtCurrency(r.profit)}</td>
+                <td style={{ ...numCell, fontWeight: 600 }}>{r.margin.toFixed(1)}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ── Pagination ── */}
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button onClick={() => goPage(page - 1)} disabled={page <= 1 || loading}
+              style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.4 : 1, fontSize: 13, color: 'var(--sv-text-main)' }}>←</button>
+            {pageRange().map((p, i) =>
+              p === '...'
+                ? <span key={`e${i}`} style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 4px' }}>…</span>
+                : <button key={p} onClick={() => goPage(p as number)} disabled={loading}
+                    style={{ height: 30, minWidth: 30, borderRadius: 6, border: '1px solid var(--sv-etch)', background: p === page ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: p === page ? '#fff' : 'var(--sv-text-main)', fontWeight: p === page ? 600 : 400, cursor: 'pointer', fontSize: 13 }}>{p}</button>
+            )}
+            <button onClick={() => goPage(page + 1)} disabled={page >= totalPages || loading}
+              style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', cursor: page >= totalPages ? 'not-allowed' : 'pointer', opacity: page >= totalPages ? 0.4 : 1, fontSize: 13, color: 'var(--sv-text-main)' }}>→</button>
+          </div>
+          <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>
+            Page {page} of {totalPages} · {total.toLocaleString()} results · 100 per page
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main Page
+// ─────────────────────────────────────────────────────────────────────────────
+
+export default function ImsPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [view, setView] = useState<ImsView>('dashboard');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncLog, setSyncLog] = useState<{ step: string; status: string; message: string }[]>([]);
+  const [fullSyncConfirm, setFullSyncConfirm] = useState<'products' | 'sales' | 'pos' | null>(null);
+  const [salesMonthsInput, setSalesMonthsInput] = useState(6);
+  const [poMonthsInput, setPoMonthsInput] = useState(60);
+
+  const handleSync = async (syncType: 'full' | 'latest', steps: string[], salesMonths?: number) => {
+    setSyncing(true);
+    setSyncLog([{ step: 'start', status: 'running', message: 'Starting sync...' }]);
+    try {
+      const res = await fetch('/api/ims/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sync_type: syncType, steps, sales_months: salesMonths ?? 6, po_months: poMonthsInput }),
+
+      });
+      if (!res.body) throw new Error('No response body');
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const text = decoder.decode(value, { stream: true });
+        for (const line of text.split('\n')) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const event = JSON.parse(line.slice(6));
+            setSyncLog(prev => {
+              const runningIdx = prev.findIndex(e => e.step === event.step && e.status === 'running');
+              if (runningIdx >= 0) {
+                const next = [...prev];
+                next[runningIdx] = event;
+                return next;
+              }
+              return [...prev, event];
+            });
+          } catch {}
+        }
+      }
+    } catch (e: any) {
+      setSyncLog(prev => [...prev, { step: 'error', status: 'error', message: e.message }]);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetch('/api/user/me').then(r => r.json()).then(d => {
+      if (d.name) { setUser(d); }
+      else router.push('/login');
+    }).catch(() => router.push('/login')).finally(() => setAuthChecked(true));
+  }, [router]);
+
+  useEffect(() => {
+    const findHScrollable = (el: Element): Element | null => {
+      if (el.scrollWidth > el.clientWidth + 2) return el;
+      for (const child of Array.from(el.children)) {
+        const found = findHScrollable(child);
+        if (found) return found;
+      }
+      return null;
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) return;
+      if ((e.target as HTMLElement).matches('input,select,textarea')) return;
+      e.preventDefault();
+      const main = document.querySelector('main');
+      if (!main) return;
+      const isHoriz = e.key === 'ArrowLeft' || e.key === 'ArrowRight';
+      const delta = (e.key === 'ArrowLeft' || e.key === 'ArrowUp') ? -120 : 120;
+      if (isHoriz) {
+        const hEl = findHScrollable(main);
+        if (hEl) (hEl as HTMLElement).scrollLeft += delta;
+      } else {
+        main.scrollTop += delta;
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  if (!authChecked) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--sv-bg-0)' }}>
+        <Spinner />
+      </div>
+    );
+  }
+
+  if (!user) return null;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontFamily: 'system-ui, sans-serif' }}>
+      {/* Header */}
+      <header style={{ height: 52, background: 'var(--sv-bg-1)', borderBottom: '1px solid var(--sv-etch)', display: 'flex', alignItems: 'center', padding: '0 20px', gap: 12, flexShrink: 0 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--sv-text-strong)', letterSpacing: -.3 }}>
+          <span style={{ color: 'var(--sv-action)' }}>Solvantis</span> IMS
+        </div>
+        <div style={{ flex: 1 }} />
+        <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>{user.company || user.name}</div>
+        <a
+          href="/pos"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Open POS Terminal"
+          style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', color: 'var(--sv-text-dim)', display: 'flex', alignItems: 'center', gap: 5, textDecoration: 'none', fontSize: 12, fontWeight: 600 }}
+        >
+          🖥️ POS
+        </a>
+        <button
+          onClick={() => setSettingsOpen(true)}
+          title="Settings"
+          style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '5px 8px', cursor: 'pointer', color: 'var(--sv-text-dim)', display: 'flex', alignItems: 'center' }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        </button>
+      </header>
+
+      {/* Full Sync Confirmation Modal */}
+      {fullSyncConfirm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, width: 420, maxWidth: '95vw', padding: 24 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 10 }}>
+              {fullSyncConfirm === 'products' ? 'Full Product Sync' : fullSyncConfirm === 'pos' ? 'Full PO Sync' : 'Full Sales Sync'}
+            </div>
+            {fullSyncConfirm === 'products' ? (
+              <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.6, marginBottom: 20 }}>
+                This will <strong style={{ color: 'var(--sv-red)' }}>delete all Cin7-sourced products, variants and stock</strong> from the IMS database and re-import everything fresh from Cin7. Manually-created records are preserved. This may take several minutes.
+              </p>
+            ) : fullSyncConfirm === 'pos' ? (
+              <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.6, marginBottom: 20 }}>
+                This will <strong style={{ color: 'var(--sv-red)' }}>delete all Cin7-sourced purchase orders</strong> from the IMS database and re-import the last <strong>{poMonthsInput} month{poMonthsInput !== 1 ? 's' : ''}</strong> from Cin7. Manually-created POs are preserved.
+              </p>
+            ) : (
+              <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.6, marginBottom: 20 }}>
+                This will <strong style={{ color: 'var(--sv-red)' }}>clear all sales history and cache</strong> and re-import the last <strong>{salesMonthsInput} month{salesMonthsInput !== 1 ? 's' : ''}</strong> from Cin7.
+              </p>
+            )}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setFullSyncConfirm(null)}
+                style={{ padding: '7px 16px', borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', cursor: 'pointer', fontSize: 13 }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const type = fullSyncConfirm;
+                  setFullSyncConfirm(null);
+                  if (type === 'products') {
+                    handleSync('full', ['products', 'stock']);
+                  } else if (type === 'pos') {
+                    handleSync('full', ['pos'], poMonthsInput);
+                  } else {
+                    handleSync('full', ['sales'], salesMonthsInput);
+                  }
+                }}
+                style={{ padding: '7px 18px', borderRadius: 7, border: 'none', background: 'var(--sv-red)', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+              >
+                Yes, Full Sync
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <SettingsModal
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        syncing={syncing}
+        syncLog={syncLog}
+        handleSync={handleSync}
+        fullSyncConfirm={fullSyncConfirm}
+        setFullSyncConfirm={setFullSyncConfirm}
+        salesMonthsInput={salesMonthsInput}
+        setSalesMonthsInput={setSalesMonthsInput}
+        poMonthsInput={poMonthsInput}
+        setPoMonthsInput={setPoMonthsInput}
+      />
+
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        <Sidebar active={view} onSelect={setView} />
+        <main style={{ flex: 1, overflow: 'auto', padding: 28 }}>
+          {view === 'dashboard'        && <DashboardView onNav={setView} />}
+          {view === 'products'         && <ProductsView />}
+          {view === 'stock'            && <StockView />}
+          {view === 'contacts'         && <ContactsView />}
+          {view === 'locations'        && <LocationsView />}
+          {view === 'purchase-orders'  && <PurchaseOrdersView />}
+          {view === 'sales-orders'     && <SalesOrdersView />}
+          {view === 'branch-transfers' && <BranchTransfersView />}
+          {view === 'brands'           && <BrandsView />}
+          {view === 'pos-sales'        && <PosSalesView />}
+          {view === 'online-sales'     && <OnlineSalesView />}
+          {view === 'stocktakes'        && <StocktakesView />}
+          {view === 'reports'           && <ReportsView onNav={setView} />}
+          {view === 'report-sales-by-branch' && <SalesByBranchView onBack={() => setView('reports')} />}
+          {view === 'report-inventory-valuation' && <InventoryValuationView onBack={() => setView('reports')} />}
+          {view === 'report-product-margin' && <ProductMarginView onBack={() => setView('reports')} />}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Branch Transfers View
+// ─────────────────────────────────────────────────────────────────────────────
+
+function BranchTransfersView() {
+  const [transfers, setTransfers]   = useState<any[]>([]);
+  const [locations, setLocations]   = useState<any[]>([]);
+  const [variants, setVariants]     = useState<any[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterSearch, setFilterSearch] = useState('');
+  const [sortCol, setSortCol]       = useState<string>('transfer_date');
+  const [sortDir, setSortDir]       = useState<'asc' | 'desc'>('desc');
+  const [page, setPage]             = useState(1);
+  const PAGE_SIZE = 25;
+
+  // Create/Edit modal
+  const [modal, setModal]   = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
+  const [form, setForm]     = useState<any>({ from_location_id: '', to_location_id: '', transfer_date: today(), notes: '' });
+  const [lineItems, setLineItems] = useState<any[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+
+  // View modal
+  const [viewModal, setViewModal] = useState<{ open: boolean; bt: any | null }>({ open: false, bt: null });
+
+  // Receive confirmation modal
+  const [receiveModal, setReceiveModal] = useState<{ open: boolean; bt: any | null }>({ open: false, bt: null });
+  const [receiveQtys, setReceiveQtys]   = useState<Record<number, string>>({});
+  const [receiving, setReceiving]       = useState(false);
+
+  const sf = (k: string) => (e: React.ChangeEvent<any>) => setForm((p: any) => ({ ...p, [k]: e.target.value }));
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [bts, locs, vars] = await Promise.all([
+        apiFetch('/api/ims/branch-transfers'),
+        apiFetch('/api/ims/locations'),
+        apiFetch('/api/ims/variants'),
+      ]);
+      setTransfers(bts.data || []);
+      setLocations((locs.data || []).filter((l: any) => l.is_active));
+      setVariants(vars.data || []);
+    } catch {}
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const lineTotal = (item: any) => Number(item.qty_sent || 0) * Number(item.unit_cost || 0);
+  const grandTotal = lineItems.reduce((s, i) => s + lineTotal(i), 0);
+
+  const addLine = () => setLineItems(p => [...p, { variant_id: '', qty_sent: 1, unit_cost: 0, notes: '' }]);
+  const removeLine = (i: number) => setLineItems(p => p.filter((_, j) => j !== i));
+  const updateLine = (i: number, k: string, v: any) =>
+    setLineItems(p => p.map((item, j) => j === i ? { ...item, [k]: v } : item));
+
+  // Auto-fill unit_cost from variant avg_cost when variant selected
+  const selectVariant = (i: number, variant_id: string) => {
+    const v = variants.find((v: any) => v.variant_id === variant_id);
+    setLineItems(p => p.map((item, j) => j === i
+      ? { ...item, variant_id, unit_cost: v?.cost ?? 0 }
+      : item));
+  };
+
+  const openNew = () => {
+    setForm({ from_location_id: '', to_location_id: '', transfer_date: today(), notes: '' });
+    setLineItems([{ variant_id: '', qty_sent: 1, unit_cost: 0, notes: '' }]);
+    setModal({ open: true, edit: null });
+  };
+
+  const openEdit = async (bt: any) => {
+    const d = await apiFetch(`/api/ims/branch-transfers/${bt.id}`);
+    setForm({
+      from_location_id: d.data.from_location_id,
+      to_location_id:   d.data.to_location_id,
+      transfer_date:    d.data.transfer_date?.slice(0, 10),
+      notes:            d.data.notes ?? '',
+    });
+    setLineItems((d.data.items || []).map((i: any) => ({
+      variant_id: i.variant_id, qty_sent: i.qty_sent, unit_cost: i.unit_cost, notes: i.notes ?? '',
+    })));
+    setModal({ open: true, edit: d.data });
+  };
+
+  const openView = async (bt: any) => {
+    const d = await apiFetch(`/api/ims/branch-transfers/${bt.id}`);
+    setViewModal({ open: true, bt: d.data });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.from_location_id) { alert('Source location is required.'); return; }
+    if (!form.to_location_id)   { alert('Destination location is required.'); return; }
+    if (form.from_location_id === form.to_location_id) { alert('Source and destination cannot be the same.'); return; }
+    if (lineItems.length === 0 || lineItems.some(i => !i.variant_id)) {
+      alert('Add at least one line item with a variant selected.'); return;
+    }
+    setSaving(true);
+    try {
+      const items = lineItems.map(i => ({ ...i, line_value: lineTotal(i) }));
+      if (modal.edit) {
+        await apiFetch(`/api/ims/branch-transfers/${modal.edit.id}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...form, items }),
+        });
+      } else {
+        await apiFetch('/api/ims/branch-transfers', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...form, items }),
+        });
+      }
+      load(); setModal({ open: false, edit: null });
+    } catch (e: any) { alert(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const changeStatus = async (bt: any, status: string) => {
+    const labels: Record<string, string> = { sent: 'mark as sent', cancelled: 'cancel' };
+    if (!confirm(`${labels[status] || status} transfer ${bt.transfer_number}?`)) return;
+    try {
+      await apiFetch(`/api/ims/branch-transfers/${bt.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      load();
+      if (viewModal.open && viewModal.bt?.id === bt.id) {
+        const d = await apiFetch(`/api/ims/branch-transfers/${bt.id}`);
+        setViewModal({ open: true, bt: d.data });
+      }
+    } catch (e: any) { alert(e.message); }
+  };
+
+  const openReceive = async (bt: any) => {
+    const d = await apiFetch(`/api/ims/branch-transfers/${bt.id}`);
+    const qtys: Record<number, string> = {};
+    for (const item of d.data.items || []) qtys[item.id] = String(item.qty_sent);
+    setReceiveQtys(qtys);
+    setReceiveModal({ open: true, bt: d.data });
+  };
+
+  const handleReceive = async () => {
+    if (!receiveModal.bt) return;
+    const receivedItems = Object.entries(receiveQtys).map(([item_id, qty_received]) => ({
+      item_id: Number(item_id), qty_received: Number(qty_received),
+    }));
+    setReceiving(true);
+    try {
+      await apiFetch(`/api/ims/branch-transfers/${receiveModal.bt.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'received', receivedItems }),
+      });
+      load();
+      setReceiveModal({ open: false, bt: null });
+      if (viewModal.open && viewModal.bt?.id === receiveModal.bt.id) {
+        const d = await apiFetch(`/api/ims/branch-transfers/${receiveModal.bt.id}`);
+        setViewModal({ open: true, bt: d.data });
+      }
+    } catch (e: any) { alert(e.message); }
+    finally { setReceiving(false); }
+  };
+
+  const handleDelete = async (bt: any) => {
+    if (!confirm(`Delete transfer ${bt.transfer_number}? This cannot be undone.`)) return;
+    try {
+      await apiFetch(`/api/ims/branch-transfers/${bt.id}`, { method: 'DELETE' });
+      load();
+    } catch (e: any) { alert(e.message); }
+  };
+
+  // Sorting
+  const handleSort = (col: string) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+  };
+  const SortIcon = ({ col }: { col: string }) => (
+    <span style={{ opacity: sortCol === col ? 1 : 0.3, fontSize: 10 }}>
+      {sortCol === col ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ' ↕'}
+    </span>
+  );
+
+  // Filter + sort
+  const filtered = transfers.filter(bt => {
+    if (filterStatus && bt.status !== filterStatus) return false;
+    if (filterSearch) {
+      const q = filterSearch.toLowerCase();
+      if (!bt.transfer_number.toLowerCase().includes(q) &&
+          !(bt.from_location_name || '').toLowerCase().includes(q) &&
+          !(bt.to_location_name   || '').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
+  const sorted = [...filtered].sort((a, b) => {
+    let av = a[sortCol], bv = b[sortCol];
+    if (typeof av === 'string') av = av.toLowerCase();
+    if (typeof bv === 'string') bv = bv.toLowerCase();
+    if (av < bv) return sortDir === 'asc' ? -1 : 1;
+    if (av > bv) return sortDir === 'asc' ?  1 : -1;
+    return 0;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const safePage   = Math.min(page, totalPages);
+  const pageSlice  = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Branch Transfers</h1>
+          <div style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginTop: 2 }}>{filtered.length} transfer{filtered.length !== 1 ? 's' : ''}</div>
+        </div>
+        <button onClick={openNew} style={btnStyle('action')}>+ New Transfer</button>
+      </div>
+
+      {/* Filters */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+        <input
+          placeholder="Search transfer #, location…"
+          value={filterSearch}
+          onChange={e => { setFilterSearch(e.target.value); setPage(1); }}
+          style={{ ...inputStyle, width: 240, flex: 'none' }}
+        />
+        <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }} style={{ ...inputStyle, width: 160, flex: 'none' }}>
+          <option value="">All Statuses</option>
+          <option value="draft">Draft</option>
+          <option value="sent">Sent</option>
+          <option value="received">Received</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+
+      {/* Table */}
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 60 }}><Spinner /></div>
+      ) : (
+        <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden', background: 'var(--sv-bg-1)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: 'var(--sv-bg-2)' }}>
+                {[
+                  ['transfer_number', 'Transfer #'],
+                  ['from_location_name', 'From'],
+                  ['to_location_name', 'To'],
+                  ['transfer_date', 'Date'],
+                  ['status', 'Status'],
+                  ['total_value', 'Value'],
+                  ['', ''],
+                ].map(([col, label]) => (
+                  <th key={label} onClick={() => col && handleSort(col)} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 12, color: 'var(--sv-text-dim)', fontWeight: 700, cursor: col ? 'pointer' : 'default', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                    {label}{col && <SortIcon col={col} />}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {pageSlice.map((bt: any, i: number) => (
+                <tr key={bt.id} style={{ borderTop: '1px solid var(--sv-etch)', cursor: 'pointer', background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}
+                    onClick={() => openView(bt)}>
+                  <td style={{ padding: '10px 12px' }}>
+                    <span style={{ fontWeight: 600, color: 'var(--sv-action)', fontSize: 13 }}>{bt.transfer_number}</span>
+                  </td>
+                  <td style={{ padding: '10px 12px', fontSize: 13 }}>{bt.from_location_name}</td>
+                  <td style={{ padding: '10px 12px', fontSize: 13 }}>→ {bt.to_location_name}</td>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13 }}>{bt.transfer_date?.slice(0, 10)}</td>
+                  <td style={{ padding: '10px 12px' }}><StatusBadge status={bt.status} /></td>
+                  <td style={{ padding: '10px 12px', fontSize: 13 }}>{fmtCurrency(bt.total_value)}</td>
+                  <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
+                    <BTActions bt={bt} onEdit={() => openEdit(bt)} onDelete={() => handleDelete(bt)} onStatus={changeStatus} onReceive={() => openReceive(bt)} />
+                  </td>
+                </tr>
+              ))}
+              {pageSlice.length === 0 && (
+                <tr><td colSpan={7} style={{ padding: '40px 0', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No transfers found</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14 }}>
+          <button onClick={() => setPage(1)} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>«</button>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>‹ Prev</button>
+          <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 8px' }}>Page {safePage} of {totalPages} ({sorted.length} transfers)</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>Next ›</button>
+          <button onClick={() => setPage(totalPages)} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>»</button>
+        </div>
+      )}
+
+      {/* Create / Edit Transfer Modal */}
+      {modal.open && (
+        <Modal title={modal.edit ? `Edit ${modal.edit.transfer_number}` : 'New Branch Transfer'} onClose={() => setModal({ open: false, edit: null })} wide>
+          <form onSubmit={handleSubmit}>
+            <Row3>
+              <Field label="Source Location *">
+                <select required value={form.from_location_id} onChange={sf('from_location_id')} style={inputStyle}>
+                  <option value="">— Select —</option>
+                  {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+              </Field>
+              <Field label="Destination Location *">
+                <select required value={form.to_location_id} onChange={sf('to_location_id')} style={inputStyle}>
+                  <option value="">— Select —</option>
+                  {locations.filter(l => String(l.id) !== String(form.from_location_id)).map(l => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Transfer Date *"><input required type="date" value={form.transfer_date} onChange={sf('transfer_date')} style={inputStyle} /></Field>
+            </Row3>
+            <Field label="Notes"><input value={form.notes} onChange={sf('notes')} style={inputStyle} /></Field>
+
+            {/* Line items */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>LINE ITEMS</span>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button type="button" onClick={() => setImportOpen(true)} style={btnStyle('secondary', 'xs')}>⬆ Import</button>
+                  <button type="button" onClick={addLine} style={btnStyle('ghost', 'xs')}>+ Add Line</button>
+                </div>
+              </div>
+              <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--sv-bg-1)' }}>
+                      {['Variant', 'Qty to Send', 'Unit Cost', 'Line Value', ''].map(h => (
+                        <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600 }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lineItems.map((item, i) => (
+                      <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                        <td style={{ padding: 4 }}>
+                          <select value={item.variant_id} onChange={e => selectVariant(i, e.target.value)} style={{ ...inputStyle, fontSize: 12 }}>
+                            <option value="">— Select variant —</option>
+                            {variants.map((v: any) => (
+                              <option key={v.variant_id} value={v.variant_id}>
+                                {v.product_name} — {v.sku || v.variant_id.slice(0, 8)} {[v.option1_value, v.option2_value].filter(Boolean).join('/')}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td style={{ padding: 4, width: 90 }}>
+                          <input type="number" min="0.0001" step="any" value={item.qty_sent} onChange={e => updateLine(i, 'qty_sent', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} />
+                        </td>
+                        <td style={{ padding: 4, width: 100 }}>
+                          <input type="number" min="0" step="0.0001" value={item.unit_cost} onChange={e => updateLine(i, 'unit_cost', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} />
+                        </td>
+                        <td style={{ padding: '4px 8px', width: 100, color: 'var(--sv-text-main)', fontSize: 13 }}>{fmtCurrency(lineTotal(item))}</td>
+                        <td style={{ padding: 4, width: 30 }}>
+                          <button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16 }}>×</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{ textAlign: 'right', marginTop: 8, fontSize: 14, color: 'var(--sv-text-strong)', fontWeight: 600 }}>
+                Total Value: {fmtCurrency(grandTotal)}
+              </div>
+            </div>
+            <FormActions onCancel={() => setModal({ open: false, edit: null })} saving={saving} isEdit={!!modal.edit} />
+          </form>
+        </Modal>
+      )}
+
+      {importOpen && modal.open && (
+        <ImportLineItemsModal
+          variants={variants}
+          priceFn={(v) => Number(v.cost ?? 0)}
+          lineFactory={(v, qty, price) => ({ variant_id: v.variant_id, qty_sent: qty, unit_cost: price, notes: '' })}
+          onImport={(items) => setLineItems(prev => [...prev.filter(i => i.variant_id), ...items])}
+          onClose={() => setImportOpen(false)}
+        />
+      )}
+
+      {/* View Transfer Modal */}
+      {viewModal.open && viewModal.bt && (
+        <Modal title={`${viewModal.bt.transfer_number} — ${viewModal.bt.status}`} onClose={() => setViewModal({ open: false, bt: null })} wide>
+          <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <BTActions
+              bt={viewModal.bt}
+              onEdit={() => { setViewModal({ open: false, bt: null }); openEdit(viewModal.bt); }}
+              onDelete={() => { setViewModal({ open: false, bt: null }); handleDelete(viewModal.bt); }}
+              onStatus={changeStatus}
+              onReceive={() => { setViewModal({ open: false, bt: null }); openReceive(viewModal.bt); }}
+            />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+            <div><div style={labelStyle}>From Location</div><div>{viewModal.bt.from_location_name}</div></div>
+            <div><div style={labelStyle}>To Location</div><div>{viewModal.bt.to_location_name}</div></div>
+            <div><div style={labelStyle}>Status</div><StatusBadge status={viewModal.bt.status} /></div>
+            <div><div style={labelStyle}>Transfer Date</div><div>{viewModal.bt.transfer_date?.slice(0, 10)}</div></div>
+            <div><div style={labelStyle}>Received Date</div><div>{viewModal.bt.received_date?.slice(0, 10) || '—'}</div></div>
+            <div><div style={labelStyle}>Total Value</div><div style={{ fontWeight: 600 }}>{fmtCurrency(viewModal.bt.total_value)}</div></div>
+          </div>
+          {viewModal.bt.notes && <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--sv-bg-2)', borderRadius: 6, fontSize: 13, color: 'var(--sv-text-dim)' }}>{viewModal.bt.notes}</div>}
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
+            <thead>
+              <tr style={{ background: 'var(--sv-bg-1)' }}>
+                {['SKU', 'Product', 'Variant', 'Qty Sent', 'Qty Received', 'Unit Cost', 'Line Value'].map(h => (
+                  <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {(viewModal.bt.items || []).map((item: any, i: number) => {
+                const hasDiscrepancy = item.qty_received != null && Number(item.qty_received) !== Number(item.qty_sent);
+                return (
+                  <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                    <td style={{ padding: '8px 10px' }}><code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{item.sku || '—'}</code></td>
+                    <td style={{ padding: '8px 10px', fontSize: 13 }}>{item.product_name}</td>
+                    <td style={{ padding: '8px 10px', fontSize: 13 }}>{item.variant_label || 'Default'}</td>
+                    <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtQty(item.qty_sent)}</td>
+                    <td style={{ padding: '8px 10px', fontSize: 13 }}>
+                      {item.qty_received == null ? <span style={{ color: 'var(--sv-text-dim)' }}>—</span> : (
+                        <span style={{ color: hasDiscrepancy ? '#f87171' : 'inherit', fontWeight: hasDiscrepancy ? 700 : 400 }}>
+                          {fmtQty(item.qty_received)}{hasDiscrepancy && ' ⚠'}
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtCurrency(item.unit_cost)}</td>
+                    <td style={{ padding: '8px 10px', fontSize: 13, fontWeight: 600 }}>{fmtCurrency(item.line_value)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr style={{ borderTop: '2px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
+                <td colSpan={6} style={{ padding: '8px 10px', textAlign: 'right', fontSize: 13, color: 'var(--sv-text-dim)' }}>Total Value</td>
+                <td style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--sv-text-strong)' }}>{fmtCurrency(viewModal.bt.total_value)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </Modal>
+      )}
+
+      {/* Receive Confirmation Modal */}
+      {receiveModal.open && receiveModal.bt && (
+        <Modal title={`Confirm Receipt — ${receiveModal.bt.transfer_number}`} onClose={() => setReceiveModal({ open: false, bt: null })} wide>
+          <div style={{ marginBottom: 16, padding: '10px 14px', background: 'rgba(139,92,246,.08)', border: '1px solid rgba(139,92,246,.25)', borderRadius: 8, fontSize: 13, color: 'var(--sv-text-dim)' }}>
+            Enter the quantity actually received for each item. Any discrepancy from the sent quantity will be recorded, and <strong>stock will move based on the received quantities</strong>.
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', marginBottom: 20 }}>
+            <thead>
+              <tr style={{ background: 'var(--sv-bg-1)' }}>
+                {['SKU', 'Product', 'Variant', 'Qty Sent', 'Qty Received'].map(h => (
+                  <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {(receiveModal.bt.items || []).map((item: any) => {
+                const rcvd = receiveQtys[item.id] ?? String(item.qty_sent);
+                const diff = Number(rcvd) !== Number(item.qty_sent);
+                return (
+                  <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)', background: diff ? 'rgba(248,113,113,.05)' : 'transparent' }}>
+                    <td style={{ padding: '8px 10px' }}><code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{item.sku || '—'}</code></td>
+                    <td style={{ padding: '8px 10px', fontSize: 13 }}>{item.product_name}</td>
+                    <td style={{ padding: '8px 10px', fontSize: 13 }}>{item.variant_label || 'Default'}</td>
+                    <td style={{ padding: '8px 10px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{fmtQty(item.qty_sent)}</td>
+                    <td style={{ padding: '8px 10px', width: 120 }}>
+                      <input
+                        type="number" min="0" step="any"
+                        value={rcvd}
+                        onChange={e => setReceiveQtys(p => ({ ...p, [item.id]: e.target.value }))}
+                        style={{ ...inputStyle, fontSize: 13, borderColor: diff ? '#f87171' : undefined }}
+                      />
+                      {diff && <div style={{ fontSize: 11, color: '#f87171', marginTop: 2 }}>Discrepancy: sent {fmtQty(item.qty_sent)}</div>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <button type="button" onClick={() => setReceiveModal({ open: false, bt: null })} style={btnStyle('ghost')}>Cancel</button>
+            <button type="button" onClick={handleReceive} disabled={receiving} style={btnStyle('mint')}>
+              {receiving ? 'Processing…' : 'Confirm Receipt & Move Stock'}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function BTActions({ bt, onEdit, onDelete, onStatus, onReceive }: {
+  bt: any; onEdit: () => void; onDelete: () => void;
+  onStatus: (bt: any, s: string) => void; onReceive: () => void;
+}) {
+  const btns: React.ReactNode[] = [];
+  if (bt.status === 'draft') {
+    btns.push(<button key="e" onClick={onEdit} style={btnStyle('secondary', 'xs')}>Edit</button>);
+    btns.push(<button key="s" onClick={() => onStatus(bt, 'sent')} style={btnStyle('action', 'xs')}>Mark Sent</button>);
+    btns.push(<button key="x" onClick={() => onStatus(bt, 'cancelled')} style={btnStyle('ghost', 'xs')}>Cancel</button>);
+  }
+  if (bt.status === 'sent') {
+    btns.push(<button key="r" onClick={onReceive} style={btnStyle('mint', 'xs')}>Receive</button>);
+    btns.push(<button key="x" onClick={() => onStatus(bt, 'cancelled')} style={btnStyle('ghost', 'xs')}>Cancel</button>);
+  }
+  if (bt.status === 'draft') {
+    btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>);
+  }
+  return <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{btns}</div>;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Stocktakes
+// ─────────────────────────────────────────────────────────────────────────────
+
+function StocktakesView() {
+  const [list, setList]         = useState<any[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [locations, setLocations] = useState<any[]>([]);
+  const [brands, setBrands]     = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [filterLocation, setFilterLocation] = useState('');
+  const [filterText, setFilterText]         = useState('');
+  const [sortCol, setSortCol]   = useState<string>('created_at');
+  const [sortDir, setSortDir]   = useState<'asc' | 'desc'>('desc');
+  const [page, setPage]         = useState(1);
+
+  // Create modal
+  const [createModal, setCreateModal] = useState(false);
+  const [createForm, setCreateForm]   = useState<any>({ reference: '', location_id: '', notes: '', brand_id: '', supplier_id: '', product_type: '' });
+  const [previewCount, setPreviewCount] = useState<number | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [saving, setSaving]             = useState(false);
+
+  // Detail modal
+  const [detailModal, setDetailModal]   = useState<{ open: boolean; st: any | null }>({ open: false, st: null });
+  const [detailTab, setDetailTab]       = useState<'manual' | 'barcode'>('manual');
+  const [detailItems, setDetailItems]   = useState<any[]>([]);
+  const [barcodeText, setBarcodeText]   = useState('');
+  const [barcodeResults, setBarcodeResults] = useState<any[] | null>(null);
+  const [applying, setApplying]         = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch('/api/ims/stocktakes').then(r => r.json()).then(d => {
+      if (Array.isArray(d)) setList(d);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    fetch('/api/ims/locations').then(r => r.json()).then(d => { if (d.success) setLocations(d.data); });
+    fetch('/api/ims/brands').then(r => r.json()).then(d => { if (d.success) setBrands(d.data); });
+    fetch('/api/ims/contacts?type=supplier&active=1').then(r => r.json()).then(d => { if (d.success) setSuppliers(d.data); });
+  }, []);
+
+  // Default reference when opening create modal
+  const openCreate = () => {
+    const d = new Date();
+    const ref = `ST-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+    setCreateForm({ reference: ref, location_id: '', notes: '', brand_id: '', supplier_id: '', product_type: '' });
+    setPreviewCount(null);
+    setCreateModal(true);
+  };
+
+  const cf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+    setCreateForm((p: any) => ({ ...p, [k]: e.target.value }));
+
+  // Preview variant count whenever filters change
+  useEffect(() => {
+    if (!createModal || !createForm.location_id) { setPreviewCount(null); return; }
+    setPreviewLoading(true);
+    const sp = new URLSearchParams({ location_id: createForm.location_id });
+    if (createForm.brand_id)    sp.set('brand_id',    createForm.brand_id);
+    if (createForm.supplier_id) sp.set('supplier_id', createForm.supplier_id);
+    if (createForm.product_type) sp.set('product_type', createForm.product_type);
+    fetch(`/api/ims/stocktakes/preview?${sp}`).then(r => r.json()).then(d => {
+      setPreviewCount(d.count ?? null);
+    }).finally(() => setPreviewLoading(false));
+  }, [createModal, createForm.location_id, createForm.brand_id, createForm.supplier_id, createForm.product_type]);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createForm.location_id) { alert('Location is required'); return; }
+    if (!createForm.reference)   { alert('Reference is required'); return; }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/ims/stocktakes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reference:    createForm.reference,
+          location_id:  parseInt(createForm.location_id, 10),
+          notes:        createForm.notes || undefined,
+          brand_id:     createForm.brand_id    ? parseInt(createForm.brand_id,    10) : undefined,
+          supplier_id:  createForm.supplier_id ? parseInt(createForm.supplier_id, 10) : undefined,
+          product_type: createForm.product_type || undefined,
+        }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || 'Failed');
+      load();
+      setCreateModal(false);
+    } catch (e: any) { alert(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const openDetail = async (st: any) => {
+    const res = await fetch(`/api/ims/stocktakes/${st.id}`);
+    const d   = await res.json();
+    setDetailModal({ open: true, st: d });
+    setDetailItems((d.items || []).map((i: any) => ({ ...i, counted_input: i.counted_qty !== null ? String(i.counted_qty) : '' })));
+    setDetailTab('manual');
+    setBarcodeText('');
+    setBarcodeResults(null);
+  };
+
+  const saveItemCount = async (item: any, value: string) => {
+    const counted_qty = value === '' ? null : Number(value);
+    await fetch(`/api/ims/stocktakes/${detailModal.st.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'update_item', item_id: item.id, counted_qty }),
+    });
+    setDetailItems(p => p.map((i: any) => i.id === item.id ? { ...i, counted_qty, counted_input: value } : i));
+  };
+
+  const changeStatus = async (id: number, status: string) => {
+    const labels: Record<string, string> = { in_progress: 'start count', completed: 'mark complete', cancelled: 'cancel' };
+    if (!confirm(`${labels[status] || status} this stocktake?`)) return;
+    await fetch(`/api/ims/stocktakes/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'change_status', status }),
+    });
+    load();
+    if (detailModal.open && detailModal.st?.id === id) {
+      const res = await fetch(`/api/ims/stocktakes/${id}`);
+      const d   = await res.json();
+      setDetailModal({ open: true, st: d });
+    }
+  };
+
+  const handleApply = async (id: number) => {
+    if (!confirm('Apply counted quantities to stock? This will update qty_on_hand for all counted items.')) return;
+    setApplying(true);
+    try {
+      const res = await fetch(`/api/ims/stocktakes/${id}/apply`, { method: 'POST' });
+      const d   = await res.json();
+      if (!res.ok) throw new Error(d.error);
+      alert(`Applied ${d.applied} items. ${d.variances} variance movements recorded.`);
+      load();
+      setDetailModal({ open: false, st: null });
+    } catch (e: any) { alert(e.message); }
+    finally { setApplying(false); }
+  };
+
+  const handleDelete = async (id: number, ref: string) => {
+    if (!confirm(`Delete stocktake ${ref}?`)) return;
+    await fetch(`/api/ims/stocktakes/${id}`, { method: 'DELETE' });
+    load();
+  };
+
+  // Barcode paste processing
+  const processBarcodes = () => {
+    const tokens = barcodeText.split(/[\n,\t]+/).map(t => t.trim()).filter(Boolean);
+    const counts: Record<string, number> = {};
+    for (const t of tokens) counts[t] = (counts[t] || 0) + 1;
+    const results: any[] = [];
+    for (const [code, qty] of Object.entries(counts)) {
+      const match = detailItems.find((i: any) => i.barcode === code || i.sku === code);
+      results.push({ code, qty, matched: !!match, item: match ?? null });
+    }
+    setBarcodeResults(results);
+  };
+
+  const applyBarcodeResults = async () => {
+    if (!barcodeResults) return;
+    const updates = barcodeResults.filter(r => r.matched).map(r => ({ item_id: r.item.id, counted_qty: r.qty }));
+    if (!updates.length) { alert('No matched items to apply.'); return; }
+    await fetch(`/api/ims/stocktakes/${detailModal.st.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'bulk_update_items', items: updates }),
+    });
+    // Refresh detail
+    const res = await fetch(`/api/ims/stocktakes/${detailModal.st.id}`);
+    const d   = await res.json();
+    setDetailItems((d.items || []).map((i: any) => ({ ...i, counted_input: i.counted_qty !== null ? String(i.counted_qty) : '' })));
+    alert(`Applied counts for ${updates.length} variants.`);
+    setBarcodeResults(null);
+    setBarcodeText('');
+  };
+
+  // Filter + sort + paginate
+  const filtered = list.filter((st: any) => {
+    if (filterLocation && String(st.location_id) !== filterLocation) return false;
+    if (filterText && !(st.reference || '').toLowerCase().includes(filterText.toLowerCase())) return false;
+    return true;
+  });
+  const sorted = [...filtered].sort((a: any, b: any) => {
+    let av = a[sortCol]; let bv = b[sortCol];
+    av = av ?? ''; bv = bv ?? '';
+    const cmp = typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv), undefined, { sensitivity: 'base' });
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const safePage   = Math.min(page, totalPages);
+  const visible    = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const toggleSort = (col: string) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+    setPage(1);
+  };
+  const SortIcon = ({ col }: { col: string }) => sortCol !== col ? null : (
+    <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
+  );
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Stocktakes</h1>
+        <button onClick={openCreate} style={btnStyle('action')}>+ New Stocktake</button>
+      </div>
+
+      {/* Filters */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+        <select value={filterLocation} onChange={e => { setFilterLocation(e.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 160, flex: '0 0 auto' }}>
+          <option value="">All Locations</option>
+          {locations.map(l => <option key={l.id} value={String(l.id)}>{l.name}</option>)}
+        </select>
+        <input
+          placeholder="Search reference…"
+          value={filterText}
+          onChange={e => { setFilterText(e.target.value); setPage(1); }}
+          style={{ ...inputStyle, minWidth: 180, flex: '1 1 180px' }}
+        />
+        {(filterLocation || filterText) && (
+          <button onClick={() => { setFilterLocation(''); setFilterText(''); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear</button>
+        )}
+      </div>
+
+      {loading ? <Spinner /> : sorted.length === 0 ? <EmptyState text="No stocktakes yet. Create one to get started." /> : (
+        <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                {([
+                  ['reference', 'Reference'],
+                  ['location_name', 'Location'],
+                  ['status', 'Status'],
+                  ['item_count', 'Items'],
+                  ['variance_count', 'Variances'],
+                  ['created_at', 'Created'],
+                  ['completed_at', 'Completed'],
+                ] as [string, string][]).map(([col, label]) => (
+                  <th key={col} onClick={() => toggleSort(col)}
+                    style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                    {label}<SortIcon col={col} />
+                  </th>
+                ))}
+                <th style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8 }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((st: any) => (
+                <tr key={st.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                  <td style={{ padding: '10px 12px' }}>
+                    <button onClick={() => openDetail(st)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{st.reference}</button>
+                  </td>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13 }}>{st.location_name}</td>
+                  <td style={{ padding: '10px 12px' }}><StatusBadge status={st.status} /></td>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13 }}>{st.item_count ?? 0}</td>
+                  <td style={{ padding: '10px 12px', color: Number(st.variance_count) > 0 ? 'var(--sv-warn,#fbbf24)' : 'var(--sv-text-dim)', fontSize: 13, fontWeight: Number(st.variance_count) > 0 ? 600 : 400 }}>{st.variance_count ?? 0}</td>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{st.created_at?.slice(0, 10)}</td>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{st.completed_at?.slice(0, 10) || '—'}</td>
+                  <td style={{ padding: '10px 12px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <button onClick={() => openDetail(st)} style={btnStyle('ghost', 'xs')}>View</button>
+                    {st.status === 'draft'       && <button onClick={() => changeStatus(st.id, 'in_progress')} style={btnStyle('action', 'xs')}>Start</button>}
+                    {st.status === 'in_progress' && <button onClick={() => changeStatus(st.id, 'completed')} style={btnStyle('action', 'xs')}>Complete</button>}
+                    {st.status === 'completed'   && <button onClick={() => handleApply(st.id)} style={btnStyle('action', 'xs')} disabled={applying}>Apply to Stock</button>}
+                    {(st.status === 'draft' || st.status === 'in_progress') && <button onClick={() => changeStatus(st.id, 'cancelled')} style={btnStyle('secondary', 'xs')}>Cancel</button>}
+                    {st.status === 'draft'       && <button onClick={() => handleDelete(st.id, st.reference)} style={btnStyle('danger', 'xs')}>Delete</button>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {!loading && totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14 }}>
+          <button onClick={() => setPage(1)} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>«</button>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>‹ Prev</button>
+          <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 8px' }}>Page {safePage} of {totalPages} ({sorted.length} stocktakes)</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>Next ›</button>
+          <button onClick={() => setPage(totalPages)} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>»</button>
+        </div>
+      )}
+
+      {/* Create Modal */}
+      {createModal && (
+        <Modal title="New Stocktake" onClose={() => setCreateModal(false)} wide>
+          <form onSubmit={handleCreate}>
+            <Row2>
+              <Field label="Reference *">
+                <input required value={createForm.reference} onChange={cf('reference')} style={inputStyle} placeholder="ST-YYYYMMDD" />
+              </Field>
+              <Field label="Location *">
+                <select required value={createForm.location_id} onChange={cf('location_id')} style={inputStyle}>
+                  <option value="">— Select —</option>
+                  {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+              </Field>
+            </Row2>
+            <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 6, marginTop: 4 }}>PRODUCT FILTERS (optional — leave blank to include all active variants)</div>
+            <Row3>
+              <Field label="Brand">
+                <select value={createForm.brand_id} onChange={cf('brand_id')} style={inputStyle}>
+                  <option value="">All Brands</option>
+                  {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </Field>
+              <Field label="Supplier">
+                <select value={createForm.supplier_id} onChange={cf('supplier_id')} style={inputStyle}>
+                  <option value="">All Suppliers</option>
+                  {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </Field>
+              <Field label="Product Type">
+                <input value={createForm.product_type} onChange={cf('product_type')} style={inputStyle} placeholder="e.g. T-Shirt" />
+              </Field>
+            </Row3>
+            {createForm.location_id && (
+              <div style={{ marginBottom: 14, padding: '8px 12px', background: 'var(--sv-bg-1)', borderRadius: 6, border: '1px solid var(--sv-etch)', fontSize: 13 }}>
+                {previewLoading ? 'Counting variants…' : previewCount !== null ? (
+                  <span style={{ color: previewCount > 0 ? 'var(--sv-text-main)' : 'var(--sv-text-dim)' }}>
+                    <strong>{previewCount}</strong> active variant{previewCount !== 1 ? 's' : ''} will be included
+                  </span>
+                ) : null}
+              </div>
+            )}
+            <Field label="Notes">
+              <textarea value={createForm.notes} onChange={cf('notes')} rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
+            </Field>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button type="button" onClick={() => setCreateModal(false)} style={btnStyle('secondary')}>Cancel</button>
+              <button type="submit" disabled={saving} style={btnStyle('action')}>{saving ? 'Creating…' : 'Create Stocktake'}</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Detail Modal */}
+      {detailModal.open && detailModal.st && (
+        <Modal title={`Stocktake: ${detailModal.st.reference}`} onClose={() => setDetailModal({ open: false, st: null })} wider>
+          <div style={{ marginBottom: 12, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <StatusBadge status={detailModal.st.status} />
+            <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>{detailModal.st.location_name}</span>
+            {detailModal.st.notes && <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>— {detailModal.st.notes}</span>}
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+              {detailModal.st.status === 'draft'       && <button onClick={() => changeStatus(detailModal.st.id, 'in_progress')} style={btnStyle('action', 'sm')}>Start Count</button>}
+              {detailModal.st.status === 'in_progress' && <button onClick={() => changeStatus(detailModal.st.id, 'completed')} style={btnStyle('action', 'sm')}>Mark Complete</button>}
+              {detailModal.st.status === 'completed'   && <button onClick={() => handleApply(detailModal.st.id)} disabled={applying} style={btnStyle('action', 'sm')}>Apply to Stock</button>}
+              {(detailModal.st.status === 'draft' || detailModal.st.status === 'in_progress') && <button onClick={() => changeStatus(detailModal.st.id, 'cancelled')} style={btnStyle('secondary', 'sm')}>Cancel</button>}
+            </div>
+          </div>
+
+          {/* Tab bar */}
+          <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--sv-etch)', marginBottom: 16 }}>
+            {(['manual', 'barcode'] as const).map(tab => (
+              <button key={tab} onClick={() => setDetailTab(tab)} style={{ padding: '8px 18px', background: 'none', border: 'none', borderBottom: detailTab === tab ? '2px solid var(--sv-action)' : '2px solid transparent', color: detailTab === tab ? 'var(--sv-action)' : 'var(--sv-text-dim)', cursor: 'pointer', fontWeight: detailTab === tab ? 700 : 400, fontSize: 14 }}>
+                {tab === 'manual' ? 'Manual Count' : 'Barcode Paste'}
+              </button>
+            ))}
+          </div>
+
+          {detailTab === 'manual' && (
+            <div style={{ maxHeight: 460, overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ position: 'sticky', top: 0, background: 'var(--sv-bg-1)', zIndex: 1 }}>
+                    {['SKU', 'Product', 'Variant', 'Barcode', 'Expected', 'Counted', 'Variance', 'Notes'].map(h => (
+                      <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7, whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {detailItems.map((item: any) => {
+                    const variance = item.counted_qty !== null ? Number(item.counted_qty) - Number(item.expected_qty) : null;
+                    const varColor = variance === null ? 'var(--sv-text-dim)' : variance === 0 ? 'var(--sv-text-dim)' : variance > 0 ? '#34d399' : '#f87171';
+                    const editable = detailModal.st.status === 'draft' || detailModal.st.status === 'in_progress';
+                    return (
+                      <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                        <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{item.sku || '—'}</td>
+                        <td style={{ padding: '6px 10px', fontSize: 12, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.product_name}</td>
+                        <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{item.variant_label || 'Default'}</td>
+                        <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{item.barcode || '—'}</td>
+                        <td style={{ padding: '6px 10px', fontSize: 12, whiteSpace: 'nowrap' }}>{item.expected_qty}</td>
+                        <td style={{ padding: '6px 10px' }}>
+                          {editable ? (
+                            <input
+                              type="number" step="0.0001"
+                              value={item.counted_input}
+                              onChange={e => setDetailItems(p => p.map((i: any) => i.id === item.id ? { ...i, counted_input: e.target.value } : i))}
+                              onBlur={e => saveItemCount(item, e.target.value)}
+                              style={{ ...inputStyle, width: 80, padding: '4px 6px', fontSize: 12 }}
+                              placeholder="—"
+                            />
+                          ) : (
+                            <span style={{ fontSize: 12 }}>{item.counted_qty !== null ? item.counted_qty : '—'}</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '6px 10px', fontSize: 12, color: varColor, fontWeight: variance !== null && variance !== 0 ? 600 : 400, whiteSpace: 'nowrap' }}>
+                          {variance !== null ? (variance >= 0 ? '+' : '') + variance : '—'}
+                        </td>
+                        <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{item.notes || ''}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {detailTab === 'barcode' && (
+            <div>
+              <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 10 }}>
+                Paste or scan barcodes/SKUs below — one per line, or comma/tab separated. Duplicate entries are summed as a count.
+              </p>
+              <textarea
+                rows={8}
+                value={barcodeText}
+                onChange={e => setBarcodeText(e.target.value)}
+                style={{ ...inputStyle, fontFamily: 'monospace', resize: 'vertical', marginBottom: 8 }}
+                placeholder="Scan or paste barcodes here…"
+              />
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                <button type="button" onClick={processBarcodes} style={btnStyle('action', 'sm')}>Process</button>
+                <button type="button" onClick={() => { setBarcodeText(''); setBarcodeResults(null); }} style={btnStyle('secondary', 'sm')}>Clear</button>
+              </div>
+              {barcodeResults && (
+                <div>
+                  <div style={{ marginBottom: 8, fontSize: 13 }}>
+                    <strong>{barcodeResults.filter(r => r.matched).length}</strong> matched, <strong style={{ color: '#f87171' }}>{barcodeResults.filter(r => !r.matched).length}</strong> unmatched
+                  </div>
+                  <div style={{ maxHeight: 280, overflowY: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 6, marginBottom: 12 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ background: 'var(--sv-bg-1)' }}>
+                          {['Code', 'Scanned Qty', 'Match', 'SKU / Product'].map(h => (
+                            <th key={h} style={{ padding: '6px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {barcodeResults.map((r, i) => (
+                          <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)', background: r.matched ? undefined : 'rgba(248,113,113,.06)' }}>
+                            <td style={{ padding: '6px 10px', fontSize: 12, fontFamily: 'monospace' }}>{r.code}</td>
+                            <td style={{ padding: '6px 10px', fontSize: 12 }}>{r.qty}</td>
+                            <td style={{ padding: '6px 10px', fontSize: 12 }}>{r.matched ? '✓' : <span style={{ color: '#f87171' }}>✗ Not found</span>}</td>
+                            <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{r.item ? `${r.item.sku} — ${r.item.product_name}` : '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <button type="button" onClick={applyBarcodeResults} style={btnStyle('action', 'sm')} disabled={!barcodeResults.some(r => r.matched)}>
+                    Apply Matched Counts to Stocktake
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Settings Modal
+// ─────────────────────────────────────────────────────────────────────────────
+
+function useImportRunner(endpoint: string) {
+  const [running, setRunning]   = useState(false);
+  const [messages, setMessages] = useState<string[]>([]);
+  const [done,     setDone]     = useState(false);
+
+  const run = useCallback(() => {
+    if (running) return;
+    setRunning(true);
+    setDone(false);
+    setMessages(['Starting…']);
+    fetch(endpoint, { method: 'POST' }).then(res => {
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      const pump = () => reader?.read().then(({ done: d, value }) => {
+        if (d) { setRunning(false); setDone(true); return; }
+        buf += decoder.decode(value, { stream: true });
+        const parts = buf.split('\n\n');
+        buf = parts.pop() ?? '';
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith('data:')) continue;
+          try { const ev = JSON.parse(line.slice(5).trim()); if (ev.message) setMessages(m => [...m, ev.message]); } catch { /* ignore */ }
+        }
+        pump();
+      });
+      pump();
+    }).catch(e => { setMessages(m => [...m, `Error: ${e.message}`]); setRunning(false); });
+  }, [endpoint, running]);
+
+  return { run, running, messages, done };
+}
+
+interface SetupSection { key: string; label: string; description: string; endpoint: string; }
+
+// ── Stock Cost CSV Import Card ────────────────────────────────────────────────
+function StockCostImportCard() {
+  const [file, setFile]       = useState<File | null>(null);
+  const [running, setRunning] = useState(false);
+  const [result, setResult]   = useState<any | null>(null);
+  const [error, setError]     = useState('');
+  const fileRef               = useRef<HTMLInputElement>(null);
+
+  const run = async () => {
+    if (!file || running) return;
+    setRunning(true);
+    setResult(null);
+    setError('');
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const res = await fetch('/api/ims/import/stock-costs', { method: 'POST', body });
+      const d = await res.json();
+      if (!res.ok || !d.success) { setError(d.error ?? 'Import failed.'); return; }
+      setResult(d);
+    } catch (e: any) {
+      setError(e.message ?? 'Network error.');
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <div style={{ background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 14, marginBottom: 10 }}>
+      <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Import Average Landed Costs (CSV)</div>
+      <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 12 }}>
+        Upload a Cin7 stock export CSV. Average cost is calculated as <em>Stock Value ÷ Stock Qty</em> per SKU and written to product cost and stock records.
+        Requires columns: <strong>Size Code</strong> (or SKU/Code), <strong>Stock Qty</strong>, <strong>Stock Value</strong>.
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".csv,text/csv"
+          onChange={e => { setFile(e.target.files?.[0] ?? null); setResult(null); setError(''); }}
+          style={{ fontSize: 12, flex: 1, minWidth: 0 }}
+        />
+        <button
+          onClick={run}
+          disabled={!file || running}
+          style={{ padding: '6px 14px', borderRadius: 6, border: 'none', cursor: (!file || running) ? 'not-allowed' : 'pointer', background: result ? 'var(--sv-mint)' : 'var(--sv-action)', color: '#fff', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap', opacity: (!file || running) ? 0.6 : 1, flexShrink: 0 }}
+        >
+          {running ? 'Importing…' : result ? 'Done ✓' : 'Import'}
+        </button>
+      </div>
+
+      {error && (
+        <div style={{ marginTop: 10, fontSize: 12, color: 'var(--sv-red)', padding: '6px 10px', background: 'color-mix(in srgb, var(--sv-red) 10%, transparent)', borderRadius: 6 }}>{error}</div>
+      )}
+
+      {result && (
+        <div style={{ marginTop: 10, background: '#111', borderRadius: 6, padding: '8px 12px', fontSize: 12, fontFamily: 'monospace', color: '#aaa', lineHeight: 1.7 }}>
+          <div style={{ color: '#22c55e', fontWeight: 700 }}>✓ Import complete</div>
+          <div>CSV rows read:    {result.summary.csvRowsRead}</div>
+          <div>Unique SKUs:       {result.summary.uniqueSkus}</div>
+          <div style={{ color: '#22c55e' }}>Updated:          {result.summary.updated}</div>
+          {result.summary.skippedZeroQty  > 0 && <div style={{ color: '#f59e0b' }}>Skipped (qty=0):  {result.summary.skippedZeroQty}</div>}
+          {result.summary.skippedNotFound > 0 && <div style={{ color: '#f87171' }}>Not found in IMS: {result.summary.skippedNotFound}{result.notFound?.length ? ` — e.g. ${result.notFound.slice(0,5).join(', ')}` : ''}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SetupImportCard({ section }: { section: SetupSection }) {
+  const { run, running, messages, done } = useImportRunner(section.endpoint);
+  const logRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [messages]);
+  return (
+    <div style={{ background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 14, marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 2 }}>{section.label}</div>
+          <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{section.description}</div>
+        </div>
+        <button onClick={run} disabled={running} style={{ padding: '6px 14px', borderRadius: 6, border: 'none', cursor: running ? 'not-allowed' : 'pointer', background: done ? 'var(--sv-mint)' : 'var(--sv-action)', color: '#fff', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap', opacity: running ? 0.7 : 1 }}>
+          {running ? 'Running…' : done ? 'Done ✓' : 'Run Import'}
+        </button>
+      </div>
+      {messages.length > 0 && (
+        <div ref={logRef} style={{ marginTop: 10, background: '#111', borderRadius: 6, padding: '8px 10px', maxHeight: 120, overflowY: 'auto', fontSize: 11, fontFamily: 'monospace', color: '#aaa' }}>
+          {messages.map((m, i) => <div key={i}>{m}</div>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface SettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  syncing: boolean;
+  syncLog: { step: string; status: string; message: string }[];
+  handleSync: (syncType: 'full' | 'latest', steps: string[], salesMonths?: number) => void;
+  fullSyncConfirm: 'products' | 'sales' | 'pos' | null;
+  setFullSyncConfirm: (v: 'products' | 'sales' | 'pos' | null) => void;
+  salesMonthsInput: number;
+  setSalesMonthsInput: (v: number) => void;
+  poMonthsInput: number;
+  setPoMonthsInput: (v: number) => void;
+}
+
+type PosUser = { id: number; username: string; full_name: string | null; email: string | null; phone: string | null; branch_ids: number[] | null; is_active: number };
+type PosLocation = { id: number; name: string };
+
+function SettingsModal({ isOpen, onClose, syncing, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput }: SettingsModalProps) {
+  const { settings, saveSettings } = useImsSettings();
+  const [profileOpen, setProfileOpen]       = useState(false);
+  const [ordersOpen, setOrdersOpen]         = useState(false);
+  const [setupOpen, setSetupOpen]           = useState(false);
+  const [profileDraft, setProfileDraft]     = useState<Record<string, string>>({});
+  const [profileSaving, setProfileSaving]   = useState(false);
+  const [paymentTypes, setPaymentTypes]     = useState<string[]>([]);
+  const [newPaymentType, setNewPaymentType] = useState('');
+  const [ptSaving, setPtSaving]             = useState(false);
+
+  // POS Staff state
+  const [posStaffOpen, setPosStaffOpen]     = useState(false);
+  const [posConfigOpen, setPosConfigOpen]   = useState(false);
+  const [posUsers, setPosUsers]             = useState<PosUser[]>([]);
+  const [posLocations, setPosLocations]     = useState<PosLocation[]>([]);
+  const [posUsersLoading, setPosUsersLoading] = useState(false);
+  const [newUser, setNewUser]               = useState<{ username: string; password: string; full_name: string; branch_ids: number[] }>({ username: '', password: '', full_name: '', branch_ids: [] });
+  const [newUserSaving, setNewUserSaving]   = useState(false);
+  const [newUserError, setNewUserError]     = useState('');
+  const [editingPwd, setEditingPwd]         = useState<{ id: number; pwd: string } | null>(null);
+
+  const loadPosUsers = () => {
+    setPosUsersLoading(true);
+    fetch('/api/pos/users').then(r => r.json()).then(d => { if (Array.isArray(d.users)) setPosUsers(d.users); }).catch(() => {}).finally(() => setPosUsersLoading(false));
+  };
+
+  useEffect(() => { setProfileDraft(settings); }, [settings]);
+  useEffect(() => {
+    if (!isOpen) return;
+    fetch('/api/pos/settings/payment-methods').then(r => r.json()).then(d => { if (Array.isArray(d.methods)) setPaymentTypes(d.methods); }).catch(() => {});
+    fetch('/api/pos/locations').then(r => r.json()).then(d => { if (Array.isArray(d.locations)) setPosLocations(d.locations); }).catch(() => {});
+    loadPosUsers();
+  }, [isOpen]);
+
+  const savePaymentTypes = async (methods: string[]) => {
+    setPtSaving(true);
+    try {
+      await fetch('/api/pos/settings/payment-methods', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ methods }) });
+      setPaymentTypes(methods);
+    } finally { setPtSaving(false); }
+  };
+
+  const spinIcon = <svg style={{ animation: 'spin 1s linear infinite' }} width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" /></svg>;
+  const syncArrows = <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>;
+
+  const SyncBtn = ({ label, onClick }: { label: string; onClick: () => void }) => (
+    <button onClick={onClick} disabled={syncing} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, padding: '6px 13px', borderRadius: 6, border: 'none', background: syncing ? 'var(--sv-bg-1)' : 'var(--sv-action)', color: syncing ? 'var(--sv-text-dim)' : '#fff', cursor: syncing ? 'not-allowed' : 'pointer' }}>
+      {syncing ? spinIcon : syncArrows}{label}
+    </button>
+  );
+  const FullBtn = ({ onClick }: { onClick: () => void }) => (
+    <button onClick={onClick} disabled={syncing} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 6, border: '1px solid var(--sv-red)', background: 'transparent', color: syncing ? 'var(--sv-text-dim)' : 'var(--sv-red)', cursor: syncing ? 'not-allowed' : 'pointer' }}>Full Sync</button>
+  );
+  const CollHeader = ({ label, open, toggle }: { label: string; open: boolean; toggle: () => void }) => (
+    <div onClick={toggle} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 16px', cursor: 'pointer', userSelect: 'none', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: open ? '8px 8px 0 0' : 8, fontWeight: 600, fontSize: 14, color: 'var(--sv-text-strong)' }}>
+      <span>{label}</span><span style={{ fontSize: 16 }}>{open ? '▲' : '▼'}</span>
+    </div>
+  );
+
+  if (!isOpen) return null;
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, width: 640, maxWidth: '96vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+        {/* Header */}
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--sv-etch)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+          <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--sv-text-strong)' }}>Settings</span>
+          <div style={{ flex: 1 }} />
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 22, lineHeight: 1 }}>×</button>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: 20, overflowY: 'auto', flex: 1 }}>
+
+          {/* ── Cin7 Sync ── */}
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, color: 'var(--sv-text-dim)', marginBottom: 10 }}>Cin7 Sync</div>
+
+          {/* Locations & Contacts */}
+          <div style={{ marginBottom: 10, padding: '13px 16px', background: 'var(--sv-bg-2)', borderRadius: 9, border: '1px solid var(--sv-etch)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Locations &amp; Contacts</div>
+              <SyncBtn label="Sync Now" onClick={() => handleSync('latest', ['locations', 'contacts'])} />
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: 0, lineHeight: 1.5 }}>Import branches and supplier contacts from Cin7. Safe to run at any time.</p>
+          </div>
+
+          {/* Products & Stock */}
+          <div style={{ marginBottom: 10, padding: '13px 16px', background: 'var(--sv-bg-2)', borderRadius: 9, border: '1px solid var(--sv-etch)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Products &amp; Stock</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <FullBtn onClick={() => setFullSyncConfirm('products')} />
+                <SyncBtn label="Sync Latest" onClick={() => handleSync('latest', ['products', 'stock'])} />
+              </div>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: 0, lineHeight: 1.5 }}><strong>Sync Latest</strong> updates products modified since last sync. <strong>Full Sync</strong> clears and re-imports everything.</p>
+          </div>
+
+          {/* Sales History */}
+          <div style={{ marginBottom: 10, padding: '13px 16px', background: 'var(--sv-bg-2)', borderRadius: 9, border: '1px solid var(--sv-etch)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Sales History</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <label style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Months</label>
+                <input type="number" min={1} max={120} value={salesMonthsInput} onChange={e => setSalesMonthsInput(Math.max(1, Math.min(120, Number(e.target.value) || 1)))} style={{ width: 56, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 13, fontWeight: 600, textAlign: 'center' }} />
+                <FullBtn onClick={() => setFullSyncConfirm('sales')} />
+                <SyncBtn label="Sync Latest" onClick={() => handleSync('latest', ['sales'])} />
+              </div>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: 0, lineHeight: 1.5 }}><strong>Sync Latest</strong> adds orders since last sync. <strong>Full Sync</strong> rebuilds history from scratch for the chosen number of months.</p>
+          </div>
+
+          {/* Purchase Orders */}
+          <div style={{ marginBottom: 14, padding: '13px 16px', background: 'var(--sv-bg-2)', borderRadius: 9, border: '1px solid var(--sv-etch)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Purchase Orders</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <label style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Months</label>
+                <input type="number" min={1} max={240} value={poMonthsInput} onChange={e => setPoMonthsInput(Math.max(1, Math.min(240, Number(e.target.value) || 1)))} style={{ width: 56, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 13, fontWeight: 600, textAlign: 'center' }} />
+                <FullBtn onClick={() => setFullSyncConfirm('pos')} />
+                <SyncBtn label="Sync Latest" onClick={() => handleSync('latest', ['pos'])} />
+              </div>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: 0, lineHeight: 1.5 }}>Open POs remain editable; received/cancelled locked as historical. <strong>Full Sync</strong> reimports the chosen months.</p>
+          </div>
+
+          {/* Sync Log */}
+          {syncLog.length > 0 && (
+            <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '12px 14px', marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, color: 'var(--sv-text-dim)', marginBottom: 8 }}>Sync Log</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                {syncLog.map((entry, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13 }}>
+                    <span style={{ flexShrink: 0, marginTop: 1 }}>
+                      {entry.status === 'running' && <svg style={{ animation: 'spin 1s linear infinite' }} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sv-action)" strokeWidth="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" /></svg>}
+                      {entry.status === 'done' && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sv-mint)" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>}
+                      {entry.status === 'error' && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sv-red)" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>}
+                    </span>
+                    <span style={{ color: entry.status === 'error' ? 'var(--sv-red)' : entry.step === 'complete' ? 'var(--sv-mint)' : 'var(--sv-text-main)', fontWeight: entry.step === 'complete' ? 600 : 400 }}>
+                      {entry.message}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Business Profile ── */}
+          <div style={{ marginBottom: 8 }}>
+            <CollHeader label="🏢 Business Profile" open={profileOpen} toggle={() => setProfileOpen(o => !o)} />
+            {profileOpen && (
+              <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
+                <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 14, marginTop: 0 }}>These details appear on PDF Purchase Orders and Tax Invoices.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                  <div>
+                    <label style={labelStyle}>Business Name</label>
+                    <input style={inputStyle} value={profileDraft['business_name'] || ''} onChange={e => setProfileDraft(p => ({ ...p, business_name: e.target.value }))} placeholder="Your company name" />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Business Address</label>
+                    <input style={inputStyle} value={profileDraft['business_address'] || ''} onChange={e => setProfileDraft(p => ({ ...p, business_address: e.target.value }))} placeholder="e.g. 123 Main St, Sydney NSW 2000" />
+                  </div>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={labelStyle}>ABN</label>
+                  <input style={inputStyle} value={profileDraft['business_abn'] || ''} onChange={e => setProfileDraft(p => ({ ...p, business_abn: e.target.value }))} placeholder="e.g. 11 222 333 444" />
+                </div>
+                <div style={{ marginBottom: 16 }}>
+                  <label style={labelStyle}>Logo for PDF (PNG/JPG — max ~500 KB)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 600_000) { alert('Logo is too large (max ~500 KB). Please resize it first.'); e.target.value = ''; return; }
+                      const reader = new FileReader();
+                      reader.onload = ev => setProfileDraft(p => ({ ...p, logo_base64: String(ev.target?.result || '').replace(/^data:[^;]+;base64,/, '') }));
+                      reader.readAsDataURL(file);
+                    }} style={{ fontSize: 12 }} />
+                    {(profileDraft['logo_base64'] || settings['logo_base64']) && <>
+                      <img src={`data:image/png;base64,${profileDraft['logo_base64'] || settings['logo_base64']}`} alt="Logo preview" style={{ height: 44, objectFit: 'contain', borderRadius: 4, border: '1px solid var(--sv-etch)' }} />
+                      <button type="button" onClick={() => setProfileDraft(p => ({ ...p, logo_base64: '' }))} style={btnStyle('danger', 'xs')}>Remove</button>
+                    </>}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button type="button" onClick={() => setProfileDraft(settings)} style={btnStyle('ghost', 'sm')}>Cancel</button>
+                  <button type="button" disabled={profileSaving} onClick={async () => { setProfileSaving(true); await saveSettings(profileDraft); setProfileSaving(false); }} style={btnStyle('action', 'sm')}>{profileSaving ? 'Saving…' : 'Save Profile'}</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── Orders / Payment Types ── */}
+          <div style={{ marginBottom: 8 }}>
+            <CollHeader label="🧾 Orders" open={ordersOpen} toggle={() => setOrdersOpen(o => !o)} />
+            {ordersOpen && (
+              <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
+                <label style={{ ...labelStyle, display: 'block', fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Payment Types</label>
+                <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 12, marginTop: 0 }}>Payment types available across POS and IMS. Shared with the POS terminal.</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                  {paymentTypes.map(pt => (
+                    <div key={pt} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 99, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', fontSize: 13 }}>
+                      <span>{pt}</span>
+                      <button type="button" onClick={() => savePaymentTypes(paymentTypes.filter(t => t !== pt))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 16, lineHeight: 1, padding: '0 2px' }} title="Remove">×</button>
+                    </div>
+                  ))}
+                  {paymentTypes.length === 0 && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>No payment types configured.</span>}
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input style={{ ...inputStyle, flex: 1, maxWidth: 220 }} value={newPaymentType} onChange={e => setNewPaymentType(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && newPaymentType.trim()) { savePaymentTypes([...paymentTypes, newPaymentType.trim()]); setNewPaymentType(''); } }} placeholder="Add payment type…" />
+                  <button type="button" disabled={!newPaymentType.trim() || ptSaving} onClick={() => { if (newPaymentType.trim()) { savePaymentTypes([...paymentTypes, newPaymentType.trim()]); setNewPaymentType(''); } }} style={btnStyle('action', 'sm')}>{ptSaving ? 'Saving…' : 'Add'}</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── One-time Setup ── */}
+          <div style={{ marginBottom: 8 }}>
+            <CollHeader label="⚙️ One-time Setup" open={setupOpen} toggle={() => setSetupOpen(o => !o)} />
+            {setupOpen && (
+              <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
+                <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 14, marginTop: 0 }}>
+                  These imports are for initial setup only — not covered by the regular Cin7 sync above.
+                </p>
+                <SetupImportCard section={{ key: 'stock-snapshot', label: 'Opening Stock Snapshot', description: '⚠ Run last. Sets opening stock on hand and incoming quantities from Cin7. Overwrites existing stock balances — use once during initial setup only.', endpoint: '/api/ims/import/stock-snapshot' }} />
+
+                {/* ── Stock Cost CSV Import ── */}
+                <StockCostImportCard />
+              </div>
+            )}
+          </div>
+
+          {/* ── POS Staff ── */}
+          <div style={{ marginBottom: 8 }}>
+            <CollHeader label="👤 POS Staff" open={posStaffOpen} toggle={() => setPosStaffOpen(o => !o)} />
+            {posStaffOpen && (
+              <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
+                <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 14, marginTop: 0 }}>Staff accounts for the POS terminal. Separate from IMS/Marketoir accounts.</p>
+
+                {/* User list */}
+                {posUsersLoading ? (
+                  <div style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 12 }}>Loading…</div>
+                ) : posUsers.length === 0 ? (
+                  <div style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 12 }}>No POS staff accounts yet.</div>
+                ) : (
+                  <div style={{ marginBottom: 16 }}>
+                    {posUsers.map(u => {
+                      const branchNames = u.branch_ids == null
+                        ? 'All locations'
+                        : u.branch_ids.length === 0
+                          ? 'No locations'
+                          : u.branch_ids.map(bid => posLocations.find(l => l.id === bid)?.name ?? `#${bid}`).join(', ');
+                      const isEditingThis = editingPwd?.id === u.id;
+                      return (
+                        <div key={u.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 7, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', marginBottom: 6 }}>
+                          <div style={{ flex: '1 1 160px', minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.full_name || u.username}</div>
+                            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>@{u.username} · {branchNames}</div>
+                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 99, background: u.is_active ? 'rgba(34,197,94,.15)' : 'rgba(239,68,68,.12)', color: u.is_active ? '#22c55e' : '#ef4444', flexShrink: 0 }}>
+                            {u.is_active ? 'Active' : 'Inactive'}
+                          </span>
+                          <button
+                            onClick={async () => {
+                              await fetch(`/api/pos/users/${u.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active: u.is_active ? 0 : 1 }) });
+                              loadPosUsers();
+                            }}
+                            style={{ fontSize: 11, padding: '3px 9px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', cursor: 'pointer', flexShrink: 0 }}
+                          >
+                            {u.is_active ? 'Deactivate' : 'Activate'}
+                          </button>
+                          {isEditingThis ? (
+                            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flex: '1 1 220px' }}>
+                              <input
+                                type="password"
+                                placeholder="New password…"
+                                value={editingPwd.pwd}
+                                onChange={e => setEditingPwd({ id: u.id, pwd: e.target.value })}
+                                style={{ ...inputStyle, flex: 1, minWidth: 120 }}
+                              />
+                              <button
+                                onClick={async () => {
+                                  if (!editingPwd.pwd.trim()) return;
+                                  await fetch(`/api/pos/users/${u.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: editingPwd.pwd }) });
+                                  setEditingPwd(null);
+                                }}
+                                style={btnStyle('action', 'sm')}
+                              >Save</button>
+                              <button onClick={() => setEditingPwd(null)} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer' }}>✕</button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setEditingPwd({ id: u.id, pwd: '' })}
+                              style={{ fontSize: 11, padding: '3px 9px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-dim)', cursor: 'pointer', flexShrink: 0 }}
+                            >
+                              Reset Password
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Add new user */}
+                <div style={{ borderTop: '1px solid var(--sv-etch)', paddingTop: 14 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 10 }}>Add Staff Member</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                    <input style={inputStyle} placeholder="Username *" value={newUser.username} onChange={e => setNewUser(u => ({ ...u, username: e.target.value }))} />
+                    <input style={inputStyle} placeholder="Full name" value={newUser.full_name} onChange={e => setNewUser(u => ({ ...u, full_name: e.target.value }))} />
+                    <input type="password" style={inputStyle} placeholder="Password *" value={newUser.password} onChange={e => setNewUser(u => ({ ...u, password: e.target.value }))} />
+                  </div>
+                  {posLocations.length > 0 && (
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 6 }}>Locations (leave blank for all)</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {posLocations.map(loc => {
+                          const checked = newUser.branch_ids.includes(loc.id);
+                          return (
+                            <label key={loc.id} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer', padding: '3px 8px', borderRadius: 5, border: `1px solid ${checked ? 'var(--sv-action)' : 'var(--sv-etch)'}`, background: checked ? 'rgba(99,102,241,.1)' : 'var(--sv-bg-2)', color: checked ? 'var(--sv-action)' : 'var(--sv-text-main)' }}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                style={{ display: 'none' }}
+                                onChange={() => setNewUser(u => ({ ...u, branch_ids: checked ? u.branch_ids.filter(id => id !== loc.id) : [...u.branch_ids, loc.id] }))}
+                              />
+                              {loc.name}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {newUserError && <div style={{ fontSize: 12, color: 'var(--sv-red)', marginBottom: 8 }}>{newUserError}</div>}
+                  <button
+                    disabled={newUserSaving || !newUser.username.trim() || !newUser.password.trim()}
+                    onClick={async () => {
+                      setNewUserError('');
+                      setNewUserSaving(true);
+                      try {
+                        const body: Record<string, unknown> = { username: newUser.username.trim(), password: newUser.password, full_name: newUser.full_name.trim() || null };
+                        if (newUser.branch_ids.length > 0) body.branch_ids = newUser.branch_ids;
+                        const res = await fetch('/api/pos/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                        const data = await res.json();
+                        if (!res.ok) { setNewUserError(data.error || 'Failed to create user.'); return; }
+                        setNewUser({ username: '', password: '', full_name: '', branch_ids: [] });
+                        loadPosUsers();
+                      } finally { setNewUserSaving(false); }
+                    }}
+                    style={btnStyle('action', 'sm')}
+                  >
+                    {newUserSaving ? 'Adding…' : 'Add Staff Member'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── POS Config ── */}
+          <div style={{ marginBottom: 8 }}>
+            <CollHeader label="🛒 POS Config" open={posConfigOpen} toggle={() => setPosConfigOpen(o => !o)} />
+            {posConfigOpen && (
+              <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
+                <div style={{ marginBottom: 16 }}>
+                  <label style={labelStyle}>POS Receipt Footer Text</label>
+                  <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 8, marginTop: 0 }}>This text appears at the bottom of the POS receipt.</p>
+                  <textarea 
+                    style={{ ...inputStyle, minHeight: 60, fontFamily: 'sans-serif' }} 
+                    value={profileDraft['pos_receipt_footer'] || ''} 
+                    onChange={e => setProfileDraft(p => ({ ...p, pos_receipt_footer: e.target.value }))} 
+                    placeholder="Thank you for shopping with us!" 
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button type="button" onClick={() => setProfileDraft(settings)} style={btnStyle('ghost', 'sm')}>Cancel</button>
+                  <button type="button" disabled={profileSaving} onClick={async () => { setProfileSaving(true); await saveSettings(profileDraft); setProfileSaving(false); }} style={btnStyle('action', 'sm')}>{profileSaving ? 'Saving…' : 'Save Header/Footer'}</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}

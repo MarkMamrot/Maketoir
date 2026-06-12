@@ -21,3 +21,9 @@
 
 - [x] Ensure Documentation is Complete
 	<!-- Boilerplate documented. -->
+
+- [ ] Project Memory Database
+	<!-- ALWAYS read the "project_memory.md" file located in the root directory before pushing changes, altering deployment strategy, or answering hosting queries. Record any new quirks, workflows, or facts in there as development continues! -->
+
+- [ ] Project Overview & Roadmap
+	<!-- ALWAYS read the "project_overview.md" file located in the root directory to understand the project aims, architecture, and what should be built next before making major feature architectural changes. -->

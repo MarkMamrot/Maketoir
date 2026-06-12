@@ -1,6 +1,6 @@
 // src/services/MetaAdsService.ts
 import { FacebookAdsApi, AdAccount, Campaign, AdSet, Ad } from 'facebook-nodejs-business-sdk';
-import { StandardizedCreative, StandardizedMedia } from '../types/StandardizedData';
+import { StandardizedCreative } from '../types/StandardizedData';
 
 export class MetaAdsService {
   private accountId: string;
@@ -19,11 +19,24 @@ export class MetaAdsService {
   async getLivePerformanceMetrics(datePreset: string = 'last_7d'): Promise<any> {
     const account = new AdAccount(this.accountId);
     const insights = await account.getInsights([
-      'spend', 'impressions', 'clicks', 'cpa', 'roas'
+      'campaign_id',
+      'campaign_name',
+      'spend',
+      'impressions',
+      'clicks',
+      'ctr',
+      'cpc',
+      'cpm',
+      'reach',
+      'frequency',
+      'actions',
+      'purchase_roas',
+      'date_start',
+      'date_stop',
     ], { date_preset: datePreset });
-    
-    // Map to MetricSummary
-    return insights;
+
+    // Normalize SDK records to plain JSON rows.
+    return (insights ?? []).map((row: any) => row?._data ?? row ?? {});
   }
 
   // Phase 3: The Creative Testing Engine

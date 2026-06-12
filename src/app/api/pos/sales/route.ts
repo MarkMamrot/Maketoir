@@ -1,0 +1,79 @@
+import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { PosSalesRepo } from '@/lib/db/PosRepository';
+import { refreshVariantCache } from '@/lib/ims/cacheHelper';
+
+function getPosSession() {
+  const raw = cookies().get('pos_session')?.value;
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+// GET /api/pos/sales?location_id=3&date=2025-06-02&parked=1
+export async function GET(req: Request) {
+  const session = getPosSession();
+  if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+
+  const { searchParams } = new URL(req.url);
+  const locationId = parseInt(searchParams.get('location_id') ?? String(session.location_id), 10);
+  const date = searchParams.get('date') ?? new Date().toISOString().slice(0, 10);
+  const parked = searchParams.get('parked') === '1';
+
+  if (parked) {
+    const sales = await PosSalesRepo.listParked(locationId);
+    return NextResponse.json({ sales });
+  }
+
+  const sales = await PosSalesRepo.list(locationId, date);
+  return NextResponse.json({ sales });
+}
+
+// POST /api/pos/sales — create/complete a sale (supports offline-first via local_id)
+export async function POST(req: Request) {
+  const session = getPosSession();
+  if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+
+  try {
+    const body = await req.json();
+
+    // Idempotency: if local_id already exists, return the existing sale id
+    if (body.local_id) {
+      const existing = await PosSalesRepo.findByLocalId(body.local_id);
+      if (existing) {
+        return NextResponse.json({ success: true, id: existing.id, duplicate: true });
+      }
+    }
+
+    const saleId = await PosSalesRepo.complete({
+      local_id:          body.local_id ?? null,
+      location_id:       body.location_id ?? session.location_id,
+      cashier_id:        body.cashier_id  ?? session.pos_user_id,
+      sale_type:         body.sale_type   ?? 'sale',
+      status:            body.status      ?? 'completed',
+      customer_name:     body.customer_name  ?? null,
+      customer_phone:    body.customer_phone ?? null,
+      subtotal:          Number(body.subtotal       ?? 0),
+      discount_total:    Number(body.discount_total ?? 0),
+      tax_total:         Number(body.tax_total      ?? 0),
+      total:             Number(body.total          ?? 0),
+      notes:             body.notes        ?? null,
+      parked_label:      body.parked_label ?? null,
+      return_of_sale_id: body.return_of_sale_id ?? null,
+      items:             body.items    ?? [],
+      payments:          body.payments ?? [],
+    });
+
+    // EVENT-DRIVEN CACHE UPDATE: update sales velocity and stock for the variants sold
+    if (body.status === 'completed' && body.items?.length > 0) {
+      const vids = body.items.map((i: any) => i.variant_id).filter(Boolean);
+      if (vids.length > 0) {
+        refreshVariantCache(vids).catch(err => console.error('Failed inline cache refresh for POS sale:', err));
+      }
+    }
+
+    return NextResponse.json({ success: true, id: saleId });
+  } catch (err: any) {
+    console.error('POS sale create error:', err);
+    return NextResponse.json({ error: err.message || String(err) }, { status: 500 });
+  }
+}
