@@ -50,17 +50,17 @@ jobs:
             cp -r public/. deploy-output/public/
           fi
 
-          # Write the .cpanel.yml for the deploy branch
-          cat > deploy-output/.cpanel.yml << 'EOF'
-          ---
-          deployment:
-            tasks:
-              - export DEPLOYPATH=/home/readyedu/marketoir-live
-              - /bin/cp -R ./* $DEPLOYPATH
-              - /bin/cp -R ./.next $DEPLOYPATH/
-              - /bin/cp ./.cpanel.yml $DEPLOYPATH/
-              - mkdir -p $DEPLOYPATH/tmp && touch $DEPLOYPATH/tmp/restart.txt
-          EOF
+          # Write the .cpanel.yml for the deploy branch (printf avoids heredoc indentation issues)
+          printf '%s\n' \
+            '---' \
+            'deployment:' \
+            '  tasks:' \
+            '    - export DEPLOYPATH=/home/readyedu/marketoir-live' \
+            '    - /bin/cp -R ./* $DEPLOYPATH' \
+            '    - /bin/cp -R ./.next $DEPLOYPATH/' \
+            '    - /bin/cp ./.cpanel.yml $DEPLOYPATH/' \
+            '    - mkdir -p $DEPLOYPATH/tmp && touch $DEPLOYPATH/tmp/restart.txt' \
+            > deploy-output/.cpanel.yml
 
       - name: Push to deploy branch (orphan — no history accumulation)
         run: |
