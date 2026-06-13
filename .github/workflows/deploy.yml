@@ -60,7 +60,7 @@ jobs:
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./deploy-output/
-          server-dir: /marketoir-live/
+          server-dir: marketoir-live/
           exclude: |
             **/.env
             **/.env.*
