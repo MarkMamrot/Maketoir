@@ -61,8 +61,11 @@ jobs:
           set net:timeout 60;
           set net:max-retries 5;
           set net:reconnect-interval-base 5;
+          set ftp:timezone +10;
           open -u '${{ secrets.FTP_USERNAME }}','${{ secrets.FTP_PASSWORD }}' ftp.exam-ready.com.au;
           mirror --reverse --verbose \
+            --parallel=10 \
+            --ignore-time \
             --exclude .env \
             --exclude .env.local \
             --exclude-glob '*.git*' \
