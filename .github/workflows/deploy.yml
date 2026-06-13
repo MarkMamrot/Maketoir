@@ -53,19 +53,22 @@ jobs:
           mkdir -p deploy-output/tmp
           touch deploy-output/tmp/restart.txt
 
-      - name: Deploy via FTP to marketoir-live
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./deploy-output/
-          server-dir: marketoir-live/
-          exclude: |
-            **/.env
-            **/.env.*
-            **/.git*
-            **/.git*/**
+      - name: Deploy via LFTP to marketoir-live
+        run: |
+          sudo apt-get install -y lftp
+          lftp -c "
+          set ftp:ssl-allow no;
+          set net:timeout 60;
+          set net:max-retries 5;
+          set net:reconnect-interval-base 5;
+          open -u '${{ secrets.FTP_USERNAME }}','${{ secrets.FTP_PASSWORD }}' ftp.exam-ready.com.au;
+          mirror --reverse --verbose \
+            --exclude .env \
+            --exclude .env.local \
+            --exclude-glob '*.git*' \
+            ./deploy-output/ marketoir-live/;
+          bye
+          "
 
       - name: Summary
         run: |
