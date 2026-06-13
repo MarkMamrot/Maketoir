@@ -5,10 +5,6 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Required so the workflow can push to the deploy branch
-permissions:
-  contents: write
-
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -38,11 +34,10 @@ jobs:
         run: |
           mkdir -p deploy-output
 
-          # Copy the standalone bundle (includes server.js + bundled node_modules)
+          # Copy the standalone bundle (server.js + bundled node_modules)
           cp -r .next/standalone/. deploy-output/
 
           # Prepend explicit dotenv load so Passenger always finds .env
-          # regardless of working directory at startup
           printf '%s\n' "require('dotenv').config({ path: require('path').join(__dirname, '.env') });" | cat - deploy-output/server.js > deploy-output/server.tmp && mv deploy-output/server.tmp deploy-output/server.js
 
           # Copy static client assets (not included in standalone by default)
@@ -54,38 +49,29 @@ jobs:
             cp -r public/. deploy-output/public/
           fi
 
-          # Write the .cpanel.yml for the deploy branch (printf avoids heredoc indentation issues)
-          printf '%s\n' \
-            '---' \
-            'deployment:' \
-            '  tasks:' \
-            '    - export DEPLOYPATH=/home/readyedu/marketoir-live' \
-            '    - /bin/cp -R ./* $DEPLOYPATH' \
-            '    - /bin/cp -R ./.next $DEPLOYPATH/' \
-            '    - /bin/cp ./.cpanel.yml $DEPLOYPATH/' \
-            '    - mkdir -p $DEPLOYPATH/tmp && touch $DEPLOYPATH/tmp/restart.txt' \
-            > deploy-output/.cpanel.yml
+          # Touch restart.txt — signals Phusion Passenger to restart after deploy
+          mkdir -p deploy-output/tmp
+          touch deploy-output/tmp/restart.txt
 
-      - name: Push to deploy branch (orphan — no history accumulation)
-        run: |
-          cd deploy-output
-
-          git init
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-
-          git checkout -b deploy
-
-          git add -A
-          git commit -m "Deploy build from commit ${{ github.sha }}"
-
-          git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-          git push --force origin deploy
+      - name: Deploy via FTP to marketoir-live
+        uses: SamKirkland/FTP-Deploy-Action@v4
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./deploy-output/
+          server-dir: /marketoir-live/
+          exclude: |
+            **/.env
+            **/.env.*
+            **/.git*
+            **/.git*/**
 
       - name: Summary
         run: |
           echo "### Deployment Complete" >> $GITHUB_STEP_SUMMARY
-          echo "Branch: \`deploy\`" >> $GITHUB_STEP_SUMMARY
+          echo "Files uploaded via FTP to \`/marketoir-live/\`" >> $GITHUB_STEP_SUMMARY
           echo "Source commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Phusion Passenger restart triggered via \`tmp/restart.txt\`" >> $GITHUB_STEP_SUMMARY
+
           echo "cPanel will now pull the deploy branch and copy files to \`/home/readyedu/marketoir-live\`." >> $GITHUB_STEP_SUMMARY
