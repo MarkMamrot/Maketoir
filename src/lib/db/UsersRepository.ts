@@ -10,6 +10,7 @@ export interface UserRow {
   password_hash: string;
   business_id:   string | null;
   role:          'admin' | 'user';
+  deleted_at:    string | null;
   registered_at: string | null;
   created_at:    string;
 }
@@ -17,7 +18,7 @@ export interface UserRow {
 export const UsersRepository = {
   async findByEmail(email: string): Promise<UserRow | null> {
     const rows = await query<UserRow>(
-      'SELECT * FROM users WHERE email = ? LIMIT 1',
+      'SELECT * FROM users WHERE email = ? AND deleted_at IS NULL LIMIT 1',
       [email.toLowerCase()],
     );
     return rows[0] ?? null;
@@ -25,7 +26,7 @@ export const UsersRepository = {
 
   async findById(id: number): Promise<UserRow | null> {
     const rows = await query<UserRow>(
-      'SELECT * FROM users WHERE id = ? LIMIT 1',
+      'SELECT * FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1',
       [id],
     );
     return rows[0] ?? null;

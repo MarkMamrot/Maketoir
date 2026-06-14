@@ -1,0 +1,39 @@
+name: Backup Database to Google Drive
+
+on:
+  schedule:
+    # 3:00 AM UTC (1:00 PM AEST) and 15:00 UTC (1:00 AM AEST next day)
+    - cron: '0 3 * * *'
+    - cron: '0 15 * * *'
+  workflow_dispatch: # allow manual trigger
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger backup
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.BACKUP_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "${{ secrets.NEXT_PUBLIC_APP_URL }}/api/admin/backup")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Backup failed with status $HTTP_CODE"
+            exit 1
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Database Backup" >> $GITHUB_STEP_SUMMARY
+          echo "Time: $(date -u '+%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY

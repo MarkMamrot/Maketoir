@@ -2117,6 +2117,7 @@ function TeamTab({ business }: { business: { name: string; userId: string; datab
   const [role, setRole] = useState<'user' | 'admin'>('user');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message?: string; error?: string } | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const sendInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2135,6 +2136,31 @@ function TeamTab({ business }: { business: { name: string; userId: string; datab
       setResult({ success: false, error: err.message });
     }
     setLoading(false);
+  };
+
+  const exportData = async () => {
+    setExporting(true);
+    try {
+      const res = await fetch('/api/admin/export');
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || 'Export failed.');
+        return;
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition') ?? '';
+      const filenameMatch = disposition.match(/filename="([^"]+)"/);
+      const filename = filenameMatch?.[1] ?? 'solvantis-export.json';
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(err.message || 'Export failed.');
+    }
+    setExporting(false);
   };
 
   return (
@@ -2173,6 +2199,19 @@ function TeamTab({ business }: { business: { name: string; userId: string; datab
           {loading ? 'Sending invite...' : 'Send Invite Email'}
         </button>
       </form>
+
+      <div className="pt-4 border-t border-gray-100">
+        <h3 className="text-sm font-bold text-gray-700 mb-1">Data Export</h3>
+        <p className="text-xs text-gray-500 mb-3">Download all your business data as a JSON file. Encrypted credentials are excluded.</p>
+        <button
+          type="button"
+          onClick={exportData}
+          disabled={exporting}
+          className="px-4 py-2 bg-gray-800 text-white text-sm font-semibold rounded-lg hover:bg-gray-900 disabled:opacity-50"
+        >
+          {exporting ? 'Preparing export...' : '⬇ Export My Data'}
+        </button>
+      </div>
     </div>
   );
 }

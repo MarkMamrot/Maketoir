@@ -412,6 +412,32 @@ export class GoogleSheetsService {
     }
   }
 
+  /** Upload a private (non-public) text file to Drive. Returns the file ID. */
+  async uploadPrivateFile(content: string, filename: string, mimeType: string, folderId: string): Promise<string> {
+    const body = Readable.from(Buffer.from(content, 'utf8'));
+    const res = await this.drive.files.create({
+      requestBody: { name: filename, parents: [folderId] },
+      media: { mimeType, body },
+      supportsAllDrives: true,
+      fields: 'id',
+    });
+    if (!res.data.id) throw new Error('Drive upload failed — no file ID returned');
+    return res.data.id;
+  }
+
+  /** List files in a Drive folder, oldest first. */
+  async listFilesInFolder(folderId: string): Promise<Array<{ id: string; name: string; createdTime: string }>> {
+    const res = await this.drive.files.list({
+      q: `'${folderId}' in parents and trashed=false`,
+      fields: 'files(id,name,createdTime)',
+      orderBy: 'createdTime asc',
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      pageSize: 1000,
+    });
+    return (res.data.files ?? []) as Array<{ id: string; name: string; createdTime: string }>;
+  }
+
   /**
    * Upload a file to Google Drive (base64-encoded content).
    * Makes the file publicly readable and returns a direct-view URL.
