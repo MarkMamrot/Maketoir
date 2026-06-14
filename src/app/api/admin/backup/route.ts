@@ -1,14 +1,26 @@
 import { NextResponse } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 import { query } from '@/services/MySQLService';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 
-const RETAIN_COUNT = 60; // keep last 60 backups (30 days at twice-daily)
+const RETAIN_COUNT = 60;
+
+function isAuthorized(authHeader: string, secret: string): boolean {
+  const expected = `Bearer ${secret}`;
+  try {
+    return (
+      authHeader.length === expected.length &&
+      timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))
+    );
+  } catch {
+    return false;
+  }
+}
 
 export async function POST(req: Request) {
-  // Validate secret
   const auth = req.headers.get('authorization') ?? '';
   const secret = process.env.BACKUP_SECRET;
-  if (!secret || auth !== `Bearer ${secret}`) {
+  if (!secret || !isAuthorized(auth, secret)) {
     return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
   }
 
@@ -35,20 +47,21 @@ export async function POST(req: Request) {
     ];
 
     const counts: Record<string, number> = {};
+    const failedTables: string[] = [];
     for (const table of tablesToBackup) {
       try {
         const rows = await query(`SELECT * FROM \`${table}\``);
         tables[table] = rows;
         counts[table] = rows.length;
       } catch {
-        // Table might not exist yet — skip gracefully
         counts[table] = -1;
+        failedTables.push(table);
       }
     }
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `solvantis-backup-${timestamp}.json`;
-    const payload = JSON.stringify({ meta: { timestamp: new Date().toISOString(), counts }, tables }, null, 0);
+    const payload = JSON.stringify({ meta: { timestamp: new Date().toISOString(), counts, failedTables }, tables }, null, 0);
 
     const fileId = await drive.uploadPrivateFile(payload, filename, 'application/json', backupFolderId);
 
@@ -65,6 +78,7 @@ export async function POST(req: Request) {
       filename,
       fileId,
       counts,
+      ...(failedTables.length > 0 && { warning: `Some tables failed to backup: ${failedTables.join(', ')}`, failedTables }),
       retained: Math.min(backupFiles.length, RETAIN_COUNT),
       pruned: Math.max(0, backupFiles.length - RETAIN_COUNT),
     });

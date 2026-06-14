@@ -16,7 +16,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
     }
 
-    const user = JSON.parse(session.value);
+    let user: any;
+    try {
+      user = JSON.parse(session.value);
+    } catch {
+      return NextResponse.json({ success: false, error: 'Invalid session.' }, { status: 401 });
+    }
     if (user.role !== 'admin') {
       return NextResponse.json({ success: false, error: 'Only admins can invite users.' }, { status: 403 });
     }
@@ -33,7 +38,7 @@ export async function POST(req: Request) {
     }
 
     // Check if user already exists
-    const existing = await query('SELECT id FROM users WHERE email = ? LIMIT 1', [email.toLowerCase()]);
+    const existing = await query('SELECT id FROM users WHERE email = ? AND deleted_at IS NULL LIMIT 1', [email.toLowerCase()]);
     if (existing.length > 0) {
       return NextResponse.json({ success: false, error: 'A user with this email already exists.' }, { status: 409 });
     }
@@ -49,7 +54,7 @@ export async function POST(req: Request) {
 
     // Look up business name
     const businesses = await query<{ name: string }>(
-      'SELECT name FROM businesses WHERE business_id = ? LIMIT 1',
+      'SELECT name FROM businesses WHERE business_id = ? AND deleted_at IS NULL LIMIT 1',
       [user.userSpreadsheetId],
     );
     const businessName = businesses[0]?.name ?? 'Solvantis';

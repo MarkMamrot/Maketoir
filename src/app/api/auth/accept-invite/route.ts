@@ -40,7 +40,7 @@ export async function GET(req: Request) {
 
     // Look up business name
     const businesses = await query<{ name: string }>(
-      'SELECT name FROM businesses WHERE business_id = ? LIMIT 1',
+      'SELECT name FROM businesses WHERE business_id = ? AND deleted_at IS NULL LIMIT 1',
       [invite.business_id],
     );
 
@@ -93,7 +93,7 @@ export async function POST(req: Request) {
 
     // Look up business company name
     const businesses = await query<{ name: string }>(
-      'SELECT name FROM businesses WHERE business_id = ? LIMIT 1',
+      'SELECT name FROM businesses WHERE business_id = ? AND deleted_at IS NULL LIMIT 1',
       [invite.business_id],
     );
     const company = businesses[0]?.name;

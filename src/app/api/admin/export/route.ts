@@ -8,7 +8,12 @@ export async function GET() {
     return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
   }
 
-  const user = JSON.parse(session.value);
+  let user: any;
+  try {
+    user = JSON.parse(session.value);
+  } catch {
+    return NextResponse.json({ success: false, error: 'Invalid session.' }, { status: 401 });
+  }
   if (user.role !== 'admin') {
     return NextResponse.json({ success: false, error: 'Only admins can export data.' }, { status: 403 });
   }
@@ -26,9 +31,9 @@ export async function GET() {
       chats, shopifyProducts, shopifyOrders, marketingData, bulkEditHistory,
       productSchema, productVolumes, orderPlannerDrafts,
     ] = await Promise.all([
-      query('SELECT business_id, name, drive_folder_id, created_at FROM businesses WHERE business_id = ?', [businessId]),
-      query('SELECT id, name, company, email, phone, role, registered_at, created_at FROM users WHERE business_id = ?', [businessId]),
-      query('SELECT `key`, value, updated_at FROM config WHERE business_id = ?', [businessId]),
+      query('SELECT business_id, name, drive_folder_id, created_at FROM businesses WHERE business_id = ? AND deleted_at IS NULL', [businessId]).catch(() => []),
+      query('SELECT id, name, company, email, phone, role, registered_at, created_at FROM users WHERE business_id = ? AND deleted_at IS NULL', [businessId]).catch(() => []),
+      query('SELECT `key`, value, updated_at FROM config WHERE business_id = ?', [businessId]).catch(() => []),
       // Omit encrypted credential values — just export which connections are configured
       query('SELECT business_id, cin7_tenant, shopify_shop_domain, updated_at FROM connections WHERE business_id = ?', [businessId]).catch(() => []),
       query('SELECT * FROM business_info WHERE business_id = ?', [businessId]).catch(() => []),

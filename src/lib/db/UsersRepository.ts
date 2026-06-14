@@ -54,7 +54,7 @@ export const UsersRepository = {
 
   async updateBusinessId(userId: number, businessId: string): Promise<void> {
     await execute(
-      'UPDATE users SET business_id = ? WHERE id = ?',
+      'UPDATE users SET business_id = ? WHERE id = ? AND deleted_at IS NULL',
       [businessId, userId],
     );
   },

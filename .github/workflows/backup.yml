@@ -14,9 +14,16 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
+      - name: Validate secrets
+        run: |
+          if [ -z "${{ secrets.NEXT_PUBLIC_APP_URL }}" ] || [ -z "${{ secrets.BACKUP_SECRET }}" ]; then
+            echo "ERROR: NEXT_PUBLIC_APP_URL or BACKUP_SECRET secret is not set."
+            exit 1
+          fi
+
       - name: Trigger backup
         run: |
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+          RESPONSE=$(curl -s --max-time 300 -w "\n%{http_code}" -X POST \
             -H "Authorization: Bearer ${{ secrets.BACKUP_SECRET }}" \
             -H "Content-Type: application/json" \
             "${{ secrets.NEXT_PUBLIC_APP_URL }}/api/admin/backup")

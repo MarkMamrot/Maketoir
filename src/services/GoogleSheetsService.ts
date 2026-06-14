@@ -427,15 +427,22 @@ export class GoogleSheetsService {
 
   /** List files in a Drive folder, oldest first. */
   async listFilesInFolder(folderId: string): Promise<Array<{ id: string; name: string; createdTime: string }>> {
-    const res = await this.drive.files.list({
-      q: `'${folderId}' in parents and trashed=false`,
-      fields: 'files(id,name,createdTime)',
-      orderBy: 'createdTime asc',
-      supportsAllDrives: true,
-      includeItemsFromAllDrives: true,
-      pageSize: 1000,
-    });
-    return (res.data.files ?? []) as Array<{ id: string; name: string; createdTime: string }>;
+    const results: Array<{ id: string; name: string; createdTime: string }> = [];
+    let pageToken: string | undefined;
+    do {
+      const res = await this.drive.files.list({
+        q: `'${folderId}' in parents and trashed=false`,
+        fields: 'nextPageToken,files(id,name,createdTime)',
+        orderBy: 'createdTime asc',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+        pageSize: 1000,
+        ...(pageToken ? { pageToken } : {}),
+      });
+      results.push(...((res.data.files ?? []) as Array<{ id: string; name: string; createdTime: string }>));
+      pageToken = res.data.nextPageToken ?? undefined;
+    } while (pageToken);
+    return results;
   }
 
   /**
