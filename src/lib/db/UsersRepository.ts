@@ -9,6 +9,7 @@ export interface UserRow {
   phone:         string | null;
   password_hash: string;
   business_id:   string | null;
+  role:          'admin' | 'user';
   registered_at: string | null;
   created_at:    string;
 }
@@ -37,14 +38,15 @@ export const UsersRepository = {
     company?: string;
     phone?: string;
     businessId?: string;
+    role?: 'admin' | 'user';
   }): Promise<number> {
     const hash = await bcrypt.hash(data.password, 12);
     const result = await execute(
-      `INSERT INTO users (email, password_hash, name, company, phone, business_id, registered_at)
-       VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+      `INSERT INTO users (email, password_hash, name, company, phone, business_id, role, registered_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
       [data.email.toLowerCase(), hash,
        data.name ?? null, data.company ?? null, data.phone ?? null,
-       data.businessId ?? null],
+       data.businessId ?? null, data.role ?? 'admin'],
     );
     return result.insertId;
   },

@@ -35,7 +35,7 @@ export async function POST(req: Request) {
       [businessId, company || name, folderId ?? null],
     );
 
-    await UsersRepository.create({ email, password, name, company, phone, businessId });
+    await UsersRepository.create({ email, password, name, company, phone, businessId, role: 'admin' });
 
     // 3. Store Drive folder ID in config so logo uploads know where to go
     if (folderId) {

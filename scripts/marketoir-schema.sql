@@ -31,8 +31,24 @@ CREATE TABLE IF NOT EXISTS users (
   phone         VARCHAR(50),
   password_hash VARCHAR(255) NOT NULL,
   business_id   VARCHAR(100),
+  role          ENUM('admin','user') NOT NULL DEFAULT 'admin',
   registered_at DATETIME,
   created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------
+-- invites  (email invite tokens for adding users to a business)
+-- ---------------------------------------------------------
+CREATE TABLE IF NOT EXISTS invites (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  token       VARCHAR(64) NOT NULL UNIQUE,
+  email       VARCHAR(255) NOT NULL,
+  business_id VARCHAR(100) NOT NULL,
+  invited_by  INT NOT NULL,
+  role        ENUM('admin','user') NOT NULL DEFAULT 'user',
+  expires_at  DATETIME NOT NULL,
+  accepted_at DATETIME,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------------------------------------------------

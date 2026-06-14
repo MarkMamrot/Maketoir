@@ -26,6 +26,8 @@ export async function POST(req: Request) {
       company:           user.company ?? '',
       email:             user.email,
       userSpreadsheetId: user.business_id ?? '',
+      role:              user.role ?? 'user',
+      userId:            user.id,
     };
 
     cookies().set('marketoir_session', JSON.stringify(userData), {

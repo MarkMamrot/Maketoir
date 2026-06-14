@@ -2111,6 +2111,72 @@ export function PosSettingsTab() {
   );
 }
 
+// --- Team Tab ---
+function TeamTab({ business }: { business: { name: string; userId: string; databaseId: string } | null }) {
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<'user' | 'admin'>('user');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<{ success: boolean; message?: string; error?: string } | null>(null);
+
+  const sendInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setResult(null);
+    try {
+      const res = await fetch('/api/auth/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, role }),
+      });
+      const data = await res.json();
+      setResult(data);
+      if (data.success) setEmail('');
+    } catch (err: any) {
+      setResult({ success: false, error: err.message });
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="w-full max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-sm border border-gray-100 space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-gray-800 mb-1">Team Members</h2>
+        <p className="text-sm text-gray-500">Invite people to join <strong>{business?.name ?? 'your business'}</strong> on Solvantis. They&apos;ll receive an email with a link to set up their account.</p>
+      </div>
+
+      <form onSubmit={sendInvite} className="flex flex-col gap-4">
+        <div>
+          <label className="text-xs font-bold text-gray-600 uppercase">Email Address</label>
+          <input
+            type="email" value={email} onChange={e => setEmail(e.target.value)} required
+            placeholder="colleague@company.com"
+            className="w-full p-2 border border-gray-300 rounded mt-1"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-bold text-gray-600 uppercase">Role</label>
+          <select value={role} onChange={e => setRole(e.target.value as 'user' | 'admin')}
+            className="w-full p-2 border border-gray-300 rounded mt-1">
+            <option value="user">User — can use the app, cannot invite others</option>
+            <option value="admin">Admin — full access, can invite team members</option>
+          </select>
+        </div>
+
+        {result && (
+          <div className={`p-3 rounded text-sm ${result.success ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
+            {result.success ? result.message : result.error}
+          </div>
+        )}
+
+        <button type="submit" disabled={loading}
+          className="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50">
+          {loading ? 'Sending invite...' : 'Send Invite Email'}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 // --- Main Setup Page Layout ---
 function SetupPageContent() {
   const router = useRouter();
@@ -2254,6 +2320,16 @@ function SetupPageContent() {
             >
               🔌 Data Source
             </button>
+            <button
+              onClick={() => setActiveTab('team')}
+              className={`${
+                activeTab === 'team'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg transition-colors font-nav`}
+            >
+              👥 Team
+            </button>
           </nav>
         </div>
 
@@ -2265,6 +2341,7 @@ function SetupPageContent() {
           {activeTab === 'appearance' && <AppearanceTab />}
           {activeTab === 'pos' && <PosSettingsTab />}
           {activeTab === 'data-source' && <DataSourceTab business={selectedBusiness} />}
+          {activeTab === 'team' && <TeamTab business={selectedBusiness} />}
         </div>
       </main>
     </div>
