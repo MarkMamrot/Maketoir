@@ -12,13 +12,9 @@ export async function POST(req: Request) {
     }
 
     const user = await UsersRepository.findByEmail(email);
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'User not found.' }, { status: 404 });
-    }
-
-    const valid = await UsersRepository.verifyPassword(user, password);
-    if (!valid) {
-      return NextResponse.json({ success: false, error: 'Invalid password.' }, { status: 401 });
+    const valid = user ? await UsersRepository.verifyPassword(user, password) : false;
+    if (!user || !valid) {
+      return NextResponse.json({ success: false, error: 'Invalid email or password.' }, { status: 401 });
     }
 
     const userData = {
@@ -33,7 +29,8 @@ export async function POST(req: Request) {
     cookies().set('marketoir_session', JSON.stringify(userData), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      maxAge: 60 * 60 * 24 * 7,
+      sameSite: 'strict',
+      maxAge: 60 * 60 * 8, // 8 hours
       path: '/',
     });
 

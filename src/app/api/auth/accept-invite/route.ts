@@ -63,26 +63,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Token and password are required.' }, { status: 400 });
     }
 
-    const rows = await query<InviteRow>(
-      'SELECT * FROM invites WHERE token = ? LIMIT 1',
+    // Atomically claim the invite — prevents concurrent accepts (TOCTOU)
+    const claimResult = await execute(
+      `UPDATE invites SET accepted_at = NOW()
+       WHERE token = ? AND accepted_at IS NULL AND expires_at > NOW()`,
       [token],
     );
-    const invite = rows[0];
 
-    if (!invite) {
-      return NextResponse.json({ success: false, error: 'Invalid invite token.' }, { status: 404 });
-    }
-    if (invite.accepted_at) {
-      return NextResponse.json({ success: false, error: 'This invite has already been used.' }, { status: 410 });
-    }
-    if (new Date(invite.expires_at) < new Date()) {
+    if (claimResult.affectedRows === 0) {
+      // Could be invalid token, already used, or expired — look up to give specific message
+      const rows = await query<InviteRow>('SELECT * FROM invites WHERE token = ? LIMIT 1', [token]);
+      const invite = rows[0];
+      if (!invite) return NextResponse.json({ success: false, error: 'Invalid invite token.' }, { status: 404 });
+      if (invite.accepted_at) return NextResponse.json({ success: false, error: 'This invite has already been used.' }, { status: 410 });
       return NextResponse.json({ success: false, error: 'This invite link has expired.' }, { status: 410 });
     }
+
+    // Fetch the invite row now that we own it
+    const rows = await query<InviteRow>('SELECT * FROM invites WHERE token = ? LIMIT 1', [token]);
+    const invite = rows[0];
 
     // Check email not already taken (race condition guard)
     const existing = await UsersRepository.findByEmail(invite.email);
     if (existing) {
-      return NextResponse.json({ success: false, error: 'An account with this email already exists.' }, { status: 409 });
+      // Un-claim the invite so it can be retried or re-investigated
+      await execute('UPDATE invites SET accepted_at = NULL WHERE id = ?', [invite.id]);
+      return NextResponse.json({ success: false, error: 'An account with this email already exists. Try logging in instead.' }, { status: 409 });
     }
 
     // Look up business company name
@@ -92,20 +98,20 @@ export async function POST(req: Request) {
     );
     const company = businesses[0]?.name;
 
-    await UsersRepository.create({
-      email: invite.email,
-      password,
-      name: name || undefined,
-      company,
-      businessId: invite.business_id,
-      role: invite.role,
-    });
-
-    // Mark invite as accepted
-    await execute(
-      'UPDATE invites SET accepted_at = NOW() WHERE id = ?',
-      [invite.id],
-    );
+    try {
+      await UsersRepository.create({
+        email: invite.email,
+        password,
+        name: name || undefined,
+        company,
+        businessId: invite.business_id,
+        role: invite.role,
+      });
+    } catch (createErr: any) {
+      // User creation failed — un-claim the invite so it remains usable
+      await execute('UPDATE invites SET accepted_at = NULL WHERE id = ?', [invite.id]);
+      throw createErr;
+    }
 
     return NextResponse.json({ success: true, message: 'Account created. You can now log in.' });
   } catch (error: any) {

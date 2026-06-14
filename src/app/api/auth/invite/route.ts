@@ -4,10 +4,13 @@ import { randomBytes } from 'crypto';
 import { Resend } from 'resend';
 import { execute, query } from '@/services/MySQLService';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function POST(req: Request) {
   try {
+    if (!process.env.RESEND_API_KEY) {
+      return NextResponse.json({ success: false, error: 'Email service not configured. Contact your administrator.' }, { status: 503 });
+    }
+    const resend = new Resend(process.env.RESEND_API_KEY);
+
     const session = cookies().get('marketoir_session');
     if (!session) {
       return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
@@ -25,11 +28,23 @@ export async function POST(req: Request) {
     if (!email) {
       return NextResponse.json({ success: false, error: 'Email is required.' }, { status: 400 });
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ success: false, error: 'Invalid email address.' }, { status: 400 });
+    }
 
     // Check if user already exists
     const existing = await query('SELECT id FROM users WHERE email = ? LIMIT 1', [email.toLowerCase()]);
     if (existing.length > 0) {
       return NextResponse.json({ success: false, error: 'A user with this email already exists.' }, { status: 409 });
+    }
+
+    // Check for an already-active (unused, not expired) invite for this email+business
+    const activeInvite = await query(
+      'SELECT id FROM invites WHERE email = ? AND business_id = ? AND accepted_at IS NULL AND expires_at > NOW() LIMIT 1',
+      [email.toLowerCase(), user.userSpreadsheetId],
+    );
+    if (activeInvite.length > 0) {
+      return NextResponse.json({ success: false, error: 'An active invite already exists for this email.' }, { status: 409 });
     }
 
     // Look up business name

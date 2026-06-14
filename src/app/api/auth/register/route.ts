@@ -11,6 +11,9 @@ export async function POST(req: Request) {
     if (!email || !password) {
       return NextResponse.json({ success: false, error: 'Email and password are required.' }, { status: 400 });
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ success: false, error: 'Invalid email address.' }, { status: 400 });
+    }
 
     // Check for duplicate email
     const existing = await UsersRepository.findByEmail(email);
@@ -27,19 +30,26 @@ export async function POST(req: Request) {
       company || name,
     );
 
-    // 2. Register business + user in MySQL
-    await execute(
-      `INSERT INTO businesses (business_id, name, drive_folder_id)
-       VALUES (?, ?, ?)
-       ON DUPLICATE KEY UPDATE name = VALUES(name), drive_folder_id = VALUES(drive_folder_id)`,
-      [businessId, company || name, folderId ?? null],
-    );
+    // 2. Register business + user in MySQL — clean up Drive if this fails
+    try {
+      await execute(
+        `INSERT INTO businesses (business_id, name, drive_folder_id)
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE name = VALUES(name), drive_folder_id = VALUES(drive_folder_id)`,
+        [businessId, company || name, folderId ?? null],
+      );
 
-    await UsersRepository.create({ email, password, name, company, phone, businessId, role: 'admin' });
+      await UsersRepository.create({ email, password, name, company, phone, businessId, role: 'admin' });
 
-    // 3. Store Drive folder ID in config so logo uploads know where to go
-    if (folderId) {
-      await ConfigRepository.set(businessId, 'FolderID', folderId);
+      // 3. Store Drive folder ID in config so logo uploads know where to go
+      if (folderId) {
+        await ConfigRepository.set(businessId, 'FolderID', folderId);
+      }
+    } catch (dbError: any) {
+      // MySQL failed — delete the orphaned Drive spreadsheet and folder
+      await sheetsService.deleteFile(businessId).catch(() => {});
+      if (folderId) await sheetsService.deleteFile(folderId).catch(() => {});
+      throw dbError;
     }
 
     return NextResponse.json({

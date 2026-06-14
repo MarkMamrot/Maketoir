@@ -403,6 +403,15 @@ export class GoogleSheetsService {
     return res.data.id;
   }
 
+  /** Delete a file or folder from Google Drive by ID. Silently ignores 404. */
+  async deleteFile(fileId: string): Promise<void> {
+    try {
+      await this.drive.files.delete({ fileId, supportsAllDrives: true });
+    } catch (err: any) {
+      if (err?.code !== 404) throw err;
+    }
+  }
+
   /**
    * Upload a file to Google Drive (base64-encoded content).
    * Makes the file publicly readable and returns a direct-view URL.
