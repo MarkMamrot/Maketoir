@@ -111,6 +111,10 @@ export async function POST(req: Request) {
 
   const { databaseId, fullSync = false, activeBranchesOnly = true } = await req.json();
   if (!databaseId) return NextResponse.json({ success: false, error: 'databaseId is required.' }, { status: 400 });
+  const _u = JSON.parse(session.value);
+  if (databaseId !== _u.userSpreadsheetId) {
+    return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
+  }
 
   let creds;
   try { creds = await getCin7Credentials(databaseId); }
@@ -201,7 +205,10 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const databaseId = searchParams.get('databaseId');
-  if (!databaseId) return NextResponse.json({ error: 'databaseId required.' }, { status: 400 });
+  const _ug = JSON.parse(session.value);
+  if (!databaseId || databaseId !== _ug.userSpreadsheetId) {
+    return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
+  }
 
   try {
     const lastSalesSync = await ConfigRepository.get(databaseId, 'LastSalesSync');

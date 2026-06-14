@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { GoogleAnalyticsService } from '../../../../services/GoogleAnalyticsService';
 import { GoogleSheetsService } from '../../../../services/GoogleSheetsService';
+import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { ConfigRepository } from '@/lib/db/ConfigRepository';
 
 const TAB = 'GA4';
 const HEADERS = ['SyncDate', 'Date', 'Sessions', 'Conversions', 'Revenue'];
@@ -72,6 +74,10 @@ export async function POST(req: Request) {
 
   const { databaseId } = await req.json();
   if (!databaseId) return NextResponse.json({ success: false, error: 'databaseId is required.' }, { status: 400 });
+  const _u = JSON.parse(session.value);
+  if (databaseId !== _u.userSpreadsheetId) {
+    return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
+  }
 
   try {
     const conn = await ConnectionsRepository.get(databaseId);

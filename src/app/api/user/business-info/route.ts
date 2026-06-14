@@ -43,8 +43,9 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { databaseId, brandName, brandUrl, yearsInBusiness, facebookUrl, instagramUrl, pinterestUrl, abn } = body;
 
-    if (!databaseId) {
-      return NextResponse.json({ error: 'Missing databaseId.' }, { status: 400 });
+    const _u = JSON.parse(sessionCookie.value);
+    if (!databaseId || databaseId !== _u.userSpreadsheetId) {
+      return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
     }
     if (!brandName || !brandUrl || !yearsInBusiness) {
       return NextResponse.json({ error: 'Missing requested fields.' }, { status: 400 });

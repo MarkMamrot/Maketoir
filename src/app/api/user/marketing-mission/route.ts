@@ -1,13 +1,23 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 
+function requireSession() {
+  const c = cookies().get('marketoir_session');
+  if (!c?.value) return null;
+  try { return JSON.parse(c.value); } catch { return null; }
+}
+
 export async function GET(req: Request) {
+  const user = requireSession();
+  if (!user) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
+
   try {
     const { searchParams } = new URL(req.url);
     const databaseId = searchParams.get('databaseId');
 
-    if (!databaseId) {
-      return NextResponse.json({ error: 'Missing databaseId' }, { status: 400 });
+    if (!databaseId || databaseId !== user.userSpreadsheetId) {
+      return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
     }
 
     const sheets = new GoogleSheetsService();
@@ -42,12 +52,18 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const user = requireSession();
+  if (!user) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
+
   try {
     const body = await req.json();
     const { databaseId, mission } = body;
 
-    if (!databaseId || !mission) {
-      return NextResponse.json({ error: 'Missing databaseId or mission' }, { status: 400 });
+    if (!databaseId || databaseId !== user.userSpreadsheetId) {
+      return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
+    }
+    if (!mission) {
+      return NextResponse.json({ error: 'Missing mission' }, { status: 400 });
     }
 
     const sheets = new GoogleSheetsService();
@@ -57,13 +73,13 @@ export async function POST(req: Request) {
       const existing = await sheets.getData(databaseId, 'Marketing_Data!A1:C1');
       if (!existing || existing.length === 0) {
         // Create headers
-        await sheets.setData(databaseId, 'Marketing_Data!A1:C1', [
+        await sheets.updateData(databaseId, 'Marketing_Data!A1:C1', [
           ['key', 'label', 'data'],
         ]);
       }
     } catch {
       // Sheet doesn't exist, create it with headers
-      await sheets.setData(databaseId, 'Marketing_Data!A1:C1', [
+      await sheets.updateData(databaseId, 'Marketing_Data!A1:C1', [
         ['key', 'label', 'data'],
       ]);
     }
@@ -90,11 +106,10 @@ export async function POST(req: Request) {
       if (missionRowIndex >= 0) {
         // Update existing row
         const rowNum = missionRowIndex + 1;
-        await sheets.setData(databaseId, `Marketing_Data!A${rowNum}:C${rowNum}`, [missionData]);
+        await sheets.updateData(databaseId, `Marketing_Data!A${rowNum}:C${rowNum}`, [missionData]);
       } else {
         // Append new row
-        const nextRow = rows.length + 1;
-        await sheets.setData(databaseId, `Marketing_Data!A${nextRow}:C${nextRow}`, [missionData]);
+        await sheets.appendData(databaseId, 'Marketing_Data!A:C', [missionData]);
       }
     } catch (e: any) {
       console.error('Error saving marketing mission:', e);
@@ -107,6 +122,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('[/api/user/marketing-mission POST]', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to save mission.' }, { status: 500 });
   }
 }

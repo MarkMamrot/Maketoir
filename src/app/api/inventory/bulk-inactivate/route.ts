@@ -68,9 +68,10 @@ export async function POST(req: Request) {
   }
 
   const { databaseId, productIds, spreadsheetId } = await req.json();
-  if (!databaseId) {
-    return new Response(sseEvent({ type: 'fatal', error: 'databaseId is required.' }), {
-      status: 400,
+  const _u = JSON.parse(session.value);
+  if (!databaseId || databaseId !== _u.userSpreadsheetId) {
+    return new Response(sseEvent({ type: 'fatal', error: 'Not authorised.' }), {
+      status: 403,
       headers: { 'Content-Type': 'text/event-stream' },
     });
   }

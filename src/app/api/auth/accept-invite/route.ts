@@ -51,7 +51,7 @@ export async function GET(req: Request) {
       role: invite.role,
     });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Failed to load invite.' }, { status: 500 });
   }
 }
 
@@ -116,6 +116,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, message: 'Account created. You can now log in.' });
   } catch (error: any) {
     console.error('Accept invite error:', error);
-    return NextResponse.json({ success: false, error: error.message || String(error) }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Failed to create account. Please try again.' }, { status: 500 });
   }
 }

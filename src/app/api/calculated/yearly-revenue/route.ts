@@ -45,8 +45,9 @@ export async function POST(req: Request) {
   if (!session?.value) return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
 
   const { databaseId, data } = await req.json();
-  if (!databaseId || typeof data !== 'object') {
-    return NextResponse.json({ success: false, error: 'databaseId and data required.' }, { status: 400 });
+  const _cu = JSON.parse(session.value);
+  if (!databaseId || typeof data !== 'object' || databaseId !== _cu.userSpreadsheetId) {
+    return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
   }
 
   try {

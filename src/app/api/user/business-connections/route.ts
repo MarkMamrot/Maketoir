@@ -20,8 +20,8 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const databaseId = searchParams.get('databaseId');
-  if (!databaseId) {
-    return NextResponse.json({ success: false, error: 'databaseId query param is required.' }, { status: 400 });
+  if (!databaseId || databaseId !== user.userSpreadsheetId) {
+    return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
   }
 
   try {
@@ -48,8 +48,8 @@ export async function POST(req: Request) {
   }
 
   const { databaseId, connections } = await req.json();
-  if (!databaseId) {
-    return NextResponse.json({ success: false, error: 'databaseId is required.' }, { status: 400 });
+  if (!databaseId || databaseId !== user.userSpreadsheetId) {
+    return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
   }
 
   try {

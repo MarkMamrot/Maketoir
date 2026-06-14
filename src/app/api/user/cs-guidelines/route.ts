@@ -24,11 +24,12 @@ async function upsertConfigRow(sheets: GoogleSheetsService, databaseId: string, 
 }
 
 export async function GET(req: Request) {
-  if (!requireSession()) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+  const _sess = requireSession();
+  if (!_sess) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const databaseId = searchParams.get('databaseId') || '';
-  if (!databaseId) return NextResponse.json({ error: 'databaseId is required.' }, { status: 400 });
+  if (!databaseId || databaseId !== _sess.userSpreadsheetId) return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
 
   const sheets = new GoogleSheetsService();
   try {
@@ -42,10 +43,11 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  if (!requireSession()) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+  const _sess = requireSession();
+  if (!_sess) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
 
   const { databaseId, guidelines, helperEmail } = await req.json();
-  if (!databaseId) return NextResponse.json({ error: 'databaseId is required.' }, { status: 400 });
+  if (!databaseId || databaseId !== _sess.userSpreadsheetId) return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
 
   const sheets = new GoogleSheetsService();
   try {

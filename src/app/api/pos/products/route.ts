@@ -15,14 +15,22 @@ function getAdminSession() {
 }
 
 export async function GET(req: Request) {
-  const session = getPosSession() ?? getAdminSession();
+  const posSession   = getPosSession();
+  const adminSession = getAdminSession();
+  const session      = posSession ?? adminSession;
   if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const locationId = parseInt(searchParams.get('location_id') ?? String(session.location_id ?? 0), 10);
+  const rawId    = searchParams.get('location_id') ?? String(session.location_id ?? 0);
+  const locationId = parseInt(rawId, 10);
 
-  if (!locationId) {
+  if (!locationId || isNaN(locationId) || locationId <= 0) {
     return NextResponse.json({ error: 'location_id is required.' }, { status: 400 });
+  }
+
+  // POS cashiers may only fetch products for their own assigned location
+  if (posSession && locationId !== posSession.location_id) {
+    return NextResponse.json({ error: 'Not authorised for this location.' }, { status: 403 });
   }
 
   // Join IMS products + variants + stock at the given location

@@ -14,7 +14,13 @@ export async function GET(req: Request) {
   if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const locationId = parseInt(searchParams.get('location_id') ?? String(session.location_id), 10);
+  const rawId    = searchParams.get('location_id') ?? String(session.location_id);
+  const locationId = parseInt(rawId, 10);
+
+  if (!locationId || isNaN(locationId) || locationId !== session.location_id) {
+    return NextResponse.json({ error: 'Invalid or unauthorised location_id.' }, { status: 400 });
+  }
+
   const date = searchParams.get('date') ?? new Date().toISOString().slice(0, 10);
 
   const [existing, expected] = await Promise.all([
@@ -33,34 +39,38 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { location_id, date, entries } = body;
-    // entries: Array<{ payment_method, counted_amount, opening_float, denomination_data, notes }>
 
     if (!Array.isArray(entries)) {
       return NextResponse.json({ error: 'entries must be an array.' }, { status: 400 });
     }
 
-    const expected = await PosEodRepo.getExpected(
-      location_id ?? session.location_id,
-      date ?? new Date().toISOString().slice(0, 10),
-    );
+    // Enforce session location — prevent a cashier from submitting EOD for another location
+    const resolvedLocationId = Number(location_id ?? session.location_id);
+    if (!resolvedLocationId || isNaN(resolvedLocationId) || resolvedLocationId !== session.location_id) {
+      return NextResponse.json({ error: 'Invalid or unauthorised location_id.' }, { status: 403 });
+    }
+
+    const resolvedDate = date ?? new Date().toISOString().slice(0, 10);
+
+    const expected = await PosEodRepo.getExpected(resolvedLocationId, resolvedDate);
 
     for (const entry of entries) {
       await PosEodRepo.save({
-        location_id:      location_id ?? session.location_id,
-        cashier_id:       session.pos_user_id,
-        recon_date:       date ?? new Date().toISOString().slice(0, 10),
-        payment_method:   entry.payment_method,
-        expected_amount:  expected[entry.payment_method] ?? 0,
-        counted_amount:   entry.counted_amount ?? null,
-        opening_float:    entry.opening_float  ?? null,
+        location_id:       resolvedLocationId,
+        cashier_id:        session.pos_user_id,
+        recon_date:        resolvedDate,
+        payment_method:    entry.payment_method,
+        expected_amount:   expected[entry.payment_method] ?? 0,
+        counted_amount:    entry.counted_amount ?? null,
+        opening_float:     entry.opening_float  ?? null,
         denomination_data: entry.denomination_data ?? null,
-        notes:            entry.notes ?? null,
+        notes:             entry.notes ?? null,
       });
     }
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error('POS EOD save error:', err);
-    return NextResponse.json({ error: err.message || String(err) }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to save EOD reconciliation.' }, { status: 500 });
   }
 }

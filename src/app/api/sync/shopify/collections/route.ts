@@ -41,6 +41,10 @@ export async function POST(req: Request) {
 
   const { databaseId } = await req.json();
   if (!databaseId) return NextResponse.json({ success: false, error: 'databaseId is required.' }, { status: 400 });
+  const _u = JSON.parse(session.value);
+  if (databaseId !== _u.userSpreadsheetId) {
+    return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
+  }
 
   try {
     const sheets = new GoogleSheetsService();

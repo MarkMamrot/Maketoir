@@ -24,8 +24,8 @@ export async function POST(req: Request) {
   }
 
   const { databaseId } = await req.json();
-  if (!databaseId) {
-    return NextResponse.json({ error: 'databaseId is required.' }, { status: 400 });
+  if (!databaseId || databaseId !== user.userSpreadsheetId) {
+    return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
   }
 
   try {
@@ -58,6 +58,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to disconnect.' }, { status: 500 });
   }
 }
