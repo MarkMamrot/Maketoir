@@ -7,3 +7,7 @@ deploy.zip
 .env
 .env.local
 .env.production
+
+# Credential files — never commit
+base64.txt
+*.key.json
