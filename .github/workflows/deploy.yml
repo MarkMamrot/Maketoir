@@ -37,25 +37,8 @@ jobs:
           # Copy the standalone bundle (server.js + bundled node_modules)
           cp -r .next/standalone/. deploy-output/
 
-          # Prepend dotenv load + uncaughtException logger so startup errors write to startup-error.log
-          cat > /tmp/prepend.js << 'PREPEND'
-var fs = require('fs');
-var path = require('path');
-var logFile = path.join(__dirname, 'startup-error.log');
-process.on('uncaughtException', function(err) {
-  fs.appendFileSync(logFile, new Date().toISOString() + ' UNCAUGHT: ' + (err && err.stack ? err.stack : String(err)) + '\n');
-  process.exit(1);
-});
-process.on('unhandledRejection', function(reason) {
-  fs.appendFileSync(logFile, new Date().toISOString() + ' REJECTION: ' + (reason && reason.stack ? reason.stack : String(reason)) + '\n');
-});
-try {
-  require('dotenv').config({ path: path.join(__dirname, '.env') });
-} catch(e) {
-  fs.appendFileSync(logFile, new Date().toISOString() + ' DOTENV ERROR: ' + e.stack + '\n');
-}
-PREPEND
-          cat /tmp/prepend.js deploy-output/server.js > deploy-output/server.tmp && mv deploy-output/server.tmp deploy-output/server.js
+          # Prepend dotenv load to server.js
+          printf '%s\n' "require('dotenv').config({ path: require('path').join(__dirname, '.env') });" | cat - deploy-output/server.js > deploy-output/server.tmp && mv deploy-output/server.tmp deploy-output/server.js
 
           # Copy static client assets (not included in standalone by default)
           mkdir -p deploy-output/.next/static
