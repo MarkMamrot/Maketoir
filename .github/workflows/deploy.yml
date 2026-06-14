@@ -61,8 +61,8 @@ jobs:
           set net:timeout 60;
           set net:max-retries 5;
           set net:reconnect-interval-base 5;
-          set ftp:timezone +10;
           open -u '${{ secrets.FTP_USERNAME }}','${{ secrets.FTP_PASSWORD }}' ftp.exam-ready.com.au;
+          rm -rf marketoir-live/.next/server/;
           mirror --reverse --verbose \
             --parallel=10 \
             --ignore-time \
