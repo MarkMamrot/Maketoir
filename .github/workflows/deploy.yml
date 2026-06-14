@@ -53,6 +53,10 @@ jobs:
           mkdir -p deploy-output/tmp
           touch deploy-output/tmp/restart.txt
 
+          # Copy dotenv into standalone bundle (not auto-traced; needed by server.js startup)
+          mkdir -p deploy-output/node_modules
+          cp -r node_modules/dotenv deploy-output/node_modules/
+
       - name: Deploy via LFTP to marketoir-live
         run: |
           sudo apt-get install -y lftp
