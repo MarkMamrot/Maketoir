@@ -55,7 +55,7 @@ jobs:
           ---
           deployment:
             tasks:
-              - export DEPLOYPATH=/home/readyedu/marketoir-live
+              - export DEPLOYPATH=/home/readyedu/solvantis
               - /bin/cp -R ./* $DEPLOYPATH
               - /bin/cp -R ./.next $DEPLOYPATH/
               - /bin/cp ./.cpanel.yml $DEPLOYPATH/
