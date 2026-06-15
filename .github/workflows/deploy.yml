@@ -1,9 +1,7 @@
-name: Build & Deploy to cPanel
+name: Build & Deploy to cPanel (DISABLED - now on Vercel)
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+  workflow_dispatch:  # Manual only — no longer auto-triggers
 
 # Required so the workflow can push to the deploy branch
 permissions:
