@@ -25,8 +25,8 @@ export async function POST(req: Request) {
   if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
     const body = await req.json();
-    const { items, ...poData } = body;
-    const id = await ImsPORepo.create(poData, items ?? []);
+    const { items, landed_costs, ...poData } = body;
+    const id = await ImsPORepo.create(poData, items ?? [], landed_costs ?? []);
 
     // EVENT-DRIVEN CACHE UPDATE (Creation affects incoming stock)
     if (items && items.length > 0) {

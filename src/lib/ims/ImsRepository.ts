@@ -68,6 +68,11 @@ export interface ImsPayment {
   created_at?: string;
 }
 
+export interface LandedCostRow {
+  id?: number; po_id?: number;
+  label: string; reference?: string | null; amount: number; sort_order?: number;
+}
+
 export interface ImsPO {
   id: number; po_number: string; supplier_id?: number; location_id: number;
   status: POStatus; order_date: string; expected_date?: string;
@@ -78,12 +83,12 @@ export interface ImsPO {
   amount_paid?: number; amount_paid_local?: number; balance?: number; balance_local?: number;
   created_at?: string; updated_at?: string;
   supplier_name?: string; supplier_email?: string; location_name?: string;
-  items?: ImsPOItem[]; payments?: ImsPayment[];
+  items?: ImsPOItem[]; payments?: ImsPayment[]; landed_costs?: LandedCostRow[];
 }
 
 export interface ImsPOItem {
   id: number; po_id: number; variant_id: string; qty_ordered: number;
-  qty_received: number; unit_cost: number; tax_rate: number;
+  qty_received: number; unit_cost: number; landed_cost_per_unit?: number; tax_rate: number;
   line_total: number; notes?: string;
   sku?: string; product_name?: string; variant_label?: string;
 }
@@ -667,7 +672,14 @@ export const ImsPORepo = {
        WHERE i.po_id = ?`,
       [id]
     );
-    return { ...rows[0], items, payments };
+    let landed_costs: LandedCostRow[] = [];
+    try {
+      landed_costs = await imsQuery<LandedCostRow>(
+        `SELECT id, po_id, label, reference, amount, sort_order FROM ims_po_landed_costs WHERE po_id = ? ORDER BY sort_order ASC, id ASC`,
+        [id]
+      );
+    } catch { /* table not yet migrated */ }
+    return { ...rows[0], items, payments, landed_costs };
   },
 
   async addPayment(
@@ -690,13 +702,14 @@ export const ImsPORepo = {
   async create(
     data: Omit<ImsPO, 'id' | 'created_at' | 'updated_at' | 'supplier_name' | 'location_name' | 'items'>,
     items: Omit<ImsPOItem, 'id' | 'po_id' | 'qty_received' | 'sku' | 'product_name' | 'variant_label'>[],
+    landedCosts?: LandedCostRow[],
   ): Promise<number> {
     const po_number = data.po_number || await nextPONumber();
     const subtotal = items.reduce((s, i) => s + Number(i.line_total), 0);
     const tax_amount = items.reduce((s, i) => s + Number(i.line_total) * Number(i.tax_rate), 0);
-    const freight = Number(data.freight ?? 0);
+    const landedTotal = (landedCosts || []).reduce((s, c) => s + Number(c.amount), 0);
     const discount = Number(data.discount ?? 0);
-    const total_amount = subtotal + tax_amount + freight - discount;
+    const total_amount = subtotal + tax_amount + landedTotal - discount;
 
     const res = await imsExecute(
       `INSERT INTO ims_purchase_orders
@@ -706,7 +719,7 @@ export const ImsPORepo = {
       [po_number, data.supplier_id ?? null, data.location_id, 'draft',
        data.order_date, data.expected_date ?? null, data.notes ?? null,
        data.supplier_invoice_number ?? null, data.payment_terms ?? null,
-       freight, discount, subtotal, tax_amount, total_amount]
+       0, discount, subtotal, tax_amount, total_amount]
     );
     const po_id = res.insertId;
     for (const item of items) {
@@ -719,15 +732,25 @@ export const ImsPORepo = {
          item.tax_rate ?? 0, line_total, item.notes ?? null]
       );
     }
+    if (landedCosts && landedCosts.length) {
+      for (let i = 0; i < landedCosts.length; i++) {
+        const c = landedCosts[i];
+        await imsExecute(
+          `INSERT INTO ims_po_landed_costs (po_id, label, reference, amount, sort_order) VALUES (?,?,?,?,?)`,
+          [po_id, c.label, c.reference ?? null, Number(c.amount), i]
+        );
+      }
+    }
     return po_id;
   },
 
   async update(
     id: number,
-    data: Partial<Pick<ImsPO, 'supplier_id' | 'location_id' | 'order_date' | 'expected_date' | 'notes' | 'supplier_invoice_number' | 'payment_terms' | 'freight' | 'discount'>>,
+    data: Partial<Pick<ImsPO, 'supplier_id' | 'location_id' | 'order_date' | 'expected_date' | 'notes' | 'supplier_invoice_number' | 'payment_terms' | 'discount'>>,
     items?: Omit<ImsPOItem, 'id' | 'po_id' | 'qty_received' | 'sku' | 'product_name' | 'variant_label'>[],
+    landedCosts?: LandedCostRow[],
   ): Promise<void> {
-    const fields = ['supplier_id','location_id','order_date','expected_date','notes','supplier_invoice_number','payment_terms','freight','discount'];
+    const fields = ['supplier_id','location_id','order_date','expected_date','notes','supplier_invoice_number','payment_terms','discount'];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of fields) {
@@ -763,15 +786,54 @@ export const ImsPORepo = {
              item.tax_rate ?? 0, line_total, item.notes ?? null]
           );
         }
-        const poFr = (typeof data.freight !== 'undefined' ? Number(data.freight) : 0);
-        const poDi = (typeof data.discount !== 'undefined' ? Number(data.discount) : 0);
-        // read stored freight/discount if not passed in update
-        const [[existingPo]] = await conn.execute<any[]>(`SELECT freight, discount FROM ims_purchase_orders WHERE id=?`, [id]);
-        const useFr = (typeof data.freight !== 'undefined') ? poFr : Number(existingPo?.freight ?? 0);
-        const useDi = (typeof data.discount !== 'undefined') ? poDi : Number(existingPo?.discount ?? 0);
+
+        // Replace landed costs if provided
+        if (landedCosts !== undefined) {
+          try { await conn.execute(`DELETE FROM ims_po_landed_costs WHERE po_id = ?`, [id]); } catch {}
+          for (let i = 0; i < landedCosts.length; i++) {
+            const c = landedCosts[i];
+            try {
+              await conn.execute(
+                `INSERT INTO ims_po_landed_costs (po_id, label, reference, amount, sort_order) VALUES (?,?,?,?,?)`,
+                [id, c.label, c.reference ?? null, Number(c.amount), i]
+              );
+            } catch {}
+          }
+        }
+
+        // Recalculate total using landed costs from DB
+        let landedTotal = 0;
+        try {
+          const [[lcRow]] = await conn.execute<any[]>(
+            `SELECT COALESCE(SUM(amount),0) AS total FROM ims_po_landed_costs WHERE po_id = ?`, [id]
+          );
+          landedTotal = Number(lcRow?.total ?? 0);
+        } catch {}
+
+        const [[existingPo]] = await conn.execute<any[]>(`SELECT discount FROM ims_purchase_orders WHERE id=?`, [id]);
+        const useDi = (typeof data.discount !== 'undefined') ? Number(data.discount) : Number(existingPo?.discount ?? 0);
         await conn.execute(
-          `UPDATE ims_purchase_orders SET subtotal=?, tax_amount=?, total_amount=? WHERE id=?`,
-          [subtotal, tax_amount, subtotal + tax_amount + useFr - useDi, id]
+          `UPDATE ims_purchase_orders SET subtotal=?, tax_amount=?, total_amount=?, freight=0 WHERE id=?`,
+          [subtotal, tax_amount, subtotal + tax_amount + landedTotal - useDi, id]
+        );
+      } else if (landedCosts !== undefined) {
+        // Items not updated but landed costs were — just replace costs and recalc total
+        try { await conn.execute(`DELETE FROM ims_po_landed_costs WHERE po_id = ?`, [id]); } catch {}
+        for (let i = 0; i < landedCosts.length; i++) {
+          const c = landedCosts[i];
+          try {
+            await conn.execute(
+              `INSERT INTO ims_po_landed_costs (po_id, label, reference, amount, sort_order) VALUES (?,?,?,?,?)`,
+              [id, c.label, c.reference ?? null, Number(c.amount), i]
+            );
+          } catch {}
+        }
+        const [[poRow]] = await conn.execute<any[]>(`SELECT subtotal, tax_amount, discount FROM ims_purchase_orders WHERE id=?`, [id]);
+        const landedTotal = landedCosts.reduce((s, c) => s + Number(c.amount), 0);
+        const useDi = (typeof data.discount !== 'undefined') ? Number(data.discount) : Number(poRow?.discount ?? 0);
+        await conn.execute(
+          `UPDATE ims_purchase_orders SET total_amount=?, freight=0 WHERE id=?`,
+          [Number(poRow?.subtotal ?? 0) + Number(poRow?.tax_amount ?? 0) + landedTotal - useDi, id]
         );
       }
       await conn.commit();
@@ -798,6 +860,14 @@ export const ImsPORepo = {
       const items = await imsQuery<ImsPOItem>(
         `SELECT * FROM ims_purchase_order_items WHERE po_id = ?`, [id]
       );
+
+      // Load landed costs for distribution on receive
+      let landedCostRows: LandedCostRow[] = [];
+      try {
+        landedCostRows = await imsQuery<LandedCostRow>(
+          `SELECT * FROM ims_po_landed_costs WHERE po_id = ? ORDER BY sort_order ASC, id ASC`, [id]
+        );
+      } catch {}
 
       const from = po.status as POStatus;
       const to   = newStatus;
@@ -849,6 +919,33 @@ export const ImsPORepo = {
 
       // ── approved → received ──────────────────────────────────
       if (from === 'approved' && to === 'received') {
+        // Distribute landed costs proportionally by item value
+        const poSubtotal = items.reduce((s, i) => s + Number(i.qty_ordered) * Number(i.unit_cost), 0);
+        const totalLanded = landedCostRows.reduce((s, c) => s + Number(c.amount), 0);
+
+        // Pre-compute landed_cost_per_unit for each item
+        const landedPerUnit = new Map<number, number>();
+        for (const item of items) {
+          const itemValue = Number(item.qty_ordered) * Number(item.unit_cost);
+          let lcpu = 0;
+          if (totalLanded > 0) {
+            if (poSubtotal > 0) {
+              lcpu = (totalLanded * (itemValue / poSubtotal)) / Number(item.qty_ordered);
+            } else {
+              // Fallback: equal split by qty when all unit costs are zero
+              const totalQty = items.reduce((s, i) => s + Number(i.qty_ordered), 0);
+              lcpu = totalQty > 0 ? totalLanded / totalQty : 0;
+            }
+          }
+          landedPerUnit.set(item.id, lcpu);
+          if (totalLanded > 0) {
+            await conn.execute(
+              `UPDATE ims_purchase_order_items SET landed_cost_per_unit = ? WHERE id = ?`,
+              [lcpu, item.id]
+            );
+          }
+        }
+
         for (const item of items) {
           await conn.execute(
             `INSERT IGNORE INTO ims_stock (variant_id, location_id) VALUES (?, ?)`,
@@ -858,13 +955,15 @@ export const ImsPORepo = {
             `SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id=? AND location_id=?`,
             [item.variant_id, po.location_id]
           );
-          const old_soh  = Number(s?.qty_on_hand ?? 0);
-          const old_avg  = Number(s?.avg_cost ?? item.unit_cost);
-          const qty_rcvd = Number(item.qty_ordered);
-          const new_avg  = old_soh <= 0
-            ? Number(item.unit_cost)
-            : (old_avg * old_soh + Number(item.unit_cost) * qty_rcvd) / (old_soh + qty_rcvd);
-          const new_soh  = old_soh + qty_rcvd;
+          const old_soh   = Number(s?.qty_on_hand ?? 0);
+          const old_avg   = Number(s?.avg_cost ?? item.unit_cost);
+          const qty_rcvd  = Number(item.qty_ordered);
+          const lcpu      = landedPerUnit.get(item.id) ?? 0;
+          const true_cost = Number(item.unit_cost) + lcpu;
+          const new_avg   = old_soh <= 0
+            ? true_cost
+            : (old_avg * old_soh + true_cost * qty_rcvd) / (old_soh + qty_rcvd);
+          const new_soh   = old_soh + qty_rcvd;
 
           await conn.execute(
             `UPDATE ims_stock
@@ -882,7 +981,7 @@ export const ImsPORepo = {
             `INSERT INTO ims_stock_movements
                (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
              VALUES (?,?,'po_received','purchase_order',?,?,?,?)`,
-            [item.variant_id, po.location_id, id, qty_rcvd, new_soh, new_avg]
+            [item.variant_id, po.location_id, id, qty_rcvd, new_soh, true_cost]
           );
         }
         await conn.execute(

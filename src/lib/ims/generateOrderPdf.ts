@@ -301,7 +301,14 @@ export async function generateOrderPdf(opts: OrderPdfOptions): Promise<Buffer> {
     ['GST (Tax)', fmt(order.tax_amount)],
   ];
   if (Number(order.discount) > 0) totalsRows.push(['Discount (−)', `−${fmt(order.discount)}`]);
-  if (Number(order.freight) > 0)  totalsRows.push(['Freight (+)', fmt(order.freight)]);
+  // Landed costs (new) — fall back to legacy freight field if no landed_costs array
+  const landedCostRows: any[] = order.landed_costs && order.landed_costs.length > 0
+    ? order.landed_costs
+    : (Number(order.freight) > 0 ? [{ label: 'Freight', reference: null, amount: order.freight }] : []);
+  for (const lc of landedCostRows) {
+    const label = lc.reference ? `${lc.label} (${lc.reference})` : lc.label;
+    totalsRows.push([`${label} (+)`, fmt(lc.amount)]);
+  }
 
   for (const [label, value] of totalsRows) {
     const lw = fontReg.widthOfTextAtSize(label, 10);

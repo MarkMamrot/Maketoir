@@ -47,7 +47,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       }
 
     } else {
-      await ImsPORepo.update(Number(params.id), poData, items);
+      const { landed_costs, ...cleanPoData } = poData;
+      await ImsPORepo.update(Number(params.id), cleanPoData, items, landed_costs);
 
       // EVENT-DRIVEN CACHE UPDATE
       if (items && items.length > 0) {

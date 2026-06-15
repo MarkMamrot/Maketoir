@@ -2568,8 +2568,10 @@ function PurchaseOrdersView() {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [variants, setVariants] = useState<any[]>([]);
-  const [form, setForm] = useState<any>({ supplier_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', supplier_invoice_number: '', payment_terms: '', freight: '', discount: '' });
+  const [form, setForm] = useState<any>({ supplier_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', supplier_invoice_number: '', payment_terms: '', discount: '' });
   const [lineItems, setLineItems] = useState<any[]>([]);
+  const [landedCosts, setLandedCosts] = useState<{ label: string; reference: string; amount: string }[]>([]);
+  const [lcForm, setLcForm] = useState<{ label: string; reference: string; amount: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [filterSupplier, setFilterSupplier] = useState('');
@@ -2618,18 +2620,23 @@ function PurchaseOrdersView() {
   const lineTotal = (item: any) => Number(item.qty_ordered || 0) * Number(item.unit_cost || 0);
   const poSubtotal = lineItems.reduce((s, i) => s + lineTotal(i), 0);
   const poTax      = lineItems.reduce((s, i) => s + lineTotal(i) * Number(i.tax_rate || 0), 0);
-  const grandTotal = poSubtotal + poTax + Number(form.freight || 0) - Number(form.discount || 0);
+  const poLanded   = landedCosts.reduce((s, c) => s + Number(c.amount || 0), 0);
+  const grandTotal = poSubtotal + poTax + poLanded - Number(form.discount || 0);
 
   const openNew = () => {
-    setForm({ supplier_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', supplier_invoice_number: '', payment_terms: '', freight: '', discount: '' });
+    setForm({ supplier_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', supplier_invoice_number: '', payment_terms: '', discount: '' });
     setLineItems([{ variant_id: '', qty_ordered: 1, unit_cost: 0, tax_rate: 0 }]);
+    setLandedCosts([]);
+    setLcForm(null);
     setModal({ open: true, edit: null });
   };
 
   const openEdit = async (po: any) => {
     const d = await apiFetch(`/api/ims/purchase-orders/${po.id}`);
-    setForm({ supplier_id: d.data.supplier_id ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), expected_date: d.data.expected_date?.slice(0, 10) ?? '', notes: d.data.notes ?? '', supplier_invoice_number: d.data.supplier_invoice_number ?? '', payment_terms: d.data.payment_terms ?? '', freight: d.data.freight ?? '', discount: d.data.discount ?? '' });
+    setForm({ supplier_id: d.data.supplier_id ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), expected_date: d.data.expected_date?.slice(0, 10) ?? '', notes: d.data.notes ?? '', supplier_invoice_number: d.data.supplier_invoice_number ?? '', payment_terms: d.data.payment_terms ?? '', discount: d.data.discount ?? '' });
     setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_cost: i.unit_cost, tax_rate: i.tax_rate, notes: i.notes ?? '' })));
+    setLandedCosts((d.data.landed_costs || []).map((c: any) => ({ label: c.label, reference: c.reference ?? '', amount: String(c.amount) })));
+    setLcForm(null);
     setModal({ open: true, edit: d.data });
   };
 
@@ -2674,12 +2681,13 @@ function PurchaseOrdersView() {
     setSaving(true);
     try {
       const items = lineItems.map(i => ({ ...i, line_total: lineTotal(i) }));
+      const landed_costs = landedCosts.filter(c => c.label && Number(c.amount) > 0).map(c => ({ label: c.label, reference: c.reference || null, amount: Number(c.amount) }));
       if (modal.edit) {
-        await apiFetch(`/api/ims/purchase-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items }) });
+        await apiFetch(`/api/ims/purchase-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items, landed_costs }) });
       } else {
-        await apiFetch('/api/ims/purchase-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items }) });
+        await apiFetch('/api/ims/purchase-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items, landed_costs }) });
       }
-      load(); setModal({ open: false, edit: null });
+      load(); setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null);
     } catch (e: any) { alert(e.message); }
     finally { setSaving(false); }
   };
@@ -2912,7 +2920,7 @@ function PurchaseOrdersView() {
                 </table>
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
-                <div style={{ minWidth: 280 }}>
+                <div style={{ minWidth: 380 }}>
                   {[['Subtotal', fmtCurrency(poSubtotal)], ['Tax', fmtCurrency(poTax)]].map(([l, v]) => (
                     <div key={l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
                       <span>{l}</span><span>{v}</span>
@@ -2922,9 +2930,62 @@ function PurchaseOrdersView() {
                     <span>Discount (−)</span>
                     <input type="number" min="0" step="0.01" value={form.discount} onChange={sf('discount')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 8 }}>
-                    <span>Freight (+)</span>
-                    <input type="number" min="0" step="0.01" value={form.freight} onChange={sf('freight')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
+                  {/* Landed Costs */}
+                  <div style={{ borderTop: '1px solid var(--sv-etch)', paddingTop: 8, marginBottom: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Landed Costs</span>
+                      {!lcForm && (
+                        <button type="button" onClick={() => setLcForm({ label: '', reference: '', amount: '' })} style={btnStyle('mint', 'xs')}>+ Add</button>
+                      )}
+                    </div>
+                    {landedCosts.length > 0 && (
+                      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 6, border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', fontSize: 12 }}>
+                        <thead>
+                          <tr style={{ background: 'var(--sv-bg-1)' }}>
+                            {['Description', 'Ref / Inv #', 'Amount', ''].map((h, i) => (
+                              <th key={i} style={{ padding: '4px 8px', textAlign: i === 2 ? 'right' : 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {landedCosts.map((c, i) => (
+                            <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                              <td style={{ padding: '4px 8px' }}>{c.label}</td>
+                              <td style={{ padding: '4px 8px', color: 'var(--sv-text-dim)' }}>{c.reference || '—'}</td>
+                              <td style={{ padding: '4px 8px', fontWeight: 600, textAlign: 'right' }}>{fmtCurrency(Number(c.amount))}</td>
+                              <td style={{ padding: '4px 8px', textAlign: 'right' }}>
+                                <button type="button" onClick={() => setLandedCosts(p => p.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>✕</button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                    {lcForm && (
+                      <div style={{ padding: '10px 12px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', marginBottom: 6 }}>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                          <div style={{ flex: 2, minWidth: 100 }}>
+                            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Description</div>
+                            <input type="text" value={lcForm.label} onChange={e => setLcForm(f => f ? { ...f, label: e.target.value } : f)} style={{ ...inputStyle, width: '100%', fontSize: 12 }} placeholder="e.g. Customs Duty" />
+                          </div>
+                          <div style={{ flex: 2, minWidth: 100 }}>
+                            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Ref / Invoice #</div>
+                            <input type="text" value={lcForm.reference} onChange={e => setLcForm(f => f ? { ...f, reference: e.target.value } : f)} style={{ ...inputStyle, width: '100%', fontSize: 12 }} placeholder="Optional" />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Amount</div>
+                            <input type="number" min="0" step="0.01" value={lcForm.amount} onChange={e => setLcForm(f => f ? { ...f, amount: e.target.value } : f)} style={{ ...inputStyle, width: 100, fontSize: 12, textAlign: 'right' }} placeholder="0.00" />
+                          </div>
+                          <button type="button" onClick={() => { if (lcForm.label && Number(lcForm.amount) > 0) { setLandedCosts(p => [...p, lcForm]); setLcForm(null); } else alert('Enter a description and amount.'); }} style={btnStyle('mint', 'sm')}>Add</button>
+                          <button type="button" onClick={() => setLcForm(null)} style={btnStyle('ghost', 'sm')}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
+                    {poLanded > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--sv-text-dim)' }}>
+                        <span>Landed Total (+)</span><span>+{fmtCurrency(poLanded)}</span>
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)', borderTop: '1px solid var(--sv-etch)', paddingTop: 6 }}>
                     <span>Total (inc. tax)</span><span>{fmtCurrency(grandTotal)}</span>
@@ -2932,7 +2993,7 @@ function PurchaseOrdersView() {
                 </div>
               </div>
             </div>
-            <FormActions onCancel={() => setModal({ open: false, edit: null })} saving={saving} isEdit={!!modal.edit} />
+            <FormActions onCancel={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} saving={saving} isEdit={!!modal.edit} />
           </form>
         </Modal>
       )}
@@ -3016,13 +3077,13 @@ function PurchaseOrdersView() {
               ))}
             </tbody>
             <tfoot>
-              {(Number(viewModal.po.discount) > 0 || Number(viewModal.po.freight) > 0) && (
+              {(Number(viewModal.po.discount) > 0 || (viewModal.po.landed_costs || []).length > 0) && (
                 <tr style={{ borderTop: '1px solid var(--sv-etch)' }}>
                   <td colSpan={7} style={{ padding: '6px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Subtotal</td>
                   <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtCurrency(viewModal.po.subtotal)}</td>
                 </tr>
               )}
-              {(Number(viewModal.po.discount) > 0 || Number(viewModal.po.freight) > 0) && (
+              {(Number(viewModal.po.discount) > 0 || (viewModal.po.landed_costs || []).length > 0) && (
                 <tr>
                   <td colSpan={7} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Tax</td>
                   <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtCurrency(viewModal.po.tax_amount)}</td>
@@ -3034,18 +3095,100 @@ function PurchaseOrdersView() {
                   <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-red)' }}>−{fmtCurrency(viewModal.po.discount)}</td>
                 </tr>
               )}
-              {Number(viewModal.po.freight) > 0 && (
-                <tr>
-                  <td colSpan={7} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Freight (+)</td>
-                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>+{fmtCurrency(viewModal.po.freight)}</td>
+              {(viewModal.po.landed_costs || []).map((c: any) => (
+                <tr key={c.id}>
+                  <td colSpan={7} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>
+                    {c.label}{c.reference ? <span style={{ marginLeft: 6, color: 'var(--sv-text-dim)', fontStyle: 'italic' }}>({c.reference})</span> : null} (+)
+                  </td>
+                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>+{fmtCurrency(c.amount)}</td>
                 </tr>
-              )}
+              ))}
               <tr style={{ borderTop: '2px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
                 <td colSpan={7} style={{ padding: '8px 10px', textAlign: 'right', fontSize: 13, color: 'var(--sv-text-dim)' }}>Total</td>
                 <td style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--sv-text-strong)' }}>{fmtCurrency(viewModal.po.total_amount)}</td>
               </tr>
             </tfoot>
           </table>
+
+          {/* ── Landed Costs (view/edit) ── */}
+          {(() => {
+            const lcs: any[] = viewModal.po.landed_costs || [];
+            const canEdit = viewModal.po.status === 'draft' || viewModal.po.status === 'approved';
+            return (
+              <div style={{ marginTop: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Landed Costs</div>
+                  {canEdit && !lcForm && (
+                    <button onClick={() => setLcForm({ label: '', reference: '', amount: '' })} style={btnStyle('mint', 'xs')}>+ Add</button>
+                  )}
+                </div>
+                {lcs.length > 0 && (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 10, border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ background: 'var(--sv-bg-1)' }}>
+                        {['Description', 'Ref / Invoice #', 'Amount', ...(canEdit ? [''] : [])].map((h, i) => (
+                          <th key={i} style={{ padding: '5px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lcs.map((c: any) => (
+                        <tr key={c.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                          <td style={{ padding: '5px 10px' }}>{c.label}</td>
+                          <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{c.reference || '—'}</td>
+                          <td style={{ padding: '5px 10px', fontWeight: 600 }}>{fmtCurrency(c.amount)}</td>
+                          {canEdit && (
+                            <td style={{ padding: '5px 10px', textAlign: 'right' }}>
+                              <button onClick={async () => {
+                                const updated = lcs.filter((x: any) => x.id !== c.id).map((x: any) => ({ label: x.label, reference: x.reference, amount: x.amount }));
+                                try {
+                                  await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ landed_costs: updated }) });
+                                  await refreshPoView(viewModal.po.id); load();
+                                } catch (e: any) { alert(e.message); }
+                              }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>✕</button>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                {!lcs.length && !lcForm && <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 8 }}>No landed costs recorded.</div>}
+                {lcForm && canEdit && (
+                  <div style={{ padding: '12px 14px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                      <div style={{ flex: 2, minWidth: 110 }}>
+                        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Description</div>
+                        <input type="text" value={lcForm.label} onChange={e => setLcForm(f => f ? { ...f, label: e.target.value } : f)} style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13, width: '100%' }} placeholder="e.g. Customs Duty" />
+                      </div>
+                      <div style={{ flex: 2, minWidth: 110 }}>
+                        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Ref / Invoice #</div>
+                        <input type="text" value={lcForm.reference} onChange={e => setLcForm(f => f ? { ...f, reference: e.target.value } : f)} style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13, width: '100%' }} placeholder="Optional" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Amount</div>
+                        <input type="number" min={0} step="0.01" value={lcForm.amount} onChange={e => setLcForm(f => f ? { ...f, amount: e.target.value } : f)} style={{ width: 110, padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13 }} placeholder="0.00" />
+                      </div>
+                      <button onClick={async () => {
+                        if (!lcForm.label || !Number(lcForm.amount)) { alert('Enter a description and amount.'); return; }
+                        const updated = [...lcs.map((x: any) => ({ label: x.label, reference: x.reference, amount: x.amount })), { label: lcForm.label, reference: lcForm.reference || null, amount: Number(lcForm.amount) }];
+                        try {
+                          await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ landed_costs: updated }) });
+                          setLcForm(null); await refreshPoView(viewModal.po.id); load();
+                        } catch (e: any) { alert(e.message); }
+                      }} style={btnStyle('mint', 'sm')}>Save</button>
+                      <button onClick={() => setLcForm(null)} style={btnStyle('ghost', 'sm')}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+                {viewModal.po.status === 'received' && lcs.length > 0 && (
+                  <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', background: 'var(--sv-bg-2)', borderRadius: 6, padding: '6px 10px' }}>
+                    Landed costs have been distributed into avg. cost per unit.
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* ── Payments ── */}
           {(() => {
