@@ -6,47 +6,30 @@ Always read this file when starting a new session or implementing a feature to u
 ---
 
 ## 🌐 Deployment Environment
-* **Hosting:** PromptWebHosting (cPanel, strictly memory-constrained, Node.js managed via Phusion Passenger).
-* **App Root Directory:** `/home/readyedu/marketoir-live`
-* **Public URL:** `http://maketoir.exam-ready.com.au/`
-* **Framework:** Next.js 14 (App Router) using `output: "standalone"`
+* **Hosting:** Vercel (serverless, auto-deploys on push to `main`)
+* **Public URL:** TBC (Vercel project URL)
+* **Framework:** Next.js 14 (App Router)
+* **Database:** MySQL (external — connection via `MYSQL_HOST` env var)
 
-## 🚀 Deployment Workflow (Automated via GitHub Actions)
+## 🚀 Deployment Workflow
 
-**⚠️ Do NOT run `npm install` or Next.js build commands via cPanel SSH or dashboard — memory limits will crash it!**
+### Normal Deployment (Fully Automatic):
+1. **Develop locally** and commit/push to `main` via GitHub Desktop.
+2. **Vercel** detects the push, builds, and deploys automatically (serverless functions for API routes).
+3. No restart needed — each deploy creates a fresh deployment.
 
-### Normal Deployment (Automated):
-1. **Develop locally** and commit/push to `main` via GitHub Desktop as usual.
-2. **GitHub Actions** automatically triggers (`.github/workflows/deploy.yml`):
-   - Runs `npm ci` + `npm run build` on a Linux runner (no MAX_PATH, no memory limits)
-   - Packages `.next/standalone` + `.next/static` + `public` into a deploy directory
-   - Force-pushes an orphan commit to the **`deploy`** branch (history is replaced, not appended — no git bloat)
-3. **cPanel Git Version Control** detects the new commit on the `deploy` branch and runs `.cpanel.yml`, which:
-   - Copies all files to `/home/readyedu/marketoir-live`
-   - Touches `tmp/restart.txt` to signal Phusion Passenger to restart
-4. Wait ~30–60s then refresh the live URL.
+### Environment Variables:
+- Managed in **Vercel Dashboard → Settings → Environment Variables**.
+- Includes: `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE`, `ENCRYPTION_KEY`, `XERO_CLIENT_ID`, `XERO_REDIRECT_URI`, and all other secrets.
+- `.env` is used locally only and is gitignored.
 
 ### Monitoring:
-- Check **GitHub → Actions tab** to confirm the build passed before expecting a live update.
-- If cPanel doesn't auto-pull, go to **cPanel → Git Version Control → Update** to manually trigger.
+- Check the **Vercel Dashboard** for build status, logs, and function errors.
+- Runtime logs available under the Logs tab per deployment.
 
-### cPanel Configuration (one-time, already done):
-- Repository at `/home/readyedu/repositories/Maketoir` tracks the **`deploy`** branch (NOT `main`).
-- Auto-deploy must be enabled.
-
-### Fallback (manual deploy if GitHub Actions is unavailable):
-1. Run `npm run build` locally.
-2. Run `tar -a -c -f deploy.zip -C .next\standalone .` in PowerShell. *(Do NOT use `Compress-Archive` — it silently drops nested Next.js core files due to MAX_PATH limits.)*
-3. In cPanel File Manager, delete old `.next`, `node_modules`, `server.js` in `marketoir-live/`.
-4. Upload and extract `deploy.zip`, then restart the app in the Node.js dashboard.
-
-### .env Safety:
-The server's `.env` file is **never overwritten** — `cp ./*` in `.cpanel.yml` skips dotfiles, and the `deploy` branch contains no `.env`.
-
-## ⚠️ Known Quirks & Bugs
-* **503 Service Unavailable:** This error in cPanel is almost always caused by a corrupted/incomplete `node_modules` folder (usually resulting from clicking "Run NPM Install" in cPanel, which crashes silently due to memory limits). Fix by extracting a fresh `deploy.zip`.
-* **MAX_PATH Windows Zip Bug:** Windows ZIP utilities drop files like `next.js` in deeply nested module folders. Always use `tar` to create the deploy file.
-* **Port Binding:** Phusion Passenger handles port bindings dynamically. Avoid hardcoding `app.listen(3000)` in `server.js` without letting `process.env.PORT` dictate the connection.
+### Previous Hosting (archived):
+- Was on PromptWebHosting (cPanel + Phusion Passenger) with GitHub Actions deploy pipeline.
+- Migrated to Vercel for simpler serverless deployment and no memory constraints.
 
 ## 🛒 POS System (built this session)
 * **DB tables**: 5 tables in the IMS database (`pos_users`, `pos_sales`, `pos_sale_items`, `pos_payments`, `pos_eod_reconciliations`). Created by `scripts/setup-pos-tables.mjs`.

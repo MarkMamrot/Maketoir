@@ -5351,15 +5351,6 @@ function ProductMarginView({ onBack }: { onBack: () => void }) {
   );
 }
 
-          <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>
-            Page {page} of {totalPages} · {total.toLocaleString()} results · 100 per page
-          </span>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Xero Integration View
 // ─────────────────────────────────────────────────────────────────────────────
