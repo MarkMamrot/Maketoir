@@ -51,9 +51,12 @@ export function generateCodeChallenge(verifier: string): string {
 // ─── OAuth URLs ──────────────────────────────────────────────────────────────
 
 const SCOPES = [
-  'openid', 'profile', 'email', 'offline_access',
-  'accounting.transactions', 'accounting.contacts',
+  'openid', 'profile', 'email',
   'accounting.settings',
+  'accounting.contacts',
+  'accounting.invoices',
+  'accounting.payments',
+  'accounting.manualjournals',
 ].join(' ');
 
 export function buildAuthorizeUrl(state: string, codeChallenge: string): string {
