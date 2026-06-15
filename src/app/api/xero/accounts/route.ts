@@ -19,6 +19,15 @@ export async function GET(req: Request) {
   const denied = assertBusinessAccess(user, databaseId);
   if (denied) return denied;
 
+  // Always fetch saved mappings from DB (works even if Xero API is down)
+  let mappings: any[] = [];
+  try {
+    mappings = await query(
+      'SELECT role_key, xero_account_id, xero_account_code, xero_account_name FROM xero_account_mappings WHERE business_id = ?',
+      [databaseId],
+    );
+  } catch {}
+
   try {
     // Fetch accounts from Xero
     const data = await xeroApiFetch(databaseId!, '/Accounts');
@@ -31,16 +40,11 @@ export async function GET(req: Request) {
       status: a.Status,
     })).filter((a: any) => a.status === 'ACTIVE');
 
-    // Also fetch saved mappings from DB
-    const mappings = await query(
-      'SELECT role_key, xero_account_id, xero_account_code, xero_account_name FROM xero_account_mappings WHERE business_id = ?',
-      [databaseId],
-    );
-
     return NextResponse.json({ accounts, mappings });
   } catch (err: any) {
     console.error('[xero/accounts GET]', err.message);
-    return NextResponse.json({ error: 'Failed to fetch Xero accounts.' }, { status: 500 });
+    // Return saved mappings even if Xero API fails (token expired etc.)
+    return NextResponse.json({ accounts: [], mappings, xeroError: err.message });
   }
 }
 

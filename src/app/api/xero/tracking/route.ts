@@ -16,6 +16,16 @@ export async function GET(req: Request) {
   const denied = assertBusinessAccess(user, databaseId);
   if (denied) return denied;
 
+  // Always fetch saved mappings from DB (works even if Xero API is down)
+  let mappings: any[] = [];
+  try {
+    mappings = await query(
+      `SELECT ims_location_id, ims_channel, xero_tracking_category_id, xero_tracking_option_id, xero_tracking_option_name
+       FROM xero_tracking_mappings WHERE business_id = ?`,
+      [databaseId],
+    );
+  } catch {}
+
   try {
     // Fetch tracking categories from Xero
     const data = await xeroApiFetch(databaseId!, '/TrackingCategories');
@@ -30,17 +40,11 @@ export async function GET(req: Request) {
       })),
     }));
 
-    // Fetch saved mappings from DB
-    const mappings = await query(
-      `SELECT ims_location_id, ims_channel, xero_tracking_category_id, xero_tracking_option_id, xero_tracking_option_name
-       FROM xero_tracking_mappings WHERE business_id = ?`,
-      [databaseId],
-    );
-
     return NextResponse.json({ categories, mappings });
   } catch (err: any) {
     console.error('[xero/tracking GET]', err.message);
-    return NextResponse.json({ error: 'Failed to fetch tracking categories.' }, { status: 500 });
+    // Return saved mappings even if Xero API fails
+    return NextResponse.json({ categories: [], mappings, xeroError: err.message });
   }
 }
 

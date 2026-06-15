@@ -5512,19 +5512,21 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
   useEffect(() => {
     (async () => {
       const bid = getBusinessId();
+      if (!bid) { setLoading(false); return; }
       try {
         const [accRes, trackRes, locRes] = await Promise.all([
-          fetch(`/api/xero/accounts?databaseId=${encodeURIComponent(bid)}`).then(r => r.json()),
-          fetch(`/api/xero/tracking?databaseId=${encodeURIComponent(bid)}`).then(r => r.json()),
-          fetch(`/api/ims/locations?databaseId=${encodeURIComponent(bid)}`).then(r => r.json()).catch(() => ({ locations: [] })),
+          fetch(`/api/xero/accounts?databaseId=${encodeURIComponent(bid)}`).then(r => r.ok ? r.json() : { accounts: [], mappings: [] }),
+          fetch(`/api/xero/tracking?databaseId=${encodeURIComponent(bid)}`).then(r => r.ok ? r.json() : { categories: [], mappings: [] }),
+          fetch(`/api/ims/locations?databaseId=${encodeURIComponent(bid)}`).then(r => r.ok ? r.json() : []).catch(() => []),
         ]);
-        setAccounts(accRes.accounts ?? []);
+        setAccounts(Array.isArray(accRes.accounts) ? accRes.accounts : []);
         const mapObj: any = {};
-        for (const m of (accRes.mappings ?? [])) mapObj[m.role_key] = m;
+        for (const m of (Array.isArray(accRes.mappings) ? accRes.mappings : [])) mapObj[m.role_key] = m;
         setMappings(mapObj);
-        setTrackingCategories(trackRes.categories ?? []);
-        setTrackingMappings(trackRes.mappings ?? []);
-        setLocations(locRes.locations ?? locRes ?? []);
+        setTrackingCategories(Array.isArray(trackRes.categories) ? trackRes.categories : []);
+        setTrackingMappings(Array.isArray(trackRes.mappings) ? trackRes.mappings : []);
+        const locs = Array.isArray(locRes?.locations) ? locRes.locations : Array.isArray(locRes) ? locRes : [];
+        setLocations(locs);
       } catch {}
       setLoading(false);
     })();
