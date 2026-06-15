@@ -146,10 +146,10 @@ export async function saveXeroTokens(
   tenantId: string,
   tenantName: string,
 ): Promise<void> {
-  const expiry = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
+  const expiry = Date.now() + tokens.expires_in * 1000;
   await ConnectionsRepository.upsert(businessId, {
     xero_access_token: encrypt(tokens.access_token),
-    xero_refresh_token: encrypt(tokens.refresh_token),
+    xero_refresh_token: tokens.refresh_token ? encrypt(tokens.refresh_token) : null,
     xero_tenant_id: tenantId,
     xero_tenant_name: tenantName,
     xero_token_expiry: expiry,

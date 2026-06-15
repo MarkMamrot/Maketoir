@@ -71,7 +71,14 @@ export async function GET(req: Request) {
   }
 
   // Persist to DB (tokens encrypted at rest)
-  await saveXeroTokens(databaseId, tokens, tenant.tenantId, tenant.tenantName);
+  try {
+    await saveXeroTokens(databaseId, tokens, tenant.tenantId, tenant.tenantName);
+  } catch (err: any) {
+    console.error('[xero/callback] saveXeroTokens failed:', err.message);
+    return NextResponse.redirect(
+      new URL('/ims?xero=error&reason=save_tokens', req.url),
+    );
+  }
 
   return NextResponse.redirect(
     new URL('/ims?xero=connected', req.url),
