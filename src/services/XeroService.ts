@@ -53,7 +53,7 @@ export function generateCodeChallenge(verifier: string): string {
 const SCOPES = [
   'openid', 'profile', 'email', 'offline_access',
   'accounting.transactions', 'accounting.contacts',
-  'accounting.settings', 'accounting.journals',
+  'accounting.settings',
 ].join(' ');
 
 export function buildAuthorizeUrl(state: string, codeChallenge: string): string {
