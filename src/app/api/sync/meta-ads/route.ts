@@ -11,15 +11,20 @@ const HEADERS = ['SyncDate', 'DatePreset', 'Spend', 'Impressions', 'Clicks', 'CP
 
 
 /**
- * GET — lightweight ping to verify Meta credentials are valid.
+ * GET /api/sync/meta-ads?adAccountId=xxx&accessToken=xxx
+ * Lightweight connection test — credentials come from the business's setup form.
+ * Requires an active session.
  */
 export async function GET(req: Request) {
+  const session = cookies().get('marketoir_session');
+  if (!session?.value) return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
+
   const { searchParams } = new URL(req.url);
-  const adAccountId = searchParams.get('adAccountId') || process.env.META_AD_ACCOUNT_ID || '';
-  const accessToken = searchParams.get('accessToken') || process.env.META_ACCESS_TOKEN || '';
+  const adAccountId = searchParams.get('adAccountId') ?? '';
+  const accessToken = searchParams.get('accessToken') ?? '';
 
   if (!adAccountId || !accessToken) {
-    return NextResponse.json({ success: false, error: 'Meta credentials not configured.' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'adAccountId and accessToken are required.' }, { status: 400 });
   }
 
   try {
@@ -32,8 +37,8 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: false, error: data.error.message }, { status: 401 });
     }
     return NextResponse.json({ success: true, message: `Connected to Meta ad account: ${data.name ?? accountId}` });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ success: false, error: 'Meta Ads connection failed.' }, { status: 500 });
   }
 }
 

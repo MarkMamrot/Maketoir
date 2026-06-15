@@ -272,10 +272,9 @@ function extractFieldsFromSpec(spec: any): string[][] {
 
 // ── Live field fetchers (Google Ads + Meta) ─────────────────────────────────
 
-async function fetchGoogleAdsFieldSchema(): Promise<string[][]> {
-  const customerId = (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, '');
-  const refreshToken = process.env.GOOGLE_ADS_REFRESH_TOKEN || '';
-  if (!customerId || !refreshToken) return [];
+async function fetchGoogleAdsFieldSchema(customerId: string, refreshToken: string): Promise<string[][]> {
+  const cleanId = customerId.replace(/-/g, '');
+  if (!cleanId || !refreshToken) return [];
   try {
     const { GoogleAdsApi } = await import('google-ads-api');
     const client = new GoogleAdsApi({
@@ -283,7 +282,7 @@ async function fetchGoogleAdsFieldSchema(): Promise<string[][]> {
       client_secret:   process.env.GOOGLE_ADS_CLIENT_SECRET   || '',
       developer_token: process.env.GOOGLE_ADS_DEVELOPER_TOKEN || '',
     });
-    const customer = client.Customer({ customer_id: customerId, refresh_token: refreshToken });
+    const customer = client.Customer({ customer_id: cleanId, refresh_token: refreshToken });
     const results = await customer.query(
       `SELECT name, data_type, category, selectable, filterable, sortable
        FROM google_ads_field
@@ -404,7 +403,10 @@ export async function POST(req: Request) {
 
   // google-ads: query live google_ads_field service for authoritative field list
   if (api === 'google-ads') {
-    const liveRows = await fetchGoogleAdsFieldSchema();
+    const liveRows = await fetchGoogleAdsFieldSchema(
+      creds.GoogleAdsCustomerId ?? '',
+      creds.GoogleAdsRefreshToken ?? '',
+    );
     if (liveRows.length >= 5) {
       schemaRows = liveRows;
       await persistApiSpec(

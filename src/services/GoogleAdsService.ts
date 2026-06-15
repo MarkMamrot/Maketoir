@@ -5,8 +5,17 @@ import { StandardizedCreative } from '../types/StandardizedData';
 export class GoogleAdsService {
   private client: GoogleAdsApi;
   readonly customerId: string;
+  private readonly refreshToken: string;
 
-  constructor(customerIdOverride?: string) {
+  /**
+   * @param customerIdOverride  Per-business customer ID from the DB connections table.
+   * @param refreshTokenOverride Per-business OAuth refresh token from the DB connections table.
+   *
+   * App-level OAuth credentials (client_id, client_secret, developer_token) are always
+   * read from environment variables since they belong to the Marketoir OAuth app, not
+   * to individual businesses.
+   */
+  constructor(customerIdOverride?: string, refreshTokenOverride?: string) {
     this.client = new GoogleAdsApi({
       client_id: process.env.GOOGLE_ADS_CLIENT_ID || '',
       client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET || '',
@@ -16,12 +25,13 @@ export class GoogleAdsService {
     this.customerId = customerIdOverride
       ? customerIdOverride.replace(/-/g, '')
       : envId;
+    this.refreshToken = refreshTokenOverride ?? process.env.GOOGLE_ADS_REFRESH_TOKEN ?? '';
   }
 
   private getCustomer() {
     return this.client.Customer({
       customer_id: this.customerId,
-      refresh_token: process.env.GOOGLE_ADS_REFRESH_TOKEN || '',
+      refresh_token: this.refreshToken,
     });
   }
 

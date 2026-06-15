@@ -1,17 +1,21 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 
 /**
- * Lightweight ping — verifies Cin7 credentials with a single-row request.
- * Accepts accountId and apiKey as query params (per-business).
- * Falls back to env vars if not provided.
+ * GET /api/sync/cin7?accountId=xxx&apiKey=xxx
+ * Lightweight connection test — credentials come from the business's setup form.
+ * Requires an active session.
  */
 export async function GET(req: Request) {
+  const session = cookies().get('marketoir_session');
+  if (!session?.value) return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
+
   const { searchParams } = new URL(req.url);
-  const accountId = searchParams.get('accountId') || process.env.CIN7_ACCOUNT_ID || '';
-  const apiKey = searchParams.get('apiKey') || process.env.CIN7_API_KEY || '';
+  const accountId = searchParams.get('accountId') ?? '';
+  const apiKey    = searchParams.get('apiKey')    ?? '';
 
   if (!accountId || !apiKey) {
-    return NextResponse.json({ success: false, error: 'Cin7 Omni credentials not configured.' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'accountId and apiKey are required.' }, { status: 400 });
   }
 
   try {
@@ -20,10 +24,10 @@ export async function GET(req: Request) {
       headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' },
     });
     if (!res.ok) {
-      throw new Error(`Cin7 Omni returned HTTP ${res.status}`);
+      throw new Error(`Cin7 returned HTTP ${res.status}`);
     }
-    return NextResponse.json({ success: true, message: `Connected to Cin7 Omni account: ${accountId}` });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, message: `Connected to Cin7 account: ${accountId}` });
+  } catch {
+    return NextResponse.json({ success: false, error: 'Cin7 connection failed. Check credentials.' }, { status: 400 });
   }
 }
