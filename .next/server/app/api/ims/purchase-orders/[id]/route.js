@@ -1,0 +1,46 @@
+"use strict";(()=>{var e={};e.id=6765,e.ids=[6765],e.modules={72934:e=>{e.exports=require("next/dist/client/components/action-async-storage.external.js")},54580:e=>{e.exports=require("next/dist/client/components/request-async-storage.external.js")},45869:e=>{e.exports=require("next/dist/client/components/static-generation-async-storage.external.js")},20399:e=>{e.exports=require("next/dist/compiled/next-server/app-page.runtime.prod.js")},30517:e=>{e.exports=require("next/dist/compiled/next-server/app-route.runtime.prod.js")},78893:e=>{e.exports=require("buffer")},84770:e=>{e.exports=require("crypto")},17702:e=>{e.exports=require("events")},98216:e=>{e.exports=require("net")},35816:e=>{e.exports=require("process")},76162:e=>{e.exports=require("stream")},74026:e=>{e.exports=require("string_decoder")},95346:e=>{e.exports=require("timers")},82452:e=>{e.exports=require("tls")},17360:e=>{e.exports=require("url")},21764:e=>{e.exports=require("util")},71568:e=>{e.exports=require("zlib")},72254:e=>{e.exports=require("node:buffer")},65714:e=>{e.exports=require("node:diagnostics_channel")},74456:(e,t,a)=>{a.r(t),a.d(t,{originalPathname:()=>h,patchFetch:()=>A,requestAsyncStorage:()=>y,routeModule:()=>f,serverHooks:()=>N,staticGenerationAsyncStorage:()=>g});var s={};a.r(s),a.d(s,{DELETE:()=>m,GET:()=>p,PUT:()=>E});var r=a(49303),i=a(88716),n=a(60670),o=a(87070),l=a(71615),d=a(69033),u=a(83376),_=a(46137);function c(){let e=(0,l.cookies)().get("marketoir_session");if(!e?.value)return null;try{return JSON.parse(e.value)}catch{return null}}async function p(e,{params:t}){if(!c())return o.NextResponse.json({error:"Not authenticated"},{status:401});try{let e=await d.av.get(Number(t.id));if(!e)return o.NextResponse.json({success:!1,error:"Not found"},{status:404});return o.NextResponse.json({success:!0,data:e})}catch(e){return o.NextResponse.json({success:!1,error:e.message},{status:500})}}async function E(e,{params:t}){if(!c())return o.NextResponse.json({error:"Not authenticated"},{status:401});try{let{items:a,status:s,...r}=await e.json();if(s){await d.av.changeStatus(Number(t.id),s);let e=await d.av.get(Number(t.id));if(e&&e.items?.length>0){let t=e.items.map(e=>e.variant_id).filter(Boolean);t.length>0&&(0,u.x)(t).catch(e=>console.error("Failed inline cache refresh for PO:",e))}let a=c();a?.userSpreadsheetId&&(0,_.oF)(a.userSpreadsheetId,Number(t.id),s).catch(()=>{})}else if(await d.av.update(Number(t.id),r,a),a&&a.length>0){let e=a.map(e=>e.variant_id).filter(Boolean);e.length>0&&(0,u.x)(e).catch(e=>console.error("Failed inline cache refresh for PO:",e))}return o.NextResponse.json({success:!0})}catch(e){return o.NextResponse.json({success:!1,error:e.message},{status:500})}}async function m(e,{params:t}){if(!c())return o.NextResponse.json({error:"Not authenticated"},{status:401});try{let e=await d.av.get(Number(t.id));if(await d.av.delete(Number(t.id)),e&&e.items?.length>0){let t=e.items.map(e=>e.variant_id).filter(Boolean);t.length>0&&(0,u.x)(t).catch(e=>console.error("Failed inline cache refresh for PO deletion:",e))}return o.NextResponse.json({success:!0})}catch(e){return o.NextResponse.json({success:!1,error:e.message},{status:500})}}let f=new r.AppRouteRouteModule({definition:{kind:i.x.APP_ROUTE,page:"/api/ims/purchase-orders/[id]/route",pathname:"/api/ims/purchase-orders/[id]",filename:"route",bundlePath:"app/api/ims/purchase-orders/[id]/route"},resolvedPagePath:"/home/runner/work/Maketoir/Maketoir/src/app/api/ims/purchase-orders/[id]/route.ts",nextConfigOutput:"standalone",userland:s}),{requestAsyncStorage:y,staticGenerationAsyncStorage:g,serverHooks:N}=f,h="/api/ims/purchase-orders/[id]/route";function A(){return(0,n.patchFetch)({serverHooks:N,staticGenerationAsyncStorage:g})}},6649:(e,t,a)=>{a.d(t,{Z:()=>o});var s=a(84770),r=a.n(s);let i=new Uint8Array(256),n=i.length;function o(){return n>i.length-16&&(r().randomFillSync(i),n=0),i.slice(n,n+=16)}},16099:(e,t,a)=>{a.d(t,{S:()=>i,Z:()=>n});var s=a(30900);let r=[];for(let e=0;e<256;++e)r.push((e+256).toString(16).slice(1));function i(e,t=0){return r[e[t+0]]+r[e[t+1]]+r[e[t+2]]+r[e[t+3]]+"-"+r[e[t+4]]+r[e[t+5]]+"-"+r[e[t+6]]+r[e[t+7]]+"-"+r[e[t+8]]+r[e[t+9]]+"-"+r[e[t+10]]+r[e[t+11]]+r[e[t+12]]+r[e[t+13]]+r[e[t+14]]+r[e[t+15]]}let n=function(e,t=0){let a=i(e,t);if(!(0,s.Z)(a))throw TypeError("Stringified UUID is invalid");return a}},56573:(e,t,a)=>{a.d(t,{Z:()=>o});var s=a(84770);let r={randomUUID:a.n(s)().randomUUID};var i=a(6649),n=a(16099);let o=function(e,t,a){if(r.randomUUID&&!t&&!e)return r.randomUUID();let s=(e=e||{}).random||(e.rng||i.Z)();if(s[6]=15&s[6]|64,s[8]=63&s[8]|128,t){a=a||0;for(let e=0;e<16;++e)t[a+e]=s[e];return t}return(0,n.S)(s)}},30900:(e,t,a)=>{a.d(t,{Z:()=>r});let s=/^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000)$/i,r=function(e){return"string"==typeof e&&s.test(e)}},83376:(e,t,a)=>{a.d(t,{x:()=>r});var s=a(46724);async function r(e){let t=`
+      SELECT
+        variant_id,
+        SUM(CASE WHEN sale_date >= DATE_SUB(CURDATE(), INTERVAL 7   DAY) THEN qty ELSE 0 END) AS sales_qty_7d,
+        SUM(CASE WHEN sale_date >= DATE_SUB(CURDATE(), INTERVAL 90  DAY) THEN qty ELSE 0 END) AS sales_qty_90d,
+        SUM(CASE WHEN sale_date >= DATE_SUB(CURDATE(), INTERVAL 180 DAY) THEN qty ELSE 0 END) AS sales_qty_180d,
+        SUM(qty) AS sales_qty_12m
+       FROM (
+         -- IMS wholesale/B2B sales orders
+         SELECT soi.variant_id, so.order_date AS sale_date, soi.qty_fulfilled AS qty
+         FROM   ims_sales_order_items soi
+         JOIN   ims_sales_orders      so  ON so.id = soi.so_id
+         WHERE  so.status = 'fulfilled'
+           AND  so.order_date >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+
+         UNION ALL
+
+         -- POS retail sales
+         SELECT psi.variant_id, DATE(ps.completed_at) AS sale_date, psi.qty AS qty
+         FROM   pos_sale_items psi
+         JOIN   pos_sales      ps  ON ps.id = psi.sale_id
+         WHERE  ps.status    = 'completed'
+           AND  ps.sale_type = 'sale'
+           AND  ps.completed_at >= DATE_SUB(NOW(), INTERVAL 365 DAY)
+           AND  psi.variant_id IS NOT NULL
+       ) all_sales
+  `,a=`
+      SELECT
+        variant_id,
+        SUM(qty_on_hand)                       AS global_soh,
+        SUM(qty_on_hand - qty_committed)       AS global_available,
+        SUM(qty_incoming)                      AS global_incoming
+       FROM ims_stock
+  `,r=[],i=[];if(e&&e.length>0){let s=e.map(()=>"?").join(",");t+=` WHERE variant_id IN (${s}) `,r.push(...e),a+=` WHERE variant_id IN (${s}) `,i.push(...e)}t+=" GROUP BY variant_id",a+=" GROUP BY variant_id";let n=await (0,s.UI)(t,r),o=await (0,s.UI)(a,i),l=new Map(n.map(e=>[e.variant_id,e])),d=new Map(o.map(e=>[e.variant_id,e])),u=new Set(e&&e.length>0?e:[...l.keys(),...d.keys()]);if(0===u.size)return 0;let _=[...u],c=(0,s.xE)();for(let e=0;e<_.length;e+=1e3){let t=_.slice(e,e+1e3),a=[],s=[];for(let e of t){let t=l.get(e),r=d.get(e);a.push(e,t?.sales_qty_7d??0,t?.sales_qty_90d??0,t?.sales_qty_180d??0,t?.sales_qty_12m??0,r?.global_soh??0,r?.global_available??0,r?.global_incoming??0),s.push("(?, ?, ?, ?, ?, ?, ?, ?)")}await c.query(`INSERT INTO ims_sales_cache
+          (variant_id, sales_qty_7d, sales_qty_90d, sales_qty_180d, sales_qty_12m,
+          global_soh, global_available, global_incoming)
+        VALUES ${s.join(", ")}
+        ON DUPLICATE KEY UPDATE
+          sales_qty_7d     = VALUES(sales_qty_7d),
+          sales_qty_90d    = VALUES(sales_qty_90d),
+          sales_qty_180d   = VALUES(sales_qty_180d),
+          sales_qty_12m    = VALUES(sales_qty_12m),
+          global_soh       = VALUES(global_soh),
+          global_available = VALUES(global_available),
+          global_incoming  = VALUES(global_incoming),
+          updated_at       = NOW()`,a)}return u.size}},46137:(e,t,a)=>{a.d(t,{Ex:()=>d,bd:()=>u,oF:()=>l});var s=a(35857),r=a(69033),i=a(38614),n=a(65037);async function o(e){let t=await s.vg.get(e);return!!(t?.xero_tenant_id&&t?.xero_refresh_token)}async function l(e,t,a){if(!await o(e))return;let s=await r.av.get(t);if(s){if("approved"===a)await (0,i.GK)(e,s);else if("received"===a){let a=await (0,n.IO)("SELECT xero_id FROM xero_sync_log WHERE business_id = ? AND sync_type = 'po_bill' AND reference_id = ? AND status = 'success' AND xero_id IS NOT NULL ORDER BY created_at DESC LIMIT 1",[e,t]),r=a[0]?.xero_id;if(r)await (0,i.El)(e,r,t),(s.payments?.length??0)>0&&await (0,i.nL)(e,t,s.po_number,s.total_amount,s.location_id);else{let a=await (0,i.GK)(e,s);a&&await (0,i.El)(e,a,t)}}}}async function d(e,t,a){if(!await o(e))return;let s=await r.av.get(t);if(!s)return;let l=await (0,n.IO)("SELECT xero_id FROM xero_sync_log WHERE business_id = ? AND sync_type = 'po_bill' AND reference_id = ? AND status = 'success' AND xero_id IS NOT NULL ORDER BY created_at DESC LIMIT 1",[e,t]),d=l[0]?.xero_id;if(d||(d=await (0,i.GK)(e,s)),!d)return;await (0,i.El)(e,d,t);let u=s.payments?.find(e=>e.id===a);u&&await (0,i.xl)(e,d,t,u.amount,u.payment_date,u.currency_code||"AUD")}async function u(e,t,a){if(!await o(e)||"confirmed"!==a)return;let s=await r.R5.get(t);s&&await (0,i.W5)(e,s)}}};var t=require("../../../../../webpack-runtime.js");t.C(e);var a=e=>t(t.s=e),s=t.X(0,[8948,1615,5972,3785,8357,8614],()=>a(74456));module.exports=s})();

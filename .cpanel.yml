@@ -1,0 +1,8 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/readyedu/solvantis
+    - /bin/cp -R ./* $DEPLOYPATH
+    - /bin/cp -R ./.next $DEPLOYPATH/
+    - /bin/cp ./.cpanel.yml $DEPLOYPATH/
+    - mkdir -p $DEPLOYPATH/tmp && touch $DEPLOYPATH/tmp/restart.txt
