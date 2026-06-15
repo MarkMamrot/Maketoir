@@ -15,7 +15,7 @@ type ImsView =
   | 'reports' | 'report-sales-by-branch' | 'report-inventory-valuation' | 'report-product-margin'
   | 'xero';
 
-interface User { name: string; email: string; company: string }
+interface User { name: string; email: string; company: string; userSpreadsheetId: string }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Nav structure
@@ -5355,30 +5355,24 @@ function ProductMarginView({ onBack }: { onBack: () => void }) {
 // Xero Integration View
 // ─────────────────────────────────────────────────────────────────────────────
 
-function XeroView() {
+function XeroView({ businessId }: { businessId: string }) {
   const [status, setStatus] = useState<{ connected: boolean; tenantName?: string; tokenExpiry?: number; envConfigured?: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'overview' | 'mapping' | 'sync'>('overview');
 
   useEffect(() => {
+    if (!businessId) { setLoading(false); return; }
     (async () => {
       try {
-        const res = await fetch('/api/xero/status?databaseId=' + encodeURIComponent(getBusinessId()));
+        const res = await fetch('/api/xero/status?databaseId=' + encodeURIComponent(businessId));
         const data = await res.json();
         setStatus(data);
       } catch {}
       setLoading(false);
     })();
-  }, []);
+  }, [businessId]);
 
-  function getBusinessId(): string {
-    try {
-      const raw = document.cookie.split(';').find(c => c.trim().startsWith('marketoir_session='));
-      if (!raw) return '';
-      const val = decodeURIComponent(raw.split('=').slice(1).join('='));
-      return JSON.parse(val)?.userSpreadsheetId ?? '';
-    } catch { return ''; }
-  }
+  const getBusinessId = () => businessId;
 
   const tabBtnStyle = (active: boolean): React.CSSProperties => ({
     padding: '8px 16px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: active ? 600 : 400,
@@ -5935,7 +5929,7 @@ export default function ImsPage() {
           {view === 'report-sales-by-branch' && <SalesByBranchView onBack={() => setView('reports')} />}
           {view === 'report-inventory-valuation' && <InventoryValuationView onBack={() => setView('reports')} />}
           {view === 'report-product-margin' && <ProductMarginView onBack={() => setView('reports')} />}
-          {view === 'xero'              && <XeroView />}
+          {view === 'xero'              && <XeroView businessId={user?.userSpreadsheetId ?? ''} />}
         </main>
       </div>
     </div>

@@ -12,6 +12,7 @@ export async function GET() {
       name:    user.name    ?? '',
       email:   user.email   ?? '',
       company: user.company ?? '',
+      userSpreadsheetId: user.userSpreadsheetId ?? '',
     });
   } catch {
     return NextResponse.json({ error: 'Invalid session.' }, { status: 400 });
