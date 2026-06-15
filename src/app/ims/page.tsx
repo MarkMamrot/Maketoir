@@ -12,7 +12,8 @@ type ImsView =
   | 'contacts' | 'locations'
   | 'purchase-orders' | 'sales-orders' | 'branch-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
-  | 'reports' | 'report-sales-by-branch' | 'report-inventory-valuation' | 'report-product-margin';
+  | 'reports' | 'report-sales-by-branch' | 'report-inventory-valuation' | 'report-product-margin'
+  | 'xero';
 
 interface User { name: string; email: string; company: string }
 
@@ -38,6 +39,9 @@ const NAV = [
   { id: 'locations',       label: 'Locations',        section: null },
   { id: 'stocktakes',       label: '📋 Stocktakes',     section: null },
   { id: 'reports',          label: '📊 Reports',         section: null },
+  { id: '__integrations',   label: 'Integrations',     section: 'integrations', children: [
+    { id: 'xero',           label: 'Xero' },
+  ]},
 ] as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -189,7 +193,7 @@ function Row3({ children }: { children: React.ReactNode }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView) => void }) {
-  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: true, __orders: true });
+  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: true, __orders: true, __integrations: true });
   const [collapsed, setCollapsed] = useState(false);
 
   const toggleSection = (id: string) => setSectionOpen(p => ({ ...p, [id]: !p[id] }));
@@ -210,6 +214,8 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
     locations:          'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z',
     stocktakes:         'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 12l2 2 4-4',
     reports:            'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
+    __integrations:     'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1',
+    xero:               'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1',
     settings:           'M12 15a3 3 0 100-6 3 3 0 000 6z',
   };
 
@@ -5345,6 +5351,390 @@ function ProductMarginView({ onBack }: { onBack: () => void }) {
   );
 }
 
+          <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>
+            Page {page} of {totalPages} · {total.toLocaleString()} results · 100 per page
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Xero Integration View
+// ─────────────────────────────────────────────────────────────────────────────
+
+function XeroView() {
+  const [status, setStatus] = useState<{ connected: boolean; tenantName?: string; tokenExpiry?: number; envConfigured?: boolean } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<'overview' | 'mapping' | 'sync'>('overview');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/xero/status?databaseId=' + encodeURIComponent(getBusinessId()));
+        const data = await res.json();
+        setStatus(data);
+      } catch {}
+      setLoading(false);
+    })();
+  }, []);
+
+  function getBusinessId(): string {
+    try {
+      const raw = document.cookie.split(';').find(c => c.trim().startsWith('marketoir_session='));
+      if (!raw) return '';
+      const val = decodeURIComponent(raw.split('=').slice(1).join('='));
+      return JSON.parse(val)?.userSpreadsheetId ?? '';
+    } catch { return ''; }
+  }
+
+  const tabBtnStyle = (active: boolean): React.CSSProperties => ({
+    padding: '8px 16px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: active ? 600 : 400,
+    background: active ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: active ? '#fff' : 'var(--sv-text-main)',
+  });
+
+  if (loading) return <div style={{ padding: 40, color: 'var(--sv-text-dim)' }}>Loading Xero status...</div>;
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero Integration</h1>
+        <span style={{
+          padding: '3px 10px', borderRadius: 99, fontSize: 12, fontWeight: 600,
+          background: status?.connected ? 'rgba(16,185,129,.15)' : 'rgba(248,113,113,.15)',
+          color: status?.connected ? '#34d399' : '#f87171',
+        }}>
+          {status?.connected ? `Connected — ${status.tenantName}` : 'Not Connected'}
+        </span>
+      </div>
+
+      {!status?.connected ? (
+        <div style={{ padding: 24, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', maxWidth: 520 }}>
+          <p style={{ color: 'var(--sv-text-main)', margin: '0 0 16px', lineHeight: 1.6 }}>
+            Connect your Xero organisation to sync purchase orders, sales, and monthly COGS journals automatically.
+          </p>
+          {!status?.envConfigured ? (
+            <p style={{ color: '#f87171', fontSize: 13 }}>⚠️ Xero app credentials are not configured in .env (XERO_CLIENT_ID, XERO_REDIRECT_URI).</p>
+          ) : (
+            <button
+              onClick={() => { window.location.href = `/api/xero/connect?databaseId=${encodeURIComponent(getBusinessId())}`; }}
+              style={{ padding: '10px 20px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 14 }}
+            >
+              Connect to Xero
+            </button>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Tab bar */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+            <button style={tabBtnStyle(tab === 'overview')} onClick={() => setTab('overview')}>Overview</button>
+            <button style={tabBtnStyle(tab === 'mapping')} onClick={() => setTab('mapping')}>Account & Tracking Mapping</button>
+            <button style={tabBtnStyle(tab === 'sync')} onClick={() => setTab('sync')}>Sync History</button>
+          </div>
+
+          {tab === 'overview' && <XeroOverviewTab status={status} getBusinessId={getBusinessId} />}
+          {tab === 'mapping' && <XeroMappingTab getBusinessId={getBusinessId} />}
+          {tab === 'sync' && <XeroSyncTab getBusinessId={getBusinessId} />}
+        </>
+      )}
+    </div>
+  );
+}
+
+function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId: () => string }) {
+  const tokenExpiry = status?.tokenExpiry ? new Date(status.tokenExpiry) : null;
+  const isExpired = tokenExpiry && tokenExpiry.getTime() < Date.now();
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, maxWidth: 800 }}>
+      {/* Connection info */}
+      <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
+        <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Connection</h3>
+        <div style={{ fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 2 }}>
+          <div><strong>Organisation:</strong> {status.tenantName}</div>
+          <div><strong>Token Status:</strong> <span style={{ color: isExpired ? '#f87171' : '#34d399' }}>{isExpired ? 'Expired' : 'Valid'}</span></div>
+          {tokenExpiry && <div><strong>Token Expires:</strong> {tokenExpiry.toLocaleString()}</div>}
+        </div>
+        <button
+          onClick={() => {
+            if (confirm('Disconnect from Xero? This will stop all syncing.')) {
+              fetch('/api/xero/disconnect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ databaseId: getBusinessId() }),
+              }).then(() => window.location.reload());
+            }
+          }}
+          style={{ marginTop: 14, padding: '6px 14px', background: 'rgba(248,113,113,.15)', color: '#f87171', border: '1px solid rgba(248,113,113,.3)', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+        >
+          Disconnect
+        </button>
+      </div>
+
+      {/* Sync summary */}
+      <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
+        <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sync Configuration</h3>
+        <div style={{ fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 2 }}>
+          <div>• POs → Xero Bills <span style={{ color: 'var(--sv-text-dim)' }}>(on create/payment/receive)</span></div>
+          <div>• SOs → Xero Invoices <span style={{ color: 'var(--sv-text-dim)' }}>(wholesale: individual)</span></div>
+          <div>• POS Sales → Xero <span style={{ color: 'var(--sv-text-dim)' }}>(daily batch per location)</span></div>
+          <div>• Online Sales → Xero <span style={{ color: 'var(--sv-text-dim)' }}>(daily batch)</span></div>
+          <div>• Monthly COGS Journal <span style={{ color: 'var(--sv-text-dim)' }}>(end of month)</span></div>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div style={{ gridColumn: '1 / -1', padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
+        <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Quick Actions</h3>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button disabled style={{ padding: '8px 16px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: 'not-allowed', fontSize: 13, color: 'var(--sv-text-dim)' }}>
+            Sync All POs to Xero
+          </button>
+          <button disabled style={{ padding: '8px 16px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: 'not-allowed', fontSize: 13, color: 'var(--sv-text-dim)' }}>
+            Post Daily Sales Batch
+          </button>
+          <button disabled style={{ padding: '8px 16px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: 'not-allowed', fontSize: 13, color: 'var(--sv-text-dim)' }}>
+            Post Monthly COGS Journal
+          </button>
+        </div>
+        <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>
+          Actions will be enabled once account mapping is configured below.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
+  const [accounts, setAccounts] = useState<{ accountId: string; code: string; name: string; type: string; class: string }[]>([]);
+  const [mappings, setMappings] = useState<Record<string, { xero_account_id: string; xero_account_code: string; xero_account_name: string }>>({});
+  const [trackingCategories, setTrackingCategories] = useState<{ trackingCategoryId: string; name: string; options: { trackingOptionId: string; name: string }[] }[]>([]);
+  const [trackingMappings, setTrackingMappings] = useState<{ ims_location_id: number | null; ims_channel: string | null; xero_tracking_option_id: string }[]>([]);
+  const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const ROLE_DEFS = [
+    { key: 'inventory_asset', label: 'Inventory Asset', desc: 'Stock on hand (Balance Sheet)', filter: (a: any) => a.class === 'ASSET' },
+    { key: 'inventory_in_transit', label: 'Inventory in Transit', desc: 'Goods ordered but not received', filter: (a: any) => a.class === 'ASSET' },
+    { key: 'cogs', label: 'Cost of Goods Sold', desc: 'COGS expense (P&L)', filter: (a: any) => a.class === 'EXPENSE' },
+    { key: 'sales_revenue', label: 'Sales Revenue', desc: 'Income from sales (P&L)', filter: (a: any) => a.class === 'REVENUE' },
+    { key: 'freight', label: 'Freight / Shipping', desc: 'Landed cost charges', filter: (a: any) => a.class === 'EXPENSE' || a.class === 'ASSET' },
+  ];
+
+  useEffect(() => {
+    (async () => {
+      const bid = getBusinessId();
+      try {
+        const [accRes, trackRes, locRes] = await Promise.all([
+          fetch(`/api/xero/accounts?databaseId=${encodeURIComponent(bid)}`).then(r => r.json()),
+          fetch(`/api/xero/tracking?databaseId=${encodeURIComponent(bid)}`).then(r => r.json()),
+          fetch(`/api/ims/locations?databaseId=${encodeURIComponent(bid)}`).then(r => r.json()).catch(() => ({ locations: [] })),
+        ]);
+        setAccounts(accRes.accounts ?? []);
+        const mapObj: any = {};
+        for (const m of (accRes.mappings ?? [])) mapObj[m.role_key] = m;
+        setMappings(mapObj);
+        setTrackingCategories(trackRes.categories ?? []);
+        setTrackingMappings(trackRes.mappings ?? []);
+        setLocations(locRes.locations ?? locRes ?? []);
+      } catch {}
+      setLoading(false);
+    })();
+  }, []);
+
+  async function saveAccountMapping(roleKey: string, accountId: string) {
+    const acc = accounts.find(a => a.accountId === accountId);
+    if (!acc) return;
+    setSaving(roleKey);
+    try {
+      await fetch('/api/xero/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId: getBusinessId(), roleKey, xeroAccountId: acc.accountId, xeroAccountCode: acc.code, xeroAccountName: acc.name }),
+      });
+      setMappings(prev => ({ ...prev, [roleKey]: { xero_account_id: acc.accountId, xero_account_code: acc.code, xero_account_name: acc.name } }));
+    } catch {}
+    setSaving(null);
+  }
+
+  async function saveTrackingMapping(locationId: number | null, channel: string | null, optionId: string, categoryId: string) {
+    const cat = trackingCategories.find(c => c.trackingCategoryId === categoryId);
+    const opt = cat?.options.find(o => o.trackingOptionId === optionId);
+    try {
+      await fetch('/api/xero/tracking', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId: getBusinessId(), imsLocationId: locationId, imsChannel: channel, xeroCategoryId: categoryId, xeroOptionId: optionId, xeroOptionName: opt?.name }),
+      });
+      setTrackingMappings(prev => {
+        const filtered = prev.filter(m => !(m.ims_location_id === locationId && m.ims_channel === channel));
+        return [...filtered, { ims_location_id: locationId, ims_channel: channel, xero_tracking_option_id: optionId }];
+      });
+    } catch {}
+  }
+
+  if (loading) return <div style={{ padding: 20, color: 'var(--sv-text-dim)' }}>Loading Xero accounts...</div>;
+
+  // Flatten all tracking options for the selects
+  const allTrackingOptions = trackingCategories.flatMap(c => c.options.map(o => ({ ...o, categoryId: c.trackingCategoryId, categoryName: c.name })));
+
+  // Build location/channel rows for tracking mapping
+  const trackingRows: { label: string; locationId: number | null; channel: string | null }[] = [
+    ...locations.map(l => ({ label: l.name, locationId: l.id, channel: null })),
+    { label: 'Online Sales', locationId: null, channel: 'online' },
+    { label: 'Wholesale', locationId: null, channel: 'wholesale' },
+  ];
+
+  return (
+    <div style={{ maxWidth: 800 }}>
+      {/* Account mapping */}
+      <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
+        <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Chart of Accounts Mapping</h3>
+        <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
+          Map your Xero accounts so synced transactions land in the correct ledger accounts.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {ROLE_DEFS.map(role => {
+            const filtered = accounts.filter(role.filter);
+            const current = mappings[role.key];
+            return (
+              <div key={role.key}>
+                <label style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 4, display: 'block' }}>{role.label}</label>
+                <select
+                  value={current?.xero_account_id ?? ''}
+                  onChange={e => saveAccountMapping(role.key, e.target.value)}
+                  disabled={saving === role.key}
+                  style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: 13 }}
+                >
+                  <option value="">— Select account —</option>
+                  {filtered.map(a => (
+                    <option key={a.accountId} value={a.accountId}>{a.code} — {a.name}</option>
+                  ))}
+                </select>
+                <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{role.desc}</span>
+              </div>
+            );
+          })}
+        </div>
+        {accounts.length === 0 && (
+          <p style={{ margin: '12px 0 0', fontSize: 12, color: '#f87171' }}>Could not load accounts from Xero. Check your connection.</p>
+        )}
+      </div>
+
+      {/* Tracking category mapping */}
+      <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
+        <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Tracking Category Mapping</h3>
+        <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
+          Link each IMS location/channel to a Xero Tracking Category option so your P&L can be viewed by location.
+        </p>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--sv-etch)', textAlign: 'left' }}>
+              <th style={{ padding: '8px 0', color: 'var(--sv-text-dim)', fontWeight: 500 }}>IMS Location / Channel</th>
+              <th style={{ padding: '8px 0', color: 'var(--sv-text-dim)', fontWeight: 500 }}>Xero Tracking Option</th>
+            </tr>
+          </thead>
+          <tbody>
+            {trackingRows.map(row => {
+              const current = trackingMappings.find(m => m.ims_location_id === row.locationId && m.ims_channel === row.channel);
+              return (
+                <tr key={`${row.locationId}-${row.channel}`} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                  <td style={{ padding: '10px 0', color: 'var(--sv-text-main)' }}>{row.label}</td>
+                  <td style={{ padding: '10px 0' }}>
+                    <select
+                      value={current?.xero_tracking_option_id ?? ''}
+                      onChange={e => {
+                        const opt = allTrackingOptions.find(o => o.trackingOptionId === e.target.value);
+                        if (opt) saveTrackingMapping(row.locationId, row.channel, opt.trackingOptionId, opt.categoryId);
+                      }}
+                      style={{ width: '100%', padding: '6px 8px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: 13 }}
+                    >
+                      <option value="">— Select tracking option —</option>
+                      {allTrackingOptions.map(o => (
+                        <option key={o.trackingOptionId} value={o.trackingOptionId}>{o.categoryName}: {o.name}</option>
+                      ))}
+                    </select>
+                  </td>
+                </tr>
+              );
+            })}
+            {trackingRows.length === 0 && (
+              <tr><td colSpan={2} style={{ padding: '16px 0', color: 'var(--sv-text-dim)', textAlign: 'center' }}>No locations configured yet.</td></tr>
+            )}
+          </tbody>
+        </table>
+        {trackingCategories.length === 0 && (
+          <p style={{ margin: '12px 0 0', fontSize: 12, color: '#f87171' }}>No tracking categories found in Xero. Create them in Xero first.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
+  const [events, setEvents] = useState<{ id: number; sync_type: string; reference_id: number | null; xero_id: string | null; status: string; detail: string | null; created_at: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/xero/sync-log?databaseId=${encodeURIComponent(getBusinessId())}&limit=50`);
+        const data = await res.json();
+        setEvents(data.events ?? []);
+      } catch {}
+      setLoading(false);
+    })();
+  }, []);
+
+  const typeLabels: Record<string, string> = {
+    po_bill: 'PO → Bill', po_payment: 'PO Payment', so_invoice: 'SO → Invoice',
+    pos_batch: 'POS Batch', online_batch: 'Online Batch', cogs_journal: 'COGS Journal',
+  };
+
+  if (loading) return <div style={{ padding: 20, color: 'var(--sv-text-dim)' }}>Loading sync history...</div>;
+
+  return (
+    <div style={{ maxWidth: 900 }}>
+      <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
+        <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sync History</h3>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--sv-etch)', textAlign: 'left' }}>
+              <th style={{ padding: '8px 0', color: 'var(--sv-text-dim)', fontWeight: 500 }}>Date</th>
+              <th style={{ padding: '8px 0', color: 'var(--sv-text-dim)', fontWeight: 500 }}>Type</th>
+              <th style={{ padding: '8px 0', color: 'var(--sv-text-dim)', fontWeight: 500 }}>Description</th>
+              <th style={{ padding: '8px 0', color: 'var(--sv-text-dim)', fontWeight: 500 }}>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {events.length === 0 ? (
+              <tr><td colSpan={4} style={{ padding: '20px 0', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No sync events yet</td></tr>
+            ) : events.map(ev => (
+              <tr key={ev.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                <td style={{ padding: '8px 0', color: 'var(--sv-text-main)' }}>{new Date(ev.created_at).toLocaleString()}</td>
+                <td style={{ padding: '8px 0', color: 'var(--sv-text-main)' }}>{typeLabels[ev.sync_type] ?? ev.sync_type}</td>
+                <td style={{ padding: '8px 0', color: 'var(--sv-text-dim)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.detail || '—'}</td>
+                <td style={{ padding: '8px 0' }}>
+                  <span style={{
+                    padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600,
+                    background: ev.status === 'success' ? 'rgba(16,185,129,.15)' : ev.status === 'error' ? 'rgba(248,113,113,.15)' : 'rgba(251,191,36,.15)',
+                    color: ev.status === 'success' ? '#34d399' : ev.status === 'error' ? '#f87171' : '#fbbf24',
+                  }}>
+                    {ev.status}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
@@ -5554,6 +5944,7 @@ export default function ImsPage() {
           {view === 'report-sales-by-branch' && <SalesByBranchView onBack={() => setView('reports')} />}
           {view === 'report-inventory-valuation' && <InventoryValuationView onBack={() => setView('reports')} />}
           {view === 'report-product-margin' && <ProductMarginView onBack={() => setView('reports')} />}
+          {view === 'xero'              && <XeroView />}
         </main>
       </div>
     </div>

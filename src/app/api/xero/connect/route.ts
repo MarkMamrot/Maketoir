@@ -6,48 +6,24 @@
  */
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { randomBytes, createHash } from 'crypto';
-
-const XERO_AUTH_URL = 'https://login.xero.com/identity/connect/authorize';
-
-const XERO_SCOPES = [
-  'openid',
-  'profile',
-  'email',
-  'accounting.invoices',
-  'accounting.payments',
-  'accounting.contacts',
-  'accounting.settings',
-  'offline_access',
-].join(' ');
-
-function requireSession() {
-  const session = cookies().get('marketoir_session');
-  if (!session) return null;
-  try { return JSON.parse(session.value); } catch { return null; }
-}
+import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
+import { generateCodeVerifier, generateCodeChallenge, buildAuthorizeUrl, isXeroConfigured } from '@/services/XeroService';
+import { randomBytes } from 'crypto';
 
 function base64url(buf: Buffer): string {
   return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
 
 export async function GET(req: Request) {
-  const user = requireSession();
-  if (!user) {
-    return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
-  }
+  const { user, response } = requireAdminSession();
+  if (response) return response;
 
   const { searchParams } = new URL(req.url);
   const databaseId = searchParams.get('databaseId');
-  if (!databaseId) {
-    return NextResponse.json({ error: 'databaseId is required.' }, { status: 400 });
-  }
+  const denied = assertBusinessAccess(user, databaseId);
+  if (denied) return denied;
 
-  // Load credentials from .env (app-level config — shared across all businesses)
-  const clientId   = process.env.XERO_CLIENT_ID;
-  const redirectUri = process.env.XERO_REDIRECT_URI;
-
-  if (!clientId || !redirectUri) {
+  if (!isXeroConfigured()) {
     return NextResponse.json(
       { error: 'XERO_CLIENT_ID and XERO_REDIRECT_URI must be set in .env' },
       { status: 500 },
@@ -55,8 +31,8 @@ export async function GET(req: Request) {
   }
 
   // Generate PKCE values
-  const codeVerifier = base64url(randomBytes(32));
-  const codeChallenge = base64url(createHash('sha256').update(codeVerifier).digest());
+  const codeVerifier = generateCodeVerifier();
+  const codeChallenge = generateCodeChallenge(codeVerifier);
   const state = base64url(randomBytes(16));
 
   // Store state + verifier + businessId in a short-lived cookie (10 min)
@@ -68,17 +44,6 @@ export async function GET(req: Request) {
     path: '/',
   });
 
-  const params = new URLSearchParams({
-    response_type: 'code',
-    client_id: clientId,
-    redirect_uri: redirectUri,
-    scope: XERO_SCOPES,
-    state,
-    code_challenge: codeChallenge,
-    code_challenge_method: 'S256',
-  });
-
-  const authUrl = `${XERO_AUTH_URL}?${params.toString()}`;
-  console.log('[xero/connect] client_id:', clientId, '| redirect_uri:', redirectUri);
+  const authUrl = buildAuthorizeUrl(state, codeChallenge);
   return NextResponse.redirect(authUrl);
 }

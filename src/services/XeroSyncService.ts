@@ -1,0 +1,457 @@
+/**
+ * XeroSyncService — builds and posts Xero accounting documents from IMS data.
+ *
+ * Sync rules (agreed architecture):
+ * ─────────────────────────────────────────────────────────────────────────────
+ * PO → Bill:
+ *   • PO created → Draft Bill in Xero
+ *   • Payment recorded on PO → Approve Bill (code to "Inventory in Transit"), record Payment
+ *   • PO received (no deposits) → Approve Bill (code to "Inventory Asset" directly)
+ *   • PO received (with prior deposits) → Journal: DR Inventory Asset, CR Inventory in Transit
+ *
+ * SO (wholesale) → Individual Xero Invoice
+ * POS daily batch → One summary invoice per location per day
+ * Online/Shopify daily → One summary invoice per day
+ * Monthly COGS → Journal: DR COGS, CR Inventory Asset
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+import { xeroApiFetch } from '@/services/XeroService';
+import { query, execute } from '@/services/MySQLService';
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+interface AccountMapping {
+  inventory_asset?: string;
+  inventory_in_transit?: string;
+  cogs?: string;
+  sales_revenue?: string;
+  freight?: string;
+}
+
+interface TrackingMapping {
+  ims_location_id: number | null;
+  ims_channel: string | null;
+  xero_tracking_category_id: string;
+  xero_tracking_option_id: string;
+}
+
+export async function getAccountMappings(businessId: string): Promise<AccountMapping> {
+  const rows = await query<{ role_key: string; xero_account_code: string }>(
+    'SELECT role_key, xero_account_code FROM xero_account_mappings WHERE business_id = ?',
+    [businessId],
+  );
+  const map: any = {};
+  for (const r of rows) map[r.role_key] = r.xero_account_code;
+  return map;
+}
+
+export async function getTrackingMappings(businessId: string): Promise<TrackingMapping[]> {
+  return query<TrackingMapping>(
+    'SELECT ims_location_id, ims_channel, xero_tracking_category_id, xero_tracking_option_id FROM xero_tracking_mappings WHERE business_id = ?',
+    [businessId],
+  );
+}
+
+function getTrackingForLocation(mappings: TrackingMapping[], locationId: number | null, channel?: string) {
+  if (channel) {
+    const m = mappings.find(t => t.ims_channel === channel);
+    if (m) return [{ TrackingCategoryID: m.xero_tracking_category_id, TrackingOptionID: m.xero_tracking_option_id }];
+  }
+  if (locationId) {
+    const m = mappings.find(t => t.ims_location_id === locationId);
+    if (m) return [{ TrackingCategoryID: m.xero_tracking_category_id, TrackingOptionID: m.xero_tracking_option_id }];
+  }
+  return undefined;
+}
+
+async function logSync(
+  businessId: string,
+  syncType: string,
+  referenceId: number | null,
+  xeroId: string | null,
+  status: 'success' | 'error' | 'skipped',
+  detail?: string,
+) {
+  await execute(
+    `INSERT INTO xero_sync_log (business_id, sync_type, reference_id, xero_id, status, detail) VALUES (?, ?, ?, ?, ?, ?)`,
+    [businessId, syncType, referenceId, xeroId, status, detail ?? null],
+  );
+}
+
+// ─── PO → Bill ───────────────────────────────────────────────────────────────
+
+interface POForSync {
+  id: number;
+  po_number: string;
+  supplier_id?: number;
+  supplier_name?: string;
+  location_id: number;
+  order_date: string;
+  expected_date?: string;
+  notes?: string;
+  subtotal: number;
+  tax_amount: number;
+  freight?: number;
+  discount?: number;
+  total_amount: number;
+  currency_code?: string;
+  supplier_invoice_number?: string;
+  items?: {
+    variant_id: string;
+    sku?: string;
+    product_name?: string;
+    qty_ordered: number;
+    unit_cost: number;
+    tax_rate: number;
+    line_total: number;
+  }[];
+  payments?: { amount: number; payment_date: string }[];
+}
+
+/**
+ * Create a Draft Bill in Xero from a PO.
+ * Called when a PO is created or first synced.
+ */
+export async function syncPOAsDraftBill(businessId: string, po: POForSync): Promise<string | null> {
+  const accounts = await getAccountMappings(businessId);
+  const trackingMappings = await getTrackingMappings(businessId);
+
+  if (!accounts.inventory_asset) {
+    await logSync(businessId, 'po_bill', po.id, null, 'skipped', 'No inventory_asset account mapped');
+    return null;
+  }
+
+  // Determine line account: if PO has any payments, use "in transit"; otherwise "asset"
+  const hasDeposits = (po.payments?.length ?? 0) > 0;
+  const lineAccountCode = hasDeposits
+    ? (accounts.inventory_in_transit || accounts.inventory_asset)
+    : accounts.inventory_asset;
+
+  const tracking = getTrackingForLocation(trackingMappings, po.location_id);
+
+  const lineItems = (po.items ?? []).map(item => ({
+    Description: `${item.sku || ''} ${item.product_name || ''}`.trim() || 'Inventory',
+    Quantity: item.qty_ordered,
+    UnitAmount: item.unit_cost,
+    AccountCode: lineAccountCode,
+    TaxAmount: item.qty_ordered * item.unit_cost * (item.tax_rate / 100),
+    Tracking: tracking,
+  }));
+
+  // Add freight as a separate line if present
+  if (po.freight && po.freight > 0) {
+    lineItems.push({
+      Description: 'Freight / Shipping',
+      Quantity: 1,
+      UnitAmount: po.freight,
+      AccountCode: accounts.freight || lineAccountCode,
+      TaxAmount: 0,
+      Tracking: tracking,
+    });
+  }
+
+  const bill: any = {
+    Type: 'ACCPAY',
+    Contact: { Name: po.supplier_name || `Supplier #${po.supplier_id}` },
+    Date: po.order_date,
+    DueDate: po.expected_date || po.order_date,
+    Reference: po.po_number,
+    Status: 'DRAFT',
+    LineAmountTypes: 'Exclusive',
+    CurrencyCode: po.currency_code || 'AUD',
+    LineItems: lineItems,
+  };
+
+  if (po.supplier_invoice_number) {
+    bill.InvoiceNumber = po.supplier_invoice_number;
+  }
+
+  try {
+    const result = await xeroApiFetch(businessId, '/Invoices', { method: 'POST', body: { Invoices: [bill] } });
+    const xeroId = result.Invoices?.[0]?.InvoiceID ?? null;
+    await logSync(businessId, 'po_bill', po.id, xeroId, 'success', `Draft Bill created: ${po.po_number}`);
+    return xeroId;
+  } catch (err: any) {
+    await logSync(businessId, 'po_bill', po.id, null, 'error', err.message);
+    return null;
+  }
+}
+
+/**
+ * Approve a Bill in Xero (when PO is received or has a payment).
+ */
+export async function approveBill(businessId: string, xeroInvoiceId: string, poId: number): Promise<boolean> {
+  try {
+    await xeroApiFetch(businessId, `/Invoices/${xeroInvoiceId}`, {
+      method: 'POST',
+      body: { Invoices: [{ InvoiceID: xeroInvoiceId, Status: 'AUTHORISED' }] },
+    });
+    await logSync(businessId, 'po_bill', poId, xeroInvoiceId, 'success', 'Bill approved');
+    return true;
+  } catch (err: any) {
+    await logSync(businessId, 'po_bill', poId, xeroInvoiceId, 'error', `Approve failed: ${err.message}`);
+    return false;
+  }
+}
+
+// ─── PO Payment → Xero Payment ──────────────────────────────────────────────
+
+/**
+ * Record a payment against an approved Xero Bill.
+ */
+export async function syncPOPayment(
+  businessId: string,
+  xeroInvoiceId: string,
+  poId: number,
+  amount: number,
+  paymentDate: string,
+  currencyCode: string = 'AUD',
+): Promise<string | null> {
+  // We need a bank account to allocate the payment to.
+  // For now, Xero will use the default "Accounts Payable" flow.
+  const payment = {
+    Invoice: { InvoiceID: xeroInvoiceId },
+    Amount: amount,
+    Date: paymentDate,
+    CurrencyRate: 1,
+  };
+
+  try {
+    const result = await xeroApiFetch(businessId, '/Payments', { method: 'POST', body: { Payments: [payment] } });
+    const paymentId = result.Payments?.[0]?.PaymentID ?? null;
+    await logSync(businessId, 'po_payment', poId, paymentId, 'success', `Payment $${amount} on ${paymentDate}`);
+    return paymentId;
+  } catch (err: any) {
+    await logSync(businessId, 'po_payment', poId, null, 'error', err.message);
+    return null;
+  }
+}
+
+// ─── PO Received (with deposits) → Transfer Journal ──────────────────────────
+
+/**
+ * When a PO is received and had prior deposits (coded to "Inventory in Transit"),
+ * post a journal to move the value:  DR Inventory Asset, CR Inventory in Transit.
+ */
+export async function syncPOReceivedJournal(
+  businessId: string,
+  poId: number,
+  poNumber: string,
+  amount: number,
+  locationId: number,
+): Promise<string | null> {
+  const accounts = await getAccountMappings(businessId);
+  const trackingMappings = await getTrackingMappings(businessId);
+
+  if (!accounts.inventory_asset || !accounts.inventory_in_transit) {
+    await logSync(businessId, 'po_bill', poId, null, 'skipped', 'Missing account mappings for received journal');
+    return null;
+  }
+
+  const tracking = getTrackingForLocation(trackingMappings, locationId);
+
+  const journal = {
+    Narration: `PO ${poNumber} received — transfer from In Transit to Inventory Asset`,
+    JournalLines: [
+      { AccountCode: accounts.inventory_asset, DebitAmount: amount, Tracking: tracking },
+      { AccountCode: accounts.inventory_in_transit, CreditAmount: amount, Tracking: tracking },
+    ],
+  };
+
+  try {
+    const result = await xeroApiFetch(businessId, '/ManualJournals', { method: 'POST', body: { ManualJournals: [journal] } });
+    const journalId = result.ManualJournals?.[0]?.ManualJournalID ?? null;
+    await logSync(businessId, 'po_bill', poId, journalId, 'success', `Received journal posted: $${amount}`);
+    return journalId;
+  } catch (err: any) {
+    await logSync(businessId, 'po_bill', poId, null, 'error', `Received journal failed: ${err.message}`);
+    return null;
+  }
+}
+
+// ─── SO → Xero Invoice ───────────────────────────────────────────────────────
+
+interface SOForSync {
+  id: number;
+  so_number: string;
+  customer_id?: number;
+  customer_name?: string;
+  location_id: number;
+  order_date: string;
+  expected_date?: string;
+  notes?: string;
+  subtotal: number;
+  tax_amount: number;
+  freight?: number;
+  discount?: number;
+  total_amount: number;
+  currency_code?: string;
+  items?: {
+    code?: string;
+    name?: string;
+    qty_ordered: number;
+    unit_price: number;
+    discount_pct: number;
+    tax_rate: number;
+    line_total: number;
+  }[];
+}
+
+/**
+ * Create a Xero Invoice from a wholesale Sales Order.
+ */
+export async function syncSOAsInvoice(businessId: string, so: SOForSync): Promise<string | null> {
+  const accounts = await getAccountMappings(businessId);
+  const trackingMappings = await getTrackingMappings(businessId);
+
+  if (!accounts.sales_revenue) {
+    await logSync(businessId, 'so_invoice', so.id, null, 'skipped', 'No sales_revenue account mapped');
+    return null;
+  }
+
+  const tracking = getTrackingForLocation(trackingMappings, so.location_id, 'wholesale');
+
+  const lineItems = (so.items ?? []).map(item => ({
+    Description: `${item.code || ''} ${item.name || ''}`.trim() || 'Sale',
+    Quantity: item.qty_ordered,
+    UnitAmount: item.unit_price,
+    DiscountRate: item.discount_pct || 0,
+    AccountCode: accounts.sales_revenue,
+    TaxAmount: item.qty_ordered * item.unit_price * (1 - (item.discount_pct || 0) / 100) * (item.tax_rate / 100),
+    Tracking: tracking,
+  }));
+
+  if (so.freight && so.freight > 0) {
+    lineItems.push({
+      Description: 'Freight / Shipping',
+      Quantity: 1,
+      UnitAmount: so.freight,
+      DiscountRate: 0,
+      AccountCode: accounts.freight || accounts.sales_revenue,
+      TaxAmount: 0,
+      Tracking: tracking,
+    });
+  }
+
+  const invoice: any = {
+    Type: 'ACCREC',
+    Contact: { Name: so.customer_name || `Customer #${so.customer_id}` },
+    Date: so.order_date,
+    DueDate: so.expected_date || so.order_date,
+    Reference: so.so_number,
+    Status: 'AUTHORISED',
+    LineAmountTypes: 'Exclusive',
+    CurrencyCode: so.currency_code || 'AUD',
+    LineItems: lineItems,
+  };
+
+  try {
+    const result = await xeroApiFetch(businessId, '/Invoices', { method: 'POST', body: { Invoices: [invoice] } });
+    const xeroId = result.Invoices?.[0]?.InvoiceID ?? null;
+    await logSync(businessId, 'so_invoice', so.id, xeroId, 'success', `Invoice created: ${so.so_number}`);
+    return xeroId;
+  } catch (err: any) {
+    await logSync(businessId, 'so_invoice', so.id, null, 'error', err.message);
+    return null;
+  }
+}
+
+// ─── POS/Online Daily Batch → Summary Invoice ────────────────────────────────
+
+interface DailySalesBatch {
+  date: string;          // YYYY-MM-DD
+  locationId?: number;   // null for online
+  channel: 'pos' | 'online';
+  totalSales: number;
+  totalTax: number;
+  lineDescription: string;
+}
+
+/**
+ * Post a single summary invoice for a day's POS or online sales.
+ */
+export async function syncDailySalesBatch(businessId: string, batch: DailySalesBatch): Promise<string | null> {
+  const accounts = await getAccountMappings(businessId);
+  const trackingMappings = await getTrackingMappings(businessId);
+
+  if (!accounts.sales_revenue) {
+    await logSync(businessId, batch.channel === 'pos' ? 'pos_batch' : 'online_batch', null, null, 'skipped', 'No sales_revenue account mapped');
+    return null;
+  }
+
+  const tracking = getTrackingForLocation(trackingMappings, batch.locationId ?? null, batch.channel === 'online' ? 'online' : undefined);
+
+  const invoice: any = {
+    Type: 'ACCREC',
+    Contact: { Name: batch.channel === 'pos' ? 'POS Sales (Summary)' : 'Online Sales (Summary)' },
+    Date: batch.date,
+    DueDate: batch.date,
+    Reference: `${batch.channel.toUpperCase()}-${batch.date}${batch.locationId ? `-L${batch.locationId}` : ''}`,
+    Status: 'AUTHORISED',
+    LineAmountTypes: 'Exclusive',
+    CurrencyCode: 'AUD',
+    LineItems: [{
+      Description: batch.lineDescription,
+      Quantity: 1,
+      UnitAmount: batch.totalSales,
+      AccountCode: accounts.sales_revenue,
+      TaxAmount: batch.totalTax,
+      Tracking: tracking,
+    }],
+  };
+
+  try {
+    const result = await xeroApiFetch(businessId, '/Invoices', { method: 'POST', body: { Invoices: [invoice] } });
+    const xeroId = result.Invoices?.[0]?.InvoiceID ?? null;
+    const syncType = batch.channel === 'pos' ? 'pos_batch' : 'online_batch';
+    await logSync(businessId, syncType, null, xeroId, 'success', `${batch.channel} batch ${batch.date}`);
+    return xeroId;
+  } catch (err: any) {
+    const syncType = batch.channel === 'pos' ? 'pos_batch' : 'online_batch';
+    await logSync(businessId, syncType, null, null, 'error', err.message);
+    return null;
+  }
+}
+
+// ─── Monthly COGS Journal ────────────────────────────────────────────────────
+
+/**
+ * Post a manual journal: DR Cost of Goods Sold, CR Inventory Asset.
+ * Amount = sum(qty_sold × avg_cost) for the given month.
+ */
+export async function syncMonthlyCOGSJournal(
+  businessId: string,
+  month: string, // YYYY-MM
+  totalCOGS: number,
+  locationId?: number,
+): Promise<string | null> {
+  const accounts = await getAccountMappings(businessId);
+  const trackingMappings = await getTrackingMappings(businessId);
+
+  if (!accounts.cogs || !accounts.inventory_asset) {
+    await logSync(businessId, 'cogs_journal', null, null, 'skipped', 'Missing COGS or Inventory Asset account mapping');
+    return null;
+  }
+
+  const tracking = getTrackingForLocation(trackingMappings, locationId ?? null);
+
+  const journal = {
+    Narration: `Monthly COGS — ${month}${locationId ? ` (Location ${locationId})` : ''}`,
+    Date: `${month}-01`,
+    JournalLines: [
+      { AccountCode: accounts.cogs, DebitAmount: totalCOGS, Tracking: tracking },
+      { AccountCode: accounts.inventory_asset, CreditAmount: totalCOGS, Tracking: tracking },
+    ],
+  };
+
+  try {
+    const result = await xeroApiFetch(businessId, '/ManualJournals', { method: 'POST', body: { ManualJournals: [journal] } });
+    const journalId = result.ManualJournals?.[0]?.ManualJournalID ?? null;
+    await logSync(businessId, 'cogs_journal', null, journalId, 'success', `COGS journal ${month}: $${totalCOGS.toFixed(2)}`);
+    return journalId;
+  } catch (err: any) {
+    await logSync(businessId, 'cogs_journal', null, null, 'error', err.message);
+    return null;
+  }
+}

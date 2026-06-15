@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { ImsPORepo } from '@/lib/ims/ImsRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
+import { triggerPOXeroSync } from '@/lib/ims/xeroHooks';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -37,6 +38,12 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         if (vids.length > 0) {
           refreshVariantCache(vids).catch(err => console.error('Failed inline cache refresh for PO:', err));
         }
+      }
+
+      // Fire-and-forget Xero sync on status change
+      const session = getSession();
+      if (session?.userSpreadsheetId) {
+        triggerPOXeroSync(session.userSpreadsheetId, Number(params.id), status).catch(() => {});
       }
 
     } else {

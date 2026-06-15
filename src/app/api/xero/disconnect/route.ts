@@ -5,34 +5,26 @@
  * Revokes the Xero token (best-effort) and clears all Xero credentials from DB.
  */
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { clearXeroTokens } from '@/services/XeroService';
 import { decrypt } from '@/lib/encryption';
 
 const XERO_REVOKE_URL = 'https://identity.xero.com/connect/revocation';
 
-function requireSession() {
-  const session = cookies().get('marketoir_session');
-  if (!session) return null;
-  try { return JSON.parse(session.value); } catch { return null; }
-}
-
 export async function POST(req: Request) {
-  const user = requireSession();
-  if (!user) {
-    return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
-  }
+  const { user, response } = requireAdminSession();
+  if (response) return response;
 
   const { databaseId } = await req.json();
-  if (!databaseId || databaseId !== user.userSpreadsheetId) {
-    return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
-  }
+  const denied = assertBusinessAccess(user, databaseId);
+  if (denied) return denied;
 
   try {
     // Best-effort revoke at Xero
     const row = await ConnectionsRepository.get(databaseId);
     if (row?.xero_refresh_token) {
-    const clientId = row?.xero_client_id || process.env.XERO_CLIENT_ID;
+      const clientId = process.env.XERO_CLIENT_ID;
       if (clientId) {
         const refreshToken = decrypt(row.xero_refresh_token);
         await fetch(XERO_REVOKE_URL, {
@@ -48,16 +40,10 @@ export async function POST(req: Request) {
     }
 
     // Clear Xero fields from DB
-    await ConnectionsRepository.upsert(databaseId, {
-      xero_tenant_id:    null,
-      xero_tenant_name:  null,
-      xero_access_token:  null,
-      xero_refresh_token: null,
-      xero_token_expiry:  null,
-    });
+    await clearXeroTokens(databaseId);
 
     return NextResponse.json({ success: true });
-  } catch (err: any) {
+  } catch {
     return NextResponse.json({ error: 'Failed to disconnect.' }, { status: 500 });
   }
 }

@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { ImsPORepo } from '@/lib/ims/ImsRepository';
+import { triggerPOPaymentXeroSync } from '@/lib/ims/xeroHooks';
+
+function getSession() {
+  const c = cookies().get('marketoir_session');
+  if (!c?.value) return null;
+  try { return JSON.parse(c.value); } catch { return null; }
+}
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -34,6 +42,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       amount_local: parsedAmount * parsedRate,
       notes: notes || undefined,
     });
+
+    // Fire-and-forget Xero payment sync
+    const session = getSession();
+    if (session?.userSpreadsheetId && payment?.id) {
+      triggerPOPaymentXeroSync(session.userSpreadsheetId, Number(params.id), payment.id).catch(() => {});
+    }
+
     return NextResponse.json({ success: true, data: payment });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
