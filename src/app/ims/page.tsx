@@ -193,7 +193,7 @@ function Row3({ children }: { children: React.ReactNode }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView) => void }) {
-  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: true, __orders: true, __integrations: true });
+  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: false, __orders: false, __integrations: false });
   const [collapsed, setCollapsed] = useState(false);
 
   const toggleSection = (id: string) => setSectionOpen(p => ({ ...p, [id]: !p[id] }));
@@ -6112,6 +6112,132 @@ function BranchTransfersView() {
   const [receiveQtys, setReceiveQtys]   = useState<Record<number, string>>({});
   const [receiving, setReceiving]       = useState(false);
 
+  // ── Replenish Wizard ──────────────────────────────────────────────────────
+  type ReplenishItem = {
+    variant_id: string; sku: string | null; product_name: string; variant_label: string | null;
+    need: number; warehouse_soh: number; allocated: number; unit_cost: number;
+  };
+  type ReplenishBranch = { location_id: number; location_name: string; items: ReplenishItem[] };
+  const REPLENISH_KEY = 'ims_replenish_defaults';
+  const [rpOpen, setRpOpen]           = useState(false);
+  const [rpStep, setRpStep]           = useState<1 | 2>(1);
+  const [rpWarehouseId, setRpWarehouseId] = useState<number | ''>('');
+  const [rpBranchIds, setRpBranchIds] = useState<number[]>([]);
+  const [rpStrategy, setRpStrategy]   = useState<'even' | 'priority'>('priority');
+  const [rpPriorityOrder, setRpPriorityOrder] = useState<number[]>([]);
+  const [rpCalculating, setRpCalculating] = useState(false);
+  const [rpPlan, setRpPlan]           = useState<ReplenishBranch[]>([]);
+  const [rpCreating, setRpCreating]   = useState(false);
+  const [rpCreateResults, setRpCreateResults] = useState<string[]>([]);
+
+  const openReplenish = () => {
+    // Load defaults from localStorage
+    const raw = localStorage.getItem(REPLENISH_KEY);
+    if (raw) {
+      try {
+        const d = JSON.parse(raw);
+        if (d.warehouse_id) setRpWarehouseId(d.warehouse_id);
+        if (Array.isArray(d.branch_ids)) setRpBranchIds(d.branch_ids);
+        if (d.strategy) setRpStrategy(d.strategy);
+        if (Array.isArray(d.priority_order)) setRpPriorityOrder(d.priority_order);
+      } catch {}
+    }
+    setRpStep(1); setRpPlan([]); setRpCreateResults([]);
+    setRpOpen(true);
+  };
+
+  const saveReplenishDefaults = (wId: number | '', bIds: number[], strat: 'even' | 'priority', pOrder: number[]) => {
+    localStorage.setItem(REPLENISH_KEY, JSON.stringify({ warehouse_id: wId, branch_ids: bIds, strategy: strat, priority_order: pOrder }));
+  };
+
+  const movePriority = (branchId: number, dir: -1 | 1) => {
+    setRpPriorityOrder(prev => {
+      const arr = [...prev];
+      const idx = arr.indexOf(branchId);
+      if (idx < 0) return arr;
+      const newIdx = idx + dir;
+      if (newIdx < 0 || newIdx >= arr.length) return arr;
+      [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
+      return arr;
+    });
+  };
+
+  // Keep priority order in sync with selected branches
+  const toggleBranch = (id: number, checked: boolean) => {
+    setRpBranchIds(prev => checked ? [...prev, id] : prev.filter(x => x !== id));
+    setRpPriorityOrder(prev => checked ? [...prev, id] : prev.filter(x => x !== id));
+  };
+
+  const calculateReplenish = async () => {
+    if (!rpWarehouseId) { alert('Please select a warehouse location.'); return; }
+    if (rpBranchIds.length === 0) { alert('Please select at least one branch to replenish.'); return; }
+    saveReplenishDefaults(rpWarehouseId, rpBranchIds, rpStrategy, rpPriorityOrder);
+    setRpCalculating(true);
+    try {
+      const res = await apiFetch('/api/ims/branch-transfers/replenish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          warehouse_id:  rpWarehouseId,
+          branch_ids:    rpBranchIds,
+          strategy:      rpStrategy,
+          priority_order: rpPriorityOrder,
+        }),
+      });
+      if (res.branches && res.branches.length === 0) {
+        alert(res.message || 'All selected branches are already at or above minimum stock levels.');
+        return;
+      }
+      setRpPlan(res.branches || []);
+      setRpStep(2);
+    } catch (e: any) { alert(e.message || 'Calculation failed.'); }
+    finally { setRpCalculating(false); }
+  };
+
+  const updateRpAllocated = (branchIdx: number, itemIdx: number, val: number) => {
+    setRpPlan(prev => prev.map((b, bi) => bi !== branchIdx ? b : {
+      ...b,
+      items: b.items.map((it, ii) => ii !== itemIdx ? it : { ...it, allocated: Math.max(0, Math.min(val, it.warehouse_soh)) }),
+    }));
+  };
+
+  const createDraftTransfers = async () => {
+    const activeBranches = rpPlan.filter(b => b.items.some(i => i.allocated > 0));
+    if (activeBranches.length === 0) { alert('No items to transfer — all allocated quantities are 0.'); return; }
+    if (!confirm(`Create ${activeBranches.length} draft branch transfer${activeBranches.length !== 1 ? 's' : ''}?`)) return;
+    setRpCreating(true);
+    const results: string[] = [];
+    try {
+      for (const branch of activeBranches) {
+        const items = branch.items.filter(i => i.allocated > 0).map(i => ({
+          variant_id: i.variant_id,
+          qty_sent:   i.allocated,
+          unit_cost:  i.unit_cost,
+          notes:      `Replenish: need ${i.need}`,
+        }));
+        if (!items.length) continue;
+        try {
+          const res = await apiFetch('/api/ims/branch-transfers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              from_location_id: rpWarehouseId,
+              to_location_id:   branch.location_id,
+              transfer_date:    today(),
+              notes:            `Auto-replenishment to ${branch.location_name}`,
+              items,
+            }),
+          });
+          results.push(`✓ ${branch.location_name}: BT created (${items.length} line${items.length !== 1 ? 's' : ''})`);
+        } catch (e: any) {
+          results.push(`✗ ${branch.location_name}: ${e.message || 'Failed'}`);
+        }
+      }
+      setRpCreateResults(results);
+      load();
+    } finally { setRpCreating(false); }
+  };
+
   const sf = (k: string) => (e: React.ChangeEvent<any>) => setForm((p: any) => ({ ...p, [k]: e.target.value }));
 
   const load = useCallback(async () => {
@@ -6296,7 +6422,10 @@ function BranchTransfersView() {
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Branch Transfers</h1>
           <div style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginTop: 2 }}>{filtered.length} transfer{filtered.length !== 1 ? 's' : ''}</div>
         </div>
-        <button onClick={openNew} style={btnStyle('action')}>+ New Transfer</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={openReplenish} style={btnStyle('secondary')}>⟳ Replenish from Warehouse</button>
+          <button onClick={openNew} style={btnStyle('action')}>+ New Transfer</button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -6568,6 +6697,221 @@ function BranchTransfersView() {
               {receiving ? 'Processing…' : 'Confirm Receipt & Move Stock'}
             </button>
           </div>
+        </Modal>
+      )}
+
+      {/* ── Replenish Wizard Modal ─────────────────────────────────────────── */}
+      {rpOpen && (
+        <Modal title={rpStep === 1 ? 'Replenish Stores from Warehouse' : 'Review Allocation'} onClose={() => setRpOpen(false)} width={rpStep === 2 ? 900 : 560}>
+          {rpStep === 1 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+              {/* Warehouse */}
+              <div>
+                <label style={{ ...labelStyle, fontWeight: 700 }}>Warehouse Location</label>
+                <select
+                  value={rpWarehouseId}
+                  onChange={e => {
+                    const id = Number(e.target.value);
+                    setRpWarehouseId(id || '');
+                    // Remove warehouse from branch selection
+                    setRpBranchIds(prev => prev.filter(x => x !== id));
+                    setRpPriorityOrder(prev => prev.filter(x => x !== id));
+                  }}
+                  style={{ ...inputStyle, maxWidth: 280 }}
+                >
+                  <option value="">— select warehouse —</option>
+                  {locations.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+              </div>
+
+              {/* Branches to replenish */}
+              <div>
+                <label style={{ ...labelStyle, fontWeight: 700 }}>Branches to Replenish</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {locations.filter((l: any) => l.id !== Number(rpWarehouseId)).map((l: any) => (
+                    <label key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+                      <input
+                        type="checkbox"
+                        checked={rpBranchIds.includes(l.id)}
+                        onChange={e => toggleBranch(l.id, e.target.checked)}
+                      />
+                      {l.name}
+                    </label>
+                  ))}
+                  {locations.filter((l: any) => l.id !== Number(rpWarehouseId)).length === 0 && (
+                    <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Select a warehouse first to see branches.</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Shortage strategy */}
+              <div>
+                <label style={{ ...labelStyle, fontWeight: 700 }}>When Warehouse Can't Fulfil All</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+                    <input type="radio" checked={rpStrategy === 'even'} onChange={() => setRpStrategy('even')} />
+                    <div>
+                      <span style={{ fontWeight: 600 }}>Split evenly</span>
+                      <span style={{ color: 'var(--sv-text-dim)', marginLeft: 6 }}>Distribute proportionally to each branch's need</span>
+                    </div>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+                    <input type="radio" checked={rpStrategy === 'priority'} onChange={() => {
+                      setRpStrategy('priority');
+                      // Init priority order from current branch selection if not yet set
+                      if (rpPriorityOrder.length === 0) setRpPriorityOrder([...rpBranchIds]);
+                    }} />
+                    <div>
+                      <span style={{ fontWeight: 600 }}>Priority order</span>
+                      <span style={{ color: 'var(--sv-text-dim)', marginLeft: 6 }}>Fill highest-priority branches first</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Priority order UI */}
+              {rpStrategy === 'priority' && rpBranchIds.length > 0 && (() => {
+                // Ensure priority order is in sync
+                const orderedIds = [
+                  ...rpPriorityOrder.filter(id => rpBranchIds.includes(id)),
+                  ...rpBranchIds.filter(id => !rpPriorityOrder.includes(id)),
+                ];
+                if (JSON.stringify(orderedIds) !== JSON.stringify(rpPriorityOrder)) {
+                  setTimeout(() => setRpPriorityOrder(orderedIds), 0);
+                }
+                return (
+                  <div>
+                    <label style={{ ...labelStyle, fontWeight: 700 }}>Priority Order (top = highest priority)</label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {orderedIds.map((branchId, idx) => {
+                        const loc = locations.find((l: any) => l.id === branchId);
+                        if (!loc) return null;
+                        return (
+                          <div key={branchId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--sv-bg-2)', borderRadius: 6, border: '1px solid var(--sv-etch)', fontSize: 13 }}>
+                            <span style={{ fontWeight: 600, color: 'var(--sv-text-dim)', width: 20, textAlign: 'right', flexShrink: 0 }}>{idx + 1}.</span>
+                            <span style={{ flex: 1 }}>{loc.name}</span>
+                            <button type="button" onClick={() => movePriority(branchId, -1)} disabled={idx === 0} style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? 'var(--sv-text-muted)' : 'var(--sv-text-dim)', fontSize: 16, lineHeight: 1, padding: '0 4px' }} title="Move up">↑</button>
+                            <button type="button" onClick={() => movePriority(branchId, 1)} disabled={idx === orderedIds.length - 1} style={{ background: 'none', border: 'none', cursor: idx === orderedIds.length - 1 ? 'default' : 'pointer', color: idx === orderedIds.length - 1 ? 'var(--sv-text-muted)' : 'var(--sv-text-dim)', fontSize: 16, lineHeight: 1, padding: '0 4px' }} title="Move down">↓</button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingTop: 4, borderTop: '1px solid var(--sv-etch)' }}>
+                <button type="button" onClick={() => setRpOpen(false)} style={btnStyle('ghost')}>Cancel</button>
+                <button
+                  type="button"
+                  disabled={rpCalculating || !rpWarehouseId || rpBranchIds.length === 0}
+                  onClick={calculateReplenish}
+                  style={btnStyle('action')}
+                >{rpCalculating ? 'Calculating…' : 'Calculate →'}</button>
+              </div>
+            </div>
+          )}
+
+          {rpStep === 2 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+              {rpCreateResults.length > 0 ? (
+                /* Results after creating */
+                <div>
+                  <div style={{ marginBottom: 16 }}>
+                    {rpCreateResults.map((r, i) => (
+                      <div key={i} style={{ fontSize: 13, padding: '4px 0', color: r.startsWith('✓') ? 'var(--sv-mint)' : 'var(--sv-red)' }}>{r}</div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button type="button" onClick={() => setRpOpen(false)} style={btnStyle('action')}>Done</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Summary banner */}
+                  {(() => {
+                    const shortfalls = rpPlan.flatMap(b => b.items.filter(i => i.allocated < i.need));
+                    const zeros = rpPlan.flatMap(b => b.items.filter(i => i.allocated === 0 && i.need > 0));
+                    return (shortfalls.length > 0 && (
+                      <div style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--sv-amber-tint)', border: '1px solid var(--sv-amber-border)', marginBottom: 16, fontSize: 13 }}>
+                        ⚠ {zeros.length > 0 ? `${zeros.length} line${zeros.length !== 1 ? 's' : ''} cannot be filled (0 warehouse stock). ` : ''}
+                        {shortfalls.length - zeros.length > 0 ? `${shortfalls.length - zeros.length} line${shortfalls.length - zeros.length !== 1 ? 's' : ''} partially filled due to insufficient warehouse stock. ` : ''}
+                        You can adjust allocations manually below.
+                      </div>
+                    ));
+                  })()}
+
+                  {/* Branch allocation tables */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxHeight: '55vh', overflowY: 'auto', paddingRight: 4 }}>
+                    {rpPlan.map((branch, bi) => (
+                      <div key={branch.location_id}>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--sv-text-strong)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {branch.location_name}
+                          <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--sv-text-dim)' }}>
+                            {branch.items.filter(i => i.allocated > 0).length} of {branch.items.length} lines have stock
+                          </span>
+                        </div>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                          <thead>
+                            <tr style={{ background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)' }}>
+                              <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600 }}>Product</th>
+                              <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, whiteSpace: 'nowrap' }}>Need</th>
+                              <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, whiteSpace: 'nowrap' }}>WH Stock</th>
+                              <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, whiteSpace: 'nowrap' }}>Allocate</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {branch.items.map((item, ii) => {
+                              const isShort = item.allocated < item.need;
+                              const isZero  = item.allocated === 0;
+                              return (
+                                <tr key={item.variant_id} style={{ borderBottom: '1px solid var(--sv-etch)', background: isZero ? 'rgba(239,68,68,.05)' : isShort ? 'rgba(245,158,11,.05)' : 'transparent' }}>
+                                  <td style={{ padding: '6px 10px' }}>
+                                    <div style={{ fontWeight: 500, color: isZero ? 'var(--sv-text-dim)' : 'var(--sv-text-strong)' }}>{item.product_name}{item.variant_label ? ` — ${item.variant_label}` : ''}</div>
+                                    {item.sku && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{item.sku}</div>}
+                                  </td>
+                                  <td style={{ textAlign: 'right', padding: '6px 10px', color: 'var(--sv-text-dim)' }}>{item.need}</td>
+                                  <td style={{ textAlign: 'right', padding: '6px 10px', color: item.warehouse_soh === 0 ? 'var(--sv-red)' : item.warehouse_soh < item.need ? 'var(--sv-amber)' : 'var(--sv-mint)', fontWeight: 600 }}>{item.warehouse_soh}</td>
+                                  <td style={{ textAlign: 'right', padding: '6px 4px' }}>
+                                    {item.warehouse_soh === 0 ? (
+                                      <span style={{ fontSize: 12, color: 'var(--sv-text-muted)', padding: '4px 6px' }}>—</span>
+                                    ) : (
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        max={item.warehouse_soh}
+                                        value={item.allocated}
+                                        onChange={e => updateRpAllocated(bi, ii, Number(e.target.value))}
+                                        style={{ ...inputStyle, width: 70, textAlign: 'right', fontSize: 13, padding: '4px 6px', marginBottom: 0, borderColor: isShort ? 'var(--sv-amber)' : undefined }}
+                                      />
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, paddingTop: 14, borderTop: '1px solid var(--sv-etch)', marginTop: 4 }}>
+                    <button type="button" onClick={() => setRpStep(1)} style={btnStyle('ghost')}>← Back</button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button type="button" onClick={() => setRpOpen(false)} style={btnStyle('ghost')}>Cancel</button>
+                      <button
+                        type="button"
+                        disabled={rpCreating || rpPlan.every(b => b.items.every(i => i.allocated === 0))}
+                        onClick={createDraftTransfers}
+                        style={btnStyle('action')}
+                      >{rpCreating ? 'Creating…' : `Create ${rpPlan.filter(b => b.items.some(i => i.allocated > 0)).length} Draft Transfer${rpPlan.filter(b => b.items.some(i => i.allocated > 0)).length !== 1 ? 's' : ''}`}</button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </Modal>
       )}
     </div>
