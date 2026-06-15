@@ -1,12 +1,12 @@
 /**
- * XeroService — OAuth 2.0 PKCE + Xero API wrapper.
+ * XeroService — OAuth 2.0 (Confidential Web App) + Xero API wrapper.
  *
  * - Handles token exchange (authorization_code → tokens)
- * - Auto-refreshes expired access tokens
+ * - Auto-refreshes expired access tokens using refresh_token (offline_access)
  * - Provides typed helpers for common Xero accounting endpoints
  *
  * Credentials flow:
- *   XERO_CLIENT_ID and XERO_REDIRECT_URI from .env (app-level, shared).
+ *   XERO_CLIENT_ID, XERO_CLIENT_SECRET, and XERO_REDIRECT_URI from .env (app-level, shared).
  *   Per-business tokens (access, refresh, tenant) stored encrypted in `connections` table.
  */
 
@@ -23,12 +23,18 @@ const XERO_CONNECTIONS_URL = 'https://api.xero.com/connections';
 function getClientId(): string {
   return process.env.XERO_CLIENT_ID ?? '';
 }
+function getClientSecret(): string {
+  return process.env.XERO_CLIENT_SECRET ?? '';
+}
 function getRedirectUri(): string {
   return process.env.XERO_REDIRECT_URI ?? '';
 }
+function getBasicAuthHeader(): string {
+  return 'Basic ' + Buffer.from(`${getClientId()}:${getClientSecret()}`).toString('base64');
+}
 
 export function isXeroConfigured(): boolean {
-  return !!getClientId() && !!getRedirectUri();
+  return !!getClientId() && !!getClientSecret() && !!getRedirectUri();
 }
 
 // ─── PKCE Helpers ─────────────────────────────────────────────────────────────
@@ -51,7 +57,7 @@ export function generateCodeChallenge(verifier: string): string {
 // ─── OAuth URLs ──────────────────────────────────────────────────────────────
 
 const SCOPES = [
-  'openid', 'profile', 'email',
+  'openid', 'profile', 'email', 'offline_access',
   'accounting.settings',
   'accounting.contacts',
   'accounting.invoices',
@@ -85,10 +91,12 @@ interface TokenResponse {
 export async function exchangeCodeForTokens(code: string, codeVerifier: string): Promise<TokenResponse> {
   const res = await fetch(XERO_TOKEN_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: getBasicAuthHeader(),
+    },
     body: new URLSearchParams({
       grant_type: 'authorization_code',
-      client_id: getClientId(),
       code,
       redirect_uri: getRedirectUri(),
       code_verifier: codeVerifier,
@@ -104,10 +112,12 @@ export async function exchangeCodeForTokens(code: string, codeVerifier: string):
 async function refreshAccessToken(refreshToken: string): Promise<TokenResponse> {
   const res = await fetch(XERO_TOKEN_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: getBasicAuthHeader(),
+    },
     body: new URLSearchParams({
       grant_type: 'refresh_token',
-      client_id: getClientId(),
       refresh_token: refreshToken,
     }),
   });

@@ -25,7 +25,7 @@ export async function GET(req: Request) {
 
   if (!isXeroConfigured()) {
     return NextResponse.json(
-      { error: 'XERO_CLIENT_ID and XERO_REDIRECT_URI must be set in .env' },
+      { error: 'XERO_CLIENT_ID, XERO_CLIENT_SECRET, and XERO_REDIRECT_URI must be set in .env' },
       { status: 500 },
     );
   }
