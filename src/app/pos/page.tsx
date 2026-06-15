@@ -180,13 +180,14 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
 type MainScreen = 'pos' | 'eod' | 'reports' | 'parked';
 
 function MainPos({
-  deviceConfig, session, products, paymentMethods,
+  deviceConfig, session, products, paymentMethods, defaultView,
   onLogout, onReceipt,
 }: {
   deviceConfig:   DeviceConfig;
   session:        PosSession;
   products:       CachedProduct[];
   paymentMethods: string[];
+  defaultView:    string;
   onLogout:       () => void;
   onReceipt:      (sale: CompletedSale) => void;
 }) {
@@ -403,7 +404,7 @@ function MainPos({
       {/* Body */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Product Panel */}
-        <ProductPanel products={products} onAdd={addToCart} isReturn={isReturn} onChargeEnter={() => { if (cart.length && !showPayment) setShowPayment(true); }} />
+        <ProductPanel products={products} onAdd={addToCart} isReturn={isReturn} defaultView={defaultView} onChargeEnter={() => { if (cart.length && !showPayment) setShowPayment(true); }} />
 
         {/* Cart Panel */}
         <div style={{ width: 380, display: 'flex', flexDirection: 'column', borderLeft: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
@@ -475,9 +476,17 @@ function saveRecentIds(ids: string[]): void {
 
 // ─── Product Panel ────────────────────────────────────────────────────────────
 
-function ProductPanel({ products, onAdd, isReturn, onChargeEnter }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; isReturn: boolean; onChargeEnter?: () => void }) {
+function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 'all' }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; isReturn: boolean; onChargeEnter?: () => void; defaultView?: string }) {
   const [search, setSearch]             = useState('');
-  const [brand, setBrand]               = useState('');
+  const [brand, setBrand]               = useState(() => defaultView.startsWith('brand:') ? defaultView.slice(6) : '');
+  const [inStockOnly, setInStockOnly]   = useState(() => defaultView === 'in_stock');
+
+  // Pinned variant IDs from the "Specific Products" setting
+  const pinnedIds = useMemo(() => {
+    if (!defaultView.startsWith('variants:')) return null;
+    const ids = defaultView.slice(9).split(',').filter(Boolean);
+    return ids.length ? new Set(ids) : null;
+  }, [defaultView]);
   const [mode, setMode]                 = useState<'browse' | 'search'>('browse');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
@@ -546,13 +555,18 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter }: { products: 
 
   // Main grid products: browse = smart-sorted full list; search = filtered
   const filtered = useMemo(() => {
-    let list = brand ? sortedProducts.filter(p => p.brand === brand) : sortedProducts;
+    let list = inStockOnly ? sortedProducts.filter(p => p.soh > 0) : sortedProducts;
+    if (brand) list = list.filter(p => p.brand === brand);
+    // In browse mode, if specific variants are pinned, restrict to those only
+    if (mode === 'browse' && !search.trim() && pinnedIds) {
+      list = list.filter(p => pinnedIds.has(p.variant_id));
+    }
     if (mode === 'search' && search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(p => matchQuery(p, q));
     }
     return list;
-  }, [sortedProducts, brand, mode, search]);
+  }, [sortedProducts, brand, inStockOnly, pinnedIds, mode, search]);
 
   // Keep dropItemsRef current so the keydown handler always sees the latest list
   dropItemsRef.current = dropdownItems;
@@ -648,6 +662,12 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter }: { products: 
             </div>
           )}
         </div>
+        {/* In-stock only toggle */}
+        <button
+          onClick={() => setInStockOnly(v => !v)}
+          title={inStockOnly ? 'Showing in-stock only — click to show all' : 'Show in-stock only'}
+          style={{ flexShrink: 0, padding: '5px 9px', borderRadius: 6, border: `1px solid ${inStockOnly ? 'var(--sv-mint)' : 'var(--sv-etch)'}`, background: inStockOnly ? 'var(--sv-mint-tint)' : 'transparent', color: inStockOnly ? 'var(--sv-mint)' : 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 12, fontWeight: 600, lineHeight: 1, whiteSpace: 'nowrap' }}
+        >In Stock</button>
         {/* Search button: commits to full grid results mode */}
         <button
           onClick={() => { if (search.trim()) { setMode('search'); setDropdownOpen(false); setHighlightIdx(-1); inputRef.current?.focus(); } }}
@@ -1425,11 +1445,13 @@ export default function PosPage() {
   const [session, setSession]           = useState<PosSession | null>(null);
   const [products, setProducts]         = useState<CachedProduct[]>([]);
   const [methods,  setMethods]          = useState<string[]>(['Cash', 'Card', 'EFT']);
+  const [defaultView, setDefaultView]   = useState<string>('all');
   const [completedSale, setCompletedSale] = useState<CompletedSale | null>(null);
   const [printSettings, setPrintSettings] = useState<ReceiptPrintSettings>({ business_name: '', business_address: '', business_abn: '', pos_receipt_footer: '' });
 
   useEffect(() => {
     fetch('/api/pos/settings/receipt').then(r => r.json()).then(d => setPrintSettings(d)).catch(() => {});
+    fetch('/api/pos/settings/products').then(r => r.json()).then(d => { if (d.defaultView) setDefaultView(d.defaultView); }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -1448,9 +1470,11 @@ export default function PosPage() {
           Promise.all([
             fetch(`/api/pos/products?location_id=${cfg.location_id}`),
             fetch('/api/pos/settings/payment-methods'),
-          ]).then(async ([prodRes, methodRes]) => {
+            fetch('/api/pos/settings/products'),
+          ]).then(async ([prodRes, methodRes, viewRes]) => {
             const prodData   = await prodRes.json().catch(() => ({ products: [] }));
             const methodData = await methodRes.json().catch(() => ({ methods: [] }));
+            const viewData   = await viewRes.json().catch(() => ({ defaultView: 'all' }));
             const freshProducts = prodData.products ?? [];
             if (freshProducts.length) {
               saveProductsCache(freshProducts);
@@ -1459,6 +1483,7 @@ export default function PosPage() {
             if (Array.isArray(methodData.methods) && methodData.methods.length) {
               setMethods(methodData.methods);
             }
+            if (viewData.defaultView) setDefaultView(viewData.defaultView);
           }).catch(() => {/* offline — keep cached */});
         } else {
           setScreen('login');
@@ -1512,6 +1537,7 @@ export default function PosPage() {
       session={session}
       products={products}
       paymentMethods={methods}
+      defaultView={defaultView}
       onLogout={async () => {
         await fetch('/api/pos/auth/logout', { method: 'POST' });
         setSession(null);

@@ -7220,12 +7220,20 @@ function SettingsModal({ isOpen, onClose, syncing, syncLog, handleSync, fullSync
   const { settings, saveSettings } = useImsSettings();
   const [profileOpen, setProfileOpen]       = useState(false);
   const [ordersOpen, setOrdersOpen]         = useState(false);
+  const [posDisplayOpen, setPosDisplayOpen]  = useState(false);
   const [setupOpen, setSetupOpen]           = useState(false);
   const [profileDraft, setProfileDraft]     = useState<Record<string, string>>({});
   const [profileSaving, setProfileSaving]   = useState(false);
   const [paymentTypes, setPaymentTypes]     = useState<string[]>([]);
   const [newPaymentType, setNewPaymentType] = useState('');
   const [ptSaving, setPtSaving]             = useState(false);
+  const [posDisplayView, setPosDisplayView]  = useState('all');
+  const [posDisplaySaving, setPosDisplaySaving] = useState(false);
+  const [posDisplayBrandInput, setPosDisplayBrandInput] = useState('');
+  const [posDisplayVariants, setPosDisplayVariants] = useState<{ variant_id: string; name: string; sku: string | null }[]>([]);
+  const [posPickerSearch, setPosPickerSearch] = useState('');
+  const [posPickerResults, setPosPickerResults] = useState<{ value: string; label: string; meta?: string }[]>([]);
+  const [posPickerOpen, setPosPickerOpen]    = useState(false);
 
   // POS Staff state
   const [posStaffOpen, setPosStaffOpen]     = useState(false);
@@ -7247,7 +7255,16 @@ function SettingsModal({ isOpen, onClose, syncing, syncLog, handleSync, fullSync
   useEffect(() => {
     if (!isOpen) return;
     fetch('/api/pos/settings/payment-methods').then(r => r.json()).then(d => { if (Array.isArray(d.methods)) setPaymentTypes(d.methods); }).catch(() => {});
-    fetch('/api/pos/locations').then(r => r.json()).then(d => { if (Array.isArray(d.locations)) setPosLocations(d.locations); }).catch(() => {});
+    fetch('/api/pos/settings/products').then(r => r.json()).then(d => {
+      if (d.defaultView) {
+        setPosDisplayView(d.defaultView);
+        if (d.defaultView.startsWith('brand:')) setPosDisplayBrandInput(d.defaultView.slice(6));
+        if (d.defaultView.startsWith('variants:') && Array.isArray(d.selectedVariants)) setPosDisplayVariants(d.selectedVariants);
+      }
+    }).catch(() => {});
+    fetch('/api/pos/locations').then(r => r.json()).then(d => {
+      if (Array.isArray(d.locations)) setPosLocations(d.locations);
+    }).catch(() => {});
     loadPosUsers();
   }, [isOpen]);
 
@@ -7257,6 +7274,14 @@ function SettingsModal({ isOpen, onClose, syncing, syncLog, handleSync, fullSync
       await fetch('/api/pos/settings/payment-methods', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ methods }) });
       setPaymentTypes(methods);
     } finally { setPtSaving(false); }
+  };
+
+  const savePosDisplayView = async (view: string) => {
+    setPosDisplaySaving(true);
+    try {
+      await fetch('/api/pos/settings/products', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ defaultView: view }) });
+      setPosDisplayView(view);
+    } finally { setPosDisplaySaving(false); }
   };
 
   const spinIcon = <svg style={{ animation: 'spin 1s linear infinite' }} width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" /></svg>;
@@ -7430,6 +7455,163 @@ function SettingsModal({ isOpen, onClose, syncing, syncLog, handleSync, fullSync
                   <input style={{ ...inputStyle, flex: 1, maxWidth: 220 }} value={newPaymentType} onChange={e => setNewPaymentType(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && newPaymentType.trim()) { savePaymentTypes([...paymentTypes, newPaymentType.trim()]); setNewPaymentType(''); } }} placeholder="Add payment type…" />
                   <button type="button" disabled={!newPaymentType.trim() || ptSaving} onClick={() => { if (newPaymentType.trim()) { savePaymentTypes([...paymentTypes, newPaymentType.trim()]); setNewPaymentType(''); } }} style={btnStyle('action', 'sm')}>{ptSaving ? 'Saving…' : 'Add'}</button>
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── POS Display ── */}
+          <div style={{ marginBottom: 8 }}>
+            <CollHeader label="🖥️ POS Display" open={posDisplayOpen} toggle={() => setPosDisplayOpen(o => !o)} />
+            {posDisplayOpen && (
+              <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
+                <label style={{ ...labelStyle, display: 'block', fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Default Product View</label>
+                <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 12, marginTop: 0 }}>Controls which products appear in the POS grid on load, before any search or filter is applied.</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+
+                  {/* All Products */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                    <input type="radio" name="posDefaultView" checked={posDisplayView === 'all'} onChange={() => { setPosDisplayView('all'); setPosDisplayBrandInput(''); setPosDisplayVariants([]); }} />
+                    <div>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)' }}>All Products</span>
+                      <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginLeft: 8 }}>Show every active product (default)</span>
+                    </div>
+                  </label>
+
+                  {/* In Stock Only */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                    <input type="radio" name="posDefaultView" checked={posDisplayView === 'in_stock'} onChange={() => { setPosDisplayView('in_stock'); setPosDisplayBrandInput(''); setPosDisplayVariants([]); }} />
+                    <div>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)' }}>In Stock Only</span>
+                      <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginLeft: 8 }}>Only products with stock on hand &gt; 0</span>
+                    </div>
+                  </label>
+
+                  {/* By Brand */}
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+                    <input type="radio" name="posDefaultView" checked={posDisplayView.startsWith('brand:')} onChange={() => { setPosDisplayView('brand:'); setPosDisplayVariants([]); }} style={{ marginTop: 3 }} />
+                    <div>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)' }}>By Brand</span>
+                      <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginLeft: 8 }}>Pre-filter the grid to a specific brand</span>
+                      {posDisplayView.startsWith('brand:') && (
+                        <input
+                          style={{ ...inputStyle, display: 'block', marginTop: 6, maxWidth: 220 }}
+                          value={posDisplayBrandInput}
+                          onChange={e => { setPosDisplayBrandInput(e.target.value); setPosDisplayView(`brand:${e.target.value}`); }}
+                          placeholder="Brand name exactly as in Cin7…"
+                        />
+                      )}
+                    </div>
+                  </label>
+
+                  {/* Specific Products */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <input type="radio" name="posDefaultView" checked={posDisplayView.startsWith('variants:')} onChange={() => { setPosDisplayView(posDisplayVariants.length ? `variants:${posDisplayVariants.map(v => v.variant_id).join(',')}` : 'variants:'); setPosDisplayBrandInput(''); }} style={{ marginTop: 3, cursor: 'pointer' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Specific Products</span>
+                      <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginLeft: 8 }}>Hand-pick exactly which products appear</span>
+
+                      {posDisplayView.startsWith('variants:') && (
+                        <div style={{ marginTop: 8 }}>
+                          {/* Selected chips */}
+                          {posDisplayVariants.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                              {posDisplayVariants.map(v => (
+                                <div key={v.variant_id} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px 3px 10px', borderRadius: 99, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', fontSize: 12 }}>
+                                  <span style={{ color: 'var(--sv-text-strong)', fontWeight: 600 }}>{v.name}</span>
+                                  {v.sku && <span style={{ color: 'var(--sv-text-dim)' }}>· {v.sku}</span>}
+                                  <button type="button" onClick={() => {
+                                    const next = posDisplayVariants.filter(x => x.variant_id !== v.variant_id);
+                                    setPosDisplayVariants(next);
+                                    setPosDisplayView(next.length ? `variants:${next.map(x => x.variant_id).join(',')}` : 'variants:');
+                                  }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 15, lineHeight: 1, padding: '0 1px', marginLeft: 2 }}>×</button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Search / add products */}
+                          <div style={{ position: 'relative', maxWidth: 360 }}>
+                            <input
+                              style={{ ...inputStyle, marginBottom: 0, paddingRight: 32 }}
+                              value={posPickerSearch}
+                              placeholder="Search by name, SKU or brand…"
+                              onChange={e => {
+                                const q = e.target.value;
+                                setPosPickerSearch(q);
+                                if (q.length >= 2) {
+                                  fetch(`/api/ims/filters/search?q=${encodeURIComponent(q)}&limit=15`)
+                                    .then(r => r.json())
+                                    .then(d => {
+                                      const products = (d.suggestions ?? []).filter((s: any) => s.type === 'product');
+                                      setPosPickerResults(products);
+                                      setPosPickerOpen(products.length > 0);
+                                    }).catch(() => {});
+                                } else {
+                                  setPosPickerResults([]);
+                                  setPosPickerOpen(false);
+                                }
+                              }}
+                              onBlur={() => setTimeout(() => setPosPickerOpen(false), 200)}
+                              onFocus={() => { if (posPickerResults.length) setPosPickerOpen(true); }}
+                            />
+                            {posPickerSearch && (
+                              <button type="button" onClick={() => { setPosPickerSearch(''); setPosPickerResults([]); setPosPickerOpen(false); }} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
+                            )}
+                            {posPickerOpen && posPickerResults.length > 0 && (
+                              <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 60, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,.35)', maxHeight: 240, overflowY: 'auto' }}>
+                                {posPickerResults.map(r => {
+                                  const alreadyAdded = posDisplayVariants.some(v => v.variant_id === r.value);
+                                  return (
+                                    <div
+                                      key={r.value}
+                                      onMouseDown={e => {
+                                        e.preventDefault();
+                                        if (alreadyAdded) return;
+                                        // Extract clean product name from label ("Product: Name — Variant  ·  Brand: X")
+                                        const namePart = r.label.replace(/^Product:\s*/, '').replace(/\s*·\s*Brand:.*$/, '').trim();
+                                        const skuMatch = (r.meta ?? '').match(/SKU:\s*([^\s·]+)/);
+                                        const sku = skuMatch ? skuMatch[1] : null;
+                                        const next = [...posDisplayVariants, { variant_id: r.value, name: namePart, sku }];
+                                        setPosDisplayVariants(next);
+                                        setPosDisplayView(`variants:${next.map(v => v.variant_id).join(',')}`);
+                                        setPosPickerSearch('');
+                                        setPosPickerResults([]);
+                                        setPosPickerOpen(false);
+                                      }}
+                                      style={{ padding: '8px 12px', cursor: alreadyAdded ? 'default' : 'pointer', background: alreadyAdded ? 'var(--sv-bg-2)' : 'transparent', opacity: alreadyAdded ? 0.5 : 1 }}
+                                      onMouseEnter={e => { if (!alreadyAdded) e.currentTarget.style.background = 'var(--sv-bg-2)'; }}
+                                      onMouseLeave={e => { if (!alreadyAdded) e.currentTarget.style.background = 'transparent'; }}
+                                    >
+                                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {r.label.replace(/^Product:\s*/, '').replace(/\s*·\s*Brand:.*$/, '').trim()}
+                                        {alreadyAdded && <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--sv-mint)', fontWeight: 400 }}>✓ added</span>}
+                                      </div>
+                                      {r.meta && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.meta}</div>}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                          {posDisplayVariants.length === 0 && (
+                            <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: '6px 0 0' }}>Search and add products above.</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+                <button
+                  type="button"
+                  disabled={
+                    posDisplaySaving ||
+                    (posDisplayView.startsWith('brand:') && !posDisplayBrandInput.trim()) ||
+                    (posDisplayView.startsWith('variants:') && posDisplayVariants.length === 0)
+                  }
+                  onClick={() => savePosDisplayView(posDisplayView)}
+                  style={btnStyle('action', 'sm')}
+                >{posDisplaySaving ? 'Saving…' : 'Save'}</button>
               </div>
             )}
           </div>
