@@ -5876,6 +5876,7 @@ export default function ImsPage() {
   const [view, setView] = useState<ImsView>('dashboard');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [syncingSteps, setSyncingSteps] = useState<string[]>([]);
   const [syncLog, setSyncLog] = useState<{ step: string; status: string; message: string }[]>([]);
   const [fullSyncConfirm, setFullSyncConfirm] = useState<'products' | 'sales' | 'pos' | null>(null);
   const [salesMonthsInput, setSalesMonthsInput] = useState(6);
@@ -5883,41 +5884,48 @@ export default function ImsPage() {
 
   const handleSync = async (syncType: 'full' | 'latest', steps: string[], salesMonths?: number) => {
     setSyncing(true);
+    setSyncingSteps(steps);
     setSyncLog([{ step: 'start', status: 'running', message: 'Starting sync...' }]);
     try {
       const res = await fetch('/api/ims/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sync_type: syncType, steps, sales_months: salesMonths ?? 6, po_months: poMonthsInput }),
-
       });
       if (!res.body) throw new Error('No response body');
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
+      let buf = '';
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const text = decoder.decode(value, { stream: true });
-        for (const line of text.split('\n')) {
-          if (!line.startsWith('data: ')) continue;
-          try {
-            const event = JSON.parse(line.slice(6));
-            setSyncLog(prev => {
-              const runningIdx = prev.findIndex(e => e.step === event.step && e.status === 'running');
-              if (runningIdx >= 0) {
-                const next = [...prev];
-                next[runningIdx] = event;
-                return next;
-              }
-              return [...prev, event];
-            });
-          } catch {}
+        buf += decoder.decode(value, { stream: true });
+        const parts = buf.split('\n\n');
+        buf = parts.pop() ?? '';
+        for (const part of parts) {
+          for (const line of part.split('\n')) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const event = JSON.parse(line.slice(6));
+              setSyncLog(prev => {
+                const runningIdx = prev.findIndex(e => e.step === event.step && e.status === 'running');
+                if (runningIdx >= 0) {
+                  const next = [...prev];
+                  next[runningIdx] = event;
+                  return next;
+                }
+                return [...prev, event];
+              });
+            } catch {}
+          }
         }
       }
     } catch (e: any) {
       setSyncLog(prev => [...prev, { step: 'error', status: 'error', message: e.message }]);
     } finally {
+      setSyncLog(prev => [...prev, { step: 'complete', status: 'done', message: '✓ Sync complete.' }]);
       setSyncing(false);
+      setSyncingSteps([]);
     }
   };
 
@@ -6045,6 +6053,7 @@ export default function ImsPage() {
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         syncing={syncing}
+        syncingSteps={syncingSteps}
         syncLog={syncLog}
         handleSync={handleSync}
         fullSyncConfirm={fullSyncConfirm}
@@ -7616,6 +7625,7 @@ interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   syncing: boolean;
+  syncingSteps: string[];
   syncLog: { step: string; status: string; message: string }[];
   handleSync: (syncType: 'full' | 'latest', steps: string[], salesMonths?: number) => void;
   fullSyncConfirm: 'products' | 'sales' | 'pos' | null;
@@ -7629,7 +7639,7 @@ interface SettingsModalProps {
 type PosUser = { id: number; username: string; full_name: string | null; email: string | null; phone: string | null; branch_ids: number[] | null; is_active: number };
 type PosLocation = { id: number; name: string };
 
-function SettingsModal({ isOpen, onClose, syncing, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput }: SettingsModalProps) {
+function SettingsModal({ isOpen, onClose, syncing, syncingSteps, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput }: SettingsModalProps) {
   const { settings, saveSettings } = useImsSettings();
   const [profileOpen, setProfileOpen]       = useState(false);
   const [ordersOpen, setOrdersOpen]         = useState(false);
@@ -7700,14 +7710,22 @@ function SettingsModal({ isOpen, onClose, syncing, syncLog, handleSync, fullSync
   const spinIcon = <svg style={{ animation: 'spin 1s linear infinite' }} width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" /></svg>;
   const syncArrows = <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>;
 
-  const SyncBtn = ({ label, onClick }: { label: string; onClick: () => void }) => (
-    <button onClick={onClick} disabled={syncing} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, padding: '6px 13px', borderRadius: 6, border: 'none', background: syncing ? 'var(--sv-bg-1)' : 'var(--sv-action)', color: syncing ? 'var(--sv-text-dim)' : '#fff', cursor: syncing ? 'not-allowed' : 'pointer' }}>
-      {syncing ? spinIcon : syncArrows}{label}
-    </button>
-  );
-  const FullBtn = ({ onClick }: { onClick: () => void }) => (
-    <button onClick={onClick} disabled={syncing} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 6, border: '1px solid var(--sv-red)', background: 'transparent', color: syncing ? 'var(--sv-text-dim)' : 'var(--sv-red)', cursor: syncing ? 'not-allowed' : 'pointer' }}>Full Sync</button>
-  );
+  const SyncBtn = ({ label, onClick, mySteps }: { label: string; onClick: () => void; mySteps: string[] }) => {
+    const isMe = syncing && mySteps.some(s => syncingSteps.includes(s));
+    return (
+      <button onClick={onClick} disabled={syncing} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, padding: '6px 13px', borderRadius: 6, border: 'none', background: isMe ? 'var(--sv-bg-1)' : 'var(--sv-action)', color: isMe ? 'var(--sv-text-dim)' : '#fff', cursor: syncing ? 'not-allowed' : 'pointer' }}>
+        {isMe ? spinIcon : syncArrows}{label}
+      </button>
+    );
+  };
+  const FullBtn = ({ onClick, mySteps }: { onClick: () => void; mySteps: string[] }) => {
+    const isMe = syncing && mySteps.some(s => syncingSteps.includes(s));
+    return (
+      <button onClick={onClick} disabled={syncing} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 6, border: '1px solid var(--sv-red)', background: 'transparent', color: isMe ? 'var(--sv-text-dim)' : 'var(--sv-red)', cursor: syncing ? 'not-allowed' : 'pointer' }}>
+        {isMe ? spinIcon : null}Full Sync
+      </button>
+    );
+  };
   const CollHeader = ({ label, open, toggle }: { label: string; open: boolean; toggle: () => void }) => (
     <div onClick={toggle} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 16px', cursor: 'pointer', userSelect: 'none', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: open ? '8px 8px 0 0' : 8, fontWeight: 600, fontSize: 14, color: 'var(--sv-text-strong)' }}>
       <span>{label}</span><span style={{ fontSize: 16 }}>{open ? '▲' : '▼'}</span>
@@ -7737,7 +7755,7 @@ function SettingsModal({ isOpen, onClose, syncing, syncLog, handleSync, fullSync
           <div style={{ marginBottom: 10, padding: '13px 16px', background: 'var(--sv-bg-2)', borderRadius: 9, border: '1px solid var(--sv-etch)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Locations &amp; Contacts</div>
-              <SyncBtn label="Sync Now" onClick={() => handleSync('latest', ['locations', 'contacts'])} />
+              <SyncBtn label="Sync Now" onClick={() => handleSync('latest', ['locations', 'contacts'])} mySteps={['locations', 'contacts']} />
             </div>
             <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: 0, lineHeight: 1.5 }}>Import branches and supplier contacts from Cin7. Safe to run at any time.</p>
           </div>
@@ -7747,8 +7765,8 @@ function SettingsModal({ isOpen, onClose, syncing, syncLog, handleSync, fullSync
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Products &amp; Stock</div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <FullBtn onClick={() => setFullSyncConfirm('products')} />
-                <SyncBtn label="Sync Latest" onClick={() => handleSync('latest', ['products', 'stock'])} />
+                <FullBtn onClick={() => setFullSyncConfirm('products')} mySteps={['locations', 'products', 'stock']} />
+                <SyncBtn label="Sync Latest" onClick={() => handleSync('latest', ['products', 'stock'])} mySteps={['products', 'stock']} />
               </div>
             </div>
             <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: 0, lineHeight: 1.5 }}><strong>Sync Latest</strong> updates products modified since last sync. <strong>Full Sync</strong> clears and re-imports everything.</p>
@@ -7761,8 +7779,8 @@ function SettingsModal({ isOpen, onClose, syncing, syncLog, handleSync, fullSync
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <label style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Months</label>
                 <input type="number" min={1} max={120} value={salesMonthsInput} onChange={e => setSalesMonthsInput(Math.max(1, Math.min(120, Number(e.target.value) || 1)))} style={{ width: 56, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 13, fontWeight: 600, textAlign: 'center' }} />
-                <FullBtn onClick={() => setFullSyncConfirm('sales')} />
-                <SyncBtn label="Sync Latest" onClick={() => handleSync('latest', ['sales'])} />
+                <FullBtn onClick={() => setFullSyncConfirm('sales')} mySteps={['sales']} />
+                <SyncBtn label="Sync Latest" onClick={() => handleSync('latest', ['sales'])} mySteps={['sales']} />
               </div>
             </div>
             <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: 0, lineHeight: 1.5 }}><strong>Sync Latest</strong> adds orders since last sync. <strong>Full Sync</strong> rebuilds history from scratch for the chosen number of months.</p>
@@ -7775,8 +7793,8 @@ function SettingsModal({ isOpen, onClose, syncing, syncLog, handleSync, fullSync
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <label style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Months</label>
                 <input type="number" min={1} max={240} value={poMonthsInput} onChange={e => setPoMonthsInput(Math.max(1, Math.min(240, Number(e.target.value) || 1)))} style={{ width: 56, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 13, fontWeight: 600, textAlign: 'center' }} />
-                <FullBtn onClick={() => setFullSyncConfirm('pos')} />
-                <SyncBtn label="Sync Latest" onClick={() => handleSync('latest', ['pos'])} />
+                <FullBtn onClick={() => setFullSyncConfirm('pos')} mySteps={['pos']} />
+                <SyncBtn label="Sync Latest" onClick={() => handleSync('latest', ['pos'])} mySteps={['pos']} />
               </div>
             </div>
             <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: 0, lineHeight: 1.5 }}>Open POs remain editable; received/cancelled locked as historical. <strong>Full Sync</strong> reimports the chosen months.</p>

@@ -370,15 +370,17 @@ export async function POST(req: Request) {
           let variantSynced = 0;
           send({ step: 'products', status: 'running', message: 'Fetching and syncing products from Cin7...' });
 
-          const totalProducts = await cin7ForEachPage(creds.authHeader, '/Products', extraParams, 'ims/products', async (pageProducts) => {
+          const totalProducts = await cin7ForEachPage(creds.authHeader, '/Products', extraParams, 'ims/products', async (pageProducts, pageNum) => {
+          send({ step: 'products', status: 'running', message: `Page ${pageNum} — syncing ${pageProducts.length} products...` });
           for (const p of pageProducts) {
             const cin7Id = Number(p.id);
             if (!cin7Id || isNaN(cin7Id)) continue;
+            if (p.status === 'Inactive') continue;
 
             const supplierContactId = p.supplierId
               ? (supplierContactMap.get(Number(p.supplierId)) ?? null)
               : null;
-            const isActive   = p.status === 'Inactive' ? 0 : 1;
+            const isActive   = 1;
             const onlineRaw  = p.customFields?.products_1004;
             const isOnline   = (onlineRaw === 1 || onlineRaw === '1') ? 1 : 0;
             const packSize    = p.customFields?.products_1005 ? Number(p.customFields.products_1005) : null;
@@ -507,6 +509,7 @@ export async function POST(req: Request) {
             }
             if (p.brand) uniqueBrands.add(p.brand.trim());
           } // end for pageProducts
+          send({ step: 'products', status: 'running', message: `Page ${pageNum} done — ${productNew} products, ${variantSynced} variants so far` });
           }); // end cin7ForEachPage
 
           // Upsert unique brands into ims_brands
