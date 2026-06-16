@@ -548,7 +548,7 @@ export async function POST(req: Request) {
 
           const stockAgg = new Map<string, {
             variantId: string; locationId: number;
-            soh: number; incoming: number; committed: number; minQty: number; reorderQty: number; avgCost: number | null;
+            soh: number; incoming: number; committed: number; avgCost: number | null;
           }>();
 
           for (const s of cin7Stock) {
@@ -567,9 +567,7 @@ export async function POST(req: Request) {
             if (!stockAgg.has(key)) {
               stockAgg.set(key, {
                 variantId, locationId, soh: 0, incoming: 0, committed: 0,
-                minQty:     Number(s.reorderPoint ?? 0),
-                reorderQty: Number(s.reorderQty   ?? 0),
-                avgCost:    variantCostMap.get(variantId) ?? null,
+                avgCost: variantCostMap.get(variantId) ?? null,
               });
             }
             const entry = stockAgg.get(key)!;
@@ -582,17 +580,15 @@ export async function POST(req: Request) {
           for (const s of stockAgg.values()) {
             await imsExecute(
               `INSERT INTO ims_stock
-                 (variant_id, location_id, qty_on_hand, qty_incoming, qty_committed, min_qty, reorder_qty, avg_cost)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                 (variant_id, location_id, qty_on_hand, qty_incoming, qty_committed, avg_cost)
+               VALUES (?, ?, ?, ?, ?, ?)
                ON DUPLICATE KEY UPDATE
                  qty_on_hand   = VALUES(qty_on_hand),
                  qty_incoming  = VALUES(qty_incoming),
                  qty_committed = VALUES(qty_committed),
-                 min_qty       = VALUES(min_qty),
-                 reorder_qty   = VALUES(reorder_qty),
                  avg_cost      = COALESCE(VALUES(avg_cost), avg_cost),
                  updated_at    = CURRENT_TIMESTAMP`,
-              [s.variantId, s.locationId, s.soh, s.incoming, s.committed, s.minQty, s.reorderQty, s.avgCost],
+              [s.variantId, s.locationId, s.soh, s.incoming, s.committed, s.avgCost],
             );
             stockSynced++;
           }
