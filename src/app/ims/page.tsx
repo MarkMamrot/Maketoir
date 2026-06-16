@@ -7519,6 +7519,75 @@ function StockCostImportCard() {
   );
 }
 
+// ── Stock Min Qty / Reorder Qty CSV Import Card ───────────────────────────────
+function StockMinsImportCard() {
+  const [file, setFile]       = useState<File | null>(null);
+  const [running, setRunning] = useState(false);
+  const [result, setResult]   = useState<any | null>(null);
+  const [error, setError]     = useState('');
+
+  const run = async () => {
+    if (!file || running) return;
+    setRunning(true);
+    setResult(null);
+    setError('');
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const res = await fetch('/api/ims/import/stock-mins', { method: 'POST', body });
+      const d = await res.json();
+      if (!res.ok || !d.success) { setError(d.error ?? 'Import failed.'); return; }
+      setResult(d);
+    } catch (e: any) {
+      setError(e.message ?? 'Network error.');
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <div style={{ background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 14, marginBottom: 10 }}>
+      <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Import Min Stock & Reorder Qty (CSV)</div>
+      <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 12 }}>
+        Upload a CSV exported from <strong>Cin7 Omni → Stocktake Master</strong> (Update Mode: <em>Replenishment Values</em>).
+        Columns <strong>SafetyStockQty</strong> → Min Qty and <strong>OptimumStockQty</strong> → Reorder Qty are imported per branch
+        using <strong>BranchName</strong> or <strong>BranchId</strong> columns. If no branch column is present, values apply to all locations for each SKU.
+        Also accepts generic CSVs with "Min Qty" / "Reorder Qty" / "Location" columns.
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <input
+          type="file"
+          accept=".csv,text/csv"
+          onChange={e => { setFile(e.target.files?.[0] ?? null); setResult(null); setError(''); }}
+          style={{ fontSize: 12, flex: 1, minWidth: 0 }}
+        />
+        <button
+          onClick={run}
+          disabled={!file || running}
+          style={{ padding: '6px 14px', borderRadius: 6, border: 'none', cursor: (!file || running) ? 'not-allowed' : 'pointer', background: result ? 'var(--sv-mint)' : 'var(--sv-action)', color: '#fff', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap', opacity: (!file || running) ? 0.6 : 1, flexShrink: 0 }}
+        >
+          {running ? 'Importing…' : result ? 'Done ✓' : 'Import'}
+        </button>
+      </div>
+
+      {error && (
+        <div style={{ marginTop: 10, fontSize: 12, color: 'var(--sv-red)', padding: '6px 10px', background: 'color-mix(in srgb, var(--sv-red) 10%, transparent)', borderRadius: 6 }}>{error}</div>
+      )}
+
+      {result && (
+        <div style={{ marginTop: 10, background: '#111', borderRadius: 6, padding: '8px 12px', fontSize: 12, fontFamily: 'monospace', color: '#aaa', lineHeight: 1.7 }}>
+          <div style={{ color: '#22c55e', fontWeight: 700 }}>✓ Import complete</div>
+          <div>CSV rows read:    {result.summary.csvRowsRead}</div>
+          <div style={{ color: '#22c55e' }}>Stock rows updated: {result.summary.updated}</div>
+          {result.summary.skippedNoValue  > 0 && <div style={{ color: '#f59e0b' }}>Skipped (no value):  {result.summary.skippedNoValue}</div>}
+          {result.summary.skippedNotFound > 0 && <div style={{ color: '#f87171' }}>Not found in IMS: {result.summary.skippedNotFound}{result.notFound?.length ? ` — e.g. ${result.notFound.slice(0, 5).join(', ')}` : ''}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SetupImportCard({ section }: { section: SetupSection }) {
   const { run, running, messages, done } = useImportRunner(section.endpoint);
   const logRef = useRef<HTMLDivElement>(null);
@@ -7972,6 +8041,9 @@ function SettingsModal({ isOpen, onClose, syncing, syncLog, handleSync, fullSync
 
                 {/* ── Stock Cost CSV Import ── */}
                 <StockCostImportCard />
+
+                {/* ── Stock Min / Reorder Qty CSV Import ── */}
+                <StockMinsImportCard />
               </div>
             )}
           </div>
