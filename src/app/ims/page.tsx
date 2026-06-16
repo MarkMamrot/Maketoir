@@ -2414,6 +2414,9 @@ function StockView() {
     return sortDir === 'asc' ? cmp : -cmp;
   });
 
+  const totalSOH   = sorted.reduce((acc: number, r: any) => acc + Number(r.qty_on_hand || 0), 0);
+  const totalValue = sorted.reduce((acc: number, r: any) => acc + Number(r.qty_on_hand || 0) * Number(r.avg_cost || 0), 0);
+
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage   = Math.min(page, totalPages);
   const visible    = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
@@ -2484,6 +2487,17 @@ function StockView() {
 
       {loading ? <Spinner /> : sorted.length === 0 ? <EmptyState text="No stock records match your filters." /> : (
         <>
+          <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '4px 12px' }}>
+              <strong style={{ color: 'var(--sv-text-main)' }}>{sorted.length.toLocaleString()}</strong> lines
+            </span>
+            <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '4px 12px' }}>
+              Total SOH: <strong style={{ color: 'var(--sv-text-main)' }}>{totalSOH.toLocaleString()}</strong> units
+            </span>
+            <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '4px 12px' }}>
+              Total Value: <strong style={{ color: 'var(--sv-mint)' }}>{fmtCurrency(totalValue)}</strong>
+            </span>
+          </div>
           <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
             <div style={{ overflowX: 'auto' }}>
             <table style={{ width: 'max-content', minWidth: '100%', borderCollapse: 'collapse' }}>

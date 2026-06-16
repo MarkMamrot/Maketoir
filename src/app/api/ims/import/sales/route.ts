@@ -38,11 +38,13 @@ export async function POST() {
       );
       const locMap = new Map(locations.map(l => [l.cin7_branch_id!, l.id]));
 
-      // Pre-load variant lookup: cin7_option_id → variant_id
-      const variants = await imsQuery<{ variant_id: string; cin7_option_id: number | null }>(
-        'SELECT variant_id, cin7_option_id FROM ims_product_variants WHERE cin7_option_id IS NOT NULL',
+      // Pre-load variant lookup: cin7_option_id → variant_id AND sku → variant_id
+      // SKU lookup is preferred for size-grid products (shared cin7_option_id)
+      const variants = await imsQuery<{ variant_id: string; cin7_option_id: number | null; sku: string | null }>(
+        'SELECT variant_id, cin7_option_id, sku FROM ims_product_variants',
       );
-      const variantMap = new Map(variants.map(v => [v.cin7_option_id!, v.variant_id]));
+      const variantMap = new Map(variants.filter(v => v.cin7_option_id).map(v => [v.cin7_option_id!, v.variant_id]));
+      const variantBySkuMap = new Map(variants.filter(v => v.sku).map(v => [v.sku!, v.variant_id]));
 
       // Pre-load existing SO cin7_order_ids
       const existingSOs = await imsQuery<{ id: number; cin7_order_id: string | null }>(
@@ -97,7 +99,8 @@ export async function POST() {
           posMap.set(orderId, saleId);
 
           for (const l of lines) {
-            const variantId = variantMap.get(parseInt(l.product_option_id)) ?? null;
+            const variantId = (l.code ? variantBySkuMap.get(l.code) : undefined)
+              ?? variantMap.get(parseInt(l.product_option_id)) ?? null;
             await imsExecute(
               `INSERT INTO pos_sale_items
                  (sale_id, variant_id, code, name, qty, unit_price, original_price,
@@ -129,7 +132,8 @@ export async function POST() {
           soMap.set(orderId, soId);
 
           for (const l of lines) {
-            const variantId = variantMap.get(parseInt(l.product_option_id)) ?? null;
+            const variantId = (l.code ? variantBySkuMap.get(l.code) : undefined)
+              ?? variantMap.get(parseInt(l.product_option_id)) ?? null;
             await imsExecute(
               `INSERT INTO ims_sales_order_items
                  (so_id, variant_id, code, name, qty_ordered, qty_fulfilled, unit_price, discount_pct, tax_rate, line_total)

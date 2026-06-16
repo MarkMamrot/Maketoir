@@ -225,7 +225,8 @@ const contactMapRows = await imsQuery(
 const supplierContactMap = new Map(contactMapRows.map(r => [r.cin7_supplier_id, r.id]));
 
 const prodCin7Map = new Map();
-const variantBySkuMap = new Map(); // sku → variant_id (for size-grid de-duplication)
+const variantBySkuMap     = new Map(); // sku     → variant_id
+const variantByBarcodeMap = new Map(); // barcode → variant_id (fallback for null-sku size-grid variants)
 const uniqueBrands = new Set();
 let productNew = 0;
 let variantSynced = 0;
@@ -297,7 +298,12 @@ const totalFetched = await cin7ForEachPage('/Products', {}, async (pageProducts,
     for (const opt of opts) {
       const cin7OptId = Number(opt.id ?? opt.productOptionId);
       if (!cin7OptId || isNaN(cin7OptId)) continue;
-      const optSku = opt.code || null;
+      // Derive unique SKU for size-grid products where opt.code is empty
+      const optSku = opt.code || (
+        opt.productOptionCode && opt.size ? `${opt.productOptionCode}-${opt.size}` : null
+      );
+      const opt1Value        = opt.option1 || opt.size || null;
+      const opt1NameResolved = opt1Name || (opt.size ? 'Size' : null);
 
       const costAUD        = opt.priceColumns?.costAUD ?? opt.cost ?? null;
       const retailPrice    = opt.retailPrice ?? opt.priceColumns?.priceRetail ?? null;
@@ -314,12 +320,13 @@ const totalFetched = await cin7ForEachPage('/Products', {}, async (pageProducts,
       }
       const foreignCostJson = Object.keys(foreignCosts).length ? JSON.stringify(foreignCosts) : null;
 
-      // Look up existing by SKU to handle size-grid products (shared cin7_option_id)
-      const existingVariantId = optSku ? variantBySkuMap.get(optSku) : undefined;
+      // Look up by SKU first, then barcode (for existing null-sku size-grid variants)
+      const existingVariantId = (optSku ? variantBySkuMap.get(optSku) : undefined)
+        ?? (opt.barcode ? variantByBarcodeMap.get(opt.barcode) : undefined);
       if (existingVariantId) {
         await imsExec(
           `UPDATE ims_product_variants SET
-             product_id=?, barcode=?,
+             product_id=?, sku=?, barcode=?,
              option1_name=?, option1_value=?, option2_name=?, option2_value=?,
              option3_name=?, option3_value=?,
              cost=?, price=?, wholesale_price=?, cost_foreign_json=?,
@@ -327,8 +334,8 @@ const totalFetched = await cin7ForEachPage('/Products', {}, async (pageProducts,
              updated_at=CURRENT_TIMESTAMP
            WHERE variant_id=?`,
           [
-            imsProdId, opt.barcode || null,
-            opt1Name, opt.option1 || null, opt2Name, opt.option2 || null,
+            imsProdId, optSku, opt.barcode || null,
+            opt1NameResolved, opt1Value, opt2Name, opt.option2 || null,
             opt3Name, opt.option3 || null,
             costAUD != null ? Number(costAUD) : null,
             retailPrice != null ? Number(retailPrice) : null,
@@ -337,6 +344,8 @@ const totalFetched = await cin7ForEachPage('/Products', {}, async (pageProducts,
             existingVariantId,
           ],
         );
+        if (optSku) variantBySkuMap.set(optSku, existingVariantId);
+        if (opt.barcode) variantByBarcodeMap.set(opt.barcode, existingVariantId);
       } else {
         const newVariantId = uuidv4();
         await imsExec(
@@ -349,7 +358,7 @@ const totalFetched = await cin7ForEachPage('/Products', {}, async (pageProducts,
           [
             newVariantId, imsProdId,
             optSku, opt.barcode || null,
-            opt1Name, opt.option1 || null,
+            opt1NameResolved, opt1Value,
             opt2Name, opt.option2 || null,
             opt3Name, opt.option3 || null,
             costAUD != null ? Number(costAUD) : null,
@@ -359,6 +368,7 @@ const totalFetched = await cin7ForEachPage('/Products', {}, async (pageProducts,
           ],
         );
         if (optSku) variantBySkuMap.set(optSku, newVariantId);
+        if (opt.barcode) variantByBarcodeMap.set(opt.barcode, newVariantId);
       }
       variantSynced++;
     }
@@ -387,17 +397,24 @@ const allLocs = await imsQuery('SELECT id, cin7_branch_id, name FROM ims_locatio
 const locByBranchId = new Map(allLocs.filter(r => r.cin7_branch_id != null).map(r => [r.cin7_branch_id, r.id]));
 const locByName     = new Map(allLocs.map(r => [r.name, r.id]));
 
-// Match stock by code (SKU) — handles size-grid products where all sizes share the same productOptionId
-const allVariants = await imsQuery('SELECT variant_id, sku, cost FROM ims_product_variants WHERE sku IS NOT NULL');
-const variantByCode = new Map(allVariants.map(r => [r.sku, { variantId: r.variant_id, cost: r.cost }]));
+// Match stock by SKU (primary) or barcode (fallback for size-grid products where /Stock
+// returns a shared product-level code but a unique barcode per size)
+const allVariants = await imsQuery('SELECT variant_id, sku, barcode, cost FROM ims_product_variants');
+const variantByCode    = new Map(allVariants.filter(r => r.sku).map(r => [r.sku, { variantId: r.variant_id, cost: r.cost }]));
+const variantByBarcode = new Map(allVariants.filter(r => r.barcode).map(r => [r.barcode, { variantId: r.variant_id, cost: r.cost }]));
 
 const stockAgg = new Map();
 for (const s of cin7Stock) {
   const cin7BranchId = Number(s.branchId ?? s.BranchId);
   const stockCode    = (s.code ?? '').trim();
+  const stockSize    = (s.size ?? '').trim();
   if (!stockCode || !cin7BranchId) continue;
 
-  const variantMatch = variantByCode.get(stockCode);
+  const stockBarcode = (s.barcode ?? '').trim();
+  const stockSkuFromSize = stockSize ? `${stockCode}-${stockSize}` : '';
+  const variantMatch = variantByCode.get(stockCode)
+    ?? (stockSkuFromSize ? variantByCode.get(stockSkuFromSize) : undefined)
+    ?? (stockBarcode ? variantByBarcode.get(stockBarcode) : undefined);
   if (!variantMatch) continue;
   const { variantId, cost: avgCostFallback } = variantMatch;
 

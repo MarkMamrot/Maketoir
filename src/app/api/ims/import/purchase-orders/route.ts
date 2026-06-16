@@ -46,10 +46,11 @@ export async function POST() {
     );
     const supplierMap = new Map(suppliers.map(s => [s.cin7_supplier_id, s.id]));
 
-    const variants = await imsQuery<{ variant_id: string; cin7_option_id: number }>(
-      'SELECT variant_id, cin7_option_id FROM ims_product_variants WHERE cin7_option_id IS NOT NULL',
+    const variants = await imsQuery<{ variant_id: string; cin7_option_id: number; sku: string | null }>(
+      'SELECT variant_id, cin7_option_id, sku FROM ims_product_variants WHERE cin7_option_id IS NOT NULL',
     );
     const variantMap = new Map(variants.map(v => [v.cin7_option_id, v.variant_id]));
+    const variantBySkuMap = new Map(variants.filter(v => v.sku).map(v => [v.sku!, v.variant_id]));
 
     // Existing PO cin7_order_ids
     const existingPOs = await imsQuery<{ id: number; cin7_order_id: string }>(
@@ -131,7 +132,8 @@ export async function POST() {
       poMap.set(cin7Id, poId);
 
       for (const line of lines) {
-        const variantId = variantMap.get(Number(line.productOptionId)) ?? null;
+        const variantId = (line.code ? variantBySkuMap.get(line.code) : undefined)
+          ?? variantMap.get(Number(line.productOptionId)) ?? null;
         if (!variantId) continue;
 
         const qty        = Number(line.qty ?? 0);

@@ -32,10 +32,11 @@ export async function POST() {
       );
       const prodMap = new Map(existingProds.map(p => [p.cin7_product_id, p.product_id]));
 
-      // Pre-load existing variants by cin7_option_id
-      const existingVars = await imsQuery<{ variant_id: string; cin7_option_id: number }>(
-        'SELECT variant_id, cin7_option_id FROM ims_product_variants WHERE cin7_option_id IS NOT NULL',
+      // Pre-load existing variants by SKU (primary) and cin7_option_id (fallback)
+      const existingVars = await imsQuery<{ variant_id: string; cin7_option_id: number; sku: string | null }>(
+        'SELECT variant_id, cin7_option_id, sku FROM ims_product_variants WHERE cin7_option_id IS NOT NULL',
       );
+      const variantBySkuMap = new Map(existingVars.filter(v => v.sku).map(v => [v.sku!, v.variant_id]));
       const variantMap = new Map(existingVars.map(v => [v.cin7_option_id, v.variant_id]));
 
       // Group rows by cin7_id → one parent product
@@ -80,18 +81,20 @@ export async function POST() {
         // Upsert variants
         for (const r of productRows) {
           if (!r.option_id) continue;
-          if (variantMap.has(r.option_id)) {
+          // Prefer SKU lookup to handle size-grid products (shared cin7_option_id)
+          const existingId = (r.code ? variantBySkuMap.get(r.code) : undefined) ?? variantMap.get(r.option_id);
+          if (existingId) {
             await imsExecute(
               `UPDATE ims_product_variants
                SET product_id=?, sku=?, barcode=?, option1_name=?, option1_value=?, cost=?, price=?, pack_size=?
-               WHERE cin7_option_id=?`,
+               WHERE variant_id=?`,
               [productId, r.code || null, r.barcode || null,
                r.option_label ? 'Option' : null, r.option_label || null,
-               r.cost ?? null, r.retail_price ?? null, r.pack_size ?? null, r.option_id],
+               r.cost ?? null, r.retail_price ?? null, r.pack_size ?? null, existingId],
             );
             varsUpdated++;
           } else {
-            const variantId = String(r.option_id);
+            const variantId = uuidv4();
             await imsExecute(
               `INSERT INTO ims_product_variants
                  (variant_id,product_id,sku,barcode,option1_name,option1_value,cost,price,is_active,cin7_option_id,pack_size)
@@ -100,6 +103,7 @@ export async function POST() {
                r.option_label ? 'Option' : null, r.option_label || null,
                r.cost ?? null, r.retail_price ?? null, r.option_id, r.pack_size ?? null],
             );
+            if (r.code) variantBySkuMap.set(r.code, variantId);
             variantMap.set(r.option_id, variantId);
             varsAdded++;
           }

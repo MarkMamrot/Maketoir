@@ -365,12 +365,14 @@ export async function POST(req: Request) {
             'SELECT product_id, cin7_product_id FROM ims_products WHERE cin7_product_id IS NOT NULL',
           );
           const prodCin7Map = new Map<number, string>(existingProds.map(r => [r.cin7_product_id, r.product_id]));
-          // Load existing variants by SKU for accurate upsert (handles size-grid products
-          // where all options share the same cin7_option_id)
-          const existingVars = await imsQuery<{ variant_id: string; sku: string | null }>(
-            'SELECT variant_id, sku FROM ims_product_variants WHERE sku IS NOT NULL',
+          // Load existing variants by SKU and barcode for accurate upsert.
+          // Size-grid products (sizeRangeId set) have no per-option code; we derive
+          // a unique SKU as `productOptionCode-size` and match existing variants by barcode.
+          const existingVars = await imsQuery<{ variant_id: string; sku: string | null; barcode: string | null }>(
+            'SELECT variant_id, sku, barcode FROM ims_product_variants',
           );
-          const variantBySkuMap = new Map<string, string>(existingVars.map(r => [r.sku!, r.variant_id]));
+          const variantBySkuMap     = new Map<string, string>(existingVars.filter(r => r.sku).map(r => [r.sku!, r.variant_id]));
+          const variantByBarcodeMap = new Map<string, string>(existingVars.filter(r => r.barcode).map(r => [r.barcode!, r.variant_id]));
           const uniqueBrands = new Set<string>();
           let productNew = 0;
           let variantSynced = 0;
@@ -451,7 +453,18 @@ export async function POST(req: Request) {
             for (const opt of opts) {
               const cin7OptId = Number(opt.id ?? opt.productOptionId);
               if (!cin7OptId || isNaN(cin7OptId)) continue;
-              const optSku = opt.code || null;
+
+              // For regular products: opt.code is the per-variant SKU.
+              // For size-grid products (sizeRangeId set): opt.code is null; derive a
+              // unique SKU from productOptionCode + size (e.g. "SRS-SPA-3 to 6 months").
+              const optSku = opt.code || (
+                opt.productOptionCode && opt.size
+                  ? `${opt.productOptionCode}-${opt.size}`
+                  : null
+              );
+              // option1_value: use explicit option1 or fall back to size dimension
+              const opt1Value = opt.option1 || opt.size || null;
+              const opt1NameResolved = opt1Name || (opt.size ? 'Size' : null);
 
               const costAUD        = opt.priceColumns?.costAUD ?? opt.cost ?? null;
               const retailPrice    = opt.retailPrice ?? opt.priceColumns?.priceRetail ?? null;
@@ -470,14 +483,14 @@ export async function POST(req: Request) {
                 ? JSON.stringify(foreignCosts)
                 : null;
 
-              // Look up existing variant by SKU (handles size-grid products where
-              // multiple options share the same cin7_option_id)
-              const existingVariantId = optSku ? variantBySkuMap.get(optSku) : undefined;
+              // Look up by SKU first, then barcode (for existing null-sku size-grid variants)
+              const existingVariantId = (optSku ? variantBySkuMap.get(optSku) : undefined)
+                ?? (opt.barcode ? variantByBarcodeMap.get(opt.barcode) : undefined);
 
               if (existingVariantId) {
                 await imsExecute(
                   `UPDATE ims_product_variants SET
-                     product_id = ?, barcode = ?,
+                     product_id = ?, sku = ?, barcode = ?,
                      option1_name = ?, option1_value = ?,
                      option2_name = ?, option2_value = ?,
                      option3_name = ?, option3_value = ?,
@@ -486,8 +499,8 @@ export async function POST(req: Request) {
                      updated_at = CURRENT_TIMESTAMP
                    WHERE variant_id = ?`,
                   [
-                    imsProdId, opt.barcode || null,
-                    opt1Name, opt.option1 || null,
+                    imsProdId, optSku, opt.barcode || null,
+                    opt1NameResolved, opt1Value,
                     opt2Name, opt.option2 || null,
                     opt3Name, opt.option3 || null,
                     costAUD        != null ? Number(costAUD)        : null,
@@ -497,6 +510,8 @@ export async function POST(req: Request) {
                     existingVariantId,
                   ],
                 );
+                if (optSku) variantBySkuMap.set(optSku, existingVariantId);
+                if (opt.barcode) variantByBarcodeMap.set(opt.barcode, existingVariantId);
               } else {
                 const newVariantId = uuidv4();
                 await imsExecute(
@@ -511,7 +526,7 @@ export async function POST(req: Request) {
                   [
                     newVariantId, imsProdId,
                     optSku, opt.barcode || null,
-                    opt1Name, opt.option1 || null,
+                    opt1NameResolved, opt1Value,
                     opt2Name, opt.option2 || null,
                     opt3Name, opt.option3 || null,
                     costAUD        != null ? Number(costAUD)        : null,
@@ -521,6 +536,7 @@ export async function POST(req: Request) {
                   ],
                 );
                 if (optSku) variantBySkuMap.set(optSku, newVariantId);
+                if (opt.barcode) variantByBarcodeMap.set(opt.barcode, newVariantId);
               }
               variantSynced++;
             }
@@ -559,13 +575,16 @@ export async function POST(req: Request) {
           );
           const locByName = new Map<string, number>(allLocs.map(r => [r.name, r.id]));
 
-          // Load variants by SKU (primary) — handles size-grid products where
-          // productOptionId is shared across all sizes; code is the unique key
-          const allVariants = await imsQuery<{ variant_id: string; sku: string | null; cost: number | null }>(
-            'SELECT variant_id, sku, cost FROM ims_product_variants',
+          // Load variants by SKU (primary) and barcode (fallback for size-grid products
+          // where /Stock returns a unique barcode per size but a shared product-level code)
+          const allVariants = await imsQuery<{ variant_id: string; sku: string | null; barcode: string | null; cost: number | null }>(
+            'SELECT variant_id, sku, barcode, cost FROM ims_product_variants',
           );
           const variantByCode = new Map<string, { variantId: string; cost: number | null }>(
             allVariants.filter(r => r.sku).map(r => [r.sku!, { variantId: r.variant_id, cost: r.cost }]),
+          );
+          const variantByBarcode = new Map<string, { variantId: string; cost: number | null }>(
+            allVariants.filter(r => r.barcode).map(r => [r.barcode!, { variantId: r.variant_id, cost: r.cost }]),
           );
 
           const stockAgg = new Map<string, {
@@ -576,9 +595,14 @@ export async function POST(req: Request) {
           for (const s of cin7Stock) {
             const cin7BranchId = Number(s.branchId ?? s.BranchId);
             const stockCode    = (s.code ?? '').trim();
+            const stockSize    = (s.size ?? '').trim();
             if (!stockCode || !cin7BranchId) continue;
 
-            const variantMatch = variantByCode.get(stockCode);
+            const stockBarcode = (s.barcode ?? '').trim();
+            const stockSkuFromSize = stockSize ? `${stockCode}-${stockSize}` : '';
+            const variantMatch = variantByCode.get(stockCode)
+              ?? (stockSkuFromSize ? variantByCode.get(stockSkuFromSize) : undefined)
+              ?? (stockBarcode ? variantByBarcode.get(stockBarcode) : undefined);
             if (!variantMatch) continue;
             const { variantId, cost: avgCostFallback } = variantMatch;
 
@@ -617,6 +641,12 @@ export async function POST(req: Request) {
           }
           send({ step: 'stock', status: 'done', count: stockSynced, message: `${stockSynced} stock records synced` });
         }
+
+        // ── Shared variant-by-SKU map for sales + PO line items ───────────
+        const sharedVariantRows = await imsQuery<{ variant_id: string; sku: string }>(
+          'SELECT variant_id, sku FROM ims_product_variants WHERE sku IS NOT NULL',
+        );
+        const variantBySku = new Map<string, string>(sharedVariantRows.map(r => [r.sku, r.variant_id]));
 
         // ── Step F: Sales from Cin7 /SalesOrders ───────────────────────────
         if (stepsRequested.includes('sales')) {
@@ -670,6 +700,8 @@ export async function POST(req: Request) {
 
               const unitPrice = Number(line.unitPrice ?? line.price ?? 0);
               const lineTotal = Number(line.lineTotal ?? line.total ?? (qty * unitPrice));
+              // Resolve variant_id by SKU (handles size-grid products with shared cin7_option_id)
+              const lineVariantId = (line.code ? variantBySku.get(line.code) : undefined) ?? null;
 
               await imsExecute(
                 `INSERT INTO ims_sales_history
@@ -678,7 +710,7 @@ export async function POST(req: Request) {
                     reference, stage)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
-                  String(order.id), String(cin7OptId), Number(cin7OptId),
+                  String(order.id), lineVariantId, Number(cin7OptId),
                   line.code || null, line.name || null,
                   order.branchId ? Number(order.branchId) : null,
                   invoiceDateStr, qty, unitPrice, lineTotal, amountDue,
@@ -745,12 +777,13 @@ export async function POST(req: Request) {
               if (!cin7OptId || qty === 0) continue;
               const unitPrice = Number(line.unitPrice ?? line.price ?? 0);
               const lineTotal = Number(line.lineTotal ?? line.total ?? qty * unitPrice);
+              const soItemVariantId = (line.code ? variantBySku.get(line.code) : undefined) ?? null;
               try {
                 await imsExecute(
                   `INSERT INTO ims_sales_order_items
                      (so_id, variant_id, qty_ordered, qty_fulfilled, unit_price, discount_pct, tax_rate, line_total, notes)
                    VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)`,
-                  [soInsertId, String(cin7OptId), qty, isHistorical ? qty : 0, unitPrice, lineTotal, line.name || null],
+                  [soInsertId, soItemVariantId, qty, isHistorical ? qty : 0, unitPrice, lineTotal, line.name || null],
                 );
               } catch { /* skip if variant not in catalog */ }
             }
@@ -885,12 +918,13 @@ export async function POST(req: Request) {
               if (!cin7OptId || qty === 0) continue;
               const unitCost = Number(line.unitPrice ?? line.price ?? line.unitCost ?? 0);
               const lineTotal = Number(line.lineTotal ?? line.total ?? qty * unitCost);
+              const poItemVariantId = (line.code ? variantBySku.get(line.code) : undefined) ?? null;
               try {
                 await imsExecute(
                   `INSERT INTO ims_purchase_order_items
                      (po_id, variant_id, qty_ordered, qty_received, unit_cost, tax_rate, line_total, notes)
                    VALUES (?, ?, ?, ?, ?, 0, ?, ?)`,
-                  [poInsertId, String(cin7OptId), qty, poStatus === 'received' ? qty : 0,
+                  [poInsertId, poItemVariantId, qty, poStatus === 'received' ? qty : 0,
                    unitCost, lineTotal, line.name || null],
                 );
               } catch { /* skip if variant not in catalog */ }
