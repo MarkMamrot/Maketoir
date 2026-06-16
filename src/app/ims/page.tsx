@@ -7530,10 +7530,18 @@ function StockCostImportCard() {
 
 // ── Stock Min Qty / Reorder Qty CSV Import Card ───────────────────────────────
 function StockMinsImportCard() {
-  const [file, setFile]       = useState<File | null>(null);
-  const [running, setRunning] = useState(false);
-  const [result, setResult]   = useState<any | null>(null);
-  const [error, setError]     = useState('');
+  const [file, setFile]         = useState<File | null>(null);
+  const [running, setRunning]   = useState(false);
+  const [result, setResult]     = useState<any | null>(null);
+  const [error, setError]       = useState('');
+  const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
+  const [locOverride, setLocOverride] = useState<string>('');
+
+  useEffect(() => {
+    fetch('/api/ims/locations').then(r => r.json()).then(d => {
+      if (d.success) setLocations(d.data ?? []);
+    }).catch(() => {});
+  }, []);
 
   const run = async () => {
     if (!file || running) return;
@@ -7543,6 +7551,7 @@ function StockMinsImportCard() {
     try {
       const body = new FormData();
       body.append('file', file);
+      if (locOverride) body.append('location_id', locOverride);
       const res = await fetch('/api/ims/import/stock-mins', { method: 'POST', body });
       const d = await res.json();
       if (!res.ok || !d.success) { setError(d.error ?? 'Import failed.'); return; }
@@ -7563,6 +7572,22 @@ function StockMinsImportCard() {
         using <strong>BranchName</strong> or <strong>BranchId</strong> columns. If no branch column is present, values apply to all locations for each SKU.
         Also accepts generic CSVs with "Min Qty" / "Reorder Qty" / "Location" columns.
       </div>
+
+      {locations.length > 0 && (
+        <div style={{ marginBottom: 10 }}>
+          <label style={{ fontSize: 12, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>
+            Location override <span style={{ color: 'var(--sv-text-dim)', fontWeight: 400 }}>(use when BranchId in CSV doesn&apos;t match IMS — leaves blank to use CSV branch column)</span>
+          </label>
+          <select
+            value={locOverride}
+            onChange={e => setLocOverride(e.target.value)}
+            style={{ fontSize: 12, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', width: '100%' }}
+          >
+            <option value=''>— Use branch column from CSV —</option>
+            {locations.map(l => <option key={l.id} value={String(l.id)}>{l.name}</option>)}
+          </select>
+        </div>
+      )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <input

@@ -68,11 +68,14 @@ export async function POST(req: Request) {
   if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   let csvText: string;
+  let locationIdOverride: number | null = null;
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     if (!file) return NextResponse.json({ error: 'No file uploaded.' }, { status: 400 });
     csvText = await file.text();
+    const locOverrideRaw = formData.get('location_id');
+    if (locOverrideRaw) locationIdOverride = Number(locOverrideRaw) || null;
   } catch {
     return NextResponse.json({ error: 'Could not read uploaded file.' }, { status: 400 });
   }
@@ -154,20 +157,24 @@ export async function POST(req: Request) {
     if (reorderQty !== null && !isNaN(reorderQty)) { sets.push('reorder_qty = ?'); vals.push(reorderQty); }
     sets.push('updated_at = CURRENT_TIMESTAMP');
 
-    // Resolve location: BranchName > BranchId > apply to all
+    // Resolve location: override > BranchName > BranchId > apply to all
     let locationId: number | undefined;
-    const locationKey = locationName || branchIdRaw;
-    if (locationName) {
-      locationId = locByName.get(locationName.toLowerCase());
-    } else if (branchIdNum != null && !isNaN(branchIdNum)) {
-      locationId = locByBranchId.get(branchIdNum);
-    }
+    if (locationIdOverride) {
+      locationId = locationIdOverride;
+    } else {
+      const locationKey = locationName || branchIdRaw;
+      if (locationName) {
+        locationId = locByName.get(locationName.toLowerCase());
+      } else if (branchIdNum != null && !isNaN(branchIdNum)) {
+        locationId = locByBranchId.get(branchIdNum);
+      }
 
-    if (locationKey && !locationId) {
-      // Location column present but couldn't match — skip
-      skippedNotFound++;
-      if (notFound.length < 20) notFound.push(`${sku} (location: ${locationKey})`);
-      continue;
+      if (locationKey && !locationId) {
+        // Location column present but couldn't match — skip
+        skippedNotFound++;
+        if (notFound.length < 20) notFound.push(`${sku} (location: ${locationKey})`);
+        continue;
+      }
     }
 
     if (locationId) {
