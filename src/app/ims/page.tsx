@@ -6025,7 +6025,7 @@ export default function ImsPage() {
                   const type = fullSyncConfirm;
                   setFullSyncConfirm(null);
                   if (type === 'products') {
-                    handleSync('full', ['products', 'stock']);
+                    handleSync('full', ['locations', 'products', 'stock']);
                   } else if (type === 'pos') {
                     handleSync('full', ['pos'], poMonthsInput);
                   } else {
