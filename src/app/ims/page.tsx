@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 // ─────────────────────────────────────────────────────────────────────────────
 
 type ImsView =
-  | 'dashboard' | 'products' | 'stock' | 'brands'
+  | 'dashboard' | 'products' | 'stock' | 'brands' | 'bulk-edit'
   | 'contacts' | 'locations'
   | 'purchase-orders' | 'sales-orders' | 'branch-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
@@ -27,6 +27,7 @@ const NAV = [
     { id: 'products',      label: 'All Products' },
     { id: 'stock',         label: 'Stock Levels' },
     { id: 'brands',        label: 'Brands' },
+    { id: 'bulk-edit',     label: '✏️ Bulk Edit' },
   ]},
   { id: '__orders',        label: 'Orders',           section: 'orders', children: [
     { id: 'purchase-orders',  label: 'Purchase Orders' },
@@ -5880,6 +5881,393 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Bulk Edit View
+// ─────────────────────────────────────────────────────────────────────────────
+
+type BulkEditRow = {
+  product_id: string;
+  name: string;
+  brand: string | null;
+  zone: string | null;
+  bin: string | null;
+  supplier_contact_id: number | null;
+  supplier_name: string | null;
+  created_at: string | null;
+  min_qty: number;
+  reorder_qty: number;
+  variant_count: number;
+};
+
+type BulkEditDraft = Partial<{
+  name: string;
+  brand: string;
+  supplier_contact_id: number | null;
+  zone: string;
+  bin: string;
+  min_qty: number;
+  reorder_qty: number;
+}>;
+
+function BulkEditView() {
+  const [locations, setLocations]     = useState<{ id: number; name: string }[]>([]);
+  const [locationId, setLocationId]   = useState<number>(0);
+  const [brands, setBrands]           = useState<{ id: number; name: string }[]>([]);
+  const [suppliers, setSuppliers]     = useState<{ id: number; name: string }[]>([]);
+  const [rows, setRows]               = useState<BulkEditRow[]>([]);
+  const [total, setTotal]             = useState(0);
+  const [page, setPage]               = useState(1);
+  const [loading, setLoading]         = useState(false);
+  const [saving, setSaving]           = useState(false);
+  const [saveMsg, setSaveMsg]         = useState('');
+
+  // Filters
+  const [q, setQ]                     = useState('');
+  const [quickFilter, setQuickFilter] = useState('');
+  const [brandFilter, setBrandFilter] = useState('');
+  const [supplierFilter, setSupplierFilter] = useState('');
+
+  // Local edits: product_id → draft fields
+  const [edits, setEdits] = useState<Record<string, BulkEditDraft>>({});
+
+  const perPage  = 50;
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
+  const isDirty  = Object.keys(edits).length > 0;
+
+  // Load static data on mount
+  useEffect(() => {
+    fetch('/api/ims/locations').then(r => r.json()).then(d => {
+      const locs: { id: number; name: string }[] = d.locations ?? d.data ?? [];
+      setLocations(locs);
+      if (locs.length) setLocationId(locs[0].id);
+    }).catch(() => {});
+    fetch('/api/ims/brands').then(r => r.json()).then(d => setBrands(d.data ?? d.brands ?? [])).catch(() => {});
+    fetch('/api/ims/contacts?type=supplier&active=1').then(r => r.json()).then(d => {
+      const raw = d.data ?? d.contacts ?? [];
+      setSuppliers(raw.map((c: any) => ({ id: c.id, name: c.name })));
+    }).catch(() => {});
+  }, []);
+
+  // Load products when params change
+  useEffect(() => {
+    if (!locationId) return;
+    setLoading(true);
+    const params = new URLSearchParams({
+      location_id: String(locationId),
+      page: String(page),
+      ...(q          ? { q }                     : {}),
+      ...(quickFilter ? { filter: quickFilter }   : {}),
+      ...(brandFilter ? { brand: brandFilter }    : {}),
+      ...(supplierFilter ? { supplier: supplierFilter } : {}),
+    });
+    fetch(`/api/ims/products/bulk-edit?${params}`)
+      .then(r => r.json())
+      .then(d => { setRows(d.products ?? []); setTotal(d.total ?? 0); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [locationId, page, q, quickFilter, brandFilter, supplierFilter]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => { setPage(1); }, [locationId, q, quickFilter, brandFilter, supplierFilter]);
+
+  function setEdit(productId: string, field: keyof BulkEditDraft, value: any) {
+    setEdits(prev => ({
+      ...prev,
+      [productId]: { ...prev[productId], [field]: value },
+    }));
+  }
+
+  function getValue<K extends keyof BulkEditDraft>(row: BulkEditRow, field: K): any {
+    if (edits[row.product_id] && field in (edits[row.product_id] ?? {})) {
+      return (edits[row.product_id] as any)[field];
+    }
+    return (row as any)[field] ?? '';
+  }
+
+  async function handleSave() {
+    if (!isDirty) return;
+    setSaving(true);
+    setSaveMsg('');
+    try {
+      const updates = Object.entries(edits).map(([product_id, draft]) => ({ product_id, ...draft }));
+      const res = await fetch('/api/ims/products/bulk-edit', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ location_id: locationId, updates }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setSaveMsg(`Error: ${data.error}`); return; }
+      setSaveMsg(`Saved ${data.productUpdates} product(s), ${data.stockUpdates} stock record(s).`);
+      setEdits({});
+      // Refresh current page
+      setPage(p => p); // trigger reload via effect — use a reload flag trick
+      const params = new URLSearchParams({
+        location_id: String(locationId),
+        page: String(page),
+        ...(q          ? { q }                     : {}),
+        ...(quickFilter ? { filter: quickFilter }   : {}),
+        ...(brandFilter ? { brand: brandFilter }    : {}),
+        ...(supplierFilter ? { supplier: supplierFilter } : {}),
+      });
+      fetch(`/api/ims/products/bulk-edit?${params}`)
+        .then(r => r.json())
+        .then(d => { setRows(d.products ?? []); setTotal(d.total ?? 0); })
+        .catch(() => {});
+    } finally { setSaving(false); }
+  }
+
+  const inputSt: React.CSSProperties = {
+    width: '100%', padding: '4px 6px', fontSize: 12,
+    background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)',
+    border: '1px solid var(--sv-etch)', borderRadius: 4,
+    outline: 'none',
+  };
+  const dirtyInputSt: React.CSSProperties = {
+    ...inputSt, borderColor: 'var(--sv-action)', background: 'color-mix(in srgb, var(--sv-action) 8%, var(--sv-bg-0))',
+  };
+  const quickBtnSt = (active: boolean): React.CSSProperties => ({
+    padding: '4px 10px', fontSize: 12, borderRadius: 5, cursor: 'pointer',
+    border: active ? '1px solid var(--sv-action)' : '1px solid var(--sv-etch)',
+    background: active ? 'var(--sv-action)' : 'var(--sv-bg-2)',
+    color: active ? '#fff' : 'var(--sv-text-dim)',
+    fontWeight: active ? 600 : 400,
+  });
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Bulk Edit Products</h2>
+        <div style={{ flex: 1 }} />
+        {isDirty && (
+          <span style={{ fontSize: 12, color: 'var(--sv-action)', fontWeight: 600 }}>
+            {Object.keys(edits).length} unsaved change{Object.keys(edits).length !== 1 ? 's' : ''}
+          </span>
+        )}
+        {saveMsg && <span style={{ fontSize: 12, color: saveMsg.startsWith('Error') ? 'var(--sv-red)' : 'var(--sv-mint)', fontWeight: 600 }}>{saveMsg}</span>}
+        <button
+          onClick={handleSave}
+          disabled={!isDirty || saving}
+          style={{ padding: '7px 18px', background: isDirty ? 'var(--sv-action)' : 'var(--sv-bg-3)', color: isDirty ? '#fff' : 'var(--sv-text-dim)', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: isDirty ? 'pointer' : 'default', opacity: saving ? 0.6 : 1 }}
+        >{saving ? 'Saving…' : 'Save Changes'}</button>
+      </div>
+
+      {/* Filter bar */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', padding: '10px 14px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
+        {/* Location */}
+        <label style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginRight: 2 }}>Branch:</label>
+        <select value={locationId} onChange={e => setLocationId(Number(e.target.value))} style={{ ...inputSt, width: 160, marginBottom: 0 }}>
+          {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+        </select>
+
+        {/* Text search */}
+        <input
+          value={q} onChange={e => setQ(e.target.value)} placeholder="Search name / SKU…"
+          style={{ ...inputSt, width: 180, marginBottom: 0 }}
+        />
+
+        <div style={{ width: 1, height: 20, background: 'var(--sv-etch)', margin: '0 4px' }} />
+
+        {/* Quick filters */}
+        <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Quick:</span>
+        {(['', 'new', 'no_min', 'no_reorder', 'no_zone', 'no_bin'] as const).map(f => (
+          <button key={f} style={quickBtnSt(quickFilter === f)} onClick={() => setQuickFilter(prev => prev === f ? '' : f)}>
+            {f === '' ? 'All' : f === 'new' ? 'New (7d)' : f === 'no_min' ? 'No Min' : f === 'no_reorder' ? 'No Reorder' : f === 'no_zone' ? 'No Zone' : 'No Bin'}
+          </button>
+        ))}
+
+        <div style={{ width: 1, height: 20, background: 'var(--sv-etch)', margin: '0 4px' }} />
+
+        {/* Brand filter */}
+        <select value={brandFilter} onChange={e => setBrandFilter(e.target.value)} style={{ ...inputSt, width: 150, marginBottom: 0 }}>
+          <option value=''>All Brands</option>
+          {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+        </select>
+
+        {/* Supplier filter */}
+        <select value={supplierFilter} onChange={e => setSupplierFilter(e.target.value)} style={{ ...inputSt, width: 160, marginBottom: 0 }}>
+          <option value=''>All Suppliers</option>
+          {suppliers.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
+        </select>
+
+        {/* Clear */}
+        {(q || quickFilter || brandFilter || supplierFilter) && (
+          <button onClick={() => { setQ(''); setQuickFilter(''); setBrandFilter(''); setSupplierFilter(''); }}
+            style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer' }}>
+            × Clear
+          </button>
+        )}
+
+        <div style={{ flex: 1 }} />
+        <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{total} product{total !== 1 ? 's' : ''}</span>
+      </div>
+
+      {/* Table */}
+      <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: 'var(--sv-bg-2)', borderBottom: '2px solid var(--sv-etch)' }}>
+              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 200 }}>Product Name</th>
+              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 130 }}>Brand</th>
+              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 160 }}>Supplier</th>
+              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 90 }}>Zone</th>
+              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 90 }}>Bin</th>
+              <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 80 }}>Min Qty</th>
+              <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 90 }}>Reorder Qty</th>
+              <th style={{ padding: '8px 6px', textAlign: 'center', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 40 }}>Variants</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr><td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
+            )}
+            {!loading && rows.length === 0 && (
+              <tr><td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No products found.</td></tr>
+            )}
+            {!loading && rows.map((row, i) => {
+              const dirty = !!edits[row.product_id];
+              const rowStyle: React.CSSProperties = {
+                borderBottom: '1px solid var(--sv-etch)',
+                background: dirty ? 'color-mix(in srgb, var(--sv-action) 5%, var(--sv-bg-1))' : (i % 2 === 0 ? 'var(--sv-bg-1)' : 'var(--sv-bg-0)'),
+              };
+
+              const nameVal     = getValue(row, 'name') as string;
+              const brandVal    = getValue(row, 'brand') as string;
+              const zoneVal     = getValue(row, 'zone') as string;
+              const binVal      = getValue(row, 'bin') as string;
+              const minVal      = getValue(row, 'min_qty');
+              const reorderVal  = getValue(row, 'reorder_qty');
+              const supplierVal = String(getValue(row, 'supplier_contact_id') ?? '');
+
+              const nameDirty     = edits[row.product_id] && 'name'               in edits[row.product_id]!;
+              const brandDirty    = edits[row.product_id] && 'brand'              in edits[row.product_id]!;
+              const zoneDirty     = edits[row.product_id] && 'zone'               in edits[row.product_id]!;
+              const binDirty      = edits[row.product_id] && 'bin'                in edits[row.product_id]!;
+              const minDirty      = edits[row.product_id] && 'min_qty'            in edits[row.product_id]!;
+              const reorderDirty  = edits[row.product_id] && 'reorder_qty'        in edits[row.product_id]!;
+              const supplierDirty = edits[row.product_id] && 'supplier_contact_id' in edits[row.product_id]!;
+
+              return (
+                <tr key={row.product_id} style={rowStyle}>
+                  {/* Name */}
+                  <td style={{ padding: '4px 8px' }}>
+                    <input
+                      value={nameVal}
+                      onChange={e => setEdit(row.product_id, 'name', e.target.value)}
+                      style={nameDirty ? dirtyInputSt : inputSt}
+                    />
+                  </td>
+
+                  {/* Brand */}
+                  <td style={{ padding: '4px 8px' }}>
+                    <input
+                      list="be-brands-list"
+                      value={brandVal}
+                      onChange={e => setEdit(row.product_id, 'brand', e.target.value)}
+                      placeholder="—"
+                      style={brandDirty ? dirtyInputSt : inputSt}
+                    />
+                  </td>
+
+                  {/* Supplier */}
+                  <td style={{ padding: '4px 8px' }}>
+                    <select
+                      value={supplierVal}
+                      onChange={e => setEdit(row.product_id, 'supplier_contact_id', e.target.value ? Number(e.target.value) : null)}
+                      style={supplierDirty ? dirtyInputSt : inputSt}
+                    >
+                      <option value=''>— none —</option>
+                      {suppliers.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
+                    </select>
+                  </td>
+
+                  {/* Zone */}
+                  <td style={{ padding: '4px 8px' }}>
+                    <input
+                      value={zoneVal}
+                      onChange={e => setEdit(row.product_id, 'zone', e.target.value)}
+                      placeholder="—"
+                      style={zoneDirty ? dirtyInputSt : inputSt}
+                    />
+                  </td>
+
+                  {/* Bin */}
+                  <td style={{ padding: '4px 8px' }}>
+                    <input
+                      value={binVal}
+                      onChange={e => setEdit(row.product_id, 'bin', e.target.value)}
+                      placeholder="—"
+                      style={binDirty ? dirtyInputSt : inputSt}
+                    />
+                  </td>
+
+                  {/* Min Qty */}
+                  <td style={{ padding: '4px 8px' }}>
+                    <input
+                      type="number" min={0}
+                      value={minVal}
+                      onChange={e => setEdit(row.product_id, 'min_qty', e.target.value === '' ? 0 : Number(e.target.value))}
+                      style={{ ...minDirty ? dirtyInputSt : inputSt, textAlign: 'center' }}
+                    />
+                  </td>
+
+                  {/* Reorder Qty */}
+                  <td style={{ padding: '4px 8px' }}>
+                    <input
+                      type="number" min={0}
+                      value={reorderVal}
+                      onChange={e => setEdit(row.product_id, 'reorder_qty', e.target.value === '' ? 0 : Number(e.target.value))}
+                      style={{ ...reorderDirty ? dirtyInputSt : inputSt, textAlign: 'center' }}
+                    />
+                  </td>
+
+                  {/* Variant count */}
+                  <td style={{ padding: '4px 8px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>
+                    {row.variant_count}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Brand autocomplete datalist */}
+      <datalist id="be-brands-list">
+        {brands.map(b => <option key={b.id} value={b.name} />)}
+      </datalist>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center', paddingTop: 4 }}>
+          <button onClick={() => setPage(1)} disabled={page === 1} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: page === 1 ? 'var(--sv-text-dim)' : 'var(--sv-text-main)', cursor: page === 1 ? 'default' : 'pointer' }}>«</button>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: page === 1 ? 'var(--sv-text-dim)' : 'var(--sv-text-main)', cursor: page === 1 ? 'default' : 'pointer' }}>‹ Prev</button>
+          {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
+            const start = Math.max(1, Math.min(page - 3, totalPages - 6));
+            const p = start + i;
+            if (p > totalPages) return null;
+            return (
+              <button key={p} onClick={() => setPage(p)} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: p === page ? '1px solid var(--sv-action)' : '1px solid var(--sv-etch)', background: p === page ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: p === page ? '#fff' : 'var(--sv-text-main)', cursor: 'pointer', fontWeight: p === page ? 700 : 400 }}>{p}</button>
+            );
+          })}
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: page === totalPages ? 'var(--sv-text-dim)' : 'var(--sv-text-main)', cursor: page === totalPages ? 'default' : 'pointer' }}>Next ›</button>
+          <button onClick={() => setPage(totalPages)} disabled={page === totalPages} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: page === totalPages ? 'var(--sv-text-dim)' : 'var(--sv-text-main)', cursor: page === totalPages ? 'default' : 'pointer' }}>»</button>
+          <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginLeft: 8 }}>Page {page} of {totalPages}</span>
+        </div>
+      )}
+
+      {/* Unsaved changes warning */}
+      {isDirty && (
+        <div style={{ padding: '10px 14px', background: 'color-mix(in srgb, var(--sv-action) 10%, var(--sv-bg-1))', borderRadius: 7, border: '1px solid var(--sv-action)', fontSize: 12, color: 'var(--sv-action)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 12 }}>
+          ⚠ You have {Object.keys(edits).length} unsaved change{Object.keys(edits).length !== 1 ? 's' : ''}. Navigate pages freely — edits persist until you save or refresh.
+          <button onClick={() => setEdits({})} style={{ marginLeft: 'auto', padding: '3px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--sv-action)', background: 'none', color: 'var(--sv-action)', cursor: 'pointer' }}>Discard</button>
+          <button onClick={handleSave} disabled={saving} style={{ padding: '3px 12px', fontSize: 12, borderRadius: 5, border: 'none', background: 'var(--sv-action)', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>{saving ? 'Saving…' : 'Save Now'}</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -6084,6 +6472,7 @@ export default function ImsPage() {
           {view === 'dashboard'        && <DashboardView onNav={setView} />}
           {view === 'products'         && <ProductsView />}
           {view === 'stock'            && <StockView />}
+          {view === 'bulk-edit'        && <BulkEditView />}
           {view === 'contacts'         && <ContactsView />}
           {view === 'locations'        && <LocationsView />}
           {view === 'purchase-orders'  && <PurchaseOrdersView />}
