@@ -157,7 +157,7 @@ export default function BarcodeScanner({ onScanDetected, isActive }: BarcodeScan
       return;
     }
 
-    if (candidateRef.current.count < 2) {
+    if (candidateRef.current.count < 3) {
       setScanHint('Keep still — reading barcode...');
       return;
     }
@@ -318,7 +318,7 @@ export default function BarcodeScanner({ onScanDetected, isActive }: BarcodeScan
             left: '50%',
             transform: 'translate(-50%, -50%)',
             width: '84%',
-            height: '72px',
+            height: '110px',
             borderStyle: 'solid',
             borderWidth: '3px',
             borderColor: 'rgba(255,255,255,0.95)',
