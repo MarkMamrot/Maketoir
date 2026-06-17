@@ -137,8 +137,8 @@ export default function BarcodeScanner({ onScanDetected, isActive }: BarcodeScan
               if (!result) return;
 
               const count = candidateRef.current?.count || 0;
-              // Colour ramps from yellow → amber → green as repeated reads build up
-              const colour = count >= 3 ? '#00e676' : count >= 2 ? '#ffab00' : count >= 1 ? '#ffe57f' : 'rgba(255,255,255,0.4)';
+              // Colour ramps from yellow → green as repeated reads build up (2 reads now sufficient)
+              const colour = count >= 2 ? '#00e676' : count >= 1 ? '#ffe57f' : 'rgba(255,255,255,0.5)';
 
               // Draw all candidate boxes faintly
               if (result.boxes) {
@@ -147,7 +147,7 @@ export default function BarcodeScanner({ onScanDetected, isActive }: BarcodeScan
                   .forEach((box: any) => {
                     window.Quagga.ImageDebug.drawPath(
                       box, { x: 0, y: 1 }, drawCtx,
-                      { color: 'rgba(255,255,255,0.2)', lineWidth: 1 }
+                      { color: 'rgba(255,255,255,0.25)', lineWidth: 2 }
                     );
                   });
               }
@@ -156,7 +156,7 @@ export default function BarcodeScanner({ onScanDetected, isActive }: BarcodeScan
               if (result.box) {
                 window.Quagga.ImageDebug.drawPath(
                   result.box, { x: 0, y: 1 }, drawCtx,
-                  { color: colour, lineWidth: count >= 1 ? 3 : 2 }
+                  { color: colour, lineWidth: count >= 1 ? 5 : 3 }
                 );
               }
 
@@ -164,7 +164,7 @@ export default function BarcodeScanner({ onScanDetected, isActive }: BarcodeScan
               if (result.codeResult?.code && result.line) {
                 window.Quagga.ImageDebug.drawPath(
                   result.line, { x: 'x', y: 'y' }, drawCtx,
-                  { color: colour, lineWidth: 3 }
+                  { color: colour, lineWidth: 4 }
                 );
               }
             });
@@ -209,7 +209,7 @@ export default function BarcodeScanner({ onScanDetected, isActive }: BarcodeScan
         candidateRef.current = { code: barcode, count: 1, ts: now };
       }
 
-      if ((candidateRef.current?.count || 0) < 3) {
+      if ((candidateRef.current?.count || 0) < 2) {
         setScanHint('Keep full barcode in frame...');
         return;
       }
