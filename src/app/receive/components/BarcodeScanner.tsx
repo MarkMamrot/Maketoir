@@ -19,6 +19,7 @@ export default function BarcodeScanner({ onScanDetected, isActive }: BarcodeScan
   const [manualMode, setManualMode] = useState(false);
   const [lastScan, setLastScan] = useState<string | null>(null);
   const quaggaRef = useRef<any>(null);
+  const lastDetectedRef = useRef<{ code: string; ts: number } | null>(null);
 
   // Load Quagga.js library
   useEffect(() => {
@@ -123,6 +124,13 @@ export default function BarcodeScanner({ onScanDetected, isActive }: BarcodeScan
   const handleBarcodeDetected = (result: any) => {
     if (result.codeResult.code) {
       const barcode = result.codeResult.code;
+
+      // Prevent duplicate detections fired in rapid succession.
+      const now = Date.now();
+      const last = lastDetectedRef.current;
+      if (last && last.code === barcode && now - last.ts < 1200) return;
+      lastDetectedRef.current = { code: barcode, ts: now };
+
       setLastScan(barcode);
 
       // Haptic feedback

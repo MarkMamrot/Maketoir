@@ -28,11 +28,22 @@ interface ReceivedItem {
 
 interface ProductMatch {
   variant_id: string;
-  product_id: string;
+  product_id?: string | null;
   product_name: string;
   sku: string;
-  barcode: string;
-  variant_label: string;
+  barcode?: string | null;
+  variant_label?: string;
+}
+
+interface POItem {
+  variant_id: string;
+  product_id?: string | null;
+  product_name: string;
+  sku: string;
+  barcode?: string | null;
+  variant_label?: string;
+  qty_ordered: number;
+  qty_received: number;
 }
 
 interface ReceiveInterfaceViewProps {
@@ -57,13 +68,85 @@ export default function ReceiveInterfaceView({
   const [showProductMatcher, setShowProductMatcher] = useState(false);
   const [unmatchedBarcode, setUnmatchedBarcode] = useState<string | null>(null);
   const [matcherSearch, setMatcherSearch] = useState('');
-  const [availableProducts, setAvailableProducts] = useState<ProductMatch[]>([]);
   const [showMetaEditor, setShowMetaEditor] = useState(false);
   const [metaData, setMetaData] = useState<Partial<ReceivedItem>>({});
-  const [editingVariantId, setEditingVariantId] = useState<string | null>(null);
+  const [poItems, setPoItems] = useState<POItem[]>([]);
+  const [poItemsLoading, setPoItemsLoading] = useState(false);
+  const [poItemsError, setPoItemsError] = useState<string | null>(null);
+  const [poLocationId, setPoLocationId] = useState<number>(1);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const qtyInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const loadPoItems = async () => {
+      setPoItemsLoading(true);
+      setPoItemsError(null);
+      try {
+        const res = await fetch(`/api/ims/purchase-orders/${po.id}`);
+        if (!res.ok) {
+          throw new Error('Failed to load purchase order items');
+        }
+        const data = await res.json();
+        const fullPo = data?.data;
+        setPoItems(fullPo?.items || []);
+        setPoLocationId(Number(fullPo?.location_id) || 1);
+      } catch (err: any) {
+        setPoItemsError(err?.message || 'Could not load PO products');
+      } finally {
+        setPoItemsLoading(false);
+      }
+    };
+
+    loadPoItems();
+  }, [po.id]);
+
+  const getCartQtyForVariant = (variantId: string) =>
+    cart.find((i) => i.variant_id === variantId)?.qty_received || 0;
+
+  const itemsWithStatus = poItems.map((item) => {
+    const alreadyReceived = Number(item.qty_received || 0);
+    const pendingInCart = getCartQtyForVariant(item.variant_id);
+    const totalReceived = alreadyReceived + pendingInCart;
+    const qtyOrdered = Number(item.qty_ordered || 0);
+    return {
+      ...item,
+      qtyOrdered,
+      alreadyReceived,
+      pendingInCart,
+      totalReceived,
+      remaining: Math.max(0, qtyOrdered - totalReceived),
+    };
+  });
+
+  const filteredItems = itemsWithStatus.filter((item) => {
+    const q = matcherSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      item.product_name.toLowerCase().includes(q) ||
+      (item.sku || '').toLowerCase().includes(q) ||
+      (item.variant_label || '').toLowerCase().includes(q)
+    );
+  });
+
+  const waitingItems = filteredItems.filter((item) => item.remaining > 0);
+  const receivedItems = filteredItems.filter((item) => item.totalReceived > 0);
+
+  const setCurrentFromPoItem = (item: POItem, preserveUnmatchedBarcode = false) => {
+    setCurrentProduct({
+      variant_id: item.variant_id,
+      product_id: item.product_id,
+      product_name: item.product_name,
+      sku: item.sku,
+      barcode: item.barcode,
+      variant_label: item.variant_label,
+    });
+    setCurrentQty('1');
+    if (!preserveUnmatchedBarcode) {
+      setUnmatchedBarcode(null);
+    }
+    setShowProductMatcher(false);
+  };
 
   const handleBarcodeScanned = async (barcode: string) => {
     setLoading(true);
@@ -129,7 +212,7 @@ export default function ReceiveInterfaceView({
     try {
       const payload = {
         po_id: po.id,
-        location_id: 1, // This should come from PO, but using 1 for now
+        location_id: poLocationId,
         received_items: cart.map((item) => ({
           variant_id: item.variant_id,
           qty_received: item.qty_received,
@@ -223,12 +306,112 @@ export default function ReceiveInterfaceView({
       <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
         <BarcodeScanner onScanDetected={handleBarcodeScanned} isActive={true} />
 
+        {/* PO Items Section */}
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid #ddd', backgroundColor: '#fafafa' }}>
+          <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px' }}>
+            PO Items ({poItems.length})
+          </div>
+          <input
+            type="text"
+            placeholder="Search PO products..."
+            value={matcherSearch}
+            onChange={(e) => setMatcherSearch(e.target.value)}
+            style={{
+              width: '100%',
+              height: '40px',
+              padding: '0 12px',
+              border: '1px solid #ddd',
+              borderRadius: '6px',
+              marginBottom: '8px',
+              fontSize: '14px',
+              boxSizing: 'border-box',
+            }}
+          />
+          <div style={{ maxHeight: '220px', overflow: 'auto', border: '1px solid #eee', borderRadius: '6px', backgroundColor: '#fff' }}>
+            {poItemsLoading && <div style={{ padding: '12px', fontSize: '13px', color: '#666' }}>Loading items...</div>}
+            {!poItemsLoading && poItemsError && <div style={{ padding: '12px', fontSize: '13px', color: '#c33' }}>{poItemsError}</div>}
+            {!poItemsLoading && !poItemsError && filteredItems.length === 0 && (
+              <div style={{ padding: '12px', fontSize: '13px', color: '#666' }}>No matching products.</div>
+            )}
+
+            {!poItemsLoading && !poItemsError && waitingItems.length > 0 && (
+              <div style={{ padding: '8px 10px', fontSize: '11px', color: '#666', fontWeight: 'bold', borderBottom: '1px solid #f0f0f0' }}>
+                Waiting to Receive ({waitingItems.length})
+              </div>
+            )}
+            {!poItemsLoading && !poItemsError && waitingItems.map((item) => (
+              <div key={`wait-${item.variant_id}`} style={{ padding: '10px', borderBottom: '1px solid #f4f4f4', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.product_name}</div>
+                  <div style={{ fontSize: '12px', color: '#666' }}>{item.sku || 'No SKU'} {item.variant_label ? `• ${item.variant_label}` : ''}</div>
+                  <div style={{ fontSize: '12px', color: '#0066cc' }}>Remaining: {item.remaining} (Received {item.totalReceived}/{item.qtyOrdered})</div>
+                </div>
+                <button
+                  onClick={() => setCurrentFromPoItem(item)}
+                  style={{
+                    height: '36px',
+                    padding: '0 10px',
+                    border: '1px solid #0066cc',
+                    background: '#fff',
+                    color: '#0066cc',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                  }}
+                >
+                  Select
+                </button>
+              </div>
+            ))}
+
+            {!poItemsLoading && !poItemsError && receivedItems.length > 0 && (
+              <div style={{ padding: '8px 10px', fontSize: '11px', color: '#666', fontWeight: 'bold', borderTop: '1px solid #f0f0f0', borderBottom: '1px solid #f0f0f0', backgroundColor: '#fcfcfc' }}>
+                Received / In Progress ({receivedItems.length})
+              </div>
+            )}
+            {!poItemsLoading && !poItemsError && receivedItems.map((item) => (
+              <div key={`done-${item.variant_id}`} style={{ padding: '10px', borderBottom: '1px solid #f4f4f4' }}>
+                <div style={{ fontSize: '13px', fontWeight: 600 }}>{item.product_name}</div>
+                <div style={{ fontSize: '12px', color: '#666' }}>{item.sku || 'No SKU'} {item.variant_label ? `• ${item.variant_label}` : ''}</div>
+                <div style={{ fontSize: '12px', color: item.remaining === 0 ? '#2e7d32' : '#666' }}>
+                  Received {item.totalReceived}/{item.qtyOrdered}{item.pendingInCart > 0 ? ` (incl. ${item.pendingInCart} pending)` : ''}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Product Info Section */}
         {currentProduct && (
           <div style={{ padding: '16px', backgroundColor: '#f0f8ff', borderBottom: '1px solid #ddd' }}>
             <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '8px' }}>
               {currentProduct.product_name}
             </div>
+            {!!(unmatchedBarcode || currentProduct.barcode) && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <div style={{ fontSize: '12px', color: '#0b5', backgroundColor: '#e8f8ef', border: '1px solid #b8e7cc', borderRadius: '999px', padding: '4px 10px', flex: 1 }}>
+                  Barcode: {unmatchedBarcode || currentProduct.barcode}
+                </div>
+                <button
+                  onClick={() => setUnmatchedBarcode(null)}
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    border: '1px solid #ccc',
+                    backgroundColor: '#fff',
+                    borderRadius: '999px',
+                    cursor: 'pointer',
+                    fontSize: '16px',
+                    lineHeight: 1,
+                  }}
+                  title="Dismiss barcode"
+                >
+                  ×
+                </button>
+              </div>
+            )}
             <div style={{ fontSize: '14px', color: '#666', marginBottom: '4px' }}>
               SKU: {currentProduct.sku}
             </div>
@@ -577,9 +760,32 @@ export default function ReceiveInterfaceView({
                   boxSizing: 'border-box',
                 }}
               />
-              <p style={{ fontSize: '12px', color: '#999', textAlign: 'center' }}>
-                Integration with product list coming soon. For now, manually create products in IMS.
-              </p>
+              <div style={{ border: '1px solid #eee', borderRadius: '8px', overflow: 'hidden' }}>
+                {waitingItems.length === 0 && (
+                  <div style={{ padding: '12px', fontSize: '13px', color: '#666' }}>
+                    No waiting products found in this PO.
+                  </div>
+                )}
+                {waitingItems.map((item) => (
+                  <button
+                    key={`matcher-${item.variant_id}`}
+                    onClick={() => setCurrentFromPoItem(item, true)}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      border: 'none',
+                      borderBottom: '1px solid #f2f2f2',
+                      background: '#fff',
+                      padding: '10px 12px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ fontSize: '14px', fontWeight: 600 }}>{item.product_name}</div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>{item.sku || 'No SKU'} {item.variant_label ? `• ${item.variant_label}` : ''}</div>
+                    <div style={{ fontSize: '12px', color: '#0066cc' }}>Remaining: {item.remaining}</div>
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Modal Actions */}
