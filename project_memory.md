@@ -10,6 +10,7 @@ Always read this file when starting a new session or implementing a feature to u
 * **Public URL:** TBC (Vercel project URL)
 * **Framework:** Next.js 14 (App Router)
 * **Database:** MySQL (external — connection via `MYSQL_HOST` env var)
+* **Build quirk (Shopify/Got):** `shopify-api-node -> got -> cacheable-request -> keyv` can emit Webpack "Critical dependency" warnings in Vercel builds. Mitigated in `next.config.mjs` by externalizing these packages (`experimental.serverComponentsExternalPackages`) and adding a targeted `webpack.ignoreWarnings` filter for `node_modules/keyv/src/index.js`.
 
 ## 🚀 Deployment Workflow
 

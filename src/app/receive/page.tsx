@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import PoListView from './components/PoListView';
 import ReceiveInterfaceView from './components/ReceiveInterfaceView';
 
@@ -30,7 +30,6 @@ interface ReceivedItem {
 
 export default function ReceivePage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [view, setView] = useState<'list' | 'receive'>('list');
@@ -48,7 +47,7 @@ export default function ReceivePage() {
             setAuthenticated(true);
 
             // Check if po_id is in query params
-            const poId = searchParams.get('po_id');
+            const poId = new URLSearchParams(window.location.search).get('po_id');
             if (poId) {
               // Fetch the specific PO and auto-select it
               try {
@@ -81,7 +80,7 @@ export default function ReceivePage() {
     };
 
     checkAuth();
-  }, [router, searchParams]);
+  }, [router]);
 
   if (loading) {
     return (
