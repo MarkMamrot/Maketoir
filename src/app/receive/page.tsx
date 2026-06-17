@@ -41,29 +41,34 @@ export default function ReceivePage() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const res = await fetch('/api/auth/session');
+        const res = await fetch('/api/user/me');
         if (res.ok) {
-          setAuthenticated(true);
+          const data = await res.json();
+          if (data.name) {
+            setAuthenticated(true);
 
-          // Check if po_id is in query params
-          const poId = searchParams.get('po_id');
-          if (poId) {
-            // Fetch the specific PO and auto-select it
-            try {
-              const poRes = await fetch('/api/ims/receive/pending-pos');
-              if (poRes.ok) {
-                const data = await poRes.json();
-                const pos = data.data || [];
-                const po = pos.find((p: PO) => p.id === parseInt(poId));
-                if (po) {
-                  setSelectedPo(po);
-                  setView('receive');
-                  setReceivingCart([]);
+            // Check if po_id is in query params
+            const poId = searchParams.get('po_id');
+            if (poId) {
+              // Fetch the specific PO and auto-select it
+              try {
+                const poRes = await fetch('/api/ims/receive/pending-pos');
+                if (poRes.ok) {
+                  const poData = await poRes.json();
+                  const pos = poData.data || [];
+                  const po = pos.find((p: PO) => p.id === parseInt(poId));
+                  if (po) {
+                    setSelectedPo(po);
+                    setView('receive');
+                    setReceivingCart([]);
+                  }
                 }
+              } catch (err) {
+                console.error('Failed to fetch PO:', err);
               }
-            } catch (err) {
-              console.error('Failed to fetch PO:', err);
             }
+          } else {
+            router.push('/login');
           }
         } else {
           router.push('/login');
