@@ -6203,9 +6203,9 @@ function BulkEditView() {
                   {/* Min Qty */}
                   <td style={{ padding: '4px 8px' }}>
                     <input
-                      type="number" min={0}
+                      type="number" min={0} step={1}
                       value={minVal}
-                      onChange={e => setEdit(row.product_id, 'min_qty', e.target.value === '' ? 0 : Number(e.target.value))}
+                      onChange={e => setEdit(row.product_id, 'min_qty', e.target.value === '' ? 0 : Math.round(Number(e.target.value)))}
                       style={{ ...minDirty ? dirtyInputSt : inputSt, textAlign: 'center' }}
                     />
                   </td>
@@ -6213,9 +6213,9 @@ function BulkEditView() {
                   {/* Reorder Qty */}
                   <td style={{ padding: '4px 8px' }}>
                     <input
-                      type="number" min={0}
+                      type="number" min={0} step={1}
                       value={reorderVal}
-                      onChange={e => setEdit(row.product_id, 'reorder_qty', e.target.value === '' ? 0 : Number(e.target.value))}
+                      onChange={e => setEdit(row.product_id, 'reorder_qty', e.target.value === '' ? 0 : Math.round(Number(e.target.value)))}
                       style={{ ...reorderDirty ? dirtyInputSt : inputSt, textAlign: 'center' }}
                     />
                   </td>
