@@ -1,5 +1,12 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
+
+function getAdminSession() {
+  const c = cookies().get('marketoir_session');
+  if (!c?.value) return null;
+  try { return JSON.parse(c.value); } catch { return null; }
+}
 
 export async function GET() {
   try {
@@ -37,14 +44,18 @@ export async function GET() {
 
 export async function PUT(req: Request) {
   try {
+    const session = getAdminSession();
+    if (!session) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
+    const businessId = session.userSpreadsheetId as string;
+
     const { defaultView } = await req.json() as { defaultView: string };
     const allowed = ['all', 'in_stock'];
     const safe = allowed.includes(defaultView) || defaultView.startsWith('brand:') || defaultView.startsWith('variants:')
       ? defaultView
       : 'all';
     await imsQuery(
-      "INSERT INTO ims_settings (`key`, `value`) VALUES ('pos_default_product_view', ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)",
-      [safe]
+      "INSERT INTO ims_settings (business_id, `key`, `value`) VALUES (?, 'pos_default_product_view', ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)",
+      [businessId, safe]
     );
     return NextResponse.json({ ok: true });
   } catch (err: any) {

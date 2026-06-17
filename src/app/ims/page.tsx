@@ -7741,7 +7741,12 @@ function SettingsModal({ isOpen, onClose, syncing, syncingSteps, syncLog, handle
   const savePosDisplayView = async (view: string) => {
     setPosDisplaySaving(true);
     try {
-      await fetch('/api/pos/settings/products', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ defaultView: view }) });
+      const res = await fetch('/api/pos/settings/products', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ defaultView: view }) });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(`Failed to save POS display settings: ${err.error ?? res.statusText}`);
+        return;
+      }
       setPosDisplayView(view);
     } finally { setPosDisplaySaving(false); }
   };
