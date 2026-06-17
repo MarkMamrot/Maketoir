@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -5896,6 +5896,13 @@ type BulkEditRow = {
   min_qty: number;
   reorder_qty: number;
   variant_count: number;
+  variants: Array<{
+    variant_id: string;
+    sku: string;
+    barcode: string | null;
+    zone: string | null;
+    bin: string | null;
+  }>;
 };
 
 type BulkEditDraft = Partial<{
@@ -5906,6 +5913,11 @@ type BulkEditDraft = Partial<{
   bin: string;
   min_qty: number;
   reorder_qty: number;
+}>;
+
+type VariantEditDraft = Partial<{
+  zone: string;
+  bin: string;
 }>;
 
 function BulkEditView() {
@@ -5928,10 +5940,16 @@ function BulkEditView() {
 
   // Local edits: product_id → draft fields
   const [edits, setEdits] = useState<Record<string, BulkEditDraft>>({});
+  
+  // Variant edits: `${product_id}|${variant_id}` → variant draft
+  const [variantEdits, setVariantEdits] = useState<Record<string, VariantEditDraft>>({});
+  
+  // Expanded products
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const perPage  = 50;
   const totalPages = Math.max(1, Math.ceil(total / perPage));
-  const isDirty  = Object.keys(edits).length > 0;
+  const isDirty  = Object.keys(edits).length > 0 || Object.keys(variantEdits).length > 0;
 
   // Load static data on mount
   useEffect(() => {
@@ -5976,6 +5994,14 @@ function BulkEditView() {
     }));
   }
 
+  function setVariantEdit(productId: string, variantId: string, field: keyof VariantEditDraft, value: any) {
+    const key = `${productId}|${variantId}`;
+    setVariantEdits(prev => ({
+      ...prev,
+      [key]: { ...prev[key], [field]: value },
+    }));
+  }
+
   function getValue<K extends keyof BulkEditDraft>(row: BulkEditRow, field: K): any {
     if (edits[row.product_id] && field in (edits[row.product_id] ?? {})) {
       return (edits[row.product_id] as any)[field];
@@ -5983,12 +6009,40 @@ function BulkEditView() {
     return (row as any)[field] ?? '';
   }
 
+  function getVariantValue<K extends keyof VariantEditDraft>(productId: string, variantId: string, field: K, defaultVal: any): any {
+    const key = `${productId}|${variantId}`;
+    if (variantEdits[key] && field in (variantEdits[key] ?? {})) {
+      return (variantEdits[key] as any)[field];
+    }
+    return defaultVal ?? '';
+  }
+
   async function handleSave() {
     if (!isDirty) return;
     setSaving(true);
     setSaveMsg('');
     try {
-      const updates = Object.entries(edits).map(([product_id, draft]) => ({ product_id, ...draft }));
+      const updates = Object.entries(edits).map(([product_id, draft]) => {
+        const variantOverrides: Array<{ variant_id: string; zone?: string | null; bin?: string | null }> = [];
+        
+        // Collect variant overrides for this product
+        Object.entries(variantEdits).forEach(([key, vDraft]) => {
+          const [pId, vId] = key.split('|');
+          if (pId === product_id && (vDraft.zone !== undefined || vDraft.bin !== undefined)) {
+            const override: any = { variant_id: vId };
+            if ('zone' in vDraft) override.zone = vDraft.zone || null;
+            if ('bin' in vDraft) override.bin = vDraft.bin || null;
+            variantOverrides.push(override);
+          }
+        });
+
+        return {
+          product_id,
+          ...draft,
+          ...(variantOverrides.length > 0 && { variant_overrides: variantOverrides }),
+        };
+      });
+
       const res = await fetch('/api/ims/products/bulk-edit', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -5996,10 +6050,10 @@ function BulkEditView() {
       });
       const data = await res.json();
       if (!res.ok) { setSaveMsg(`Error: ${data.error}`); return; }
-      setSaveMsg(`Saved ${data.productUpdates} product(s), ${data.stockUpdates} stock record(s).`);
+      setSaveMsg(`Saved ${data.productUpdates} product(s), ${data.stockUpdates} stock record(s), ${data.variantUpdates || 0} variant(s).`);
       setEdits({});
+      setVariantEdits({});
       // Refresh current page
-      setPage(p => p); // trigger reload via effect — use a reload flag trick
       const params = new URLSearchParams({
         location_id: String(locationId),
         page: String(page),
@@ -6106,7 +6160,7 @@ function BulkEditView() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ background: 'var(--sv-bg-2)', borderBottom: '2px solid var(--sv-etch)' }}>
-              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 200 }}>Product Name</th>
+              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 220 }}>Product Name</th>
               <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 130 }}>Brand</th>
               <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 160 }}>Supplier</th>
               <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 90 }}>Zone</th>
@@ -6125,9 +6179,15 @@ function BulkEditView() {
             )}
             {!loading && rows.map((row, i) => {
               const dirty = !!edits[row.product_id];
+              const isExpanded = expanded.has(row.product_id);
               const rowStyle: React.CSSProperties = {
                 borderBottom: '1px solid var(--sv-etch)',
                 background: dirty ? 'color-mix(in srgb, var(--sv-action) 5%, var(--sv-bg-1))' : (i % 2 === 0 ? 'var(--sv-bg-1)' : 'var(--sv-bg-0)'),
+              };
+              const variantRowStyle: React.CSSProperties = {
+                borderBottom: '1px solid var(--sv-etch)',
+                background: 'var(--sv-bg-0)',
+                opacity: 0.85,
               };
 
               const nameVal     = getValue(row, 'name') as string;
@@ -6147,84 +6207,145 @@ function BulkEditView() {
               const supplierDirty = edits[row.product_id] && 'supplier_contact_id' in edits[row.product_id]!;
 
               return (
-                <tr key={row.product_id} style={rowStyle}>
-                  {/* Name */}
-                  <td style={{ padding: '4px 8px' }}>
-                    <input
-                      value={nameVal}
-                      onChange={e => setEdit(row.product_id, 'name', e.target.value)}
-                      style={nameDirty ? dirtyInputSt : inputSt}
-                    />
-                  </td>
+                <React.Fragment key={row.product_id}>
+                  {/* Product row */}
+                  <tr style={rowStyle}>
+                    {/* Expand button + Name */}
+                    <td style={{ padding: '4px 2px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <button
+                        onClick={() => setExpanded(prev => {
+                          const next = new Set(prev);
+                          if (next.has(row.product_id)) next.delete(row.product_id);
+                          else next.add(row.product_id);
+                          return next;
+                        })}
+                        style={{ padding: '2px 6px', minWidth: 28, background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 3, color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
+                      >
+                        {isExpanded ? '▼' : '▶'}
+                      </button>
+                      <input
+                        value={nameVal}
+                        onChange={e => setEdit(row.product_id, 'name', e.target.value)}
+                        style={{ flex: 1, ...inputSt }}
+                      />
+                    </td>
 
-                  {/* Brand */}
-                  <td style={{ padding: '4px 8px' }}>
-                    <input
-                      list="be-brands-list"
-                      value={brandVal}
-                      onChange={e => setEdit(row.product_id, 'brand', e.target.value)}
-                      placeholder="—"
-                      style={brandDirty ? dirtyInputSt : inputSt}
-                    />
-                  </td>
+                    {/* Brand */}
+                    <td style={{ padding: '4px 8px' }}>
+                      <input
+                        list="be-brands-list"
+                        value={brandVal}
+                        onChange={e => setEdit(row.product_id, 'brand', e.target.value)}
+                        placeholder="—"
+                        style={brandDirty ? dirtyInputSt : inputSt}
+                      />
+                    </td>
 
-                  {/* Supplier */}
-                  <td style={{ padding: '4px 8px' }}>
-                    <select
-                      value={supplierVal}
-                      onChange={e => setEdit(row.product_id, 'supplier_contact_id', e.target.value ? Number(e.target.value) : null)}
-                      style={supplierDirty ? dirtyInputSt : inputSt}
-                    >
-                      <option value=''>— none —</option>
-                      {suppliers.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
-                    </select>
-                  </td>
+                    {/* Supplier */}
+                    <td style={{ padding: '4px 8px' }}>
+                      <select
+                        value={supplierVal}
+                        onChange={e => setEdit(row.product_id, 'supplier_contact_id', e.target.value ? Number(e.target.value) : null)}
+                        style={supplierDirty ? dirtyInputSt : inputSt}
+                      >
+                        <option value=''>— none —</option>
+                        {suppliers.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
+                      </select>
+                    </td>
 
-                  {/* Zone */}
-                  <td style={{ padding: '4px 8px' }}>
-                    <input
-                      value={zoneVal}
-                      onChange={e => setEdit(row.product_id, 'zone', e.target.value)}
-                      placeholder="—"
-                      style={zoneDirty ? dirtyInputSt : inputSt}
-                    />
-                  </td>
+                    {/* Zone (product-level) */}
+                    <td style={{ padding: '4px 8px' }}>
+                      <input
+                        value={zoneVal}
+                        onChange={e => setEdit(row.product_id, 'zone', e.target.value)}
+                        placeholder="—"
+                        style={zoneDirty ? dirtyInputSt : inputSt}
+                        title="Product-level zone (applies to all variants)"
+                      />
+                    </td>
 
-                  {/* Bin */}
-                  <td style={{ padding: '4px 8px' }}>
-                    <input
-                      value={binVal}
-                      onChange={e => setEdit(row.product_id, 'bin', e.target.value)}
-                      placeholder="—"
-                      style={binDirty ? dirtyInputSt : inputSt}
-                    />
-                  </td>
+                    {/* Bin (product-level) */}
+                    <td style={{ padding: '4px 8px' }}>
+                      <input
+                        value={binVal}
+                        onChange={e => setEdit(row.product_id, 'bin', e.target.value)}
+                        placeholder="—"
+                        style={binDirty ? dirtyInputSt : inputSt}
+                        title="Product-level bin (applies to all variants)"
+                      />
+                    </td>
 
-                  {/* Min Qty */}
-                  <td style={{ padding: '4px 8px' }}>
-                    <input
-                      type="number" min={0} step={1}
-                      value={minVal}
-                      onChange={e => setEdit(row.product_id, 'min_qty', e.target.value === '' ? 0 : Math.round(Number(e.target.value)))}
-                      style={{ ...minDirty ? dirtyInputSt : inputSt, textAlign: 'center' }}
-                    />
-                  </td>
+                    {/* Min Qty */}
+                    <td style={{ padding: '4px 8px' }}>
+                      <input
+                        type="number" min={0} step={1}
+                        value={minVal}
+                        onChange={e => setEdit(row.product_id, 'min_qty', e.target.value === '' ? 0 : Math.round(Number(e.target.value)))}
+                        style={{ ...minDirty ? dirtyInputSt : inputSt, textAlign: 'center' }}
+                      />
+                    </td>
 
-                  {/* Reorder Qty */}
-                  <td style={{ padding: '4px 8px' }}>
-                    <input
-                      type="number" min={0} step={1}
-                      value={reorderVal}
-                      onChange={e => setEdit(row.product_id, 'reorder_qty', e.target.value === '' ? 0 : Math.round(Number(e.target.value)))}
-                      style={{ ...reorderDirty ? dirtyInputSt : inputSt, textAlign: 'center' }}
-                    />
-                  </td>
+                    {/* Reorder Qty */}
+                    <td style={{ padding: '4px 8px' }}>
+                      <input
+                        type="number" min={0} step={1}
+                        value={reorderVal}
+                        onChange={e => setEdit(row.product_id, 'reorder_qty', e.target.value === '' ? 0 : Math.round(Number(e.target.value)))}
+                        style={{ ...reorderDirty ? dirtyInputSt : inputSt, textAlign: 'center' }}
+                      />
+                    </td>
 
-                  {/* Variant count */}
-                  <td style={{ padding: '4px 8px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>
-                    {row.variant_count}
-                  </td>
-                </tr>
+                    {/* Variant count */}
+                    <td style={{ padding: '4px 8px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>
+                      {row.variant_count}
+                    </td>
+                  </tr>
+
+                  {/* Variant rows (when expanded) */}
+                  {isExpanded && row.variants && row.variants.map(variant => {
+                    const vZoneVal = getVariantValue(row.product_id, variant.variant_id, 'zone', variant.zone);
+                    const vBinVal = getVariantValue(row.product_id, variant.variant_id, 'bin', variant.bin);
+                    const vZoneDirty = variantEdits[`${row.product_id}|${variant.variant_id}`] && 'zone' in variantEdits[`${row.product_id}|${variant.variant_id}`]!;
+                    const vBinDirty = variantEdits[`${row.product_id}|${variant.variant_id}`] && 'bin' in variantEdits[`${row.product_id}|${variant.variant_id}`]!;
+
+                    return (
+                      <tr key={`${row.product_id}|${variant.variant_id}`} style={variantRowStyle}>
+                        {/* Indent + SKU */}
+                        <td style={{ padding: '4px 8px', paddingLeft: '32px', fontSize: 11, color: 'var(--sv-text-dim)' }}>
+                          {variant.sku} {variant.barcode ? `(${variant.barcode})` : ''}
+                        </td>
+
+                        {/* Empty cells for Brand, Supplier */}
+                        <td colSpan={2} style={{ padding: '4px 8px' }} />
+
+                        {/* Variant Zone */}
+                        <td style={{ padding: '4px 8px' }}>
+                          <input
+                            value={vZoneVal}
+                            onChange={e => setVariantEdit(row.product_id, variant.variant_id, 'zone', e.target.value)}
+                            placeholder={variant.zone || '—'}
+                            style={vZoneDirty ? dirtyInputSt : inputSt}
+                            title={`Override zone for variant ${variant.sku}`}
+                          />
+                        </td>
+
+                        {/* Variant Bin */}
+                        <td style={{ padding: '4px 8px' }}>
+                          <input
+                            value={vBinVal}
+                            onChange={e => setVariantEdit(row.product_id, variant.variant_id, 'bin', e.target.value)}
+                            placeholder={variant.bin || '—'}
+                            style={vBinDirty ? dirtyInputSt : inputSt}
+                            title={`Override bin for variant ${variant.sku}`}
+                          />
+                        </td>
+
+                        {/* Empty cells for Min/Reorder Qty, Variants count */}
+                        <td colSpan={3} style={{ padding: '4px 8px' }} />
+                      </tr>
+                    );
+                  })}
+                </React.Fragment>
               );
             })}
           </tbody>
@@ -6258,8 +6379,8 @@ function BulkEditView() {
       {/* Unsaved changes warning */}
       {isDirty && (
         <div style={{ padding: '10px 14px', background: 'color-mix(in srgb, var(--sv-action) 10%, var(--sv-bg-1))', borderRadius: 7, border: '1px solid var(--sv-action)', fontSize: 12, color: 'var(--sv-action)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 12 }}>
-          ⚠ You have {Object.keys(edits).length} unsaved change{Object.keys(edits).length !== 1 ? 's' : ''}. Navigate pages freely — edits persist until you save or refresh.
-          <button onClick={() => setEdits({})} style={{ marginLeft: 'auto', padding: '3px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--sv-action)', background: 'none', color: 'var(--sv-action)', cursor: 'pointer' }}>Discard</button>
+          ⚠ You have {Object.keys(edits).length + Object.keys(variantEdits).length} unsaved change{Object.keys(edits).length + Object.keys(variantEdits).length !== 1 ? 's' : ''}. Navigate pages freely — edits persist until you save or refresh.
+          <button onClick={() => { setEdits({}); setVariantEdits({}); }} style={{ marginLeft: 'auto', padding: '3px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--sv-action)', background: 'none', color: 'var(--sv-action)', cursor: 'pointer' }}>Discard</button>
           <button onClick={handleSave} disabled={saving} style={{ padding: '3px 12px', fontSize: 12, borderRadius: 5, border: 'none', background: 'var(--sv-action)', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>{saving ? 'Saving…' : 'Save Now'}</button>
         </div>
       )}

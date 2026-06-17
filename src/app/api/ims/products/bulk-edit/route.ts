@@ -123,7 +123,25 @@ export async function GET(req: Request) {
       [...selectParams, perPage, offset],
     );
 
-    return NextResponse.json({ products: rows, total, page, perPage });
+    // Fetch variants for each product
+    const productsWithVariants = await Promise.all(rows.map(async (product) => {
+      const variants = await imsQuery<{
+        variant_id: string;
+        sku: string;
+        barcode: string | null;
+        zone: string | null;
+        bin: string | null;
+      }>(
+        `SELECT variant_id, sku, barcode, zone, bin 
+         FROM ims_product_variants 
+         WHERE product_id = ? AND is_active = 1
+         ORDER BY sku ASC`,
+        [product.product_id],
+      );
+      return { ...product, variants };
+    }));
+
+    return NextResponse.json({ products: productsWithVariants, total, page, perPage });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
@@ -148,6 +166,11 @@ export async function PUT(req: Request) {
         bin?: string | null;
         min_qty?: number | null;
         reorder_qty?: number | null;
+        variant_overrides?: Array<{
+          variant_id: string;
+          zone?: string | null;
+          bin?: string | null;
+        }>;
       }>;
     };
 
@@ -157,6 +180,7 @@ export async function PUT(req: Request) {
 
     let productUpdates = 0;
     let stockUpdates = 0;
+    let variantUpdates = 0;
 
     for (const u of updates) {
       if (!u.product_id) continue;
@@ -195,6 +219,49 @@ export async function PUT(req: Request) {
         productUpdates++;
       }
 
+      // ── Apply product-level zone/bin to all active variants ───────────────
+      if ('zone' in u || 'bin' in u) {
+        const variantIds = await imsQuery<{ variant_id: string }>(
+          'SELECT variant_id FROM ims_product_variants WHERE product_id = ? AND is_active = 1',
+          [u.product_id],
+        );
+
+        for (const { variant_id } of variantIds) {
+          const zoneVal = u.zone ?? null;
+          const binVal  = u.bin ?? null;
+          await imsExecute(
+            `UPDATE ims_product_variants SET zone = ?, bin = ? WHERE variant_id = ?`,
+            [zoneVal, binVal, variant_id],
+          );
+          variantUpdates++;
+        }
+      }
+
+      // ── Apply variant-level overrides ──────────────────────────────────────
+      if (u.variant_overrides && u.variant_overrides.length > 0) {
+        for (const override of u.variant_overrides) {
+          const variantFields: string[] = [];
+          const variantValues: any[]    = [];
+
+          if ('zone' in override) {
+            variantFields.push('zone = ?');
+            variantValues.push(override.zone ?? null);
+          }
+          if ('bin' in override) {
+            variantFields.push('bin = ?');
+            variantValues.push(override.bin ?? null);
+          }
+
+          if (variantFields.length > 0) {
+            await imsExecute(
+              `UPDATE ims_product_variants SET ${variantFields.join(', ')} WHERE variant_id = ?`,
+              [...variantValues, override.variant_id],
+            );
+            variantUpdates++;
+          }
+        }
+      }
+
       // ── Stock-level fields (applied to all active variants of the product) ─
       if (u.min_qty !== undefined || u.reorder_qty !== undefined) {
         const variantIds = await imsQuery<{ variant_id: string }>(
@@ -219,7 +286,7 @@ export async function PUT(req: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true, productUpdates, stockUpdates });
+    return NextResponse.json({ ok: true, productUpdates, stockUpdates, variantUpdates });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
