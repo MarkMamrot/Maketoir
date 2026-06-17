@@ -18,8 +18,10 @@ export default function BarcodeScanner({ onScanDetected, isActive }: BarcodeScan
   const [cameraActive, setCameraActive] = useState(false);
   const [manualMode, setManualMode] = useState(false);
   const [lastScan, setLastScan] = useState<string | null>(null);
+  const [scanHint, setScanHint] = useState('Align the full barcode inside the guide');
   const quaggaRef = useRef<any>(null);
   const lastDetectedRef = useRef<{ code: string; ts: number } | null>(null);
+  const candidateRef = useRef<{ code: string; count: number; ts: number } | null>(null);
 
   // Load Quagga.js library
   useEffect(() => {
@@ -65,10 +67,22 @@ export default function BarcodeScanner({ onScanDetected, isActive }: BarcodeScan
             type: 'LiveStream',
             target: containerRef.current,
             constraints: {
-              width: 640,
-              height: 480,
-              facingMode: 'environment',
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              facingMode: { ideal: 'environment' },
+              advanced: [{ focusMode: 'continuous' }],
             },
+            // Keep the active scan band centered so users frame the entire barcode.
+            area: {
+              top: '35%',
+              right: '8%',
+              left: '8%',
+              bottom: '35%',
+            },
+          },
+          locator: {
+            patchSize: 'medium',
+            halfSample: false,
           },
           decoder: {
             readers: [
@@ -83,7 +97,7 @@ export default function BarcodeScanner({ onScanDetected, isActive }: BarcodeScan
               'code_93_reader',
             ],
             debug: {
-              showCanvas: false,
+              showCanvas: true,   // needed for overlay drawing
               showPatches: false,
               showFoundPatches: false,
               showSkeleton: false,
@@ -110,6 +124,51 @@ export default function BarcodeScanner({ onScanDetected, isActive }: BarcodeScan
             quaggaRef.current = window.Quagga;
             setCameraActive(true);
 
+            // Draw live bounding box on every processed frame
+            window.Quagga.onProcessed((result: any) => {
+              const drawCtx = window.Quagga?.canvas?.ctx?.overlay;
+              const drawCanvas = window.Quagga?.canvas?.dom?.overlay;
+              if (!drawCtx || !drawCanvas) return;
+
+              const w = Number(drawCanvas.getAttribute('width'));
+              const h = Number(drawCanvas.getAttribute('height'));
+              drawCtx.clearRect(0, 0, w, h);
+
+              if (!result) return;
+
+              const count = candidateRef.current?.count || 0;
+              // Colour ramps from yellow → amber → green as repeated reads build up
+              const colour = count >= 3 ? '#00e676' : count >= 2 ? '#ffab00' : count >= 1 ? '#ffe57f' : 'rgba(255,255,255,0.4)';
+
+              // Draw all candidate boxes faintly
+              if (result.boxes) {
+                result.boxes
+                  .filter((box: any) => box !== result.box)
+                  .forEach((box: any) => {
+                    window.Quagga.ImageDebug.drawPath(
+                      box, { x: 0, y: 1 }, drawCtx,
+                      { color: 'rgba(255,255,255,0.2)', lineWidth: 1 }
+                    );
+                  });
+              }
+
+              // Draw the primary detected box prominently
+              if (result.box) {
+                window.Quagga.ImageDebug.drawPath(
+                  result.box, { x: 0, y: 1 }, drawCtx,
+                  { color: colour, lineWidth: count >= 1 ? 3 : 2 }
+                );
+              }
+
+              // Draw the scan-line when a code is found
+              if (result.codeResult?.code && result.line) {
+                window.Quagga.ImageDebug.drawPath(
+                  result.line, { x: 'x', y: 'y' }, drawCtx,
+                  { color: colour, lineWidth: 3 }
+                );
+              }
+            });
+
             // Detect results
             window.Quagga.onDetected(handleBarcodeDetected);
           }
@@ -123,15 +182,46 @@ export default function BarcodeScanner({ onScanDetected, isActive }: BarcodeScan
 
   const handleBarcodeDetected = (result: any) => {
     if (result.codeResult.code) {
-      const barcode = result.codeResult.code;
+      const barcode = String(result.codeResult.code || '').trim();
+      if (!barcode || barcode.length < 6) return;
+
+      // Prefer high-quality detections: reject noisy partial reads.
+      const decoded = Array.isArray(result?.codeResult?.decodedCodes)
+        ? result.codeResult.decodedCodes
+        : [];
+      const errors = decoded
+        .map((d: any) => d?.error)
+        .filter((v: unknown) => typeof v === 'number' && Number.isFinite(v)) as number[];
+      const avgErr = errors.length
+        ? errors.reduce((sum, v) => sum + v, 0) / errors.length
+        : 0;
+      if (errors.length > 0 && avgErr > 0.12) {
+        setScanHint('Hold steady until barcode is fully sharp');
+        return;
+      }
+
+      // Require the same code to be detected repeatedly before accepting.
+      const now = Date.now();
+      const candidate = candidateRef.current;
+      if (candidate && candidate.code === barcode && now - candidate.ts < 1400) {
+        candidateRef.current = { code: barcode, count: candidate.count + 1, ts: now };
+      } else {
+        candidateRef.current = { code: barcode, count: 1, ts: now };
+      }
+
+      if ((candidateRef.current?.count || 0) < 3) {
+        setScanHint('Keep full barcode in frame...');
+        return;
+      }
 
       // Prevent duplicate detections fired in rapid succession.
-      const now = Date.now();
       const last = lastDetectedRef.current;
       if (last && last.code === barcode && now - last.ts < 1200) return;
       lastDetectedRef.current = { code: barcode, ts: now };
+      candidateRef.current = null;
 
       setLastScan(barcode);
+      setScanHint('Scan captured');
 
       // Haptic feedback
       if (navigator.vibrate) {
@@ -144,8 +234,9 @@ export default function BarcodeScanner({ onScanDetected, isActive }: BarcodeScan
 
   const stopCamera = () => {
     if (quaggaRef.current) {
-      quaggaRef.current.stop();
-      quaggaRef.current.offDetected(handleBarcodeDetected);
+      try { quaggaRef.current.offProcessed(); } catch { /* no-op */ }
+      try { quaggaRef.current.offDetected(handleBarcodeDetected); } catch { /* no-op */ }
+      try { quaggaRef.current.stop(); } catch { /* no-op */ }
     }
     setCameraActive(false);
   };
@@ -279,14 +370,34 @@ export default function BarcodeScanner({ onScanDetected, isActive }: BarcodeScan
             top: '50%',
             left: '50%',
             transform: 'translate(-50%, -50%)',
-            width: '80%',
-            height: '60px',
-            border: '3px solid transparent',
+            width: '84%',
+            height: '72px',
+            border: '3px solid rgba(255,255,255,0.95)',
             borderRadius: '8px',
-            transition: 'border-color 0.3s',
+            boxShadow: '0 0 0 9999px rgba(0,0,0,0.18)',
             pointerEvents: 'none',
           }}
         />
+      )}
+
+      {cameraActive && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(50% + 52px)',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            fontSize: '12px',
+            color: '#fff',
+            backgroundColor: 'rgba(0,0,0,0.55)',
+            padding: '6px 10px',
+            borderRadius: '999px',
+            maxWidth: '92%',
+            textAlign: 'center',
+          }}
+        >
+          {scanHint}
+        </div>
       )}
 
       {lastScan && (
