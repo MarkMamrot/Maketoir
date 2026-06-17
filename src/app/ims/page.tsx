@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import ShopifyView from './components/ShopifyView';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -42,6 +43,7 @@ const NAV = [
   { id: 'reports',          label: '📊 Reports',         section: null },
   { id: '__integrations',   label: 'Integrations',     section: 'integrations', children: [
     { id: 'xero',           label: 'Xero' },
+    { id: 'shopify',        label: 'Shopify' },
   ]},
 ] as const;
 
@@ -6642,6 +6644,7 @@ export default function ImsPage() {
           {view === 'report-inventory-valuation' && <InventoryValuationView onBack={() => setView('reports')} />}
           {view === 'report-product-margin' && <ProductMarginView onBack={() => setView('reports')} />}
           {view === 'xero'              && <XeroView businessId={user?.userSpreadsheetId ?? ''} />}
+          {view === 'shopify'           && <ShopifyView />}
         </main>
       </div>
     </div>

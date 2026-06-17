@@ -96,12 +96,17 @@ export class ShopifyService {
     ];
   }
 
-  async updateProduct(id: number, updates: Record<string, any>): Promise<void> {
-    await this.shopify.product.update(id, updates);
+  async updateProduct(id: number | string, updates: Record<string, any>): Promise<void> {
+    await this.shopify.product.update(Number(id), updates);
   }
 
-  async updateVariant(id: number, updates: Record<string, any>): Promise<void> {
-    await (this.shopify as any).productVariant.update(id, updates);
+  async updateVariant(id: number | string, updates: Record<string, any>): Promise<void> {
+    await (this.shopify as any).productVariant.update(Number(id), updates);
+  }
+
+  /** Create a new product in Shopify. Returns the created product (with variants). */
+  async createProduct(payload: Record<string, any>): Promise<any> {
+    return (this.shopify as any).product.create(payload);
   }
 
   static readonly COLLECTION_HEADERS = [

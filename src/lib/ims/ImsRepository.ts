@@ -40,7 +40,9 @@ export interface ImsVariant {
   discounted_price?: number; discount_start_date?: string;
   discount_end_date?: string; weight_kg?: number;
   pack_size?: number; cin7_option_id?: number;
-  shopify_variant_id?: string; is_active: number;
+  shopify_variant_id?: string;
+  shopify_inventory_item_id?: string;
+  is_active: number;
   cost_foreign_json?: string; // JSON: {"USD":10, "THB":350, ...}
   bin?: string;
   zone?: string;
@@ -1883,5 +1885,93 @@ export const ImsBTRepo = {
 
   async delete(id: number): Promise<void> {
     await imsExecute(`DELETE FROM ims_branch_transfers WHERE id = ?`, [id]);
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shopify Sync
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ImsShopifySyncLog {
+  id: number;
+  action: 'reconcile' | 'upload' | 'sync_prices' | 'resync';
+  status: 'success' | 'error' | 'partial';
+  summary: string;
+  detail?: string;
+  created_at: string;
+}
+
+export const ImsShopifyRepo = {
+  // ── Sync log ──────────────────────────────────────────────────────────────
+  async logAction(
+    action: ImsShopifySyncLog['action'],
+    status: ImsShopifySyncLog['status'],
+    summary: string,
+    detail?: object,
+  ): Promise<void> {
+    await imsExecute(
+      `INSERT INTO ims_shopify_sync_log (action, status, summary, detail) VALUES (?, ?, ?, ?)`,
+      [action, status, summary, detail ? JSON.stringify(detail) : null],
+    );
+  },
+
+  async getLog(limit = 50): Promise<ImsShopifySyncLog[]> {
+    return imsQuery<ImsShopifySyncLog>(
+      `SELECT * FROM ims_shopify_sync_log ORDER BY created_at DESC LIMIT ?`,
+      [limit],
+    );
+  },
+
+  // ── Status counts ─────────────────────────────────────────────────────────
+  async getCounts(): Promise<{ linked: number; notInShopify: number; total: number }> {
+    const rows = await imsQuery<{ linked: number; total: number }>(
+      `SELECT
+         COUNT(*) AS total,
+         SUM(shopify_product_id IS NOT NULL) AS linked
+       FROM ims_products WHERE is_active = 1`,
+    );
+    const { total = 0, linked = 0 } = rows[0] ?? {};
+    return { linked: Number(linked), notInShopify: Number(total) - Number(linked), total: Number(total) };
+  },
+
+  // ── Link IDs after reconcile / upload ────────────────────────────────────
+  async linkProduct(productId: string, shopifyProductId: string): Promise<void> {
+    await imsExecute(
+      `UPDATE ims_products SET shopify_product_id = ? WHERE product_id = ?`,
+      [shopifyProductId, productId],
+    );
+  },
+
+  async linkVariant(
+    variantId: string,
+    shopifyVariantId: string,
+    shopifyInventoryItemId: string,
+  ): Promise<void> {
+    await imsExecute(
+      `UPDATE ims_product_variants
+         SET shopify_variant_id = ?, shopify_inventory_item_id = ?
+       WHERE variant_id = ?`,
+      [shopifyVariantId, shopifyInventoryItemId, variantId],
+    );
+  },
+
+  // ── Products list with link status ───────────────────────────────────────
+  async listWithShopifyStatus(): Promise<Array<ImsProduct & { shopify_status: 'linked' | 'not_in_shopify' }>> {
+    const products = await imsQuery<any>(
+      `SELECT p.*,
+         IF(p.shopify_product_id IS NOT NULL, 'linked', 'not_in_shopify') AS shopify_status
+       FROM ims_products p
+       WHERE p.is_active = 1
+       ORDER BY p.name`,
+    );
+    const variants = await imsQuery<ImsVariant>(
+      `SELECT * FROM ims_product_variants WHERE is_active = 1 ORDER BY sku`,
+    );
+    const byProduct = new Map<string, ImsVariant[]>();
+    for (const v of variants) {
+      if (!byProduct.has(v.product_id)) byProduct.set(v.product_id, []);
+      byProduct.get(v.product_id)!.push(v);
+    }
+    return products.map((p: any) => ({ ...p, variants: byProduct.get(p.product_id) ?? [] }));
   },
 };

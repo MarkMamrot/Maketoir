@@ -318,7 +318,7 @@ export default function BarcodeScanner({ onScanDetected, isActive }: BarcodeScan
             left: '50%',
             transform: 'translate(-50%, -50%)',
             width: '84%',
-            height: '110px',
+            height: '140px',
             borderStyle: 'solid',
             borderWidth: '3px',
             borderColor: 'rgba(255,255,255,0.95)',
