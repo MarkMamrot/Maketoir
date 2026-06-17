@@ -42,6 +42,7 @@ const NAV = [
   { id: 'locations',       label: 'Locations',        section: null },
   { id: 'stocktakes',       label: '📋 Stocktakes',     section: null },
   { id: 'reports',          label: '📊 Reports',         section: null },
+  { id: 'settings',         label: '⚙️ Settings',        section: null },
   { id: '__integrations',   label: 'Integrations',     section: 'integrations', children: [
     { id: 'xero',           label: 'Xero' },
     { id: 'shopify',        label: 'Shopify' },
@@ -67,6 +68,7 @@ const fmtQty = (n: number | null | undefined) =>
 const today = () => new Date().toISOString().slice(0, 10);
 
 const PAYMENT_TERMS = ['', '10 Days', '15 Days', '30 Days', '60 Days', '90 Days', 'COD'];
+const PO_CURRENCIES = ['AUD', 'USD', 'EUR', 'GBP', 'THB', 'CNY', 'JPY', 'INR', 'CAD', 'NZD'];
 
 function calcDueDate(orderDate: string | undefined, terms: string | undefined): string {
   if (!terms) return '—';
@@ -2600,7 +2602,7 @@ function PurchaseOrdersView() {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [variants, setVariants] = useState<any[]>([]);
-  const [form, setForm] = useState<any>({ supplier_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', supplier_invoice_number: '', payment_terms: '', discount: '' });
+  const [form, setForm] = useState<any>({ supplier_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', supplier_invoice_number: '', payment_terms: '', discount: '', tax_treatment: 'ex_tax', currency_code: 'AUD', exchange_rate: '1', _rateHint: '' });
   const [lineItems, setLineItems] = useState<any[]>([]);
   const [landedCosts, setLandedCosts] = useState<{ label: string; reference: string; amount: string }[]>([]);
   const [lcForm, setLcForm] = useState<{ label: string; reference: string; amount: string } | null>(null);
@@ -2639,25 +2641,73 @@ function PurchaseOrdersView() {
 
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((p: any) => ({ ...p, [k]: e.target.value }));
 
-  const addLine = () => setLineItems(p => [...p, { variant_id: '', qty_ordered: 1, unit_cost: 0, tax_rate: 0 }]);
+  const addLine = () => {
+    const defaultTaxRate = Number(settings?.sales_tax_rate ?? 0);
+    setLineItems(p => [...p, { variant_id: '', qty_ordered: 1, unit_cost: 0, tax_rate: defaultTaxRate }]);
+  };
   const removeLine = (i: number) => setLineItems(p => p.filter((_, idx) => idx !== i));
   const updateLine = (i: number, k: string, v: any) => setLineItems(p => p.map((item, idx) => idx === i ? { ...item, [k]: v } : item));
 
   const selectPOVariant = (i: number, variant_id: string) => {
     const v = variants.find((v: any) => v.variant_id === variant_id);
-    const unit_cost = v ? Number(v.cost ?? 0) : 0;
-    setLineItems(p => p.map((item, j) => j === i ? { ...item, variant_id, unit_cost } : item));
+    const cur = form.currency_code ?? 'AUD';
+    let unit_cost = v ? Number(v.cost ?? 0) : 0;
+    if (v && cur !== 'AUD') {
+      try {
+        const foreignCosts = JSON.parse(v.cost_foreign_json ?? '{}');
+        if (foreignCosts[cur] != null) unit_cost = Number(foreignCosts[cur]);
+      } catch {}
+    }
+    const tax_rate = lineItems[i]?.tax_rate ?? Number(settings?.sales_tax_rate ?? 0);
+    setLineItems(p => p.map((item, j) => j === i ? { ...item, variant_id, unit_cost, tax_rate } : item));
+  };
+
+  const handleCurrencyChange = async (cur: string) => {
+    if (cur === 'AUD') {
+      setForm((p: any) => ({ ...p, currency_code: 'AUD', exchange_rate: '1', _rateHint: '' }));
+      return;
+    }
+    setForm((p: any) => ({ ...p, currency_code: cur, _rateHint: 'Fetching live rate...' }));
+    try {
+      const res = await fetch(`https://api.frankfurter.app/latest?from=${cur}&to=AUD`);
+      const data = await res.json();
+      const rate = data?.rates?.AUD;
+      if (rate) {
+        setForm((p: any) => ({ ...p, exchange_rate: String(Number(rate).toFixed(6)), _rateHint: `Live rate (${new Date().toLocaleDateString()})` }));
+      } else {
+        setForm((p: any) => ({ ...p, _rateHint: 'Could not fetch rate — enter manually' }));
+      }
+    } catch {
+      setForm((p: any) => ({ ...p, _rateHint: 'Could not fetch rate — enter manually' }));
+    }
   };
 
   const lineTotal = (item: any) => Number(item.qty_ordered || 0) * Number(item.unit_cost || 0);
-  const poSubtotal = lineItems.reduce((s, i) => s + lineTotal(i), 0);
-  const poTax      = lineItems.reduce((s, i) => s + lineTotal(i) * Number(i.tax_rate || 0), 0);
+  const taxTreatment = (form.tax_treatment ?? 'ex_tax') as 'ex_tax' | 'inc_tax' | 'no_tax';
+  const poSubtotal = taxTreatment === 'inc_tax'
+    ? lineItems.reduce((s, i) => {
+        const tot = lineTotal(i);
+        const rate = Number(i.tax_rate || 0);
+        return s + (rate > 0 ? tot / (1 + rate) : tot);
+      }, 0)
+    : lineItems.reduce((s, i) => s + lineTotal(i), 0);
+  const poTax = taxTreatment === 'no_tax'
+    ? 0
+    : taxTreatment === 'inc_tax'
+      ? lineItems.reduce((s, i) => {
+          const tot = lineTotal(i);
+          const rate = Number(i.tax_rate || 0);
+          const exTax = rate > 0 ? tot / (1 + rate) : tot;
+          return s + (tot - exTax);
+        }, 0)
+      : lineItems.reduce((s, i) => s + lineTotal(i) * Number(i.tax_rate || 0), 0);
   const poLanded   = landedCosts.reduce((s, c) => s + Number(c.amount || 0), 0);
   const grandTotal = poSubtotal + poTax + poLanded - Number(form.discount || 0);
 
   const openNew = () => {
-    setForm({ supplier_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', supplier_invoice_number: '', payment_terms: '', discount: '' });
-    setLineItems([{ variant_id: '', qty_ordered: 1, unit_cost: 0, tax_rate: 0 }]);
+    setForm({ supplier_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', supplier_invoice_number: '', payment_terms: '', discount: '', tax_treatment: 'ex_tax', currency_code: 'AUD', exchange_rate: '1', _rateHint: '' });
+    const defaultTaxRate = Number(settings?.sales_tax_rate ?? 0);
+    setLineItems([{ variant_id: '', qty_ordered: 1, unit_cost: 0, tax_rate: defaultTaxRate }]);
     setLandedCosts([]);
     setLcForm(null);
     setModal({ open: true, edit: null });
@@ -2665,7 +2715,15 @@ function PurchaseOrdersView() {
 
   const openEdit = async (po: any) => {
     const d = await apiFetch(`/api/ims/purchase-orders/${po.id}`);
-    setForm({ supplier_id: d.data.supplier_id ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), expected_date: d.data.expected_date?.slice(0, 10) ?? '', notes: d.data.notes ?? '', supplier_invoice_number: d.data.supplier_invoice_number ?? '', payment_terms: d.data.payment_terms ?? '', discount: d.data.discount ?? '' });
+    const cur = (d.data.currency_code ?? 'AUD').toUpperCase();
+    const payments = d.data.payments ?? [];
+    const totForeign = payments.reduce((s: number, p: any) => s + Number(p.amount), 0);
+    const totLocal   = payments.reduce((s: number, p: any) => s + Number(p.amount_local ?? Number(p.amount) * Number(p.exchange_rate ?? 1)), 0);
+    const derivedRate = (totForeign > 0 && cur !== 'AUD') ? (totLocal / totForeign) : null;
+    const rateHint = derivedRate
+      ? `Avg of ${payments.length} payment${payments.length !== 1 ? 's' : ''} (${derivedRate.toFixed(4)} AUD per ${cur})`
+      : '';
+    setForm({ supplier_id: d.data.supplier_id ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), expected_date: d.data.expected_date?.slice(0, 10) ?? '', notes: d.data.notes ?? '', supplier_invoice_number: d.data.supplier_invoice_number ?? '', payment_terms: d.data.payment_terms ?? '', discount: d.data.discount ?? '', tax_treatment: d.data.tax_treatment ?? 'ex_tax', currency_code: cur, exchange_rate: derivedRate ? String(derivedRate.toFixed(6)) : String(d.data.exchange_rate ?? 1), _rateHint: rateHint });
     setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_cost: i.unit_cost, tax_rate: i.tax_rate, notes: i.notes ?? '' })));
     setLandedCosts((d.data.landed_costs || []).map((c: any) => ({ label: c.label, reference: c.reference ?? '', amount: String(c.amount) })));
     setLcForm(null);
@@ -2905,6 +2963,28 @@ function PurchaseOrdersView() {
                 </select>
               </Field>
             </Row2>
+            <Row2>
+              <Field label="Supplier costs are…">
+                <select value={form.tax_treatment ?? 'ex_tax'} onChange={sf('tax_treatment')} style={inputStyle}>
+                  <option value="ex_tax">Ex-tax (tax is added on top)</option>
+                  <option value="inc_tax">Inc-tax (tax already included)</option>
+                  <option value="no_tax">No tax / Zero-rated</option>
+                </select>
+              </Field>
+              <Field label="Currency">
+                <select value={form.currency_code ?? 'AUD'} onChange={e => handleCurrencyChange(e.target.value)} style={inputStyle}>
+                  {PO_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </Field>
+            </Row2>
+            {(form.currency_code ?? 'AUD') !== 'AUD' && (
+              <Row2>
+                <Field label={`Exchange Rate (1 ${form.currency_code} = ? AUD)`}>
+                  <input type="number" min="0.000001" step="0.000001" value={form.exchange_rate} onChange={sf('exchange_rate')} style={inputStyle} placeholder="e.g. 1.5200" />
+                  {form._rateHint && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 3 }}>{form._rateHint}</div>}
+                </Field>
+              </Row2>
+            )}
 
             {/* Line items */}
             <div style={{ marginBottom: 14 }}>
@@ -2919,7 +2999,7 @@ function PurchaseOrdersView() {
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: 'var(--sv-bg-1)' }}>
-                      {['Variant','Qty','Unit Cost','Tax %','Line Total',''].map(h => (
+                      {['Variant','Qty',`Unit Cost${(form.currency_code ?? 'AUD') !== 'AUD' ? ` (${form.currency_code})` : ''}`,...(taxTreatment !== 'no_tax' ? ['Tax %'] : []),'Line Total',''].map(h => (
                         <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600 }}>{h}</th>
                       ))}
                     </tr>
@@ -2939,9 +3019,11 @@ function PurchaseOrdersView() {
                         <td style={{ padding: 4, width: 100 }}>
                           <input type="number" min="0" step="0.0001" value={item.unit_cost} onChange={e => updateLine(i, 'unit_cost', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} />
                         </td>
+                        {taxTreatment !== 'no_tax' && (
                         <td style={{ padding: 4, width: 70 }}>
                           <input type="number" min="0" max="1" step="0.01" value={item.tax_rate} onChange={e => updateLine(i, 'tax_rate', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0.1" />
                         </td>
+                        )}
                         <td style={{ padding: '4px 8px', width: 100, color: 'var(--sv-text-main)', fontSize: 13 }}>{fmtCurrency(lineTotal(item))}</td>
                         <td style={{ padding: 4, width: 30 }}>
                           <button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16 }}>×</button>
@@ -2953,7 +3035,10 @@ function PurchaseOrdersView() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
                 <div style={{ minWidth: 380 }}>
-                  {[['Subtotal', fmtCurrency(poSubtotal)], ['Tax', fmtCurrency(poTax)]].map(([l, v]) => (
+                  {[
+                    ['Subtotal' + (taxTreatment === 'inc_tax' ? ' (ex-tax)' : ''), fmtCurrency(poSubtotal)],
+                    ...(taxTreatment !== 'no_tax' ? [['Tax', fmtCurrency(poTax)]] : []),
+                  ].map(([l, v]) => (
                     <div key={l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
                       <span>{l}</span><span>{v}</span>
                     </div>
@@ -3020,8 +3105,28 @@ function PurchaseOrdersView() {
                     )}
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)', borderTop: '1px solid var(--sv-etch)', paddingTop: 6 }}>
-                    <span>Total (inc. tax)</span><span>{fmtCurrency(grandTotal)}</span>
+                    <span>Total{taxTreatment === 'inc_tax' ? ' (inc. tax)' : ''}{(form.currency_code ?? 'AUD') !== 'AUD' ? ` (${form.currency_code})` : ''}</span><span>{fmtCurrency(grandTotal)}</span>
                   </div>
+                  {taxTreatment === 'inc_tax' && (
+                    <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 4 }}>
+                      Costs entered inc. tax — tax extracted at line rate
+                    </div>
+                  )}
+                  {(form.currency_code ?? 'AUD') !== 'AUD' && (() => {
+                    const rate = Number(form.exchange_rate || 1);
+                    const audTotal = grandTotal * rate;
+                    return (
+                      <div style={{ marginTop: 8, padding: '8px 10px', background: 'var(--sv-bg-1)', borderRadius: 6, border: '1px solid var(--sv-etch)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>
+                          <span>Total (AUD)</span><span>A{fmtCurrency(audTotal)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 3 }}>
+                          <span>Exchange rate</span>
+                          <span>1 {form.currency_code} = {rate.toFixed(4)} AUD{form._rateHint ? ` · ${form._rateHint}` : ''}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -3034,7 +3139,7 @@ function PurchaseOrdersView() {
         <ImportLineItemsModal
           variants={variants}
           priceFn={(v) => Number(v.cost ?? 0)}
-          lineFactory={(v, qty, price) => ({ variant_id: v.variant_id, qty_ordered: qty, unit_cost: price, tax_rate: 0 })}
+          lineFactory={(v, qty, price) => ({ variant_id: v.variant_id, qty_ordered: qty, unit_cost: price, tax_rate: Number(settings?.sales_tax_rate ?? 0) })}
           onImport={(items) => setLineItems(prev => [...prev.filter(i => i.variant_id), ...items])}
           onClose={() => setImportOpen(false)}
         />
@@ -5531,6 +5636,92 @@ function ProductMarginView({ onBack }: { onBack: () => void }) {
 // Xero Integration View
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Settings View
+// ─────────────────────────────────────────────────────────────────────────────
+
+function SettingsView() {
+  const { settings, saveSettings } = useImsSettings();
+  const [draft, setDraft]   = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved]   = useState(false);
+
+  useEffect(() => {
+    setDraft({
+      sales_tax_rate:      '',
+      sales_tax_on_sales:  'yes',
+      ...settings,
+    });
+  }, [settings]);
+
+  const sd = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setDraft(p => ({ ...p, [k]: e.target.value }));
+
+  const handleSave = async () => {
+    setSaving(true); setSaved(false);
+    // Convert % display back to decimal for storage
+    const toSave = {
+      ...draft,
+      sales_tax_rate: draft.sales_tax_rate !== ''
+        ? String(Number(draft.sales_tax_rate) / 100)
+        : '',
+    };
+    await saveSettings(toSave);
+    setSaving(false); setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  // Display value: stored as decimal (0.1), show as % (10)
+  const taxRateDisplay = draft.sales_tax_rate !== ''
+    ? String(Number(draft.sales_tax_rate) * 100)
+    : '';
+
+  const card: React.CSSProperties = {
+    padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10,
+    border: '1px solid var(--sv-etch)', maxWidth: 540, marginBottom: 20,
+  };
+
+  return (
+    <div>
+      <h1 style={{ margin: '0 0 24px', fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>General Settings</h1>
+
+      <div style={card}>
+        <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Tax</h3>
+
+        <Field label="Default Sales Tax Rate (%)">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="number" min="0" max="100" step="0.01"
+              value={taxRateDisplay}
+              onChange={e => setDraft(p => ({ ...p, sales_tax_rate: String(Number(e.target.value) / 100) }))}
+              style={{ ...inputStyle, width: 100 }}
+              placeholder="e.g. 10"
+            />
+            <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>%  — applied as default on new PO &amp; SO line items</span>
+          </div>
+        </Field>
+
+        <Field label="Charge Sales Tax on Sales Orders">
+          <select value={draft.sales_tax_on_sales ?? 'yes'} onChange={sd('sales_tax_on_sales')} style={{ ...inputStyle, width: 140 }}>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </Field>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <button
+          onClick={handleSave} disabled={saving}
+          style={{ padding: '9px 22px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 14 }}
+        >
+          {saving ? 'Saving…' : 'Save Settings'}
+        </button>
+        {saved && <span style={{ fontSize: 13, color: '#34d399' }}>✓ Saved</span>}
+      </div>
+    </div>
+  );
+}
+
 function XeroView({ businessId }: { businessId: string }) {
   const [status, setStatus] = useState<{ connected: boolean; tenantName?: string; tokenExpiry?: number; envConfigured?: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -6660,6 +6851,7 @@ export default function ImsPage() {
           {view === 'report-product-margin' && <ProductMarginView onBack={() => setView('reports')} />}
           {view === 'xero'              && <XeroView businessId={user?.userSpreadsheetId ?? ''} />}
           {view === 'shopify'           && <ShopifyView />}
+          {view === 'settings'          && <SettingsView />}
         </main>
       </div>
     </div>

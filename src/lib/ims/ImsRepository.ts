@@ -81,6 +81,7 @@ export interface ImsPO {
   received_date?: string; notes?: string; subtotal: number;
   tax_amount: number; freight?: number; discount?: number; total_amount: number; is_historical?: number;
   supplier_invoice_number?: string; payment_terms?: string;
+  tax_treatment?: 'ex_tax' | 'inc_tax' | 'no_tax';
   currency_code?: string; exchange_rate?: number;
   amount_paid?: number; amount_paid_local?: number; balance?: number; balance_local?: number;
   created_at?: string; updated_at?: string;
@@ -707,8 +708,24 @@ export const ImsPORepo = {
     landedCosts?: LandedCostRow[],
   ): Promise<number> {
     const po_number = data.po_number || await nextPONumber();
-    const subtotal = items.reduce((s, i) => s + Number(i.line_total), 0);
-    const tax_amount = items.reduce((s, i) => s + Number(i.line_total) * Number(i.tax_rate), 0);
+    const taxTreatment = data.tax_treatment ?? 'ex_tax';
+    const subtotal = taxTreatment === 'inc_tax'
+      ? items.reduce((s, i) => {
+          const tot = Number(i.line_total);
+          const rate = Number(i.tax_rate ?? 0);
+          return s + (rate > 0 ? tot / (1 + rate) : tot);
+        }, 0)
+      : items.reduce((s, i) => s + Number(i.line_total), 0);
+    const tax_amount = taxTreatment === 'no_tax'
+      ? 0
+      : taxTreatment === 'inc_tax'
+        ? items.reduce((s, i) => {
+            const tot = Number(i.line_total);
+            const rate = Number(i.tax_rate ?? 0);
+            const exTax = rate > 0 ? tot / (1 + rate) : tot;
+            return s + (tot - exTax);
+          }, 0)
+        : items.reduce((s, i) => s + Number(i.line_total) * Number(i.tax_rate), 0);
     const landedTotal = (landedCosts || []).reduce((s, c) => s + Number(c.amount), 0);
     const discount = Number(data.discount ?? 0);
     const total_amount = subtotal + tax_amount + landedTotal - discount;
@@ -716,11 +733,14 @@ export const ImsPORepo = {
     const res = await imsExecute(
       `INSERT INTO ims_purchase_orders
          (po_number,supplier_id,location_id,status,order_date,expected_date,notes,
-          supplier_invoice_number,payment_terms,freight,discount,subtotal,tax_amount,total_amount)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          supplier_invoice_number,payment_terms,tax_treatment,currency_code,exchange_rate,
+          freight,discount,subtotal,tax_amount,total_amount)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [po_number, data.supplier_id ?? null, data.location_id, 'draft',
        data.order_date, data.expected_date ?? null, data.notes ?? null,
        data.supplier_invoice_number ?? null, data.payment_terms ?? null,
+       data.tax_treatment ?? 'ex_tax',
+       data.currency_code ?? 'AUD', data.exchange_rate ?? 1,
        0, discount, subtotal, tax_amount, total_amount]
     );
     const po_id = res.insertId;
@@ -748,11 +768,11 @@ export const ImsPORepo = {
 
   async update(
     id: number,
-    data: Partial<Pick<ImsPO, 'supplier_id' | 'location_id' | 'order_date' | 'expected_date' | 'notes' | 'supplier_invoice_number' | 'payment_terms' | 'discount'>>,
+    data: Partial<Pick<ImsPO, 'supplier_id' | 'location_id' | 'order_date' | 'expected_date' | 'notes' | 'supplier_invoice_number' | 'payment_terms' | 'tax_treatment' | 'currency_code' | 'exchange_rate' | 'discount'>>,
     items?: Omit<ImsPOItem, 'id' | 'po_id' | 'qty_received' | 'sku' | 'product_name' | 'variant_label'>[],
     landedCosts?: LandedCostRow[],
   ): Promise<void> {
-    const fields = ['supplier_id','location_id','order_date','expected_date','notes','supplier_invoice_number','payment_terms','discount'];
+    const fields = ['supplier_id','location_id','order_date','expected_date','notes','supplier_invoice_number','payment_terms','tax_treatment','currency_code','exchange_rate','discount'];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of fields) {
@@ -774,12 +794,29 @@ export const ImsPORepo = {
 
       if (items) {
         await conn.execute(`DELETE FROM ims_purchase_order_items WHERE po_id = ?`, [id]);
+        // Determine effective tax_treatment (new value if supplied, else from DB)
+        let taxTreatment: string = data.tax_treatment ?? 'ex_tax';
+        if (!data.tax_treatment) {
+          const [[poMeta]] = await conn.execute<any[]>(`SELECT tax_treatment FROM ims_purchase_orders WHERE id=?`, [id]);
+          taxTreatment = poMeta?.tax_treatment ?? 'ex_tax';
+        }
         let subtotal = 0, tax_amount = 0;
         for (const item of items) {
           const line_total = Number(item.qty_ordered) * Number(item.unit_cost);
-          const item_tax   = line_total * Number(item.tax_rate ?? 0);
-          subtotal    += line_total;
-          tax_amount  += item_tax;
+          const rate = Number(item.tax_rate ?? 0);
+          let item_subtotal: number, item_tax: number;
+          if (taxTreatment === 'inc_tax') {
+            item_subtotal = rate > 0 ? line_total / (1 + rate) : line_total;
+            item_tax      = line_total - item_subtotal;
+          } else if (taxTreatment === 'no_tax') {
+            item_subtotal = line_total;
+            item_tax      = 0;
+          } else {
+            item_subtotal = line_total;
+            item_tax      = line_total * rate;
+          }
+          subtotal   += item_subtotal;
+          tax_amount += item_tax;
           await conn.execute(
             `INSERT INTO ims_purchase_order_items
                (po_id,variant_id,qty_ordered,unit_cost,tax_rate,line_total,notes)
@@ -957,14 +994,28 @@ export const ImsPORepo = {
             `SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id=? AND location_id=?`,
             [item.variant_id, po.location_id]
           );
+
+          // Determine effective exchange rate: payment-derived weighted avg, else stored rate
+          let effective_rate = Number(po.exchange_rate ?? 1);
+          try {
+            const [[pymtAgg]] = await conn.execute<any[]>(
+              `SELECT SUM(amount) AS tot_foreign, SUM(amount_local) AS tot_local
+               FROM ims_purchase_order_payments WHERE po_id = ?`, [id]
+            );
+            const totForeign = Number(pymtAgg?.tot_foreign ?? 0);
+            const totLocal   = Number(pymtAgg?.tot_local ?? 0);
+            if (totForeign > 0) effective_rate = totLocal / totForeign;
+          } catch {}
+
           const old_soh   = Number(s?.qty_on_hand ?? 0);
           const old_avg   = Number(s?.avg_cost ?? item.unit_cost);
           const qty_rcvd  = Number(item.qty_ordered);
           const lcpu      = landedPerUnit.get(item.id) ?? 0;
-          const true_cost = Number(item.unit_cost) + lcpu;
+          // Convert from PO currency to AUD using effective_rate
+          const true_cost_aud = (Number(item.unit_cost) + lcpu) * effective_rate;
           const new_avg   = old_soh <= 0
-            ? true_cost
-            : (old_avg * old_soh + true_cost * qty_rcvd) / (old_soh + qty_rcvd);
+            ? true_cost_aud
+            : (old_avg * old_soh + true_cost_aud * qty_rcvd) / (old_soh + qty_rcvd);
           const new_soh   = old_soh + qty_rcvd;
 
           await conn.execute(
@@ -983,7 +1034,7 @@ export const ImsPORepo = {
             `INSERT INTO ims_stock_movements
                (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
              VALUES (?,?,'po_received','purchase_order',?,?,?,?)`,
-            [item.variant_id, po.location_id, id, qty_rcvd, new_soh, true_cost]
+            [item.variant_id, po.location_id, id, qty_rcvd, new_soh, true_cost_aud]
           );
         }
         await conn.execute(
