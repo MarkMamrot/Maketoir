@@ -373,6 +373,7 @@ export async function POST(req: Request) {
           );
           const variantBySkuMap     = new Map<string, string>(existingVars.filter(r => r.sku).map(r => [r.sku!, r.variant_id]));
           const variantByBarcodeMap = new Map<string, string>(existingVars.filter(r => r.barcode).map(r => [r.barcode!, r.variant_id]));
+          const visitedVariantKeys  = new Set<string>(); // prevents pagination-drift duplicates
           const uniqueBrands = new Set<string>();
           let productNew = 0;
           let variantSynced = 0;
@@ -462,6 +463,10 @@ export async function POST(req: Request) {
                   ? `${opt.productOptionCode}-${opt.size}`
                   : null
               );
+              // Skip if already processed (Cin7 pagination drift can return same product on multiple pages)
+              const variantKey = (opt.barcode || '') + ':' + (optSku || '') + ':' + cin7OptId;
+              if (visitedVariantKeys.has(variantKey)) continue;
+              visitedVariantKeys.add(variantKey);
               // option1_value: use explicit option1 or fall back to size dimension
               const opt1Value = opt.option1 || opt.size || null;
               const opt1NameResolved = opt1Name || (opt.size ? 'Size' : null);

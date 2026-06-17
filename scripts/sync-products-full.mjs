@@ -227,6 +227,7 @@ const supplierContactMap = new Map(contactMapRows.map(r => [r.cin7_supplier_id, 
 const prodCin7Map = new Map();
 const variantBySkuMap     = new Map(); // sku     → variant_id
 const variantByBarcodeMap = new Map(); // barcode → variant_id (fallback for null-sku size-grid variants)
+const visitedVariantKeys  = new Set(); // barcode|sku to prevent pagination-drift duplicates
 const uniqueBrands = new Set();
 let productNew = 0;
 let variantSynced = 0;
@@ -302,6 +303,10 @@ const totalFetched = await cin7ForEachPage('/Products', {}, async (pageProducts,
       const optSku = opt.code || (
         opt.productOptionCode && opt.size ? `${opt.productOptionCode}-${opt.size}` : null
       );
+      // Skip if this exact variant was already processed (Cin7 pagination drift can return same product twice)
+      const variantKey = (opt.barcode || '') + ':' + (optSku || '') + ':' + cin7OptId;
+      if (visitedVariantKeys.has(variantKey)) { continue; }
+      visitedVariantKeys.add(variantKey);
       const opt1Value        = opt.option1 || opt.size || null;
       const opt1NameResolved = opt1Name || (opt.size ? 'Size' : null);
 
