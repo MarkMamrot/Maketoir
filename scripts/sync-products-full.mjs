@@ -408,9 +408,10 @@ for (const s of cin7Stock) {
   const cin7BranchId = Number(s.branchId ?? s.BranchId);
   const stockCode    = (s.code ?? '').trim();
   const stockSize    = (s.size ?? '').trim();
-  if (!stockCode || !cin7BranchId) continue;
-
   const stockBarcode = (s.barcode ?? '').trim();
+  // Skip only if there's no code AND no barcode (size-grid products have code="" but valid barcode)
+  if ((!stockCode && !stockBarcode) || !cin7BranchId) continue;
+
   const stockSkuFromSize = stockSize ? `${stockCode}-${stockSize}` : '';
   const variantMatch = variantByCode.get(stockCode)
     ?? (stockSkuFromSize ? variantByCode.get(stockSkuFromSize) : undefined)
