@@ -3303,6 +3303,7 @@ function POActions({ po, onEdit, onDelete, onStatus }: { po: any; onEdit: () => 
   }
   const btns = [];
   if (po.status === 'draft')    { btns.push(<button key="a" onClick={() => onStatus(po, 'approved')}  style={btnStyle('mint', 'xs')}>Approve</button>); }
+  if (po.status === 'approved') { btns.push(<a key="p" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 Phone</a>); }
   if (po.status === 'approved') { btns.push(<button key="r" onClick={() => onStatus(po, 'received')}  style={btnStyle('mint', 'xs')}>Receive</button>); }
   if (po.status === 'approved') { btns.push(<button key="b" onClick={() => onStatus(po, 'draft')}     style={btnStyle('ghost', 'xs')}>Revert</button>); }
   if (po.status !== 'received' && po.status !== 'cancelled') {

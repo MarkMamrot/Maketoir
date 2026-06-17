@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import PoListView from './components/PoListView';
 import ReceiveInterfaceView from './components/ReceiveInterfaceView';
 
@@ -30,6 +30,7 @@ interface ReceivedItem {
 
 export default function ReceivePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [view, setView] = useState<'list' | 'receive'>('list');
@@ -43,6 +44,27 @@ export default function ReceivePage() {
         const res = await fetch('/api/auth/session');
         if (res.ok) {
           setAuthenticated(true);
+
+          // Check if po_id is in query params
+          const poId = searchParams.get('po_id');
+          if (poId) {
+            // Fetch the specific PO and auto-select it
+            try {
+              const poRes = await fetch('/api/ims/receive/pending-pos');
+              if (poRes.ok) {
+                const data = await poRes.json();
+                const pos = data.data || [];
+                const po = pos.find((p: PO) => p.id === parseInt(poId));
+                if (po) {
+                  setSelectedPo(po);
+                  setView('receive');
+                  setReceivingCart([]);
+                }
+              }
+            } catch (err) {
+              console.error('Failed to fetch PO:', err);
+            }
+          }
         } else {
           router.push('/login');
         }
@@ -54,7 +76,7 @@ export default function ReceivePage() {
     };
 
     checkAuth();
-  }, [router]);
+  }, [router, searchParams]);
 
   if (loading) {
     return (
