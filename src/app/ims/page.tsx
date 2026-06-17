@@ -5907,6 +5907,7 @@ type BulkEditRow = {
 
 type BulkEditDraft = Partial<{
   name: string;
+  barcode: string;
   brand: string;
   supplier_contact_id: number | null;
   zone: string;
@@ -5916,6 +5917,7 @@ type BulkEditDraft = Partial<{
 }>;
 
 type VariantEditDraft = Partial<{
+  barcode: string;
   zone: string;
   bin: string;
 }>;
@@ -6023,13 +6025,14 @@ function BulkEditView() {
     setSaveMsg('');
     try {
       const updates = Object.entries(edits).map(([product_id, draft]) => {
-        const variantOverrides: Array<{ variant_id: string; zone?: string | null; bin?: string | null }> = [];
+        const variantOverrides: Array<{ variant_id: string; barcode?: string | null; zone?: string | null; bin?: string | null }> = [];
         
         // Collect variant overrides for this product
         Object.entries(variantEdits).forEach(([key, vDraft]) => {
           const [pId, vId] = key.split('|');
-          if (pId === product_id && (vDraft.zone !== undefined || vDraft.bin !== undefined)) {
+          if (pId === product_id && (vDraft.barcode !== undefined || vDraft.zone !== undefined || vDraft.bin !== undefined)) {
             const override: any = { variant_id: vId };
+            if ('barcode' in vDraft) override.barcode = vDraft.barcode || null;
             if ('zone' in vDraft) override.zone = vDraft.zone || null;
             if ('bin' in vDraft) override.bin = vDraft.bin || null;
             variantOverrides.push(override);
@@ -6161,13 +6164,13 @@ function BulkEditView() {
           <thead>
             <tr style={{ background: 'var(--sv-bg-2)', borderBottom: '2px solid var(--sv-etch)' }}>
               <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 220 }}>Product Name</th>
-              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 130 }}>Brand</th>
-              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 160 }}>Supplier</th>
-              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 90 }}>Zone</th>
-              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 90 }}>Bin</th>
+              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 120 }}>Barcode</th>
               <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 80 }}>Min Qty</th>
               <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 90 }}>Reorder Qty</th>
-              <th style={{ padding: '8px 6px', textAlign: 'center', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 40 }}>Variants</th>
+              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 90 }}>Zone</th>
+              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 90 }}>Bin</th>
+              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 160 }}>Supplier</th>
+              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 130 }}>Brand</th>
             </tr>
           </thead>
           <tbody>
@@ -6191,20 +6194,26 @@ function BulkEditView() {
               };
 
               const nameVal     = getValue(row, 'name') as string;
-              const brandVal    = getValue(row, 'brand') as string;
-              const zoneVal     = getValue(row, 'zone') as string;
-              const binVal      = getValue(row, 'bin') as string;
+              const barcodeVal  = getValue(row, 'barcode') as string;
               const minVal      = getValue(row, 'min_qty');
               const reorderVal  = getValue(row, 'reorder_qty');
+              const zoneVal     = getValue(row, 'zone') as string;
+              const binVal      = getValue(row, 'bin') as string;
               const supplierVal = String(getValue(row, 'supplier_contact_id') ?? '');
+              const brandVal    = getValue(row, 'brand') as string;
 
               const nameDirty     = edits[row.product_id] && 'name'               in edits[row.product_id]!;
-              const brandDirty    = edits[row.product_id] && 'brand'              in edits[row.product_id]!;
-              const zoneDirty     = edits[row.product_id] && 'zone'               in edits[row.product_id]!;
-              const binDirty      = edits[row.product_id] && 'bin'                in edits[row.product_id]!;
+              const barcodeDirty  = edits[row.product_id] && 'barcode'            in edits[row.product_id]!;
               const minDirty      = edits[row.product_id] && 'min_qty'            in edits[row.product_id]!;
               const reorderDirty  = edits[row.product_id] && 'reorder_qty'        in edits[row.product_id]!;
+              const zoneDirty     = edits[row.product_id] && 'zone'               in edits[row.product_id]!;
+              const binDirty      = edits[row.product_id] && 'bin'                in edits[row.product_id]!;
               const supplierDirty = edits[row.product_id] && 'supplier_contact_id' in edits[row.product_id]!;
+              const brandDirty    = edits[row.product_id] && 'brand'              in edits[row.product_id]!;
+              
+              // For product-level barcode, use first variant if available
+              const firstVariantBarcode = row.variants && row.variants.length > 0 ? row.variants[0].barcode : null;
+              const isSingleVariant = row.variant_count === 1;
 
               return (
                 <React.Fragment key={row.product_id}>
@@ -6230,27 +6239,40 @@ function BulkEditView() {
                       />
                     </td>
 
-                    {/* Brand */}
+                    {/* Barcode (editable if single variant, read-only if multiple) */}
+                    <td style={{ padding: '4px 8px' }}>
+                      {isSingleVariant ? (
+                        <input
+                          value={barcodeVal || firstVariantBarcode || ''}
+                          onChange={e => setEdit(row.product_id, 'barcode', e.target.value)}
+                          placeholder="—"
+                          style={barcodeDirty ? dirtyInputSt : inputSt}
+                        />
+                      ) : (
+                        <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>
+                          {firstVariantBarcode ? `${firstVariantBarcode}*` : '—'}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Min Qty */}
                     <td style={{ padding: '4px 8px' }}>
                       <input
-                        list="be-brands-list"
-                        value={brandVal}
-                        onChange={e => setEdit(row.product_id, 'brand', e.target.value)}
-                        placeholder="—"
-                        style={brandDirty ? dirtyInputSt : inputSt}
+                        type="number" min={0} step={1}
+                        value={minVal}
+                        onChange={e => setEdit(row.product_id, 'min_qty', e.target.value === '' ? 0 : Math.round(Number(e.target.value)))}
+                        style={{ ...minDirty ? dirtyInputSt : inputSt, textAlign: 'center' }}
                       />
                     </td>
 
-                    {/* Supplier */}
+                    {/* Reorder Qty */}
                     <td style={{ padding: '4px 8px' }}>
-                      <select
-                        value={supplierVal}
-                        onChange={e => setEdit(row.product_id, 'supplier_contact_id', e.target.value ? Number(e.target.value) : null)}
-                        style={supplierDirty ? dirtyInputSt : inputSt}
-                      >
-                        <option value=''>— none —</option>
-                        {suppliers.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
-                      </select>
+                      <input
+                        type="number" min={0} step={1}
+                        value={reorderVal}
+                        onChange={e => setEdit(row.product_id, 'reorder_qty', e.target.value === '' ? 0 : Math.round(Number(e.target.value)))}
+                        style={{ ...reorderDirty ? dirtyInputSt : inputSt, textAlign: 'center' }}
+                      />
                     </td>
 
                     {/* Zone (product-level) */}
@@ -6275,36 +6297,36 @@ function BulkEditView() {
                       />
                     </td>
 
-                    {/* Min Qty */}
+                    {/* Supplier */}
                     <td style={{ padding: '4px 8px' }}>
-                      <input
-                        type="number" min={0} step={1}
-                        value={minVal}
-                        onChange={e => setEdit(row.product_id, 'min_qty', e.target.value === '' ? 0 : Math.round(Number(e.target.value)))}
-                        style={{ ...minDirty ? dirtyInputSt : inputSt, textAlign: 'center' }}
-                      />
+                      <select
+                        value={supplierVal}
+                        onChange={e => setEdit(row.product_id, 'supplier_contact_id', e.target.value ? Number(e.target.value) : null)}
+                        style={supplierDirty ? dirtyInputSt : inputSt}
+                      >
+                        <option value=''>— none —</option>
+                        {suppliers.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
+                      </select>
                     </td>
 
-                    {/* Reorder Qty */}
+                    {/* Brand */}
                     <td style={{ padding: '4px 8px' }}>
                       <input
-                        type="number" min={0} step={1}
-                        value={reorderVal}
-                        onChange={e => setEdit(row.product_id, 'reorder_qty', e.target.value === '' ? 0 : Math.round(Number(e.target.value)))}
-                        style={{ ...reorderDirty ? dirtyInputSt : inputSt, textAlign: 'center' }}
+                        list="be-brands-list"
+                        value={brandVal}
+                        onChange={e => setEdit(row.product_id, 'brand', e.target.value)}
+                        placeholder="—"
+                        style={brandDirty ? dirtyInputSt : inputSt}
                       />
-                    </td>
-
-                    {/* Variant count */}
-                    <td style={{ padding: '4px 8px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>
-                      {row.variant_count}
                     </td>
                   </tr>
 
                   {/* Variant rows (when expanded) */}
                   {isExpanded && row.variants && row.variants.map(variant => {
+                    const vBarcodeVal = getVariantValue(row.product_id, variant.variant_id, 'barcode', variant.barcode || '');
                     const vZoneVal = getVariantValue(row.product_id, variant.variant_id, 'zone', variant.zone);
                     const vBinVal = getVariantValue(row.product_id, variant.variant_id, 'bin', variant.bin);
+                    const vBarcodeDirty = variantEdits[`${row.product_id}|${variant.variant_id}`] && 'barcode' in variantEdits[`${row.product_id}|${variant.variant_id}`]!;
                     const vZoneDirty = variantEdits[`${row.product_id}|${variant.variant_id}`] && 'zone' in variantEdits[`${row.product_id}|${variant.variant_id}`]!;
                     const vBinDirty = variantEdits[`${row.product_id}|${variant.variant_id}`] && 'bin' in variantEdits[`${row.product_id}|${variant.variant_id}`]!;
 
@@ -6312,10 +6334,21 @@ function BulkEditView() {
                       <tr key={`${row.product_id}|${variant.variant_id}`} style={variantRowStyle}>
                         {/* Indent + SKU */}
                         <td style={{ padding: '4px 8px', paddingLeft: '32px', fontSize: 11, color: 'var(--sv-text-dim)' }}>
-                          {variant.sku} {variant.barcode ? `(${variant.barcode})` : ''}
+                          {variant.sku}
                         </td>
 
-                        {/* Empty cells for Brand, Supplier */}
+                        {/* Variant Barcode */}
+                        <td style={{ padding: '4px 8px' }}>
+                          <input
+                            value={vBarcodeVal}
+                            onChange={e => setVariantEdit(row.product_id, variant.variant_id, 'barcode', e.target.value)}
+                            placeholder={variant.barcode || '—'}
+                            style={vBarcodeDirty ? dirtyInputSt : inputSt}
+                            title={`Barcode for variant ${variant.sku}`}
+                          />
+                        </td>
+
+                        {/* Empty cells for Min/Reorder Qty */}
                         <td colSpan={2} style={{ padding: '4px 8px' }} />
 
                         {/* Variant Zone */}
@@ -6340,8 +6373,8 @@ function BulkEditView() {
                           />
                         </td>
 
-                        {/* Empty cells for Min/Reorder Qty, Variants count */}
-                        <td colSpan={3} style={{ padding: '4px 8px' }} />
+                        {/* Empty cells for Supplier, Brand */}
+                        <td colSpan={2} style={{ padding: '4px 8px' }} />
                       </tr>
                     );
                   })}

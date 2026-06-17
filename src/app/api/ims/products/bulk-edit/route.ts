@@ -148,8 +148,8 @@ export async function GET(req: Request) {
 }
 
 // ─── PUT /api/ims/products/bulk-edit ─────────────────────────────────────────
-// Body: { location_id: number, updates: Array<{ product_id, name?, brand?,
-//   supplier_contact_id?, zone?, bin?, min_qty?, reorder_qty? }> }
+// Body: { location_id: number, updates: Array<{ product_id, name?, barcode?, brand?,
+//   supplier_contact_id?, zone?, bin?, min_qty?, reorder_qty?, variant_overrides? }> }
 export async function PUT(req: Request) {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -160,6 +160,7 @@ export async function PUT(req: Request) {
       updates: Array<{
         product_id: string;
         name?: string;
+        barcode?: string | null;
         brand?: string | null;
         supplier_contact_id?: number | null;
         zone?: string | null;
@@ -168,6 +169,7 @@ export async function PUT(req: Request) {
         reorder_qty?: number | null;
         variant_overrides?: Array<{
           variant_id: string;
+          barcode?: string | null;
           zone?: string | null;
           bin?: string | null;
         }>;
@@ -237,12 +239,33 @@ export async function PUT(req: Request) {
         }
       }
 
+      // ── Apply product-level barcode to single variant ─────────────────────
+      if ('barcode' in u) {
+        const variantIds = await imsQuery<{ variant_id: string }>(
+          'SELECT variant_id FROM ims_product_variants WHERE product_id = ? AND is_active = 1',
+          [u.product_id],
+        );
+
+        // Only apply product-level barcode to single variant products
+        if (variantIds.length === 1) {
+          await imsExecute(
+            `UPDATE ims_product_variants SET barcode = ? WHERE variant_id = ?`,
+            [u.barcode || null, variantIds[0].variant_id],
+          );
+          variantUpdates++;
+        }
+      }
+
       // ── Apply variant-level overrides ──────────────────────────────────────
       if (u.variant_overrides && u.variant_overrides.length > 0) {
         for (const override of u.variant_overrides) {
           const variantFields: string[] = [];
           const variantValues: any[]    = [];
 
+          if ('barcode' in override) {
+            variantFields.push('barcode = ?');
+            variantValues.push(override.barcode ?? null);
+          }
           if ('zone' in override) {
             variantFields.push('zone = ?');
             variantValues.push(override.zone ?? null);
