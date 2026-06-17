@@ -2807,8 +2807,8 @@ function PurchaseOrdersView() {
         )}
       </div>
       {loading ? <Spinner /> : sortedFilteredPOs.length === 0 ? <EmptyState text="No purchase orders match your filters." /> : (
-        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
+          <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
               <col />
               <col style={{ width: 160 }} />
