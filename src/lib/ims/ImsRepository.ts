@@ -1901,6 +1901,127 @@ export interface ImsShopifySyncLog {
   created_at: string;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Product Images
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ImsProductImage {
+  id: number;
+  product_id: string;
+  url: string;
+  source: 'shopify' | 'google_drive' | 'external';
+  drive_file_id?: string;
+  is_primary: number;
+  sort_order: number;
+  alt_text?: string;
+  created_at?: string;
+}
+
+export const ImsImagesRepo = {
+  async list(productId: string): Promise<ImsProductImage[]> {
+    return imsQuery<ImsProductImage>(
+      `SELECT * FROM ims_product_images WHERE product_id = ? ORDER BY is_primary DESC, sort_order ASC, id ASC`,
+      [productId],
+    );
+  },
+
+  async add(
+    productId: string,
+    url: string,
+    source: ImsProductImage['source'],
+    opts?: { driveFileId?: string; altText?: string; isPrimary?: boolean },
+  ): Promise<number> {
+    // Count existing — enforce max 5
+    const rows = await imsQuery<{ cnt: number }>(
+      `SELECT COUNT(*) AS cnt FROM ims_product_images WHERE product_id = ?`,
+      [productId],
+    );
+    if ((rows[0]?.cnt ?? 0) >= 5) throw new Error('Maximum of 5 images per product.');
+
+    // If this is marked primary, demote any existing primary
+    if (opts?.isPrimary) {
+      await imsExecute(
+        `UPDATE ims_product_images SET is_primary = 0 WHERE product_id = ?`,
+        [productId],
+      );
+    }
+
+    // Determine sort_order = max + 1
+    const sortRows = await imsQuery<{ mx: number | null }>(
+      `SELECT MAX(sort_order) AS mx FROM ims_product_images WHERE product_id = ?`,
+      [productId],
+    );
+    const sortOrder = (sortRows[0]?.mx ?? -1) + 1;
+
+    const res = await imsExecute(
+      `INSERT INTO ims_product_images (product_id, url, source, drive_file_id, is_primary, sort_order, alt_text)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        productId, url, source,
+        opts?.driveFileId ?? null,
+        opts?.isPrimary ? 1 : 0,
+        sortOrder,
+        opts?.altText ?? null,
+      ],
+    );
+    return (res as any).insertId;
+  },
+
+  async setPrimary(id: number, productId: string): Promise<void> {
+    await imsExecute(
+      `UPDATE ims_product_images SET is_primary = 0 WHERE product_id = ?`,
+      [productId],
+    );
+    await imsExecute(
+      `UPDATE ims_product_images SET is_primary = 1 WHERE id = ? AND product_id = ?`,
+      [id, productId],
+    );
+  },
+
+  async delete(id: number, productId: string): Promise<void> {
+    await imsExecute(
+      `DELETE FROM ims_product_images WHERE id = ? AND product_id = ?`,
+      [id, productId],
+    );
+    // If we deleted the primary, promote the first remaining image
+    await imsExecute(
+      `UPDATE ims_product_images SET is_primary = 1
+       WHERE product_id = ? AND is_primary = 0
+       ORDER BY sort_order ASC LIMIT 1`,
+      [productId],
+    );
+  },
+
+  async reorder(productId: string, orderedIds: number[]): Promise<void> {
+    for (let i = 0; i < orderedIds.length; i++) {
+      await imsExecute(
+        `UPDATE ims_product_images SET sort_order = ? WHERE id = ? AND product_id = ?`,
+        [i, orderedIds[i], productId],
+      );
+    }
+  },
+
+  /** Upsert images from Shopify (by URL — idempotent). */
+  async upsertFromShopify(
+    productId: string,
+    images: Array<{ src: string; alt?: string }>,
+  ): Promise<void> {
+    if (!images.length) return;
+    // Clear existing shopify-sourced images for this product, replace with fresh ones
+    await imsExecute(
+      `DELETE FROM ims_product_images WHERE product_id = ? AND source = 'shopify'`,
+      [productId],
+    );
+    for (let i = 0; i < Math.min(images.length, 5); i++) {
+      await imsExecute(
+        `INSERT INTO ims_product_images (product_id, url, source, is_primary, sort_order, alt_text)
+         VALUES (?, ?, 'shopify', ?, ?, ?)`,
+        [productId, images[i].src, i === 0 ? 1 : 0, i, images[i].alt ?? null],
+      );
+    }
+  },
+};
+
 export const ImsShopifyRepo = {
   // ── Sync log ──────────────────────────────────────────────────────────────
   async logAction(

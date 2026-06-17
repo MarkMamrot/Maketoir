@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import ShopifyView from './components/ShopifyView';
+import ProductImageGallery from './components/ProductImageGallery';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -1959,6 +1960,20 @@ function ProductsView() {
               <textarea value={form.description} onChange={sf('description') as any} rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
             </Field>
           </div>
+
+          {/* ── Photos ── */}
+          {modal.edit?.product_id && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Photos</span>
+                <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+              </div>
+              <div style={{ marginBottom: 20 }}>
+                <ProductImageGallery productId={modal.edit.product_id} />
+              </div>
+            </>
+          )}
 
           {/* ── Section divider ── */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>

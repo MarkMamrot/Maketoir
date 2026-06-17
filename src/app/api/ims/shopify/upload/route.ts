@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { ShopifyService } from '@/services/ShopifyService';
 import { decrypt } from '@/lib/encryption';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { ImsProductsRepo, ImsShopifyRepo } from '@/lib/ims/ImsRepository';
+import { ImsProductsRepo, ImsImagesRepo, ImsShopifyRepo } from '@/lib/ims/ImsRepository';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -76,6 +76,16 @@ export async function POST(req: Request) {
           variants:     shopifyVariants.length > 0 ? shopifyVariants : [{ price: '0.00' }],
           options:      options.length > 0 ? options : undefined,
         };
+
+        // Include IMS-stored images if any
+        const imsImages = await ImsImagesRepo.list(product_id);
+        if (imsImages.length > 0) {
+          payload.images = imsImages.map((img, i) => ({
+            src: img.url,
+            position: i + 1,
+            alt: img.alt_text ?? '',
+          }));
+        }
 
         const created = await shopify.createProduct(payload);
         await ImsShopifyRepo.linkProduct(product_id, String(created.id));

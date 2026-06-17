@@ -87,6 +87,8 @@ function ShopifyOverviewTab({ status, onReload }: { status: any; onReload: () =>
   const [reconciling, setReconciling] = useState(false);
   const [reconcileResult, setReconcileResult] = useState<any>(null);
   const [reconcileError, setReconcileError]   = useState<string | null>(null);
+  const [importingImages, setImportingImages] = useState(false);
+  const [importResult, setImportResult]       = useState<string | null>(null);
 
   const runReconcile = async () => {
     setReconciling(true);
@@ -102,6 +104,17 @@ function ShopifyOverviewTab({ status, onReload }: { status: any; onReload: () =>
       setReconcileError(e.message);
     }
     setReconciling(false);
+  };
+
+  const runImportImages = async () => {
+    setImportingImages(true); setImportResult(null);
+    try {
+      const r = await fetch('/api/ims/shopify/import-images', { method: 'POST' });
+      const d = await r.json();
+      if (!d.success) throw new Error(d.error);
+      setImportResult(`Imported images for ${d.imported} products (${d.skipped} skipped).`);
+    } catch (e: any) { setImportResult(`Error: ${e.message}`); }
+    setImportingImages(false);
   };
 
   const card: React.CSSProperties = {
@@ -172,6 +185,31 @@ function ShopifyOverviewTab({ status, onReload }: { status: any; onReload: () =>
         {reconcileError && (
           <div style={{ marginTop: 16, padding: 12, background: 'rgba(248,113,113,.1)', borderRadius: 8, border: '1px solid rgba(248,113,113,.3)', color: '#f87171', fontSize: 13 }}>
             ✗ {reconcileError}
+          </div>
+        )}
+      </div>
+
+      {/* Import images card */}
+      <div style={{ ...card, marginTop: 16 }}>
+        <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Import Product Images from Shopify</h3>
+        <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
+          Pulls Shopify CDN image URLs for all linked products into IMS. Run after Reconcile.
+          Images are stored as URLs — nothing is downloaded.
+        </p>
+        <button
+          onClick={runImportImages}
+          disabled={importingImages}
+          style={{
+            padding: '9px 20px', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)',
+            border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: importingImages ? 'not-allowed' : 'pointer',
+            fontWeight: 600, fontSize: 14, opacity: importingImages ? 0.7 : 1,
+          }}
+        >
+          {importingImages ? 'Importing…' : '🖼 Import Images'}
+        </button>
+        {importResult && (
+          <div style={{ marginTop: 12, fontSize: 13, color: importResult.startsWith('Error') ? '#f87171' : '#34d399' }}>
+            {importResult.startsWith('Error') ? '✗' : '✓'} {importResult}
           </div>
         )}
       </div>
