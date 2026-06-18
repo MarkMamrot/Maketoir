@@ -210,7 +210,7 @@ async function gatherCompactDataContext(
       const rows: string[][] = [
         ['order_id', 'order_date', 'product_option_id', 'product_name', 'branch_name', 'customer_name', 'qty', 'unit_price', 'line_total'],
         ...sales.map(s => [
-          s.order_id, s.order_date, s.product_option_id, s.product_name ?? '',
+          s.order_id, s.order_date ?? '', s.product_option_id, s.product_name ?? '',
           s.branch_name ?? '', s.customer_name ?? '',
           String(s.qty), String(s.unit_price), String(s.line_total),
         ]),
@@ -458,8 +458,8 @@ export async function POST(req: Request) {
 
   // Load minimal business context for triage (just brand profile + business info)
   const [businessInfo, brandProfile] = await Promise.all([
-    gatherBusinessInfo(sheets, databaseId),
-    gatherBrandProfile(sheets, databaseId),
+    gatherBusinessInfo(databaseId),
+    gatherBrandProfile(databaseId),
   ]);
   const bizContext = [businessInfo, brandProfile].filter(Boolean).join('\n\n');
 

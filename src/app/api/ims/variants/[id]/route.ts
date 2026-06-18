@@ -19,7 +19,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     await ImsVariantsRepo.update(params.id, body);
 
     // Fire-and-forget Shopify price sync when price changes and variant is linked
-    if (body.price !== undefined || body.discounted_price !== undefined) {
+    if (body.price_rrp !== undefined || body.price_rrp_sale !== undefined) {
       const variant = await ImsVariantsRepo.get(params.id);
       if (variant?.shopify_variant_id) {
         (async () => {
@@ -31,11 +31,11 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
             const shopName = rawShopId.replace(/\.myshopify\.com$/, '');
             if (!/^[a-zA-Z0-9-]+$/.test(shopName)) return;
             const shopify = new ShopifyService(shopName, decrypt(encToken));
-            const updatedVariant = body.price !== undefined ? variant : await ImsVariantsRepo.get(params.id);
+            const updatedVariant = body.price_rrp !== undefined ? variant : await ImsVariantsRepo.get(params.id);
             await shopify.updateVariant(variant.shopify_variant_id!, {
-              price: String(updatedVariant?.price ?? variant.price ?? '0.00'),
-              compare_at_price: updatedVariant?.discounted_price
-                ? String(updatedVariant.price ?? '0.00')
+              price: String(updatedVariant?.price_rrp ?? variant.price_rrp ?? '0.00'),
+              compare_at_price: updatedVariant?.price_rrp_sale
+                ? String(updatedVariant.price_rrp ?? '0.00')
                 : null,
             });
           } catch (e) {

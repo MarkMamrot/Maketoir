@@ -58,6 +58,13 @@ export async function POST() {
       );
       const posMap = new Map(existingPOS.map(s => [s.local_id, s.id]));
 
+      // Default sales tax code label from settings (for tagging imported SOs)
+      const salesTaxCodeRows = await imsQuery<{ value: string }>(
+        "SELECT value FROM ims_settings WHERE business_id = ? AND `key` = 'sales_tax_code' LIMIT 1",
+        [businessId],
+      );
+      const salesTaxCode = salesTaxCodeRows[0]?.value || null;
+
       // Group lines by order_id
       const byOrder = new Map<string, typeof salesRows>();
       for (const r of salesRows) {
@@ -123,10 +130,10 @@ export async function POST() {
           const res = await imsExecute(
             `INSERT INTO ims_sales_orders
                (so_number, location_id, status, order_date, fulfilled_date, subtotal, tax_amount, total_amount,
-                shopify_order_id, cin7_order_id, is_historical)
-             VALUES (?, ?, 'fulfilled', ?, ?, ?, 0, ?, ?, ?, 1)`,
+                tax_code, shopify_order_id, cin7_order_id, is_historical)
+             VALUES (?, ?, 'fulfilled', ?, ?, ?, 0, ?, ?, ?, ?, 1)`,
             [soRef, locationId, first.invoice_date, first.invoice_date,
-             subtotal, subtotal, shopifyOrderId, orderId],
+             subtotal, subtotal, salesTaxCode, shopifyOrderId, orderId],
           ) as any;
           const soId = res.insertId;
           soMap.set(orderId, soId);

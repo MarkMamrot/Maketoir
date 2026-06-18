@@ -73,6 +73,7 @@ export async function POST(req: Request) {
     const conn = await ConnectionsRepository.get(databaseId);
     const rawShopId = conn?.shopify_shop_id ?? '';
     const encryptedToken = conn?.shopify_access_token ?? '';
+    if (!conn) throw new Error('Connection record not found.');
 
     if (!rawShopId || !encryptedToken) {
       return NextResponse.json(

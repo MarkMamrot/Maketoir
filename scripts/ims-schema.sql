@@ -123,11 +123,28 @@ CREATE TABLE IF NOT EXISTS ims_purchase_orders (
   notes         TEXT,
   subtotal      DECIMAL(12,2) NOT NULL DEFAULT 0,
   tax_amount    DECIMAL(12,2) NOT NULL DEFAULT 0,
+  freight       DECIMAL(12,2) NOT NULL DEFAULT 0,
+  discount      DECIMAL(12,2) NOT NULL DEFAULT 0,
   total_amount  DECIMAL(12,2) NOT NULL DEFAULT 0,
   created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (supplier_id) REFERENCES ims_contacts(id) ON DELETE SET NULL,
   FOREIGN KEY (location_id) REFERENCES ims_locations(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── Purchase Order Landed Costs ───────────────────────────────
+-- Separate-invoice import costs (customs, duties, etc).
+-- NOT included in total_amount (invoice total) but ARE distributed
+-- proportionally to variant avg_cost when the PO is received.
+CREATE TABLE IF NOT EXISTS ims_po_landed_costs (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  po_id      INT NOT NULL,
+  label      VARCHAR(200) NOT NULL,
+  reference  VARCHAR(200),
+  amount     DECIMAL(12,2) NOT NULL DEFAULT 0,
+  sort_order INT NOT NULL DEFAULT 0,
+  FOREIGN KEY (po_id) REFERENCES ims_purchase_orders(id) ON DELETE CASCADE,
+  INDEX idx_polc_po (po_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Purchase Order Items ─────────────────────────────────────

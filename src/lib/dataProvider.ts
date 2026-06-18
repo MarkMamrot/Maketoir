@@ -214,7 +214,7 @@ export async function getProductsWithSales(
 
     const rows = await imsQuery<Row>(`
       SELECT
-        v.variant_id, v.sku, v.barcode, v.cost, v.price, v.pack_size,
+        v.variant_id, v.sku, v.barcode, v.cost_aud AS cost, v.price_rrp AS price, v.pack_size,
         v.option1_value, v.option2_value, v.option3_value,
         p.name AS product_name, p.brand,
         NULL AS category, NULL AS style_code,

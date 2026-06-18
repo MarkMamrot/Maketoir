@@ -175,7 +175,7 @@ export class GoogleSheetsService {
       p.id,
       p.name,
       p.category || 'Uncategorized',
-      p.price,
+      p.price, // price_rrp (inc-tax RRP)
       '', // COGS (to be filled by user)
       '', // Gross Margin (Formula goes here later)
       ''  // Break-Even ROAS (Formula goes here later)
@@ -312,7 +312,7 @@ export class GoogleSheetsService {
       spreadsheetId,
       range,
     });
-    return res.data.values;
+    return res.data.values ?? undefined;
   }
 
   /**

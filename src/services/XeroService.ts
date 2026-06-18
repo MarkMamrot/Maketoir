@@ -162,7 +162,7 @@ export async function saveXeroTokens(
     xero_refresh_token: tokens.refresh_token ? encrypt(tokens.refresh_token) : null,
     xero_tenant_id: tenantId,
     xero_tenant_name: tenantName,
-    xero_token_expiry: expiry,
+    xero_token_expiry: String(expiry),
   });
 }
 

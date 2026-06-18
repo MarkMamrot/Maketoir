@@ -42,7 +42,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
     });
 
     const filename = so.so_number.replace('SO-', 'INV-');
-    return new NextResponse(pdfBuf, {
+    return new NextResponse(pdfBuf as unknown as BodyInit, {
       status: 200,
       headers: {
         'Content-Type':        'application/pdf',

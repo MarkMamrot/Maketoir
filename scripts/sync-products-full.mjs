@@ -1,10 +1,10 @@
-/**
- * Standalone full products sync: Cin7 → IMS MySQL
+﻿/**
+ * Standalone full products sync: Cin7 â†’ IMS MySQL
  * Run with: node scripts/sync-products-full.mjs
  *
- * Syncs: locations → products (active only) → stock
+ * Syncs: locations â†’ products (active only) â†’ stock
  * Skips inactive products (status === 'Inactive') to reduce DB size.
- * No HTTP timeout — safe for 6,000+ SKUs.
+ * No HTTP timeout â€” safe for 6,000+ SKUs.
  */
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
@@ -19,7 +19,7 @@ dotenv.default.config({ path: join(__dirname, '../.env') });
 
 const mysql = (await import('mysql2/promise')).default;
 
-// ── DB connections ──────────────────────────────────────────────────────────
+// â”€â”€ DB connections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const mainDb = await mysql.createConnection({
   host:     process.env.MYSQL_HOST,
@@ -40,7 +40,7 @@ const imsDb = await mysql.createConnection({
 const imsQuery  = async (sql, params = []) => { const [rows] = await imsDb.execute(sql, params); return rows; };
 const imsExec   = async (sql, params = []) => { const [r]    = await imsDb.execute(sql, params); return r;    };
 
-// ── Decrypt Cin7 credentials ────────────────────────────────────────────────
+// â”€â”€ Decrypt Cin7 credentials â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const BUSINESS_ID = process.argv[2] || '1wzuBk0M_FjEFdZkWyz0PVHcQsIh8s0Ejve-MTV3_8Ps';
 console.log(`Business ID: ${BUSINESS_ID}`);
@@ -64,7 +64,7 @@ const authHeader = 'Basic ' + Buffer.from(`${connRow.cin7_account_id}:${apiKey}`
 await mainDb.end();
 console.log('Cin7 credentials loaded.\n');
 
-// ── Cin7 API helpers ─────────────────────────────────────────────────────────
+// â”€â”€ Cin7 API helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const CIN7_BASE         = 'https://api.cin7.com/api/v1';
 const PAGE_SIZE         = 250;
@@ -85,7 +85,7 @@ async function cin7Fetch(url, retryCount = 0) {
   }
   if (res.status === 429) {
     if (retryCount >= 3) throw new Error('Cin7 rate limit exceeded after retries.');
-    console.log(`  429 — waiting 60s before retry...`);
+    console.log(`  429 â€” waiting 60s before retry...`);
     await sleep(60_000);
     return cin7Fetch(url, retryCount + 1);
   }
@@ -143,7 +143,7 @@ async function cin7ForEachPage(path, extraParams = {}, onPage) {
   return total;
 }
 
-// ── IMS settings helpers ─────────────────────────────────────────────────────
+// â”€â”€ IMS settings helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function getImsSetting(key) {
   const rows = await imsQuery(
@@ -159,15 +159,15 @@ async function setImsSetting(key, value) {
   );
 }
 
-// ── UUID helper ──────────────────────────────────────────────────────────────
+// â”€â”€ UUID helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const { v4: uuidv4 } = await import('uuid');
 
-// ── Main sync ────────────────────────────────────────────────────────────────
+// â”€â”€ Main sync â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
-// ─── Step A: Locations ───────────────────────────────────────────────────────
+// â”€â”€â”€ Step A: Locations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 console.log('=== STEP 1/3: Locations ===');
 const cin7Branches = await cin7FetchAllPages('/Branches');
 console.log(`\n  Fetched ${cin7Branches.length} branches from Cin7`);
@@ -198,8 +198,8 @@ for (const b of cin7Branches) {
 }
 console.log(`  ${locNew} new locations, ${cin7Branches.length} total. Done.\n`);
 
-// ─── Step B: Products (active only) ─────────────────────────────────────────
-console.log('=== STEP 2/3: Products (full sync — active only) ===');
+// â”€â”€â”€ Step B: Products (active only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+console.log('=== STEP 2/3: Products (full sync â€” active only) ===');
 console.log('  Clearing existing Cin7 products from IMS...');
 
 await imsExec(
@@ -225,8 +225,8 @@ const contactMapRows = await imsQuery(
 const supplierContactMap = new Map(contactMapRows.map(r => [r.cin7_supplier_id, r.id]));
 
 const prodCin7Map = new Map();
-const variantBySkuMap     = new Map(); // sku     → variant_id
-const variantByBarcodeMap = new Map(); // barcode → variant_id (fallback for null-sku size-grid variants)
+const variantBySkuMap     = new Map(); // sku     â†’ variant_id
+const variantByBarcodeMap = new Map(); // barcode â†’ variant_id (fallback for null-sku size-grid variants)
 const visitedVariantKeys  = new Set(); // barcode|sku to prevent pagination-drift duplicates
 const uniqueBrands = new Set();
 let productNew = 0;
@@ -235,7 +235,7 @@ let skippedInactive = 0;
 
 const totalFetched = await cin7ForEachPage('/Products', {}, async (pageProducts, pageNum) => {
   const activeOnPage = pageProducts.filter(p => p.status !== 'Inactive').length;
-  process.stdout.write(`  Page ${pageNum}: ${pageProducts.length} fetched, ${activeOnPage} active — products: ${productNew}, variants: ${variantSynced}, skipped: ${skippedInactive}\n`);
+  process.stdout.write(`  Page ${pageNum}: ${pageProducts.length} fetched, ${activeOnPage} active â€” products: ${productNew}, variants: ${variantSynced}, skipped: ${skippedInactive}\n`);
 
   for (const p of pageProducts) {
     const cin7Id = Number(p.id);
@@ -310,15 +310,15 @@ const totalFetched = await cin7ForEachPage('/Products', {}, async (pageProducts,
       const opt1Value        = opt.option1 || opt.size || null;
       const opt1NameResolved = opt1Name || (opt.size ? 'Size' : null);
 
-      const costAUD        = opt.priceColumns?.costAUD ?? opt.cost ?? null;
-      const retailPrice    = opt.retailPrice ?? opt.priceColumns?.priceRetail ?? null;
-      const wholesalePrice = opt.wholesalePrice ?? opt.priceColumns?.priceWholesale ?? null;
+      const cost_aud        = opt.priceColumns?.cost_aud ?? opt.cost_aud ?? null;
+      const price_rrp    = opt.price_rrp ?? opt.priceColumns?.price_rrp ?? null;
+      const price_wholesale = opt.price_wholesale ?? opt.priceColumns?.price_wholesale ?? null;
       const weightKg       = opt.optionWeight != null ? Number(opt.optionWeight) : null;
 
       const foreignCosts = {};
       if (opt.priceColumns) {
         for (const [k, v] of Object.entries(opt.priceColumns)) {
-          if (k.startsWith('cost') && k !== 'costAUD' && v != null && Number(v) !== 0) {
+          if (k.startsWith('cost') && k !== 'cost_aud' && v != null && Number(v) !== 0) {
             foreignCosts[k.replace('cost', '')] = Number(v);
           }
         }
@@ -334,7 +334,7 @@ const totalFetched = await cin7ForEachPage('/Products', {}, async (pageProducts,
              product_id=?, sku=?, barcode=?,
              option1_name=?, option1_value=?, option2_name=?, option2_value=?,
              option3_name=?, option3_value=?,
-             cost=?, price=?, wholesale_price=?, cost_foreign_json=?,
+             cost_aud=?, price_rrp=?, price_wholesale=?, cost_foreign=?,
              weight_kg=?, is_active=1, cin7_option_id=?, pack_size=?,
              updated_at=CURRENT_TIMESTAMP
            WHERE variant_id=?`,
@@ -342,9 +342,9 @@ const totalFetched = await cin7ForEachPage('/Products', {}, async (pageProducts,
             imsProdId, optSku, opt.barcode || null,
             opt1NameResolved, opt1Value, opt2Name, opt.option2 || null,
             opt3Name, opt.option3 || null,
-            costAUD != null ? Number(costAUD) : null,
-            retailPrice != null ? Number(retailPrice) : null,
-            wholesalePrice != null ? Number(wholesalePrice) : null,
+            cost_aud != null ? Number(cost_aud) : null,
+            price_rrp != null ? Number(price_rrp) : null,
+            price_wholesale != null ? Number(price_wholesale) : null,
             foreignCostJson, weightKg, cin7OptId, packSize,
             existingVariantId,
           ],
@@ -357,7 +357,7 @@ const totalFetched = await cin7ForEachPage('/Products', {}, async (pageProducts,
           `INSERT INTO ims_product_variants
              (variant_id, product_id, sku, barcode,
               option1_name, option1_value, option2_name, option2_value, option3_name, option3_value,
-              cost, price, wholesale_price, cost_foreign_json,
+              cost_aud, price_rrp, price_wholesale, cost_foreign,
               weight_kg, is_active, cin7_option_id, pack_size)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
           [
@@ -366,9 +366,9 @@ const totalFetched = await cin7ForEachPage('/Products', {}, async (pageProducts,
             opt1NameResolved, opt1Value,
             opt2Name, opt.option2 || null,
             opt3Name, opt.option3 || null,
-            costAUD != null ? Number(costAUD) : null,
-            retailPrice != null ? Number(retailPrice) : null,
-            wholesalePrice != null ? Number(wholesalePrice) : null,
+            cost_aud != null ? Number(cost_aud) : null,
+            price_rrp != null ? Number(price_rrp) : null,
+            price_wholesale != null ? Number(price_wholesale) : null,
             foreignCostJson, weightKg, cin7OptId, packSize,
           ],
         );
@@ -393,7 +393,7 @@ await setImsSetting('last_products_sync', nowStr);
 console.log(`\n  DONE: ${productNew} products, ${variantSynced} variants synced`);
 console.log(`        ${skippedInactive} inactive products skipped (of ${totalFetched} fetched from Cin7)\n`);
 
-// ─── Step C: Stock ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Step C: Stock â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 console.log('=== STEP 3/3: Stock ===');
 const cin7Stock = await cin7FetchAllPages('/Stock');
 console.log(`\n  Fetched ${cin7Stock.length} stock records. Processing...`);
@@ -404,9 +404,9 @@ const locByName     = new Map(allLocs.map(r => [r.name, r.id]));
 
 // Match stock by SKU (primary) or barcode (fallback for size-grid products where /Stock
 // returns a shared product-level code but a unique barcode per size)
-const allVariants = await imsQuery('SELECT variant_id, sku, barcode, cost FROM ims_product_variants');
-const variantByCode    = new Map(allVariants.filter(r => r.sku).map(r => [r.sku, { variantId: r.variant_id, cost: r.cost }]));
-const variantByBarcode = new Map(allVariants.filter(r => r.barcode).map(r => [r.barcode, { variantId: r.variant_id, cost: r.cost }]));
+const allVariants = await imsQuery('SELECT variant_id, sku, barcode, cost_aud FROM ims_product_variants');
+const variantByCode    = new Map(allVariants.filter(r => r.sku).map(r => [r.sku, { variantId: r.variant_id, cost: r.cost_aud }]));
+const variantByBarcode = new Map(allVariants.filter(r => r.barcode).map(r => [r.barcode, { variantId: r.variant_id, cost: r.cost_aud }]));
 
 const stockAgg = new Map();
 for (const s of cin7Stock) {
@@ -455,10 +455,12 @@ for (const s of stockAgg.values()) {
 
 console.log(`  ${stockSynced} stock records synced.\n`);
 
-// ─── Done ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Done â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 await imsDb.end();
 console.log('=== SYNC COMPLETE ===');
 console.log(`  Locations: ${cin7Branches.length} checked`);
 console.log(`  Products:  ${productNew} synced (${skippedInactive} inactive skipped)`);
 console.log(`  Variants:  ${variantSynced} synced`);
 console.log(`  Stock:     ${stockSynced} location records synced`);
+
+

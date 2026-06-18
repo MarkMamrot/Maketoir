@@ -41,7 +41,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
       termsAndConditions:  settings['po_terms']          || undefined,
     });
 
-    return new NextResponse(pdfBuf, {
+    return new NextResponse(pdfBuf as unknown as BodyInit, {
       status: 200,
       headers: {
         'Content-Type':        'application/pdf',

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { ShopifyService } from '@/services/ShopifyService';
 import { decrypt } from '@/lib/encryption';
@@ -45,8 +45,8 @@ export async function POST(req: Request) {
         const shopifyVariants = (product.variants ?? []).map(v => ({
           sku:       v.sku ?? '',
           barcode:   v.barcode ?? undefined,
-          price:     String(v.price ?? '0.00'),
-          compare_at_price: v.discounted_price ? String(v.price ?? '0.00') : undefined,
+          price:     String(v.price_rrp ?? '0.00'),
+          compare_at_price: v.price_rrp_sale ? String(v.price_rrp ?? '0.00') : undefined,
           weight:    v.weight_kg ? v.weight_kg * 1000 : undefined, // grams
           weight_unit: 'g',
           option1:   v.option1_value ?? 'Default',

@@ -471,16 +471,16 @@ export async function POST(req: Request) {
               const opt1Value = opt.option1 || opt.size || null;
               const opt1NameResolved = opt1Name || (opt.size ? 'Size' : null);
 
-              const costAUD        = opt.priceColumns?.costAUD ?? opt.cost ?? null;
-              const retailPrice    = opt.retailPrice ?? opt.priceColumns?.priceRetail ?? null;
-              const wholesalePrice = opt.wholesalePrice ?? opt.priceColumns?.priceWholesale ?? null;
+              const cost_aud        = opt.priceColumns?.cost_aud ?? opt.cost_aud ?? null;
+              const price_rrp    = opt.price_rrp ?? opt.priceColumns?.price_rrp ?? null;
+              const price_wholesale = opt.price_wholesale ?? opt.priceColumns?.price_wholesale ?? null;
               const weightKg       = opt.optionWeight != null ? Number(opt.optionWeight) : null;
 
               const foreignCosts: Record<string, number> = {};
               if (opt.priceColumns) {
                 for (const [k, v] of Object.entries(opt.priceColumns as Record<string, any>)) {
-                  if (k.startsWith('cost') && k !== 'costAUD' && v != null && Number(v) !== 0) {
-                    foreignCosts[k.replace('cost', '')] = Number(v);
+                  if (k.startsWith('cost_') && k !== 'cost_aud' && v != null && Number(v) !== 0) {
+                    foreignCosts[k.replace('cost_', '')] = Number(v);
                   }
                 }
               }
@@ -499,7 +499,7 @@ export async function POST(req: Request) {
                      option1_name = ?, option1_value = ?,
                      option2_name = ?, option2_value = ?,
                      option3_name = ?, option3_value = ?,
-                     cost = ?, price = ?, wholesale_price = ?, cost_foreign_json = ?,
+                     cost_aud = ?, price_rrp = ?, price_wholesale = ?, cost_foreign = ?,
                      weight_kg = ?, is_active = ?, cin7_option_id = ?, pack_size = ?,
                      updated_at = CURRENT_TIMESTAMP
                    WHERE variant_id = ?`,
@@ -508,9 +508,9 @@ export async function POST(req: Request) {
                     opt1NameResolved, opt1Value,
                     opt2Name, opt.option2 || null,
                     opt3Name, opt.option3 || null,
-                    costAUD        != null ? Number(costAUD)        : null,
-                    retailPrice    != null ? Number(retailPrice)    : null,
-                    wholesalePrice != null ? Number(wholesalePrice) : null,
+                    cost_aud        != null ? Number(cost_aud)        : null,
+                    price_rrp    != null ? Number(price_rrp)    : null,
+                    price_wholesale != null ? Number(price_wholesale) : null,
                     foreignCostJson, weightKg, isActive, cin7OptId, packSize,
                     existingVariantId,
                   ],
@@ -525,7 +525,7 @@ export async function POST(req: Request) {
                       option1_name, option1_value,
                       option2_name, option2_value,
                       option3_name, option3_value,
-                      cost, price, wholesale_price, cost_foreign_json,
+                      cost_aud, price_rrp, price_wholesale, cost_foreign,
                       weight_kg, is_active, cin7_option_id, pack_size)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                   [
@@ -534,9 +534,9 @@ export async function POST(req: Request) {
                     opt1NameResolved, opt1Value,
                     opt2Name, opt.option2 || null,
                     opt3Name, opt.option3 || null,
-                    costAUD        != null ? Number(costAUD)        : null,
-                    retailPrice    != null ? Number(retailPrice)    : null,
-                    wholesalePrice != null ? Number(wholesalePrice) : null,
+                    cost_aud        != null ? Number(cost_aud)        : null,
+                    price_rrp    != null ? Number(price_rrp)    : null,
+                    price_wholesale != null ? Number(price_wholesale) : null,
                     foreignCostJson, weightKg, isActive, cin7OptId, packSize,
                   ],
                 );
@@ -582,14 +582,14 @@ export async function POST(req: Request) {
 
           // Load variants by SKU (primary) and barcode (fallback for size-grid products
           // where /Stock returns a unique barcode per size but a shared product-level code)
-          const allVariants = await imsQuery<{ variant_id: string; sku: string | null; barcode: string | null; cost: number | null }>(
-            'SELECT variant_id, sku, barcode, cost FROM ims_product_variants',
+          const allVariants = await imsQuery<{ variant_id: string; sku: string | null; barcode: string | null; cost_aud: number | null }>(
+            'SELECT variant_id, sku, barcode, cost_aud FROM ims_product_variants',
           );
-          const variantByCode = new Map<string, { variantId: string; cost: number | null }>(
-            allVariants.filter(r => r.sku).map(r => [r.sku!, { variantId: r.variant_id, cost: r.cost }]),
+          const variantByCode = new Map<string, { variantId: string; cost_aud: number | null }>(
+            allVariants.filter(r => r.sku).map(r => [r.sku!, { variantId: r.variant_id, cost_aud: r.cost_aud }]),
           );
-          const variantByBarcode = new Map<string, { variantId: string; cost: number | null }>(
-            allVariants.filter(r => r.barcode).map(r => [r.barcode!, { variantId: r.variant_id, cost: r.cost }]),
+          const variantByBarcode = new Map<string, { variantId: string; cost_aud: number | null }>(
+            allVariants.filter(r => r.barcode).map(r => [r.barcode!, { variantId: r.variant_id, cost_aud: r.cost_aud }]),
           );
 
           const stockAgg = new Map<string, {
@@ -610,7 +610,7 @@ export async function POST(req: Request) {
               ?? (stockSkuFromSize ? variantByCode.get(stockSkuFromSize) : undefined)
               ?? (stockBarcode ? variantByBarcode.get(stockBarcode) : undefined);
             if (!variantMatch) continue;
-            const { variantId, cost: avgCostFallback } = variantMatch;
+            const { variantId, cost_aud: avgCostFallback } = variantMatch;
 
             const locationId = locByBranchId.get(cin7BranchId)
               ?? locByName.get((s.branchName ?? '').trim());
@@ -704,7 +704,7 @@ export async function POST(req: Request) {
               const qty = Number(line.qty ?? 0);
               if (!cin7OptId || qty === 0) continue;
 
-              const unitPrice = Number(line.unitPrice ?? line.price ?? 0);
+              const unitPrice = Number(line.unitPrice ?? line.price_rrp ?? 0);
               const lineTotal = Number(line.lineTotal ?? line.total ?? (qty * unitPrice));
               // Resolve variant_id by SKU (handles size-grid products with shared cin7_option_id)
               const lineVariantId = (line.code ? variantBySku.get(line.code) : undefined) ?? null;
@@ -781,7 +781,7 @@ export async function POST(req: Request) {
               const cin7OptId = line.productOptionId ?? line.optionId;
               const qty = Number(line.qty ?? 0);
               if (!cin7OptId || qty === 0) continue;
-              const unitPrice = Number(line.unitPrice ?? line.price ?? 0);
+              const unitPrice = Number(line.unitPrice ?? line.price_rrp ?? 0);
               const lineTotal = Number(line.lineTotal ?? line.total ?? qty * unitPrice);
               const soItemVariantId = (line.code ? variantBySku.get(line.code) : undefined) ?? null;
               try {
@@ -878,6 +878,7 @@ export async function POST(req: Request) {
             const expectedDate = rawExpected ? String(rawExpected).slice(0, 10) : null;
             const receivedDate = poStatus === 'received' ? (expectedDate || orderDate) : null;
             const paymentTerms = po.paymentTerms ?? po.terms ?? null;
+            const supplierInvoiceNumber = po.supplierInvoiceNumber ?? po.invoiceNumber ?? null;
             const poLines: any[] = Array.isArray(po.lineItems) ? po.lineItems : [];
             const subtotal = poLines.reduce((s: number, l: any) => s + Number(l.lineTotal ?? 0), 0);
             const freight = Number(po.freight ?? po.freightCost ?? po.freightTotal ?? 0);
@@ -892,12 +893,13 @@ export async function POST(req: Request) {
               const poRes = await imsExecute(
                 `INSERT INTO ims_purchase_orders
                    (po_number, supplier_id, location_id, status, order_date, expected_date,
-                    received_date, notes, payment_terms, freight, discount,
+                    received_date, notes, payment_terms, supplier_invoice_number, freight, discount,
                     subtotal, tax_amount, total_amount, cin7_order_id, is_historical,
                     currency_code, exchange_rate, cin7_contact_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [poNumber, supplierId, locationId, poStatus, orderDate, expectedDate,
                  receivedDate, po.notes || null, paymentTerms ? String(paymentTerms) : null,
+                 supplierInvoiceNumber,
                  freight, discount, subtotal, taxAmt, totalAmt, cin7PoId, isHistorical,
                  poCurrencyCode, poExchangeRate, cin7SuppId || null],
               );
@@ -906,12 +908,13 @@ export async function POST(req: Request) {
               const poRes = await imsExecute(
                 `INSERT INTO ims_purchase_orders
                    (po_number, supplier_id, location_id, status, order_date, expected_date,
-                    received_date, notes, payment_terms, freight, discount,
+                    received_date, notes, payment_terms, supplier_invoice_number, freight, discount,
                     subtotal, tax_amount, total_amount, cin7_order_id, is_historical,
                     currency_code, exchange_rate, cin7_contact_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [`CIN7-${po.id}`, supplierId, locationId, poStatus, orderDate, expectedDate,
                  receivedDate, po.notes || null, paymentTerms ? String(paymentTerms) : null,
+                 supplierInvoiceNumber,
                  freight, discount, subtotal, taxAmt, totalAmt, cin7PoId, isHistorical,
                  poCurrencyCode, poExchangeRate, cin7SuppId || null],
               );
@@ -922,7 +925,7 @@ export async function POST(req: Request) {
               const cin7OptId = line.productOptionId ?? line.productId;
               const qty = Number(line.qty ?? 0);
               if (!cin7OptId || qty === 0) continue;
-              const unitCost = Number(line.unitPrice ?? line.price ?? line.unitCost ?? 0);
+              const unitCost = Number(line.unitPrice ?? line.price_rrp ?? line.unitCost ?? 0);
               const lineTotal = Number(line.lineTotal ?? line.total ?? qty * unitCost);
               const poItemVariantId = (line.code ? variantBySku.get(line.code) : undefined) ?? null;
               try {

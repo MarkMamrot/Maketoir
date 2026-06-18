@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
 
@@ -47,7 +47,7 @@ export async function GET(req: Request) {
         p.name,
         p.brand,
         c.name as supplier_name,
-        v.cost,
+        v.cost_aud AS cost,
         SUM(s.qty_on_hand) as soh
       FROM ims_product_variants v
       JOIN ims_products p ON p.product_id = v.product_id
@@ -72,3 +72,5 @@ export async function GET(req: Request) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }
+
+

@@ -11,8 +11,8 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
 
     // EVENT-DRIVEN CACHE UPDATE: Refresh for variants affected by this stocktake
     const stocktake = await ImsStocktakeRepo.get(id);
-    if (stocktake && stocktake.items?.length > 0) {
-      const vids = stocktake.items.map(i => i.variant_id).filter(Boolean) as string[];
+    if (stocktake && (stocktake.items?.length ?? 0) > 0) {
+      const vids = stocktake.items!.map(i => i.variant_id).filter(Boolean) as string[];
       if (vids.length > 0) {
         refreshVariantCache(vids).catch(err => console.error('Failed inline cache refresh for Stocktake:', err));
       }

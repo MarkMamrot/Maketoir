@@ -1,4 +1,4 @@
-/**
+﻿/**
  * inactive-branch-stock.mjs
  *
  * Pulls Branches and Stock directly from the Cin7 API and finds all stock
@@ -14,7 +14,7 @@ import 'dotenv/config';
 import { google } from 'googleapis';
 import { createDecipheriv } from 'crypto';
 
-// ── Decrypt helper ────────────────────────────────────────────────────────────
+// â”€â”€ Decrypt helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function decrypt(stored) {
   if (!stored) return '';
   const parts = String(stored).split(':');
@@ -26,7 +26,7 @@ function decrypt(stored) {
   return Buffer.concat([decipher.update(Buffer.from(dataHex, 'hex')), decipher.final()]).toString('utf8');
 }
 
-// ── Google Sheets — load Cin7 credentials ────────────────────────────────────
+// â”€â”€ Google Sheets â€” load Cin7 credentials â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const credRaw = process.env.GOOGLE_APPLICATION_CREDENTIALS_BASE64
   ? Buffer.from(process.env.GOOGLE_APPLICATION_CREDENTIALS_BASE64, 'base64').toString('utf8')
   : null;
@@ -49,7 +49,7 @@ const apiKey    = decrypt(get('Cin7ApiKey'));
 const authHeader = `Basic ${Buffer.from(`${accountId}:${apiKey}`).toString('base64')}`;
 console.log(`Cin7 auth: account=${accountId}, key=${apiKey ? '(OK)' : '(MISSING)'}\n`);
 
-// ── Cin7 pagination helper ────────────────────────────────────────────────────
+// â”€â”€ Cin7 pagination helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const PAGE_SIZE = 250;
 const DELAY_MS  = 1100; // stay under rate limit
 
@@ -66,7 +66,7 @@ async function fetchAllPages(path, extraParams = {}) {
 
     const res = await fetch(url.toString(), { headers: { Authorization: authHeader } });
     if (res.status === 429) {
-      console.warn('  429 rate limit — waiting 60s...');
+      console.warn('  429 rate limit â€” waiting 60s...');
       await sleep(60_000);
       continue;
     }
@@ -87,11 +87,11 @@ async function fetchAllPages(path, extraParams = {}) {
   return all;
 }
 
-// ── 1. Fetch all branches ─────────────────────────────────────────────────────
+// â”€â”€ 1. Fetch all branches â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 console.log('Fetching branches...');
 const branches = await fetchAllPages('/Branches');
 
-const inactiveBranches = new Map(); // id → name
+const inactiveBranches = new Map(); // id â†’ name
 for (const b of branches) {
   const id     = String(b.id ?? b.ID ?? b.branchId ?? '');
   const name   = String(b.name ?? b.Name ?? b.branchName ?? b.company ?? id);
@@ -106,11 +106,11 @@ for (const [id, name] of inactiveBranches) {
 }
 
 if (inactiveBranches.size === 0) {
-  console.log('\nNo inactive branches found — nothing to do.');
+  console.log('\nNo inactive branches found â€” nothing to do.');
   process.exit(0);
 }
 
-// ── 2. Fetch all stock records ────────────────────────────────────────────────
+// â”€â”€ 2. Fetch all stock records â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 console.log('\nFetching stock (this may take a while)...');
 const stockRecords = await fetchAllPages('/Stock');
 console.log(`Stock records total: ${stockRecords.length}`);
@@ -128,13 +128,13 @@ if (hitLines.length === 0) {
   process.exit(0);
 }
 
-// ── 3. Fetch product costs ────────────────────────────────────────────────────
+// â”€â”€ 3. Fetch product costs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Collect unique productOptionIds from the hit lines, then look up cost from Products.
 // We fetch Products in full (they include productOptions with cost).
 console.log('\nFetching products to look up unit costs...');
 const products = await fetchAllPages('/Products');
 
-// Build map: productOptionId → cost
+// Build map: productOptionId â†’ cost
 const costByOptId = new Map();
 const nameByOptId = new Map();
 const brandByOptId = new Map();
@@ -142,7 +142,7 @@ for (const p of products) {
   const brand = String(p.brand ?? p.Brand ?? '');
   for (const opt of (Array.isArray(p.productOptions) ? p.productOptions : [])) {
     const optId = String(opt.id ?? opt.productOptionId ?? '');
-    const cost  = Number(opt.cost ?? opt.Cost ?? 0);
+    const cost  = Number(opt.cost_aud ?? opt.cost_aud ?? 0);
     const name  = String(opt.name ?? p.name ?? p.Name ?? '');
     if (optId) {
       costByOptId.set(optId, cost);
@@ -153,7 +153,7 @@ for (const p of products) {
 }
 console.log(`Product options indexed: ${costByOptId.size}`);
 
-// ── 4. Summarise ──────────────────────────────────────────────────────────────
+// â”€â”€ 4. Summarise â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const perBranch = new Map();
 let grandQty = 0, grandCost = 0;
 const uniqueSkus = new Set();
@@ -183,16 +183,16 @@ for (const s of hitLines) {
   if (code || optId) agg.skus.add(code || optId);
 }
 
-// ── 5. Print report ───────────────────────────────────────────────────────────
-console.log('\n' + '═'.repeat(70));
-console.log('STOCK IN INACTIVE BRANCHES — REPORT');
-console.log('═'.repeat(70));
+// â”€â”€ 5. Print report â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+console.log('\n' + 'â•'.repeat(70));
+console.log('STOCK IN INACTIVE BRANCHES â€” REPORT');
+console.log('â•'.repeat(70));
 
 // Sort branches by cost descending
 const sortedBranches = [...perBranch.values()].sort((a, b) => b.totalCost - a.totalCost);
 
 for (const branch of sortedBranches) {
-  console.log(`\n📦 ${branch.branchName}`);
+  console.log(`\nðŸ“¦ ${branch.branchName}`);
   console.log(`   SKUs: ${branch.skus.size}   Qty: ${branch.totalQty.toLocaleString()}   Cost: $${branch.totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 
   // Sort lines by lineCost descending, show top 20
@@ -210,10 +210,12 @@ for (const branch of sortedBranches) {
   }
 }
 
-console.log('\n' + '─'.repeat(70));
+console.log('\n' + 'â”€'.repeat(70));
 console.log('GRAND TOTAL');
 console.log(`  Inactive branches : ${sortedBranches.length}`);
 console.log(`  Distinct SKUs     : ${uniqueSkus.size}`);
 console.log(`  Total Qty         : ${grandQty.toLocaleString()}`);
 console.log(`  Total Cost        : $${grandCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
-console.log('─'.repeat(70));
+console.log('â”€'.repeat(70));
+
+

@@ -1,4 +1,4 @@
-import type { ImsProduct, ImsVariant, ImsStock, ImsSO, ImsSOItem } from '@/lib/ims/ImsRepository';
+﻿import type { ImsProduct, ImsVariant, ImsStock, ImsSO, ImsSOItem } from '@/lib/ims/ImsRepository';
 import type { StandardizedVariant, StandardizedSaleLine } from '@/types/StandardizedData';
 
 export interface ImsPosSaleItem {
@@ -33,8 +33,8 @@ export function imsVariantToStandard(p: ImsProduct, v: ImsVariant, s?: ImsStock)
     category:         p.category ?? null,
     style_code:       p.style_code ?? null,
     option_label:     variantLabel(v),
-    cost:             v.cost ?? null,
-    price:            v.price ?? null,
+    cost:             v.cost_aud ?? null,
+    price:            v.price_rrp ?? null,
     qty_on_hand:      s?.qty_on_hand ?? 0,
     qty_incoming:     s?.qty_incoming ?? 0,
     is_online:        p.is_online === 1,

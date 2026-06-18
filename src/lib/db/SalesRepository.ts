@@ -1,4 +1,4 @@
-import { query, execute, getPool } from '@/services/MySQLService';
+﻿import { query, execute, getPool } from '@/services/MySQLService';
 
 export interface SaleRow {
   id?:               number;
@@ -16,8 +16,11 @@ export interface SaleRow {
   line_total:        number;
   source:            string | null;
   status:            string | null;
-  stage:             string | null;
-}
+  stage:             string | null;  // joined fields (present when query includes joins)
+  order_date?:       string;
+  product_name?:     string | null;
+  branch_name?:      string | null;
+  customer_name?:    string | null;}
 
 export const SalesRepository = {
   async query(

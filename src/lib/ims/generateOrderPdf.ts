@@ -296,19 +296,14 @@ export async function generateOrderPdf(opts: OrderPdfOptions): Promise<Buffer> {
   const tLblX  = PAGE_W - MARGIN_R - 155;
   const tValX  = PAGE_W - MARGIN_R - 75;
 
+  // Invoice total rows: Subtotal, Tax, Freight (+), Discount (−)
+  // NOTE: landed costs are NOT part of the invoice total — shown separately below.
   const totalsRows: [string, string][] = [
     ['Subtotal', fmt(order.subtotal)],
     ['GST (Tax)', fmt(order.tax_amount)],
   ];
+  if (Number(order.freight) > 0)  totalsRows.push(['Freight (+)',   `+${fmt(order.freight)}`]);
   if (Number(order.discount) > 0) totalsRows.push(['Discount (−)', `−${fmt(order.discount)}`]);
-  // Landed costs (new) — fall back to legacy freight field if no landed_costs array
-  const landedCostRows: any[] = order.landed_costs && order.landed_costs.length > 0
-    ? order.landed_costs
-    : (Number(order.freight) > 0 ? [{ label: 'Freight', reference: null, amount: order.freight }] : []);
-  for (const lc of landedCostRows) {
-    const label = lc.reference ? `${lc.label} (${lc.reference})` : lc.label;
-    totalsRows.push([`${label} (+)`, fmt(lc.amount)]);
-  }
 
   for (const [label, value] of totalsRows) {
     const lw = fontReg.widthOfTextAtSize(label, 10);
@@ -324,6 +319,25 @@ export async function generateOrderPdf(opts: OrderPdfOptions): Promise<Buffer> {
   const tvw = fontBold.widthOfTextAtSize(totalStr, 11);
   page.drawText('TOTAL',   { x: tLblX + 75 - tlw, y: py(totY + 16), size: 11, font: fontBold, color: COL_DARK });
   page.drawText(totalStr,  { x: tValX + 75 - tvw, y: py(totY + 16), size: 11, font: fontBold, color: COL_MINT });
+
+  // ── LANDED COSTS (below invoice total — not part of what you owe the supplier) ──
+  const landedCostRows: any[] = order.landed_costs && order.landed_costs.length > 0
+    ? order.landed_costs : [];
+  if (landedCostRows.length > 0) {
+    totY += 32;
+    page.drawText('LANDED COSTS (separate invoices — added to product avg. cost, not to order total)',
+      { x: MARGIN_L, y: py(totY + 9), size: 8, font: fontBold, color: COL_GREY });
+    totY += 16;
+    for (const lc of landedCostRows) {
+      const lcLabel = lc.reference ? `${lc.label}  (Ref: ${lc.reference})` : lc.label;
+      const lcAmt   = fmt(lc.amount);
+      const lcLw    = fontReg.widthOfTextAtSize(lcLabel, 9);
+      const lcVw    = fontReg.widthOfTextAtSize(lcAmt, 9);
+      page.drawText(lcLabel, { x: MARGIN_L,            y: py(totY + 9), size: 9, font: fontReg, color: COL_GREY });
+      page.drawText(lcAmt,   { x: PAGE_W - MARGIN_R - lcVw, y: py(totY + 9), size: 9, font: fontReg, color: COL_GREY });
+      totY += 14;
+    }
+  }
 
   // ── TERMS & CONDITIONS ───────────────────────────────────────────────
   if (termsAndConditions?.trim()) {

@@ -65,8 +65,8 @@ export async function GET(req: Request) {
        v.option2_value,
        v.option3_name,
        v.option3_value,
-       v.cost,
-       v.price,
+       v.cost_aud  AS cost,
+       v.price_rrp AS price,
        COALESCE(s.qty_on_hand, 0) AS qty_on_hand,
        v.is_active
      FROM ims_product_variants v

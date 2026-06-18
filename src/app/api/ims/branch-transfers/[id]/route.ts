@@ -31,8 +31,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       // EVENT-DRIVEN CACHE UPDATE: Refresh for branch transfer transition
       // Though global_soh generally stays the same in BTs, transitioning to sent/received updates committed vs available stock
       const btDataFull = await ImsBTRepo.get(Number(params.id));
-      if (btDataFull && btDataFull.items?.length > 0) {
-        const vids = btDataFull.items.map(i => i.variant_id).filter(Boolean) as string[];
+      if (btDataFull && (btDataFull.items?.length ?? 0) > 0) {
+        const vids = btDataFull.items!.map(i => i.variant_id).filter(Boolean) as string[];
         if (vids.length > 0) {
           refreshVariantCache(vids).catch(err => console.error('Failed inline cache refresh for BT:', err));
         }
@@ -62,8 +62,8 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
     await ImsBTRepo.delete(Number(params.id));
 
     // EVENT-DRIVEN CACHE UPDATE (Deletion reverses committed transfer stock)
-    if (existing && existing.items?.length > 0) {
-      const vids = existing.items.map(i => i.variant_id).filter(Boolean) as string[];
+    if (existing && (existing.items?.length ?? 0) > 0) {
+      const vids = existing.items!.map(i => i.variant_id).filter(Boolean) as string[];
       if (vids.length > 0) {
         refreshVariantCache(vids).catch(err => console.error('Failed inline cache refresh for BT deletion:', err));
       }

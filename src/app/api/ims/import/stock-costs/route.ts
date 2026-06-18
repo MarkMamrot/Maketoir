@@ -71,7 +71,7 @@ function findHeaderRow(rows: string[][]): { headerIdx: number; skuCol: number; q
  *   avg_cost    = total_value / total_qty
  *
  * Writes to:
- *   ims_product_variants.cost      (the unit cost used by reports/POs)
+ *   ims_product_variants.cost_aud   (the unit cost used by reports/POs)
  *   ims_stock.avg_cost             (the per-location average cost)
  */
 export async function POST(req: Request) {
@@ -148,7 +148,7 @@ export async function POST(req: Request) {
 
     // Update the canonical cost on the variant
     await imsExecute(
-      'UPDATE ims_product_variants SET cost = ? WHERE variant_id = ?',
+      'UPDATE ims_product_variants SET cost_aud = ? WHERE variant_id = ?',
       [avgCost, variantId],
     );
     // Update avg_cost on every stock row for this variant (all branches)

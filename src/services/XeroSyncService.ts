@@ -18,6 +18,7 @@
 
 import { xeroApiFetch } from '@/services/XeroService';
 import { query, execute } from '@/services/MySQLService';
+import { imsQuery } from '@/services/IMSMySQLService';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -51,6 +52,25 @@ export async function getTrackingMappings(businessId: string): Promise<TrackingM
     'SELECT ims_location_id, ims_channel, xero_tracking_category_id, xero_tracking_option_id FROM xero_tracking_mappings WHERE business_id = ?',
     [businessId],
   );
+}
+
+/** Returns 'capitalise' if freight should be absorbed into stock value, else 'expense' (default). */
+async function getFreightTreatment(businessId: string): Promise<'expense' | 'capitalise'> {
+  try {
+    const rows = await imsQuery<{ value: string }>(
+      "SELECT value FROM ims_settings WHERE business_id = ? AND `key` = 'freight_treatment' LIMIT 1",
+      [businessId],
+    );
+    return rows[0]?.value === 'capitalise' ? 'capitalise' : 'expense';
+  } catch {
+    return 'expense';
+  }
+}
+
+/** Standard Xero TaxType codes — hardcoded to the universal defaults (OUTPUT / INPUT / NONE). */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function getTaxTypes(_businessId: string): { sales: string; purchases: string; exempt: string } {
+  return { sales: 'OUTPUT', purchases: 'INPUT', exempt: 'NONE' };
 }
 
 function getTrackingForLocation(mappings: TrackingMapping[], locationId: number | null, channel?: string) {
@@ -96,6 +116,7 @@ interface POForSync {
   discount?: number;
   total_amount: number;
   currency_code?: string;
+  tax_treatment?: 'ex_tax' | 'inc_tax' | 'no_tax';
   supplier_invoice_number?: string;
   items?: {
     variant_id: string;
@@ -116,6 +137,7 @@ interface POForSync {
 export async function syncPOAsDraftBill(businessId: string, po: POForSync): Promise<string | null> {
   const accounts = await getAccountMappings(businessId);
   const trackingMappings = await getTrackingMappings(businessId);
+  const taxTypes = getTaxTypes(businessId);
 
   if (!accounts.inventory_asset) {
     await logSync(businessId, 'po_bill', po.id, null, 'skipped', 'No inventory_asset account mapped');
@@ -130,23 +152,34 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
 
   const tracking = getTrackingForLocation(trackingMappings, po.location_id);
 
+  const taxTreatment = po.tax_treatment ?? 'ex_tax';
+  const lineTaxType = taxTreatment === 'no_tax' ? taxTypes.exempt : taxTypes.purchases;
+
   const lineItems = (po.items ?? []).map(item => ({
     Description: `${item.sku || ''} ${item.product_name || ''}`.trim() || 'Inventory',
     Quantity: item.qty_ordered,
     UnitAmount: item.unit_cost,
     AccountCode: lineAccountCode,
     TaxAmount: item.qty_ordered * item.unit_cost * (item.tax_rate / 100),
+    ...(lineTaxType ? { TaxType: lineTaxType } : {}),
     Tracking: tracking,
   }));
 
-  // Add freight as a separate line if present
+  // Add freight as a separate line if present.
+  // Capitalise → debit the same Inventory Asset account as stock (freight is part of stock value).
+  // Expense    → debit the mapped Freight/Shipping P&L account.
   if (po.freight && po.freight > 0) {
+    const freightTreatment = await getFreightTreatment(businessId);
+    const freightAccount = freightTreatment === 'capitalise'
+      ? lineAccountCode
+      : (accounts.freight || lineAccountCode);
     lineItems.push({
-      Description: 'Freight / Shipping',
+      Description: freightTreatment === 'capitalise' ? 'Freight / Shipping (capitalised to stock)' : 'Freight / Shipping',
       Quantity: 1,
       UnitAmount: po.freight,
-      AccountCode: accounts.freight || lineAccountCode,
+      AccountCode: freightAccount,
       TaxAmount: 0,
+      ...(taxTypes.exempt ? { TaxType: taxTypes.exempt } : {}),
       Tracking: tracking,
     });
   }
@@ -158,7 +191,7 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
     DueDate: po.expected_date || po.order_date,
     Reference: po.po_number,
     Status: 'DRAFT',
-    LineAmountTypes: 'Exclusive',
+    LineAmountTypes: taxTreatment === 'inc_tax' ? 'Inclusive' : 'Exclusive',
     CurrencyCode: po.currency_code || 'AUD',
     LineItems: lineItems,
   };
@@ -304,6 +337,7 @@ interface SOForSync {
 export async function syncSOAsInvoice(businessId: string, so: SOForSync): Promise<string | null> {
   const accounts = await getAccountMappings(businessId);
   const trackingMappings = await getTrackingMappings(businessId);
+  const taxTypes = getTaxTypes(businessId);
 
   if (!accounts.sales_revenue) {
     await logSync(businessId, 'so_invoice', so.id, null, 'skipped', 'No sales_revenue account mapped');
@@ -319,6 +353,7 @@ export async function syncSOAsInvoice(businessId: string, so: SOForSync): Promis
     DiscountRate: item.discount_pct || 0,
     AccountCode: accounts.sales_revenue,
     TaxAmount: item.qty_ordered * item.unit_price * (1 - (item.discount_pct || 0) / 100) * (item.tax_rate / 100),
+    ...((item.tax_rate > 0 ? taxTypes.sales : taxTypes.exempt) ? { TaxType: item.tax_rate > 0 ? taxTypes.sales : taxTypes.exempt } : {}),
     Tracking: tracking,
   }));
 
@@ -330,6 +365,7 @@ export async function syncSOAsInvoice(businessId: string, so: SOForSync): Promis
       DiscountRate: 0,
       AccountCode: accounts.freight || accounts.sales_revenue,
       TaxAmount: 0,
+      ...(taxTypes.exempt ? { TaxType: taxTypes.exempt } : {}),
       Tracking: tracking,
     });
   }

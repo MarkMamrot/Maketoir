@@ -33,8 +33,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       // EVENT-DRIVEN CACHE UPDATE: Refresh cache for variant sales logic when order becomes fulfilled or changes state.
       // We retrieve the SO items to know which variants are affected.
       const soDataFull = await ImsSORepo.get(Number(params.id));
-      if (soDataFull && soDataFull.items?.length > 0) {
-        const vids = soDataFull.items.map(i => i.variant_id).filter(Boolean) as string[];
+      if (soDataFull && (soDataFull.items?.length ?? 0) > 0) {
+        const vids = soDataFull.items!.map(i => i.variant_id).filter(Boolean) as string[];
         if (vids.length > 0) {
           refreshVariantCache(vids).catch(err => console.error('Failed inline cache refresh for SO:', err));
         }
@@ -70,8 +70,8 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
     await ImsSORepo.delete(Number(params.id));
 
     // EVENT-DRIVEN CACHE UPDATE (Deletion reverses committed stock & sales)
-    if (existing && existing.items?.length > 0) {
-      const vids = existing.items.map(i => i.variant_id).filter(Boolean) as string[];
+    if (existing && (existing.items?.length ?? 0) > 0) {
+      const vids = existing.items!.map(i => i.variant_id).filter(Boolean) as string[];
       if (vids.length > 0) {
         refreshVariantCache(vids).catch(err => console.error('Failed inline cache refresh for SO deletion:', err));
       }

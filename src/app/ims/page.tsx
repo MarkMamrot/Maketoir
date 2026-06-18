@@ -15,7 +15,7 @@ type ImsView =
   | 'purchase-orders' | 'sales-orders' | 'branch-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
   | 'reports' | 'report-sales-by-branch' | 'report-inventory-valuation' | 'report-product-margin'
-  | 'xero';
+  | 'xero' | 'shopify';
 
 interface User { name: string; email: string; company: string; userSpreadsheetId: string }
 
@@ -42,7 +42,6 @@ const NAV = [
   { id: 'locations',       label: 'Locations',        section: null },
   { id: 'stocktakes',       label: '📋 Stocktakes',     section: null },
   { id: 'reports',          label: '📊 Reports',         section: null },
-  { id: 'settings',         label: '⚙️ Settings',        section: null },
   { id: '__integrations',   label: 'Integrations',     section: 'integrations', children: [
     { id: 'xero',           label: 'Xero' },
     { id: 'shopify',        label: 'Shopify' },
@@ -69,6 +68,95 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 const PAYMENT_TERMS = ['', '10 Days', '15 Days', '30 Days', '60 Days', '90 Days', 'COD'];
 const PO_CURRENCIES = ['AUD', 'USD', 'EUR', 'GBP', 'THB', 'CNY', 'JPY', 'INR', 'CAD', 'NZD'];
+
+function effectiveRRP(v: any, today: string): number {
+  if (v.price_rrp_sale && Number(v.price_rrp_sale) > 0) {
+    const start = v.discount_start_date ?? '';
+    const end = v.discount_end_date ?? '';
+    if ((!start || today >= start) && (!end || today <= end)) {
+      return Number(v.price_rrp_sale);
+    }
+  }
+  return Number(v.price_rrp ?? 0);
+}
+
+// Searchable variant picker for PO/SO line items
+function VariantSearch({ value, variants, onChange, style }: {
+  value: string;
+  variants: any[];
+  onChange: (variant_id: string) => void;
+  style?: React.CSSProperties;
+}) {
+  const [query, setQuery] = React.useState('');
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  const selected = variants.find(v => v.variant_id === value);
+  const displayLabel = selected
+    ? `${selected.product_name} · ${selected.sku || ''} ${[selected.option1_value, selected.option2_value].filter(Boolean).join('/')}`.trim()
+    : '';
+
+  const filtered = React.useMemo(() => {
+    const q = query.toLowerCase();
+    if (!q) return variants.slice(0, 80);
+    return variants.filter(v => {
+      const text = `${v.product_name ?? ''} ${v.sku ?? ''} ${v.barcode ?? ''} ${v.option1_value ?? ''} ${v.option2_value ?? ''}`.toLowerCase();
+      return text.includes(q);
+    }).slice(0, 60);
+  }, [query, variants]);
+
+  React.useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position: 'relative', ...style }}>
+      <input
+        type="text"
+        value={open ? query : displayLabel}
+        placeholder="Search variant…"
+        onFocus={() => { setQuery(''); setOpen(true); }}
+        onChange={e => { setQuery(e.target.value); setOpen(true); }}
+        style={{ ...inputStyle, fontSize: 12, width: '100%' }}
+      />
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, zIndex: 9999,
+          background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)',
+          borderRadius: 6, minWidth: 320, maxWidth: 480, maxHeight: 260, overflowY: 'auto',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+        }}>
+          {filtered.length === 0 && (
+            <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>No matches</div>
+          )}
+          {filtered.map(v => (
+            <div
+              key={v.variant_id}
+              onMouseDown={() => { onChange(v.variant_id); setOpen(false); setQuery(''); }}
+              style={{
+                padding: '7px 12px', cursor: 'pointer', fontSize: 12,
+                background: v.variant_id === value ? 'var(--sv-action-dim, rgba(99,102,241,0.1))' : undefined,
+                borderBottom: '1px solid var(--sv-etch)',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--sv-bg-1)')}
+              onMouseLeave={e => (e.currentTarget.style.background = v.variant_id === value ? 'var(--sv-action-dim, rgba(99,102,241,0.1))' : '')}
+            >
+              <span style={{ fontWeight: 600 }}>{v.product_name}</span>
+              {v.sku && <span style={{ color: 'var(--sv-text-dim)', marginLeft: 6 }}>{v.sku}</span>}
+              {[v.option1_value, v.option2_value].filter(Boolean).length > 0 && (
+                <span style={{ color: 'var(--sv-text-dim)', marginLeft: 6 }}>{[v.option1_value, v.option2_value].filter(Boolean).join(' / ')}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function calcDueDate(orderDate: string | undefined, terms: string | undefined): string {
   if (!terms) return '—';
@@ -149,12 +237,12 @@ function parseStyleStr(s: string): Record<string, string> {
 // Modal
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Modal({ title, onClose, children, wide, wider }: {
-  title: string; onClose: () => void; children: React.ReactNode; wide?: boolean; wider?: boolean
+function Modal({ title, onClose, children, wide, wider, width }: {
+  title: string; onClose: () => void; children: React.ReactNode; wide?: boolean; wider?: boolean; width?: number;
 }) {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 40, paddingBottom: 40, background: 'rgba(0,0,0,.6)', overflowY: 'auto' }}>
-      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, width: wider ? 1120 : wide ? 860 : 560, maxWidth: '97vw', padding: 28, position: 'relative' }}>
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, width: width ?? (wider ? 1120 : wide ? 860 : 560), maxWidth: '97vw', padding: 28, position: 'relative' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{title}</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>×</button>
@@ -255,32 +343,29 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
         </button>
       </div>
 
-      {/* Nav items */}
-      {NAV.map(item => {
+      {/* Nav items — collapsed: curated 6-icon list */}
+      {collapsed && (() => {
+        const COLLAPSED_ICONS: { icon: string; label: string; navigate: ImsView; activeFor: string[] }[] = [
+          { icon: '__products',       label: 'Products',         navigate: 'products',         activeFor: ['products','stock','brands','bulk-edit'] },
+          { icon: 'purchase-orders',  label: 'Purchase Orders',  navigate: 'purchase-orders',  activeFor: ['purchase-orders'] },
+          { icon: 'sales-orders',     label: 'Sales Orders',     navigate: 'sales-orders',     activeFor: ['sales-orders'] },
+          { icon: 'branch-transfers', label: 'Branch Transfers', navigate: 'branch-transfers', activeFor: ['branch-transfers'] },
+          { icon: 'contacts',         label: 'Contacts',         navigate: 'contacts',         activeFor: ['contacts'] },
+          { icon: '__integrations',   label: 'Integrations',     navigate: 'shopify',          activeFor: ['xero','shopify'] },
+        ];
+        return COLLAPSED_ICONS.map(entry => (
+          <button key={entry.icon} onClick={() => onSelect(entry.navigate)} title={entry.label}
+            style={collapsedItemStyle(entry.activeFor.includes(active))}>
+            <NavIcon id={entry.icon} />
+          </button>
+        ));
+      })()}
+
+      {/* Nav items — expanded */}
+      {!collapsed && NAV.map(item => {
         const hasChildren = 'children' in item && (item as any).children?.length > 0;
         const isGroupOpen = sectionOpen[item.id];
         const isActive = active === item.id;
-
-        if (collapsed) {
-          if (hasChildren) {
-            return (
-              <div key={item.id}>
-                {(item as any).children.map((child: any) => (
-                  <button key={child.id} onClick={() => onSelect(child.id as ImsView)} title={child.label}
-                    style={collapsedItemStyle(active === child.id)}>
-                    <NavIcon id={child.id} />
-                  </button>
-                ))}
-              </div>
-            );
-          }
-          return (
-            <button key={item.id} onClick={() => onSelect(item.id as ImsView)} title={item.label}
-              style={collapsedItemStyle(isActive)}>
-              <NavIcon id={item.id} />
-            </button>
-          );
-        }
 
         // Expanded mode
         return (
@@ -433,7 +518,7 @@ function RecentTable({ title, rows, columns }: { title: string; rows: any[]; col
 // Contacts View
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BLANK_CONTACT = { type: 'supplier' as const, name: '', company: '', email: '', phone: '', address: '', city: '', state: '', postcode: '', country: 'Australia', notes: '', is_active: 1, price_tier: 'retail', order_frequency_days: 45 };
+const BLANK_CONTACT = { type: 'supplier' as const, name: '', company: '', email: '', phone: '', address: '', city: '', state: '', postcode: '', country: 'Australia', notes: '', is_active: 1, price_tier: 'retail', order_frequency_days: 45, charges_tax: 1, prices_include_tax: 0, tax_rate: '' };
 
 function ContactsView() {
   const [contacts, setContacts] = useState<any[]>([]);
@@ -463,7 +548,8 @@ function ContactsView() {
     try {
       const url  = modal.edit ? `/api/ims/contacts/${modal.edit.id}` : '/api/ims/contacts';
       const method = modal.edit ? 'PUT' : 'POST';
-      await apiFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      const payload: any = { ...form, tax_rate: (form as any).tax_rate === '' || (form as any).tax_rate == null ? null : Number((form as any).tax_rate) };
+      await apiFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       load(); closeModal();
     } catch (e: any) { alert(e.message); }
     finally { setSaving(false); }
@@ -570,6 +656,25 @@ function ContactsView() {
                 </Field>
               )}
             </Row2>
+            {(form.type === 'supplier' || form.type === 'both') && (
+              <Row3>
+                <Field label="Charges sales tax?">
+                  <select value={Number((form as any).charges_tax ?? 1)} onChange={e => setForm(p => ({ ...p, charges_tax: Number(e.target.value) }))} style={inputStyle}>
+                    <option value={1}>Yes</option>
+                    <option value={0}>No</option>
+                  </select>
+                </Field>
+                <Field label="Prices include tax?">
+                  <select value={Number((form as any).prices_include_tax ?? 0)} disabled={!Number((form as any).charges_tax ?? 1)} onChange={e => setForm(p => ({ ...p, prices_include_tax: Number(e.target.value) }))} style={{ ...inputStyle, opacity: Number((form as any).charges_tax ?? 1) ? 1 : 0.5 }}>
+                    <option value={0}>Ex-tax (added on top)</option>
+                    <option value={1}>Inc-tax (already included)</option>
+                  </select>
+                </Field>
+                <Field label="Tax rate override (%)">
+                  <input type="number" min={0} step="0.01" placeholder="default" disabled={!Number((form as any).charges_tax ?? 1)} value={(form as any).tax_rate === '' || (form as any).tax_rate == null ? '' : Number((form as any).tax_rate) * 100} onChange={e => setForm(p => ({ ...p, tax_rate: e.target.value === '' ? '' : String(Number(e.target.value) / 100) }))} style={{ ...inputStyle, opacity: Number((form as any).charges_tax ?? 1) ? 1 : 0.5 }} />
+                </Field>
+              </Row3>
+            )}
             <FormActions onCancel={closeModal} saving={saving} isEdit={!!modal.edit} />
           </form>
         </Modal>
@@ -679,13 +784,13 @@ interface VariantRow {
   option3_value: string;
   sku: string;
   barcode: string;
-  cost: string;
-  price: string;
-  discounted_price: string;
+  cost_aud: string;
+  price_rrp: string;
+  price_rrp_sale: string;
   discount_start_date: string;
   discount_end_date: string;
   weight_kg: string;
-  wholesale_price: string;
+  price_wholesale: string;
   bin: string;
   zone: string;
   is_active: number;
@@ -699,9 +804,9 @@ const BLANK_PRODUCT = { name: '', description: '', product_type: '', brand: '', 
 const blankRow = (): VariantRow => ({
   _tempId: Math.random().toString(36).slice(2, 10),
   option1_value: '', option2_value: '', option3_value: '',
-  sku: '', barcode: '', cost: '', price: '',
-  wholesale_price: '',
-  discounted_price: '', discount_start_date: '', discount_end_date: '',
+  sku: '', barcode: '', cost_aud: '', price_rrp: '',
+  price_wholesale: '',
+  price_rrp_sale: '', discount_start_date: '', discount_end_date: '',
   weight_kg: '', bin: '', zone: '', is_active: 1, foreignCosts: {},
 });
 
@@ -936,7 +1041,7 @@ const IMPORT_TEMPLATE_HEADERS = [
   'Product_Name','SKU','Barcode','Description','Brand','Supplier','Product_Type',
   'Tags','Style_Code','Online','Pack_Size','Bin','Zone',
   'Option1_Name','Option1_Value','Option2_Name','Option2_Value','Option3_Name','Option3_Value',
-  'RRP','Wholesale_Price','Cost_AUD','Cost_USD','Cost_EUR','Cost_GBP','Cost_THB','Cost_CNY','Cost_JPY','Weight_KG',
+  'RRP','price_wholesale','Cost_AUD','Cost_USD','Cost_EUR','Cost_GBP','Cost_THB','Cost_CNY','Cost_JPY','Weight_KG',
 ];
 
 type ImportProductsStage = 'paste' | 'prompts' | 'review' | 'importing' | 'done';
@@ -1042,9 +1147,9 @@ function ImportProductsModal({
           const v = match.variant;
           const p = match.product;
           const numOrNull = (s: string) => s === '' ? null : Number(s);
-          if (raw['rrp'] !== '' && numOrNull(raw['rrp']) !== (v.price ?? null)) changedFields.push('RRP');
-          if (raw['cost_aud'] !== '' && numOrNull(raw['cost_aud']) !== (v.cost ?? null)) changedFields.push('Cost');
-          if (raw['wholesale_price'] !== '' && numOrNull(raw['wholesale_price']) !== (v.wholesale_price ?? null)) changedFields.push('Wholesale');
+          if (raw['rrp'] !== '' && numOrNull(raw['rrp']) !== (v.price_rrp ?? null)) changedFields.push('RRP');
+          if (raw['cost_aud'] !== '' && numOrNull(raw['cost_aud']) !== (v.cost_aud ?? null)) changedFields.push('Cost');
+          if (raw['price_wholesale'] !== '' && numOrNull(raw['price_wholesale']) !== (v.price_wholesale ?? null)) changedFields.push('Wholesale');
           if (raw['weight_kg'] !== '' && numOrNull(raw['weight_kg']) !== (v.weight_kg ?? null)) changedFields.push('Weight');
           if (raw['barcode'] !== '' && raw['barcode'] !== (v.barcode ?? '')) changedFields.push('Barcode');
           if (raw['brand'] !== '' && raw['brand'] !== (p.brand ?? '')) changedFields.push('Brand');
@@ -1134,7 +1239,7 @@ function ImportProductsModal({
       const raw = r.raw;
       const numOrNull = (s: string) => s === '' ? null : Number(s);
 
-      // Build cost_foreign_json from Cost_XXX columns
+      // Build cost_foreign from Cost_XXX columns
       const foreignCosts: Record<string, number> = {};
       for (const key of Object.keys(raw)) {
         const m = key.match(/^cost_([a-z]{3})$/);
@@ -1160,7 +1265,7 @@ function ImportProductsModal({
         barcode: raw['barcode'] || undefined,
         cost: numOrNull(raw['cost_aud'] ?? ''),
         price: numOrNull(raw['rrp'] ?? ''),
-        wholesale_price: numOrNull(raw['wholesale_price'] ?? ''),
+        price_wholesale: numOrNull(raw['price_wholesale'] ?? ''),
         weight_kg: numOrNull(raw['weight_kg'] ?? ''),
         pack_size: numOrNull(raw['pack_size'] ?? ''),
         bin: raw['bin'] || undefined,
@@ -1171,7 +1276,7 @@ function ImportProductsModal({
         option2_value: raw['option2_value'] || undefined,
         option3_name: raw['option3_name'] || undefined,
         option3_value: raw['option3_value'] || undefined,
-        cost_foreign_json: Object.keys(foreignCosts).length ? JSON.stringify(foreignCosts) : undefined,
+        cost_foreign: Object.keys(foreignCosts).length ? JSON.stringify(foreignCosts) : undefined,
         existing_variant_id: r.existing_variant_id,
         existing_product_id: r.existing_product_id,
       };
@@ -1495,7 +1600,7 @@ function ProductsView() {
     setOptionSets(sets);
     setVariantRows(variants.map(v => {
       const fc: Record<string, string> = {};
-      try { const j = JSON.parse(v.cost_foreign_json ?? '{}'); for (const [k, val] of Object.entries(j)) fc[k] = String(val); } catch {}
+      try { const j = JSON.parse(v.cost_foreign ?? '{}'); for (const [k, val] of Object.entries(j)) fc[k] = String(val); } catch {}
       return {
         _tempId: v.variant_id,
         variant_id: v.variant_id,
@@ -1504,10 +1609,10 @@ function ProductsView() {
         option3_value: v.option3_value ?? '',
         sku: v.sku ?? '',
         barcode: v.barcode ?? '',
-        cost: v.cost != null ? String(v.cost) : '',
-        price: v.price != null ? String(v.price) : '',
-        wholesale_price: v.wholesale_price != null ? String(v.wholesale_price) : '',
-        discounted_price: v.discounted_price != null ? String(v.discounted_price) : '',
+        cost_aud: v.cost_aud != null ? String(v.cost_aud) : '',
+        price_rrp: v.price_rrp != null ? String(v.price_rrp) : '',
+        price_wholesale: v.price_wholesale != null ? String(v.price_wholesale) : '',
+        price_rrp_sale: v.price_rrp_sale != null ? String(v.price_rrp_sale) : '',
         discount_start_date: v.discount_start_date ? String(v.discount_start_date).slice(0, 10) : '',
         discount_end_date: v.discount_end_date ? String(v.discount_end_date).slice(0, 10) : '',
         weight_kg: v.weight_kg != null ? String(v.weight_kg) : '',
@@ -1519,7 +1624,7 @@ function ProductsView() {
     }));
     // Infer active currencies from existing data
     const allKeys = new Set<string>();
-    variants.forEach((v: any) => { try { Object.keys(JSON.parse(v.cost_foreign_json ?? '{}')).forEach(k => allKeys.add(k)); } catch {} });
+    variants.forEach((v: any) => { try { Object.keys(JSON.parse(v.cost_foreign ?? '{}')).forEach(k => allKeys.add(k)); } catch {} });
     setActiveCurrencies([...allKeys]);
     setModal({ open: true, edit: p });
   };
@@ -1578,17 +1683,17 @@ function ProductsView() {
           option3_name: o3n || null, option3_value: row.option3_value || null,
           sku: row.sku || null,
           barcode: row.barcode || null,
-          cost: row.cost === '' ? null : Number(row.cost),
-          price: row.price === '' ? null : Number(row.price),
-          wholesale_price: row.wholesale_price === '' ? null : Number(row.wholesale_price),
-          discounted_price: row.discounted_price === '' ? null : Number(row.discounted_price),
+          cost_aud: row.cost_aud === '' ? null : Number(row.cost_aud),
+          price_rrp: row.price_rrp === '' ? null : Number(row.price_rrp),
+          price_wholesale: row.price_wholesale === '' ? null : Number(row.price_wholesale),
+          price_rrp_sale: row.price_rrp_sale === '' ? null : Number(row.price_rrp_sale),
           discount_start_date: row.discount_start_date || null,
           discount_end_date: row.discount_end_date || null,
           weight_kg: row.weight_kg === '' ? null : Number(row.weight_kg),
           bin: row.bin || null,
           zone: row.zone || null,
           is_active: row.is_active,
-          cost_foreign_json: Object.keys(fcObj).length ? JSON.stringify(fcObj) : null,
+          cost_foreign: Object.keys(fcObj).length ? JSON.stringify(fcObj) : null,
         };
         if (row.variant_id) {
           await apiFetch(`/api/ims/variants/${row.variant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -1867,7 +1972,7 @@ function ProductsView() {
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{p.created_at ? String(p.created_at).slice(0, 10) : '—'}</td>
                   </tr>
                   {expandedIds.has(p.product_id) && (p.variants || []).map((v: any) => {
-                    const hasDiscount = v.discounted_price != null && Number(v.discounted_price) > 0;
+                    const hasDiscount = v.price_rrp_sale != null && Number(v.price_rrp_sale) > 0;
                     return (
                       <tr key={v.variant_id} style={{ background: 'var(--sv-bg-1)', borderTop: '1px solid var(--sv-etch)' }}>
                         <td />{/* expand */}
@@ -1878,15 +1983,15 @@ function ProductsView() {
                           {' '}{[v.option1_value, v.option2_value, v.option3_value].filter(Boolean).join(' / ')}
                           {p.product_type && <span style={{ color: 'var(--sv-text-dim)', fontSize: 11, marginLeft: 8, background: 'var(--sv-bg-2)', borderRadius: 4, padding: '1px 6px' }}>{p.product_type}</span>}
                         </td>
-                        <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{fmtCurrency(v.cost)} cost</td>
+                        <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{fmtCurrency(v.cost_aud)} cost</td>
                         <td style={{ padding: '8px 12px', fontSize: 13 }}>
                           {hasDiscount ? (
                             <>
-                              <span style={{ textDecoration: 'line-through', color: 'var(--sv-text-dim)', marginRight: 5 }}>{fmtCurrency(v.price)}</span>
-                              <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>{fmtCurrency(v.discounted_price)}</span>
+                              <span style={{ textDecoration: 'line-through', color: 'var(--sv-text-dim)', marginRight: 5 }}>{fmtCurrency(v.price_rrp)}</span>
+                              <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>{fmtCurrency(v.price_rrp_sale)}</span>
                             </>
                           ) : (
-                            <span style={{ color: 'var(--sv-text-dim)' }}>{fmtCurrency(v.price)} sell</span>
+                            <span style={{ color: 'var(--sv-text-dim)' }}>{fmtCurrency(v.price_rrp)} sell</span>
                           )}
                         </td>
                         <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 500 }}>
@@ -2048,10 +2153,10 @@ function ProductsView() {
                         <td style={{ padding: '4px 8px', whiteSpace: 'nowrap', color: 'var(--sv-text-dim)', fontWeight: 500, minWidth: 80 }}>{label}</td>
                         <td style={{ padding: '2px 4px', minWidth: 80 }}><input value={row.sku} onChange={e => updateRow(row._tempId, 'sku', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 90 }}><input value={row.barcode} onChange={e => updateRow(row._tempId, 'barcode', e.target.value)} style={cellInput} /></td>
-                        <td style={{ padding: '2px 4px', minWidth: 72 }}><input type="number" step="0.0001" min="0" value={row.cost} onChange={e => updateRow(row._tempId, 'cost', e.target.value)} style={cellInput} /></td>
-                        <td style={{ padding: '2px 4px', minWidth: 72 }}><input type="number" step="0.01" min="0" value={row.price} onChange={e => updateRow(row._tempId, 'price', e.target.value)} style={cellInput} /></td>
-                        <td style={{ padding: '2px 4px', minWidth: 86 }}><input type="number" step="0.01" min="0" value={row.wholesale_price} onChange={e => updateRow(row._tempId, 'wholesale_price', e.target.value)} style={cellInput} placeholder="—" /></td>
-                        <td style={{ padding: '2px 4px', minWidth: 86 }}><input type="number" step="0.01" min="0" value={row.discounted_price} onChange={e => updateRow(row._tempId, 'discounted_price', e.target.value)} style={cellInput} /></td>
+                        <td style={{ padding: '2px 4px', minWidth: 72 }}><input type="number" step="0.0001" min="0" value={row.cost_aud} onChange={e => updateRow(row._tempId, 'cost', e.target.value)} style={cellInput} /></td>
+                        <td style={{ padding: '2px 4px', minWidth: 72 }}><input type="number" step="0.01" min="0" value={row.price_rrp} onChange={e => updateRow(row._tempId, 'price', e.target.value)} style={cellInput} /></td>
+                        <td style={{ padding: '2px 4px', minWidth: 86 }}><input type="number" step="0.01" min="0" value={row.price_wholesale} onChange={e => updateRow(row._tempId, 'price_wholesale', e.target.value)} style={cellInput} placeholder="—" /></td>
+                        <td style={{ padding: '2px 4px', minWidth: 86 }}><input type="number" step="0.01" min="0" value={row.price_rrp_sale} onChange={e => updateRow(row._tempId, 'price_rrp_sale', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 120 }}><input type="date" value={row.discount_start_date} onChange={e => updateRow(row._tempId, 'discount_start_date', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 120 }}><input type="date" value={row.discount_end_date} onChange={e => updateRow(row._tempId, 'discount_end_date', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 60 }}><input type="number" step="0.001" min="0" value={row.weight_kg} onChange={e => updateRow(row._tempId, 'weight_kg', e.target.value)} style={cellInput} /></td>
@@ -2602,7 +2707,7 @@ function PurchaseOrdersView() {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [variants, setVariants] = useState<any[]>([]);
-  const [form, setForm] = useState<any>({ supplier_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', supplier_invoice_number: '', payment_terms: '', discount: '', tax_treatment: 'ex_tax', currency_code: 'AUD', exchange_rate: '1', _rateHint: '' });
+  const [form, setForm] = useState<any>({ supplier_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', supplier_invoice_number: '', payment_terms: '', freight: '', discount: '', tax_treatment: 'ex_tax', currency_code: 'AUD', exchange_rate: '1', _rateHint: '' });
   const [lineItems, setLineItems] = useState<any[]>([]);
   const [landedCosts, setLandedCosts] = useState<{ label: string; reference: string; amount: string }[]>([]);
   const [lcForm, setLcForm] = useState<{ label: string; reference: string; amount: string } | null>(null);
@@ -2612,18 +2717,7 @@ function PurchaseOrdersView() {
   const [sortCol, setSortCol] = useState<string>('order_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
-  const { settings, saveSettings } = useImsSettings();
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsDraft, setSettingsDraft] = useState<Record<string, string>>({});
-  const [settingsSaving, setSettingsSaving] = useState(false);
-  useEffect(() => {
-    setSettingsDraft({
-      po_email_subject: 'Purchase Order {{order_number}}',
-      po_email_body: 'Dear {{contact_name}},\n\nPlease find attached Purchase Order {{order_number}} totalling {{total}}.\n\nKind regards',
-      ...settings,
-    });
-  }, [settings]);
-
+  const { settings } = useImsSettings();
   const load = useCallback(() => {
     setLoading(true);
     fetch('/api/ims/purchase-orders').then(r => r.json()).then(d => {
@@ -2641,9 +2735,35 @@ function PurchaseOrdersView() {
 
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((p: any) => ({ ...p, [k]: e.target.value }));
 
+  // Effective default purchase tax rate (decimal), considering the selected supplier.
+  const selectedSupplier = suppliers.find((s: any) => String(s.id) === String(form.supplier_id));
+  const poDefaultTaxRate = (() => {
+    if (selectedSupplier && !Number(selectedSupplier.charges_tax ?? 1)) return 0;
+    if (selectedSupplier?.tax_rate != null && selectedSupplier.tax_rate !== '') return Number(selectedSupplier.tax_rate);
+    return Number(settings?.purchase_tax_rate ?? settings?.sales_tax_rate ?? 0);
+  })();
+
+  // When the supplier changes, derive tax treatment + default code + line tax rates.
+  const selectSupplier = (supplierId: string) => {
+    const sup = suppliers.find((s: any) => String(s.id) === String(supplierId));
+    setForm((p: any) => {
+      let tax_treatment = p.tax_treatment;
+      if (sup) {
+        tax_treatment = !Number(sup.charges_tax ?? 1) ? 'no_tax' : Number(sup.prices_include_tax ?? 0) ? 'inc_tax' : 'ex_tax';
+      }
+      return { ...p, supplier_id: supplierId, tax_treatment, tax_code: settings?.purchase_tax_code ?? p.tax_code ?? '' };
+    });
+    if (sup) {
+      const charges = Number(sup.charges_tax ?? 1);
+      const rate = !charges ? 0
+        : (sup.tax_rate != null && sup.tax_rate !== '') ? Number(sup.tax_rate)
+        : Number(settings?.purchase_tax_rate ?? settings?.sales_tax_rate ?? 0);
+      setLineItems(p => p.map(it => ({ ...it, tax_rate: rate })));
+    }
+  };
+
   const addLine = () => {
-    const defaultTaxRate = Number(settings?.sales_tax_rate ?? 0);
-    setLineItems(p => [...p, { variant_id: '', qty_ordered: 1, unit_cost: 0, tax_rate: defaultTaxRate }]);
+    setLineItems(p => [...p, { variant_id: '', qty_ordered: 1, unit_cost: 0, tax_rate: poDefaultTaxRate }]);
   };
   const removeLine = (i: number) => setLineItems(p => p.filter((_, idx) => idx !== i));
   const updateLine = (i: number, k: string, v: any) => setLineItems(p => p.map((item, idx) => idx === i ? { ...item, [k]: v } : item));
@@ -2651,14 +2771,14 @@ function PurchaseOrdersView() {
   const selectPOVariant = (i: number, variant_id: string) => {
     const v = variants.find((v: any) => v.variant_id === variant_id);
     const cur = form.currency_code ?? 'AUD';
-    let unit_cost = v ? Number(v.cost ?? 0) : 0;
+    let unit_cost = v ? Number(v.cost_aud ?? 0) : 0;
     if (v && cur !== 'AUD') {
       try {
-        const foreignCosts = JSON.parse(v.cost_foreign_json ?? '{}');
+        const foreignCosts = JSON.parse(v.cost_foreign ?? '{}');
         if (foreignCosts[cur] != null) unit_cost = Number(foreignCosts[cur]);
       } catch {}
     }
-    const tax_rate = lineItems[i]?.tax_rate ?? Number(settings?.sales_tax_rate ?? 0);
+    const tax_rate = lineItems[i]?.tax_rate ?? poDefaultTaxRate;
     setLineItems(p => p.map((item, j) => j === i ? { ...item, variant_id, unit_cost, tax_rate } : item));
   };
 
@@ -2667,18 +2787,17 @@ function PurchaseOrdersView() {
       setForm((p: any) => ({ ...p, currency_code: 'AUD', exchange_rate: '1', _rateHint: '' }));
       return;
     }
-    setForm((p: any) => ({ ...p, currency_code: cur, _rateHint: 'Fetching live rate...' }));
+    setForm((p: any) => ({ ...p, currency_code: cur, _rateHint: 'Fetching live rate…' }));
     try {
-      const res = await fetch(`https://api.frankfurter.app/latest?from=${cur}&to=AUD`);
+      const res = await fetch(`/api/ims/exchange-rate?from=${cur}&to=AUD`);
       const data = await res.json();
-      const rate = data?.rates?.AUD;
-      if (rate) {
-        setForm((p: any) => ({ ...p, exchange_rate: String(Number(rate).toFixed(6)), _rateHint: `Live rate (${new Date().toLocaleDateString()})` }));
+      if (data.success && data.rate) {
+        setForm((p: any) => ({ ...p, exchange_rate: String(Number(data.rate).toFixed(6)), _rateHint: `Live rate ${data.date ?? ''}`.trim() }));
       } else {
-        setForm((p: any) => ({ ...p, _rateHint: 'Could not fetch rate — enter manually' }));
+        setForm((p: any) => ({ ...p, _rateHint: 'Could not fetch — enter manually' }));
       }
     } catch {
-      setForm((p: any) => ({ ...p, _rateHint: 'Could not fetch rate — enter manually' }));
+      setForm((p: any) => ({ ...p, _rateHint: 'Could not fetch — enter manually' }));
     }
   };
 
@@ -2702,11 +2821,11 @@ function PurchaseOrdersView() {
         }, 0)
       : lineItems.reduce((s, i) => s + lineTotal(i) * Number(i.tax_rate || 0), 0);
   const poLanded   = landedCosts.reduce((s, c) => s + Number(c.amount || 0), 0);
-  const grandTotal = poSubtotal + poTax + poLanded - Number(form.discount || 0);
+  const grandTotal = poSubtotal + poTax + Number(form.freight || 0) - Number(form.discount || 0);
 
   const openNew = () => {
-    setForm({ supplier_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', supplier_invoice_number: '', payment_terms: '', discount: '', tax_treatment: 'ex_tax', currency_code: 'AUD', exchange_rate: '1', _rateHint: '' });
-    const defaultTaxRate = Number(settings?.sales_tax_rate ?? 0);
+    setForm({ supplier_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', supplier_invoice_number: '', payment_terms: '', freight: '', discount: '', tax_treatment: 'ex_tax', tax_code: settings?.purchase_tax_code ?? '', currency_code: 'AUD', exchange_rate: '1', _rateHint: '' });
+    const defaultTaxRate = Number(settings?.purchase_tax_rate ?? settings?.sales_tax_rate ?? 0);
     setLineItems([{ variant_id: '', qty_ordered: 1, unit_cost: 0, tax_rate: defaultTaxRate }]);
     setLandedCosts([]);
     setLcForm(null);
@@ -2723,7 +2842,7 @@ function PurchaseOrdersView() {
     const rateHint = derivedRate
       ? `Avg of ${payments.length} payment${payments.length !== 1 ? 's' : ''} (${derivedRate.toFixed(4)} AUD per ${cur})`
       : '';
-    setForm({ supplier_id: d.data.supplier_id ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), expected_date: d.data.expected_date?.slice(0, 10) ?? '', notes: d.data.notes ?? '', supplier_invoice_number: d.data.supplier_invoice_number ?? '', payment_terms: d.data.payment_terms ?? '', discount: d.data.discount ?? '', tax_treatment: d.data.tax_treatment ?? 'ex_tax', currency_code: cur, exchange_rate: derivedRate ? String(derivedRate.toFixed(6)) : String(d.data.exchange_rate ?? 1), _rateHint: rateHint });
+    setForm({ supplier_id: d.data.supplier_id ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), expected_date: d.data.expected_date?.slice(0, 10) ?? '', notes: d.data.notes ?? '', supplier_invoice_number: d.data.supplier_invoice_number ?? '', payment_terms: d.data.payment_terms ?? '', freight: d.data.freight ?? '', discount: d.data.discount ?? '', tax_treatment: d.data.tax_treatment ?? 'ex_tax', tax_code: d.data.tax_code ?? '', currency_code: cur, exchange_rate: derivedRate ? String(derivedRate.toFixed(6)) : String(d.data.exchange_rate ?? 1), _rateHint: rateHint });
     setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_cost: i.unit_cost, tax_rate: i.tax_rate, notes: i.notes ?? '' })));
     setLandedCosts((d.data.landed_costs || []).map((c: any) => ({ label: c.label, reference: c.reference ?? '', amount: String(c.amount) })));
     setLcForm(null);
@@ -2827,40 +2946,10 @@ function PurchaseOrdersView() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: settingsOpen ? 8 : 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Purchase Orders</h1>
-        <CogButton active={settingsOpen} onClick={() => setSettingsOpen(o => !o)} />
         <button onClick={openNew} style={btnStyle('action')}>+ New PO</button>
       </div>
-      {settingsOpen && (
-        <SettingsPanel>
-          <div style={{ marginBottom: 14, fontWeight: 700, color: 'var(--sv-text-strong)', fontSize: 14 }}>Purchase Order Settings</div>
-          <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 12 }}>Business name, address and logo are configured in <strong>⚙️ Settings</strong>.</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'start', marginBottom: 12 }}>
-            <div>
-              <label style={labelStyle}>Email Subject Template</label>
-              <input style={inputStyle} value={settingsDraft['po_email_subject'] || ''} onChange={e => setSettingsDraft(p => ({ ...p, po_email_subject: e.target.value }))} placeholder="Purchase Order {{order_number}}" />
-            </div>
-            <div style={{ paddingTop: 18 }}>
-              <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', lineHeight: 1.6, whiteSpace: 'nowrap' }}>
-                Variables: <code style={{ color: 'var(--sv-mint)' }}>{'{{order_number}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{contact_name}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{total}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{date}}'}</code>
-              </div>
-            </div>
-          </div>
-          <div style={{ marginBottom: 12 }}>
-            <label style={labelStyle}>Email Body Template</label>
-            <textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' as const }} value={settingsDraft['po_email_body'] || ''} onChange={e => setSettingsDraft(p => ({ ...p, po_email_body: e.target.value }))} placeholder={'Dear {{contact_name}},\n\nPlease find attached Purchase Order {{order_number}} totalling {{total}}.\n\nKind regards'} />
-          </div>
-          <div style={{ marginBottom: 16 }}>
-            <label style={labelStyle}>Terms &amp; Conditions (printed at the bottom of the PDF)</label>
-            <textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' as const }} value={settingsDraft['po_terms'] || ''} onChange={e => setSettingsDraft(p => ({ ...p, po_terms: e.target.value }))} placeholder="e.g. Payment due 30 days from order date. Prices are in AUD inclusive of GST." />
-          </div>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button type="button" onClick={() => { setSettingsOpen(false); setSettingsDraft({ po_email_subject: 'Purchase Order {{order_number}}', po_email_body: 'Dear {{contact_name}},\n\nPlease find attached Purchase Order {{order_number}} totalling {{total}}.\n\nKind regards', ...settings }); }} style={btnStyle('ghost', 'sm')}>Cancel</button>
-            <button type="button" disabled={settingsSaving} onClick={async () => { setSettingsSaving(true); await saveSettings(settingsDraft); setSettingsSaving(false); setSettingsOpen(false); }} style={btnStyle('action', 'sm')}>{settingsSaving ? 'Saving…' : 'Save Settings'}</button>
-          </div>
-        </SettingsPanel>
-      )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
         {['','draft','approved','received','cancelled'].map(s => (
           <button key={s} onClick={() => { setStatusFilter(s); setPage(1); }} style={btnStyle(statusFilter === s ? 'action' : 'ghost', 'sm')}>
@@ -2938,7 +3027,7 @@ function PurchaseOrdersView() {
           <form onSubmit={handleSubmit}>
             <Row3>
               <Field label="Supplier">
-                <select value={form.supplier_id} onChange={sf('supplier_id')} style={inputStyle}>
+                <select value={form.supplier_id} onChange={e => selectSupplier(e.target.value)} style={inputStyle}>
                   <option value="">— None —</option>
                   {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
@@ -3008,10 +3097,11 @@ function PurchaseOrdersView() {
                     {lineItems.map((item, i) => (
                       <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
                         <td style={{ padding: 4 }}>
-                          <select value={item.variant_id} onChange={e => selectPOVariant(i, e.target.value)} style={{ ...inputStyle, fontSize: 12 }}>
-                            <option value="">— Select variant —</option>
-                            {variants.map(v => <option key={v.variant_id} value={v.variant_id}>{v.product_name} — {v.sku || v.variant_id.slice(0, 8)} {[v.option1_value, v.option2_value].filter(Boolean).join('/')}</option>)}
-                          </select>
+                          <VariantSearch
+                            value={item.variant_id}
+                            variants={variants}
+                            onChange={vid => selectPOVariant(i, vid)}
+                          />
                         </td>
                         <td style={{ padding: 4, width: 80 }}>
                           <input type="number" min="0.0001" step="any" value={item.qty_ordered} onChange={e => updateLine(i, 'qty_ordered', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} />
@@ -3047,13 +3137,18 @@ function PurchaseOrdersView() {
                     <span>Discount (−)</span>
                     <input type="number" min="0" step="0.01" value={form.discount} onChange={sf('discount')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
                   </div>
-                  {/* Landed Costs */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
+                    <span>Freight (+)</span>
+                    <input type="number" min="0" step="0.01" value={form.freight} onChange={sf('freight')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
+                  </div>
+                  {/* Landed Costs — separate invoices; NOT in total, but added to avg. cost on receive */}
                   <div style={{ borderTop: '1px solid var(--sv-etch)', paddingTop: 8, marginBottom: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
                       <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Landed Costs</span>
-                      {!lcForm && (
-                        <button type="button" onClick={() => setLcForm({ label: '', reference: '', amount: '' })} style={btnStyle('mint', 'xs')}>+ Add</button>
-                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>not on invoice · added to avg. cost</span>
+                        {!lcForm && <button type="button" onClick={() => setLcForm({ label: '', reference: '', amount: '' })} style={btnStyle('mint', 'xs')}>+ Add</button>}
+                      </div>
                     </div>
                     {landedCosts.length > 0 && (
                       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 6, border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', fontSize: 12 }}>
@@ -3138,7 +3233,7 @@ function PurchaseOrdersView() {
       {importOpen && modal.open && (
         <ImportLineItemsModal
           variants={variants}
-          priceFn={(v) => Number(v.cost ?? 0)}
+          priceFn={(v) => Number(v.cost_aud ?? 0)}
           lineFactory={(v, qty, price) => ({ variant_id: v.variant_id, qty_ordered: qty, unit_cost: price, tax_rate: Number(settings?.sales_tax_rate ?? 0) })}
           onImport={(items) => setLineItems(prev => [...prev.filter(i => i.variant_id), ...items])}
           onClose={() => setImportOpen(false)}
@@ -3214,16 +3309,22 @@ function PurchaseOrdersView() {
               ))}
             </tbody>
             <tfoot>
-              {(Number(viewModal.po.discount) > 0 || (viewModal.po.landed_costs || []).length > 0) && (
+              {(Number(viewModal.po.discount) > 0 || Number(viewModal.po.freight) > 0) && (
                 <tr style={{ borderTop: '1px solid var(--sv-etch)' }}>
                   <td colSpan={7} style={{ padding: '6px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Subtotal</td>
                   <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtCurrency(viewModal.po.subtotal)}</td>
                 </tr>
               )}
-              {(Number(viewModal.po.discount) > 0 || (viewModal.po.landed_costs || []).length > 0) && (
+              {(Number(viewModal.po.discount) > 0 || Number(viewModal.po.freight) > 0) && (
                 <tr>
                   <td colSpan={7} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Tax</td>
                   <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtCurrency(viewModal.po.tax_amount)}</td>
+                </tr>
+              )}
+              {Number(viewModal.po.freight) > 0 && (
+                <tr>
+                  <td colSpan={7} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Freight (+)</td>
+                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>+{fmtCurrency(viewModal.po.freight)}</td>
                 </tr>
               )}
               {Number(viewModal.po.discount) > 0 && (
@@ -3232,14 +3333,6 @@ function PurchaseOrdersView() {
                   <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-red)' }}>−{fmtCurrency(viewModal.po.discount)}</td>
                 </tr>
               )}
-              {(viewModal.po.landed_costs || []).map((c: any) => (
-                <tr key={c.id}>
-                  <td colSpan={7} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-                    {c.label}{c.reference ? <span style={{ marginLeft: 6, color: 'var(--sv-text-dim)', fontStyle: 'italic' }}>({c.reference})</span> : null} (+)
-                  </td>
-                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>+{fmtCurrency(c.amount)}</td>
-                </tr>
-              ))}
               <tr style={{ borderTop: '2px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
                 <td colSpan={7} style={{ padding: '8px 10px', textAlign: 'right', fontSize: 13, color: 'var(--sv-text-dim)' }}>Total</td>
                 <td style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--sv-text-strong)' }}>{fmtCurrency(viewModal.po.total_amount)}</td>
@@ -3247,17 +3340,20 @@ function PurchaseOrdersView() {
             </tfoot>
           </table>
 
-          {/* ── Landed Costs (view/edit) ── */}
+          {/* ── Landed Costs (view/edit) — not on invoice; allocated to avg. cost on receive ── */}
           {(() => {
             const lcs: any[] = viewModal.po.landed_costs || [];
             const canEdit = viewModal.po.status === 'draft' || viewModal.po.status === 'approved';
             return (
               <div style={{ marginTop: 20 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Landed Costs</div>
-                  {canEdit && !lcForm && (
-                    <button onClick={() => setLcForm({ label: '', reference: '', amount: '' })} style={btnStyle('mint', 'xs')}>+ Add</button>
-                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>separate invoices · not on PO total · added to avg. cost on receive</span>
+                    {canEdit && !lcForm && (
+                      <button onClick={() => setLcForm({ label: '', reference: '', amount: '' })} style={btnStyle('mint', 'xs')}>+ Add</button>
+                    )}
+                  </div>
                 </div>
                 {lcs.length > 0 && (
                   <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 10, border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', fontSize: 13 }}>
@@ -3407,6 +3503,7 @@ function PurchaseOrdersView() {
               </div>
             );
           })()}
+          <PoAccountingSection po={viewModal.po} settings={settings} />
         </Modal>
       )}
     </div>
@@ -3448,6 +3545,395 @@ function POActions({ po, onEdit, onDelete, onStatus }: { po: any; onEdit: () => 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Accounting Debug Sections (PO & SO)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function PoAccountingSection({ po, settings }: { po: any; settings: Record<string, string> }) {
+  const [open, setOpen] = useState(false);
+  const currency = (po.currency_code || 'AUD').toUpperCase();
+  const isFx = currency !== 'AUD';
+  const rate = Number(po.exchange_rate || 1);
+  const items: any[] = po.items || [];
+  const landedCosts: any[] = po.landed_costs || [];
+  const payments: any[] = po.payments || [];
+  const hasDeposits = payments.length > 0;
+  const freightTreatment = settings.freight_treatment === 'capitalise' ? 'capitalise' : 'expense';
+  const freight = Number(po.freight || 0);
+
+  const lineItems = items.map((item: any) => {
+    const qty = Number(item.qty_ordered);
+    const cost = Number(item.unit_cost);
+    const taxRate = Number(item.tax_rate || 0);
+    const lineTotal = qty * cost;
+    const taxAmt = lineTotal * (taxRate / 100);
+    const lcpu = Number(item.landed_cost_per_unit || 0);
+    const trueCostAud = cost * rate + lcpu;
+    return { ...item, qty, cost, taxRate, lineTotal, taxAmt, lcpu, trueCostAud };
+  });
+
+  const goodsSubtotal = lineItems.reduce((s: number, i: any) => s + i.lineTotal, 0);
+  const taxTotal = lineItems.reduce((s: number, i: any) => s + i.taxAmt, 0);
+  const totalLanded = landedCosts.reduce((s: number, lc: any) => s + Number(lc.amount || 0), 0);
+  const totalAud = Number(po.total_amount || 0) * rate;
+  const goodsSubtotalAud = goodsSubtotal * rate;
+
+  const dim: React.CSSProperties = { color: 'var(--sv-text-dim)', fontSize: 11 };
+  const lbl: React.CSSProperties = { color: 'var(--sv-text-dim)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4, marginTop: 8 };
+  const cell: React.CSSProperties = { padding: '3px 8px', fontSize: 11, color: 'var(--sv-text-dim)' };
+  const num: React.CSSProperties = { ...cell, textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
+
+  if (!open) {
+    return (
+      <div style={{ marginTop: 24, borderTop: '1px dashed var(--sv-etch)', paddingTop: 8 }}>
+        <button onClick={() => setOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span>🧮</span> <span style={{ textDecoration: 'underline dotted' }}>Accounting</span>
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 24, borderTop: '1px dashed var(--sv-etch)', paddingTop: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)' }}>🧮 Accounting Debug</span>
+        <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11 }}>hide ↑</button>
+      </div>
+
+      {/* A – Line Costs */}
+      <div style={lbl}>A — Line Costs {isFx ? `(${currency} → AUD @ ${rate.toFixed(4)})` : ''}</div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+            <th style={{ ...cell, textAlign: 'left', fontWeight: 600 }}>SKU / Product</th>
+            <th style={{ ...num, fontWeight: 600 }}>Qty</th>
+            <th style={{ ...num, fontWeight: 600 }}>Unit Cost ({currency})</th>
+            <th style={{ ...num, fontWeight: 600 }}>Tax%</th>
+            <th style={{ ...num, fontWeight: 600 }}>Line ({currency})</th>
+            <th style={{ ...num, fontWeight: 600 }}>Tax ({currency})</th>
+            {isFx && <th style={{ ...num, fontWeight: 600 }}>Line (AUD)</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {lineItems.map((item: any, i: number) => (
+            <tr key={i} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+              <td style={{ ...cell, color: 'var(--sv-text-main)' }}>{item.sku || '—'}{item.variant_label ? ` (${item.variant_label})` : ''}</td>
+              <td style={num}>{item.qty}</td>
+              <td style={num}>{fmtFx(item.cost, currency)}</td>
+              <td style={num}>{item.taxRate > 0 ? `${item.taxRate}%` : '—'}</td>
+              <td style={{ ...num, color: 'var(--sv-text-main)' }}>{fmtFx(item.lineTotal, currency)}</td>
+              <td style={num}>{item.taxAmt > 0 ? fmtFx(item.taxAmt, currency) : '—'}</td>
+              {isFx && <td style={num}>{fmtCurrency(item.lineTotal * rate)}</td>}
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr style={{ borderTop: '2px solid var(--sv-etch)' }}>
+            <td colSpan={4} style={{ ...cell, fontWeight: 700 }}>Goods subtotal</td>
+            <td style={{ ...num, fontWeight: 700 }}>{fmtFx(goodsSubtotal, currency)}</td>
+            <td style={{ ...num, fontWeight: 700 }}>{fmtFx(taxTotal, currency)}</td>
+            {isFx && <td style={{ ...num, fontWeight: 700 }}>{fmtCurrency(goodsSubtotalAud)}</td>}
+          </tr>
+        </tfoot>
+      </table>
+      <div style={{ ...dim, marginTop: 3 }}>= qty × unit_cost per line; tax = line × tax_rate%</div>
+
+      {/* B – Order Totals */}
+      <div style={lbl}>B — Order Totals</div>
+      <div style={{ display: 'grid', gridTemplateColumns: isFx ? '180px 1fr 1fr' : '180px 1fr', gap: '2px 12px', fontSize: 11 }}>
+        {isFx && <span style={{ ...dim, gridColumn: '2' }}>In {currency}</span>}
+        {isFx && <span style={{ ...dim, gridColumn: '3' }}>In AUD (× {rate.toFixed(4)})</span>}
+        <span style={dim}>Goods subtotal</span>
+        <span style={{ color: 'var(--sv-text-main)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtFx(goodsSubtotal, currency)}</span>
+        {isFx && <span style={{ color: 'var(--sv-text-dim)', textAlign: 'right' }}>{fmtCurrency(goodsSubtotalAud)}</span>}
+        <span style={dim}>Tax ({po.tax_treatment || 'ex_tax'})</span>
+        <span style={{ color: 'var(--sv-text-main)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtFx(taxTotal, currency)}</span>
+        {isFx && <span style={{ color: 'var(--sv-text-dim)', textAlign: 'right' }}>{fmtCurrency(taxTotal * rate)}</span>}
+        {freight > 0 && <><span style={dim}>Freight</span>
+          <span style={{ color: 'var(--sv-text-main)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtFx(freight, currency)}</span>
+          {isFx && <span style={{ color: 'var(--sv-text-dim)', textAlign: 'right' }}>{fmtCurrency(freight * rate)}</span>}</>
+        }
+        {Number(po.discount || 0) > 0 && <><span style={dim}>Discount (−)</span>
+          <span style={{ color: 'var(--sv-red)', textAlign: 'right' }}>−{fmtFx(Number(po.discount), currency)}</span>
+          {isFx && <span style={{ color: 'var(--sv-red)', textAlign: 'right' }}>−{fmtCurrency(Number(po.discount) * rate)}</span>}</>
+        }
+        <span style={{ color: 'var(--sv-text-strong)', fontSize: 11, fontWeight: 700 }}>Order total</span>
+        <span style={{ color: 'var(--sv-text-strong)', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmtFx(Number(po.total_amount), currency)}</span>
+        {isFx && <span style={{ color: 'var(--sv-text-strong)', textAlign: 'right', fontWeight: 700 }}>{fmtCurrency(totalAud)}</span>}
+      </div>
+      {totalLanded > 0 && (
+        <div style={{ ...dim, marginTop: 4 }}>Landed costs: {fmtCurrency(totalLanded)} AUD (separate invoices — distributed to units on receive, not included in Xero bill)</div>
+      )}
+
+      {/* C – Xero Bill */}
+      <div style={lbl}>C — Xero Bill (what will be sent)</div>
+      <div style={{ ...dim, lineHeight: 1.7 }}>
+        <div><strong>Type:</strong> ACCPAY (Accounts Payable) · <strong>Status:</strong> DRAFT · <strong>Lines:</strong> Exclusive (tax-exclusive)</div>
+        <div><strong>Currency:</strong> {currency}{isFx ? ` · Xero fetches live rate at bill date (stored rate ${rate.toFixed(4)} is for AUD calcs only)` : ''}</div>
+        <div><strong>Contact:</strong> {po.supplier_name || '—'} · <strong>Ref:</strong> {po.po_number}</div>
+        {po.supplier_invoice_number && <div><strong>Supplier invoice #:</strong> {po.supplier_invoice_number}</div>}
+        <div>
+          <strong>Tax:</strong> treatment <code>{po.tax_treatment || 'ex_tax'}</code>
+          {po.tax_code ? <> · code <code>{po.tax_code}</code></> : null}
+          {' · '}Xero TaxType <code>{(po.tax_treatment || 'ex_tax') === 'no_tax' ? 'NONE' : 'INPUT'}</code>
+          {' · '}LineAmountTypes <code>{(po.tax_treatment || 'ex_tax') === 'inc_tax' ? 'Inclusive' : 'Exclusive'}</code>
+        </div>
+        <div style={{ marginTop: 2 }}>
+          {lineItems.map((item: any, i: number) => (
+            <div key={i}>→ {item.sku || item.product_name || 'item'} ×{item.qty} @ {fmtFx(item.cost, currency)} = {fmtFx(item.lineTotal, currency)} → <strong>{hasDeposits ? 'Inventory in Transit' : 'Inventory Asset'}</strong>{item.taxAmt > 0 ? ` + tax ${fmtFx(item.taxAmt, currency)}` : ''}</div>
+          ))}
+          {freight > 0 && (
+            <div>→ Freight {fmtFx(freight, currency)} → <strong>{freightTreatment === 'capitalise' ? 'Inventory Asset (capitalised — adds to stock value)' : 'Freight / Shipping expense account'}</strong></div>
+          )}
+        </div>
+        <div style={{ marginTop: 2 }}><strong>Bill subtotal (excl. tax):</strong> {fmtFx(goodsSubtotal + freight, currency)}{isFx ? ` ≈ ${fmtCurrency((goodsSubtotal + freight) * rate)} AUD` : ''}</div>
+        <div><strong>Tax:</strong> {fmtFx(taxTotal, currency)} · <strong>Bill total (incl. tax):</strong> {fmtFx(Number(po.total_amount), currency)}</div>
+        {hasDeposits && (
+          <div style={{ color: 'var(--sv-amber,#f59e0b)', marginTop: 2 }}>⚠ Deposits exist → lines coded to Inventory in Transit. On receive, a DR Inventory Asset / CR Inventory in Transit journal will be posted.</div>
+        )}
+      </div>
+
+      {/* D – COGS on Receive */}
+      {po.status === 'received' && (
+        <>
+          <div style={lbl}>D — COGS / Inventory Impact (status: received)</div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                <th style={{ ...cell, textAlign: 'left', fontWeight: 600 }}>SKU</th>
+                <th style={{ ...num, fontWeight: 600 }}>Qty</th>
+                {isFx && <th style={{ ...num, fontWeight: 600 }}>Cost ({currency})</th>}
+                {isFx && <th style={{ ...num, fontWeight: 600 }}>Base AUD (×{rate.toFixed(4)})</th>}
+                {!isFx && <th style={{ ...num, fontWeight: 600 }}>Unit Cost</th>}
+                <th style={{ ...num, fontWeight: 600 }}>Landed/Unit</th>
+                <th style={{ ...num, fontWeight: 600 }}>True Cost AUD</th>
+                <th style={{ ...num, fontWeight: 600 }}>Total Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lineItems.map((item: any, i: number) => (
+                <tr key={i} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                  <td style={cell}>{item.sku || '—'}</td>
+                  <td style={num}>{item.qty}</td>
+                  {isFx && <td style={num}>{fmtFx(item.cost, currency)}</td>}
+                  {isFx && <td style={num}>{fmtCurrency(item.cost * rate)}</td>}
+                  {!isFx && <td style={num}>{fmtCurrency(item.cost)}</td>}
+                  <td style={num}>{item.lcpu > 0 ? fmtCurrency(item.lcpu) : '—'}</td>
+                  <td style={{ ...num, color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtCurrency(item.trueCostAud)}</td>
+                  <td style={{ ...num, color: 'var(--sv-text-main)' }}>{fmtCurrency(item.qty * item.trueCostAud)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ borderTop: '2px solid var(--sv-etch)' }}>
+                <td colSpan={isFx ? 5 : 4} style={{ ...cell, fontWeight: 700 }}>Total inventory value added</td>
+                <td />
+                <td style={{ ...num, fontWeight: 700 }}>{fmtCurrency(lineItems.reduce((s: number, i: any) => s + i.qty * i.trueCostAud, 0))}</td>
+              </tr>
+            </tfoot>
+          </table>
+          <div style={{ ...dim, marginTop: 3 }}>true_cost_aud = unit_cost{isFx ? ` × rate(${rate.toFixed(4)})` : ''} + landed_cost_per_unit. avg_cost in ims_stock is updated to new weighted average on receive.</div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function SoAccountingSection({ so, settings }: { so: any; settings: Record<string, string> }) {
+  const [open, setOpen] = useState(false);
+  const currency = (so.currency_code || 'AUD').toUpperCase();
+  const isFx = currency !== 'AUD';
+  const rate = Number(so.exchange_rate || 1);
+  const items: any[] = so.items || [];
+  const freight = Number(so.freight || 0);
+  const discount = Number(so.discount || 0);
+
+  const lineItems = items.map((item: any) => {
+    const qty = Number(item.qty_ordered);
+    const price = Number(item.unit_price);
+    const discPct = Number(item.discount_pct || 0);
+    const taxRate = Number(item.tax_rate || 0);
+    const netPrice = price * (1 - discPct / 100);
+    const lineNet = qty * netPrice;
+    const taxAmt = lineNet * (taxRate / 100);
+    const cogs = item.unit_cost != null ? qty * Number(item.unit_cost) : null;
+    return { ...item, qty, price, discPct, taxRate, netPrice, lineNet, taxAmt, cogs };
+  });
+
+  const revenueSubtotal = lineItems.reduce((s: number, i: any) => s + i.lineNet, 0);
+  const taxTotal = lineItems.reduce((s: number, i: any) => s + i.taxAmt, 0);
+  const totalAud = Number(so.total_amount || 0) * rate;
+  const revenueSubtotalAud = revenueSubtotal * rate;
+  const hasCogs = lineItems.some((i: any) => i.cogs !== null);
+  const totalCogs = hasCogs ? lineItems.reduce((s: number, i: any) => s + (i.cogs ?? 0), 0) : null;
+  const grossProfit = totalCogs !== null ? revenueSubtotal - totalCogs : null;
+  const grossMarginPct = grossProfit !== null && revenueSubtotal > 0 ? (grossProfit / revenueSubtotal) * 100 : null;
+
+  const dim: React.CSSProperties = { color: 'var(--sv-text-dim)', fontSize: 11 };
+  const lbl: React.CSSProperties = { color: 'var(--sv-text-dim)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4, marginTop: 8 };
+  const cell: React.CSSProperties = { padding: '3px 8px', fontSize: 11, color: 'var(--sv-text-dim)' };
+  const num: React.CSSProperties = { ...cell, textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
+
+  if (!open) {
+    return (
+      <div style={{ marginTop: 24, borderTop: '1px dashed var(--sv-etch)', paddingTop: 8 }}>
+        <button onClick={() => setOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span>🧮</span> <span style={{ textDecoration: 'underline dotted' }}>Accounting</span>
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 24, borderTop: '1px dashed var(--sv-etch)', paddingTop: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)' }}>🧮 Accounting Debug</span>
+        <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11 }}>hide ↑</button>
+      </div>
+
+      {/* A – Line Revenue */}
+      <div style={lbl}>A — Line Revenue {isFx ? `(${currency} → AUD @ ${rate.toFixed(4)})` : ''}</div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+            <th style={{ ...cell, textAlign: 'left', fontWeight: 600 }}>SKU / Product</th>
+            <th style={{ ...num, fontWeight: 600 }}>Qty</th>
+            <th style={{ ...num, fontWeight: 600 }}>Unit Price ({currency})</th>
+            <th style={{ ...num, fontWeight: 600 }}>Disc%</th>
+            <th style={{ ...num, fontWeight: 600 }}>Net Line ({currency})</th>
+            <th style={{ ...num, fontWeight: 600 }}>Tax ({currency})</th>
+            {isFx && <th style={{ ...num, fontWeight: 600 }}>Net Line (AUD)</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {lineItems.map((item: any, i: number) => (
+            <tr key={i} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+              <td style={{ ...cell, color: 'var(--sv-text-main)' }}>{item.sku || '—'}{item.variant_label ? ` (${item.variant_label})` : ''}</td>
+              <td style={num}>{item.qty}</td>
+              <td style={num}>{fmtFx(item.price, currency)}</td>
+              <td style={num}>{item.discPct > 0 ? `${item.discPct}%` : '—'}</td>
+              <td style={{ ...num, color: 'var(--sv-text-main)' }}>{fmtFx(item.lineNet, currency)}</td>
+              <td style={num}>{item.taxAmt > 0 ? fmtFx(item.taxAmt, currency) : '—'}</td>
+              {isFx && <td style={num}>{fmtCurrency(item.lineNet * rate)}</td>}
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr style={{ borderTop: '2px solid var(--sv-etch)' }}>
+            <td colSpan={4} style={{ ...cell, fontWeight: 700 }}>Revenue subtotal</td>
+            <td style={{ ...num, fontWeight: 700 }}>{fmtFx(revenueSubtotal, currency)}</td>
+            <td style={{ ...num, fontWeight: 700 }}>{fmtFx(taxTotal, currency)}</td>
+            {isFx && <td style={{ ...num, fontWeight: 700 }}>{fmtCurrency(revenueSubtotalAud)}</td>}
+          </tr>
+        </tfoot>
+      </table>
+      <div style={{ ...dim, marginTop: 3 }}>= qty × unit_price × (1 − discount_pct%); tax = net_line × tax_rate%</div>
+
+      {/* B – Order Totals */}
+      <div style={lbl}>B — Order Totals</div>
+      <div style={{ display: 'grid', gridTemplateColumns: isFx ? '180px 1fr 1fr' : '180px 1fr', gap: '2px 12px', fontSize: 11 }}>
+        {isFx && <span style={{ ...dim, gridColumn: '2' }}>In {currency}</span>}
+        {isFx && <span style={{ ...dim, gridColumn: '3' }}>In AUD (× {rate.toFixed(4)})</span>}
+        <span style={dim}>Revenue subtotal</span>
+        <span style={{ color: 'var(--sv-text-main)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtFx(revenueSubtotal, currency)}</span>
+        {isFx && <span style={{ color: 'var(--sv-text-dim)', textAlign: 'right' }}>{fmtCurrency(revenueSubtotalAud)}</span>}
+        {discount > 0 && <><span style={dim}>Order discount (−)</span>
+          <span style={{ color: 'var(--sv-red)', textAlign: 'right' }}>−{fmtFx(discount, currency)}</span>
+          {isFx && <span style={{ color: 'var(--sv-red)', textAlign: 'right' }}>−{fmtCurrency(discount * rate)}</span>}</>
+        }
+        {freight > 0 && <><span style={dim}>Freight (+)</span>
+          <span style={{ color: 'var(--sv-text-main)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>+{fmtFx(freight, currency)}</span>
+          {isFx && <span style={{ color: 'var(--sv-text-dim)', textAlign: 'right' }}>{fmtCurrency(freight * rate)}</span>}</>
+        }
+        <span style={dim}>Tax</span>
+        <span style={{ color: 'var(--sv-text-main)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtFx(taxTotal, currency)}</span>
+        {isFx && <span style={{ color: 'var(--sv-text-dim)', textAlign: 'right' }}>{fmtCurrency(taxTotal * rate)}</span>}
+        <span style={{ color: 'var(--sv-text-strong)', fontSize: 11, fontWeight: 700 }}>Order total</span>
+        <span style={{ color: 'var(--sv-text-strong)', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmtFx(Number(so.total_amount), currency)}</span>
+        {isFx && <span style={{ color: 'var(--sv-text-strong)', textAlign: 'right', fontWeight: 700 }}>{fmtCurrency(totalAud)}</span>}
+      </div>
+
+      {/* C – COGS & Margin */}
+      <div style={lbl}>C — COGS & Gross Margin{!hasCogs ? ' (avg cost unavailable — not yet received into stock?)' : ''}</div>
+      {hasCogs ? (
+        <>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                <th style={{ ...cell, textAlign: 'left', fontWeight: 600 }}>SKU</th>
+                <th style={{ ...num, fontWeight: 600 }}>Qty</th>
+                <th style={{ ...num, fontWeight: 600 }}>Avg Cost (AUD)</th>
+                <th style={{ ...num, fontWeight: 600 }}>COGS (AUD)</th>
+                <th style={{ ...num, fontWeight: 600 }}>Revenue ({currency})</th>
+                <th style={{ ...num, fontWeight: 600 }}>Margin</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lineItems.map((item: any, i: number) => {
+                const itemMargin = item.cogs !== null && item.lineNet > 0 ? ((item.lineNet - item.cogs) / item.lineNet) * 100 : null;
+                return (
+                  <tr key={i} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                    <td style={cell}>{item.sku || '—'}</td>
+                    <td style={num}>{item.qty}</td>
+                    <td style={num}>{item.unit_cost != null ? fmtCurrency(Number(item.unit_cost)) : '—'}</td>
+                    <td style={num}>{item.cogs !== null ? fmtCurrency(item.cogs) : '—'}</td>
+                    <td style={{ ...num, color: 'var(--sv-text-main)' }}>{fmtFx(item.lineNet, currency)}</td>
+                    <td style={{ ...num, color: itemMargin !== null && itemMargin >= 0 ? 'var(--sv-mint,#0c9)' : 'var(--sv-red)' }}>
+                      {itemMargin !== null ? `${itemMargin.toFixed(1)}%` : '—'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr style={{ borderTop: '2px solid var(--sv-etch)' }}>
+                <td colSpan={3} style={{ ...cell, fontWeight: 700 }}>Totals</td>
+                <td style={{ ...num, fontWeight: 700 }}>{fmtCurrency(totalCogs!)}</td>
+                <td style={{ ...num, fontWeight: 700 }}>{fmtFx(revenueSubtotal, currency)}</td>
+                <td style={{ ...num, fontWeight: 700, color: grossMarginPct !== null && grossMarginPct >= 0 ? 'var(--sv-mint,#0c9)' : 'var(--sv-red)' }}>
+                  {grossMarginPct !== null ? `${grossMarginPct.toFixed(1)}%` : '—'}
+                </td>
+              </tr>
+              <tr>
+                <td colSpan={4} style={dim}>Gross Profit = Revenue − COGS</td>
+                <td colSpan={2} style={{ ...dim, textAlign: 'right', fontWeight: 700, color: grossProfit !== null && grossProfit >= 0 ? 'var(--sv-mint,#0c9)' : 'var(--sv-red)' }}>
+                  {grossProfit !== null ? fmtCurrency(grossProfit) : '—'}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+          <div style={{ ...dim, marginTop: 3 }}>Unit cost = avg_cost from ims_stock at {so.location_name || 'this location'} — live value, not locked at fulfilment date.</div>
+        </>
+      ) : (
+        <div style={{ ...dim, fontStyle: 'italic' }}>avg_cost not available — items may not have been received into this location yet.</div>
+      )}
+
+      {/* D – Xero Invoice */}
+      <div style={lbl}>D — Xero Invoice (what will be sent)</div>
+      <div style={{ ...dim, lineHeight: 1.7 }}>
+        <div><strong>Type:</strong> ACCREC (Accounts Receivable) · <strong>Status: <span style={{ color: 'var(--sv-mint,#0c9)' }}>AUTHORISED</span></strong> (posted immediately — not a draft) · <strong>Lines:</strong> Exclusive</div>
+        <div><strong>Currency:</strong> {currency}{isFx ? ` · Xero fetches live rate at invoice date` : ''}</div>
+        <div><strong>Contact:</strong> {so.customer_name || '—'} · <strong>Ref:</strong> {so.so_number}</div>
+        <div>
+          <strong>Tax:</strong>{so.tax_code ? <> code <code>{so.tax_code}</code> · </> : ' '}
+          taxed lines → Xero TaxType <code>OUTPUT</code>
+          {' · '}exempt lines → <code>NONE</code>
+        </div>
+        <div style={{ marginTop: 2 }}>
+          {lineItems.map((item: any, i: number) => (
+            <div key={i}>→ {item.sku || item.product_name || 'item'} ×{item.qty} @ {fmtFx(item.price, currency)}{item.discPct > 0 ? ` − ${item.discPct}%` : ''} = {fmtFx(item.lineNet, currency)} → <strong>Sales Revenue account</strong>{item.taxAmt > 0 ? ` + tax ${fmtFx(item.taxAmt, currency)}` : ''}</div>
+          ))}
+          {freight > 0 && (
+            <div>→ Freight {fmtFx(freight, currency)} → <strong>Freight account</strong></div>
+          )}
+        </div>
+        <div style={{ marginTop: 2 }}><strong>Invoice subtotal (excl. tax):</strong> {fmtFx(revenueSubtotal + freight - discount, currency)}{isFx ? ` ≈ ${fmtCurrency((revenueSubtotal + freight - discount) * rate)} AUD` : ''}</div>
+        <div><strong>Tax:</strong> {fmtFx(taxTotal, currency)} · <strong>Invoice total (incl. tax):</strong> {fmtFx(Number(so.total_amount), currency)}</div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Sales Orders View
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -3469,18 +3955,7 @@ function SalesOrdersView() {
   const [sortCol, setSortCol] = useState<string>('order_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
-  const { settings, saveSettings } = useImsSettings();
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsDraft, setSettingsDraft] = useState<Record<string, string>>({});
-  const [settingsSaving, setSettingsSaving] = useState(false);
-  useEffect(() => {
-    setSettingsDraft({
-      so_email_subject: 'Tax Invoice {{order_number}}',
-      so_email_body: 'Dear {{contact_name}},\n\nPlease find attached Tax Invoice {{order_number}} totalling {{total}}.\n\nKind regards',
-      ...settings,
-    });
-  }, [settings]);
-
+  const { settings } = useImsSettings();
   const load = useCallback(() => {
     setLoading(true);
     fetch('/api/ims/sales-orders').then(r => r.json()).then(d => {
@@ -3498,7 +3973,11 @@ function SalesOrdersView() {
 
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((p: any) => ({ ...p, [k]: e.target.value }));
 
-  const addLine = () => setLineItems(p => [...p, { variant_id: '', qty_ordered: 1, unit_price: 0, discount_pct: 0, tax_rate: 0 }]);
+  const addLine = () => {
+    const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
+    const taxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
+    setLineItems(p => [...p, { variant_id: '', qty_ordered: 1, unit_price: 0, discount_pct: 0, tax_rate: taxRate }]);
+  };
   const removeLine = (i: number) => setLineItems(p => p.filter((_, idx) => idx !== i));
   const updateLine = (i: number, k: string, v: any) => setLineItems(p => p.map((item, idx) => idx === i ? { ...item, [k]: v } : item));
 
@@ -3507,8 +3986,18 @@ function SalesOrdersView() {
     const v = variants.find((v: any) => v.variant_id === variant_id);
     const customer = customers.find((c: any) => String(c.id) === String(form.customer_id));
     const isWholesale = customer?.price_tier === 'wholesale';
-    const unit_price = isWholesale && v?.wholesale_price ? Number(v.wholesale_price) : (v ? Number(v.price ?? 0) : 0);
-    setLineItems(p => p.map((item, j) => j === i ? { ...item, variant_id, unit_price } : item));
+    const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
+    const taxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
+    let unit_price = 0;
+    if (v) {
+      if (isWholesale && v.price_wholesale) {
+        unit_price = Number(v.price_wholesale); // already ex-tax
+      } else {
+        const rrp = effectiveRRP(v, today());
+        unit_price = taxOn && taxRate > 0 ? rrp / (1 + taxRate) : rrp;
+      }
+    }
+    setLineItems(p => p.map((item, j) => j === i ? { ...item, variant_id, unit_price, tax_rate: taxRate } : item));
   };
 
   const lineTotal = (item: any) => Number(item.qty_ordered || 0) * Number(item.unit_price || 0) * (1 - Number(item.discount_pct || 0));
@@ -3517,14 +4006,16 @@ function SalesOrdersView() {
   const grandTotal = soSubtotal + soTax + Number(form.freight || 0) - Number(form.discount || 0);
 
   const openNew = () => {
-    setForm({ customer_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', payment_terms: '', freight: '', discount: '' });
-    setLineItems([{ variant_id: '', qty_ordered: 1, unit_price: 0, discount_pct: 0, tax_rate: 0 }]);
+    setForm({ customer_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', payment_terms: '', freight: '', discount: '', tax_code: settings?.sales_tax_code ?? '' });
+    const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
+    const defaultTaxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
+    setLineItems([{ variant_id: '', qty_ordered: 1, unit_price: 0, discount_pct: 0, tax_rate: defaultTaxRate }]);
     setModal({ open: true, edit: null });
   };
 
   const openEdit = async (so: any) => {
     const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);
-    setForm({ customer_id: d.data.customer_id ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), expected_date: d.data.expected_date?.slice(0, 10) ?? '', notes: d.data.notes ?? '', payment_terms: d.data.payment_terms ?? '', freight: d.data.freight ?? '', discount: d.data.discount ?? '' });
+    setForm({ customer_id: d.data.customer_id ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), expected_date: d.data.expected_date?.slice(0, 10) ?? '', notes: d.data.notes ?? '', payment_terms: d.data.payment_terms ?? '', freight: d.data.freight ?? '', discount: d.data.discount ?? '', tax_code: d.data.tax_code ?? settings?.sales_tax_code ?? '' });
     setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_price: i.unit_price, discount_pct: i.discount_pct, tax_rate: i.tax_rate })));
     setModal({ open: true, edit: d.data });
   };
@@ -3625,40 +4116,10 @@ function SalesOrdersView() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: settingsOpen ? 8 : 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Sales Orders</h1>
-        <CogButton active={settingsOpen} onClick={() => setSettingsOpen(o => !o)} />
         <button onClick={openNew} style={btnStyle('action')}>+ New SO</button>
       </div>
-      {settingsOpen && (
-        <SettingsPanel>
-          <div style={{ marginBottom: 14, fontWeight: 700, color: 'var(--sv-text-strong)', fontSize: 14 }}>Tax Invoice Settings</div>
-          <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 12 }}>Business name, address and logo are configured in <strong>⚙️ Settings</strong>.</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'start', marginBottom: 12 }}>
-            <div>
-              <label style={labelStyle}>Email Subject Template</label>
-              <input style={inputStyle} value={settingsDraft['so_email_subject'] || ''} onChange={e => setSettingsDraft(p => ({ ...p, so_email_subject: e.target.value }))} placeholder="Tax Invoice {{order_number}}" />
-            </div>
-            <div style={{ paddingTop: 18 }}>
-              <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', lineHeight: 1.6, whiteSpace: 'nowrap' }}>
-                Variables: <code style={{ color: 'var(--sv-mint)' }}>{'{{order_number}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{contact_name}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{total}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{date}}'}</code>
-              </div>
-            </div>
-          </div>
-          <div style={{ marginBottom: 12 }}>
-            <label style={labelStyle}>Email Body Template</label>
-            <textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' as const }} value={settingsDraft['so_email_body'] || ''} onChange={e => setSettingsDraft(p => ({ ...p, so_email_body: e.target.value }))} placeholder={'Dear {{contact_name}},\n\nPlease find attached Tax Invoice {{order_number}} totalling {{total}}.\n\nKind regards'} />
-          </div>
-          <div style={{ marginBottom: 16 }}>
-            <label style={labelStyle}>Terms &amp; Conditions (printed at the bottom of the Tax Invoice PDF)</label>
-            <textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' as const }} value={settingsDraft['so_terms'] || ''} onChange={e => setSettingsDraft(p => ({ ...p, so_terms: e.target.value }))} placeholder="e.g. Payment due 14 days from invoice date. Goods remain the property of the seller until paid in full." />
-          </div>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button type="button" onClick={() => { setSettingsOpen(false); setSettingsDraft({ so_email_subject: 'Tax Invoice {{order_number}}', so_email_body: 'Dear {{contact_name}},\n\nPlease find attached Tax Invoice {{order_number}} totalling {{total}}.\n\nKind regards', ...settings }); }} style={btnStyle('ghost', 'sm')}>Cancel</button>
-            <button type="button" disabled={settingsSaving} onClick={async () => { setSettingsSaving(true); await saveSettings(settingsDraft); setSettingsSaving(false); setSettingsOpen(false); }} style={btnStyle('action', 'sm')}>{settingsSaving ? 'Saving…' : 'Save Settings'}</button>
-          </div>
-        </SettingsPanel>
-      )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
         {['','draft','confirmed','fulfilled','cancelled'].map(s => (
           <button key={s} onClick={() => { setStatusFilter(s); setPage(1); }} style={btnStyle(statusFilter === s ? 'action' : 'ghost', 'sm')}>
@@ -3790,10 +4251,11 @@ function SalesOrdersView() {
                     {lineItems.map((item, i) => (
                       <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
                         <td style={{ padding: 4 }}>
-                          <select value={item.variant_id} onChange={e => selectSOVariant(i, e.target.value)} style={{ ...inputStyle, fontSize: 12 }}>
-                            <option value="">— Select variant —</option>
-                            {variants.map(v => <option key={v.variant_id} value={v.variant_id}>{v.product_name} — {v.sku || v.variant_id.slice(0, 8)} {[v.option1_value, v.option2_value].filter(Boolean).join('/')}</option>)}
-                          </select>
+                          <VariantSearch
+                            value={item.variant_id}
+                            variants={variants}
+                            onChange={vid => selectSOVariant(i, vid)}
+                          />
                         </td>
                         <td style={{ padding: 4, width: 70 }}><input type="number" min="0.0001" step="any" value={item.qty_ordered} onChange={e => updateLine(i, 'qty_ordered', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} /></td>
                         <td style={{ padding: 4, width: 90 }}><input type="number" min="0" step="0.01" value={item.unit_price} onChange={e => updateLine(i, 'unit_price', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} /></td>
@@ -3809,7 +4271,7 @@ function SalesOrdersView() {
               )}
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
                 <div style={{ minWidth: 280 }}>
-                  {[['Subtotal', fmtCurrency(soSubtotal)], ['Tax', fmtCurrency(soTax)]].map(([l, v]) => (
+                  {[['Subtotal', fmtCurrency(soSubtotal)], ...((settings?.sales_tax_on_sales ?? 'yes') === 'yes' ? [['Tax', fmtCurrency(soTax)]] : [])].map(([l, v]) => (
                     <div key={l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
                       <span>{l}</span><span>{v}</span>
                     </div>
@@ -3823,7 +4285,7 @@ function SalesOrdersView() {
                     <input type="number" min="0" step="0.01" value={form.freight} onChange={sf('freight')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)', borderTop: '1px solid var(--sv-etch)', paddingTop: 6 }}>
-                    <span>Total (inc. tax)</span><span>{fmtCurrency(grandTotal)}</span>
+                    <span>{(settings?.sales_tax_on_sales ?? 'yes') === 'yes' ? 'Total (inc. tax)' : 'Total'}</span><span>{fmtCurrency(grandTotal)}</span>
                   </div>
                 </div>
               </div>
@@ -3838,9 +4300,18 @@ function SalesOrdersView() {
           variants={variants}
           priceFn={(v) => {
             const customer = customers.find((c: any) => String(c.id) === String(form.customer_id));
-            return customer?.price_tier === 'wholesale' && v.wholesale_price ? Number(v.wholesale_price) : Number(v.price ?? 0);
+            const isWholesale = customer?.price_tier === 'wholesale';
+            const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
+            const taxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
+            if (isWholesale && v.price_wholesale) return Number(v.price_wholesale);
+            const rrp = effectiveRRP(v, today());
+            return taxOn && taxRate > 0 ? rrp / (1 + taxRate) : rrp;
           }}
-          lineFactory={(v, qty, price) => ({ variant_id: v.variant_id, qty_ordered: qty, unit_price: price, discount_pct: 0, tax_rate: 0 })}
+          lineFactory={(v, qty, price) => {
+            const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
+            const taxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
+            return { variant_id: v.variant_id, qty_ordered: qty, unit_price: price, discount_pct: 0, tax_rate: taxRate };
+          }}
           onImport={(items) => setLineItems(prev => [...prev.filter(i => i.variant_id), ...items])}
           onClose={() => setImportOpen(false)}
         />
@@ -4032,6 +4503,7 @@ function SalesOrdersView() {
               </div>
             );
           })()}
+          <SoAccountingSection so={viewModal.so} settings={settings} />
         </Modal>
       )}
     </div>
@@ -5648,8 +6120,14 @@ function SettingsView() {
 
   useEffect(() => {
     setDraft({
-      sales_tax_rate:      '',
-      sales_tax_on_sales:  'yes',
+      sales_tax_rate:        '',
+      sales_tax_on_sales:    'yes',
+      sales_tax_code:        '',
+      purchase_tax_rate:     '',
+      purchase_tax_code:     '',
+      xero_tax_type_sales:     '',
+      xero_tax_type_purchases: '',
+      xero_tax_type_exempt:    '',
       ...settings,
     });
   }, [settings]);
@@ -5659,14 +6137,7 @@ function SettingsView() {
 
   const handleSave = async () => {
     setSaving(true); setSaved(false);
-    // Convert % display back to decimal for storage
-    const toSave = {
-      ...draft,
-      sales_tax_rate: draft.sales_tax_rate !== ''
-        ? String(Number(draft.sales_tax_rate) / 100)
-        : '',
-    };
-    await saveSettings(toSave);
+    await saveSettings(draft);
     setSaving(false); setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -5674,6 +6145,9 @@ function SettingsView() {
   // Display value: stored as decimal (0.1), show as % (10)
   const taxRateDisplay = draft.sales_tax_rate !== ''
     ? String(Number(draft.sales_tax_rate) * 100)
+    : '';
+  const purchaseTaxRateDisplay = draft.purchase_tax_rate !== ''
+    ? String(Number(draft.purchase_tax_rate) * 100)
     : '';
 
   const card: React.CSSProperties = {
@@ -5686,7 +6160,14 @@ function SettingsView() {
       <h1 style={{ margin: '0 0 24px', fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>General Settings</h1>
 
       <div style={card}>
-        <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Tax</h3>
+        <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Sales Tax</h3>
+
+        <Field label="Charge Sales Tax on Sales Orders">
+          <select value={draft.sales_tax_on_sales ?? 'yes'} onChange={sd('sales_tax_on_sales')} style={{ ...inputStyle, width: 140 }}>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </Field>
 
         <Field label="Default Sales Tax Rate (%)">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -5697,15 +6178,82 @@ function SettingsView() {
               style={{ ...inputStyle, width: 100 }}
               placeholder="e.g. 10"
             />
-            <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>%  — applied as default on new PO &amp; SO line items</span>
+            <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>%  — applied as default on new SO line items</span>
           </div>
         </Field>
 
-        <Field label="Charge Sales Tax on Sales Orders">
-          <select value={draft.sales_tax_on_sales ?? 'yes'} onChange={sd('sales_tax_on_sales')} style={{ ...inputStyle, width: 140 }}>
-            <option value="yes">Yes</option>
-            <option value="no">No</option>
-          </select>
+        <Field label="Sales Tax Code">
+          <input
+            type="text"
+            value={draft.sales_tax_code ?? ''}
+            onChange={sd('sales_tax_code')}
+            style={{ ...inputStyle, width: 200 }}
+            placeholder="e.g. GST, VAT, Sales Tax"
+          />
+        </Field>
+      </div>
+
+      <div style={card}>
+        <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Purchase Tax</h3>
+
+        <Field label="Default Purchase Tax Rate (%)">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="number" min="0" max="100" step="0.01"
+              value={purchaseTaxRateDisplay}
+              onChange={e => setDraft(p => ({ ...p, purchase_tax_rate: String(Number(e.target.value) / 100) }))}
+              style={{ ...inputStyle, width: 100 }}
+              placeholder="e.g. 10"
+            />
+            <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>%  — default for suppliers without an override</span>
+          </div>
+        </Field>
+
+        <Field label="Default Purchase Tax Code">
+          <input
+            type="text"
+            value={draft.purchase_tax_code ?? ''}
+            onChange={sd('purchase_tax_code')}
+            style={{ ...inputStyle, width: 200 }}
+            placeholder="e.g. GST on Purchases"
+          />
+        </Field>
+      </div>
+
+      <div style={card}>
+        <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Xero Tax Type Mapping</h3>
+        <p style={{ margin: '0 0 16px', fontSize: 12.5, color: 'var(--sv-text-dim)', lineHeight: 1.5 }}>
+          Enter the exact Xero <strong>TaxType</strong> codes (e.g. <code>OUTPUT</code>, <code>INPUT</code>, <code>NONE</code>, <code>EXEMPTOUTPUT</code>). These are sent on invoice &amp; bill lines so Xero applies the correct tax.
+        </p>
+
+        <Field label="Sales (ACCREC) Tax Type">
+          <input
+            type="text"
+            value={draft.xero_tax_type_sales ?? ''}
+            onChange={sd('xero_tax_type_sales')}
+            style={{ ...inputStyle, width: 200 }}
+            placeholder="e.g. OUTPUT"
+          />
+        </Field>
+
+        <Field label="Purchases (ACCPAY) Tax Type">
+          <input
+            type="text"
+            value={draft.xero_tax_type_purchases ?? ''}
+            onChange={sd('xero_tax_type_purchases')}
+            style={{ ...inputStyle, width: 200 }}
+            placeholder="e.g. INPUT"
+          />
+        </Field>
+
+        <Field label="Tax-Exempt / Zero-Rated Tax Type">
+          <input
+            type="text"
+            value={draft.xero_tax_type_exempt ?? ''}
+            onChange={sd('xero_tax_type_exempt')}
+            style={{ ...inputStyle, width: 200 }}
+            placeholder="e.g. NONE or EXEMPTOUTPUT"
+          />
         </Field>
       </div>
 
@@ -5867,14 +6415,15 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
   const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  const [freightTreatment, setFreightTreatment] = useState<'expense' | 'capitalise'>('expense');
 
   const ROLE_DEFS = [
     { key: 'inventory_asset', label: 'Inventory Asset', desc: 'Stock on hand (Balance Sheet)', filter: (a: any) => a.class === 'ASSET' },
     { key: 'inventory_in_transit', label: 'Inventory in Transit', desc: 'Goods ordered but not received', filter: (a: any) => a.class === 'ASSET' },
     { key: 'cogs', label: 'Cost of Goods Sold', desc: 'COGS expense (P&L)', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'sales_revenue', label: 'Sales Revenue', desc: 'Income from sales (P&L)', filter: (a: any) => a.class === 'REVENUE' },
-    { key: 'freight', label: 'Freight / Shipping', desc: 'Landed cost charges', filter: (a: any) => a.class === 'EXPENSE' || a.class === 'ASSET' },
-  ];
+    { key: 'freight', label: 'Freight / Shipping', desc: 'Freight Paid expense account (P&L). Only used when PO Freight Treatment = Expense.', filter: (a: any) => a.class === 'EXPENSE' },
+  ].filter(r => !(r.key === 'freight' && freightTreatment === 'capitalise'));
 
   useEffect(() => {
     (async () => {
@@ -5886,6 +6435,10 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
           fetch(`/api/xero/tracking?databaseId=${encodeURIComponent(bid)}`).then(r => r.ok ? r.json() : { categories: [], mappings: [] }),
           fetch(`/api/ims/locations?databaseId=${encodeURIComponent(bid)}`).then(r => r.ok ? r.json() : []).catch(() => []),
         ]);
+        try {
+          const settingsRes = await fetch('/api/ims/settings').then(r => r.ok ? r.json() : null);
+          if (settingsRes?.data?.freight_treatment === 'capitalise') setFreightTreatment('capitalise');
+        } catch {}
         setAccounts(Array.isArray(accRes.accounts) ? accRes.accounts : []);
         const mapObj: any = {};
         for (const m of (Array.isArray(accRes.mappings) ? accRes.mappings : [])) mapObj[m.role_key] = m;
@@ -5950,6 +6503,11 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
         <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
           Map your Xero accounts so synced transactions land in the correct ledger accounts.
         </p>
+        {freightTreatment === 'capitalise' && (
+          <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--sv-mint)', background: 'rgba(16,185,129,.08)', border: '1px solid rgba(16,185,129,.25)', borderRadius: 6, padding: '8px 10px' }}>
+            Freight Treatment is set to <strong>Capitalise</strong>, so freight is added to stock value and posts to your <strong>Inventory Asset</strong> account automatically — no separate freight account needed.
+          </p>
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           {ROLE_DEFS.map(role => {
             const filtered = accounts.filter(role.filter);
@@ -6631,6 +7189,19 @@ function BulkEditView() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Settings — section type and context helper
+// ─────────────────────────────────────────────────────────────────────────────
+type SettingsSection = 'general' | 'purchase-orders' | 'sales-orders' | 'pos' | 'xero' | 'sync';
+
+function sectionFromView(v: ImsView): SettingsSection {
+  if (v === 'purchase-orders') return 'purchase-orders';
+  if (v === 'sales-orders')    return 'sales-orders';
+  if (v === 'xero')            return 'xero';
+  if (v === 'pos-sales')       return 'pos';
+  return 'general';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -6640,6 +7211,7 @@ export default function ImsPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [view, setView] = useState<ImsView>('dashboard');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>('general');
   const [syncing, setSyncing] = useState(false);
   const [syncingSteps, setSyncingSteps] = useState<string[]>([]);
   const [syncLog, setSyncLog] = useState<{ step: string; status: string; message: string }[]>([]);
@@ -6758,7 +7330,7 @@ export default function ImsPage() {
           🖥️ POS
         </a>
         <button
-          onClick={() => setSettingsOpen(true)}
+          onClick={() => { setSettingsSection(sectionFromView(view)); setSettingsOpen(true); }}
           title="Settings"
           style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '5px 8px', cursor: 'pointer', color: 'var(--sv-text-dim)', display: 'flex', alignItems: 'center' }}
         >
@@ -6817,6 +7389,8 @@ export default function ImsPage() {
       <SettingsModal
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+        defaultSection={settingsSection}
+        businessId={user?.userSpreadsheetId ?? ''}
         syncing={syncing}
         syncingSteps={syncingSteps}
         syncLog={syncLog}
@@ -6851,7 +7425,6 @@ export default function ImsPage() {
           {view === 'report-product-margin' && <ProductMarginView onBack={() => setView('reports')} />}
           {view === 'xero'              && <XeroView businessId={user?.userSpreadsheetId ?? ''} />}
           {view === 'shopify'           && <ShopifyView />}
-          {view === 'settings'          && <SettingsView />}
         </main>
       </div>
     </div>
@@ -7046,7 +7619,7 @@ function BranchTransfersView() {
   const selectVariant = (i: number, variant_id: string) => {
     const v = variants.find((v: any) => v.variant_id === variant_id);
     setLineItems(p => p.map((item, j) => j === i
-      ? { ...item, variant_id, unit_cost: v?.cost ?? 0 }
+      ? { ...item, variant_id, unit_cost_aud: v?.cost ?? 0 }
       : item));
   };
 
@@ -7326,14 +7899,11 @@ function BranchTransfersView() {
                     {lineItems.map((item, i) => (
                       <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
                         <td style={{ padding: 4 }}>
-                          <select value={item.variant_id} onChange={e => selectVariant(i, e.target.value)} style={{ ...inputStyle, fontSize: 12 }}>
-                            <option value="">— Select variant —</option>
-                            {variants.map((v: any) => (
-                              <option key={v.variant_id} value={v.variant_id}>
-                                {v.product_name} — {v.sku || v.variant_id.slice(0, 8)} {[v.option1_value, v.option2_value].filter(Boolean).join('/')}
-                              </option>
-                            ))}
-                          </select>
+                          <VariantSearch
+                            value={item.variant_id}
+                            variants={variants}
+                            onChange={vid => selectVariant(i, vid)}
+                          />
                         </td>
                         <td style={{ padding: 4, width: 90 }}>
                           <input type="number" min="0.0001" step="any" value={item.qty_sent} onChange={e => updateLine(i, 'qty_sent', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} />
@@ -7362,7 +7932,7 @@ function BranchTransfersView() {
       {importOpen && modal.open && (
         <ImportLineItemsModal
           variants={variants}
-          priceFn={(v) => Number(v.cost ?? 0)}
+          priceFn={(v) => Number(v.cost_aud ?? 0)}
           lineFactory={(v, qty, price) => ({ variant_id: v.variant_id, qty_sent: qty, unit_cost: price, notes: '' })}
           onImport={(items) => setLineItems(prev => [...prev.filter(i => i.variant_id), ...items])}
           onClose={() => setImportOpen(false)}
@@ -8417,6 +8987,8 @@ function SetupImportCard({ section }: { section: SetupSection }) {
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  defaultSection: SettingsSection;
+  businessId: string;
   syncing: boolean;
   syncingSteps: string[];
   syncLog: { step: string; status: string; message: string }[];
@@ -8432,12 +9004,45 @@ interface SettingsModalProps {
 type PosUser = { id: number; username: string; full_name: string | null; email: string | null; phone: string | null; branch_ids: number[] | null; is_active: number };
 type PosLocation = { id: number; name: string };
 
-function SettingsModal({ isOpen, onClose, syncing, syncingSteps, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput }: SettingsModalProps) {
+function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, syncingSteps, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput }: SettingsModalProps) {
   const { settings, saveSettings } = useImsSettings();
+  const [active, setActive] = useState<SettingsSection>(defaultSection);
+  useEffect(() => { if (isOpen) setActive(defaultSection); }, [defaultSection, isOpen]);
+  const [poDraft, setPoDraft] = useState<Record<string, string>>({});
+  const [soDraft, setSoDraft] = useState<Record<string, string>>({});
+  const [poSaving, setPoSaving] = useState(false);
+  const [soSaving, setSoSaving] = useState(false);
+  useEffect(() => { setPoDraft({ po_email_subject: 'Purchase Order {{order_number}}', po_email_body: 'Dear {{contact_name}},\n\nPlease find attached Purchase Order {{order_number}} totalling {{total}}.\n\nKind regards', po_terms: '', freight_treatment: 'expense', ...settings }); }, [settings]);
+  useEffect(() => { setSoDraft({ so_email_subject: 'Tax Invoice {{order_number}}', so_email_body: 'Dear {{contact_name}},\n\nPlease find attached Tax Invoice {{order_number}} totalling {{total}}.\n\nKind regards', so_terms: '', ...settings }); }, [settings]);
   const [profileOpen, setProfileOpen]       = useState(false);
+  const [taxOpen, setTaxOpen]               = useState(false);
   const [ordersOpen, setOrdersOpen]         = useState(false);
   const [posDisplayOpen, setPosDisplayOpen]  = useState(false);
   const [setupOpen, setSetupOpen]           = useState(false);
+
+  // Tax draft
+  const [taxDraft, setTaxDraft] = useState<Record<string, string>>({});
+  const [taxSaving, setTaxSaving] = useState(false);
+  useEffect(() => {
+    setTaxDraft({
+      sales_tax_on_sales:  'yes',
+      sales_tax_rate:      '',
+      sales_tax_code:      '',
+      purchase_tax_rate:   '',
+      purchase_tax_code:   '',
+      ...settings,
+    });
+  }, [settings]);
+  const saveTaxSettings = async () => {
+    setTaxSaving(true);
+    await saveSettings(taxDraft);
+    setTaxSaving(false);
+  };
+  // Display helpers (decimal stored → % shown)
+  const taxRateDisplay = (key: string) => {
+    const v = taxDraft[key];
+    return v != null && v !== '' ? String(Number(v) * 100) : '';
+  };
   const [profileDraft, setProfileDraft]     = useState<Record<string, string>>({});
   const [profileSaving, setProfileSaving]   = useState(false);
   const [paymentTypes, setPaymentTypes]     = useState<string[]>([]);
@@ -8532,20 +9137,94 @@ function SettingsModal({ isOpen, onClose, syncing, syncingSteps, syncLog, handle
 
   if (!isOpen) return null;
 
+  const NAV_ITEMS_DRAWER: { id: SettingsSection; label: string; icon: string }[] = [
+    { id: 'general',         label: 'General',         icon: '⚙' },
+    { id: 'purchase-orders', label: 'Purchase Orders', icon: '📦' },
+    { id: 'sales-orders',    label: 'Sales Orders',    icon: '🧾' },
+    { id: 'pos',             label: 'Point of Sale',   icon: '🖥' },
+    { id: 'xero',            label: 'Xero',            icon: '🔗' },
+    { id: 'sync',            label: 'Sync & Import',   icon: '🔄' },
+  ];
+
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, width: 640, maxWidth: '96vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
-        {/* Header */}
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--sv-etch)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-          <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--sv-text-strong)' }}>Settings</span>
-          <div style={{ flex: 1 }} />
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 22, lineHeight: 1 }}>×</button>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', zIndex: 200, display: 'flex' }}>
+      {/* Left nav */}
+      <div style={{ width: 210, background: 'var(--sv-bg-0)', borderRight: '1px solid var(--sv-etch)', display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 16px 14px' }}>
+          <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--sv-text-strong)' }}>Settings</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 22, lineHeight: 1, padding: 0 }}>×</button>
         </div>
+        <div style={{ height: 1, background: 'var(--sv-etch)', margin: '0 0 8px' }} />
+        {NAV_ITEMS_DRAWER.map(item => {
+          const isActive = active === item.id;
+          return (
+            <button key={item.id} onClick={() => setActive(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '9px 16px', background: isActive ? 'rgba(99,179,117,.12)' : 'transparent', border: 'none', cursor: 'pointer', color: isActive ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontWeight: isActive ? 600 : 400, fontSize: 13, textAlign: 'left', borderLeft: isActive ? '3px solid var(--sv-action)' : '3px solid transparent', transition: 'background .12s' }}>
+              <span style={{ width: 16, textAlign: 'center', flexShrink: 0 }}>{item.icon}</span>
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
 
-        {/* Body */}
-        <div style={{ padding: 20, overflowY: 'auto', flex: 1 }}>
+      {/* Right content */}
+      <div style={{ flex: 1, background: 'var(--sv-bg-1)', overflow: 'auto', minWidth: 0 }}>
+        {/* ── Purchase Orders ── */}
+        {active === 'purchase-orders' && (
+          <div style={{ padding: 32 }}>
+            <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Purchase Order Settings</h2>
+            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
+              <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Email Templates</h3>
+              <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Used when emailing a PO to a supplier. Variables: <code style={{ color: 'var(--sv-mint)' }}>{'{{order_number}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{contact_name}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{total}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{date}}'}</code></p>
+              <div style={{ marginBottom: 12 }}><label style={labelStyle}>Subject</label><input style={inputStyle} value={poDraft['po_email_subject'] || ''} onChange={e => setPoDraft(p => ({ ...p, po_email_subject: e.target.value }))} placeholder="Purchase Order {{order_number}}" /></div>
+              <div><label style={labelStyle}>Body</label><textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' as const }} value={poDraft['po_email_body'] || ''} onChange={e => setPoDraft(p => ({ ...p, po_email_body: e.target.value }))} placeholder={'Dear {{contact_name}},\n\nPlease find attached...'} /></div>
+            </div>
+            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
+              <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>PDF Settings</h3>
+              <div style={{ marginBottom: 16 }}><label style={labelStyle}>Terms &amp; Conditions (printed on PDF)</label><textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' as const }} value={poDraft['po_terms'] || ''} onChange={e => setPoDraft(p => ({ ...p, po_terms: e.target.value }))} placeholder="e.g. Payment due 30 days from order date." /></div>
+              <div>
+                <label style={labelStyle}>Freight Treatment</label>
+                <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', width: 'fit-content' }}>
+                  {(['expense', 'capitalise'] as const).map(opt => {
+                    const isOpt = (poDraft['freight_treatment'] || 'expense') === opt;
+                    return <button key={opt} type="button" onClick={() => setPoDraft(p => ({ ...p, freight_treatment: opt }))} style={{ padding: '7px 18px', fontSize: 13, fontWeight: isOpt ? 600 : 400, background: isOpt ? 'var(--sv-mint)' : 'var(--sv-bg-1)', color: isOpt ? '#0a0f1a' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer' }}>{opt === 'expense' ? 'Expense (P&L immediately)' : 'Capitalise into avg. cost'}</button>;
+                  })}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 5 }}>{(poDraft['freight_treatment'] || 'expense') === 'expense' ? 'Freight posts to Freight Paid account. Set under Xero → Chart of Accounts.' : 'Freight spreads into product avg. costs and posts to Inventory Asset in Xero automatically.'}</div>
+              </div>
+            </div>
+            <button onClick={async () => { setPoSaving(true); await saveSettings(poDraft); setPoSaving(false); }} disabled={poSaving} style={btnStyle('action', 'sm')}>{poSaving ? 'Saving…' : 'Save'}</button>
+          </div>
+        )}
 
+        {/* ── Sales Orders ── */}
+        {active === 'sales-orders' && (
+          <div style={{ padding: 32 }}>
+            <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Sales Order Settings</h2>
+            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
+              <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Email Templates</h3>
+              <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Used when emailing a Tax Invoice to a customer. Variables: <code style={{ color: 'var(--sv-mint)' }}>{'{{order_number}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{contact_name}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{total}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{date}}'}</code></p>
+              <div style={{ marginBottom: 12 }}><label style={labelStyle}>Subject</label><input style={inputStyle} value={soDraft['so_email_subject'] || ''} onChange={e => setSoDraft(p => ({ ...p, so_email_subject: e.target.value }))} placeholder="Tax Invoice {{order_number}}" /></div>
+              <div><label style={labelStyle}>Body</label><textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' as const }} value={soDraft['so_email_body'] || ''} onChange={e => setSoDraft(p => ({ ...p, so_email_body: e.target.value }))} placeholder={'Dear {{contact_name}},\n\nPlease find attached Tax Invoice...'} /></div>
+            </div>
+            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
+              <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>PDF Settings</h3>
+              <div><label style={labelStyle}>Terms &amp; Conditions (printed at the bottom of the Tax Invoice PDF)</label><textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' as const }} value={soDraft['so_terms'] || ''} onChange={e => setSoDraft(p => ({ ...p, so_terms: e.target.value }))} placeholder="e.g. Payment due 14 days from invoice date." /></div>
+            </div>
+            <button onClick={async () => { setSoSaving(true); await saveSettings(soDraft); setSoSaving(false); }} disabled={soSaving} style={btnStyle('action', 'sm')}>{soSaving ? 'Saving…' : 'Save'}</button>
+          </div>
+        )}
+
+        {/* ── Xero ── */}
+        {active === 'xero' && (
+          <div style={{ padding: 32 }}>
+            <XeroMappingTab getBusinessId={() => businessId} />
+          </div>
+        )}
+
+        {/* ── General / POS / Sync ── legacy accordion body ── */}
+        <div style={{ padding: 20, overflowY: 'auto', display: (active === 'general' || active === 'pos' || active === 'sync') ? undefined : 'none' }}>
+          {/* ── SYNC SECTION ── */}
+          <div style={{ display: active === 'sync' ? undefined : 'none' }}>
           {/* ── Cin7 Sync ── */}
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, color: 'var(--sv-text-dim)', marginBottom: 10 }}>Cin7 Sync</div>
 
@@ -8619,6 +9298,28 @@ function SettingsModal({ isOpen, onClose, syncing, syncingSteps, syncLog, handle
             </div>
           )}
 
+          {/* ── One-time Setup ── */}
+          <div style={{ marginBottom: 8 }}>
+            <CollHeader label="⚙️ One-time Setup" open={setupOpen} toggle={() => setSetupOpen(o => !o)} />
+            {setupOpen && (
+              <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
+                <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 14, marginTop: 0 }}>
+                  These imports are for initial setup only — not covered by the regular Cin7 sync above.
+                </p>
+                <SetupImportCard section={{ key: 'stock-snapshot', label: 'Opening Stock Snapshot', description: '⚠ Run last. Sets opening stock on hand and incoming quantities from Cin7. Overwrites existing stock balances — use once during initial setup only.', endpoint: '/api/ims/import/stock-snapshot' }} />
+
+                {/* ── Stock Cost CSV Import ── */}
+                <StockCostImportCard />
+
+                {/* ── Stock Min / Reorder Qty CSV Import ── */}
+                <StockMinsImportCard />
+              </div>
+            )}
+          </div>
+          </div>{/* ─ end sync ─ */}
+
+          {/* ── GENERAL SECTION ── */}
+          <div style={{ display: active === 'general' ? undefined : 'none' }}>
           {/* ── Business Profile ── */}
           <div style={{ marginBottom: 8 }}>
             <CollHeader label="🏢 Business Profile" open={profileOpen} toggle={() => setProfileOpen(o => !o)} />
@@ -8663,6 +9364,57 @@ function SettingsModal({ isOpen, onClose, syncing, syncingSteps, syncLog, handle
               </div>
             )}
           </div>
+
+          {/* ── Tax Settings ── */}
+          <div style={{ marginBottom: 8 }}>
+            <CollHeader label="🧾 Tax Settings" open={taxOpen} toggle={() => setTaxOpen(o => !o)} />
+            {taxOpen && (
+              <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
+
+                <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 14, marginTop: 0 }}>Configure sales tax codes and rates. Xero TaxType codes are hardcoded to standard values (OUTPUT / INPUT / NONE).</p>
+
+                <div style={{ marginBottom: 12 }}>
+                  <label style={labelStyle}>Charge Sales Tax on Sales Orders</label>
+                  <select value={taxDraft.sales_tax_on_sales ?? 'yes'} onChange={e => setTaxDraft(p => ({ ...p, sales_tax_on_sales: e.target.value }))} style={{ ...inputStyle, width: 140 }}>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                  <div>
+                    <label style={labelStyle}>Sales Tax Rate (%)</label>
+                    <input type="number" min="0" max="100" step="0.01" style={inputStyle} value={taxRateDisplay('sales_tax_rate')} onChange={e => setTaxDraft(p => ({ ...p, sales_tax_rate: e.target.value !== '' ? String(Number(e.target.value) / 100) : '' }))} placeholder="e.g. 10" />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Sales Tax Code</label>
+                    <input style={inputStyle} value={taxDraft.sales_tax_code ?? ''} onChange={e => setTaxDraft(p => ({ ...p, sales_tax_code: e.target.value }))} placeholder="e.g. GST, VAT" />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                  <div>
+                    <label style={labelStyle}>Purchase Tax Rate (%)</label>
+                    <input type="number" min="0" max="100" step="0.01" style={inputStyle} value={taxRateDisplay('purchase_tax_rate')} onChange={e => setTaxDraft(p => ({ ...p, purchase_tax_rate: e.target.value !== '' ? String(Number(e.target.value) / 100) : '' }))} placeholder="e.g. 10" />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Purchase Tax Code</label>
+                    <input style={inputStyle} value={taxDraft.purchase_tax_code ?? ''} onChange={e => setTaxDraft(p => ({ ...p, purchase_tax_code: e.target.value }))} placeholder="e.g. GST on Purchases" />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button type="button" onClick={() => setTaxDraft({ sales_tax_on_sales: 'yes', sales_tax_rate: '', sales_tax_code: '', purchase_tax_rate: '', purchase_tax_code: '', ...settings })} style={btnStyle('ghost', 'sm')}>Cancel</button>
+                  <button type="button" disabled={taxSaving} onClick={saveTaxSettings} style={btnStyle('action', 'sm')}>{taxSaving ? 'Saving…' : 'Save Tax Settings'}</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          </div>{/* ─ end general ─ */}
+
+          {/* ── POS SECTION ── */}
+          <div style={{ display: active === 'pos' ? undefined : 'none' }}>
 
           {/* ── Orders / Payment Types ── */}
           <div style={{ marginBottom: 8 }}>
@@ -8845,25 +9597,6 @@ function SettingsModal({ isOpen, onClose, syncing, syncingSteps, syncLog, handle
             )}
           </div>
 
-          {/* ── One-time Setup ── */}
-          <div style={{ marginBottom: 8 }}>
-            <CollHeader label="⚙️ One-time Setup" open={setupOpen} toggle={() => setSetupOpen(o => !o)} />
-            {setupOpen && (
-              <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
-                <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 14, marginTop: 0 }}>
-                  These imports are for initial setup only — not covered by the regular Cin7 sync above.
-                </p>
-                <SetupImportCard section={{ key: 'stock-snapshot', label: 'Opening Stock Snapshot', description: '⚠ Run last. Sets opening stock on hand and incoming quantities from Cin7. Overwrites existing stock balances — use once during initial setup only.', endpoint: '/api/ims/import/stock-snapshot' }} />
-
-                {/* ── Stock Cost CSV Import ── */}
-                <StockCostImportCard />
-
-                {/* ── Stock Min / Reorder Qty CSV Import ── */}
-                <StockMinsImportCard />
-              </div>
-            )}
-          </div>
-
           {/* ── POS Staff ── */}
           <div style={{ marginBottom: 8 }}>
             <CollHeader label="👤 POS Staff" open={posStaffOpen} toggle={() => setPosStaffOpen(o => !o)} />
@@ -9012,9 +9745,12 @@ function SettingsModal({ isOpen, onClose, syncing, syncingSteps, syncLog, handle
               </div>
             )}
           </div>
-
-        </div>
-      </div>
+          </div>{/* ─ end pos ─ */}
+        </div>{/* ─ end legacy body ─ */}
+      </div>{/* ─ end right content ─ */}
     </div>
   );
 }
+
+
+

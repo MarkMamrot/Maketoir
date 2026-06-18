@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { ImsPORepo } from '@/lib/ims/ImsRepository';
+import { imsQuery } from '@/services/IMSMySQLService';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { triggerPOXeroSync } from '@/lib/ims/xeroHooks';
 
@@ -29,12 +30,25 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
     // Handle status transition
     if (status) {
-      await ImsPORepo.changeStatus(Number(params.id), status);
+      // Fetch freight treatment setting for this business
+      let freightTreatment: 'expense' | 'capitalise' = 'expense';
+      try {
+        const session = getSession();
+        if (session?.userSpreadsheetId) {
+          const rows = await imsQuery<{ value: string }>(
+            `SELECT value FROM ims_settings WHERE business_id = ? AND \`key\` = 'freight_treatment' LIMIT 1`,
+            [session.userSpreadsheetId]
+          );
+          if (rows[0]?.value === 'capitalise') freightTreatment = 'capitalise';
+        }
+      } catch {}
+
+      await ImsPORepo.changeStatus(Number(params.id), status, freightTreatment);
 
       // EVENT-DRIVEN CACHE UPDATE: update global_incoming and stock fields on PO changes
       const poDataFull = await ImsPORepo.get(Number(params.id));
-      if (poDataFull && poDataFull.items?.length > 0) {
-        const vids = poDataFull.items.map(i => i.variant_id).filter(Boolean) as string[];
+      if (poDataFull && (poDataFull.items?.length ?? 0) > 0) {
+        const vids = poDataFull.items!.map(i => i.variant_id).filter(Boolean) as string[];
         if (vids.length > 0) {
           refreshVariantCache(vids).catch(err => console.error('Failed inline cache refresh for PO:', err));
         }
@@ -71,8 +85,8 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
     await ImsPORepo.delete(Number(params.id));
 
     // EVENT-DRIVEN CACHE UPDATE (Deletion reverses incoming stock)
-    if (existing && existing.items?.length > 0) {
-      const vids = existing.items.map(i => i.variant_id).filter(Boolean) as string[];
+    if (existing && (existing.items?.length ?? 0) > 0) {
+      const vids = existing.items!.map(i => i.variant_id).filter(Boolean) as string[];
       if (vids.length > 0) {
         refreshVariantCache(vids).catch(err => console.error('Failed inline cache refresh for PO deletion:', err));
       }

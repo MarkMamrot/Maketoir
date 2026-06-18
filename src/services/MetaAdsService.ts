@@ -1,5 +1,6 @@
-// src/services/MetaAdsService.ts
-import { FacebookAdsApi, AdAccount, Campaign, AdSet, Ad } from 'facebook-nodejs-business-sdk';
+﻿// src/services/MetaAdsService.ts
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { FacebookAdsApi, AdAccount, Campaign, AdSet, Ad } = require('facebook-nodejs-business-sdk') as any;
 import { StandardizedCreative } from '../types/StandardizedData';
 
 export class MetaAdsService {

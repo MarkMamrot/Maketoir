@@ -41,10 +41,26 @@ export async function POST() {
     );
     const locMap = new Map(locations.map(l => [l.cin7_branch_id, l.id]));
 
-    const suppliers = await imsQuery<{ id: number; cin7_supplier_id: number }>(
-      'SELECT id, cin7_supplier_id FROM ims_contacts WHERE cin7_supplier_id IS NOT NULL',
+    const suppliers = await imsQuery<{ id: number; cin7_supplier_id: number; charges_tax: number; prices_include_tax: number }>(
+      'SELECT id, cin7_supplier_id, charges_tax, prices_include_tax FROM ims_contacts WHERE cin7_supplier_id IS NOT NULL',
     );
     const supplierMap = new Map(suppliers.map(s => [s.cin7_supplier_id, s.id]));
+    const supplierTaxMap = new Map(suppliers.map(s => [s.id, s]));
+
+    // Default purchase tax code label from settings (for tagging imported POs)
+    const taxCodeRows = await imsQuery<{ value: string }>(
+      "SELECT value FROM ims_settings WHERE business_id = ? AND `key` = 'purchase_tax_code' LIMIT 1",
+      [businessId],
+    );
+    const purchaseTaxCode = taxCodeRows[0]?.value || null;
+
+    // Derive a PO tax_treatment from a supplier's tax behaviour.
+    const treatmentForSupplier = (supplierId: number | null): 'ex_tax' | 'inc_tax' | 'no_tax' => {
+      const s = supplierId != null ? supplierTaxMap.get(supplierId) : undefined;
+      if (!s) return 'ex_tax';
+      if (!s.charges_tax) return 'no_tax';
+      return s.prices_include_tax ? 'inc_tax' : 'ex_tax';
+    };
 
     const variants = await imsQuery<{ variant_id: string; cin7_option_id: number; sku: string | null }>(
       'SELECT variant_id, cin7_option_id, sku FROM ims_product_variants WHERE cin7_option_id IS NOT NULL',
@@ -98,11 +114,25 @@ export async function POST() {
 
       // If already imported, update totals + is_historical and skip line items
       if (poMap.has(cin7Id)) {
+        const existingSupplierId = supplierMap.get(Number(order.memberId)) ?? null;
         await imsExecute(
           `UPDATE ims_purchase_orders
-             SET is_historical=1, subtotal=?, tax_amount=?, freight=?, discount=?, total_amount=?
+             SET is_historical=1, subtotal=?, tax_amount=?, freight=?, discount=?, total_amount=?,
+                 tax_treatment=?, tax_code=COALESCE(?, tax_code),
+                 payment_terms=COALESCE(?, payment_terms),
+                 supplier_invoice_number=COALESCE(?, supplier_invoice_number),
+                 currency_code=COALESCE(NULLIF(?, 'AUD'), currency_code),
+                 exchange_rate=?,
+                 supplier_id=COALESCE(supplier_id, ?)
            WHERE id=?`,
-          [subtotal, taxAmount, freight, discount, totalAmount, poMap.get(cin7Id)],
+          [subtotal, taxAmount, freight, discount, totalAmount,
+           treatmentForSupplier(existingSupplierId), purchaseTaxCode,
+           order.paymentTerms ?? order.terms ?? null,
+           order.supplierInvoiceNumber ?? order.invoiceNumber ?? null,
+           (order.currencyCode ?? 'AUD').toUpperCase(),
+           Number(order.exchangeRate ?? 1),
+           existingSupplierId,
+           poMap.get(cin7Id)],
         );
         skipped++;
         continue;
@@ -117,14 +147,22 @@ export async function POST() {
       const orderDate   = safeDate(order.invoiceDate ?? order.createdDate) ?? new Date().toISOString().slice(0, 10);
       const expectedDate  = safeDate(order.expectedDeliveryDate);
       const receivedDate  = safeDate(order.fullyReceivedDate);
+      const paymentTerms  = order.paymentTerms ?? order.terms ?? null;
+      const supplierInvNo = order.supplierInvoiceNumber ?? order.invoiceNumber ?? null;
+      const currencyCode  = (order.currencyCode ?? 'AUD').toUpperCase();
+      const exchangeRate  = Number(order.exchangeRate ?? 1);
       const isHistorical = 1; // all Cin7 POs are read-only
 
       const res = await imsExecute(
         `INSERT INTO ims_purchase_orders
            (po_number, supplier_id, location_id, status, order_date, expected_date, received_date,
+            payment_terms, supplier_invoice_number, currency_code, exchange_rate,
+            tax_treatment, tax_code,
             subtotal, tax_amount, freight, discount, total_amount, cin7_order_id, is_historical)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [poNumber, supplierId, locationId, status, orderDate, expectedDate, receivedDate,
+         paymentTerms, supplierInvNo, currencyCode, exchangeRate,
+         treatmentForSupplier(supplierId), purchaseTaxCode,
          subtotal, taxAmount, freight, discount, totalAmount, cin7Id, isHistorical],
       ) as any;
 

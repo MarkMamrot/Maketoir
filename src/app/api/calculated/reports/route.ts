@@ -52,7 +52,7 @@ export const DEFAULT_MARGIN_THRESHOLDS: MarginThresholds = { high: 65, mid: 40 }
 async function readMarginThresholds(databaseId: string): Promise<MarginThresholds> {
   try {
     const all = await ConfigRepository.getAll(databaseId);
-    const getVal = (key: string) => (all as any[]).find((r: any) => r.key === key)?.value;
+    const getVal = (key: string) => all[key] ?? null;
     const high = parseFloat(getVal('MarginTier_High') ?? '');
     const mid  = parseFloat(getVal('MarginTier_Mid')  ?? '');
     const h = Number.isFinite(high) && high > 0 && high <= 100 ? high : DEFAULT_MARGIN_THRESHOLDS.high;
@@ -514,7 +514,7 @@ export async function GET(req: Request) {
     const onlineSalesByMonth = onlineSalesByMonthBase.map((r: any) => {
       const [yr, mo] = r.month.split('-');
       const prevKey = `${Number(yr) - 1}-${mo}`;
-      const yoyRevenue = onlineRevByMonth.get(prevKey) ?? null;
+      const yoyRevenue = (onlineRevByMonth.get(prevKey) as number | undefined) ?? null;
       const yoyChange = yoyRevenue != null && yoyRevenue > 0 ? ((r.revenue - yoyRevenue) / yoyRevenue) * 100 : null;
       return { ...r, yoyRevenue, yoyChange };
     });

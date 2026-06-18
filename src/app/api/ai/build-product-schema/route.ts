@@ -58,7 +58,7 @@ async function readBrandProfile(databaseId: string) {
       geo:          row.geo              || '',
       products:     row.hero_products    || '',
       pricing:      row.price_positioning || '',
-      praises:      row.customer_praises  || '',
+      praises:      row.praises  || '',
       objections:   row.objections        || '',
       competitors:  row.competitors       || '',
       marketGap:    row.market_gap        || '',
@@ -428,7 +428,7 @@ export async function POST(req: Request) {
         readSampleProducts(databaseId),
         fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/user/business-info?databaseId=${encodeURIComponent(databaseId)}`, {
           headers: { cookie: req.headers.get('cookie') || '' },
-        }).then(r => r.ok ? r.json() : {}).catch(() => ({})),
+        }).then(r => r.ok ? r.json() : {}).catch(() => ({})) as Promise<Record<string, any>>,
       ]);
 
       const brandName: string = infoRes.brandName || 'Brand';
@@ -494,7 +494,7 @@ export async function POST(req: Request) {
         readSampleProducts(databaseId),
         fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/user/business-info?databaseId=${encodeURIComponent(databaseId)}`, {
           headers: { cookie: req.headers.get('cookie') || '' },
-        }).then(r => r.ok ? r.json() : {}).catch(() => ({})),
+        }).then(r => r.ok ? r.json() : {}).catch(() => ({})) as Promise<Record<string, any>>,
       ]);
 
       const brandName: string = infoRes.brandName || 'Brand';

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { ShopifyService } from '@/services/ShopifyService';
 import { decrypt } from '@/lib/encryption';
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     const shopify = new ShopifyService(shopName, accessToken);
 
     // Fetch linked variants
-    let sql = `SELECT v.variant_id, v.shopify_variant_id, v.price, v.discounted_price
+    let sql = `SELECT v.variant_id, v.shopify_variant_id, v.price_rrp, v.price_rrp_sale
                FROM ims_product_variants v
                JOIN ims_products p ON p.product_id = v.product_id
                WHERE v.shopify_variant_id IS NOT NULL AND v.is_active = 1`;
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
       params.push(...product_ids);
     }
     const variants = await imsQuery<{
-      variant_id: string; shopify_variant_id: string; price: number | null; discounted_price: number | null;
+      variant_id: string; shopify_variant_id: string; price_rrp: number | null; price_rrp_sale: number | null;
     }>(sql, params);
 
     let synced = 0;
@@ -52,8 +52,8 @@ export async function POST(req: Request) {
     for (const v of variants) {
       try {
         await shopify.updateVariant(v.shopify_variant_id, {
-          price: String(v.price ?? '0.00'),
-          compare_at_price: v.discounted_price ? String(v.price ?? '0.00') : null,
+          price: String(v.price_rrp ?? '0.00'),
+          compare_at_price: v.price_rrp_sale ? String(v.price_rrp ?? '0.00') : null,
         });
         synced++;
       } catch (err: any) {
@@ -72,3 +72,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }
+

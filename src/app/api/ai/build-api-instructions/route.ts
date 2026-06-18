@@ -106,7 +106,7 @@ export async function POST(req: Request) {
       model: modelId,
       contents: PROMPT(apiLabel, api),
       tools: [{ googleSearch: {} }],
-    });
+    } as any);
     const summary = response.text?.trim() ?? '';
 
     // Second pass: extract structured endpoint list from the summary

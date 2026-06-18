@@ -1,4 +1,4 @@
-import { query, getPool } from '@/services/MySQLService';
+﻿import { query, execute, getPool } from '@/services/MySQLService';
 
 export interface ProductRow {
   business_id:        string;

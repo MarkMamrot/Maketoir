@@ -1,5 +1,19 @@
-/**
+﻿/**
  * Source-agnostic data interfaces for Marketoir.
+ */
+
+export interface StandardizedProduct {
+  id: number | string;
+  platformId?: number | string;
+  name: string;
+  category?: string;
+  price: number;
+  cost: number;
+  grossMargin?: number;
+  imageUrl?: string;
+}
+
+/**
  * source_type is an open string so any future system (Shopify, MYOB, etc.) can plug in
  * by implementing its own adapter that maps to these shapes.
  */

@@ -113,8 +113,8 @@ async function fetchMetaInsights(
   const allData: any[] = [];
   let nextUrl: string | null = url.toString();
   while (nextUrl) {
-    const res = await fetch(nextUrl);
-    const json = await res.json();
+    const res: Response = await fetch(nextUrl);
+    const json: any = await res.json();
     if (json.error) throw new Error(json.error.message);
     allData.push(...(json.data ?? []));
     nextUrl = json.paging?.next ?? null;
@@ -358,7 +358,7 @@ export async function POST(req: Request) {
             const REVISION = '2024-10-15';
             const kh = { Authorization: `Klaviyo-API-Key ${klaviyoKey}`, revision: REVISION };
 
-            const klaviyoTabs = [
+            const klaviyoTabs: Array<{ key: string; label: string; url: string; extract: (item: any) => any }> = [
               {
                 key: 'Klaviyo_Campaigns', label: 'Email Campaigns',
                 url: `${KLAVIYO_BASE}/campaigns/?filter=equals(messages.channel,'email')&page[size]=100&sort=-created_at`,

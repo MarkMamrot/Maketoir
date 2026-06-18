@@ -169,7 +169,7 @@ export async function POST(req: Request) {
       }
 
       for (const p of products) {
-        if (activeOnly && p.online === false) continue; // `online` used as active flag in Cin7
+        if (activeOnly && p.online !== 1) continue; // `online` used as active flag in Cin7
 
         const brand      = p.brand ?? '';
         const supplierId = p.supplier_id ?? '';

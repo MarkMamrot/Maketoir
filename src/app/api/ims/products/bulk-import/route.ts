@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { ImsProductsRepo, ImsVariantsRepo, ImsBrandsRepo, ImsContactsRepo } from '@/lib/ims/ImsRepository';
 
@@ -22,9 +22,9 @@ export interface BulkImportRow {
   // Variant-level
   sku?: string;
   barcode?: string;
-  cost?: number | null;
-  price?: number | null;
-  wholesale_price?: number | null;
+  cost_aud?: number | null;
+  price_rrp?: number | null;
+  price_wholesale?: number | null;
   weight_kg?: number | null;
   pack_size?: number | null;
   bin?: string;
@@ -35,7 +35,7 @@ export interface BulkImportRow {
   option2_value?: string;
   option3_name?: string;
   option3_value?: string;
-  cost_foreign_json?: string;
+  cost_foreign?: string;
   // Resolved IDs (filled by classification step on the server)
   existing_variant_id?: string;
   existing_product_id?: string;
@@ -121,9 +121,9 @@ export async function POST(req: Request) {
           product_id: productId,
           sku: row.sku,
           barcode: row.barcode,
-          cost: row.cost ?? undefined,
-          price: row.price ?? undefined,
-          wholesale_price: row.wholesale_price ?? undefined,
+          cost_aud: row.cost_aud ?? undefined,
+          price_rrp: row.price_rrp ?? undefined,
+          price_wholesale: row.price_wholesale ?? undefined,
           weight_kg: row.weight_kg ?? undefined,
           pack_size: row.pack_size ?? undefined,
           bin: row.bin,
@@ -134,7 +134,7 @@ export async function POST(req: Request) {
           option2_value: row.option2_value,
           option3_name: row.option3_name,
           option3_value: row.option3_value,
-          cost_foreign_json: row.cost_foreign_json,
+          cost_foreign: row.cost_foreign,
           is_active: 1,
         });
         created++;
@@ -161,9 +161,9 @@ export async function POST(req: Request) {
           product_id: productId,
           sku: row.sku,
           barcode: row.barcode,
-          cost: row.cost ?? undefined,
-          price: row.price ?? undefined,
-          wholesale_price: row.wholesale_price ?? undefined,
+          cost_aud: row.cost_aud ?? undefined,
+          price_rrp: row.price_rrp ?? undefined,
+          price_wholesale: row.price_wholesale ?? undefined,
           weight_kg: row.weight_kg ?? undefined,
           pack_size: row.pack_size ?? undefined,
           bin: row.bin,
@@ -174,7 +174,7 @@ export async function POST(req: Request) {
           option2_value: row.option2_value,
           option3_name: row.option3_name,
           option3_value: row.option3_value,
-          cost_foreign_json: row.cost_foreign_json,
+          cost_foreign: row.cost_foreign,
           is_active: 1,
         });
         created++;
@@ -185,9 +185,9 @@ export async function POST(req: Request) {
         const variantUpdates: Record<string, any> = {};
         if (row.sku !== undefined)              variantUpdates.sku = row.sku || null;
         if (row.barcode !== undefined)          variantUpdates.barcode = row.barcode || null;
-        if (row.cost !== undefined)             variantUpdates.cost = row.cost;
-        if (row.price !== undefined)            variantUpdates.price = row.price;
-        if (row.wholesale_price !== undefined)  variantUpdates.wholesale_price = row.wholesale_price;
+        if (row.cost_aud !== undefined)             variantUpdates.cost_aud = row.cost_aud;
+        if (row.price_rrp !== undefined)            variantUpdates.price_rrp = row.price_rrp;
+        if (row.price_wholesale !== undefined)  variantUpdates.price_wholesale = row.price_wholesale;
         if (row.weight_kg !== undefined)        variantUpdates.weight_kg = row.weight_kg;
         if (row.pack_size !== undefined)        variantUpdates.pack_size = row.pack_size;
         if (row.bin !== undefined)              variantUpdates.bin = row.bin || null;
@@ -198,7 +198,7 @@ export async function POST(req: Request) {
         if (row.option2_value !== undefined)    variantUpdates.option2_value = row.option2_value;
         if (row.option3_name !== undefined)     variantUpdates.option3_name = row.option3_name;
         if (row.option3_value !== undefined)    variantUpdates.option3_value = row.option3_value;
-        if (row.cost_foreign_json !== undefined) variantUpdates.cost_foreign_json = row.cost_foreign_json;
+        if (row.cost_foreign !== undefined) variantUpdates.cost_foreign = row.cost_foreign;
         if (Object.keys(variantUpdates).length) {
           await ImsVariantsRepo.update(row.existing_variant_id, variantUpdates);
         }
@@ -225,3 +225,5 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ success: true, created, updated, skipped });
 }
+
+

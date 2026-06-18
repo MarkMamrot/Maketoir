@@ -184,7 +184,7 @@ export default function ReceiveInterfaceView({
       product_name: currentProduct.product_name,
       sku: currentProduct.sku,
       qty_received: qty,
-      barcode: unmatchedBarcode || currentProduct.barcode,
+      barcode: (unmatchedBarcode ?? currentProduct.barcode) ?? undefined,
       ...metaData,
     };
 

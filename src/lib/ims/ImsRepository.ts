@@ -14,7 +14,9 @@ export interface ImsContact {
   email?: string; phone?: string; address?: string; city?: string;
   state?: string; postcode?: string; country?: string; notes?: string;
   lead_time_days?: number; order_frequency_days?: number; cin7_supplier_id?: number; cin7_contact_id?: number;
-  is_active: number; price_tier?: string; created_at?: string; updated_at?: string;
+  is_active: number; price_tier?: string;
+  charges_tax?: number; prices_include_tax?: number; tax_rate?: number;
+  created_at?: string; updated_at?: string;
 }
 
 export interface ImsLocation {
@@ -26,7 +28,7 @@ export interface ImsLocation {
 
 export interface ImsProduct {
   id: number; product_id: string; name: string; description?: string;
-  product_type?: string; brand?: string; tags?: string;
+  product_type?: string; brand?: string; tags?: string; category?: string;
   style_code?: string; is_online?: number; supplier_contact_id?: number; cin7_product_id?: number;
   is_active: number; shopify_product_id?: string; created_at?: string; updated_at?: string;
   variants?: ImsVariant[];
@@ -36,17 +38,18 @@ export interface ImsVariant {
   id: number; variant_id: string; product_id: string; sku?: string;
   barcode?: string; option1_name?: string; option1_value?: string;
   option2_name?: string; option2_value?: string; option3_name?: string;
-  option3_value?: string; cost?: number; price?: number; wholesale_price?: number;
-  discounted_price?: number; discount_start_date?: string;
+  option3_value?: string; cost_aud?: number; price_rrp?: number; price_wholesale?: number;
+  price_rrp_sale?: number; discount_start_date?: string;
   discount_end_date?: string; weight_kg?: number;
   pack_size?: number; cin7_option_id?: number;
   shopify_variant_id?: string;
   shopify_inventory_item_id?: string;
   is_active: number;
-  cost_foreign_json?: string; // JSON: {"USD":10, "THB":350, ...}
+  cost_foreign?: string; // JSON: {"USD":10, "THB":350, ...} always ex-tax
   bin?: string;
   zone?: string;
   product_name?: string; // joined
+  variant_label?: string; // joined
 }
 
 export interface ImsStock {
@@ -81,7 +84,7 @@ export interface ImsPO {
   received_date?: string; notes?: string; subtotal: number;
   tax_amount: number; freight?: number; discount?: number; total_amount: number; is_historical?: number;
   supplier_invoice_number?: string; payment_terms?: string;
-  tax_treatment?: 'ex_tax' | 'inc_tax' | 'no_tax';
+  tax_treatment?: 'ex_tax' | 'inc_tax' | 'no_tax'; tax_code?: string;
   currency_code?: string; exchange_rate?: number;
   amount_paid?: number; amount_paid_local?: number; balance?: number; balance_local?: number;
   created_at?: string; updated_at?: string;
@@ -102,7 +105,7 @@ export interface ImsSO {
   fulfilled_date?: string; notes?: string; subtotal: number;
   tax_amount: number; freight?: number; discount?: number; total_amount: number; is_historical?: number;
   shopify_order_id?: string; cin7_order_id?: string;
-  payment_terms?: string;
+  payment_terms?: string; tax_code?: string;
   currency_code?: string; exchange_rate?: number;
   amount_paid?: number; amount_paid_local?: number; balance?: number; balance_local?: number;
   created_at?: string; updated_at?: string;
@@ -202,19 +205,20 @@ export const ImsContactsRepo = {
 
   async create(data: Omit<ImsContact, 'id' | 'created_at' | 'updated_at'>): Promise<number> {
     const res = await imsExecute(
-      `INSERT INTO ims_contacts (type,name,company,email,phone,address,city,state,postcode,country,notes,is_active,cin7_supplier_id,lead_time_days,order_frequency_days,price_tier)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO ims_contacts (type,name,company,email,phone,address,city,state,postcode,country,notes,is_active,cin7_supplier_id,lead_time_days,order_frequency_days,price_tier,charges_tax,prices_include_tax,tax_rate)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [data.type, data.name, data.company, data.email, data.phone,
        data.address, data.city, data.state, data.postcode, data.country,
        data.notes, data.is_active ?? 1, data.cin7_supplier_id ?? null, data.lead_time_days ?? null,
        data.order_frequency_days ?? 45,
-       data.price_tier ?? 'retail']
+       data.price_tier ?? 'retail',
+       data.charges_tax ?? 1, data.prices_include_tax ?? 0, data.tax_rate ?? null]
     );
     return res.insertId;
   },
 
   async update(id: number, data: Partial<ImsContact>): Promise<void> {
-    const fields = ['type','name','company','email','phone','address','city','state','postcode','country','notes','is_active','cin7_supplier_id','lead_time_days','order_frequency_days','price_tier'];
+    const fields = ['type','name','company','email','phone','address','city','state','postcode','country','notes','is_active','cin7_supplier_id','lead_time_days','order_frequency_days','price_tier','charges_tax','prices_include_tax','tax_rate'];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of fields) {
@@ -391,16 +395,16 @@ export const ImsVariantsRepo = {
       `INSERT INTO ims_product_variants
          (variant_id,product_id,sku,barcode,option1_name,option1_value,
           option2_name,option2_value,option3_name,option3_value,
-          cost,price,wholesale_price,discounted_price,discount_start_date,discount_end_date,
-          weight_kg,shopify_variant_id,is_active,cost_foreign_json,pack_size,cin7_option_id,bin,zone)
+          cost_aud,price_rrp,price_wholesale,price_rrp_sale,discount_start_date,discount_end_date,
+          weight_kg,shopify_variant_id,is_active,cost_foreign,pack_size,cin7_option_id,bin,zone)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [variant_id, data.product_id, data.sku ?? null, data.barcode ?? null,
        data.option1_name ?? null, data.option1_value ?? null, data.option2_name ?? null, data.option2_value ?? null,
-       data.option3_name ?? null, data.option3_value ?? null, data.cost ?? null, data.price ?? null,
-       data.wholesale_price ?? null,
-       data.discounted_price ?? null, data.discount_start_date ?? null, data.discount_end_date ?? null,
+       data.option3_name ?? null, data.option3_value ?? null, data.cost_aud ?? null, data.price_rrp ?? null,
+       data.price_wholesale ?? null,
+       data.price_rrp_sale ?? null, data.discount_start_date ?? null, data.discount_end_date ?? null,
        data.weight_kg ?? null, data.shopify_variant_id ?? null, data.is_active ?? 1,
-       data.cost_foreign_json ?? null, data.pack_size ?? null, data.cin7_option_id ?? null,
+       data.cost_foreign ?? null, data.pack_size ?? null, data.cin7_option_id ?? null,
        data.bin ?? null, data.zone ?? null]
     );
     return variant_id;
@@ -409,9 +413,9 @@ export const ImsVariantsRepo = {
   async update(variantId: string, data: Partial<ImsVariant>): Promise<void> {
     const fields = [
       'sku','barcode','option1_name','option1_value','option2_name','option2_value',
-      'option3_name','option3_value','cost','price','wholesale_price','discounted_price',
+      'option3_name','option3_value','cost_aud','price_rrp','price_wholesale','price_rrp_sale',
       'discount_start_date','discount_end_date','weight_kg','shopify_variant_id','is_active',
-      'cost_foreign_json','pack_size','cin7_option_id','bin','zone'
+      'cost_foreign','pack_size','cin7_option_id','bin','zone'
     ];
     const sets: string[] = [];
     const vals: any[] = [];
@@ -726,22 +730,22 @@ export const ImsPORepo = {
             return s + (tot - exTax);
           }, 0)
         : items.reduce((s, i) => s + Number(i.line_total) * Number(i.tax_rate), 0);
-    const landedTotal = (landedCosts || []).reduce((s, c) => s + Number(c.amount), 0);
+    const freight = Number(data.freight ?? 0);
     const discount = Number(data.discount ?? 0);
-    const total_amount = subtotal + tax_amount + landedTotal - discount;
+    const total_amount = subtotal + tax_amount + freight - discount;
 
     const res = await imsExecute(
       `INSERT INTO ims_purchase_orders
          (po_number,supplier_id,location_id,status,order_date,expected_date,notes,
-          supplier_invoice_number,payment_terms,tax_treatment,currency_code,exchange_rate,
+          supplier_invoice_number,payment_terms,tax_treatment,tax_code,currency_code,exchange_rate,
           freight,discount,subtotal,tax_amount,total_amount)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [po_number, data.supplier_id ?? null, data.location_id, 'draft',
        data.order_date, data.expected_date ?? null, data.notes ?? null,
        data.supplier_invoice_number ?? null, data.payment_terms ?? null,
-       data.tax_treatment ?? 'ex_tax',
+       data.tax_treatment ?? 'ex_tax', data.tax_code ?? null,
        data.currency_code ?? 'AUD', data.exchange_rate ?? 1,
-       0, discount, subtotal, tax_amount, total_amount]
+       freight, discount, subtotal, tax_amount, total_amount]
     );
     const po_id = res.insertId;
     for (const item of items) {
@@ -768,11 +772,11 @@ export const ImsPORepo = {
 
   async update(
     id: number,
-    data: Partial<Pick<ImsPO, 'supplier_id' | 'location_id' | 'order_date' | 'expected_date' | 'notes' | 'supplier_invoice_number' | 'payment_terms' | 'tax_treatment' | 'currency_code' | 'exchange_rate' | 'discount'>>,
+    data: Partial<Pick<ImsPO, 'supplier_id' | 'location_id' | 'order_date' | 'expected_date' | 'notes' | 'supplier_invoice_number' | 'payment_terms' | 'tax_treatment' | 'tax_code' | 'currency_code' | 'exchange_rate' | 'freight' | 'discount'>>,
     items?: Omit<ImsPOItem, 'id' | 'po_id' | 'qty_received' | 'sku' | 'product_name' | 'variant_label'>[],
     landedCosts?: LandedCostRow[],
   ): Promise<void> {
-    const fields = ['supplier_id','location_id','order_date','expected_date','notes','supplier_invoice_number','payment_terms','tax_treatment','currency_code','exchange_rate','discount'];
+    const fields = ['supplier_id','location_id','order_date','expected_date','notes','supplier_invoice_number','payment_terms','tax_treatment','tax_code','currency_code','exchange_rate','freight','discount'];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of fields) {
@@ -840,20 +844,12 @@ export const ImsPORepo = {
           }
         }
 
-        // Recalculate total using landed costs from DB
-        let landedTotal = 0;
-        try {
-          const [[lcRow]] = await conn.execute<any[]>(
-            `SELECT COALESCE(SUM(amount),0) AS total FROM ims_po_landed_costs WHERE po_id = ?`, [id]
-          );
-          landedTotal = Number(lcRow?.total ?? 0);
-        } catch {}
-
-        const [[existingPo]] = await conn.execute<any[]>(`SELECT discount FROM ims_purchase_orders WHERE id=?`, [id]);
+        const [[existingPo]] = await conn.execute<any[]>(`SELECT freight, discount FROM ims_purchase_orders WHERE id=?`, [id]);
         const useDi = (typeof data.discount !== 'undefined') ? Number(data.discount) : Number(existingPo?.discount ?? 0);
+        const useFreight = (typeof data.freight !== 'undefined') ? Number(data.freight) : Number(existingPo?.freight ?? 0);
         await conn.execute(
-          `UPDATE ims_purchase_orders SET subtotal=?, tax_amount=?, total_amount=?, freight=0 WHERE id=?`,
-          [subtotal, tax_amount, subtotal + tax_amount + landedTotal - useDi, id]
+          `UPDATE ims_purchase_orders SET subtotal=?, tax_amount=?, total_amount=? WHERE id=?`,
+          [subtotal, tax_amount, subtotal + tax_amount + useFreight - useDi, id]
         );
       } else if (landedCosts !== undefined) {
         // Items not updated but landed costs were — just replace costs and recalc total
@@ -867,12 +863,21 @@ export const ImsPORepo = {
             );
           } catch {}
         }
-        const [[poRow]] = await conn.execute<any[]>(`SELECT subtotal, tax_amount, discount FROM ims_purchase_orders WHERE id=?`, [id]);
-        const landedTotal = landedCosts.reduce((s, c) => s + Number(c.amount), 0);
+        const [[poRow]] = await conn.execute<any[]>(`SELECT subtotal, tax_amount, freight, discount FROM ims_purchase_orders WHERE id=?`, [id]);
         const useDi = (typeof data.discount !== 'undefined') ? Number(data.discount) : Number(poRow?.discount ?? 0);
+        const useFreight = (typeof data.freight !== 'undefined') ? Number(data.freight) : Number(poRow?.freight ?? 0);
         await conn.execute(
-          `UPDATE ims_purchase_orders SET total_amount=?, freight=0 WHERE id=?`,
-          [Number(poRow?.subtotal ?? 0) + Number(poRow?.tax_amount ?? 0) + landedTotal - useDi, id]
+          `UPDATE ims_purchase_orders SET total_amount=? WHERE id=?`,
+          [Number(poRow?.subtotal ?? 0) + Number(poRow?.tax_amount ?? 0) + useFreight - useDi, id]
+        );
+      } else if (data.freight !== undefined || data.discount !== undefined) {
+        // Freight or discount changed with no items/landed-costs — recalculate total from stored subtotal+tax
+        const [[poRow]] = await conn.execute<any[]>(`SELECT subtotal, tax_amount, freight, discount FROM ims_purchase_orders WHERE id=?`, [id]);
+        const useDi = (typeof data.discount !== 'undefined') ? Number(data.discount) : Number(poRow?.discount ?? 0);
+        const useFreight = (typeof data.freight !== 'undefined') ? Number(data.freight) : Number(poRow?.freight ?? 0);
+        await conn.execute(
+          `UPDATE ims_purchase_orders SET total_amount=? WHERE id=?`,
+          [Number(poRow?.subtotal ?? 0) + Number(poRow?.tax_amount ?? 0) + useFreight - useDi, id]
         );
       }
       await conn.commit();
@@ -884,7 +889,7 @@ export const ImsPORepo = {
     }
   },
 
-  async changeStatus(id: number, newStatus: POStatus): Promise<void> {
+  async changeStatus(id: number, newStatus: POStatus, freightTreatment: 'expense' | 'capitalise' = 'expense'): Promise<void> {
     const pool = getIMSPool();
     const conn = await pool.getConnection();
     try {
@@ -958,22 +963,24 @@ export const ImsPORepo = {
 
       // ── approved → received ──────────────────────────────────
       if (from === 'approved' && to === 'received') {
-        // Distribute landed costs proportionally by item value
+        // Distribute landed costs (and optionally freight) proportionally by item value
         const poSubtotal = items.reduce((s, i) => s + Number(i.qty_ordered) * Number(i.unit_cost), 0);
         const totalLanded = landedCostRows.reduce((s, c) => s + Number(c.amount), 0);
+        // When capitalising freight, include it in the per-unit avg-cost calculation
+        const effectiveTotalLanded = totalLanded + (freightTreatment === 'capitalise' ? Number(po.freight ?? 0) : 0);
 
         // Pre-compute landed_cost_per_unit for each item
         const landedPerUnit = new Map<number, number>();
         for (const item of items) {
           const itemValue = Number(item.qty_ordered) * Number(item.unit_cost);
           let lcpu = 0;
-          if (totalLanded > 0) {
+          if (effectiveTotalLanded > 0) {
             if (poSubtotal > 0) {
-              lcpu = (totalLanded * (itemValue / poSubtotal)) / Number(item.qty_ordered);
+              lcpu = (effectiveTotalLanded * (itemValue / poSubtotal)) / Number(item.qty_ordered);
             } else {
               // Fallback: equal split by qty when all unit costs are zero
               const totalQty = items.reduce((s, i) => s + Number(i.qty_ordered), 0);
-              lcpu = totalQty > 0 ? totalLanded / totalQty : 0;
+              lcpu = totalQty > 0 ? effectiveTotalLanded / totalQty : 0;
             }
           }
           landedPerUnit.set(item.id, lcpu);
@@ -1011,8 +1018,8 @@ export const ImsPORepo = {
           const old_avg   = Number(s?.avg_cost ?? item.unit_cost);
           const qty_rcvd  = Number(item.qty_ordered);
           const lcpu      = landedPerUnit.get(item.id) ?? 0;
-          // Convert from PO currency to AUD using effective_rate
-          const true_cost_aud = (Number(item.unit_cost) + lcpu) * effective_rate;
+          // unit_cost is in PO currency → convert to AUD first, then add landed cost (already AUD)
+          const true_cost_aud = Number(item.unit_cost) * effective_rate + lcpu;
           const new_avg   = old_soh <= 0
             ? true_cost_aud
             : (old_avg * old_soh + true_cost_aud * qty_rcvd) / (old_soh + qty_rcvd);
@@ -1176,10 +1183,14 @@ export const ImsSORepo = {
                 NULLIF(v.option1_value,''),
                 NULLIF(v.option2_value,''),
                 NULLIF(v.option3_value,'')
-              ) AS variant_label
+              ) AS variant_label,
+              sk.avg_cost AS unit_cost
        FROM ims_sales_order_items i
        LEFT JOIN ims_product_variants v ON v.variant_id = i.variant_id
        LEFT JOIN ims_products p ON p.product_id = v.product_id
+       LEFT JOIN ims_stock sk
+         ON sk.variant_id = i.variant_id
+         AND sk.location_id = (SELECT location_id FROM ims_sales_orders WHERE id = i.so_id)
        WHERE i.so_id = ?`,
       [id]
     );
@@ -1221,11 +1232,11 @@ export const ImsSORepo = {
     const res = await imsExecute(
       `INSERT INTO ims_sales_orders
          (so_number,customer_id,location_id,status,order_date,expected_date,notes,
-          payment_terms,freight,discount,subtotal,tax_amount,total_amount,shopify_order_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          payment_terms,tax_code,freight,discount,subtotal,tax_amount,total_amount,shopify_order_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [so_number, data.customer_id ?? null, data.location_id, 'draft',
        data.order_date, data.expected_date ?? null, data.notes ?? null,
-       data.payment_terms ?? null, soFreight, soDiscount,
+       data.payment_terms ?? null, data.tax_code ?? null, soFreight, soDiscount,
        subtotal, tax_amount, subtotal + tax_amount + soFreight - soDiscount, data.shopify_order_id ?? null]
     );
     const so_id = res.insertId;
@@ -1245,10 +1256,10 @@ export const ImsSORepo = {
 
   async update(
     id: number,
-    data: Partial<Pick<ImsSO, 'customer_id' | 'location_id' | 'order_date' | 'expected_date' | 'notes' | 'payment_terms' | 'freight' | 'discount'>>,
+    data: Partial<Pick<ImsSO, 'customer_id' | 'location_id' | 'order_date' | 'expected_date' | 'notes' | 'payment_terms' | 'tax_code' | 'freight' | 'discount'>>,
     items?: Omit<ImsSOItem, 'id' | 'so_id' | 'qty_fulfilled' | 'unit_cost' | 'sku' | 'product_name' | 'variant_label'>[],
   ): Promise<void> {
-    const fields = ['customer_id','location_id','order_date','expected_date','notes','payment_terms','freight','discount'];
+    const fields = ['customer_id','location_id','order_date','expected_date','notes','payment_terms','tax_code','freight','discount'];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of fields) {
