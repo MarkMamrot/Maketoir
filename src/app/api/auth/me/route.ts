@@ -40,6 +40,7 @@ export async function GET() {
       email:             dbUser.email,
       userSpreadsheetId: dbUser.business_id ?? '',
       role:              dbUser.role,
+      tier:              dbUser.tier,
       userId:            dbUser.id,
     },
   });

@@ -7,12 +7,15 @@ import { NextResponse } from 'next/server';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export type UserTier = 'SuperAdmin' | 'Admin' | 'StandardUser' | 'PosUser';
+
 export interface AdminSession {
   name: string;
   company: string;
   email: string;
   userSpreadsheetId: string;
   role: string;
+  tier: UserTier;
   userId: number;
 }
 
@@ -71,4 +74,92 @@ export function assertBusinessAccess(
     return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
   }
   return null;
+}
+
+// ─── Tier-Based Access Guards ─────────────────────────────────────────────────
+
+/**
+ * Check if user has required tier.
+ * Tier hierarchy: SuperAdmin > Admin > StandardUser > PosUser
+ */
+function hasTierAccess(userTier: UserTier, requiredTier: UserTier): boolean {
+  const tierHierarchy: Record<UserTier, number> = {
+    'SuperAdmin': 4,
+    'Admin': 3,
+    'StandardUser': 2,
+    'PosUser': 1,
+  };
+  return tierHierarchy[userTier] >= tierHierarchy[requiredTier];
+}
+
+/**
+ * Require SuperAdmin tier access.
+ * SuperAdmin only — system-wide configuration and user management.
+ */
+export function requireSuperAdminTier():
+  | { user: AdminSession; response?: never }
+  | { user?: never; response: NextResponse } {
+  const user = getAdminSession();
+  if (!user || !hasTierAccess(user.tier, 'SuperAdmin')) {
+    return {
+      response: NextResponse.json(
+        { error: 'SuperAdmin access required.' },
+        { status: 403 },
+      ),
+    };
+  }
+  return { user };
+}
+
+/**
+ * Require Admin or higher tier access.
+ * Admin and SuperAdmin — full org access, settings, user management.
+ */
+export function requireAdminTier():
+  | { user: AdminSession; response?: never }
+  | { user?: never; response: NextResponse } {
+  const user = getAdminSession();
+  if (!user || !hasTierAccess(user.tier, 'Admin')) {
+    return {
+      response: NextResponse.json(
+        { error: 'Admin access required.' },
+        { status: 403 },
+      ),
+    };
+  }
+  return { user };
+}
+
+/**
+ * Require StandardUser or higher tier access.
+ * Everyone except PosUser — access everything except settings.
+ */
+export function requireStandardUserTier():
+  | { user: AdminSession; response?: never }
+  | { user?: never; response: NextResponse } {
+  const user = getAdminSession();
+  if (!user || !hasTierAccess(user.tier, 'StandardUser')) {
+    return {
+      response: NextResponse.json(
+        { error: 'User access required.' },
+        { status: 403 },
+      ),
+    };
+  }
+  return { user };
+}
+
+/**
+ * Require any valid session (all tiers).
+ */
+export function requireAnyTier():
+  | { user: AdminSession; response?: never }
+  | { user?: never; response: NextResponse } {
+  const user = getAdminSession();
+  if (!user) {
+    return {
+      response: NextResponse.json({ error: 'Not authenticated.' }, { status: 401 }),
+    };
+  }
+  return { user };
 }

@@ -12,6 +12,7 @@ export async function GET() {
       name:    user.name    ?? '',
       email:   user.email   ?? '',
       company: user.company ?? '',
+      tier:    user.tier    ?? 'StandardUser',
       userSpreadsheetId: user.userSpreadsheetId ?? '',
     });
   } catch {

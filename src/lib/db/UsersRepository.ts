@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 
 export interface UserRow {
   id:            number;
+  username:      string | null;
   name:          string | null;
   company:       string | null;
   email:         string;
@@ -10,6 +11,7 @@ export interface UserRow {
   password_hash: string;
   business_id:   string | null;
   role:          'admin' | 'user';
+  tier:          'SuperAdmin' | 'Admin' | 'StandardUser' | 'PosUser';
   deleted_at:    string | null;
   registered_at: string | null;
   created_at:    string;
@@ -35,19 +37,21 @@ export const UsersRepository = {
   async create(data: {
     email: string;
     password: string;   // plain-text — will be hashed
+    username?: string;
     name?: string;
     company?: string;
     phone?: string;
     businessId?: string;
     role?: 'admin' | 'user';
+    tier?: 'SuperAdmin' | 'Admin' | 'StandardUser' | 'PosUser';
   }): Promise<number> {
     const hash = await bcrypt.hash(data.password, 12);
     const result = await execute(
-      `INSERT INTO users (email, password_hash, name, company, phone, business_id, role, registered_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+      `INSERT INTO users (email, password_hash, username, name, company, phone, business_id, role, tier, registered_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [data.email.toLowerCase(), hash,
-       data.name ?? null, data.company ?? null, data.phone ?? null,
-       data.businessId ?? null, data.role ?? 'admin'],
+       data.username ?? null, data.name ?? null, data.company ?? null, data.phone ?? null,
+       data.businessId ?? null, data.role ?? 'admin', data.tier ?? 'StandardUser'],
     );
     return result.insertId;
   },

@@ -7499,7 +7499,7 @@ function BulkEditView() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings — section type and context helper
 // ─────────────────────────────────────────────────────────────────────────────
-type SettingsSection = 'general' | 'purchase-orders' | 'sales-orders' | 'pos' | 'xero' | 'sync';
+type SettingsSection = 'general' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'xero' | 'sync';
 
 function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'purchase-orders') return 'purchase-orders';
@@ -7507,6 +7507,201 @@ function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'xero')            return 'xero';
   if (v === 'pos-sales')       return 'pos';
   return 'general';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UsersListView — shown under Settings → Users
+// ─────────────────────────────────────────────────────────────────────────────
+const TIER_COLORS: Record<string, string> = {
+  SuperAdmin: '#e05252',
+  Admin: '#3eb8b0',
+  StandardUser: '#4a9ede',
+  PosUser: '#6dba8a',
+};
+
+function UsersListView() {
+  const [users, setUsers] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [editingUser, setEditingUser] = React.useState<any | null>(null);
+  const [editForm, setEditForm] = React.useState({ tier: '', username: '', name: '' });
+  const [showCreate, setShowCreate] = React.useState(false);
+  const [createForm, setCreateForm] = React.useState({ email: '', password: '', name: '', username: '', tier: 'StandardUser' });
+  const [msg, setMsg] = React.useState('');
+  const [myTier, setMyTier] = React.useState<string>('');
+  const [myEmail, setMyEmail] = React.useState<string>('');
+
+  const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3000); };
+
+  React.useEffect(() => {
+    // Use /api/auth/me which does a live DB lookup (handles sessions without tier)
+    fetch('/api/auth/me').then(r => r.json()).then(d => { setMyTier(d.user?.tier ?? ''); setMyEmail(d.user?.email ?? ''); }).catch(() => {});
+    fetch('/api/admin/users')
+      .then(r => r.json())
+      .then(d => setUsers(d.users ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const reload = () => fetch('/api/admin/users').then(r => r.json()).then(d => setUsers(d.users ?? []));
+
+  const saveEdit = async (id: number) => {
+    const r = await fetch(`/api/admin/users?userId=${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editForm) });
+    if (r.ok) { flash('✓ User updated.'); setEditingUser(null); reload(); }
+    else { const e = await r.json(); flash(`Error: ${e.error}`); }
+  };
+
+  const deleteUser = async (id: number, email: string) => {
+    if (!window.confirm(`Delete user ${email}?`)) return;
+    const r = await fetch(`/api/admin/users?userId=${id}`, { method: 'DELETE' });
+    if (r.ok) { flash('✓ User deleted.'); reload(); }
+    else { const e = await r.json(); flash(`Error: ${e.error}`); }
+  };
+
+  const createUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const r = await fetch('/api/admin/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(createForm) });
+    if (r.ok) {
+      flash('✓ User created.');
+      setShowCreate(false);
+      setCreateForm({ email: '', password: '', name: '', username: '', tier: 'StandardUser' });
+      reload();
+    } else { const er = await r.json(); flash(`Error: ${er.error}`); }
+  };
+
+  const availableTiers = myTier === 'SuperAdmin'
+    ? ['SuperAdmin', 'Admin', 'StandardUser', 'PosUser']
+    : ['Admin', 'StandardUser', 'PosUser'];
+
+  const tierLabel = (t: string) => ({ SuperAdmin: 'Super Admin', Admin: 'Admin', StandardUser: 'Standard User', PosUser: 'POS User' }[t] ?? t);
+
+  if (loading) return <p style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>Loading…</p>;
+
+  return (
+    <div>
+      {msg && <div style={{ marginBottom: 14, padding: '10px 14px', background: 'rgba(99,179,117,.15)', border: '1px solid rgba(99,179,117,.4)', borderRadius: 6, fontSize: 13, color: 'var(--sv-text-strong)' }}>{msg}</div>}
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+        <button onClick={() => setShowCreate(true)} style={{ padding: '8px 16px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>+ Add User</button>
+      </div>
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          <tr style={{ borderBottom: '2px solid var(--sv-etch)' }}>
+            {['Username', 'Name', 'Email', 'Tier', 'Actions'].map(h => (
+              <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.04em' }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {users.map((u: any) => (
+            <tr key={u.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+              <td style={{ padding: '10px 12px', color: 'var(--sv-text-strong)', fontFamily: 'monospace', fontSize: 12 }}>{u.username || '—'}</td>
+              <td style={{ padding: '10px 12px', color: 'var(--sv-text-strong)' }}>{u.name || '—'}</td>
+              <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)' }}>{u.email}</td>
+              <td style={{ padding: '10px 12px' }}>
+                <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 12, background: TIER_COLORS[u.tier] ?? '#888', color: '#fff', fontSize: 11, fontWeight: 600 }}>{tierLabel(u.tier)}</span>
+              </td>
+              <td style={{ padding: '10px 12px' }}>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => { setEditingUser(u); setEditForm({ tier: u.tier, username: u.username || '', name: u.name || '' }); }} style={{ padding: '4px 10px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: 'var(--sv-text-strong)' }}>Edit</button>
+                  {u.email !== myEmail && (
+                    <button onClick={() => deleteUser(u.id, u.email)} style={{ padding: '4px 10px', background: 'rgba(224,82,82,.12)', border: '1px solid rgba(224,82,82,.3)', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: '#e05252' }}>Delete</button>
+                  )}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {editingUser && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setEditingUser(null)}>
+          <div style={{ background: 'var(--sv-bg-0)', borderRadius: 10, padding: 28, width: 420, boxShadow: '0 8px 32px rgba(0,0,0,.3)' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Edit User</h3>
+            <p style={{ margin: '0 0 20px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{editingUser.email}</p>
+            {[
+              { label: 'Name', field: 'name', type: 'text' },
+              { label: 'Username', field: 'username', type: 'text' },
+            ].map(f => (
+              <div key={f.field} style={{ marginBottom: 12 }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>{f.label}</label>
+                <input type={f.type} value={(editForm as any)[f.field]} onChange={e => setEditForm(p => ({ ...p, [f.field]: e.target.value }))} style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-strong)', fontSize: 13, boxSizing: 'border-box' }} />
+              </div>
+            ))}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>Tier</label>
+              <select value={editForm.tier} onChange={e => setEditForm(p => ({ ...p, tier: e.target.value }))} style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-strong)', fontSize: 13 }}>
+                {availableTiers.map(t => <option key={t} value={t}>{tierLabel(t)}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setEditingUser(null)} style={{ padding: '8px 16px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: 'pointer', fontSize: 13, color: 'var(--sv-text-dim)' }}>Cancel</button>
+              <button onClick={() => saveEdit(editingUser.id)} style={{ padding: '8px 16px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingUser && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setEditingUser(null)}>
+          <div style={{ background: 'var(--sv-bg-0)', borderRadius: 10, padding: 28, width: 420, boxShadow: '0 8px 32px rgba(0,0,0,.3)' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Edit User</h3>
+            <p style={{ margin: '0 0 20px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{editingUser.email}</p>
+            {[
+              { label: 'Name', field: 'name', type: 'text' },
+              { label: 'Username', field: 'username', type: 'text' },
+            ].map(f => (
+              <div key={f.field} style={{ marginBottom: 12 }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>{f.label}</label>
+                <input type={f.type} value={(editForm as any)[f.field]} onChange={e => setEditForm(p => ({ ...p, [f.field]: e.target.value }))} style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-strong)', fontSize: 13, boxSizing: 'border-box' }} />
+              </div>
+            ))}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>Tier</label>
+              <select value={editForm.tier} onChange={e => setEditForm(p => ({ ...p, tier: e.target.value }))} style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-strong)', fontSize: 13 }}>
+                {availableTiers.map(t => <option key={t} value={t}>{tierLabel(t)}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setEditingUser(null)} style={{ padding: '8px 16px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: 'pointer', fontSize: 13, color: 'var(--sv-text-dim)' }}>Cancel</button>
+              <button onClick={() => saveEdit(editingUser.id)} style={{ padding: '8px 16px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCreate && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowCreate(false)}>
+          <div style={{ background: 'var(--sv-bg-0)', borderRadius: 10, padding: 28, width: 420, boxShadow: '0 8px 32px rgba(0,0,0,.3)' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 20px', fontSize: 16, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Create User</h3>
+            <form onSubmit={createUser}>
+              {[
+                { label: 'Name', field: 'name', type: 'text', required: false },
+                { label: 'Username', field: 'username', type: 'text', required: false },
+                { label: 'Email', field: 'email', type: 'email', required: true },
+                { label: 'Password', field: 'password', type: 'password', required: true },
+              ].map(f => (
+                <div key={f.field} style={{ marginBottom: 12 }}>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>{f.label}{f.required ? ' *' : ''}</label>
+                  <input required={f.required} type={f.type} value={(createForm as any)[f.field]} onChange={e => setCreateForm(p => ({ ...p, [f.field]: e.target.value }))} style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-strong)', fontSize: 13, boxSizing: 'border-box' }} />
+                </div>
+              ))}
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>Tier</label>
+                <select value={createForm.tier} onChange={e => setCreateForm(p => ({ ...p, tier: e.target.value }))} style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-strong)', fontSize: 13 }}>
+                  {availableTiers.map(t => <option key={t} value={t}>{tierLabel(t)}</option>)}
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button type="button" onClick={() => setShowCreate(false)} style={{ padding: '8px 16px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: 'pointer', fontSize: 13, color: 'var(--sv-text-dim)' }}>Cancel</button>
+                <button type="submit" style={{ padding: '8px 16px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Create</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -9466,6 +9661,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
   const NAV_ITEMS_DRAWER: { id: SettingsSection; label: string; icon: string }[] = [
     { id: 'general',         label: 'General',         icon: '⚙' },
+    { id: 'users',           label: 'Users',           icon: '👥' },
     { id: 'purchase-orders', label: 'Purchase Orders', icon: '📦' },
     { id: 'sales-orders',    label: 'Sales Orders',    icon: '🧾' },
     { id: 'pos',             label: 'Point of Sale',   icon: '🖥' },
@@ -9495,6 +9691,14 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
       {/* Right content */}
       <div style={{ flex: 1, background: 'var(--sv-bg-1)', overflow: 'auto', minWidth: 0 }}>
+        {/* ── Users ── */}
+        {active === 'users' && (
+          <div style={{ padding: 32 }}>
+            <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Organization Users</h2>
+            <UsersListView />
+          </div>
+        )}
+
         {/* ── Purchase Orders ── */}
         {active === 'purchase-orders' && (
           <div style={{ padding: 32 }}>
