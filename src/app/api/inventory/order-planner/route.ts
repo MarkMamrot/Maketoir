@@ -1,13 +1,10 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { execute } from '@/services/MySQLService';
-import { getCin7Credentials } from '@/lib/cin7Helpers';
 import { getProductsWithSales, getSuppliers, getBranches, getStockPerBranch } from '@/lib/dataProvider';
 import type { StandardizedVariantWithSales, StandardizedContact, StandardizedLocation, VariantBranchStock } from '@/types/StandardizedData';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const CIN7_BASE = 'https://api.cin7.com/api/v1';
-const MAX_RETRIES = 3;
 
 const SALES_FIELD_BY_WINDOW: Record<number, keyof StandardizedVariantWithSales> = {
   7: 'sales_qty_7d',
@@ -257,58 +254,14 @@ function buildPlannerRows(args: {
     });
 }
 
-async function cin7Request(url: string, authHeader: string, init?: RequestInit, retryCount = 0): Promise<any> {
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      ...init,
-      headers: {
-        Authorization: authHeader,
-        'Content-Type': 'application/json',
-        ...(init?.headers ?? {}),
-      },
-      signal: AbortSignal.timeout(30_000),
-    });
-  } catch (e: any) {
-    if (retryCount >= MAX_RETRIES) throw new Error(`Cin7 network error: ${e.message}`);
-    await sleep(Math.pow(2, retryCount) * 2000);
-    return cin7Request(url, authHeader, init, retryCount + 1);
-  }
-
-  if (res.status === 429) {
-    if (retryCount >= MAX_RETRIES) throw new Error('Cin7 rate limit exceeded after retries.');
-    await sleep(60_000);
-    return cin7Request(url, authHeader, init, retryCount + 1);
-  }
-
-  const text = await res.text();
-  const payload = text ? (() => {
-    try { return JSON.parse(text); } catch { return text; }
-  })() : null;
-
-  if (!res.ok) {
-    const detail = typeof payload === 'string' ? payload : JSON.stringify(payload);
-    throw new Error(`Cin7 error HTTP ${res.status}: ${detail.slice(0, 800)}`);
-  }
-
-  return payload;
-}
-
 async function loadContext(databaseId: string) {
   const [products, suppliers, branches, stockPerBranch] = await Promise.all([
-    getProductsWithSales(databaseId).catch(() => [] as StandardizedVariantWithSales[]),
-    getSuppliers(databaseId).catch(() => [] as StandardizedContact[]),
-    getBranches(databaseId).catch(() => [] as StandardizedLocation[]),
-    getStockPerBranch(databaseId).catch(() => [] as VariantBranchStock[]),
+    getProductsWithSales(databaseId, 'solvantis').catch(() => [] as StandardizedVariantWithSales[]),
+    getSuppliers(databaseId, 'solvantis').catch(() => [] as StandardizedContact[]),
+    getBranches(databaseId, 'solvantis').catch(() => [] as StandardizedLocation[]),
+    getStockPerBranch(databaseId, 'solvantis').catch(() => [] as VariantBranchStock[]),
   ]);
-
-  let authHeader = '';
-  try {
-    const creds = await getCin7Credentials(databaseId);
-    authHeader = creds.authHeader;
-  } catch { /* Cin7 not configured — push actions will fail with a clear message */ }
-
-  return { products, suppliers, branches, stockPerBranch, authHeader };
+  return { products, suppliers, branches, stockPerBranch };
 }
 
 async function saveDraftOrder(args: {
@@ -506,65 +459,6 @@ export async function POST(req: Request) {
         rows: normalizedRows,
       });
       return NextResponse.json({ success: true, ...draft });
-    }
-
-    if (action === 'push-cin7') {
-      if (!context.authHeader) {
-        return NextResponse.json({ success: false, error: 'Cin7 credentials are not configured in Setup → Connections.' }, { status: 400 });
-      }
-      if (!branchId) {
-        return NextResponse.json({ success: false, error: 'Select a destination branch before pushing to Cin7.' }, { status: 400 });
-      }
-
-      const lines = normalizedRows.filter(row => row.reorderQty > 0);
-      if (lines.length === 0) {
-        return NextResponse.json({ success: false, error: 'All reorder quantities are zero.' }, { status: 400 });
-      }
-
-      const supplierIds = [...new Set(lines.map(row => row.supplierId).filter(Boolean))];
-      if (supplierIds.length !== 1) {
-        return NextResponse.json({ success: false, error: 'Cin7 purchase orders can only be pushed for a single supplier at a time. Filter to one supplier, or zero out rows from other suppliers.' }, { status: 400 });
-      }
-
-      const payload = {
-        branchId: Number(branchId),
-        memberId: Number(supplierIds[0]),
-        reference: `Marketoir ${filterType === 'brand' ? 'Brand' : 'Supplier'} ${filterValue} ${new Date().toISOString().slice(0, 10)}`,
-        createdDate: new Date().toISOString(),
-        lineItems: lines.map(row => ({
-          productId: row.productId ? Number(row.productId) : undefined,
-          productOptionId: row.optionId ? Number(row.optionId) : undefined,
-          code: row.code,
-          name: row.name,
-          qty: row.reorderQty,
-          unitPrice: row.cost,
-        })),
-      };
-
-      const response = await cin7Request(`${CIN7_BASE}/PurchaseOrders`, context.authHeader, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-
-      const draft = await saveDraftOrder({
-        databaseId,
-        filterType,
-        filterValue,
-        salesWindowDays,
-        orderFrequencyDays,
-        branchId,
-        branchName,
-        rows: normalizedRows,
-        cin7PurchaseOrderId: String(response?.id ?? ''),
-        cin7Reference: String(response?.reference ?? payload.reference),
-      });
-
-      return NextResponse.json({
-        success: true,
-        purchaseOrderId: response?.id ?? null,
-        reference: response?.reference ?? payload.reference,
-        draft,
-      });
     }
 
     return NextResponse.json({ success: false, error: `Unknown action: ${action}` }, { status: 400 });

@@ -1,7 +1,15 @@
 import mysql from 'mysql2/promise';
 
-// One pool per IMS database name (supports future multi-tenant expansion)
-const pools = new Map<string, mysql.Pool>();
+declare global {
+  // eslint-disable-next-line no-var
+  var __imsPools: Map<string, mysql.Pool> | undefined;
+}
+
+// Store on globalThis so the pool survives Next.js HMR reloads in dev mode.
+// Without this, every hot reload creates a new Map and new pools, exhausting
+// the server's max_connections limit.
+const pools: Map<string, mysql.Pool> =
+  globalThis.__imsPools ?? (globalThis.__imsPools = new Map<string, mysql.Pool>());
 
 const RETRYABLE_ERROR_CODES = new Set([
   'ETIMEDOUT',

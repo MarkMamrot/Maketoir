@@ -18,7 +18,7 @@
 
 import { xeroApiFetch } from '@/services/XeroService';
 import { query, execute } from '@/services/MySQLService';
-import { imsQuery } from '@/services/IMSMySQLService';
+import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -97,6 +97,40 @@ async function logSync(
     `INSERT INTO xero_sync_log (business_id, sync_type, reference_id, xero_id, status, detail) VALUES (?, ?, ?, ?, ?, ?)`,
     [businessId, syncType, referenceId, xeroId, status, detail ?? null],
   );
+}
+
+/** Write Xero sync status back to the PO row. Silent — never throws. */
+export async function markPoXeroStatus(
+  poId: number,
+  status: 'synced' | 'queued' | 'error',
+  xeroId?: string | null,
+): Promise<void> {
+  try {
+    await imsExecute(
+      `UPDATE ims_purchase_orders
+         SET xero_sync_status = ?, xero_synced_at = NOW()
+             ${xeroId != null ? ', xero_bill_id = ?' : ''}
+         WHERE id = ?`,
+      xeroId != null ? [status, xeroId, poId] : [status, poId],
+    );
+  } catch { /* non-critical */ }
+}
+
+/** Write Xero sync status back to the SO row. Silent — never throws. */
+export async function markSoXeroStatus(
+  soId: number,
+  status: 'synced' | 'queued' | 'error',
+  xeroId?: string | null,
+): Promise<void> {
+  try {
+    await imsExecute(
+      `UPDATE ims_sales_orders
+         SET xero_sync_status = ?, xero_synced_at = NOW()
+             ${xeroId != null ? ', xero_invoice_id = ?' : ''}
+         WHERE id = ?`,
+      xeroId != null ? [status, xeroId, soId] : [status, soId],
+    );
+  } catch { /* non-critical */ }
 }
 
 // ─── PO → Bill ───────────────────────────────────────────────────────────────
@@ -204,9 +238,11 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
     const result = await xeroApiFetch(businessId, '/Invoices', { method: 'POST', body: { Invoices: [bill] } });
     const xeroId = result.Invoices?.[0]?.InvoiceID ?? null;
     await logSync(businessId, 'po_bill', po.id, xeroId, 'success', `Draft Bill created: ${po.po_number}`);
+    await markPoXeroStatus(po.id, 'synced', xeroId);
     return xeroId;
   } catch (err: any) {
     await logSync(businessId, 'po_bill', po.id, null, 'error', err.message);
+    // Status will be set to 'queued' by the hook after retry logic
     return null;
   }
 }
@@ -386,9 +422,11 @@ export async function syncSOAsInvoice(businessId: string, so: SOForSync): Promis
     const result = await xeroApiFetch(businessId, '/Invoices', { method: 'POST', body: { Invoices: [invoice] } });
     const xeroId = result.Invoices?.[0]?.InvoiceID ?? null;
     await logSync(businessId, 'so_invoice', so.id, xeroId, 'success', `Invoice created: ${so.so_number}`);
+    await markSoXeroStatus(so.id, 'synced', xeroId);
     return xeroId;
   } catch (err: any) {
     await logSync(businessId, 'so_invoice', so.id, null, 'error', err.message);
+    // Status will be set to 'queued' by the hook after retry logic
     return null;
   }
 }

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
+import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -12,7 +13,7 @@ import ProductImageGallery from './components/ProductImageGallery';
 type ImsView =
   | 'dashboard' | 'products' | 'stock' | 'brands' | 'bulk-edit'
   | 'contacts' | 'locations'
-  | 'purchase-orders' | 'sales-orders' | 'branch-transfers'
+  | 'purchase-orders' | 'sales-orders' | 'branch-transfers' | 'order-planner'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
   | 'reports' | 'report-sales-by-branch' | 'report-inventory-valuation' | 'report-product-margin'
   | 'xero' | 'shopify';
@@ -37,6 +38,7 @@ const NAV = [
     { id: 'branch-transfers', label: 'Branch Transfers' },
     { id: 'pos-sales',        label: 'POS Sales' },
     { id: 'online-sales',     label: 'Online Sales' },
+    { id: 'order-planner',    label: 'Order Planner' },
   ]},
   { id: 'contacts',        label: 'Contacts',         section: null },
   { id: 'locations',       label: 'Locations',        section: null },
@@ -304,6 +306,7 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
     'branch-transfers': 'M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4',
     'pos-sales':        'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z',
     'online-sales':     'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9',
+    'order-planner':    'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 12h6M9 16h4',
     contacts:           'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
     locations:          'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z',
     stocktakes:         'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 12l2 2 4-4',
@@ -1510,6 +1513,7 @@ function ProductsView() {
   const [stockSohLoading, setStockSohLoading] = useState(false);
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [form, setForm] = useState<any>({ ...BLANK_PRODUCT });
+  const [productPrices, setProductPrices] = useState({ price_rrp: '', price_wholesale: '', price_rrp_sale: '', discount_start_date: '', discount_end_date: '' });
   const [optionSets, setOptionSets] = useState<OptionSet[]>([{ name: 'Size', values: '' }, { name: 'Colour', values: '' }]);
   const [variantRows, setVariantRows] = useState<VariantRow[]>([]);
   const [saving, setSaving] = useState(false);
@@ -1581,6 +1585,7 @@ function ProductsView() {
 
   const openNew = () => {
     setForm({ ...BLANK_PRODUCT });
+    setProductPrices({ price_rrp: '', price_wholesale: '', price_rrp_sale: '', discount_start_date: '', discount_end_date: '' });
     setOptionSets([{ name: 'Size', values: '' }, { name: 'Colour', values: '' }]);
     setVariantRows([{ ...blankRow(), option1_value: 'Default' }]);
     setActiveCurrencies([]);
@@ -1598,6 +1603,15 @@ function ProductsView() {
       return { name: name || '', values: vals.join(', ') };
     });
     setOptionSets(sets);
+    // Read prices from first variant (all variants share the same price)
+    const fv = variants[0];
+    setProductPrices({
+      price_rrp:           fv?.price_rrp           != null ? String(fv.price_rrp)           : '',
+      price_wholesale:     fv?.price_wholesale     != null ? String(fv.price_wholesale)     : '',
+      price_rrp_sale:      fv?.price_rrp_sale      != null ? String(fv.price_rrp_sale)      : '',
+      discount_start_date: fv?.discount_start_date ? String(fv.discount_start_date).slice(0, 10) : '',
+      discount_end_date:   fv?.discount_end_date   ? String(fv.discount_end_date).slice(0, 10)   : '',
+    });
     setVariantRows(variants.map(v => {
       const fc: Record<string, string> = {};
       try { const j = JSON.parse(v.cost_foreign ?? '{}'); for (const [k, val] of Object.entries(j)) fc[k] = String(val); } catch {}
@@ -1646,6 +1660,12 @@ function ProductsView() {
 
   const updateRow = (tempId: string, field: string, value: any) =>
     setVariantRows(rows => rows.map(r => r._tempId === tempId ? { ...r, [field]: value } : r));
+
+  // Update a price field at product level — propagates to all variant rows
+  const updateProductPrice = (field: string, value: string) => {
+    setProductPrices(prev => ({ ...prev, [field]: value }));
+    setVariantRows(rows => rows.map(r => ({ ...r, [field]: value })));
+  };
 
   const deleteRow = (tempId: string) =>
     setVariantRows(rows => {
@@ -2082,6 +2102,20 @@ function ProductsView() {
             </>
           )}
 
+          {/* ── Pricing ── */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Pricing</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+          </div>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
+            <Field label="Price (RRP) $"><input type="number" step="0.01" min="0" value={productPrices.price_rrp} onChange={e => updateProductPrice('price_rrp', e.target.value)} style={{ ...inputStyle, width: 100 }} placeholder="0.00" /></Field>
+            <Field label="Wholesale $"><input type="number" step="0.01" min="0" value={productPrices.price_wholesale} onChange={e => updateProductPrice('price_wholesale', e.target.value)} style={{ ...inputStyle, width: 100 }} placeholder="—" /></Field>
+            <Field label="Disc. Price $"><input type="number" step="0.01" min="0" value={productPrices.price_rrp_sale} onChange={e => updateProductPrice('price_rrp_sale', e.target.value)} style={{ ...inputStyle, width: 100 }} placeholder="—" /></Field>
+            <Field label="Disc. From"><input type="date" value={productPrices.discount_start_date} onChange={e => updateProductPrice('discount_start_date', e.target.value)} style={{ ...inputStyle, width: 140 }} /></Field>
+            <Field label="Disc. To"><input type="date" value={productPrices.discount_end_date} onChange={e => updateProductPrice('discount_end_date', e.target.value)} style={{ ...inputStyle, width: 140 }} /></Field>
+          </div>
+
           {/* ── Section divider ── */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
             <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
@@ -2130,7 +2164,7 @@ function ProductsView() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)' }}>
-                    {['Variant','SKU','Barcode','Cost $','Price $','Wholesale $','Disc. Price $','Disc. From','Disc. To','Wt kg','Bin','Zone',
+                    {['Variant','SKU','Barcode','Cost $','Wt kg','Bin','Zone',
                       ...activeCurrencies.map(c => c),
                       '✓',''].map((h, i) => (
                       <th key={i} style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, whiteSpace: 'nowrap' }}>
@@ -2154,11 +2188,6 @@ function ProductsView() {
                         <td style={{ padding: '2px 4px', minWidth: 80 }}><input value={row.sku} onChange={e => updateRow(row._tempId, 'sku', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 90 }}><input value={row.barcode} onChange={e => updateRow(row._tempId, 'barcode', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 72 }}><input type="number" step="0.0001" min="0" value={row.cost_aud} onChange={e => updateRow(row._tempId, 'cost', e.target.value)} style={cellInput} /></td>
-                        <td style={{ padding: '2px 4px', minWidth: 72 }}><input type="number" step="0.01" min="0" value={row.price_rrp} onChange={e => updateRow(row._tempId, 'price', e.target.value)} style={cellInput} /></td>
-                        <td style={{ padding: '2px 4px', minWidth: 86 }}><input type="number" step="0.01" min="0" value={row.price_wholesale} onChange={e => updateRow(row._tempId, 'price_wholesale', e.target.value)} style={cellInput} placeholder="—" /></td>
-                        <td style={{ padding: '2px 4px', minWidth: 86 }}><input type="number" step="0.01" min="0" value={row.price_rrp_sale} onChange={e => updateRow(row._tempId, 'price_rrp_sale', e.target.value)} style={cellInput} /></td>
-                        <td style={{ padding: '2px 4px', minWidth: 120 }}><input type="date" value={row.discount_start_date} onChange={e => updateRow(row._tempId, 'discount_start_date', e.target.value)} style={cellInput} /></td>
-                        <td style={{ padding: '2px 4px', minWidth: 120 }}><input type="date" value={row.discount_end_date} onChange={e => updateRow(row._tempId, 'discount_end_date', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 60 }}><input type="number" step="0.001" min="0" value={row.weight_kg} onChange={e => updateRow(row._tempId, 'weight_kg', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 70 }}><input value={row.bin} onChange={e => updateRow(row._tempId, 'bin', e.target.value)} style={cellInput} placeholder="—" /></td>
                         <td style={{ padding: '2px 4px', minWidth: 70 }}><input value={row.zone} onChange={e => updateRow(row._tempId, 'zone', e.target.value)} style={cellInput} placeholder="—" /></td>
@@ -2763,7 +2792,7 @@ function PurchaseOrdersView() {
   };
 
   const addLine = () => {
-    setLineItems(p => [...p, { variant_id: '', qty_ordered: 1, unit_cost: 0, tax_rate: poDefaultTaxRate }]);
+    setLineItems(p => [...p, { variant_id: '', qty_ordered: 1, unit_cost: 0, discount_pct: 0, tax_rate: poDefaultTaxRate }]);
   };
   const removeLine = (i: number) => setLineItems(p => p.filter((_, idx) => idx !== i));
   const updateLine = (i: number, k: string, v: any) => setLineItems(p => p.map((item, idx) => idx === i ? { ...item, [k]: v } : item));
@@ -2801,7 +2830,7 @@ function PurchaseOrdersView() {
     }
   };
 
-  const lineTotal = (item: any) => Number(item.qty_ordered || 0) * Number(item.unit_cost || 0);
+  const lineTotal = (item: any) => Number(item.qty_ordered || 0) * Number(item.unit_cost || 0) * (1 - Number(item.discount_pct || 0) / 100);
   const taxTreatment = (form.tax_treatment ?? 'ex_tax') as 'ex_tax' | 'inc_tax' | 'no_tax';
   const poSubtotal = taxTreatment === 'inc_tax'
     ? lineItems.reduce((s, i) => {
@@ -2843,7 +2872,7 @@ function PurchaseOrdersView() {
       ? `Avg of ${payments.length} payment${payments.length !== 1 ? 's' : ''} (${derivedRate.toFixed(4)} AUD per ${cur})`
       : '';
     setForm({ supplier_id: d.data.supplier_id ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), expected_date: d.data.expected_date?.slice(0, 10) ?? '', notes: d.data.notes ?? '', supplier_invoice_number: d.data.supplier_invoice_number ?? '', payment_terms: d.data.payment_terms ?? '', freight: d.data.freight ?? '', discount: d.data.discount ?? '', tax_treatment: d.data.tax_treatment ?? 'ex_tax', tax_code: d.data.tax_code ?? '', currency_code: cur, exchange_rate: derivedRate ? String(derivedRate.toFixed(6)) : String(d.data.exchange_rate ?? 1), _rateHint: rateHint });
-    setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_cost: i.unit_cost, tax_rate: i.tax_rate, notes: i.notes ?? '' })));
+    setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_cost: i.unit_cost, discount_pct: i.discount_pct ?? 0, tax_rate: i.tax_rate, notes: i.notes ?? '' })));
     setLandedCosts((d.data.landed_costs || []).map((c: any) => ({ label: c.label, reference: c.reference ?? '', amount: String(c.amount) })));
     setLcForm(null);
     setModal({ open: true, edit: d.data });
@@ -3088,7 +3117,7 @@ function PurchaseOrdersView() {
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: 'var(--sv-bg-1)' }}>
-                      {['Variant','Qty',`Unit Cost${(form.currency_code ?? 'AUD') !== 'AUD' ? ` (${form.currency_code})` : ''}`,...(taxTreatment !== 'no_tax' ? ['Tax %'] : []),'Line Total',''].map(h => (
+                      {['Variant','Qty',`Unit Cost${(form.currency_code ?? 'AUD') !== 'AUD' ? ` (${form.currency_code})` : ''}`,'Disc %',...(taxTreatment !== 'no_tax' ? ['Tax %'] : []),'Line Total',''].map(h => (
                         <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600 }}>{h}</th>
                       ))}
                     </tr>
@@ -3109,6 +3138,9 @@ function PurchaseOrdersView() {
                         <td style={{ padding: 4, width: 100 }}>
                           <input type="number" min="0" step="0.0001" value={item.unit_cost} onChange={e => updateLine(i, 'unit_cost', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} />
                         </td>
+                        <td style={{ padding: 4, width: 70 }}>
+                          <input type="number" min="0" max="100" step="0.1" value={item.discount_pct ?? 0} onChange={e => updateLine(i, 'discount_pct', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0" />
+                        </td>
                         {taxTreatment !== 'no_tax' && (
                         <td style={{ padding: 4, width: 70 }}>
                           <input type="number" min="0" max="1" step="0.01" value={item.tax_rate} onChange={e => updateLine(i, 'tax_rate', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0.1" />
@@ -3127,19 +3159,23 @@ function PurchaseOrdersView() {
                 <div style={{ minWidth: 380 }}>
                   {[
                     ['Subtotal' + (taxTreatment === 'inc_tax' ? ' (ex-tax)' : ''), fmtCurrency(poSubtotal)],
-                    ...(taxTreatment !== 'no_tax' ? [['Tax', fmtCurrency(poTax)]] : []),
                   ].map(([l, v]) => (
                     <div key={l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
                       <span>{l}</span><span>{v}</span>
                     </div>
                   ))}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
-                    <span>Discount (−)</span>
-                    <input type="number" min="0" step="0.01" value={form.discount} onChange={sf('discount')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
                     <span>Freight (+)</span>
                     <input type="number" min="0" step="0.01" value={form.freight} onChange={sf('freight')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
+                  </div>
+                  {taxTreatment !== 'no_tax' && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
+                      <span>Tax</span><span>{fmtCurrency(poTax)}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
+                    <span>Discount (−)</span>
+                    <input type="number" min="0" step="0.01" value={form.discount} onChange={sf('discount')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
                   </div>
                   {/* Landed Costs — separate invoices; NOT in total, but added to avg. cost on receive */}
                   <div style={{ borderTop: '1px solid var(--sv-etch)', paddingTop: 8, marginBottom: 8 }}>
@@ -3289,7 +3325,7 @@ function PurchaseOrdersView() {
           <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
             <thead>
               <tr style={{ background: 'var(--sv-bg-1)' }}>
-                {['SKU','Product','Variant','Qty Ordered','Qty Received','Unit Cost','Tax','Line Total'].map(h => (
+                {['SKU','Product','Variant','Qty Ordered','Qty Received','Unit Cost','Disc','Tax','Line Total'].map(h => (
                   <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
                 ))}
               </tr>
@@ -3303,28 +3339,29 @@ function PurchaseOrdersView() {
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtQty(item.qty_ordered)}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtQty(item.qty_received)}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtCurrency(item.unit_cost)}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{Number(item.discount_pct) > 0 ? `${Number(item.discount_pct).toFixed(1)}%` : '—'}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{(Number(item.tax_rate) * 100).toFixed(0)}%</td>
                   <td style={{ padding: '8px 10px', fontSize: 13, fontWeight: 600 }}>{fmtCurrency(item.line_total)}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
-              {(Number(viewModal.po.discount) > 0 || Number(viewModal.po.freight) > 0) && (
+              {(Number(viewModal.po.tax_amount) > 0 || Number(viewModal.po.discount) > 0 || Number(viewModal.po.freight) > 0) && (
                 <tr style={{ borderTop: '1px solid var(--sv-etch)' }}>
                   <td colSpan={7} style={{ padding: '6px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Subtotal</td>
                   <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtCurrency(viewModal.po.subtotal)}</td>
-                </tr>
-              )}
-              {(Number(viewModal.po.discount) > 0 || Number(viewModal.po.freight) > 0) && (
-                <tr>
-                  <td colSpan={7} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Tax</td>
-                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtCurrency(viewModal.po.tax_amount)}</td>
                 </tr>
               )}
               {Number(viewModal.po.freight) > 0 && (
                 <tr>
                   <td colSpan={7} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Freight (+)</td>
                   <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>+{fmtCurrency(viewModal.po.freight)}</td>
+                </tr>
+              )}
+              {Number(viewModal.po.tax_amount) > 0 && (
+                <tr>
+                  <td colSpan={7} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Tax</td>
+                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtCurrency(viewModal.po.tax_amount)}</td>
                 </tr>
               )}
               {Number(viewModal.po.discount) > 0 && (
@@ -3550,6 +3587,37 @@ function POActions({ po, onEdit, onDelete, onStatus }: { po: any; onEdit: () => 
 
 function PoAccountingSection({ po, settings }: { po: any; settings: Record<string, string> }) {
   const [open, setOpen] = useState(false);
+  const [xeroRetrying, setXeroRetrying] = useState(false);
+  const [xeroRetried, setXeroRetried] = useState<boolean | null>(null);
+  const doXeroRetry = async () => {
+    setXeroRetrying(true); setXeroRetried(null);
+    try {
+      const r = await fetch('/api/ims/xero/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'po', id: po.id }) });
+      setXeroRetried(r.ok);
+    } catch { setXeroRetried(false); }
+    setXeroRetrying(false);
+  };
+  const xeroStatus = (xeroRetried === true ? 'synced' : po.xero_sync_status) as string | null;
+  const xeroId = po.xero_bill_id as string | null;
+  const xeroAt = po.xero_synced_at ? new Date(po.xero_synced_at).toLocaleString() : null;
+  const XeroBadge = () => (
+    xeroStatus === 'synced'
+      ? <div style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 10px', background:'rgba(16,185,129,.1)', borderRadius:6, fontSize:11, marginBottom:6 }}>
+          <span style={{ color:'#34d399', fontWeight:700 }}>✓ Synced to Xero</span>
+          {xeroAt && <span style={{ color:'var(--sv-text-dim)' }}>{xeroAt}</span>}
+          {xeroId && <a href={`https://go.xero.com/AccountsPayable/View.aspx?InvoiceID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color:'var(--sv-mint)' }}>View Bill ↗</a>}
+        </div>
+      : xeroStatus === 'queued' || xeroStatus === 'error'
+        ? <div style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 10px', background:'rgba(251,191,36,.1)', borderRadius:6, fontSize:11, marginBottom:6 }}>
+            <span style={{ color:'#fbbf24', fontWeight:700 }}>⚠ Queued for Xero sync</span>
+            {xeroAt && <span style={{ color:'var(--sv-text-dim)' }}>Last attempt: {xeroAt}</span>}
+            {xeroRetried === false && <span style={{ color:'#f87171' }}>Retry failed</span>}
+            <button onClick={doXeroRetry} disabled={xeroRetrying} style={{ background:'none', border:'1px solid var(--sv-etch)', borderRadius:4, cursor:'pointer', padding:'2px 8px', fontSize:11, color:'var(--sv-text-dim)' }}>{xeroRetrying ? 'Retrying…' : 'Retry'}</button>
+          </div>
+        : <div style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 10px', background:'var(--sv-bg-1)', borderRadius:6, fontSize:11, color:'var(--sv-text-dim)', marginBottom:6 }}>
+            <span>○ Not yet synced to Xero</span>
+          </div>
+  );
   const currency = (po.currency_code || 'AUD').toUpperCase();
   const isFx = currency !== 'AUD';
   const rate = Number(po.exchange_rate || 1);
@@ -3585,6 +3653,7 @@ function PoAccountingSection({ po, settings }: { po: any; settings: Record<strin
   if (!open) {
     return (
       <div style={{ marginTop: 24, borderTop: '1px dashed var(--sv-etch)', paddingTop: 8 }}>
+        <XeroBadge />
         <button onClick={() => setOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
           <span>🧮</span> <span style={{ textDecoration: 'underline dotted' }}>Accounting</span>
         </button>
@@ -3598,6 +3667,7 @@ function PoAccountingSection({ po, settings }: { po: any; settings: Record<strin
         <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)' }}>🧮 Accounting Debug</span>
         <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11 }}>hide ↑</button>
       </div>
+      <XeroBadge />
 
       {/* A – Line Costs */}
       <div style={lbl}>A — Line Costs {isFx ? `(${currency} → AUD @ ${rate.toFixed(4)})` : ''}</div>
@@ -3740,6 +3810,37 @@ function PoAccountingSection({ po, settings }: { po: any; settings: Record<strin
 
 function SoAccountingSection({ so, settings }: { so: any; settings: Record<string, string> }) {
   const [open, setOpen] = useState(false);
+  const [xeroRetrying, setXeroRetrying] = useState(false);
+  const [xeroRetried, setXeroRetried] = useState<boolean | null>(null);
+  const doXeroRetry = async () => {
+    setXeroRetrying(true); setXeroRetried(null);
+    try {
+      const r = await fetch('/api/ims/xero/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'so', id: so.id }) });
+      setXeroRetried(r.ok);
+    } catch { setXeroRetried(false); }
+    setXeroRetrying(false);
+  };
+  const xeroStatus = (xeroRetried === true ? 'synced' : so.xero_sync_status) as string | null;
+  const xeroId = so.xero_invoice_id as string | null;
+  const xeroAt = so.xero_synced_at ? new Date(so.xero_synced_at).toLocaleString() : null;
+  const XeroBadge = () => (
+    xeroStatus === 'synced'
+      ? <div style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 10px', background:'rgba(16,185,129,.1)', borderRadius:6, fontSize:11, marginBottom:6 }}>
+          <span style={{ color:'#34d399', fontWeight:700 }}>✓ Synced to Xero</span>
+          {xeroAt && <span style={{ color:'var(--sv-text-dim)' }}>{xeroAt}</span>}
+          {xeroId && <a href={`https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color:'var(--sv-mint)' }}>View Invoice ↗</a>}
+        </div>
+      : xeroStatus === 'queued' || xeroStatus === 'error'
+        ? <div style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 10px', background:'rgba(251,191,36,.1)', borderRadius:6, fontSize:11, marginBottom:6 }}>
+            <span style={{ color:'#fbbf24', fontWeight:700 }}>⚠ Queued for Xero sync</span>
+            {xeroAt && <span style={{ color:'var(--sv-text-dim)' }}>Last attempt: {xeroAt}</span>}
+            {xeroRetried === false && <span style={{ color:'#f87171' }}>Retry failed</span>}
+            <button onClick={doXeroRetry} disabled={xeroRetrying} style={{ background:'none', border:'1px solid var(--sv-etch)', borderRadius:4, cursor:'pointer', padding:'2px 8px', fontSize:11, color:'var(--sv-text-dim)' }}>{xeroRetrying ? 'Retrying…' : 'Retry'}</button>
+          </div>
+        : <div style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 10px', background:'var(--sv-bg-1)', borderRadius:6, fontSize:11, color:'var(--sv-text-dim)', marginBottom:6 }}>
+            <span>○ Not yet synced to Xero</span>
+          </div>
+  );
   const currency = (so.currency_code || 'AUD').toUpperCase();
   const isFx = currency !== 'AUD';
   const rate = Number(so.exchange_rate || 1);
@@ -3776,6 +3877,7 @@ function SoAccountingSection({ so, settings }: { so: any; settings: Record<strin
   if (!open) {
     return (
       <div style={{ marginTop: 24, borderTop: '1px dashed var(--sv-etch)', paddingTop: 8 }}>
+        <XeroBadge />
         <button onClick={() => setOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
           <span>🧮</span> <span style={{ textDecoration: 'underline dotted' }}>Accounting</span>
         </button>
@@ -3789,6 +3891,7 @@ function SoAccountingSection({ so, settings }: { so: any; settings: Record<strin
         <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)' }}>🧮 Accounting Debug</span>
         <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11 }}>hide ↑</button>
       </div>
+      <XeroBadge />
 
       {/* A – Line Revenue */}
       <div style={lbl}>A — Line Revenue {isFx ? `(${currency} → AUD @ ${rate.toFixed(4)})` : ''}</div>
@@ -4385,20 +4488,26 @@ function SalesOrdersView() {
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtQty(item.qty_fulfilled)}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtCurrency(item.unit_price)}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtCurrency(item.unit_cost)}</td>
-                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{(Number(item.discount_pct) * 100).toFixed(0)}%</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{Number(item.discount_pct) > 0 ? `${Number(item.discount_pct).toFixed(1)}%` : '—'}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{(Number(item.tax_rate) * 100).toFixed(0)}%</td>
                   <td style={{ padding: '8px 10px', fontSize: 13, fontWeight: 600 }}>{fmtCurrency(item.line_total)}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
-              {(Number(viewModal.so.discount) > 0 || Number(viewModal.so.freight) > 0) && (
+              {(Number(viewModal.so.tax_amount) > 0 || Number(viewModal.so.discount) > 0 || Number(viewModal.so.freight) > 0) && (
                 <tr style={{ borderTop: '1px solid var(--sv-etch)' }}>
                   <td colSpan={9} style={{ padding: '6px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Subtotal</td>
                   <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtCurrency(viewModal.so.subtotal)}</td>
                 </tr>
               )}
-              {(Number(viewModal.so.discount) > 0 || Number(viewModal.so.freight) > 0) && (
+              {Number(viewModal.so.freight) > 0 && (
+                <tr>
+                  <td colSpan={9} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Freight (+)</td>
+                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>+{fmtCurrency(viewModal.so.freight)}</td>
+                </tr>
+              )}
+              {Number(viewModal.so.tax_amount) > 0 && (
                 <tr>
                   <td colSpan={9} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Tax</td>
                   <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtCurrency(viewModal.so.tax_amount)}</td>
@@ -4408,12 +4517,6 @@ function SalesOrdersView() {
                 <tr>
                   <td colSpan={9} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Discount (−)</td>
                   <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-red)' }}>−{fmtCurrency(viewModal.so.discount)}</td>
-                </tr>
-              )}
-              {Number(viewModal.so.freight) > 0 && (
-                <tr>
-                  <td colSpan={9} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Freight (+)</td>
-                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>+{fmtCurrency(viewModal.so.freight)}</td>
                 </tr>
               )}
               <tr style={{ borderTop: '2px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
@@ -4912,10 +5015,17 @@ function PosSalesView() {
             {/* Day header row */}
             <div
               onClick={() => toggleDay(day.day)}
-              style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '11px 16px', cursor: 'pointer', background: isOpen ? 'color-mix(in srgb, var(--sv-action) 8%, var(--sv-bg-2))' : 'var(--sv-bg-2)', userSelect: 'none', borderBottom: isOpen ? '1px solid var(--sv-etch)' : 'none' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', cursor: 'pointer', background: isOpen ? 'color-mix(in srgb, var(--sv-action) 8%, var(--sv-bg-2))' : 'var(--sv-bg-2)', userSelect: 'none', borderBottom: isOpen ? '1px solid var(--sv-etch)' : 'none' }}
             >
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)', minWidth: 160 }}>{fmtDate(day.day)}</span>
-              <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{day.locations}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)', minWidth: 164, flexShrink: 0 }}>{fmtDate(day.day)}</span>
+              <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 110, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{day.locations}</span>
+              {/* Financial breakdown */}
+              <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
+                <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Sub <strong style={{ color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtMoney(Number(day.subtotal ?? 0))}</strong></span>
+                {Number(day.tax ?? 0) > 0 && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>GST <strong style={{ color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtMoney(Number(day.tax))}</strong></span>}
+                {Number(day.discount ?? 0) > 0 && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Disc <strong style={{ color: 'var(--sv-red)', fontWeight: 600 }}>−{fmtMoney(Number(day.discount))}</strong></span>}
+              </div>
+              {/* Payment method chips */}
               {Object.keys(day.payments ?? {}).length > 0 && (
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                   {Object.entries(day.payments ?? {}).map(([method, total]) => (
@@ -4927,13 +5037,13 @@ function PosSalesView() {
               )}
               <span style={{ flex: 1 }} />
               {returns > 0 && (
-                <span style={{ fontSize: 11, color: 'var(--sv-red)', padding: '1px 7px', borderRadius: 99, border: '1px solid rgba(248,113,113,.3)', background: 'rgba(248,113,113,.08)' }}>
+                <span style={{ fontSize: 11, color: 'var(--sv-red)', padding: '1px 7px', borderRadius: 99, border: '1px solid rgba(248,113,113,.3)', background: 'rgba(248,113,113,.08)', flexShrink: 0 }}>
                   {returns} return{returns !== 1 ? 's' : ''}
                 </span>
               )}
-              <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{Number(day.count)} txn{Number(day.count) !== 1 ? 's' : ''}</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', minWidth: 90, textAlign: 'right' }}>{fmtMoney(dayTotal)}</span>
-              <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginLeft: 4 }}>{isOpen ? '▲' : '▼'}</span>
+              <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 54, textAlign: 'right', flexShrink: 0 }}>{Number(day.count)} txn{Number(day.count) !== 1 ? 's' : ''}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', minWidth: 96, textAlign: 'right', flexShrink: 0 }}>{fmtMoney(dayTotal)}</span>
+              <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', width: 14, textAlign: 'center', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
             </div>
 
             {/* Expanded: transaction list */}
@@ -4983,38 +5093,46 @@ function PosSalesView() {
                                 <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 500 }}>Product</th>
                                 <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 500 }}>SKU</th>
                                 <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Qty</th>
-                                <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Unit</th>
-                                {sale.items.some((i: any) => Number(i.discount_amount) > 0) && (
-                                  <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Disc</th>
-                                )}
-                                <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Total</th>
+                                <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Unit (incl)</th>
+                                <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Ex-Tax</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {sale.items.map((item: any) => (
-                                <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                                  <td style={{ padding: '4px 6px', color: 'var(--sv-text-main)' }}>{item.name}</td>
-                                  <td style={{ padding: '4px 6px', color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 11 }}>{item.code || '—'}</td>
-                                  <td style={{ padding: '4px 6px', textAlign: 'right' }}>{Number(item.qty)}</td>
-                                  <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(item.unit_price)}</td>
-                                  {sale.items.some((i: any) => Number(i.discount_amount) > 0) && (
-                                    <td style={{ padding: '4px 6px', textAlign: 'right', color: 'var(--sv-red)' }}>
-                                      {Number(item.discount_amount) > 0 ? `−${fmtMoney(item.discount_amount)}` : '—'}
-                                    </td>
-                                  )}
-                                  <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 600 }}>{fmtMoney(item.line_total)}</td>
-                                </tr>
-                              ))}
+                              {sale.items.map((item: any) => {
+                                const taxRatePct = Number(item.tax_rate ?? 10);
+                                const exTaxLine = taxRatePct > 0
+                                  ? Number(item.line_total) / (1 + taxRatePct / 100)
+                                  : Number(item.line_total);
+                                return (
+                                  <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                                    <td style={{ padding: '4px 6px', color: 'var(--sv-text-main)' }}>{item.name}</td>
+                                    <td style={{ padding: '4px 6px', color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 11 }}>{item.code || '—'}</td>
+                                    <td style={{ padding: '4px 6px', textAlign: 'right' }}>{Number(item.qty)}</td>
+                                    <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(item.unit_price)}</td>
+                                    <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 600 }}>{fmtMoney(exTaxLine)}</td>
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                             <tfoot>
+                              <tr>
+                                <td colSpan={4} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Sub</td>
+                                <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(sale.subtotal)}</td>
+                              </tr>
                               {Number(sale.discount_total) > 0 && (
                                 <tr>
-                                  <td colSpan={sale.items.some((i: any) => Number(i.discount_amount) > 0) ? 5 : 4} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Discount</td>
+                                  <td colSpan={4} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Disc</td>
                                   <td style={{ padding: '4px 6px', textAlign: 'right', color: 'var(--sv-red)' }}>−{fmtMoney(sale.discount_total)}</td>
                                 </tr>
                               )}
+                              {Number(sale.tax_total) > 0 && (
+                                <tr>
+                                  <td colSpan={4} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>GST</td>
+                                  <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(sale.tax_total)}</td>
+                                </tr>
+                              )}
                               <tr style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                                <td colSpan={sale.items.some((i: any) => Number(i.discount_amount) > 0) ? 5 : 4} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Total</td>
+                                <td colSpan={4} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Total</td>
                                 <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 700 }}>{fmtMoney(sale.total)}</td>
                               </tr>
                             </tfoot>
@@ -5177,24 +5295,32 @@ function OnlineSalesView() {
             {/* Day header */}
             <div
               onClick={() => toggleDay(day.day)}
-              style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '11px 16px', cursor: 'pointer', background: isOpen ? 'color-mix(in srgb, var(--sv-action) 8%, var(--sv-bg-2))' : 'var(--sv-bg-2)', userSelect: 'none', borderBottom: isOpen ? '1px solid var(--sv-etch)' : 'none' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', cursor: 'pointer', background: isOpen ? 'color-mix(in srgb, var(--sv-action) 8%, var(--sv-bg-2))' : 'var(--sv-bg-2)', userSelect: 'none', borderBottom: isOpen ? '1px solid var(--sv-etch)' : 'none' }}
             >
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)', minWidth: 160 }}>{fmtDate(day.day)}</span>
-              <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{day.locations}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)', minWidth: 164, flexShrink: 0 }}>{fmtDate(day.day)}</span>
+              <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 110, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{day.locations}</span>
+              {/* Source badges */}
               {Number(day.shopify_count) > 0 && (
-                <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, border: '1px solid rgba(16,185,129,.3)', background: 'rgba(16,185,129,.1)', color: 'var(--sv-mint)' }}>
+                <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, border: '1px solid rgba(16,185,129,.3)', background: 'rgba(16,185,129,.1)', color: 'var(--sv-mint)', flexShrink: 0 }}>
                   {Number(day.shopify_count)} Shopify
                 </span>
               )}
               {Number(day.b2b_count) > 0 && (
-                <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, border: '1px solid rgba(99,102,241,.3)', background: 'rgba(99,102,241,.1)', color: '#818cf8' }}>
+                <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, border: '1px solid rgba(99,102,241,.3)', background: 'rgba(99,102,241,.1)', color: '#818cf8', flexShrink: 0 }}>
                   {Number(day.b2b_count)} B2B
                 </span>
               )}
+              {/* Financial breakdown */}
+              <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
+                <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Sub <strong style={{ color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtMoney(Number(day.subtotal ?? 0))}</strong></span>
+                {Number(day.freight ?? 0) > 0 && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Freight <strong style={{ color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtMoney(Number(day.freight))}</strong></span>}
+                {Number(day.tax ?? 0) > 0 && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>GST <strong style={{ color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtMoney(Number(day.tax))}</strong></span>}
+                {Number(day.discount ?? 0) > 0 && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Disc <strong style={{ color: 'var(--sv-red)', fontWeight: 600 }}>−{fmtMoney(Number(day.discount))}</strong></span>}
+              </div>
               <span style={{ flex: 1 }} />
-              <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{Number(day.count)} order{Number(day.count) !== 1 ? 's' : ''}</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', minWidth: 90, textAlign: 'right' }}>{fmtMoney(dayTotal)}</span>
-              <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginLeft: 4 }}>{isOpen ? '▲' : '▼'}</span>
+              <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 66, textAlign: 'right', flexShrink: 0 }}>{Number(day.count)} order{Number(day.count) !== 1 ? 's' : ''}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', minWidth: 96, textAlign: 'right', flexShrink: 0 }}>{fmtMoney(dayTotal)}</span>
+              <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', width: 14, textAlign: 'center', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
             </div>
 
             {/* Expanded: order list */}
@@ -5252,9 +5378,25 @@ function OnlineSalesView() {
                               ))}
                             </tbody>
                             <tfoot>
+                              <tr>
+                                <td colSpan={4} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Sub</td>
+                                <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(order.subtotal)}</td>
+                              </tr>
+                              {Number(order.freight) > 0 && (
+                                <tr>
+                                  <td colSpan={4} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Freight</td>
+                                  <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(order.freight)}</td>
+                                </tr>
+                              )}
+                              {Number(order.discount) > 0 && (
+                                <tr>
+                                  <td colSpan={4} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Disc</td>
+                                  <td style={{ padding: '4px 6px', textAlign: 'right', color: 'var(--sv-red)' }}>−{fmtMoney(order.discount)}</td>
+                                </tr>
+                              )}
                               {Number(order.tax_amount) > 0 && (
                                 <tr>
-                                  <td colSpan={4} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Tax</td>
+                                  <td colSpan={4} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>GST</td>
                                   <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(order.tax_amount)}</td>
                                 </tr>
                               )}
@@ -6586,62 +6728,228 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
   );
 }
 
+type XeroSyncEntry = {
+  sync_type: string; reference_id: number | null; reference: string;
+  contact_name: string | null; amount: number | null; item_date: string | null;
+  is_historical: number; xero_sync_status: string | null;
+  log_id: number | null; xero_id: string | null;
+  last_sync_status: string | null; last_sync_detail: string | null; last_sync_at: string | null;
+  payments: { id: number; po_id: number; xero_id: string | null; status: string; detail: string | null; synced_at: string; payment_date: string | null; amount: number | null; currency_code: string | null; notes: string | null }[];
+};
+
+function XeroStatusBadge({ status, isHistorical }: { status: string | null; isHistorical?: boolean }) {
+  if (isHistorical) return <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(251,191,36,.15)', color: '#fbbf24' }}>Historical</span>;
+  if (status === 'success') return <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(16,185,129,.15)', color: '#34d399' }}>Synced</span>;
+  if (status === 'error') return <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(248,113,113,.15)', color: '#f87171' }}>Failed</span>;
+  if (status === 'skipped') return <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(156,163,175,.15)', color: '#9ca3af' }}>Skipped</span>;
+  return <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(248,113,113,.15)', color: '#f87171' }}>Not Synced</span>;
+}
+
 function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
-  const [events, setEvents] = useState<{ id: number; sync_type: string; reference_id: number | null; xero_id: string | null; status: string; detail: string | null; created_at: string }[]>([]);
+  const [entries, setEntries] = useState<XeroSyncEntry[]>([]);
+  const [queued, setQueued] = useState<{ id: number; reference: string; type: 'po' | 'so'; status: string; total_amount: number; xero_synced_at: string | null; contact_name: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [retrying, setRetrying] = useState<Record<string, boolean>>({});
+  const [pushAll, setPushAll] = useState(false);
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(`/api/xero/sync-log?databaseId=${encodeURIComponent(getBusinessId())}&limit=50`);
-        const data = await res.json();
-        setEvents(data.events ?? []);
-      } catch {}
-      setLoading(false);
-    })();
-  }, []);
-
-  const typeLabels: Record<string, string> = {
-    po_bill: 'PO → Bill', po_payment: 'PO Payment', so_invoice: 'SO → Invoice',
-    pos_batch: 'POS Batch', online_batch: 'Online Batch', cogs_journal: 'COGS Journal',
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [logRes, queuedRes] = await Promise.all([
+        fetch(`/api/xero/sync-log?databaseId=${encodeURIComponent(getBusinessId())}&limit=200`),
+        fetch('/api/ims/xero/queued'),
+      ]);
+      if (logRes.ok) { const d = await logRes.json(); setEntries(d.entries ?? []); }
+      if (queuedRes.ok) { const d = await queuedRes.json(); setQueued(d.queued ?? []); }
+    } catch {}
+    setLoading(false);
   };
 
-  if (loading) return <div style={{ padding: 20, color: 'var(--sv-text-dim)' }}>Loading sync history...</div>;
+  useEffect(() => { loadData(); }, []);
+
+  const retry = async (type: 'po' | 'so', id: number, key: string) => {
+    setRetrying(r => ({ ...r, [key]: true }));
+    try {
+      await fetch('/api/ims/xero/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, id }) });
+      await loadData();
+    } catch {}
+    setRetrying(r => ({ ...r, [key]: false }));
+  };
+
+  const pushAllQueued = async () => {
+    setPushAll(true);
+    for (const item of queued) {
+      await fetch('/api/ims/xero/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: item.type, id: item.id }) });
+    }
+    await loadData();
+    setPushAll(false);
+  };
+
+  const toggleExpand = (id: number) => setExpanded(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  const typeLabel = (t: string) => ({ po_bill: 'Purchase Order', so_invoice: 'Wholesale SO', pos_batch: 'POS Sales (Batch)', online_batch: 'Online Sales (Batch)', cogs_journal: 'COGS Journal' }[t] ?? t);
+  const typeColor = (t: string) => ({ po_bill: '#818cf8', so_invoice: '#34d399', pos_batch: '#fb923c', online_batch: '#38bdf8', cogs_journal: '#a78bfa' }[t] ?? '#9ca3af');
+  const typeBg = (t: string) => ({ po_bill: 'rgba(99,102,241,.13)', so_invoice: 'rgba(16,185,129,.13)', pos_batch: 'rgba(251,146,60,.13)', online_batch: 'rgba(56,189,248,.13)', cogs_journal: 'rgba(167,139,250,.13)' }[t] ?? 'rgba(156,163,175,.13)');
+
+  const fmtDate  = (d: string) => { try { return new Date(d).toLocaleString('en-AU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return d; } };
+  const fmtDay   = (d: string | null | undefined) => { if (!d) return '—'; try { const s = String(d); return new Date(s.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }); } catch { return String(d).slice(0, 10); } };
+  const fmtMoney = (v: number | null) => v != null ? `$${Number(v).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
+
+  const th: React.CSSProperties = { padding: '8px 10px', color: 'var(--sv-text-dim)', fontWeight: 600, fontSize: 11, textAlign: 'left', whiteSpace: 'nowrap' };
+  const td: React.CSSProperties = { padding: '9px 10px', fontSize: 13, color: 'var(--sv-text-main)', verticalAlign: 'middle' };
+
+  if (loading) return <div style={{ padding: 20, color: 'var(--sv-text-dim)' }}>Loading…</div>;
 
   return (
-    <div style={{ maxWidth: 900 }}>
-      <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
-        <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sync History</h3>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--sv-etch)', textAlign: 'left' }}>
-              <th style={{ padding: '8px 0', color: 'var(--sv-text-dim)', fontWeight: 500 }}>Date</th>
-              <th style={{ padding: '8px 0', color: 'var(--sv-text-dim)', fontWeight: 500 }}>Type</th>
-              <th style={{ padding: '8px 0', color: 'var(--sv-text-dim)', fontWeight: 500 }}>Description</th>
-              <th style={{ padding: '8px 0', color: 'var(--sv-text-dim)', fontWeight: 500 }}>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {events.length === 0 ? (
-              <tr><td colSpan={4} style={{ padding: '20px 0', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No sync events yet</td></tr>
-            ) : events.map(ev => (
-              <tr key={ev.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-                <td style={{ padding: '8px 0', color: 'var(--sv-text-main)' }}>{new Date(ev.created_at).toLocaleString()}</td>
-                <td style={{ padding: '8px 0', color: 'var(--sv-text-main)' }}>{typeLabels[ev.sync_type] ?? ev.sync_type}</td>
-                <td style={{ padding: '8px 0', color: 'var(--sv-text-dim)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.detail || '—'}</td>
-                <td style={{ padding: '8px 0' }}>
-                  <span style={{
-                    padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600,
-                    background: ev.status === 'success' ? 'rgba(16,185,129,.15)' : ev.status === 'error' ? 'rgba(248,113,113,.15)' : 'rgba(251,191,36,.15)',
-                    color: ev.status === 'success' ? '#34d399' : ev.status === 'error' ? '#f87171' : '#fbbf24',
-                  }}>
-                    {ev.status}
-                  </span>
-                </td>
+    <div style={{ maxWidth: 960, display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* ── Queued panel ── */}
+      {queued.length > 0 && (
+        <div style={{ padding: '16px 20px', background: 'rgba(251,191,36,.06)', borderRadius: 10, border: '1px solid rgba(251,191,36,.25)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24' }}>⚠ Queued for Xero Sync ({queued.length})</span>
+            <button onClick={pushAllQueued} disabled={pushAll} style={{ background: 'rgba(251,191,36,.15)', border: '1px solid rgba(251,191,36,.3)', borderRadius: 6, cursor: 'pointer', padding: '4px 12px', fontSize: 12, color: '#fbbf24', fontWeight: 600 }}>
+              {pushAll ? 'Pushing…' : 'Push All'}
+            </button>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead><tr style={{ borderBottom: '1px solid rgba(251,191,36,.2)' }}>
+              {['Type','Reference','Contact','Amount','Last Attempt',''].map(h => <th key={h} style={{ ...th, color: 'rgba(251,191,36,.7)' }}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {queued.map(item => {
+                const key = `${item.type}-${item.id}`;
+                return (
+                  <tr key={key} style={{ borderBottom: '1px solid rgba(251,191,36,.1)' }}>
+                    <td style={td}><span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: item.type === 'po' ? 'rgba(99,102,241,.15)' : 'rgba(16,185,129,.15)', color: item.type === 'po' ? '#818cf8' : '#34d399' }}>{item.type.toUpperCase()}</span></td>
+                    <td style={{ ...td, fontWeight: 600 }}>{item.reference}</td>
+                    <td style={{ ...td, color: 'var(--sv-text-dim)' }}>{item.contact_name || '—'}</td>
+                    <td style={td}>{item.total_amount != null ? fmtMoney(item.total_amount) : '—'}</td>
+                    <td style={{ ...td, color: 'var(--sv-text-dim)', fontSize: 12 }}>{item.xero_synced_at ? fmtDate(item.xero_synced_at) : '—'}</td>
+                    <td style={{ ...td, textAlign: 'right' }}>
+                      <button onClick={() => retry(item.type, item.id, key)} disabled={retrying[key]} style={{ background: 'rgba(251,191,36,.15)', border: '1px solid rgba(251,191,36,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 10px', fontSize: 12, color: '#fbbf24' }}>
+                        {retrying[key] ? 'Pushing…' : 'Push Now'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ── Sync history ── */}
+      <div style={{ background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Sync History (last 200)</span>
+          <button onClick={loadData} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: 'pointer', padding: '4px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>↻ Refresh</button>
+        </div>
+
+        {entries.length === 0 ? (
+          <div style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No sync events recorded yet.</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'var(--sv-bg-1)', borderBottom: '1px solid var(--sv-etch)' }}>
+                <th style={{ ...th, width: 28 }}></th>
+                <th style={th}>Type</th>
+                <th style={th}>Date</th>
+                <th style={th}>Reference</th>
+                <th style={th}>Contact / Detail</th>
+                <th style={{ ...th, textAlign: 'right' }}>Amount</th>
+                <th style={th}>Synced</th>
+                <th style={th}>Status</th>
+                <th style={th}></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {entries.map((entry, ei) => {
+                const entryKey = `${entry.sync_type}-${entry.reference_id ?? ei}`;
+                const isExpanded = expanded.has(ei);
+                const hasPayments = entry.payments.length > 0;
+                const retryKey = `entry-${ei}`;
+                const isPo = entry.sync_type === 'po_bill';
+                const isSo = entry.sync_type === 'so_invoice';
+                const isHistorical = entry.is_historical === 1;
+
+                return (
+                  <React.Fragment key={entryKey}>
+                    {/* Parent row */}
+                    <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: isExpanded ? 'var(--sv-bg-1)' : undefined }}>
+                      <td style={{ ...td, textAlign: 'center', width: 28 }}>
+                        {hasPayments && (
+                          <button onClick={() => toggleExpand(ei)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 13, padding: 0, lineHeight: 1 }}>
+                            {isExpanded ? '▾' : '▸'}
+                          </button>
+                        )}
+                      </td>
+                      <td style={td}>
+                        <span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: typeBg(entry.sync_type), color: typeColor(entry.sync_type) }}>
+                          {typeLabel(entry.sync_type)}
+                        </span>
+                      </td>
+                      <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{fmtDay(entry.item_date)}</td>
+                      <td style={{ ...td, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{entry.reference}</td>
+                      <td style={{ ...td, color: 'var(--sv-text-dim)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {entry.contact_name ?? '—'}
+                      </td>
+                      <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtMoney(entry.amount)}</td>
+                      <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{entry.last_sync_at ? fmtDate(entry.last_sync_at) : '—'}</td>
+                      <td style={td}><XeroStatusBadge status={entry.last_sync_status} isHistorical={isHistorical} /></td>
+                      <td style={{ ...td, textAlign: 'right' }}>
+                        {entry.last_sync_status === 'error' && !isHistorical && (isPo || isSo) && (
+                          <button
+                            onClick={() => retry(isPo ? 'po' : 'so', entry.reference_id!, retryKey)}
+                            disabled={retrying[retryKey]}
+                            style={{ background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: '#f87171', fontWeight: 600 }}
+                          >
+                            {retrying[retryKey] ? '…' : '↻ Retry'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+
+                    {/* Payment child rows */}
+                    {isExpanded && entry.payments.map((pay, pi) => {
+                      const payKey = `pay-${pay.id}`;
+                      const payAmt = pay.amount != null ? fmtMoney(pay.amount) : (pay.detail ?? '—');
+                      return (
+                        <tr key={pay.id ?? pi} style={{ borderBottom: '1px solid var(--sv-etch)', background: 'rgba(99,102,241,.04)' }}>
+                          <td style={td}></td>
+                          <td style={{ ...td, paddingLeft: 28 }}>
+                            <span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(99,102,241,.13)', color: '#818cf8' }}>Payment</span>
+                          </td>
+                          <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{fmtDay(pay.payment_date)}</td>
+                          <td style={{ ...td, color: 'var(--sv-text-dim)' }}>
+                            <span style={{ color: 'var(--sv-etch)', marginRight: 6 }}>└</span>
+                            {pay.notes ?? pay.detail ?? '—'}
+                          </td>
+                          <td style={{ ...td, color: 'var(--sv-text-dim)', fontSize: 12 }}>{pay.notes ?? pay.detail ?? '—'}</td>
+                          <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{payAmt}</td>
+                          <td style={{ ...td, color: 'var(--sv-text-dim)', fontSize: 12, whiteSpace: 'nowrap' }}>{fmtDate(pay.synced_at)}</td>
+                          <td style={td}><XeroStatusBadge status={pay.status} /></td>
+                          <td style={{ ...td, textAlign: 'right' }}>
+                            {pay.status === 'error' && (
+                              <button
+                                onClick={() => retry('po', entry.reference_id!, payKey)}
+                                disabled={retrying[payKey]}
+                                style={{ background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: '#f87171', fontWeight: 600 }}
+                              >
+                                {retrying[payKey] ? '…' : '↻ Retry'}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
@@ -7218,6 +7526,11 @@ export default function ImsPage() {
   const [fullSyncConfirm, setFullSyncConfirm] = useState<'products' | 'sales' | 'pos' | null>(null);
   const [salesMonthsInput, setSalesMonthsInput] = useState(6);
   const [poMonthsInput, setPoMonthsInput] = useState(60);
+  const [xeroQueuedCount, setXeroQueuedCount] = useState(0);
+
+  useEffect(() => {
+    fetch('/api/ims/xero/queued').then(r => r.ok ? r.json() : { count: 0 }).then(d => setXeroQueuedCount(d.count ?? 0)).catch(() => {});
+  }, []);
 
   const handleSync = async (syncType: 'full' | 'latest', steps: string[], salesMonths?: number) => {
     setSyncing(true);
@@ -7313,6 +7626,19 @@ export default function ImsPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontFamily: 'system-ui, sans-serif' }}>
+      {/* Xero Queued Banner */}
+      {xeroQueuedCount > 0 && (
+        <div style={{ background: 'rgba(251,191,36,.15)', borderBottom: '1px solid rgba(251,191,36,.3)', padding: '7px 20px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: '#fbbf24', flexShrink: 0 }}>
+          <span style={{ fontWeight: 700 }}>⚠ {xeroQueuedCount} order{xeroQueuedCount !== 1 ? 's' : ''} queued for Xero sync</span>
+          <button
+            onClick={() => { setView('xero'); }}
+            style={{ background: 'none', border: '1px solid rgba(251,191,36,.4)', borderRadius: 4, cursor: 'pointer', padding: '2px 10px', fontSize: 11, color: '#fbbf24' }}
+          >
+            View in Integrations →
+          </button>
+          <button onClick={() => setXeroQueuedCount(0)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#fbbf24', fontSize: 14, lineHeight: 1 }}>×</button>
+        </div>
+      )}
       {/* Header */}
       <header style={{ height: 52, background: 'var(--sv-bg-1)', borderBottom: '1px solid var(--sv-etch)', display: 'flex', alignItems: 'center', padding: '0 20px', gap: 12, flexShrink: 0 }}>
         <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--sv-text-strong)', letterSpacing: -.3 }}>
@@ -7425,6 +7751,7 @@ export default function ImsPage() {
           {view === 'report-product-margin' && <ProductMarginView onBack={() => setView('reports')} />}
           {view === 'xero'              && <XeroView businessId={user?.userSpreadsheetId ?? ''} />}
           {view === 'shopify'           && <ShopifyView />}
+          {view === 'order-planner'     && <OrderPlannerView databaseId={user?.userSpreadsheetId ?? ''} />}
         </main>
       </div>
     </div>

@@ -25,12 +25,24 @@ export async function GET(req: NextRequest) {
       day: string;
       count: number;
       total: string;
+      subtotal: string;
+      tax: string;
+      freight: string;
+      discount: string;
+      shopify_count: number;
+      b2b_count: number;
       locations: string;
     }>(
       `SELECT
          DATE_FORMAT(so.order_date, '%Y-%m-%d') AS day,
          COUNT(*) AS count,
          SUM(so.total_amount) AS total,
+         SUM(so.subtotal) AS subtotal,
+         SUM(so.tax_amount) AS tax,
+         SUM(so.freight) AS freight,
+         SUM(so.discount) AS discount,
+         COUNT(CASE WHEN so.shopify_order_id IS NOT NULL THEN 1 END) AS shopify_count,
+         COUNT(CASE WHEN so.cin7_order_id IS NOT NULL AND so.shopify_order_id IS NULL THEN 1 END) AS b2b_count,
          GROUP_CONCAT(DISTINCT l.name ORDER BY l.name SEPARATOR ', ') AS locations
        FROM ims_sales_orders so
        LEFT JOIN ims_locations l ON l.id = so.location_id

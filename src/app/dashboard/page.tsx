@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, Fragment, forwardRef, useImperativeHandle } from 'react';
 import Link from 'next/link';
-import { OrderPlannerView } from './OrderPlannerView';
 import { SpaceAnalysisView } from './SpaceAnalysisView';
 import { StockTurnoverView } from './StockTurnoverView';
 import { CustomerServiceView } from './CustomerServiceView';
@@ -40,7 +39,6 @@ const NAV: NavItem[] = [
   {
     id: 'inventory', label: 'Inventory', icon: 'inventory',
     children: [
-      { id: 'order-planner',         label: 'Order Planner'       },
       { id: 'inactive-candidates',   label: 'Inactive Candidates' },
       { id: 'lost-candidates',       label: 'Possible Losses'     },
       { id: 'space-analysis',        label: 'Space Efficiency'    },
@@ -8006,7 +8004,6 @@ export default function DashboardPage() {
   const titles: Record<string, string> = {
     home: 'Reports',
     'ai-helper': 'AI Business Helper',
-    'order-planner': 'Order Planner',
     'inactive-candidates': 'Inactive Candidates',
     'lost-candidates': 'Possible Losses',
     'marketing-assistant': 'Marketing Assistant',
@@ -8126,8 +8123,7 @@ export default function DashboardPage() {
             />
           )}
           {activeView === 'pending-online' && <PendingOnlineView databaseId={databaseId} />}
-          {activeView === 'order-planner' && <OrderPlannerView databaseId={databaseId} />}
-                    {activeView === 'space-analysis' && <SpaceAnalysisView databaseId={databaseId} />}
+          {activeView === 'space-analysis' && <SpaceAnalysisView databaseId={databaseId} />}
           {activeView === 'stock-turnover' && <StockTurnoverView databaseId={databaseId} />}
           {activeView === 'inactive-candidates' && <InactiveCandidatesView databaseId={databaseId} />}
           {activeView === 'lost-candidates' && <LostCandidatesView databaseId={databaseId} />}

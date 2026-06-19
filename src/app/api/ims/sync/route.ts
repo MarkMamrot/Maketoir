@@ -471,9 +471,19 @@ export async function POST(req: Request) {
               const opt1Value = opt.option1 || opt.size || null;
               const opt1NameResolved = opt1Name || (opt.size ? 'Size' : null);
 
-              const cost_aud        = opt.priceColumns?.cost_aud ?? opt.cost_aud ?? null;
-              const price_rrp    = opt.price_rrp ?? opt.priceColumns?.price_rrp ?? null;
-              const price_wholesale = opt.price_wholesale ?? opt.priceColumns?.price_wholesale ?? null;
+              const cost_aud        = opt.priceColumns?.costAUD ?? opt.priceColumns?.cost_aud ?? opt.cost_aud ?? null;
+              const price_rrp       = opt.retailPrice ?? opt.price_rrp ?? opt.priceColumns?.retailAUD ?? opt.priceColumns?.price_rrp ?? null;
+              const price_wholesale = opt.wholesalePrice ?? opt.price_wholesale ?? opt.priceColumns?.wholesaleAUD ?? opt.priceColumns?.price_wholesale ?? null;
+              const price_rrp_sale  = opt.specialPrice ?? opt.priceColumns?.specialPrice ?? null;
+              // Cin7 stores discount as a start date + duration in days; compute end date
+              const discStartStr = opt.specialsStartDate ? String(opt.specialsStartDate).slice(0, 10) : null;
+              const discDays = opt.specialDays ? Number(opt.specialDays) : 0;
+              let discEndStr: string | null = null;
+              if (discStartStr && discDays > 0) {
+                const d = new Date(discStartStr + 'T00:00:00Z');
+                d.setUTCDate(d.getUTCDate() + discDays);
+                discEndStr = d.toISOString().slice(0, 10);
+              }
               const weightKg       = opt.optionWeight != null ? Number(opt.optionWeight) : null;
 
               const foreignCosts: Record<string, number> = {};
@@ -499,7 +509,9 @@ export async function POST(req: Request) {
                      option1_name = ?, option1_value = ?,
                      option2_name = ?, option2_value = ?,
                      option3_name = ?, option3_value = ?,
-                     cost_aud = ?, price_rrp = ?, price_wholesale = ?, cost_foreign = ?,
+                     cost_aud = ?, price_rrp = ?, price_wholesale = ?,
+                     price_rrp_sale = ?, discount_start_date = ?, discount_end_date = ?,
+                     cost_foreign = ?,
                      weight_kg = ?, is_active = ?, cin7_option_id = ?, pack_size = ?,
                      updated_at = CURRENT_TIMESTAMP
                    WHERE variant_id = ?`,
@@ -509,8 +521,10 @@ export async function POST(req: Request) {
                     opt2Name, opt.option2 || null,
                     opt3Name, opt.option3 || null,
                     cost_aud        != null ? Number(cost_aud)        : null,
-                    price_rrp    != null ? Number(price_rrp)    : null,
+                    price_rrp       != null ? Number(price_rrp)       : null,
                     price_wholesale != null ? Number(price_wholesale) : null,
+                    price_rrp_sale  != null ? Number(price_rrp_sale)  : null,
+                    discStartStr, discEndStr,
                     foreignCostJson, weightKg, isActive, cin7OptId, packSize,
                     existingVariantId,
                   ],
@@ -525,9 +539,11 @@ export async function POST(req: Request) {
                       option1_name, option1_value,
                       option2_name, option2_value,
                       option3_name, option3_value,
-                      cost_aud, price_rrp, price_wholesale, cost_foreign,
+                      cost_aud, price_rrp, price_wholesale,
+                      price_rrp_sale, discount_start_date, discount_end_date,
+                      cost_foreign,
                       weight_kg, is_active, cin7_option_id, pack_size)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                   [
                     newVariantId, imsProdId,
                     optSku, opt.barcode || null,
@@ -535,8 +551,10 @@ export async function POST(req: Request) {
                     opt2Name, opt.option2 || null,
                     opt3Name, opt.option3 || null,
                     cost_aud        != null ? Number(cost_aud)        : null,
-                    price_rrp    != null ? Number(price_rrp)    : null,
+                    price_rrp       != null ? Number(price_rrp)       : null,
                     price_wholesale != null ? Number(price_wholesale) : null,
+                    price_rrp_sale  != null ? Number(price_rrp_sale)  : null,
+                    discStartStr, discEndStr,
                     foreignCostJson, weightKg, isActive, cin7OptId, packSize,
                   ],
                 );
@@ -667,6 +685,7 @@ export async function POST(req: Request) {
             await imsExecute('DELETE FROM ims_sales_history', []);
             await imsExecute('TRUNCATE TABLE ims_sales_cache', []);
             await imsExecute('DELETE FROM ims_sales_orders WHERE cin7_order_id IS NOT NULL', []);
+            await imsExecute('DELETE FROM pos_sales WHERE is_historical = 1', []);
           } else {
             salesExtraParams['modifiedDate'] = lastSalesSync.replace(' ', 'T') + 'Z';
             send({ step: 'sales', status: 'running', message: `Latest sync: fetching changes since ${lastSalesSync}...` });
@@ -690,6 +709,7 @@ export async function POST(req: Request) {
             if (syncType === 'latest') {
               await imsExecute('DELETE FROM ims_sales_history WHERE cin7_order_id = ?', [String(order.id)]);
               await imsExecute('DELETE FROM ims_sales_orders WHERE cin7_order_id = ?', [String(order.id)]);
+              await imsExecute('DELETE FROM pos_sales WHERE local_id = ?', [String(order.id)]);
             }
 
             const lines: any[] = Array.isArray(order.lineItems) ? order.lineItems : [];
@@ -705,7 +725,8 @@ export async function POST(req: Request) {
               if (!cin7OptId || qty === 0) continue;
 
               const unitPrice = Number(line.unitPrice ?? line.price_rrp ?? 0);
-              const lineTotal = Number(line.lineTotal ?? line.total ?? (qty * unitPrice));
+              const lineDiscount = Number(line.discount ?? 0);
+              const lineTotal = Math.round(qty * unitPrice * (1 - lineDiscount / 100) * 10000) / 10000;
               // Resolve variant_id by SKU (handles size-grid products with shared cin7_option_id)
               const lineVariantId = (line.code ? variantBySku.get(line.code) : undefined) ?? null;
 
@@ -725,14 +746,76 @@ export async function POST(req: Request) {
               );
             }
 
-            // Classify order type — POS orders skip ims_sales_orders (kept in history only)
+            // Classify order type
             const orderSource = (order.source ?? '').toLowerCase();
             const orderProject = (order.projectName ?? '').toLowerCase();
             const soType = orderSource.startsWith('pos-') ? 'pos'
               : (orderSource.includes('shopify') || orderProject.includes('shopify')) ? 'online'
               : 'b2b';
 
-            if (soType === 'pos') { salesOrderCount++; continue; }
+            if (soType === 'pos') {
+              // Write POS order to pos_sales (is_historical=1) so it appears in the POS Sales
+              // view and the Xero daily-batch sync history, grouped by date + location.
+              const posLocationId = soLocByBranch.get(Number(order.branchId ?? 0)) ?? soUnknownLocId;
+              const posTotal      = Number(order.amountDue ?? order.total ?? 0);
+              // Resolve tax rate/status first so we can normalise all amounts to ex-tax
+              const posTaxRate   = Number(order.taxRate ?? 0);
+              const posTaxStatus = String(order.taxStatus ?? 'Excl').toUpperCase();
+              const isPosIncl    = posTaxRate > 0 && posTaxStatus.startsWith('INCL');
+              const posExTax     = (v: number) => isPosIncl ? Math.round(v / (1 + posTaxRate) * 10000) / 10000 : v;
+              // Subtotal from Cin7 productTotal (may be GST-inclusive for POS); normalise to ex-tax
+              const posSubtotalRaw = Number(order.productTotal ?? 0) || lines.reduce((s: number, l: any) => {
+                const lQty  = Number(l.qty ?? 0);
+                const lUp   = Number(l.unitPrice ?? l.price_rrp ?? 0);
+                const lDisc = Number(l.discount ?? 0);
+                return s + Math.round(lQty * lUp * (1 - lDisc / 100) * 10000) / 10000;
+              }, 0);
+              const posSubtotal  = posExTax(posSubtotalRaw);
+              const posDiscount  = posExTax(Number(order.discountTotal ?? order.discount ?? 0));
+              const posFreight   = posExTax(Number(order.freightTotal ?? order.freight ?? 0));
+              const posSurcharge = posExTax(Number(order.surcharge ?? 0));
+              const posBase      = posSubtotal + posFreight - posDiscount + posSurcharge;
+              const posTax       = posTaxRate === 0 ? 0
+                : isPosIncl ? posTotal * posTaxRate / (1 + posTaxRate)
+                : posBase * posTaxRate;
+              const posCustomer  = order.memberName ?? order.customerName ?? order.reference ?? null;
+              const posResult = await imsExecute(
+                `INSERT INTO pos_sales
+                   (local_id, location_id, cashier_id, sale_type, status,
+                    customer_name, customer_phone, subtotal, discount_total, tax_total, total,
+                    notes, completed_at, is_historical)
+                 VALUES (?, ?, NULL, 'sale', 'completed', ?, NULL, ?, ?, ?, ?, NULL, ?, 1)`,
+                [String(order.id), posLocationId, posCustomer,
+                 posSubtotal, posDiscount, posTax, posTotal, orderDate],
+              );
+              const posInsertId = posResult.insertId;
+              // Insert line items into pos_sale_items
+              const posLineTaxRatePct = Math.round(posTaxRate * 100 * 100) / 100; // store as % (10.00)
+              for (const line of lines) {
+                const lCin7OptId = line.productOptionId ?? line.optionId;
+                const lQty = Number(line.qty ?? 0);
+                if (!lCin7OptId || lQty === 0) continue;
+                const lUnitPrice = Number(line.unitPrice ?? line.price_rrp ?? 0);
+                const lDisc = Number(line.discount ?? 0);
+                const lLineTotal = Math.round(lQty * lUnitPrice * (1 - lDisc / 100) * 10000) / 10000;
+                const lDiscAmt = Math.round(lUnitPrice * lQty * (lDisc / 100) * 100) / 100;
+                const lVariantId = (line.code ? variantBySku.get(line.code) : undefined) ?? null;
+                try {
+                  await imsExecute(
+                    `INSERT INTO pos_sale_items
+                       (sale_id, variant_id, code, name, qty, unit_price,
+                        discount_type, discount_value, discount_amount, tax_rate, line_total)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [posInsertId, lVariantId, line.code || null, line.name || '',
+                     lQty, lUnitPrice,
+                     lDisc > 0 ? 'percent' : 'none', lDisc, lDiscAmt,
+                     posLineTaxRatePct, lLineTotal],
+                  );
+                } catch { /* skip item if insert fails */ }
+              }
+              salesOrderCount++;
+              continue;
+            }
 
             // Write SO management record
             const { status: soStatus, isHistorical } = cinSoStageToIms(order.stage ?? '', order.status ?? '');
@@ -742,11 +825,32 @@ export async function POST(req: Request) {
             const rawExpected = order.deliveryDate ?? order.requiredDate ?? '';
             const expectedDateStr = rawExpected ? String(rawExpected).slice(0, 10) : null;
             const fulfilledDate = soStatus === 'fulfilled' ? orderDate : null;
-            const subtotal = lines.reduce((s: number, l: any) => s + Number(l.lineTotal ?? 0), 0);
-            const taxAmt = Number(order.taxTotal ?? order.tax ?? 0);
-            const totalAmt = Number(order.total ?? (subtotal + taxAmt));
+            // Compute subtotal from line items (Cin7 SOs rarely include lineTotal on each line)
+            const computedSoSubtotal = lines.reduce((s: number, l: any) => {
+              const qty = Number(l.qty ?? 0);
+              const unitPrice = Number(l.unitPrice ?? l.price_rrp ?? 0);
+              const disc = Number(l.discount ?? 0);
+              return s + Math.round(qty * unitPrice * (1 - disc / 100) * 10000) / 10000;
+            }, 0);
+            // Resolve tax rate/status first so we can normalise all amounts to ex-tax
+            const soTaxRate   = Number(order.taxRate ?? 0);
+            const soTaxStatus = String(order.taxStatus ?? 'Excl').toUpperCase();
+            const isSoIncl    = soTaxRate > 0 && soTaxStatus.startsWith('INCL');
+            const soExTax     = (v: number) => isSoIncl ? Math.round(v / (1 + soTaxRate) * 10000) / 10000 : v;
+            // Normalise all line-level amounts to ex-tax
+            const subtotalRaw = order.productTotal != null ? Number(order.productTotal) : computedSoSubtotal;
+            const subtotal    = soExTax(subtotalRaw);
+            const soFreight   = soExTax(Number(order.freightTotal ?? order.freight ?? 0));
+            const soDiscount  = soExTax(Number(order.discountTotal ?? order.discount ?? 0));
+            const soSurcharge = soExTax(Number(order.surcharge ?? 0));
+            const soBase = subtotal + soFreight - soDiscount + soSurcharge;
+            // Grand total: for Incl, order.total already includes tax; for Excl, add tax on top
+            const totalAmt = Number(order.total ?? soBase * (1 + (isSoIncl ? 0 : soTaxRate)));
+            const taxAmt = soTaxRate === 0 ? 0
+              : isSoIncl ? totalAmt * soTaxRate / (1 + soTaxRate)
+              : soBase * soTaxRate;
             const soCurrencyCode = (order.currencyCode ?? 'AUD').toUpperCase();
-            const soExchangeRate = Number(order.exchangeRate ?? 1);
+            const soExchangeRate = Number(order.exchangeRate ?? order.currencyRate ?? 1);
 
             let soInsertId: number;
             try {
@@ -754,12 +858,12 @@ export async function POST(req: Request) {
               const soRes = await imsExecute(
                 `INSERT INTO ims_sales_orders
                    (so_number, customer_id, location_id, status, order_date, expected_date,
-                    fulfilled_date, subtotal, tax_amount, total_amount, cin7_order_id, is_historical,
-                    currency_code, exchange_rate, so_type, cin7_member_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    fulfilled_date, freight, discount, subtotal, tax_amount, total_amount,
+                    cin7_order_id, is_historical, currency_code, exchange_rate, so_type, cin7_member_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [soNumber, soCustomerId, soLocationId, soStatus, orderDate, expectedDateStr,
-                 fulfilledDate, subtotal, taxAmt, totalAmt, String(order.id), isHistorical,
-                 soCurrencyCode, soExchangeRate, soType, rawSoMemberId],
+                 fulfilledDate, soFreight, soDiscount, subtotal, taxAmt, totalAmt,
+                 String(order.id), isHistorical, soCurrencyCode, soExchangeRate, soType, rawSoMemberId],
               );
               soInsertId = soRes.insertId;
             } catch {
@@ -767,12 +871,12 @@ export async function POST(req: Request) {
               const soRes = await imsExecute(
                 `INSERT INTO ims_sales_orders
                    (so_number, customer_id, location_id, status, order_date, expected_date,
-                    fulfilled_date, subtotal, tax_amount, total_amount, cin7_order_id, is_historical,
-                    currency_code, exchange_rate, so_type, cin7_member_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    fulfilled_date, freight, discount, subtotal, tax_amount, total_amount,
+                    cin7_order_id, is_historical, currency_code, exchange_rate, so_type, cin7_member_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [`CIN7-${order.id}`, soCustomerId, soLocationId, soStatus, orderDate, expectedDateStr,
-                 fulfilledDate, subtotal, taxAmt, totalAmt, String(order.id), isHistorical,
-                 soCurrencyCode, soExchangeRate, soType, rawSoMemberId],
+                 fulfilledDate, soFreight, soDiscount, subtotal, taxAmt, totalAmt,
+                 String(order.id), isHistorical, soCurrencyCode, soExchangeRate, soType, rawSoMemberId],
               );
               soInsertId = soRes.insertId;
             }
@@ -782,14 +886,21 @@ export async function POST(req: Request) {
               const qty = Number(line.qty ?? 0);
               if (!cin7OptId || qty === 0) continue;
               const unitPrice = Number(line.unitPrice ?? line.price_rrp ?? 0);
-              const lineTotal = Number(line.lineTotal ?? line.total ?? qty * unitPrice);
+              const lineDiscount = Number(line.discount ?? 0);
+              const lineTotal = Math.round(qty * unitPrice * (1 - lineDiscount / 100) * 10000) / 10000;
               const soItemVariantId = (line.code ? variantBySku.get(line.code) : undefined) ?? null;
+              // Cin7 line taxRate can be percentage (10) or decimal (0.1) — normalise to decimal
+              const rawLineTaxRate = line.taxRate != null ? Number(line.taxRate) : null;
+              const lineItemSoTaxRate = rawLineTaxRate != null
+                ? (rawLineTaxRate > 1 ? rawLineTaxRate / 100 : rawLineTaxRate)
+                : (soTaxStatus.startsWith('EXCL') ? soTaxRate : 0);
               try {
                 await imsExecute(
                   `INSERT INTO ims_sales_order_items
-                     (so_id, variant_id, qty_ordered, qty_fulfilled, unit_price, discount_pct, tax_rate, line_total, notes)
-                   VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)`,
-                  [soInsertId, soItemVariantId, qty, isHistorical ? qty : 0, unitPrice, lineTotal, line.name || null],
+                     (so_id, variant_id, code, name, qty_ordered, qty_fulfilled, unit_price, discount_pct, tax_rate, line_total, notes)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  [soInsertId, soItemVariantId, line.code || null, line.name || null,
+                   qty, isHistorical ? qty : 0, unitPrice, lineDiscount, lineItemSoTaxRate, lineTotal, line.name || null],
                 );
               } catch { /* skip if variant not in catalog */ }
             }
@@ -869,7 +980,8 @@ export async function POST(req: Request) {
             }
 
             const { status: poStatus, isHistorical } = cinPoStageToIms(po.stage ?? '');
-            const cin7SuppId = Number(po.contactId ?? po.supplierId ?? 0);
+            const cin7SuppId = Number(po.memberId ?? po.contactId ?? po.supplierId ?? 0);
+            const supplierNameRaw = ((po.company ?? po.companyName ?? '') || `${po.firstName ?? ''} ${po.lastName ?? ''}`.trim() || null) as string | null;
             const supplierId = cin7SuppId ? (poSupplierByCin7.get(cin7SuppId) ?? null) : null;
             const locationId = poLocByBranch.get(Number(po.branchId ?? 0)) ?? poUnknownLocId;
             const poNumber = (po.reference ?? '').trim() || `CIN7-${po.id}`;
@@ -880,43 +992,56 @@ export async function POST(req: Request) {
             const paymentTerms = po.paymentTerms ?? po.terms ?? null;
             const supplierInvoiceNumber = po.supplierInvoiceNumber ?? po.invoiceNumber ?? null;
             const poLines: any[] = Array.isArray(po.lineItems) ? po.lineItems : [];
-            const subtotal = poLines.reduce((s: number, l: any) => s + Number(l.lineTotal ?? 0), 0);
+            const computedSubtotal = poLines.reduce((s: number, l: any) => {
+              const qty = Number(l.qty ?? 0);
+              const unitCost = Number(l.unitPrice ?? l.price_rrp ?? l.unitCost ?? 0);
+              return s + Number(l.lineTotal ?? l.total ?? qty * unitCost);
+            }, 0);
+            const subtotal = po.productTotal != null ? Number(po.productTotal) : computedSubtotal;
             const freight = Number(po.freight ?? po.freightCost ?? po.freightTotal ?? 0);
             const discount = Number(po.discount ?? po.discountTotal ?? 0);
-            const taxAmt = Number(po.taxTotal ?? po.tax ?? 0);
-            const totalAmt = Number(po.total ?? (subtotal - discount + freight + taxAmt));
+            // Cin7 encodes tax via taxStatus + taxRate (no taxTotal field)
+            const poTaxRate = Number(po.taxRate ?? 0);
+            const poTaxStatus = String(po.taxStatus ?? 'Excl').toUpperCase();
+            const poBase = subtotal + freight - discount + Number(po.surcharge ?? 0);
+            const taxTreatment = poTaxRate === 0 ? 'no_tax' : poTaxStatus.startsWith('INCL') ? 'inc_tax' : 'ex_tax';
+            const totalAmt = Number(po.total ?? (poBase * (1 + (taxTreatment === 'ex_tax' ? poTaxRate : 0))));
+            const taxAmt = poTaxRate === 0 ? 0
+              : taxTreatment === 'inc_tax' ? totalAmt * poTaxRate / (1 + poTaxRate)
+              : poBase * poTaxRate;
+            const lineItemTaxRate = taxTreatment === 'ex_tax' ? poTaxRate : 0;
             const poCurrencyCode = (po.currencyCode ?? po.currency ?? 'AUD').toUpperCase();
-            const poExchangeRate = Number(po.exchangeRate ?? 1);
+            const poExchangeRate = Number(po.exchangeRate ?? po.currencyRate ?? 1);
 
             let poInsertId: number;
             try {
               const poRes = await imsExecute(
                 `INSERT INTO ims_purchase_orders
-                   (po_number, supplier_id, location_id, status, order_date, expected_date,
+                   (po_number, supplier_id, supplier_name_raw, location_id, status, order_date, expected_date,
                     received_date, notes, payment_terms, supplier_invoice_number, freight, discount,
                     subtotal, tax_amount, total_amount, cin7_order_id, is_historical,
-                    currency_code, exchange_rate, cin7_contact_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [poNumber, supplierId, locationId, poStatus, orderDate, expectedDate,
+                    currency_code, exchange_rate, cin7_contact_id, tax_treatment)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [poNumber, supplierId, supplierNameRaw, locationId, poStatus, orderDate, expectedDate,
                  receivedDate, po.notes || null, paymentTerms ? String(paymentTerms) : null,
                  supplierInvoiceNumber,
                  freight, discount, subtotal, taxAmt, totalAmt, cin7PoId, isHistorical,
-                 poCurrencyCode, poExchangeRate, cin7SuppId || null],
+                 poCurrencyCode, poExchangeRate, cin7SuppId || null, taxTreatment],
               );
               poInsertId = poRes.insertId;
             } catch {
               const poRes = await imsExecute(
                 `INSERT INTO ims_purchase_orders
-                   (po_number, supplier_id, location_id, status, order_date, expected_date,
+                   (po_number, supplier_id, supplier_name_raw, location_id, status, order_date, expected_date,
                     received_date, notes, payment_terms, supplier_invoice_number, freight, discount,
                     subtotal, tax_amount, total_amount, cin7_order_id, is_historical,
-                    currency_code, exchange_rate, cin7_contact_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [`CIN7-${po.id}`, supplierId, locationId, poStatus, orderDate, expectedDate,
+                    currency_code, exchange_rate, cin7_contact_id, tax_treatment)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [`CIN7-${po.id}`, supplierId, supplierNameRaw, locationId, poStatus, orderDate, expectedDate,
                  receivedDate, po.notes || null, paymentTerms ? String(paymentTerms) : null,
                  supplierInvoiceNumber,
                  freight, discount, subtotal, taxAmt, totalAmt, cin7PoId, isHistorical,
-                 poCurrencyCode, poExchangeRate, cin7SuppId || null],
+                 poCurrencyCode, poExchangeRate, cin7SuppId || null, taxTreatment],
               );
               poInsertId = poRes.insertId;
             }
@@ -926,15 +1051,19 @@ export async function POST(req: Request) {
               const qty = Number(line.qty ?? 0);
               if (!cin7OptId || qty === 0) continue;
               const unitCost = Number(line.unitPrice ?? line.price_rrp ?? line.unitCost ?? 0);
-              const lineTotal = Number(line.lineTotal ?? line.total ?? qty * unitCost);
+              // Cin7 PO line.discount is a dollar amount (not a percentage)
+              const lineDiscAmt = Number(line.discount ?? 0);
+              const lineSub = qty * unitCost;
+              const lineDiscount = lineSub > 0 ? (lineDiscAmt / lineSub) * 100 : 0;
+              const lineTotal = Math.round((lineSub - lineDiscAmt) * 10000) / 10000;
               const poItemVariantId = (line.code ? variantBySku.get(line.code) : undefined) ?? null;
               try {
                 await imsExecute(
                   `INSERT INTO ims_purchase_order_items
-                     (po_id, variant_id, qty_ordered, qty_received, unit_cost, tax_rate, line_total, notes)
-                   VALUES (?, ?, ?, ?, ?, 0, ?, ?)`,
+                     (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, notes)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                   [poInsertId, poItemVariantId, qty, poStatus === 'received' ? qty : 0,
-                   unitCost, lineTotal, line.name || null],
+                   unitCost, lineDiscount, lineItemTaxRate, lineTotal, line.name || null],
                 );
               } catch { /* skip if variant not in catalog */ }
             }

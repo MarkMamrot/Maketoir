@@ -84,10 +84,8 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [salesWindowDays, setSalesWindowDays] = useState<number>(90);
   const [orderFrequencyDays, setOrderFrequencyDays] = useState<number>(30);
-  const [branchId, setBranchId] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [pushing, setPushing] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [draftUrl, setDraftUrl] = useState('');
@@ -146,8 +144,6 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
     supplierCount: new Set(filteredRows.filter(row => row.reorderQty > 0).map(row => row.supplierId).filter(Boolean)).size,
   }), [filteredRows]);
 
-  const selectedBranch = activeBranches.find(branch => branch.id === branchId) ?? branches.find(branch => branch.id === branchId) ?? null;
-
   const loadOptions = async () => {
     if (!databaseId) return;
     setLoading(true);
@@ -173,10 +169,6 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
       // lead time override is user-controlled; don't reset from sheet
       if (salesBranchIds.length === 0 && (data.branches ?? []).length > 0) {
         setSalesBranchIds((data.branches ?? []).filter(branch => branch.isActive).map(branch => branch.id));
-      }
-      if (!branchId) {
-        const firstActive = (data.branches ?? []).find(branch => branch.isActive);
-        if (firstActive) setBranchId(firstActive.id);
       }
     } catch (e: any) {
       setError(e.message ?? 'Failed to load order planner options.');
@@ -272,29 +264,25 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
     }));
   };
 
-  const persist = async (action: 'save-draft' | 'push-cin7') => {
+  const persist = async () => {
     if (!databaseId) { setError('No business selected.'); return; }
     if (rows.length === 0) { setError('Generate an order plan first.'); return; }
-    if (action === 'push-cin7' && !branchId) { setError('Pick a destination branch before pushing to Cin7.'); return; }
 
     setError('');
     setMessage('');
-    if (action === 'save-draft') setSaving(true);
-    if (action === 'push-cin7') setPushing(true);
+    setSaving(true);
 
     try {
       const res = await fetch('/api/inventory/order-planner', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action,
+          action: 'save-draft',
           databaseId,
           filterType,
           filterValue,
           salesWindowDays,
           orderFrequencyDays,
-          branchId,
-          branchName: selectedBranch?.name ?? '',
           supplierLeadTimeOverrides: leadTimeOverride > 0 ? { __global: leadTimeOverride } : {},
           salesBranchIds: salesScope === 'selected' ? salesBranchIds : [],
           rows,
@@ -306,17 +294,12 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
       const sheetName = data.sheetName ?? data.draft?.sheetName ?? '';
       setDraftUrl(url);
       setDraftSheetName(sheetName);
-      if (action === 'save-draft') {
-        setMessage(`Draft order saved${sheetName ? ` to ${sheetName}` : ''}.`);
-      } else {
-        setMessage(`Pushed to Cin7${data.reference ? ` as ${data.reference}` : ''}${data.purchaseOrderId ? ` (ID ${data.purchaseOrderId})` : ''}.`);
-      }
+      setMessage(`Draft order saved${sheetName ? ` to ${sheetName}` : ''}.`);
     } catch (e: any) {
       setError(e.message ?? 'Order action failed.');
     }
 
-    if (action === 'save-draft') setSaving(false);
-    if (action === 'push-cin7') setPushing(false);
+    setSaving(false);
   };
 
   return (
@@ -326,7 +309,7 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
           <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-xl">🧾</div>
           <div>
             <h2 className="font-bold text-gray-800 text-lg leading-tight">Order Planner</h2>
-            <p className="text-xs text-gray-500">Build reorder recommendations from Products sales velocity, then save to Draft Orders or push to Cin7.</p>
+            <p className="text-xs text-gray-500">Build reorder recommendations from IMS sales data, then save as a Draft Order.</p>
           </div>
         </div>
 
@@ -519,7 +502,7 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
           </div>
           <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Next Step</p>
-            <p className="text-sm text-gray-700">Edit reorder quantities or costs directly in the table before saving a draft or pushing to Cin7.</p>
+            <p className="text-sm text-gray-700">Edit reorder quantities or costs directly in the table before saving a draft.</p>
           </div>
         </div>
         </div>
@@ -540,32 +523,12 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
             <p className="text-xs text-gray-500">Rows with non-zero reorder quantities are shown by default.</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <label className="block min-w-52">
-              <span className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">Push To Branch</span>
-              <select
-                value={branchId}
-                onChange={e => setBranchId(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white"
-              >
-                <option value="">{branches.length > 0 ? 'Select branch…' : 'No Cin7 branches loaded'}</option>
-                {(activeBranches.length > 0 ? activeBranches : branches).map(branch => (
-                  <option key={branch.id} value={branch.id}>{branch.name}{branch.isActive ? '' : ' (inactive)'}</option>
-                ))}
-              </select>
-            </label>
             <button
-              onClick={() => persist('save-draft')}
+              onClick={persist}
               disabled={saving || rows.length === 0}
               className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
             >
               {saving ? 'Saving…' : 'Save Draft Order'}
-            </button>
-            <button
-              onClick={() => persist('push-cin7')}
-              disabled={pushing || rows.length === 0 || !branchId}
-              className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-            >
-              {pushing ? 'Pushing…' : 'Push To Cin7'}
             </button>
           </div>
         </div>
@@ -588,12 +551,6 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
             <p className={`text-lg font-bold ${summary.supplierCount > 1 ? 'text-orange-600' : 'text-gray-800'}`}>{summary.supplierCount}</p>
           </div>
         </div>
-
-        {summary.supplierCount > 1 && (
-          <div className="mb-4 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-800">
-            Multiple suppliers are included in the current rows. Saving works, but Cin7 push requires one supplier per order.
-          </div>
-        )}
 
         <div className="overflow-x-auto">
           <table className="w-full text-xs border-collapse">

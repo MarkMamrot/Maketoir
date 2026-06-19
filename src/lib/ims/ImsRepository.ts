@@ -94,7 +94,7 @@ export interface ImsPO {
 
 export interface ImsPOItem {
   id: number; po_id: number; variant_id: string; qty_ordered: number;
-  qty_received: number; unit_cost: number; landed_cost_per_unit?: number; tax_rate: number;
+  qty_received: number; unit_cost: number; discount_pct: number; landed_cost_per_unit?: number; tax_rate: number;
   line_total: number; notes?: string;
   sku?: string; product_name?: string; variant_label?: string;
 }
@@ -587,7 +587,7 @@ export const ImsPORepo = {
     try {
       return await imsQuery<ImsPO>(
         `SELECT po.*,
-                c.name AS supplier_name,
+                COALESCE(c.name, po.supplier_name_raw) AS supplier_name,
                 l.name AS location_name,
                 COALESCE(pay.amount_paid, 0) AS amount_paid,
                 COALESCE(pay.amount_paid_local, 0) AS amount_paid_local,
@@ -609,7 +609,7 @@ export const ImsPORepo = {
       );
     } catch {
       return imsQuery<ImsPO>(
-        `SELECT po.*, c.name AS supplier_name, l.name AS location_name
+        `SELECT po.*, COALESCE(c.name, po.supplier_name_raw) AS supplier_name, l.name AS location_name
          FROM ims_purchase_orders po
          LEFT JOIN ims_contacts c ON c.id = po.supplier_id
          JOIN ims_locations l ON l.id = po.location_id
@@ -626,7 +626,7 @@ export const ImsPORepo = {
     try {
       rows = await imsQuery<ImsPO>(
         `SELECT po.*,
-                c.name  AS supplier_name,
+                COALESCE(c.name, po.supplier_name_raw) AS supplier_name,
                 c.email AS supplier_email,
                 l.name  AS location_name,
                 COALESCE(pay.amount_paid, 0) AS amount_paid,
@@ -749,13 +749,14 @@ export const ImsPORepo = {
     );
     const po_id = res.insertId;
     for (const item of items) {
-      const line_total = Number(item.qty_ordered) * Number(item.unit_cost);
+      const discPct = Number(item.discount_pct ?? 0);
+      const line_total = Math.round(Number(item.qty_ordered) * Number(item.unit_cost) * (1 - discPct / 100) * 10000) / 10000;
       await imsExecute(
         `INSERT INTO ims_purchase_order_items
-           (po_id,variant_id,qty_ordered,unit_cost,tax_rate,line_total,notes)
-         VALUES (?,?,?,?,?,?,?)`,
+           (po_id,variant_id,qty_ordered,unit_cost,discount_pct,tax_rate,line_total,notes)
+         VALUES (?,?,?,?,?,?,?,?)`,
         [po_id, item.variant_id, item.qty_ordered, item.unit_cost,
-         item.tax_rate ?? 0, line_total, item.notes ?? null]
+         discPct, item.tax_rate ?? 0, line_total, item.notes ?? null]
       );
     }
     if (landedCosts && landedCosts.length) {
@@ -806,7 +807,8 @@ export const ImsPORepo = {
         }
         let subtotal = 0, tax_amount = 0;
         for (const item of items) {
-          const line_total = Number(item.qty_ordered) * Number(item.unit_cost);
+          const discPct = Number(item.discount_pct ?? 0);
+          const line_total = Math.round(Number(item.qty_ordered) * Number(item.unit_cost) * (1 - discPct / 100) * 10000) / 10000;
           const rate = Number(item.tax_rate ?? 0);
           let item_subtotal: number, item_tax: number;
           if (taxTreatment === 'inc_tax') {
@@ -823,10 +825,10 @@ export const ImsPORepo = {
           tax_amount += item_tax;
           await conn.execute(
             `INSERT INTO ims_purchase_order_items
-               (po_id,variant_id,qty_ordered,unit_cost,tax_rate,line_total,notes)
-             VALUES (?,?,?,?,?,?,?)`,
+               (po_id,variant_id,qty_ordered,unit_cost,discount_pct,tax_rate,line_total,notes)
+             VALUES (?,?,?,?,?,?,?,?)`,
             [id, item.variant_id, item.qty_ordered, item.unit_cost,
-             item.tax_rate ?? 0, line_total, item.notes ?? null]
+             discPct, item.tax_rate ?? 0, line_total, item.notes ?? null]
           );
         }
 
@@ -1177,8 +1179,8 @@ export const ImsSORepo = {
     if (!rows[0]) return null;
     const items = await imsQuery<ImsSOItem>(
       `SELECT i.*,
-              v.sku,
-              COALESCE(p.name, i.name) AS product_name,
+              COALESCE(v.sku, i.code) AS sku,
+              COALESCE(p.name, i.name, i.notes) AS product_name,
               CONCAT_WS(' / ',
                 NULLIF(v.option1_value,''),
                 NULLIF(v.option2_value,''),
@@ -1468,7 +1470,7 @@ export const ImsDashboardRepo = {
       `SELECT COUNT(*) AS cnt FROM ims_stock WHERE qty_on_hand <= min_qty AND min_qty > 0`
     );
     const recentPOs = await imsQuery<ImsPO>(
-      `SELECT po.*, c.name AS supplier_name, l.name AS location_name
+      `SELECT po.*, COALESCE(c.name, po.supplier_name_raw) AS supplier_name, l.name AS location_name
        FROM ims_purchase_orders po
        LEFT JOIN ims_contacts c ON c.id = po.supplier_id
        JOIN ims_locations l ON l.id = po.location_id

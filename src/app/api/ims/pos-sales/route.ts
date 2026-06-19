@@ -25,6 +25,9 @@ export async function GET(req: NextRequest) {
       day: string;
       count: number;
       total: string;
+      subtotal: string;
+      tax: string;
+      discount: string;
       returns: number;
       locations: string;
     }>(
@@ -32,6 +35,9 @@ export async function GET(req: NextRequest) {
          DATE_FORMAT(p.completed_at, '%Y-%m-%d') AS day,
          COUNT(*) AS count,
          SUM(p.total) AS total,
+         SUM(p.subtotal) AS subtotal,
+         SUM(p.tax_total) AS tax,
+         SUM(p.discount_total) AS discount,
          SUM(CASE WHEN p.sale_type = 'return' THEN 1 ELSE 0 END) AS returns,
          GROUP_CONCAT(DISTINCT l.name ORDER BY l.name SEPARATOR ', ') AS locations
        FROM pos_sales p

@@ -102,19 +102,24 @@ export async function POST() {
 
       // Compute totals from Cin7 order data (works for both new and existing POs)
       const lines: any[] = Array.isArray(order.lineItems) ? order.lineItems : [];
-      const subtotal    = lines.reduce((s, l) => {
-        const qty = Number(l.qty ?? 0);
+      const computedSubtotal = lines.reduce((s, l) => {
+        const qty      = Number(l.qty ?? 0);
         const unitPrice = Number(l.unitPrice ?? 0);
-        return s + Number(l.total ?? l.lineTotal ?? qty * unitPrice);
+        const disc     = Number(l.discount ?? 0);
+        return s + (qty * unitPrice * (1 - disc / 100));
       }, 0);
+      const subtotal    = order.productTotal != null ? Number(order.productTotal) : computedSubtotal;
       const taxAmount   = Number(order.taxTotal ?? order.taxAmount ?? 0);
       const freight     = Number(order.freightTotal ?? order.freight ?? 0);
       const discount    = Number(order.discountTotal ?? order.discount ?? 0);
       const totalAmount = Number(order.total ?? order.totalIncTax ?? subtotal + taxAmount + freight - discount);
 
-      // If already imported, update totals + is_historical and skip line items
+      // If already imported, update totals + is_historical and refresh line items (discount_pct etc.)
       if (poMap.has(cin7Id)) {
+        const existingPoId = poMap.get(cin7Id)!;
         const existingSupplierId = supplierMap.get(Number(order.memberId)) ?? null;
+        const supplierNameRaw = (order.company || (order.firstName ? `${order.firstName} ${order.lastName ?? ''}`.trim() : null) || null) as string | null;
+        const existingStatus = mapStatus(order.status ?? '', order.stage ?? '');
         await imsExecute(
           `UPDATE ims_purchase_orders
              SET is_historical=1, subtotal=?, tax_amount=?, freight=?, discount=?, total_amount=?,
@@ -123,7 +128,8 @@ export async function POST() {
                  supplier_invoice_number=COALESCE(?, supplier_invoice_number),
                  currency_code=COALESCE(NULLIF(?, 'AUD'), currency_code),
                  exchange_rate=?,
-                 supplier_id=COALESCE(supplier_id, ?)
+                 supplier_id=COALESCE(supplier_id, ?),
+                 supplier_name_raw=COALESCE(supplier_name_raw, ?)
            WHERE id=?`,
           [subtotal, taxAmount, freight, discount, totalAmount,
            treatmentForSupplier(existingSupplierId), purchaseTaxCode,
@@ -132,8 +138,27 @@ export async function POST() {
            (order.currencyCode ?? 'AUD').toUpperCase(),
            Number(order.exchangeRate ?? 1),
            existingSupplierId,
-           poMap.get(cin7Id)],
+           supplierNameRaw,
+           existingPoId],
         );
+        // Refresh line items so discount_pct and other fields are up to date
+        await imsExecute('DELETE FROM ims_purchase_order_items WHERE po_id = ?', [existingPoId]);
+        for (const line of lines) {
+          const variantId = (line.code ? variantBySkuMap.get(line.code) : undefined)
+            ?? variantMap.get(Number(line.productOptionId)) ?? null;
+          if (!variantId) continue;
+          const qty         = Number(line.qty ?? 0);
+          const unitCost    = Number(line.unitPrice ?? 0);
+          const lineDiscount = Number(line.discount ?? 0);
+          const lineTotal   = Math.round(qty * unitCost * (1 - lineDiscount / 100) * 10000) / 10000;
+          const qtyReceived = existingStatus === 'received' ? qty : 0;
+          await imsExecute(
+            `INSERT INTO ims_purchase_order_items
+               (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total)
+             VALUES (?, ?, ?, ?, ?, ?, 0, ?)`,
+            [existingPoId, variantId, qty, qtyReceived, unitCost, lineDiscount, lineTotal],
+          );
+        }
         skipped++;
         continue;
       }
@@ -142,6 +167,7 @@ export async function POST() {
       if (locationId === null) { missingLoc++; continue; }
 
       const supplierId  = supplierMap.get(Number(order.memberId)) ?? null;
+      const supplierNameRaw = (order.company || (order.firstName ? `${order.firstName} ${order.lastName ?? ''}`.trim() : null) || null) as string | null;
       const status      = mapStatus(order.status ?? '', order.stage ?? '');
       const poNumber    = order.reference || `PO-CIN7-${cin7Id}`;
       const orderDate   = safeDate(order.invoiceDate ?? order.createdDate) ?? new Date().toISOString().slice(0, 10);
@@ -155,12 +181,12 @@ export async function POST() {
 
       const res = await imsExecute(
         `INSERT INTO ims_purchase_orders
-           (po_number, supplier_id, location_id, status, order_date, expected_date, received_date,
+           (po_number, supplier_id, supplier_name_raw, location_id, status, order_date, expected_date, received_date,
             payment_terms, supplier_invoice_number, currency_code, exchange_rate,
             tax_treatment, tax_code,
             subtotal, tax_amount, freight, discount, total_amount, cin7_order_id, is_historical)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [poNumber, supplierId, locationId, status, orderDate, expectedDate, receivedDate,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [poNumber, supplierId, supplierNameRaw, locationId, status, orderDate, expectedDate, receivedDate,
          paymentTerms, supplierInvNo, currencyCode, exchangeRate,
          treatmentForSupplier(supplierId), purchaseTaxCode,
          subtotal, taxAmount, freight, discount, totalAmount, cin7Id, isHistorical],
@@ -176,14 +202,15 @@ export async function POST() {
 
         const qty        = Number(line.qty ?? 0);
         const unitCost   = Number(line.unitPrice ?? 0);
-        const lineTotal  = Number(line.total ?? line.lineTotal ?? qty * unitCost);
+        const lineDiscount = Number(line.discount ?? 0);
+        const lineTotal  = Math.round(qty * unitCost * (1 - lineDiscount / 100) * 10000) / 10000;
         const qtyReceived = status === 'received' ? qty : 0;
 
         await imsExecute(
           `INSERT INTO ims_purchase_order_items
-             (po_id, variant_id, qty_ordered, qty_received, unit_cost, tax_rate, line_total)
-           VALUES (?, ?, ?, ?, ?, 0, ?)`,
-          [poId, variantId, qty, qtyReceived, unitCost, lineTotal],
+             (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total)
+           VALUES (?, ?, ?, ?, ?, ?, 0, ?)`,
+          [poId, variantId, qty, qtyReceived, unitCost, lineDiscount, lineTotal],
         );
       }
 

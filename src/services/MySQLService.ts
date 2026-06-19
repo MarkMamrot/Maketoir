@@ -1,10 +1,13 @@
 import mysql from 'mysql2/promise';
 
-let pool: mysql.Pool | null = null;
+declare global {
+  // eslint-disable-next-line no-var
+  var __mysqlPool: mysql.Pool | undefined;
+}
 
 export function getPool(): mysql.Pool {
-  if (!pool) {
-    pool = mysql.createPool({
+  if (!globalThis.__mysqlPool) {
+    globalThis.__mysqlPool = mysql.createPool({
       host:               process.env.MYSQL_HOST     ?? 'localhost',
       port:               parseInt(process.env.MYSQL_PORT ?? '3306', 10),
       database:           process.env.MYSQL_DATABASE ?? '',
@@ -17,7 +20,7 @@ export function getPool(): mysql.Pool {
       charset:            'utf8mb4',
     });
   }
-  return pool;
+  return globalThis.__mysqlPool;
 }
 
 /** Execute a query and return rows + fields. */
