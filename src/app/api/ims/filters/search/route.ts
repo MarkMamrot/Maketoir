@@ -71,17 +71,9 @@ export async function GET(req: Request) {
           v.barcode  LIKE ? OR
           p.name     LIKE ?
         )
-      ORDER BY
-        CASE
-          WHEN v.sku = ? OR v.barcode = ?           THEN 0
-          WHEN v.sku LIKE ? OR v.barcode LIKE ?     THEN 1
-          WHEN p.name LIKE ?                         THEN 2
-          ELSE 3
-        END,
-        p.name,
-        v.sku
-      LIMIT ?
-    `, [like, like, like, q, q, exactLike, exactLike, exactLike, limit]);
+      ORDER BY p.name, v.sku
+      LIMIT ${limit}
+    `, [like, like, like]);
 
     productSuggestions = productRows.map(r => {
       const nameParts = [r.product_name, r.option_label].filter(Boolean);
@@ -96,7 +88,7 @@ export async function GET(req: Request) {
         meta: metaParts.join('  ·  ') || undefined,
       };
     });
-  } catch { /* column missing or DB issue — skip silently */ }
+  } catch { /* skip */ }
 
   // ── 2. Brand suggestions ──────────────────────────────────────────────────
   let brandSuggestions: FilterSuggestion[] = [];

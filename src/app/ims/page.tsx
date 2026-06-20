@@ -10126,9 +10126,9 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                           {posDisplayVariants.length > 0 && (
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
                               {posDisplayVariants.map(v => (
-                                <div key={v.variant_id} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px 3px 10px', borderRadius: 99, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', fontSize: 12 }}>
-                                  <span style={{ color: 'var(--sv-text-strong)', fontWeight: 600 }}>{v.name}</span>
-                                  {v.sku && <span style={{ color: 'var(--sv-text-dim)' }}>· {v.sku}</span>}
+                                <div key={v.variant_id} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px 3px 10px', borderRadius: 99, border: `1px solid ${v.name === '[Unknown product]' ? 'var(--sv-red)' : 'var(--sv-etch)'}`, background: v.name === '[Unknown product]' ? 'var(--sv-red-tint)' : 'var(--sv-bg-2)', fontSize: 12 }}>
+                                  <span style={{ color: v.name === '[Unknown product]' ? 'var(--sv-red)' : 'var(--sv-text-strong)', fontWeight: 600 }}>{v.name === '[Unknown product]' ? '⚠ Unknown (remove)' : v.name}</span>
+                                  {v.sku && v.name !== '[Unknown product]' && <span style={{ color: 'var(--sv-text-dim)' }}>· {v.sku}</span>}
                                   <button type="button" onClick={() => {
                                     const next = posDisplayVariants.filter(x => x.variant_id !== v.variant_id);
                                     setPosDisplayVariants(next);

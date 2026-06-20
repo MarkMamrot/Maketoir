@@ -31,7 +31,7 @@ export async function GET() {
         const nameMap = new Map(vrows.map(r => [r.variant_id, r]));
         selectedVariants = ids.map(id => {
           const r = nameMap.get(id);
-          return { variant_id: id, name: r?.product_name ?? id, sku: r?.sku ?? null };
+          return { variant_id: id, name: r?.product_name ?? '[Unknown product]', sku: r?.sku ?? null };
         });
       }
     }
