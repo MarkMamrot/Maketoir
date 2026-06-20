@@ -18,7 +18,7 @@ export async function GET() {
     return NextResponse.json({ success: false, error: 'Only admins can export data.' }, { status: 403 });
   }
 
-  const businessId = user.userSpreadsheetId;
+  const businessId = user.businessId;
   if (!businessId) {
     return NextResponse.json({ success: false, error: 'No business associated with your account.' }, { status: 400 });
   }

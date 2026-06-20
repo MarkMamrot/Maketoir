@@ -19,7 +19,7 @@ function getPosSession() {
 
 function getBusinessId(): string | null {
   const admin = getAdminSession();
-  if (admin?.userSpreadsheetId) return admin.userSpreadsheetId;
+  if (admin?.businessId) return admin.businessId;
   return null;
 }
 
@@ -30,7 +30,7 @@ export async function GET() {
   try {
     // Use admin session's business_id, or fall back to a shared key if only pos_session
     const adminSession = getAdminSession();
-    const bizId = adminSession?.userSpreadsheetId ?? 'shared';
+    const bizId = adminSession?.businessId ?? 'shared';
     const raw = await ConfigRepository.get(bizId, CONFIG_KEY);
     const methods = raw ? JSON.parse(raw) : DEFAULT_METHODS;
     return NextResponse.json({ methods });
@@ -44,7 +44,7 @@ export async function PUT(req: Request) {
   if (!adminSession) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
   const { methods } = await req.json();
   if (!Array.isArray(methods)) return NextResponse.json({ error: 'methods must be an array.' }, { status: 400 });
-  const bizId = adminSession.userSpreadsheetId ?? 'shared';
+  const bizId = adminSession.businessId ?? 'shared';
   await ConfigRepository.set(bizId, CONFIG_KEY, JSON.stringify(methods));
   return NextResponse.json({ success: true, methods });
 }

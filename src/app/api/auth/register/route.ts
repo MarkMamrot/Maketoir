@@ -55,7 +55,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       message: 'Registration successful.',
-      userSpreadsheetId: businessId,
+      businessId: businessId,
     });
   } catch (error: any) {
     console.error('Register error:', error);

@@ -1,4 +1,4 @@
-﻿import type { ImsProduct, ImsVariant, ImsStock, ImsSO, ImsSOItem } from '@/lib/ims/ImsRepository';
+import type { ImsProduct, ImsVariant, ImsStock, ImsSO, ImsSOItem } from '@/lib/ims/ImsRepository';
 import type { StandardizedVariant, StandardizedSaleLine } from '@/types/StandardizedData';
 
 export interface ImsPosSaleItem {

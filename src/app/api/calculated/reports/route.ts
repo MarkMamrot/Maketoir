@@ -1,4 +1,4 @@
-﻿/**
+/**
  * /api/calculated/reports
  *
  * POST ?databaseId=...
@@ -19,7 +19,7 @@ import { ConfigRepository } from '@/lib/db/ConfigRepository';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { CalcReportsRepository, YearlyRevenueRepository } from '@/lib/db/CalcReportsRepository';
 
-// ── helpers ───────────────────────────────────────────────────────────────────
+// -- helpers -------------------------------------------------------------------
 
 function nc(v: unknown): string {
   return String(v ?? '').replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
@@ -42,9 +42,9 @@ function parseMoney(v: unknown): number {
 
 import { query as mysqlQuery } from '@/services/MySQLService';
 
-// getWebsiteSheetId removed — online reports now read from sales table (source = Shopify)
+// getWebsiteSheetId removed � online reports now read from sales table (source = Shopify)
 
-// ── Margin tier helpers ─────────────────────────────────────────────────────
+// -- Margin tier helpers -----------------------------------------------------
 
 export type MarginThresholds = { high: number; mid: number };
 export const DEFAULT_MARGIN_THRESHOLDS: MarginThresholds = { high: 65, mid: 40 };
@@ -68,7 +68,7 @@ function getMarginTier(margin: number | null, t: MarginThresholds): string {
   return 'low';
 }
 
-// ── Brand Summary aggregation ────────────────────────────────────────────────
+// -- Brand Summary aggregation ------------------------------------------------
 
 type BrandRow = {
   brand: string; skuCount: number; totalQty: number; totalCost: number;
@@ -108,7 +108,7 @@ async function calcBrandSummary(inventorySystemId: string): Promise<BrandRow[]> 
     .sort((a, b) => b.sales365 - a.sales365);
 }
 
-// ── Slowest Sellers aggregation ───────────────────────────────────────────────
+// -- Slowest Sellers aggregation -----------------------------------------------
 
 type SlowSellerRow = { name: string; code: string; brand: string; soh: number; sales90: number; createdDate: string };
 
@@ -131,7 +131,7 @@ async function calcSlowSellers(inventorySystemId: string, limit = 20): Promise<S
   return results.slice(0, limit);
 }
 
-// ── Revenue per Branch aggregation ────────────────────────────────────────────
+// -- Revenue per Branch aggregation --------------------------------------------
 
 type BranchRow = { branch: string; revenue90: number; revenue180: number; revenue365: number };
 
@@ -155,7 +155,7 @@ async function calcRevByBranch(inventorySystemId: string): Promise<BranchRow[]> 
   return Object.values(rev).sort((a, b) => b.revenue365 - a.revenue365);
 }
 
-// ── Sales by Month aggregation ───────────────────────────────────────────────
+// -- Sales by Month aggregation -----------------------------------------------
 
 type MonthRow = { month: string; revenue: number };
 
@@ -175,7 +175,7 @@ async function calcSalesByMonth(inventorySystemId: string): Promise<MonthRow[]> 
   return Array.from(map.entries()).map(([month, revenue]) => ({ month, revenue })).sort((a, b) => a.month.localeCompare(b.month));
 }
 
-// ── Yearly Revenue ────────────────────────────────────────────────────────────
+// -- Yearly Revenue ------------------------------------------------------------
 
 type YearlyRow = { branch: string; [year: string]: string };
 
@@ -191,7 +191,7 @@ async function readYearlyRevenue(inventorySystemId: string): Promise<YearlyRow[]
   return Array.from(branches.values());
 }
 
-// ── Online Top Brands (from sales table filtered to Shopify source) ──────────
+// -- Online Top Brands (from sales table filtered to Shopify source) ----------
 
 type OnlineBrandRow = { brand: string; revenue: number; qty: number; orders: number };
 
@@ -226,7 +226,7 @@ async function calcOnlineTopBrands(inventorySystemId: string, limit = 20): Promi
   } catch { return []; }
 }
 
-// ── Online Performance (GA4) ─────────────────────────────────────────────────
+// -- Online Performance (GA4) -------------------------------------------------
 
 type OnlinePerformance = { conversionRate: number | null; totalSessions: number; totalConversions: number };
 
@@ -247,7 +247,7 @@ async function calcOnlinePerformance(databaseId: string): Promise<OnlinePerforma
   return result;
 }
 
-// ── Online Sales by Month (from sales table filtered to Shopify source) ───────
+// -- Online Sales by Month (from sales table filtered to Shopify source) -------
 
 async function calcOnlineSalesByMonth(inventorySystemId: string): Promise<MonthRow[]> {
   try {
@@ -270,7 +270,7 @@ async function calcOnlineSalesByMonth(inventorySystemId: string): Promise<MonthR
   } catch { return []; }
 }
 
-// ── Monthly Retention (from sales table filtered to Shopify source) ───────────
+// -- Monthly Retention (from sales table filtered to Shopify source) -----------
 // Definition: % of orders in a given month placed by customers who have
 // previously placed at least one other Shopify order (lifetime repeat customers).
 
@@ -325,7 +325,7 @@ async function calcMonthlyRetention(inventorySystemId: string): Promise<MonthlyR
   } catch { return []; }
 }
 
-// ── POST: aggregate and save ──────────────────────────────────────────────────
+// -- POST: aggregate and save --------------------------------------------------
 
 export async function POST(req: Request) {
   const session = cookies().get('marketoir_session');
@@ -419,7 +419,7 @@ export async function POST(req: Request) {
   }
 }
 
-// ── GET: read saved reports → structured data + text ─────────────────────────
+// -- GET: read saved reports ? structured data + text -------------------------
 
 export async function GET(req: Request) {
   const session = cookies().get('marketoir_session');
@@ -468,7 +468,7 @@ export async function GET(req: Request) {
       lines.push('', '--- Yearly Revenue by Branch ---');
       const yearKeys = Object.keys(yearlyRows[0]).filter(k => k !== 'branch');
       lines.push(`Branch | ${yearKeys.join(' | ')}`);
-      for (const r of yearlyRows) lines.push(`${r.branch} | ${yearKeys.map(y => r[y] || '—').join(' | ')}`);
+      for (const r of yearlyRows) lines.push(`${r.branch} | ${yearKeys.map(y => r[y] || '�').join(' | ')}`);
     }
     if (slowReport?.rows?.length) {
       lines.push('', '--- Slowest Sellers ---');

@@ -21,7 +21,7 @@ function getSession() {
 export async function GET(req: Request) {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  const businessId = session.userSpreadsheetId as string;
+  const businessId = session.businessId as string;
   try {
     await ensureMigration();
     const { searchParams } = new URL(req.url);
@@ -37,7 +37,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  const businessId = session.userSpreadsheetId as string;
+  const businessId = session.businessId as string;
   try {
     const body = await req.json();
     const id = await ImsContactsRepo.create(body, businessId);

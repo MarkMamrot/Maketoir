@@ -18,7 +18,7 @@ type ImsView =
   | 'reports' | 'report-sales-by-branch' | 'report-inventory-valuation' | 'report-product-margin'
   | 'xero' | 'shopify';
 
-interface User { name: string; email: string; company: string; userSpreadsheetId: string }
+interface User { name: string; email: string; company: string; businessId: string }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Nav structure
@@ -8009,7 +8009,7 @@ export default function ImsPage() {
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         defaultSection={settingsSection}
-        businessId={user?.userSpreadsheetId ?? ''}
+        businessId={user?.businessId ?? ''}
         syncing={syncing}
         syncingSteps={syncingSteps}
         syncLog={syncLog}
@@ -8042,9 +8042,9 @@ export default function ImsPage() {
           {view === 'report-sales-by-branch' && <SalesByBranchView onBack={() => setView('reports')} />}
           {view === 'report-inventory-valuation' && <InventoryValuationView onBack={() => setView('reports')} />}
           {view === 'report-product-margin' && <ProductMarginView onBack={() => setView('reports')} />}
-          {view === 'xero'              && <XeroView businessId={user?.userSpreadsheetId ?? ''} />}
+          {view === 'xero'              && <XeroView businessId={user?.businessId ?? ''} />}
           {view === 'shopify'           && <ShopifyView />}
-          {view === 'order-planner'     && <OrderPlannerView databaseId={user?.userSpreadsheetId ?? ''} />}
+          {view === 'order-planner'     && <OrderPlannerView databaseId={user?.businessId ?? ''} />}
         </main>
       </div>
     </div>

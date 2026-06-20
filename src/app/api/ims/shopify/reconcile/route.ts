@@ -17,7 +17,7 @@ export async function POST() {
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   try {
-    const conn = await ConnectionsRepository.get(session.userSpreadsheetId);
+    const conn = await ConnectionsRepository.get(session.businessId);
     const rawShopId = conn?.shopify_shop_id ?? '';
     const encToken  = conn?.shopify_access_token ?? '';
     if (!rawShopId || !encToken) {

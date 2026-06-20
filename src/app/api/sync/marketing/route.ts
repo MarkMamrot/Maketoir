@@ -157,7 +157,7 @@ export async function POST(req: Request) {
     return new Response(JSON.stringify({ error: 'databaseId and sources are required.' }), { status: 400 });
   }
   const _u = JSON.parse(session.value);
-  if (databaseId !== _u.userSpreadsheetId) {
+  if (databaseId !== _u.businessId) {
     return new Response(JSON.stringify({ error: 'Not authorised.' }), { status: 403 });
   }
 

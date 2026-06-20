@@ -30,7 +30,7 @@ async function ensureItemColumns() {
 export async function POST() {
   const session = getImportSession();
   if (!session) return new Response('Unauthorized', { status: 401 });
-  const businessId: string = session.userSpreadsheetId;
+  const businessId: string = session.businessId;
 
   return makeSSEStream(async (send) => {
     send({ status: 'running', message: 'Connecting to Cin7 API...' });

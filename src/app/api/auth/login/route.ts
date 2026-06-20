@@ -21,7 +21,7 @@ export async function POST(req: Request) {
       name:              user.name ?? '',
       company:           user.company ?? '',
       email:             user.email,
-      userSpreadsheetId: user.business_id ?? '',
+      businessId: user.business_id ?? '',
       role:              user.role ?? 'user',
       tier:              user.tier ?? 'StandardUser',
       userId:            user.id,

@@ -15,7 +15,7 @@ function getSession() {
 export async function GET() {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  const businessId = session.userSpreadsheetId as string;
+  const businessId = session.businessId as string;
   try {
     const pos = await imsQuery<any>(
       `SELECT po.id, po.po_number AS reference, 'po' AS type, po.status,

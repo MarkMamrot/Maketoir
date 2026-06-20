@@ -46,7 +46,7 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const databaseId = searchParams.get('databaseId');
-  if (!databaseId || databaseId !== user.userSpreadsheetId) return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
+  if (!databaseId || databaseId !== user.businessId) return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
 
   try {
     const sheets = new GoogleSheetsService();
@@ -75,7 +75,7 @@ export async function POST(req: Request) {
 
   try {
     const { databaseId, highMin, midMin } = await req.json();
-    if (!databaseId || databaseId !== user.userSpreadsheetId) return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
+    if (!databaseId || databaseId !== user.businessId) return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
 
     const high = parseFloat(String(highMin));
     const mid  = parseFloat(String(midMin));

@@ -7,7 +7,7 @@ function getBusinessId(): string | null {
   try {
     const s = cookies().get('marketoir_session');
     if (!s?.value) return null;
-    return JSON.parse(s.value)?.userSpreadsheetId ?? null;
+    return JSON.parse(s.value)?.businessId ?? null;
   } catch {
     return null;
   }

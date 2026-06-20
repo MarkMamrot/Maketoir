@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Source-agnostic data interfaces for Marketoir.
  */
 

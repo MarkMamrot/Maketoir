@@ -12,7 +12,7 @@ function getSession() {
 export async function GET() {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  const businessId = session.userSpreadsheetId;
+  const businessId = session.businessId;
   try {
     const rows = await imsQuery<{ key: string; value: string }>(
       'SELECT `key`, `value` FROM ims_settings WHERE business_id = ?',
@@ -33,7 +33,7 @@ export async function GET() {
 export async function PUT(req: Request) {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  const businessId = session.userSpreadsheetId;
+  const businessId = session.businessId;
   try {
     const body = await req.json();
     // Accept either { key, value } or { settings: { key: value, ... } }

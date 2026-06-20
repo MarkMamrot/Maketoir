@@ -11,7 +11,7 @@ function getAdminSession() {
 export async function GET() {
   try {
     const session = getAdminSession();
-    const businessId = session?.userSpreadsheetId as string | undefined;
+    const businessId = session?.businessId as string | undefined;
     const rows = await imsQuery<{ value: string }>(
       `SELECT \`value\` FROM ims_settings WHERE \`key\` = 'pos_default_product_view'${businessId ? ' AND business_id = ?' : ''} LIMIT 1`,
       businessId ? [businessId] : undefined
@@ -49,7 +49,7 @@ export async function PUT(req: Request) {
   try {
     const session = getAdminSession();
     if (!session) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
-    const businessId = session.userSpreadsheetId as string;
+    const businessId = session.businessId as string;
 
     const { defaultView } = await req.json() as { defaultView: string };
     const allowed = ['all', 'in_stock'];

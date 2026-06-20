@@ -1,4 +1,4 @@
-﻿import { cookies } from 'next/headers';
+import { cookies } from 'next/headers';
 import { v4 as uuidv4 } from 'uuid';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { getCin7Credentials, cin7FetchAllPages, cin7ForEachPage } from '@/lib/cin7Helpers';
@@ -142,7 +142,7 @@ export async function POST(req: Request) {
     return new Response(JSON.stringify({ error: 'Not authenticated' }), { status: 401 });
   }
 
-  const businessId: string = session.userSpreadsheetId;
+  const businessId: string = session.businessId;
   if (!businessId) {
     return new Response(JSON.stringify({ error: 'No business ID in session' }), { status: 400 });
   }
@@ -178,7 +178,7 @@ export async function POST(req: Request) {
 
         const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
-        // ── Step A: Locations from Cin7 /Branches ──────────────────────────
+        // -- Step A: Locations from Cin7 /Branches --------------------------
         if (stepsRequested.includes('locations')) {
           send({ step: 'locations', status: 'running', message: 'Fetching branches from Cin7...' });
 
@@ -213,7 +213,7 @@ export async function POST(req: Request) {
           send({ step: 'locations', status: 'done', count: locNew, message: `${locNew} new, ${cin7Branches.length} total from Cin7` });
         }
 
-        // ── Step B: Contacts from Cin7 /Contacts ───────────────────────────
+        // -- Step B: Contacts from Cin7 /Contacts ---------------------------
         if (stepsRequested.includes('contacts')) {
           send({ step: 'contacts', status: 'running', message: 'Fetching contacts from Cin7...' });
 
@@ -330,10 +330,10 @@ export async function POST(req: Request) {
           contactMapRows.map(r => [r.cin7_supplier_id, r.id]),
         );
 
-        // ── Step C+D: Products + Variants from Cin7 /Products ──────────────
+        // -- Step C+D: Products + Variants from Cin7 /Products --------------
         if (stepsRequested.includes('products')) {
           const modeLabel = syncType === 'full'
-            ? 'Full sync — clearing Cin7 products...'
+            ? 'Full sync � clearing Cin7 products...'
             : 'Fetching modified products from Cin7...';
           send({ step: 'products', status: 'running', message: modeLabel });
 
@@ -342,7 +342,7 @@ export async function POST(req: Request) {
               'DELETE FROM ims_stock WHERE variant_id IN (SELECT variant_id FROM ims_product_variants WHERE cin7_option_id IS NOT NULL)',
               [],
             );
-            // NULL out order item references before deleting variants (FK constraint — no CASCADE)
+            // NULL out order item references before deleting variants (FK constraint � no CASCADE)
             await imsExecute(
               'UPDATE ims_purchase_order_items SET variant_id = NULL WHERE variant_id IN (SELECT variant_id FROM ims_product_variants WHERE cin7_option_id IS NOT NULL)',
               [],
@@ -380,7 +380,7 @@ export async function POST(req: Request) {
           send({ step: 'products', status: 'running', message: 'Fetching and syncing products from Cin7...' });
 
           const totalProducts = await cin7ForEachPage(creds.authHeader, '/Products', extraParams, 'ims/products', async (pageProducts, pageNum) => {
-          send({ step: 'products', status: 'running', message: `Page ${pageNum} — syncing ${pageProducts.length} products...` });
+          send({ step: 'products', status: 'running', message: `Page ${pageNum} � syncing ${pageProducts.length} products...` });
           for (const p of pageProducts) {
             const cin7Id = Number(p.id);
             if (!cin7Id || isNaN(cin7Id)) continue;
@@ -565,7 +565,7 @@ export async function POST(req: Request) {
             }
             if (p.brand) uniqueBrands.add(p.brand.trim());
           } // end for pageProducts
-          send({ step: 'products', status: 'running', message: `Page ${pageNum} done — ${productNew} products, ${variantSynced} variants so far` });
+          send({ step: 'products', status: 'running', message: `Page ${pageNum} done � ${productNew} products, ${variantSynced} variants so far` });
           }); // end cin7ForEachPage
 
           // Upsert unique brands into ims_brands
@@ -583,7 +583,7 @@ export async function POST(req: Request) {
           });
         }
 
-        // ── Step E: Stock from Cin7 /Stock ─────────────────────────────────
+        // -- Step E: Stock from Cin7 /Stock ---------------------------------
         if (stepsRequested.includes('stock')) {
           send({ step: 'stock', status: 'running', message: 'Fetching stock levels from Cin7...' });
 
@@ -666,13 +666,13 @@ export async function POST(req: Request) {
           send({ step: 'stock', status: 'done', count: stockSynced, message: `${stockSynced} stock records synced` });
         }
 
-        // ── Shared variant-by-SKU map for sales + PO line items ───────────
+        // -- Shared variant-by-SKU map for sales + PO line items -----------
         const sharedVariantRows = await imsQuery<{ variant_id: string; sku: string }>(
           'SELECT variant_id, sku FROM ims_product_variants WHERE sku IS NOT NULL',
         );
         const variantBySku = new Map<string, string>(sharedVariantRows.map(r => [r.sku, r.variant_id]));
 
-        // ── Step F: Sales from Cin7 /SalesOrders ───────────────────────────
+        // -- Step F: Sales from Cin7 /SalesOrders ---------------------------
         if (stepsRequested.includes('sales')) {
           const lastSalesSync = await getImsSetting(businessId, 'last_sales_sync');
           const salesExtraParams: Record<string, string> = {};
@@ -889,7 +889,7 @@ export async function POST(req: Request) {
               const lineDiscount = Number(line.discount ?? 0);
               const lineTotal = Math.round(qty * unitPrice * (1 - lineDiscount / 100) * 10000) / 10000;
               const soItemVariantId = (line.code ? variantBySku.get(line.code) : undefined) ?? null;
-              // Cin7 line taxRate can be percentage (10) or decimal (0.1) — normalise to decimal
+              // Cin7 line taxRate can be percentage (10) or decimal (0.1) � normalise to decimal
               const rawLineTaxRate = line.taxRate != null ? Number(line.taxRate) : null;
               const lineItemSoTaxRate = rawLineTaxRate != null
                 ? (rawLineTaxRate > 1 ? rawLineTaxRate / 100 : rawLineTaxRate)
@@ -938,11 +938,11 @@ export async function POST(req: Request) {
           send({
             step: 'sales', status: 'done',
             count: histRows[0]?.cnt ?? 0,
-            message: `${salesOrderCount} orders — ${histRows[0]?.cnt ?? 0} lines, ${cacheRows[0]?.cnt ?? 0} variants in cache`,
+            message: `${salesOrderCount} orders � ${histRows[0]?.cnt ?? 0} lines, ${cacheRows[0]?.cnt ?? 0} variants in cache`,
           });
         }
 
-        // ── Step G: Purchase Orders from Cin7 /PurchaseOrders ─────────────
+        // -- Step G: Purchase Orders from Cin7 /PurchaseOrders -------------
         if (stepsRequested.includes('pos')) {
           const lastPosSync = await getImsSetting(businessId, 'last_pos_sync');
           const posExtraParams: Record<string, string> = {};

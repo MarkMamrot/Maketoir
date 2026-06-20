@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { ImsProductsRepo, ImsVariantsRepo, ImsBrandsRepo, ImsContactsRepo } from '@/lib/ims/ImsRepository';
 
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
     }
   }
 
-  // 3. Re-load contacts to resolve supplier names → IDs
+  // 3. Re-load contacts to resolve supplier names ? IDs
   const allContacts = await ImsContactsRepo.list('supplier');
   const contactByName = new Map<string, number>();
   for (const c of allContacts) {
@@ -89,7 +89,7 @@ export async function POST(req: Request) {
 
   // 4. Process rows
   // Track newly created products within this batch so multi-variant imports work
-  const createdProductIds = new Map<string, string>(); // lowercased name → product_id
+  const createdProductIds = new Map<string, string>(); // lowercased name ? product_id
 
   for (const row of rows) {
     try {

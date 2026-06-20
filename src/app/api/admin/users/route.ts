@@ -45,7 +45,7 @@ export async function GET() {
   if (error) return error;
 
   const session = getAdminSession();
-  const businessId = session?.userSpreadsheetId as string | undefined;
+  const businessId = session?.businessId as string | undefined;
 
   try {
     const users = await query<any>(
@@ -114,7 +114,7 @@ export async function POST(req: Request) {
     const userTier = (tier && validTiers.includes(tier)) ? tier : 'StandardUser';
 
     const session = getAdminSession();
-    const businessId = session?.userSpreadsheetId as string | undefined;
+    const businessId = session?.businessId as string | undefined;
 
     const userId = await UsersRepository.create({
       email,

@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
 import { YearlyRevenueRepository } from '@/lib/db/CalcReportsRepository';
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
 
   const { databaseId, data } = await req.json();
   const _cu = JSON.parse(session.value);
-  if (!databaseId || typeof data !== 'object' || databaseId !== _cu.userSpreadsheetId) {
+  if (!databaseId || typeof data !== 'object' || databaseId !== _cu.businessId) {
     return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
   }
 

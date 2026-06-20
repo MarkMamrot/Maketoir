@@ -40,7 +40,7 @@ export async function GET(req: Request) {
   const like = `%${q}%`;
   const exactLike = `${q}%`;
   const session = getSession();
-  const businessId = session?.userSpreadsheetId as string | undefined;
+  const businessId = session?.businessId as string | undefined;
 
   // ── 1. Product variant suggestions ──────────────────────────────────────────
   let productSuggestions: FilterSuggestion[] = [];

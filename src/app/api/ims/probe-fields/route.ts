@@ -11,7 +11,7 @@ export async function GET() {
   const session = getSession();
   if (!session) return Response.json({ error: 'Not authenticated' }, { status: 401 });
 
-  const businessId: string = session.userSpreadsheetId;
+  const businessId: string = session.businessId;
   let creds: Awaited<ReturnType<typeof getCin7Credentials>>;
   try { creds = await getCin7Credentials(businessId); }
   catch (e: any) { return Response.json({ error: e.message }, { status: 400 }); }

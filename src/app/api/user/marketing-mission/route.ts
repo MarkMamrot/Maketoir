@@ -16,7 +16,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const databaseId = searchParams.get('databaseId');
 
-    if (!databaseId || databaseId !== user.userSpreadsheetId) {
+    if (!databaseId || databaseId !== user.businessId) {
       return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
     }
 
@@ -59,7 +59,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { databaseId, mission } = body;
 
-    if (!databaseId || databaseId !== user.userSpreadsheetId) {
+    if (!databaseId || databaseId !== user.businessId) {
       return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
     }
     if (!mission) {

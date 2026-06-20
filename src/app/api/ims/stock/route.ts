@@ -12,7 +12,7 @@ function getSession() {
 export async function GET(req: Request) {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  const businessId = session.userSpreadsheetId as string;
+  const businessId = session.businessId as string;
   try {
     const { searchParams } = new URL(req.url);
     const variantId  = searchParams.get('variant_id') ?? undefined;

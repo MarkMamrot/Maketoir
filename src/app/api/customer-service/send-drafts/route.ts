@@ -58,7 +58,7 @@ export async function POST(req: Request) {
   }
 
   const { databaseId, drafts } = await req.json();
-  if (!databaseId || databaseId !== user.userSpreadsheetId) return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
+  if (!databaseId || databaseId !== user.businessId) return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
   if (!Array.isArray(drafts) || drafts.length === 0) {
     return NextResponse.json({ error: 'drafts array is required.' }, { status: 400 });
   }

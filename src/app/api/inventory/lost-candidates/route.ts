@@ -39,7 +39,7 @@ export async function POST(req: Request) {
 
   const { databaseId } = await req.json();
   const _u = JSON.parse(session.value);
-  if (!databaseId || databaseId !== _u.userSpreadsheetId) {
+  if (!databaseId || databaseId !== _u.businessId) {
     return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
   }
 

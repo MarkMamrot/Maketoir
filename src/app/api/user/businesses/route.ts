@@ -10,14 +10,14 @@ export async function GET() {
     }
 
     const user = JSON.parse(session.value);
-    const userSpreadsheetId = user.userSpreadsheetId;
-    if (!userSpreadsheetId) {
+    const businessId = user.businessId;
+    if (!businessId) {
       return NextResponse.json({ success: true, businesses: [] });
     }
 
     const rows = await query<{ business_id: string; name: string; drive_folder_id: string | null }>(
       'SELECT business_id, name, drive_folder_id FROM businesses WHERE business_id = ? AND deleted_at IS NULL',
-      [userSpreadsheetId],
+      [businessId],
     );
 
     const businesses = rows.map(r => ({

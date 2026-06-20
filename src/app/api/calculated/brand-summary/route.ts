@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
 import { ProductsRepository } from '@/lib/db/ProductsRepository';

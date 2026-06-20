@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { ShopifyService } from '@/services/ShopifyService';
 import { decrypt } from '@/lib/encryption';
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   try {
     const { product_ids }: { product_ids?: string[] } = await req.json().catch(() => ({}));
 
-    const conn = await ConnectionsRepository.get(session.userSpreadsheetId);
+    const conn = await ConnectionsRepository.get(session.businessId);
     const rawShopId = conn?.shopify_shop_id ?? '';
     const encToken  = conn?.shopify_access_token ?? '';
     if (!rawShopId || !encToken) {

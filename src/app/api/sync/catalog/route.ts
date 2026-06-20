@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   try {
     const session = cookies().get('marketoir_session');
     if (!session?.value) return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
-    const { userSpreadsheetId: businessId } = JSON.parse(session.value);
+    const { businessId: businessId } = JSON.parse(session.value);
 
     const { shopId, accessToken } = await req.json();
     if (!shopId || !accessToken) {

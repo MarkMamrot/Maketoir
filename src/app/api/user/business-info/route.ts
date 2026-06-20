@@ -44,7 +44,7 @@ export async function POST(req: Request) {
     const { databaseId, brandName, brandUrl, yearsInBusiness, facebookUrl, instagramUrl, pinterestUrl, abn } = body;
 
     const _u = JSON.parse(sessionCookie.value);
-    if (!databaseId || databaseId !== _u.userSpreadsheetId) {
+    if (!databaseId || databaseId !== _u.businessId) {
       return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
     }
     if (!brandName || !brandUrl || !yearsInBusiness) {

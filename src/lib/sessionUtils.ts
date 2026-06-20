@@ -13,7 +13,7 @@ export interface AdminSession {
   name: string;
   company: string;
   email: string;
-  userSpreadsheetId: string;
+  businessId: string;
   role: string;
   tier: UserTier;
   userId: number;
@@ -70,7 +70,7 @@ export function assertBusinessAccess(
   if (!databaseId) {
     return NextResponse.json({ error: 'databaseId is required.' }, { status: 400 });
   }
-  if (databaseId !== user.userSpreadsheetId) {
+  if (databaseId !== user.businessId) {
     return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
   }
   return null;

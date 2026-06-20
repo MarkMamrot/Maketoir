@@ -14,7 +14,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
   }
 
-  let sessionUser: { userId?: number; email?: string; userSpreadsheetId?: string };
+  let sessionUser: { userId?: number; email?: string; businessId?: string };
   try {
     sessionUser = JSON.parse(raw);
   } catch {
@@ -38,7 +38,7 @@ export async function GET() {
       name:              dbUser.name ?? '',
       company:           dbUser.company ?? '',
       email:             dbUser.email,
-      userSpreadsheetId: dbUser.business_id ?? '',
+      businessId: dbUser.business_id ?? '',
       role:              dbUser.role,
       tier:              dbUser.tier,
       userId:            dbUser.id,

@@ -17,7 +17,7 @@ function getSession() {
 export async function POST(req: Request) {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  const businessId: string = session.userSpreadsheetId;
+  const businessId: string = session.businessId;
 
   try {
     const { type, id } = await req.json() as { type: 'po' | 'so'; id: number };

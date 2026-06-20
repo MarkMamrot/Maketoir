@@ -29,7 +29,7 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const databaseId = searchParams.get('databaseId') || '';
-  if (!databaseId || databaseId !== _sess.userSpreadsheetId) return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
+  if (!databaseId || databaseId !== _sess.businessId) return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
 
   const sheets = new GoogleSheetsService();
   try {
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
   if (!_sess) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
 
   const { databaseId, guidelines, helperEmail } = await req.json();
-  if (!databaseId || databaseId !== _sess.userSpreadsheetId) return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
+  if (!databaseId || databaseId !== _sess.businessId) return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
 
   const sheets = new GoogleSheetsService();
   try {

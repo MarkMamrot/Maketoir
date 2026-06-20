@@ -13,7 +13,7 @@ export async function GET() {
       email:   user.email   ?? '',
       company: user.company ?? '',
       tier:    user.tier    ?? 'StandardUser',
-      userSpreadsheetId: user.userSpreadsheetId ?? '',
+      businessId: user.businessId ?? '',
     });
   } catch {
     return NextResponse.json({ error: 'Invalid session.' }, { status: 400 });

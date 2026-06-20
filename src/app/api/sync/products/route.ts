@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   const { databaseId, activeProductsOnly = true } = await req.json();
   if (!databaseId) return NextResponse.json({ success: false, error: 'databaseId required' }, { status: 400 });
   const _u = JSON.parse(session.value);
-  if (databaseId !== _u.userSpreadsheetId) {
+  if (databaseId !== _u.businessId) {
     return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
   }
 

@@ -1,4 +1,4 @@
-﻿// src/app/page.tsx
+// src/app/page.tsx
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import Landing from './_landing';

@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     if (user.role !== 'admin') {
       return NextResponse.json({ success: false, error: 'Only admins can invite users.' }, { status: 403 });
     }
-    if (!user.userSpreadsheetId) {
+    if (!user.businessId) {
       return NextResponse.json({ success: false, error: 'No business associated with your account.' }, { status: 400 });
     }
 
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     // Check for an already-active (unused, not expired) invite for this email+business
     const activeInvite = await query(
       'SELECT id FROM invites WHERE email = ? AND business_id = ? AND accepted_at IS NULL AND expires_at > NOW() LIMIT 1',
-      [email.toLowerCase(), user.userSpreadsheetId],
+      [email.toLowerCase(), user.businessId],
     );
     if (activeInvite.length > 0) {
       return NextResponse.json({ success: false, error: 'An active invite already exists for this email.' }, { status: 409 });
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
     // Look up business name
     const businesses = await query<{ name: string }>(
       'SELECT name FROM businesses WHERE business_id = ? AND deleted_at IS NULL LIMIT 1',
-      [user.userSpreadsheetId],
+      [user.businessId],
     );
     const businessName = businesses[0]?.name ?? 'Solvantis';
 
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
     await execute(
       `INSERT INTO invites (token, email, business_id, invited_by, role, expires_at)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [token, email.toLowerCase(), user.userSpreadsheetId, user.userId, role, expiresAt],
+      [token, email.toLowerCase(), user.businessId, user.userId, role, expiresAt],
     );
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://maketoir.vercel.app';

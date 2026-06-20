@@ -13,7 +13,7 @@ export async function GET() {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
-    const conn = await ConnectionsRepository.get(session.userSpreadsheetId);
+    const conn = await ConnectionsRepository.get(session.businessId);
     const connected = !!(conn?.shopify_shop_id && conn?.shopify_access_token);
     const counts = await ImsShopifyRepo.getCounts();
     return NextResponse.json({

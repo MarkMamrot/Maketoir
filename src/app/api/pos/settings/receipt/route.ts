@@ -11,7 +11,7 @@ function getSession() {
 export async function GET() {
   try {
     const session = getSession();
-    const businessId = session?.userSpreadsheetId as string | undefined;
+    const businessId = session?.businessId as string | undefined;
     const rows = await imsQuery<{ key: string; value: string }>(
       businessId
         ? 'SELECT `key`, `value` FROM ims_settings WHERE business_id = ?'

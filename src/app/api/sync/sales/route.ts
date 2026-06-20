@@ -112,7 +112,7 @@ export async function POST(req: Request) {
   const { databaseId, fullSync = false, activeBranchesOnly = true } = await req.json();
   if (!databaseId) return NextResponse.json({ success: false, error: 'databaseId is required.' }, { status: 400 });
   const _u = JSON.parse(session.value);
-  if (databaseId !== _u.userSpreadsheetId) {
+  if (databaseId !== _u.businessId) {
     return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
   }
 
@@ -206,7 +206,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const databaseId = searchParams.get('databaseId');
   const _ug = JSON.parse(session.value);
-  if (!databaseId || databaseId !== _ug.userSpreadsheetId) {
+  if (!databaseId || databaseId !== _ug.businessId) {
     return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
   }
 

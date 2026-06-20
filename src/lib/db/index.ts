@@ -1,4 +1,4 @@
-﻿export * from './ConfigRepository';
+export * from './ConfigRepository';
 export * from './ConnectionsRepository';
 export * from './UsersRepository';
 export * from './BusinessInfoRepository';

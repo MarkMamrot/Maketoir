@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { GoogleGenAI } from '@google/genai';
 import { ChatsRepository } from '@/lib/db/ChatsRepository';
