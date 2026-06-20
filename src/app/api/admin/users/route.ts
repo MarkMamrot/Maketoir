@@ -44,12 +44,15 @@ export async function GET() {
   const error = await requireAdminOrSuperAdmin();
   if (error) return error;
 
+  const session = getAdminSession();
+  const businessId = session?.userSpreadsheetId as string | undefined;
+
   try {
     const users = await query<any>(
-      `SELECT id, username, name, email, company, role, tier, deleted_at, created_at 
-       FROM users 
-       ORDER BY created_at DESC`,
-      [],
+      businessId
+        ? `SELECT id, username, name, email, company, role, tier, deleted_at, created_at FROM users WHERE business_id = ? ORDER BY created_at DESC`
+        : `SELECT id, username, name, email, company, role, tier, deleted_at, created_at FROM users ORDER BY created_at DESC`,
+      businessId ? [businessId] : [],
     );
     return NextResponse.json({ success: true, users });
   } catch (err: any) {
@@ -110,12 +113,16 @@ export async function POST(req: Request) {
     
     const userTier = (tier && validTiers.includes(tier)) ? tier : 'StandardUser';
 
+    const session = getAdminSession();
+    const businessId = session?.userSpreadsheetId as string | undefined;
+
     const userId = await UsersRepository.create({
       email,
       password,
       username: username ?? undefined,
       name: name ?? undefined,
       company: company ?? undefined,
+      businessId: businessId ?? undefined,
       role: userTier === 'PosUser' ? 'user' : 'admin',
       tier: userTier,
     });
