@@ -43,9 +43,9 @@ export async function GET(req: Request) {
       const locMap = new Map(inactiveLocs.map(l => [l.id, l.name]));
       const placeholders = locIds.map(() => '?').join(',');
 
-      type StockLine = { location_id: number; qty_on_hand: number; sku: string | null; cost: number | null; product_name: string; brand: string | null };
+      type StockLine = { location_id: number; qty_on_hand: number; sku: string | null; cost_aud: number | null; product_name: string; brand: string | null };
       const stockRows = await imsQuery<StockLine>(
-        `SELECT s.location_id, s.qty_on_hand, v.sku, v.cost, p.name AS product_name, p.brand
+        `SELECT s.location_id, s.qty_on_hand, v.sku, v.cost_aud, p.name AS product_name, p.brand
          FROM ims_stock s
          JOIN ims_product_variants v ON v.variant_id = s.variant_id
          JOIN ims_products p ON p.product_id = v.product_id
@@ -61,7 +61,7 @@ export async function GET(req: Request) {
       for (const r of stockRows) {
         const branchName = locMap.get(r.location_id) ?? String(r.location_id);
         const branchId   = String(r.location_id);
-        const unitCost   = Number(r.cost ?? 0);
+        const unitCost   = Number(r.cost_aud ?? 0);
         const qty        = Number(r.qty_on_hand);
         outRows.push({ code: r.sku ?? '', name: r.product_name, brand: r.brand ?? '', branchId, branchName, qty, unitCost, totalCost: unitCost * qty });
         if (!perBranch.has(branchId)) perBranch.set(branchId, { branchName, codes: new Set(), qty: 0, cost: 0 });

@@ -42,6 +42,7 @@ export async function POST() {
     return NextResponse.json({ success: true, variantsUpdated: updatedCount, refreshedAt });
 
   } catch (err: any) {
+    console.error('[refresh-sales-cache POST] Error:', err?.message, err?.code, err?.sql);
     if (err?.code === 'ER_NO_SUCH_TABLE') {
       return NextResponse.json(
         { success: false, error: 'ims_sales_cache table not found. Run the IMS schema update first.' },

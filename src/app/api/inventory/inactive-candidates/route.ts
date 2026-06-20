@@ -60,8 +60,8 @@ export async function POST(req: Request) {
            COALESCE(p.style_code, '')            AS styleCode,
            p.name,
            COALESCE(p.brand, '')                 AS brand,
-           COALESCE(v.cost, 0)                   AS cost,
-           COALESCE(v.price, 0)                  AS retailPrice,
+           COALESCE(v.cost_aud, 0)               AS cost,
+           COALESCE(v.price_rrp, 0)              AS retailPrice,
            DATE(p.created_at)                    AS createdDate,
            COALESCE(sc.global_soh,     0)        AS totalSOH,
            COALESCE(sc.sales_qty_12m,  0)        AS total12mQty

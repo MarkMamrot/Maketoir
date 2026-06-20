@@ -67,14 +67,14 @@ export async function GET(req: Request) {
         v.sku,
         p.name,
         p.brand,
-        v.cost,
-        v.price,
+        v.cost_aud AS cost,
+        v.price_rrp AS price,
         ${salesCol} AS sales_qty
       FROM ims_product_variants v
       JOIN ims_products p ON p.product_id = v.product_id
       JOIN ims_sales_cache sc ON sc.variant_id = v.variant_id
       ${where}
-      ORDER BY (${salesCol} * (v.price - v.cost)) DESC
+      ORDER BY (${salesCol} * (v.price_rrp - v.cost_aud)) DESC
       LIMIT ? OFFSET ?
     `, [...filterParams, pageSize, offset]);
 

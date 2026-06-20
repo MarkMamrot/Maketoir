@@ -98,18 +98,18 @@ export async function POST(req: Request) {
            v.sku                                 AS code,
            p.name,
            COALESCE(p.brand, '')                 AS brand,
-           COALESCE(c.contact_id, '')            AS supplierId,
-           COALESCE(c.company_name, '')          AS supplierName,
+           COALESCE(c.id, '')                   AS supplierId,
+           COALESCE(c.name, '')                  AS supplierName,
            v.volume                              AS volumeRating,
            COALESCE(sc.global_soh, 0)            AS totalSOH,
            COALESCE(${salesCol}, 0)              AS salesQty,
-           COALESCE(v.cost, 0)                   AS cost,
+           COALESCE(v.cost_aud, 0)               AS cost,
            p.created_at                          AS createdDate,
            v.is_active                           AS isActive
          FROM ims_product_variants v
          JOIN ims_products p ON p.product_id = v.product_id
          LEFT JOIN ims_sales_cache sc ON sc.variant_id = v.variant_id
-         LEFT JOIN ims_contacts c ON c.contact_id = p.supplier_id
+         LEFT JOIN ims_contacts c ON c.id = p.supplier_contact_id
          WHERE v.is_active = 1 AND p.is_active = 1`,
         [],
       ) as any;

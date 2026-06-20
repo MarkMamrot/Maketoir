@@ -58,13 +58,13 @@ export async function POST(req: Request) {
            p.name,
            COALESCE(p.brand, '')              AS brand,
            v.sku                              AS code,
-           COALESCE(v.cost, 0)               AS cost,
-           COALESCE(v.price, 0)              AS retailPrice,
+           COALESCE(v.cost_aud, 0)           AS cost,
+           COALESCE(v.price_rrp, 0)          AS retailPrice,
            l.name                             AS branchName,
            COALESCE(s.qty_on_hand, 0)         AS soh,
            COALESCE(sc.sales_qty_180d, 0)     AS qty180
          FROM ims_stock s
-         JOIN ims_locations l     ON l.location_id = s.location_id
+         JOIN ims_locations l     ON l.id = s.location_id
          JOIN ims_product_variants v ON v.variant_id = s.variant_id
          JOIN ims_products p      ON p.product_id = v.product_id
          LEFT JOIN ims_sales_cache sc ON sc.variant_id = v.variant_id
