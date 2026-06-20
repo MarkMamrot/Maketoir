@@ -2733,6 +2733,8 @@ function PurchaseOrdersView() {
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [viewModal, setViewModal] = useState<{ open: boolean; po: any | null }>({ open: false, po: null });
   const [poPayForm, setPoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string } | null>(null);
+  const [poFiles, setPoFiles] = useState<any[]>([]);
+  const [poFileUploading, setPoFileUploading] = useState(false);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [variants, setVariants] = useState<any[]>([]);
@@ -2881,12 +2883,16 @@ function PurchaseOrdersView() {
   const openView = async (po: any) => {
     const d = await apiFetch(`/api/ims/purchase-orders/${po.id}`);
     setViewModal({ open: true, po: d.data });
+    setPoFiles(d.data?.files ?? []);
     setPoPayForm(null);
   };
 
   const refreshPoView = async (id: number) => {
     const d = await apiFetch(`/api/ims/purchase-orders/${id}`);
-    if (d.data) setViewModal(prev => ({ ...prev, po: d.data }));
+    if (d.data) {
+      setViewModal(prev => ({ ...prev, po: d.data }));
+      setPoFiles(d.data.files ?? []);
+    }
   };
 
   const handleAddPoPayment = async () => {
@@ -3541,6 +3547,55 @@ function PurchaseOrdersView() {
             );
           })()}
           <PoAccountingSection po={viewModal.po} settings={settings} />
+
+          {/* ── Supplier Invoices / Attachments ── */}
+          <div style={{ marginTop: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Supplier Invoices</div>
+              <label style={{ cursor: 'pointer' }}>
+                <span style={btnStyle('mint', 'xs') as any}>{poFileUploading ? 'Uploading…' : '+ Upload'}</span>
+                <input type="file" accept=".pdf,image/jpeg,image/png" style={{ display: 'none' }} disabled={poFileUploading}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setPoFileUploading(true);
+                    try {
+                      const fd = new FormData();
+                      fd.append('file', file);
+                      const res = await fetch(`/api/ims/purchase-orders/${viewModal.po!.id}/files`, { method: 'POST', body: fd });
+                      const data = await res.json();
+                      if (!res.ok) { alert(data.error || 'Upload failed'); return; }
+                      setPoFiles(data.files ?? []);
+                    } catch (err: any) { alert(err.message); }
+                    finally { setPoFileUploading(false); e.target.value = ''; }
+                  }}
+                />
+              </label>
+            </div>
+            {poFiles.length === 0 ? (
+              <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', padding: '8px 0' }}>No invoices attached yet.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {poFiles.map((f: any) => (
+                  <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--sv-bg-2)', borderRadius: 6, padding: '6px 10px', fontSize: 13 }}>
+                    <span style={{ fontSize: 16 }}>{f.mime_type === 'application/pdf' ? '📄' : '🖼️'}</span>
+                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.original_name}</span>
+                    <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
+                      {(f.file_size / 1024).toFixed(0)} KB · {new Date(f.uploaded_at).toLocaleDateString()}
+                    </span>
+                    <a href={`/api/ims/purchase-orders/${viewModal.po!.id}/files/${f.id}`} target="_blank" rel="noopener noreferrer" style={{ ...btnStyle('ghost', 'xs') as any, textDecoration: 'none' }}>View</a>
+                    <button style={btnStyle('danger', 'xs')} onClick={async () => {
+                      if (!confirm('Remove this file?')) return;
+                      const res = await fetch(`/api/ims/purchase-orders/${viewModal.po!.id}/files/${f.id}`, { method: 'DELETE' });
+                      const data = await res.json();
+                      if (res.ok) setPoFiles(data.files ?? []);
+                      else alert(data.error || 'Delete failed');
+                    }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </Modal>
       )}
     </div>

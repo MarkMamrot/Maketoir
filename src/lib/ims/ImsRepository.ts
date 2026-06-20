@@ -89,7 +89,7 @@ export interface ImsPO {
   amount_paid?: number; amount_paid_local?: number; balance?: number; balance_local?: number;
   created_at?: string; updated_at?: string;
   supplier_name?: string; supplier_email?: string; location_name?: string;
-  items?: ImsPOItem[]; payments?: ImsPayment[]; landed_costs?: LandedCostRow[];
+  items?: ImsPOItem[]; payments?: ImsPayment[]; landed_costs?: LandedCostRow[]; files?: ImsPoFile[];
 }
 
 export interface ImsPOItem {
@@ -686,7 +686,14 @@ export const ImsPORepo = {
         [id]
       );
     } catch { /* table not yet migrated */ }
-    return { ...rows[0], items, payments, landed_costs };
+    let files: ImsPoFile[] = [];
+    try {
+      files = await imsQuery<ImsPoFile>(
+        `SELECT * FROM ims_po_files WHERE po_id = ? ORDER BY uploaded_at ASC`,
+        [id]
+      );
+    } catch { /* table not yet migrated */ }
+    return { ...rows[0], items, payments, landed_costs, files };
   },
 
   async addPayment(
@@ -2158,5 +2165,75 @@ export const ImsShopifyRepo = {
       byProduct.get(v.product_id)!.push(v);
     }
     return products.map((p: any) => ({ ...p, variants: byProduct.get(p.product_id) ?? [] }));
+  },
+};
+
+// ── PO Files ─────────────────────────────────────────────────────────────────
+
+export interface ImsPoFile {
+  id: number;
+  po_id: number;
+  business_id: string;
+  filename: string;
+  original_name: string;
+  mime_type: string;
+  file_size: number;
+  uploaded_at: string;
+}
+
+/** Ensures the ims_po_files table exists (auto-migration on first use). */
+async function ensurePoFilesTable(): Promise<void> {
+  await imsExecute(
+    `CREATE TABLE IF NOT EXISTS ims_po_files (
+       id            INT AUTO_INCREMENT PRIMARY KEY,
+       po_id         INT          NOT NULL,
+       business_id   VARCHAR(100) NOT NULL,
+       filename      VARCHAR(255) NOT NULL,
+       original_name VARCHAR(255),
+       mime_type     VARCHAR(100),
+       file_size     INT,
+       uploaded_at   DATETIME     DEFAULT CURRENT_TIMESTAMP,
+       INDEX idx_po (po_id)
+     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
+  );
+}
+
+export const ImsPoFilesRepo = {
+  async list(poId: number): Promise<ImsPoFile[]> {
+    await ensurePoFilesTable();
+    return imsQuery<ImsPoFile>(
+      `SELECT * FROM ims_po_files WHERE po_id = ? ORDER BY uploaded_at ASC`,
+      [poId],
+    );
+  },
+
+  async get(fileId: number): Promise<ImsPoFile | null> {
+    await ensurePoFilesTable();
+    const rows = await imsQuery<ImsPoFile>(
+      `SELECT * FROM ims_po_files WHERE id = ?`,
+      [fileId],
+    );
+    return rows[0] ?? null;
+  },
+
+  async add(
+    poId: number,
+    businessId: string,
+    filename: string,
+    originalName: string,
+    mimeType: string,
+    fileSize: number,
+  ): Promise<number> {
+    await ensurePoFilesTable();
+    const res = await imsExecute(
+      `INSERT INTO ims_po_files (po_id, business_id, filename, original_name, mime_type, file_size)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [poId, businessId, filename, originalName, mimeType, fileSize],
+    );
+    return (res as any).insertId;
+  },
+
+  async delete(fileId: number): Promise<void> {
+    await imsExecute(`DELETE FROM ims_po_files WHERE id = ?`, [fileId]);
   },
 };
