@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import fs from 'fs';
+import path from 'path';
 import { ImsImagesRepo } from '@/lib/ims/ImsRepository';
 
 function getSession() {
@@ -66,6 +68,14 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   try {
     const imageId = Number(new URL(req.url).searchParams.get('imageId'));
     if (!imageId) return NextResponse.json({ success: false, error: 'imageId required' }, { status: 400 });
+
+    // If stored on Volume, delete the file from disk first
+    const record = await ImsImagesRepo.get(imageId);
+    if (record?.source === 'volume' && record.drive_file_id) {
+      const filePath = path.join(process.env.UPLOAD_BASE_PATH ?? './uploads', 'product-images', record.drive_file_id);
+      try { fs.unlinkSync(filePath); } catch { /* already gone */ }
+    }
+
     await ImsImagesRepo.delete(imageId, params.id);
     return NextResponse.json({ success: true });
   } catch (e: any) {

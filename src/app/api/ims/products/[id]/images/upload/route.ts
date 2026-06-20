@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import fs from 'fs';
+import path from 'path';
 import { ImsImagesRepo } from '@/lib/ims/ImsRepository';
-import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
-import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -10,27 +10,14 @@ function getSession() {
   try { return JSON.parse(c.value); } catch { return null; }
 }
 
-const SETTING_KEY = 'images_drive_folder_id';
-const FOLDER_NAME = 'IMS Product Images';
 const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8 MB
 const ALLOWED_TYPES  = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const EXT_MAP: Record<string, string> = {
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif',
+};
 
-/** Get or create the Drive folder for this business, storing the ID in ims_settings. */
-async function getOrCreateFolder(businessId: string, sheets: GoogleSheetsService): Promise<string> {
-  const rows = await imsQuery<{ value: string }>(
-    `SELECT value FROM ims_settings WHERE business_id = ? AND \`key\` = ?`,
-    [businessId, SETTING_KEY],
-  );
-  if (rows[0]?.value) return rows[0].value;
-
-  // Create folder at Drive root (no parent) — service account root
-  const folderId = await sheets.createFolder(FOLDER_NAME);
-  await imsExecute(
-    `INSERT INTO ims_settings (business_id, \`key\`, value) VALUES (?, ?, ?)
-     ON DUPLICATE KEY UPDATE value = VALUES(value)`,
-    [businessId, SETTING_KEY, folderId],
-  );
-  return folderId;
+function getImagesDir(): string {
+  return path.join(process.env.UPLOAD_BASE_PATH ?? './uploads', 'product-images');
 }
 
 /**
@@ -56,28 +43,25 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const altText   = (formData.get('alt_text') as string | null) ?? undefined;
     const isPrimary = formData.get('is_primary') === '1';
 
-    // Convert file to base64
-    const arrayBuffer = await file.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString('base64');
+    // Write to Volume: product-images/{productId}-{timestamp}.{ext}
+    const ext      = EXT_MAP[file.type] ?? 'jpg';
+    const safeId   = params.id.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename = `${safeId}-${Date.now()}.${ext}`;
+    const dir      = getImagesDir();
+    fs.mkdirSync(dir, { recursive: true });
+    const buffer   = Buffer.from(await file.arrayBuffer());
+    fs.writeFileSync(path.join(dir, filename), buffer);
 
-    // Get or create Drive folder for this business
-    const sheets   = new GoogleSheetsService();
-    const folderId = await getOrCreateFolder(session.userSpreadsheetId, sheets);
-
-    // Upload to Drive, get public URL
-    const ext      = file.type.split('/')[1] ?? 'jpg';
-    const filename = `${params.id}-${Date.now()}.${ext}`;
-    const url      = await sheets.uploadFileToDrive(base64, file.type, filename, folderId);
-
-    // Extract Drive file ID from URL for future reference
-    const driveFileId = url.match(/[?&]id=([^&]+)/)?.[1];
-
-    // Save record in IMS
-    const imageId = await ImsImagesRepo.add(params.id, url, 'google_drive', {
-      driveFileId,
+    // Placeholder URL — updated after we have the imageId
+    const imageId = await ImsImagesRepo.add(params.id, '', 'volume', {
+      driveFileId: filename,
       altText,
       isPrimary,
     });
+
+    // URL points to the serve route
+    const url = `/api/ims/products/${params.id}/images/${imageId}/file`;
+    await ImsImagesRepo.updateUrl(imageId, url);
 
     return NextResponse.json({ success: true, id: imageId, url });
   } catch (e: any) {

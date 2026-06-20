@@ -1981,7 +1981,7 @@ export interface ImsProductImage {
   id: number;
   product_id: string;
   url: string;
-  source: 'shopify' | 'google_drive' | 'external';
+  source: 'shopify' | 'google_drive' | 'external' | 'volume';
   drive_file_id?: string;
   is_primary: number;
   sort_order: number;
@@ -1995,6 +1995,14 @@ export const ImsImagesRepo = {
       `SELECT * FROM ims_product_images WHERE product_id = ? ORDER BY is_primary DESC, sort_order ASC, id ASC`,
       [productId],
     );
+  },
+
+  async get(id: number): Promise<ImsProductImage | null> {
+    const rows = await imsQuery<ImsProductImage>(
+      `SELECT * FROM ims_product_images WHERE id = ?`,
+      [id],
+    );
+    return rows[0] ?? null;
   },
 
   async add(
@@ -2048,6 +2056,10 @@ export const ImsImagesRepo = {
       `UPDATE ims_product_images SET is_primary = 1 WHERE id = ? AND product_id = ?`,
       [id, productId],
     );
+  },
+
+  async updateUrl(id: number, url: string): Promise<void> {
+    await imsExecute(`UPDATE ims_product_images SET url = ? WHERE id = ?`, [url, id]);
   },
 
   async delete(id: number, productId: string): Promise<void> {
