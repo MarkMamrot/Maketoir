@@ -396,6 +396,7 @@ export async function POST(req: Request) {
             const zone        = p.customFields?.products_1001 ? String(p.customFields.products_1001).trim() : null;
             const bin         = p.customFields?.products_1002 ? String(p.customFields.products_1002).trim() : null;
             const productType = (p.category || p.productType || null) as string | null;
+            const normType   = (productType && productType.toLowerCase() !== 'unassigned') ? productType : null;
             const createdAt   = p.createdDate ? String(p.createdDate).slice(0, 10) : null;
             const tagsJson   = p.tags
               ? (Array.isArray(p.tags) ? JSON.stringify(p.tags) : String(p.tags))
@@ -412,7 +413,7 @@ export async function POST(req: Request) {
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                   imsProdId, (p.name || '').trim() || 'Unknown',
-                  p.description || null, productType, p.brand || null,
+                  p.description || null, normType, p.brand || null,
                   tagsJson, p.styleCode || null,
                   isActive, isOnline, supplierContactId, cin7Id,
                   packSize, zone, bin, createdAt,
@@ -425,14 +426,14 @@ export async function POST(req: Request) {
               await imsExecute(
                 `UPDATE ims_products
                  SET name = ?, description = COALESCE(?, description),
-                     product_type = COALESCE(?, product_type), brand = ?,
+                     product_type = ?, brand = ?,
                      tags = ?, style_code = ?, is_active = ?, is_online = ?,
                      supplier_contact_id = ?, pack_size = ?, zone = ?, bin = ?,
                      updated_at = CURRENT_TIMESTAMP
                  WHERE product_id = ?`,
                 [
                   (p.name || '').trim() || 'Unknown',
-                  p.description || null, productType, p.brand || null,
+                  p.description || null, normType, p.brand || null,
                   tagsJson, p.styleCode || null,
                   isActive, isOnline, supplierContactId, packSize, zone, bin,
                   imsProdId,
