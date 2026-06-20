@@ -19,6 +19,14 @@ function safeDate(val: any): string | null {
   return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
 }
 
+async function ensureItemColumns() {
+  try {
+    await imsExecute(`ALTER TABLE ims_purchase_order_items
+      ADD COLUMN IF NOT EXISTS name_raw VARCHAR(255) NULL,
+      ADD COLUMN IF NOT EXISTS sku_raw VARCHAR(100) NULL`, []);
+  } catch { /* already exists or unsupported — ignore */ }
+}
+
 export async function POST() {
   const session = getImportSession();
   if (!session) return new Response('Unauthorized', { status: 401 });
@@ -26,6 +34,7 @@ export async function POST() {
 
   return makeSSEStream(async (send) => {
     send({ status: 'running', message: 'Connecting to Cin7 API...' });
+    await ensureItemColumns();
 
     let creds: Awaited<ReturnType<typeof getCin7Credentials>>;
     try {
@@ -146,17 +155,18 @@ export async function POST() {
         for (const line of lines) {
           const variantId = (line.code ? variantBySkuMap.get(line.code) : undefined)
             ?? variantMap.get(Number(line.productOptionId)) ?? null;
-          if (!variantId) continue;
           const qty         = Number(line.qty ?? 0);
           const unitCost    = Number(line.unitPrice ?? 0);
           const lineDiscount = Number(line.discount ?? 0);
           const lineTotal   = Math.round(qty * unitCost * (1 - lineDiscount / 100) * 10000) / 10000;
           const qtyReceived = existingStatus === 'received' ? qty : 0;
+          const nameRaw     = (line.name ?? line.description ?? null) as string | null;
+          const skuRaw      = (line.code ?? null) as string | null;
           await imsExecute(
             `INSERT INTO ims_purchase_order_items
-               (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total)
-             VALUES (?, ?, ?, ?, ?, ?, 0, ?)`,
-            [existingPoId, variantId, qty, qtyReceived, unitCost, lineDiscount, lineTotal],
+               (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, name_raw, sku_raw)
+             VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+            [existingPoId, variantId, qty, qtyReceived, unitCost, lineDiscount, lineTotal, nameRaw, skuRaw],
           );
         }
         skipped++;
@@ -198,19 +208,20 @@ export async function POST() {
       for (const line of lines) {
         const variantId = (line.code ? variantBySkuMap.get(line.code) : undefined)
           ?? variantMap.get(Number(line.productOptionId)) ?? null;
-        if (!variantId) continue;
 
         const qty        = Number(line.qty ?? 0);
         const unitCost   = Number(line.unitPrice ?? 0);
         const lineDiscount = Number(line.discount ?? 0);
         const lineTotal  = Math.round(qty * unitCost * (1 - lineDiscount / 100) * 10000) / 10000;
         const qtyReceived = status === 'received' ? qty : 0;
+        const nameRaw    = (line.name ?? line.description ?? null) as string | null;
+        const skuRaw     = (line.code ?? null) as string | null;
 
         await imsExecute(
           `INSERT INTO ims_purchase_order_items
-             (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total)
-           VALUES (?, ?, ?, ?, ?, ?, 0, ?)`,
-          [poId, variantId, qty, qtyReceived, unitCost, lineDiscount, lineTotal],
+             (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, name_raw, sku_raw)
+           VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+          [poId, variantId, qty, qtyReceived, unitCost, lineDiscount, lineTotal, nameRaw, skuRaw],
         );
       }
 
