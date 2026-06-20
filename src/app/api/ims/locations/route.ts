@@ -9,9 +9,11 @@ function getSession() {
 }
 
 export async function GET() {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = getSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const businessId = session.userSpreadsheetId as string;
   try {
-    const data = await ImsLocationsRepo.list();
+    const data = await ImsLocationsRepo.list(businessId);
     return NextResponse.json({ success: true, data });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
@@ -19,10 +21,12 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = getSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const businessId = session.userSpreadsheetId as string;
   try {
     const body = await req.json();
-    const id = await ImsLocationsRepo.create(body);
+    const id = await ImsLocationsRepo.create(body, businessId);
     return NextResponse.json({ success: true, id });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });

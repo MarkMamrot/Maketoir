@@ -10,11 +10,13 @@ function getSession() {
 }
 
 export async function GET(req: Request) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = getSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const businessId = session.userSpreadsheetId as string;
   try {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status') as any ?? undefined;
-    const data = await ImsSORepo.list(status);
+    const data = await ImsSORepo.list(status, businessId);
     return NextResponse.json({ success: true, data });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
@@ -22,11 +24,13 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = getSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const businessId = session.userSpreadsheetId as string;
   try {
     const body = await req.json();
     const { items, ...soData } = body;
-    const id = await ImsSORepo.create(soData, items ?? []);
+    const id = await ImsSORepo.create(soData, items ?? [], businessId);
 
     // EVENT-DRIVEN CACHE UPDATE (Creation affects committed stock)
     if (items && items.length > 0) {

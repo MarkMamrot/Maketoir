@@ -187,9 +187,10 @@ async function nextSONumber(): Promise<string> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const ImsContactsRepo = {
-  async list(type?: ContactType, activeOnly?: boolean): Promise<ImsContact[]> {
+  async list(type?: ContactType, activeOnly?: boolean, businessId?: string): Promise<ImsContact[]> {
     const wheres: string[] = [];
     const params: any[] = [];
+    if (businessId) { wheres.push('business_id = ?'); params.push(businessId); }
     if (type) { wheres.push(`(type = ? OR type = 'both')`); params.push(type); }
     if (activeOnly) { wheres.push('is_active = 1'); }
     const where = wheres.length ? 'WHERE ' + wheres.join(' AND ') : '';
@@ -204,11 +205,11 @@ export const ImsContactsRepo = {
     return rows[0] ?? null;
   },
 
-  async create(data: Omit<ImsContact, 'id' | 'created_at' | 'updated_at'>): Promise<number> {
+  async create(data: Omit<ImsContact, 'id' | 'created_at' | 'updated_at'>, businessId?: string): Promise<number> {
     const res = await imsExecute(
-      `INSERT INTO ims_contacts (type,name,company,email,phone,address,city,state,postcode,country,notes,is_active,cin7_supplier_id,lead_time_days,order_frequency_days,price_tier,charges_tax,prices_include_tax,tax_rate)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [data.type, data.name, data.company, data.email, data.phone,
+      `INSERT INTO ims_contacts (business_id,type,name,company,email,phone,address,city,state,postcode,country,notes,is_active,cin7_supplier_id,lead_time_days,order_frequency_days,price_tier,charges_tax,prices_include_tax,tax_rate)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [businessId ?? '', data.type, data.name, data.company, data.email, data.phone,
        data.address, data.city, data.state, data.postcode, data.country,
        data.notes, data.is_active ?? 1, data.cin7_supplier_id ?? null, data.lead_time_days ?? null,
        data.order_frequency_days ?? 45,
@@ -243,8 +244,10 @@ export const ImsContactsRepo = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const ImsLocationsRepo = {
-  async list(): Promise<ImsLocation[]> {
-    return imsQuery<ImsLocation>(`SELECT * FROM ims_locations ORDER BY name`);
+  async list(businessId?: string): Promise<ImsLocation[]> {
+    const where = businessId ? 'WHERE business_id = ?' : '';
+    const params = businessId ? [businessId] : [];
+    return imsQuery<ImsLocation>(`SELECT * FROM ims_locations ${where} ORDER BY name`, params);
   },
 
   async get(id: number): Promise<ImsLocation | null> {
@@ -252,11 +255,11 @@ export const ImsLocationsRepo = {
     return rows[0] ?? null;
   },
 
-  async create(data: Omit<ImsLocation, 'id' | 'created_at' | 'updated_at'>): Promise<number> {
+  async create(data: Omit<ImsLocation, 'id' | 'created_at' | 'updated_at'>, businessId?: string): Promise<number> {
     const res = await imsExecute(
-      `INSERT INTO ims_locations (name,code,address,city,state,postcode,country,is_active,cin7_branch_id)
-       VALUES (?,?,?,?,?,?,?,?,?)`,
-      [data.name, data.code, data.address, data.city, data.state,
+      `INSERT INTO ims_locations (business_id,name,code,address,city,state,postcode,country,is_active,cin7_branch_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      [businessId ?? '', data.name, data.code, data.address, data.city, data.state,
        data.postcode, data.country, data.is_active ?? 1, data.cin7_branch_id ?? null]
     );
     return res.insertId;
@@ -287,15 +290,21 @@ export const ImsLocationsRepo = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const ImsProductsRepo = {
-  async list(): Promise<ImsProduct[]> {
+  async list(businessId?: string): Promise<ImsProduct[]> {
+    const where = businessId ? 'WHERE p.business_id = ?' : '';
+    const params = businessId ? [businessId] : [];
     const products = await imsQuery<ImsProduct>(
       `SELECT p.*, c.name AS supplier_name, c.is_active AS supplier_is_active
        FROM ims_products p
        LEFT JOIN ims_contacts c ON c.id = p.supplier_contact_id
-       ORDER BY p.created_at DESC`
+       ${where}
+       ORDER BY p.created_at DESC`,
+      params
     );
+    const variantWhere = businessId ? 'WHERE business_id = ?' : '';
     const variants = await imsQuery<ImsVariant>(
-      `SELECT * FROM ims_product_variants ORDER BY sku`
+      `SELECT * FROM ims_product_variants ${variantWhere} ORDER BY sku`,
+      params
     );
     const byProduct = new Map<string, ImsVariant[]>();
     for (const v of variants) {
@@ -317,13 +326,14 @@ export const ImsProductsRepo = {
   },
 
   async create(
-    data: Omit<ImsProduct, 'id' | 'created_at' | 'updated_at' | 'variants'>
+    data: Omit<ImsProduct, 'id' | 'created_at' | 'updated_at' | 'variants'>,
+    businessId?: string
   ): Promise<string> {
     const product_id = data.product_id || uuidv4();
     await imsExecute(
-      `INSERT INTO ims_products (product_id,name,description,product_type,brand,tags,is_active,shopify_product_id,style_code,is_online,supplier_contact_id,cin7_product_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [product_id, data.name, data.description ?? null, data.product_type ?? null, data.brand ?? null,
+      `INSERT INTO ims_products (business_id,product_id,name,description,product_type,brand,tags,is_active,shopify_product_id,style_code,is_online,supplier_contact_id,cin7_product_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [businessId ?? '', product_id, data.name, data.description ?? null, data.product_type ?? null, data.brand ?? null,
        data.tags ?? null, data.is_active ?? 1, data.shopify_product_id ?? null,
        data.style_code ?? null, data.is_online ?? 1, data.supplier_contact_id ?? null, data.cin7_product_id ?? null]
     );
@@ -363,12 +373,16 @@ export const ImsProductsRepo = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const ImsVariantsRepo = {
-  async listAll(): Promise<ImsVariant[]> {
+  async listAll(businessId?: string): Promise<ImsVariant[]> {
+    const where = businessId ? 'WHERE v.business_id = ?' : '';
+    const params = businessId ? [businessId] : [];
     return imsQuery<ImsVariant>(
       `SELECT v.*, p.name AS product_name
        FROM ims_product_variants v
        JOIN ims_products p ON p.product_id = v.product_id
-       ORDER BY p.name, v.sku`
+       ${where}
+       ORDER BY p.name, v.sku`,
+      params
     );
   },
 
@@ -470,12 +484,14 @@ export const ImsVariantsRepo = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const ImsBrandsRepo = {
-  async list(): Promise<{ id: number; name: string; created_at: string }[]> {
-    return imsQuery('SELECT id, name, created_at FROM ims_brands ORDER BY name');
+  async list(businessId?: string): Promise<{ id: number; name: string; created_at: string }[]> {
+    const where = businessId ? 'WHERE business_id = ?' : '';
+    const params = businessId ? [businessId] : [];
+    return imsQuery(`SELECT id, name, created_at FROM ims_brands ${where} ORDER BY name`, params);
   },
 
-  async create(name: string): Promise<number> {
-    const res = await imsExecute('INSERT INTO ims_brands (name) VALUES (?)', [name.trim()]);
+  async create(name: string, businessId?: string): Promise<number> {
+    const res = await imsExecute('INSERT INTO ims_brands (business_id, name) VALUES (?, ?)', [businessId ?? '', name.trim()]);
     return (res as any).insertId;
   },
 
@@ -493,9 +509,10 @@ export const ImsBrandsRepo = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const ImsStockRepo = {
-  async list(variantId?: string, locationId?: number): Promise<ImsStock[]> {
+  async list(variantId?: string, locationId?: number, businessId?: string): Promise<ImsStock[]> {
     const wheres: string[] = [];
     const params: any[] = [];
+    if (businessId) { wheres.push('s.business_id = ?'); params.push(businessId); }
     if (variantId) { wheres.push('s.variant_id = ?'); params.push(variantId); }
     if (locationId) { wheres.push('s.location_id = ?'); params.push(locationId); }
     const where = wheres.length ? 'WHERE ' + wheres.join(' AND ') : '';
@@ -557,7 +574,9 @@ export const ImsStockRepo = {
     );
   },
 
-  async getLowStock(): Promise<ImsStock[]> {
+  async getLowStock(businessId?: string): Promise<ImsStock[]> {
+    const where = businessId ? 'AND s.business_id = ?' : '';
+    const params = businessId ? [businessId] : [];
     return imsQuery<ImsStock>(
       `SELECT s.*,
               v.sku, p.name AS product_name,
@@ -571,8 +590,9 @@ export const ImsStockRepo = {
        JOIN ims_product_variants v ON v.variant_id = s.variant_id
        JOIN ims_products p ON p.product_id = v.product_id
        JOIN ims_locations l ON l.id = s.location_id
-       WHERE s.qty_on_hand <= s.min_qty AND s.min_qty > 0
-       ORDER BY (s.qty_on_hand - s.min_qty) ASC`
+       WHERE s.qty_on_hand <= s.min_qty AND s.min_qty > 0 ${where}
+       ORDER BY (s.qty_on_hand - s.min_qty) ASC`,
+      params
     );
   },
 };
@@ -582,9 +602,12 @@ export const ImsStockRepo = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const ImsPORepo = {
-  async list(status?: POStatus): Promise<ImsPO[]> {
-    const where = status ? 'WHERE po.status = ?' : '';
-    const params = status ? [status] : [];
+  async list(status?: POStatus, businessId?: string): Promise<ImsPO[]> {
+    const wheres: string[] = [];
+    const params: any[] = [];
+    if (businessId) { wheres.push('po.business_id = ?'); params.push(businessId); }
+    if (status) { wheres.push('po.status = ?'); params.push(status); }
+    const where = wheres.length ? 'WHERE ' + wheres.join(' AND ') : '';
     try {
       return await imsQuery<ImsPO>(
         `SELECT po.*,
@@ -738,6 +761,7 @@ export const ImsPORepo = {
     data: Omit<ImsPO, 'id' | 'created_at' | 'updated_at' | 'supplier_name' | 'location_name' | 'items'>,
     items: Omit<ImsPOItem, 'id' | 'po_id' | 'qty_received' | 'sku' | 'product_name' | 'variant_label'>[],
     landedCosts?: LandedCostRow[],
+    businessId?: string,
   ): Promise<number> {
     const po_number = data.po_number || await nextPONumber();
     const taxTreatment = data.tax_treatment ?? 'ex_tax';
@@ -764,11 +788,11 @@ export const ImsPORepo = {
 
     const res = await imsExecute(
       `INSERT INTO ims_purchase_orders
-         (po_number,supplier_id,location_id,status,order_date,expected_date,notes,
+         (business_id,po_number,supplier_id,location_id,status,order_date,expected_date,notes,
           supplier_invoice_number,payment_terms,tax_treatment,tax_code,currency_code,exchange_rate,
           freight,discount,subtotal,tax_amount,total_amount)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [po_number, data.supplier_id ?? null, data.location_id, 'draft',
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [businessId ?? '', po_number, data.supplier_id ?? null, data.location_id, 'draft',
        data.order_date, data.expected_date ?? null, data.notes ?? null,
        data.supplier_invoice_number ?? null, data.payment_terms ?? null,
        data.tax_treatment ?? 'ex_tax', data.tax_code ?? null,
@@ -1122,9 +1146,12 @@ export const ImsPORepo = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const ImsSORepo = {
-  async list(status?: SOStatus): Promise<ImsSO[]> {
-    const where = status ? 'WHERE so.so_type = \'b2b\' AND so.status = ?' : 'WHERE so.so_type = \'b2b\'';
-    const params = status ? [status] : [];
+  async list(status?: SOStatus, businessId?: string): Promise<ImsSO[]> {
+    const wheres: string[] = ["so.so_type = 'b2b'"];
+    const params: any[] = [];
+    if (businessId) { wheres.push('so.business_id = ?'); params.push(businessId); }
+    if (status) { wheres.push('so.status = ?'); params.push(status); }
+    const where = 'WHERE ' + wheres.join(' AND ');
     try {
       return await imsQuery<ImsSO>(
         `SELECT so.*,
@@ -1247,6 +1274,7 @@ export const ImsSORepo = {
   async create(
     data: Omit<ImsSO, 'id' | 'created_at' | 'updated_at' | 'customer_name' | 'location_name' | 'items'>,
     items: Omit<ImsSOItem, 'id' | 'so_id' | 'qty_fulfilled' | 'unit_cost' | 'sku' | 'product_name' | 'variant_label'>[],
+    businessId?: string,
   ): Promise<number> {
     const so_number = data.so_number || await nextSONumber();
     let subtotal = 0, tax_amount = 0;
@@ -1261,10 +1289,10 @@ export const ImsSORepo = {
 
     const res = await imsExecute(
       `INSERT INTO ims_sales_orders
-         (so_number,customer_id,location_id,status,order_date,expected_date,notes,
+         (business_id,so_number,customer_id,location_id,status,order_date,expected_date,notes,
           payment_terms,tax_code,freight,discount,subtotal,tax_amount,total_amount,shopify_order_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [so_number, data.customer_id ?? null, data.location_id, 'draft',
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [businessId ?? '', so_number, data.customer_id ?? null, data.location_id, 'draft',
        data.order_date, data.expected_date ?? null, data.notes ?? null,
        data.payment_terms ?? null, data.tax_code ?? null, soFreight, soDiscount,
        subtotal, tax_amount, subtotal + tax_amount + soFreight - soDiscount, data.shopify_order_id ?? null]
@@ -1478,38 +1506,42 @@ export const ImsSORepo = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const ImsDashboardRepo = {
-  async getStats() {
+  async getStats(businessId?: string) {
+    const biz = businessId ? 'WHERE business_id = ?' : '';
+    const p = businessId ? [businessId] : [];
     const [products] = await imsQuery<{ cnt: number }>(
-      `SELECT COUNT(*) AS cnt FROM ims_products WHERE is_active = 1`
+      `SELECT COUNT(*) AS cnt FROM ims_products WHERE is_active = 1 ${businessId ? 'AND business_id = ?' : ''}`, p
     );
     const [variants] = await imsQuery<{ cnt: number }>(
-      `SELECT COUNT(*) AS cnt FROM ims_product_variants WHERE is_active = 1`
+      `SELECT COUNT(*) AS cnt FROM ims_product_variants WHERE is_active = 1 ${businessId ? 'AND business_id = ?' : ''}`, p
     );
     const [locations] = await imsQuery<{ cnt: number }>(
-      `SELECT COUNT(*) AS cnt FROM ims_locations WHERE is_active = 1`
+      `SELECT COUNT(*) AS cnt FROM ims_locations WHERE is_active = 1 ${businessId ? 'AND business_id = ?' : ''}`, p
     );
     const [openPOs] = await imsQuery<{ cnt: number }>(
-      `SELECT COUNT(*) AS cnt FROM ims_purchase_orders WHERE status IN ('draft','approved')`
+      `SELECT COUNT(*) AS cnt FROM ims_purchase_orders WHERE status IN ('draft','approved') ${businessId ? 'AND business_id = ?' : ''}`, p
     );
     const [openSOs] = await imsQuery<{ cnt: number }>(
-      `SELECT COUNT(*) AS cnt FROM ims_sales_orders WHERE status IN ('draft','confirmed')`
+      `SELECT COUNT(*) AS cnt FROM ims_sales_orders WHERE status IN ('draft','confirmed') ${businessId ? 'AND business_id = ?' : ''}`, p
     );
     const [lowStock] = await imsQuery<{ cnt: number }>(
-      `SELECT COUNT(*) AS cnt FROM ims_stock WHERE qty_on_hand <= min_qty AND min_qty > 0`
+      `SELECT COUNT(*) AS cnt FROM ims_stock WHERE qty_on_hand <= min_qty AND min_qty > 0 ${businessId ? 'AND business_id = ?' : ''}`, p
     );
     const recentPOs = await imsQuery<ImsPO>(
       `SELECT po.*, COALESCE(c.name, po.supplier_name_raw) AS supplier_name, l.name AS location_name
        FROM ims_purchase_orders po
        LEFT JOIN ims_contacts c ON c.id = po.supplier_id
        JOIN ims_locations l ON l.id = po.location_id
-       ORDER BY po.created_at DESC LIMIT 5`
+       ${businessId ? 'WHERE po.business_id = ?' : ''}
+       ORDER BY po.created_at DESC LIMIT 5`, p
     );
     const recentSOs = await imsQuery<ImsSO>(
       `SELECT so.*, c.name AS customer_name, l.name AS location_name
        FROM ims_sales_orders so
        LEFT JOIN ims_contacts c ON c.id = so.customer_id
        JOIN ims_locations l ON l.id = so.location_id
-       ORDER BY so.created_at DESC LIMIT 5`
+       ${businessId ? 'WHERE so.business_id = ?' : ''}
+       ORDER BY so.created_at DESC LIMIT 5`, p
     );
     return {
       products:  products?.cnt  ?? 0,
@@ -1529,7 +1561,9 @@ export const ImsDashboardRepo = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const ImsStocktakeRepo = {
-  async list(): Promise<ImsStocktake[]> {
+  async list(businessId?: string): Promise<ImsStocktake[]> {
+    const where = businessId ? 'WHERE st.business_id = ?' : '';
+    const params = businessId ? [businessId] : [];
     return imsQuery<ImsStocktake>(
       `SELECT st.*,
               l.name AS location_name,
@@ -1538,8 +1572,10 @@ export const ImsStocktakeRepo = {
        FROM ims_stocktakes st
        JOIN ims_locations l ON l.id = st.location_id
        LEFT JOIN ims_stocktake_items i ON i.stocktake_id = st.id
+       ${where}
        GROUP BY st.id
-       ORDER BY st.created_at DESC`
+       ORDER BY st.created_at DESC`,
+      params
     );
   },
 

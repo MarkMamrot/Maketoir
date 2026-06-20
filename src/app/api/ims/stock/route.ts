@@ -10,12 +10,14 @@ function getSession() {
 }
 
 export async function GET(req: Request) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = getSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const businessId = session.userSpreadsheetId as string;
   try {
     const { searchParams } = new URL(req.url);
     const variantId  = searchParams.get('variant_id') ?? undefined;
     const locationId = searchParams.get('location_id') ? Number(searchParams.get('location_id')) : undefined;
-    const data = await ImsStockRepo.list(variantId, locationId);
+    const data = await ImsStockRepo.list(variantId, locationId, businessId);
     return NextResponse.json({ success: true, data });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });

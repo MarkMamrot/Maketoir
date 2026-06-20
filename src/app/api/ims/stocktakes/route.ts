@@ -4,8 +4,10 @@ import { ImsStocktakeRepo } from '@/lib/ims/ImsRepository';
 
 export async function GET() {
   try {
-    await getImportSession();
-    const list = await ImsStocktakeRepo.list();
+    const session = getImportSession();
+    if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    const businessId = session.userSpreadsheetId as string;
+    const list = await ImsStocktakeRepo.list(businessId);
     return NextResponse.json(list);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 400 });

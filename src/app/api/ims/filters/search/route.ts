@@ -39,6 +39,8 @@ export async function GET(req: Request) {
 
   const like = `%${q}%`;
   const exactLike = `${q}%`;
+  const session = getSession();
+  const businessId = session?.userSpreadsheetId as string | undefined;
 
   // ── 1. Product variant suggestions ──────────────────────────────────────────
   let productSuggestions: FilterSuggestion[] = [];
@@ -66,6 +68,7 @@ export async function GET(req: Request) {
       JOIN ims_products p ON p.product_id = v.product_id
       WHERE v.is_active = 1
         AND p.is_active = 1
+        ${businessId ? 'AND p.business_id = ?' : ''}
         AND (
           v.sku      LIKE ? OR
           v.barcode  LIKE ? OR
@@ -73,7 +76,7 @@ export async function GET(req: Request) {
         )
       ORDER BY p.name, v.sku
       LIMIT ${limit}
-    `, [like, like, like]);
+    `, businessId ? [businessId, like, like, like] : [like, like, like]);
 
     productSuggestions = productRows.map(r => {
       const nameParts = [r.product_name, r.option_label].filter(Boolean);

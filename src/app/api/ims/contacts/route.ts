@@ -19,13 +19,15 @@ function getSession() {
 }
 
 export async function GET(req: Request) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = getSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const businessId = session.userSpreadsheetId as string;
   try {
     await ensureMigration();
     const { searchParams } = new URL(req.url);
     const type = searchParams.get('type') as any ?? undefined;
     const activeOnly = searchParams.get('active') === '1';
-    const data = await ImsContactsRepo.list(type, activeOnly);
+    const data = await ImsContactsRepo.list(type, activeOnly, businessId);
     return NextResponse.json({ success: true, data });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
@@ -33,10 +35,12 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = getSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const businessId = session.userSpreadsheetId as string;
   try {
     const body = await req.json();
-    const id = await ImsContactsRepo.create(body);
+    const id = await ImsContactsRepo.create(body, businessId);
     return NextResponse.json({ success: true, id });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
