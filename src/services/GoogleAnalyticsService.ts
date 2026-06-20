@@ -16,6 +16,8 @@ export class GoogleAnalyticsService {
         client_email: process.env.GOOGLE_CLIENT_EMAIL,
         private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
       };
+    } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+      authOptions.credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
     } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS_BASE64) {
       const credentials = JSON.parse(
         Buffer.from(process.env.GOOGLE_APPLICATION_CREDENTIALS_BASE64, 'base64').toString('ascii')
