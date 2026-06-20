@@ -4,12 +4,19 @@ import { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 
+const DESTINATIONS = [
+  { key: 'ims',       label: 'IMS',       desc: 'Inventory Management',  path: '/ims',       icon: '📦' },
+  { key: 'foresight', label: 'Foresight',  desc: 'Analytics & Marketing', path: '/dashboard', icon: '📊' },
+  { key: 'pos',       label: 'POS',        desc: 'Point of Sale',         path: '/pos',       icon: '🛒' },
+];
+
 function LoginForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const justRegistered = searchParams.get('registered') === '1';
   const justInvited = searchParams.get('invited') === '1';
 
+  const [destination, setDestination] = useState('ims');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -27,7 +34,8 @@ function LoginForm() {
       });
       const data = await res.json();
       if (data.success) {
-        router.push('/dashboard');
+        const dest = DESTINATIONS.find(d => d.key === destination)?.path ?? '/dashboard';
+        router.push(dest);
       } else {
         setError(data.error || 'Login failed.');
       }
@@ -54,6 +62,24 @@ function LoginForm() {
           </div>
         )}
 
+        {/* Destination selector */}
+        <div className="mb-5">
+          <label className="text-xs font-bold text-gray-600 uppercase block mb-2">Sign in to</label>
+          <div className="grid grid-cols-3 gap-2">
+            {DESTINATIONS.map(d => (
+              <button key={d.key} type="button" onClick={() => setDestination(d.key)}
+                className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all text-sm font-semibold
+                  ${destination === d.key
+                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'}`}>
+                <span className="text-xl">{d.icon}</span>
+                <span>{d.label}</span>
+                <span className="text-xs font-normal text-gray-400">{d.desc}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <form onSubmit={handleLogin} className="flex flex-col gap-4">
           <div>
             <label className="text-xs font-bold text-gray-600 uppercase">Email Address</label>
@@ -79,7 +105,7 @@ function LoginForm() {
 
           <button type="submit" disabled={loading}
             className="w-full py-3 mt-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50">
-            {loading ? 'Authenticating...' : 'Sign In'}
+            {loading ? 'Authenticating...' : `Sign in to ${DESTINATIONS.find(d => d.key === destination)?.label}`}
           </button>
         </form>
 
