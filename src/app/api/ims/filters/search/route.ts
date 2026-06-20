@@ -49,7 +49,6 @@ export async function GET(req: Request) {
       barcode: string | null;
       product_name: string;
       brand: string | null;
-      product_type: string | null;
       option_label: string | null;
     }>(`
       SELECT
@@ -58,7 +57,6 @@ export async function GET(req: Request) {
         v.barcode,
         p.name AS product_name,
         p.brand,
-        p.product_type,
         TRIM(BOTH ' / ' FROM CONCAT_WS(' / ',
           NULLIF(TRIM(COALESCE(v.option1_value,'')), ''),
           NULLIF(TRIM(COALESCE(v.option2_value,'')), ''),
@@ -91,7 +89,6 @@ export async function GET(req: Request) {
       const metaParts: string[] = [];
       if (r.sku) metaParts.push(`SKU: ${r.sku}`);
       if (r.barcode) metaParts.push(`Barcode: ${r.barcode}`);
-      if (r.product_type) metaParts.push(r.product_type);
       return {
         type: 'product' as const,
         value: r.variant_id,
