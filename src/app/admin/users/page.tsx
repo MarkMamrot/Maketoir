@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import styles from '@/styles/Dashboard.module.css';
 
 interface User {
   id: number;
@@ -163,7 +162,7 @@ export default function AdminUsersPage() {
   };
 
   if (loading) {
-    return <div className={styles.container}><p>Loading...</p></div>;
+    return <div className="max-w-4xl mx-auto p-6"><p>Loading...</p></div>;
   }
 
   const tierColors: Record<string, string> = {
@@ -174,7 +173,7 @@ export default function AdminUsersPage() {
   };
 
   return (
-    <div className={styles.container}>
+    <div className="max-w-4xl mx-auto p-6">
       <style>{`
         .admin-header {
           display: flex;
