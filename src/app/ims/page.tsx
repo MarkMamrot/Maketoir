@@ -13,7 +13,7 @@ import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 type ImsView =
   | 'dashboard' | 'products' | 'stock' | 'brands' | 'bulk-edit'
   | 'contacts' | 'locations'
-  | 'purchase-orders' | 'sales-orders' | 'branch-transfers' | 'order-planner'
+  | 'purchase-orders' | 'sales-orders' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
   | 'reports' | 'report-sales-by-branch' | 'report-inventory-valuation' | 'report-product-margin'
   | 'xero' | 'shopify';
@@ -35,8 +35,9 @@ const NAV = [
   { id: '__orders',        label: 'Orders',           section: 'orders', children: [
     { id: 'purchase-orders',  label: 'Purchase Orders' },
     { id: 'sales-orders',     label: 'Sales Orders' },
-    { id: 'branch-transfers', label: 'Branch Transfers' },
-    { id: 'pos-sales',        label: 'POS Sales' },
+    { id: 'branch-transfers',      label: 'Branch Transfers' },
+    { id: 'smart-device-receive', label: '📱 Smart Device Receive' },
+    { id: 'pos-sales',            label: 'POS Sales' },
     { id: 'online-sales',     label: 'Online Sales' },
     { id: 'order-planner',    label: 'Order Planner' },
   ]},
@@ -3286,7 +3287,7 @@ function PurchaseOrdersView() {
       {viewModal.open && viewModal.po && (
         <Modal title={`${viewModal.po.po_number} — ${viewModal.po.status}`} onClose={() => { setViewModal({ open: false, po: null }); setPoPayForm(null); }} wide>
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <POActions po={viewModal.po} onEdit={() => { setViewModal({ open: false, po: null }); openEdit(viewModal.po); }} onDelete={() => { setViewModal({ open: false, po: null }); handleDelete(viewModal.po); }} onStatus={changeStatus} />
+            <POActions po={viewModal.po} onEdit={() => { setViewModal({ open: false, po: null }); openEdit(viewModal.po); }} onDelete={() => { setViewModal({ open: false, po: null }); handleDelete(viewModal.po); }} onStatus={changeStatus} context="view" />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <button
                 onClick={() => { window.open(`/api/ims/purchase-orders/${viewModal.po.id}/pdf`, '_blank'); }}
@@ -3602,7 +3603,7 @@ function PurchaseOrdersView() {
   );
 }
 
-function POActions({ po, onEdit, onDelete, onStatus }: { po: any; onEdit: () => void; onDelete: () => void; onStatus: (po: any, s: string) => void }) {
+function POActions({ po, onEdit, onDelete, onStatus, context = 'list' }: { po: any; onEdit: () => void; onDelete: () => void; onStatus: (po: any, s: string) => void; context?: 'list' | 'view' }) {
   const isOpeningSnapshot =
     po?.po_category === 'opening_stock' ||
     po?.category === 'opening_stock' ||
@@ -3614,12 +3615,12 @@ function POActions({ po, onEdit, onDelete, onStatus }: { po: any; onEdit: () => 
   }
   const btns = [];
   if (po.status === 'draft')    { btns.push(<button key="a" onClick={() => onStatus(po, 'approved')}  style={btnStyle('mint', 'xs')}>Approve</button>); }
-  if (po.status === 'approved') { btns.push(<a key="p" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 Phone</a>); }
-  if (po.status === 'approved') { btns.push(<button key="r" onClick={() => onStatus(po, 'received')}  style={btnStyle('mint', 'xs')}>Receive</button>); }
-  if (po.status === 'approved') { btns.push(<button key="b" onClick={() => onStatus(po, 'draft')}     style={btnStyle('ghost', 'xs')}>Revert</button>); }
+  if (po.status === 'approved') { btns.push(<a key="p" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 {context === 'view' ? 'Smart Device Receive' : 'Receive'}</a>); }
+  if (po.status === 'approved' && context === 'view') { btns.push(<button key="r" onClick={() => onStatus(po, 'received')}  style={btnStyle('mint', 'xs')}>Mark Received</button>); }
+  if (po.status === 'approved' && context !== 'list') { btns.push(<button key="b" onClick={() => onStatus(po, 'draft')}     style={btnStyle('ghost', 'xs')}>Revert</button>); }
   if (po.status !== 'received' && po.status !== 'cancelled') {
     btns.push(<button key="e" onClick={onEdit}  style={btnStyle('ghost', 'xs')}>Edit</button>);
-    btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
+    if (context !== 'list') { btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>); }
   }
   if (po.status === 'cancelled' || po.status === 'draft') {
     btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>);
@@ -7980,7 +7981,7 @@ export default function ImsPage() {
       />
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <Sidebar active={view} onSelect={setView} />
+        <Sidebar active={view} onSelect={(v) => { if (v === 'smart-device-receive') { window.open('/receive', '_blank'); return; } setView(v); }} />
         <main style={{ flex: 1, overflow: 'auto', padding: 28 }}>
           {view === 'dashboard'        && <DashboardView onNav={setView} />}
           {view === 'products'         && <ProductsView />}
