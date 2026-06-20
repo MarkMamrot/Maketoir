@@ -3689,7 +3689,7 @@ function PoAccountingSection({ po, settings }: { po: any; settings: Record<strin
     const cost = Number(item.unit_cost);
     const taxRate = Number(item.tax_rate || 0);
     const lineTotal = qty * cost;
-    const taxAmt = lineTotal * (taxRate / 100);
+    const taxAmt = lineTotal * taxRate;           // taxRate is decimal (0.1 = 10%)
     const lcpu = Number(item.landed_cost_per_unit || 0);
     const trueCostAud = cost * rate + lcpu;
     return { ...item, qty, cost, taxRate, lineTotal, taxAmt, lcpu, trueCostAud };
@@ -3720,7 +3720,7 @@ function PoAccountingSection({ po, settings }: { po: any; settings: Record<strin
   return (
     <div style={{ marginTop: 24, borderTop: '1px dashed var(--sv-etch)', paddingTop: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)' }}>🧮 Accounting Debug</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)' }}>🧮 Accounting</span>
         <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11 }}>hide ↑</button>
       </div>
       <XeroBadge />
@@ -3745,7 +3745,7 @@ function PoAccountingSection({ po, settings }: { po: any; settings: Record<strin
               <td style={{ ...cell, color: 'var(--sv-text-main)' }}>{item.sku || '—'}{item.variant_label ? ` (${item.variant_label})` : ''}</td>
               <td style={num}>{item.qty}</td>
               <td style={num}>{fmtFx(item.cost, currency)}</td>
-              <td style={num}>{item.taxRate > 0 ? `${item.taxRate}%` : '—'}</td>
+              <td style={num}>{item.taxRate > 0 ? `${(item.taxRate * 100).toFixed(0)}%` : '—'}</td>
               <td style={{ ...num, color: 'var(--sv-text-main)' }}>{fmtFx(item.lineTotal, currency)}</td>
               <td style={num}>{item.taxAmt > 0 ? fmtFx(item.taxAmt, currency) : '—'}</td>
               {isFx && <td style={num}>{fmtCurrency(item.lineTotal * rate)}</td>}
@@ -3761,31 +3761,52 @@ function PoAccountingSection({ po, settings }: { po: any; settings: Record<strin
           </tr>
         </tfoot>
       </table>
-      <div style={{ ...dim, marginTop: 3 }}>= qty × unit_cost per line; tax = line × tax_rate%</div>
+      <div style={{ ...dim, marginTop: 3 }}>= qty × unit_cost per line; tax_rate stored as decimal (0.1 = 10%)</div>
 
       {/* B – Order Totals */}
       <div style={lbl}>B — Order Totals</div>
-      <div style={{ display: 'grid', gridTemplateColumns: isFx ? '180px 1fr 1fr' : '180px 1fr', gap: '2px 12px', fontSize: 11 }}>
-        {isFx && <span style={{ ...dim, gridColumn: '2' }}>In {currency}</span>}
-        {isFx && <span style={{ ...dim, gridColumn: '3' }}>In AUD (× {rate.toFixed(4)})</span>}
-        <span style={dim}>Goods subtotal</span>
-        <span style={{ color: 'var(--sv-text-main)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtFx(goodsSubtotal, currency)}</span>
-        {isFx && <span style={{ color: 'var(--sv-text-dim)', textAlign: 'right' }}>{fmtCurrency(goodsSubtotalAud)}</span>}
-        <span style={dim}>Tax ({po.tax_treatment || 'ex_tax'})</span>
-        <span style={{ color: 'var(--sv-text-main)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtFx(taxTotal, currency)}</span>
-        {isFx && <span style={{ color: 'var(--sv-text-dim)', textAlign: 'right' }}>{fmtCurrency(taxTotal * rate)}</span>}
-        {freight > 0 && <><span style={dim}>Freight</span>
-          <span style={{ color: 'var(--sv-text-main)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtFx(freight, currency)}</span>
-          {isFx && <span style={{ color: 'var(--sv-text-dim)', textAlign: 'right' }}>{fmtCurrency(freight * rate)}</span>}</>
-        }
-        {Number(po.discount || 0) > 0 && <><span style={dim}>Discount (−)</span>
-          <span style={{ color: 'var(--sv-red)', textAlign: 'right' }}>−{fmtFx(Number(po.discount), currency)}</span>
-          {isFx && <span style={{ color: 'var(--sv-red)', textAlign: 'right' }}>−{fmtCurrency(Number(po.discount) * rate)}</span>}</>
-        }
-        <span style={{ color: 'var(--sv-text-strong)', fontSize: 11, fontWeight: 700 }}>Order total</span>
-        <span style={{ color: 'var(--sv-text-strong)', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmtFx(Number(po.total_amount), currency)}</span>
-        {isFx && <span style={{ color: 'var(--sv-text-strong)', textAlign: 'right', fontWeight: 700 }}>{fmtCurrency(totalAud)}</span>}
-      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+        {isFx && (
+          <thead>
+            <tr>
+              <td style={cell} />
+              <th style={{ ...num, fontWeight: 600 }}>In {currency}</th>
+              <th style={{ ...num, fontWeight: 600 }}>In AUD (×{rate.toFixed(4)})</th>
+            </tr>
+          </thead>
+        )}
+        <tbody>
+          <tr>
+            <td style={cell}>Goods subtotal</td>
+            <td style={num}>{fmtFx(goodsSubtotal, currency)}</td>
+            {isFx && <td style={{ ...num, color: 'var(--sv-text-dim)' }}>{fmtCurrency(goodsSubtotalAud)}</td>}
+          </tr>
+          <tr>
+            <td style={cell}>Tax ({po.tax_treatment || 'ex_tax'})</td>
+            <td style={num}>{fmtFx(taxTotal, currency)}</td>
+            {isFx && <td style={{ ...num, color: 'var(--sv-text-dim)' }}>{fmtCurrency(taxTotal * rate)}</td>}
+          </tr>
+          {freight > 0 && (
+            <tr>
+              <td style={cell}>Freight</td>
+              <td style={num}>{fmtFx(freight, currency)}</td>
+              {isFx && <td style={{ ...num, color: 'var(--sv-text-dim)' }}>{fmtCurrency(freight * rate)}</td>}
+            </tr>
+          )}
+          {Number(po.discount || 0) > 0 && (
+            <tr>
+              <td style={cell}>Discount (−)</td>
+              <td style={{ ...num, color: 'var(--sv-red)' }}>−{fmtFx(Number(po.discount), currency)}</td>
+              {isFx && <td style={{ ...num, color: 'var(--sv-red)' }}>−{fmtCurrency(Number(po.discount) * rate)}</td>}
+            </tr>
+          )}
+          <tr style={{ borderTop: '2px solid var(--sv-etch)' }}>
+            <td style={{ ...cell, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Order total</td>
+            <td style={{ ...num, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{fmtFx(Number(po.total_amount), currency)}</td>
+            {isFx && <td style={{ ...num, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{fmtCurrency(totalAud)}</td>}
+          </tr>
+        </tbody>
+      </table>
       {totalLanded > 0 && (
         <div style={{ ...dim, marginTop: 4 }}>Landed costs: {fmtCurrency(totalLanded)} AUD (separate invoices — distributed to units on receive, not included in Xero bill)</div>
       )}
@@ -3911,7 +3932,7 @@ function SoAccountingSection({ so, settings }: { so: any; settings: Record<strin
     const taxRate = Number(item.tax_rate || 0);
     const netPrice = price * (1 - discPct / 100);
     const lineNet = qty * netPrice;
-    const taxAmt = lineNet * (taxRate / 100);
+    const taxAmt = lineNet * taxRate;             // taxRate is decimal (0.1 = 10%)
     const cogs = item.unit_cost != null ? qty * Number(item.unit_cost) : null;
     return { ...item, qty, price, discPct, taxRate, netPrice, lineNet, taxAmt, cogs };
   });
@@ -3944,7 +3965,7 @@ function SoAccountingSection({ so, settings }: { so: any; settings: Record<strin
   return (
     <div style={{ marginTop: 24, borderTop: '1px dashed var(--sv-etch)', paddingTop: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)' }}>🧮 Accounting Debug</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)' }}>🧮 Accounting</span>
         <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11 }}>hide ↑</button>
       </div>
       <XeroBadge />
@@ -3985,31 +4006,52 @@ function SoAccountingSection({ so, settings }: { so: any; settings: Record<strin
           </tr>
         </tfoot>
       </table>
-      <div style={{ ...dim, marginTop: 3 }}>= qty × unit_price × (1 − discount_pct%); tax = net_line × tax_rate%</div>
+      <div style={{ ...dim, marginTop: 3 }}>= qty × unit_price × (1 − discount_pct%); tax_rate stored as decimal (0.1 = 10%)</div>
 
       {/* B – Order Totals */}
       <div style={lbl}>B — Order Totals</div>
-      <div style={{ display: 'grid', gridTemplateColumns: isFx ? '180px 1fr 1fr' : '180px 1fr', gap: '2px 12px', fontSize: 11 }}>
-        {isFx && <span style={{ ...dim, gridColumn: '2' }}>In {currency}</span>}
-        {isFx && <span style={{ ...dim, gridColumn: '3' }}>In AUD (× {rate.toFixed(4)})</span>}
-        <span style={dim}>Revenue subtotal</span>
-        <span style={{ color: 'var(--sv-text-main)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtFx(revenueSubtotal, currency)}</span>
-        {isFx && <span style={{ color: 'var(--sv-text-dim)', textAlign: 'right' }}>{fmtCurrency(revenueSubtotalAud)}</span>}
-        {discount > 0 && <><span style={dim}>Order discount (−)</span>
-          <span style={{ color: 'var(--sv-red)', textAlign: 'right' }}>−{fmtFx(discount, currency)}</span>
-          {isFx && <span style={{ color: 'var(--sv-red)', textAlign: 'right' }}>−{fmtCurrency(discount * rate)}</span>}</>
-        }
-        {freight > 0 && <><span style={dim}>Freight (+)</span>
-          <span style={{ color: 'var(--sv-text-main)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>+{fmtFx(freight, currency)}</span>
-          {isFx && <span style={{ color: 'var(--sv-text-dim)', textAlign: 'right' }}>{fmtCurrency(freight * rate)}</span>}</>
-        }
-        <span style={dim}>Tax</span>
-        <span style={{ color: 'var(--sv-text-main)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtFx(taxTotal, currency)}</span>
-        {isFx && <span style={{ color: 'var(--sv-text-dim)', textAlign: 'right' }}>{fmtCurrency(taxTotal * rate)}</span>}
-        <span style={{ color: 'var(--sv-text-strong)', fontSize: 11, fontWeight: 700 }}>Order total</span>
-        <span style={{ color: 'var(--sv-text-strong)', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmtFx(Number(so.total_amount), currency)}</span>
-        {isFx && <span style={{ color: 'var(--sv-text-strong)', textAlign: 'right', fontWeight: 700 }}>{fmtCurrency(totalAud)}</span>}
-      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+        {isFx && (
+          <thead>
+            <tr>
+              <td style={cell} />
+              <th style={{ ...num, fontWeight: 600 }}>In {currency}</th>
+              <th style={{ ...num, fontWeight: 600 }}>In AUD (×{rate.toFixed(4)})</th>
+            </tr>
+          </thead>
+        )}
+        <tbody>
+          <tr>
+            <td style={cell}>Revenue subtotal</td>
+            <td style={num}>{fmtFx(revenueSubtotal, currency)}</td>
+            {isFx && <td style={{ ...num, color: 'var(--sv-text-dim)' }}>{fmtCurrency(revenueSubtotalAud)}</td>}
+          </tr>
+          {discount > 0 && (
+            <tr>
+              <td style={cell}>Order discount (−)</td>
+              <td style={{ ...num, color: 'var(--sv-red)' }}>−{fmtFx(discount, currency)}</td>
+              {isFx && <td style={{ ...num, color: 'var(--sv-red)' }}>−{fmtCurrency(discount * rate)}</td>}
+            </tr>
+          )}
+          {freight > 0 && (
+            <tr>
+              <td style={cell}>Freight (+)</td>
+              <td style={num}>+{fmtFx(freight, currency)}</td>
+              {isFx && <td style={{ ...num, color: 'var(--sv-text-dim)' }}>{fmtCurrency(freight * rate)}</td>}
+            </tr>
+          )}
+          <tr>
+            <td style={cell}>Tax</td>
+            <td style={num}>{fmtFx(taxTotal, currency)}</td>
+            {isFx && <td style={{ ...num, color: 'var(--sv-text-dim)' }}>{fmtCurrency(taxTotal * rate)}</td>}
+          </tr>
+          <tr style={{ borderTop: '2px solid var(--sv-etch)' }}>
+            <td style={{ ...cell, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Order total</td>
+            <td style={{ ...num, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{fmtFx(Number(so.total_amount), currency)}</td>
+            {isFx && <td style={{ ...num, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{fmtCurrency(totalAud)}</td>}
+          </tr>
+        </tbody>
+      </table>
 
       {/* C – COGS & Margin */}
       <div style={lbl}>C — COGS & Gross Margin{!hasCogs ? ' (avg cost unavailable — not yet received into stock?)' : ''}</div>
