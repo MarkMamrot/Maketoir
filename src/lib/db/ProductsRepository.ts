@@ -9,6 +9,7 @@ export interface ProductRow {
   barcode:            string | null;
   name:               string | null;
   brand:              string | null;
+  product_type:       string | null;
   supplier_id:        string | null;
   option_label:       string | null;
   online:             number | null;
@@ -69,15 +70,16 @@ export const ProductsRepository = {
       for (const r of rows) {
         await conn.execute(
           `INSERT INTO products
-             (business_id, cin7_id, option_id, code, style_code, barcode, name, brand,
+             (business_id, cin7_id, option_id, code, style_code, barcode, name, brand, product_type,
               supplier_id, option_label, online, pack_size, cost, retail_price, volume,
               created_date, last_synced_at, global_soh, global_available, global_incoming,
               sales_qty_7d, sales_qty_90d, sales_qty_180d, sales_qty_12m,
               sales_revenue_7d, sales_revenue_90d, sales_revenue_180d, sales_revenue_12m)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE
              cin7_id=VALUES(cin7_id), code=VALUES(code), style_code=VALUES(style_code),
              barcode=VALUES(barcode), name=VALUES(name), brand=VALUES(brand),
+             product_type=VALUES(product_type),
              supplier_id=VALUES(supplier_id), option_label=VALUES(option_label),
              online=VALUES(online), pack_size=VALUES(pack_size), cost=VALUES(cost),
              retail_price=VALUES(retail_price), volume=VALUES(volume),
@@ -89,7 +91,7 @@ export const ProductsRepository = {
              sales_revenue_7d=VALUES(sales_revenue_7d), sales_revenue_90d=VALUES(sales_revenue_90d),
              sales_revenue_180d=VALUES(sales_revenue_180d), sales_revenue_12m=VALUES(sales_revenue_12m)`,
           [businessId, r.cin7_id, r.option_id, r.code ?? null, r.style_code ?? null,
-           r.barcode ?? null, r.name ?? null, r.brand ?? null, r.supplier_id ?? null,
+           r.barcode ?? null, r.name ?? null, r.brand ?? null, r.product_type ?? null, r.supplier_id ?? null,
            r.option_label ?? null, r.online ?? null, r.pack_size ?? null,
            r.cost ?? null, r.retail_price ?? null, r.volume ?? null,
            r.created_date ?? null, r.last_synced_at ?? null,

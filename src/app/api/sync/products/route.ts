@@ -149,6 +149,7 @@ export async function POST(req: Request) {
         barcode:            opt.barcode ?? null,
         name:               p.name ?? null,
         brand:              p.brand ?? null,
+        product_type:       (p.category || p.productType) ?? null,
         supplier_id:        p.supplierId ? String(p.supplierId) : null,
         option_label:       optionParts.length ? optionParts.join(' / ') : null,
         online:             (p.customFields?.products_1004 != null && p.customFields.products_1004 !== '') ? Number(p.customFields.products_1004) : null,
