@@ -72,7 +72,8 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     // If stored on Volume, delete the file from disk first
     const record = await ImsImagesRepo.get(imageId);
     if (record?.source === 'volume' && record.drive_file_id) {
-      const filePath = path.join(process.env.UPLOAD_BASE_PATH ?? './uploads', 'product-images', record.drive_file_id);
+      const session = getSession();
+      const filePath = path.join(process.env.UPLOAD_BASE_PATH ?? './uploads', session!.userSpreadsheetId, 'product-images', record.drive_file_id);
       try { fs.unlinkSync(filePath); } catch { /* already gone */ }
     }
 

@@ -16,8 +16,8 @@ const EXT_MAP: Record<string, string> = {
   'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif',
 };
 
-function getImagesDir(): string {
-  return path.join(process.env.UPLOAD_BASE_PATH ?? './uploads', 'product-images');
+function getImagesDir(businessId: string): string {
+  return path.join(process.env.UPLOAD_BASE_PATH ?? './uploads', businessId, 'product-images');
 }
 
 /**
@@ -43,11 +43,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const altText   = (formData.get('alt_text') as string | null) ?? undefined;
     const isPrimary = formData.get('is_primary') === '1';
 
-    // Write to Volume: product-images/{productId}-{timestamp}.{ext}
+    // Write to Volume: {businessId}/product-images/{productId}-{timestamp}.{ext}
     const ext      = EXT_MAP[file.type] ?? 'jpg';
     const safeId   = params.id.replace(/[^a-zA-Z0-9_-]/g, '_');
     const filename = `${safeId}-${Date.now()}.${ext}`;
-    const dir      = getImagesDir();
+    const dir      = getImagesDir(session.userSpreadsheetId);
     fs.mkdirSync(dir, { recursive: true });
     const buffer   = Buffer.from(await file.arrayBuffer());
     fs.writeFileSync(path.join(dir, filename), buffer);

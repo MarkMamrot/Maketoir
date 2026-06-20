@@ -22,7 +22,8 @@ export async function GET(
   _: Request,
   { params }: { params: { id: string; imageId: string } },
 ) {
-  if (!getSession()) return new Response('Not authenticated', { status: 401 });
+  const session = getSession();
+  if (!session) return new Response('Not authenticated', { status: 401 });
 
   const imageId = Number(params.imageId);
   if (isNaN(imageId)) return new Response('Invalid imageId', { status: 400 });
@@ -38,6 +39,7 @@ export async function GET(
 
   const filePath = path.join(
     process.env.UPLOAD_BASE_PATH ?? './uploads',
+    session.userSpreadsheetId,
     'product-images',
     record.drive_file_id,
   );
