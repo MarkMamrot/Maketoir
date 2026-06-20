@@ -157,10 +157,10 @@ export async function GET(req: Request) {
     }));
 
     const suggestions: FilterSuggestion[] = [
-      ...supplierSuggestions,
-      ...brandSuggestions,
-      ...typeSuggestions,
       ...productSuggestions,
+      ...brandSuggestions,
+      ...supplierSuggestions,
+      ...typeSuggestions,
     ].slice(0, limit);
 
     return NextResponse.json({ suggestions });
