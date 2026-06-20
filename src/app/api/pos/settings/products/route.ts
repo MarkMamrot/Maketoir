@@ -10,8 +10,11 @@ function getAdminSession() {
 
 export async function GET() {
   try {
+    const session = getAdminSession();
+    const businessId = session?.userSpreadsheetId as string | undefined;
     const rows = await imsQuery<{ value: string }>(
-      "SELECT `value` FROM ims_settings WHERE `key` = 'pos_default_product_view' LIMIT 1"
+      `SELECT \`value\` FROM ims_settings WHERE \`key\` = 'pos_default_product_view'${businessId ? ' AND business_id = ?' : ''} LIMIT 1`,
+      businessId ? [businessId] : undefined
     );
     const defaultView = rows[0]?.value ?? 'all';
 
