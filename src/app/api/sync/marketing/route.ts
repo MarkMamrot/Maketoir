@@ -4,15 +4,14 @@
  * Streams Server-Sent Events (SSE) as each tab syncs.
  * Body: { databaseId: string, sources: ('google-ads' | 'meta' | 'ga4')[] }
  *
- * Each SSE message is JSON: { tab?: string; status: 'start'|'done'|'error'|'complete'; rows?: number; error?: string; spreadsheetUrl?: string }
+ * Each SSE message is JSON: { tab?: string; status: 'start'|'done'|'error'|'complete'; rows?: number; error?: string }
  */
 import { cookies } from 'next/headers';
-import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { GoogleAdsService } from '@/services/GoogleAdsService';
 import { GoogleAnalyticsService } from '@/services/GoogleAnalyticsService';
 import { decrypt } from '@/lib/encryption';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { ConfigRepository } from '@/lib/db/ConfigRepository';
+import { MarketingDataRepository } from '@/lib/db/MarketingDataRepository';
 
 /** Extract a readable message from any error shape (Google Ads API returns e.errors[0].message). */
 function errorMessage(e: any): string {
@@ -170,17 +169,7 @@ export async function POST(req: Request) {
       };
 
       try {
-        const sheets = new GoogleSheetsService();
-        const [conn, marketingSheetId] = await Promise.all([
-          ConnectionsRepository.get(databaseId),
-          ConfigRepository.get(databaseId, 'MarketingDataSheetId'),
-        ]);
-        if (!marketingSheetId) {
-          emit({ status: 'error', error: 'MarketingDataSheetId not configured.' });
-          controller.close();
-          return;
-        }
-        const spreadsheetUrl = `https://docs.google.com/spreadsheets/d/${marketingSheetId}`;
+        const conn = await ConnectionsRepository.get(databaseId);
         const { startDate, endDate } = getDateRange(90);
 
         // ── Google Ads ───────────────────────────────────────────────────────
@@ -195,13 +184,8 @@ export async function POST(req: Request) {
               try {
                 const raw = await tab.fn(svc, startDate, endDate);
                 const rows = flattenRows(Array.isArray(raw) ? raw : []);
-                if (rows.length > 0) {
-                  await sheets.resetSheet(marketingSheetId, tab.key, rows[0]);
-                  if (rows.length > 1) await sheets.appendData(marketingSheetId, `${tab.key}!A:ZZ`, rows.slice(1));
-                } else {
-                  await sheets.addSheetIfNotExists(marketingSheetId, tab.key, ['No data returned']);
-                }
-                emit({ tab: tab.key, label: tab.label, source: 'google-ads', status: 'done', rows: rows.length - 1 });
+                await MarketingDataRepository.replaceTab(databaseId, 'google_ads', customerId, tab.key, rows);
+                emit({ tab: tab.key, label: tab.label, source: 'google-ads', status: 'done', rows: Math.max(0, rows.length - 1) });
               } catch (e: any) {
                 emit({ tab: tab.key, label: tab.label, source: 'google-ads', status: 'error', error: errorMessage(e) });
               }
@@ -213,13 +197,8 @@ export async function POST(req: Request) {
             try {
               const yoyRaw = await svc.getCampaigns(yoyStart, yoyEnd);
               const yoyRows = flattenRows(Array.isArray(yoyRaw) ? yoyRaw : []);
-              if (yoyRows.length > 0) {
-                await sheets.resetSheet(marketingSheetId, 'GAds_YoY', yoyRows[0]);
-                if (yoyRows.length > 1) await sheets.appendData(marketingSheetId, `GAds_YoY!A:ZZ`, yoyRows.slice(1));
-              } else {
-                await sheets.addSheetIfNotExists(marketingSheetId, 'GAds_YoY', ['No data returned']);
-              }
-              emit({ tab: 'GAds_YoY', label: 'Year-on-Year', source: 'google-ads', status: 'done', rows: yoyRows.length - 1 });
+              await MarketingDataRepository.replaceTab(databaseId, 'google_ads', customerId, 'GAds_YoY', yoyRows);
+              emit({ tab: 'GAds_YoY', label: 'Year-on-Year', source: 'google-ads', status: 'done', rows: Math.max(0, yoyRows.length - 1) });
             } catch (e: any) {
               emit({ tab: 'GAds_YoY', label: 'Year-on-Year', source: 'google-ads', status: 'error', error: errorMessage(e) });
             }
@@ -268,13 +247,8 @@ export async function POST(req: Request) {
                 const data = await fetchMetaInsights(adAccountId, accessToken, tab.level, tab.fields, 'last_90d', (tab as any).breakdowns);
                 const tabBreakdowns: string[] = (tab as any).breakdowns ?? [];
                 const rows = metaToRows(data, [...tabBreakdowns, ...tab.fields]);
-                if (rows.length > 0) {
-                  await sheets.resetSheet(marketingSheetId, tab.key, rows[0]);
-                  if (rows.length > 1) await sheets.appendData(marketingSheetId, `${tab.key}!A:ZZ`, rows.slice(1));
-                } else {
-                  await sheets.addSheetIfNotExists(marketingSheetId, tab.key, tab.fields);
-                }
-                emit({ tab: tab.key, label: tab.label, source: 'meta', status: 'done', rows: rows.length - 1 });
+                await MarketingDataRepository.replaceTab(databaseId, 'meta', adAccountId, tab.key, rows);
+                emit({ tab: tab.key, label: tab.label, source: 'meta', status: 'done', rows: Math.max(0, rows.length - 1) });
               } catch (e: any) {
                 emit({ tab: tab.key, label: tab.label, source: 'meta', status: 'error', error: errorMessage(e) });
               }
@@ -334,13 +308,8 @@ export async function POST(req: Request) {
                 const tabStart = (tab as any).dateOverride?.startDate ?? startDate;
                 const tabEnd   = (tab as any).dateOverride?.endDate   ?? endDate;
                 const rows = await fetchGA4Report(ga, tab.dims, tab.mets, tabStart, tabEnd);
-                if (rows.length > 0) {
-                  await sheets.resetSheet(marketingSheetId, tab.key, rows[0]);
-                  if (rows.length > 1) await sheets.appendData(marketingSheetId, `${tab.key}!A:ZZ`, rows.slice(1));
-                } else {
-                  await sheets.addSheetIfNotExists(marketingSheetId, tab.key, [...tab.dims, ...tab.mets]);
-                }
-                emit({ tab: tab.key, label: tab.label, source: 'ga4', status: 'done', rows: rows.length - 1 });
+                await MarketingDataRepository.replaceTab(databaseId, 'ga4', propertyId, tab.key, rows);
+                emit({ tab: tab.key, label: tab.label, source: 'ga4', status: 'done', rows: Math.max(0, rows.length - 1) });
               } catch (e: any) {
                 emit({ tab: tab.key, label: tab.label, source: 'ga4', status: 'error', error: errorMessage(e) });
               }
@@ -413,10 +382,9 @@ export async function POST(req: Request) {
                   const extracted = items.map(tab.extract);
                   const headers = Object.keys(extracted[0]);
                   const dataRows: string[][] = [headers, ...extracted.map(r => headers.map(h => String((r as any)[h] ?? '')))];
-                  await sheets.resetSheet(marketingSheetId, tab.key, headers);
-                  if (dataRows.length > 1) await sheets.appendData(marketingSheetId, `${tab.key}!A:ZZ`, dataRows.slice(1));
+                  await MarketingDataRepository.replaceTab(databaseId, 'klaviyo', 'klaviyo', tab.key, dataRows);
                 } else {
-                  await sheets.addSheetIfNotExists(marketingSheetId, tab.key, ['No data returned']);
+                  await MarketingDataRepository.replaceTab(databaseId, 'klaviyo', 'klaviyo', tab.key, []);
                 }
                 emit({ tab: tab.key, label: tab.label, source: 'klaviyo', status: 'done', rows: items.length });
               } catch (e: any) {
@@ -426,7 +394,7 @@ export async function POST(req: Request) {
           }
         }
 
-        emit({ status: 'complete', spreadsheetUrl });
+        emit({ status: 'complete' });
       } catch (e: any) {
         emit({ status: 'error', error: e.message });
       } finally {
