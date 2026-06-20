@@ -10,6 +10,12 @@ const DESTINATIONS = [
   { key: 'pos',       label: 'POS',        desc: 'Point of Sale',         path: '/pos',       icon: '🛒' },
 ];
 
+/** Returns true if the user's tier is allowed to access the given destination key. */
+function canAccess(tier: string | undefined, dest: string): boolean {
+  if (tier === 'PosUser') return dest === 'pos';
+  return true; // Admin, SuperAdmin, StandardUser can access all
+}
+
 function LoginForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -34,8 +40,14 @@ function LoginForm() {
       });
       const data = await res.json();
       if (data.success) {
-        const dest = DESTINATIONS.find(d => d.key === destination)?.path ?? '/dashboard';
-        router.push(dest);
+        const tier = data.user?.tier as string | undefined;
+        const dest = DESTINATIONS.find(d => d.key === destination)!;
+        if (!canAccess(tier, destination)) {
+          setError(`Your account (${tier ?? 'unknown'} tier) doesn't have access to ${dest.label}. Please select a permitted destination.`);
+          setLoading(false);
+          return;
+        }
+        router.push(dest.path);
       } else {
         setError(data.error || 'Login failed.');
       }
