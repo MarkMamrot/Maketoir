@@ -40,9 +40,9 @@ export async function GET(req: Request) {
   const like = `%${q}%`;
   const exactLike = `${q}%`;
 
+  // ── 1. Product variant suggestions ──────────────────────────────────────────
+  let productSuggestions: FilterSuggestion[] = [];
   try {
-    // ── 1. Product variant suggestions (match on name, sku, barcode) ──────────
-    // Priority: exact SKU/barcode first, then prefix name, then contains name
     const productRows = await imsQuery<{
       variant_id: string;
       sku: string | null;
@@ -85,7 +85,7 @@ export async function GET(req: Request) {
       LIMIT ?
     `, [like, like, like, q, q, exactLike, exactLike, exactLike, limit]);
 
-    const productSuggestions: FilterSuggestion[] = productRows.map(r => {
+    productSuggestions = productRows.map(r => {
       const nameParts = [r.product_name, r.option_label].filter(Boolean);
       const label = `Product: ${nameParts.join(' — ')}  ·  Brand: ${r.brand ?? '—'}`;
       const metaParts: string[] = [];
@@ -93,14 +93,17 @@ export async function GET(req: Request) {
       if (r.barcode) metaParts.push(`Barcode: ${r.barcode}`);
       if (r.product_type) metaParts.push(r.product_type);
       return {
-        type: 'product',
+        type: 'product' as const,
         value: r.variant_id,
         label,
         meta: metaParts.join('  ·  ') || undefined,
       };
     });
+  } catch { /* column missing or DB issue — skip silently */ }
 
-    // ── 2. Brand suggestions ──────────────────────────────────────────────────
+  // ── 2. Brand suggestions ──────────────────────────────────────────────────
+  let brandSuggestions: FilterSuggestion[] = [];
+  try {
     const brandRows = await imsQuery<{ brand: string }>(`
       SELECT DISTINCT brand
       FROM ims_products
@@ -111,15 +114,17 @@ export async function GET(req: Request) {
       ORDER BY CASE WHEN brand LIKE ? THEN 0 ELSE 1 END, brand
       LIMIT ?
     `, [like, exactLike, Math.ceil(limit / 3)]);
-
-    const brandSuggestions: FilterSuggestion[] = brandRows.map(r => ({
-      type: 'brand',
+    brandSuggestions = brandRows.map(r => ({
+      type: 'brand' as const,
       value: r.brand,
       label: `Brand: ${r.brand}`,
       meta: 'Filter all products from this brand',
     }));
+  } catch { /* skip */ }
 
-    // ── 3. Supplier suggestions ───────────────────────────────────────────────
+  // ── 3. Supplier suggestions (requires supplier_contact_id migration) ──────
+  let supplierSuggestions: FilterSuggestion[] = [];
+  try {
     const supplierRows = await imsQuery<{ id: number; name: string }>(`
       SELECT DISTINCT c.id, c.name
       FROM ims_contacts c
@@ -129,15 +134,17 @@ export async function GET(req: Request) {
       ORDER BY CASE WHEN c.name LIKE ? THEN 0 ELSE 1 END, c.name
       LIMIT ?
     `, [like, exactLike, Math.ceil(limit / 3)]);
-
-    const supplierSuggestions: FilterSuggestion[] = supplierRows.map(r => ({
-      type: 'supplier',
+    supplierSuggestions = supplierRows.map(r => ({
+      type: 'supplier' as const,
       value: String(r.id),
       label: `Supplier: ${r.name}`,
       meta: 'Filter all products from this supplier',
     }));
+  } catch { /* supplier_contact_id column not yet added — skip */ }
 
-    // ── 4. Product Type suggestions ───────────────────────────────────────────
+  // ── 4. Product Type suggestions ───────────────────────────────────────────
+  let typeSuggestions: FilterSuggestion[] = [];
+  try {
     const typeRows = await imsQuery<{ product_type: string }>(`
       SELECT DISTINCT product_type
       FROM ims_products
@@ -148,14 +155,15 @@ export async function GET(req: Request) {
       ORDER BY CASE WHEN product_type LIKE ? THEN 0 ELSE 1 END, product_type
       LIMIT ?
     `, [like, exactLike, Math.ceil(limit / 3)]);
-
-    const typeSuggestions: FilterSuggestion[] = typeRows.map(r => ({
-      type: 'product_type',
+    typeSuggestions = typeRows.map(r => ({
+      type: 'product_type' as const,
       value: r.product_type,
       label: `Product Type: ${r.product_type}`,
       meta: 'Filter all products of this type',
     }));
+  } catch { /* skip */ }
 
+  try {
     const suggestions: FilterSuggestion[] = [
       ...productSuggestions,
       ...brandSuggestions,
