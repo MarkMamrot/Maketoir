@@ -15,6 +15,11 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Missing databaseId.' }, { status: 400 });
     }
 
+    const sessionData = JSON.parse(sessionCookie.value);
+    if (!databaseId || databaseId !== sessionData.businessId) {
+      return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
+    }
+
     const row = await BusinessInfoRepository.get(databaseId);
     if (!row) return NextResponse.json({});
 

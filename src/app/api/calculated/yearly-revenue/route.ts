@@ -17,6 +17,9 @@ export async function GET(req: Request) {
   const databaseId = searchParams.get('databaseId');
   if (!databaseId) return NextResponse.json({ success: false, error: 'databaseId required.' }, { status: 400 });
 
+  const _cu = JSON.parse(session.value);
+  if (databaseId !== _cu.businessId) return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
+
   try {
     const source = await getInventorySource(databaseId);
     if (source === 'solvantis') {

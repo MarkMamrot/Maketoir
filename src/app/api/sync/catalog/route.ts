@@ -10,6 +10,8 @@ import { getPool } from '@/services/MySQLService';
  */
 export async function GET(req: Request) {
   try {
+    const session = cookies().get('marketoir_session');
+    if (!session?.value) return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
     const { searchParams } = new URL(req.url);
     const shopId = searchParams.get('shopId') || '';
     const accessToken = searchParams.get('accessToken') || '';

@@ -15,12 +15,14 @@ function getBusinessId(): string | null {
 
 /** GET — returns cache status: row count + last updated_at */
 export async function GET() {
-  if (!getBusinessId()) {
+  const businessId = getBusinessId();
+  if (!businessId) {
     return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
   }
   try {
     const rows = await imsQuery<{ count: number; updatedAt: string | null }>(
-      `SELECT COUNT(*) AS count, MAX(updated_at) AS updatedAt FROM ims_sales_cache`,
+      `SELECT COUNT(*) AS count, MAX(updated_at) AS updatedAt FROM ims_sales_cache WHERE business_id = ?`,
+      [businessId],
     );
     return NextResponse.json({ success: true, count: rows[0]?.count ?? 0, updatedAt: rows[0]?.updatedAt ?? null });
   } catch (err: any) {

@@ -12,9 +12,11 @@ function getSession() {
 }
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = getSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const businessId = session.businessId as string;
   try {
-    const data = await ImsPORepo.get(Number(params.id));
+    const data = await ImsPORepo.get(Number(params.id), businessId);
     if (!data) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
     return NextResponse.json({ success: true, data });
   } catch (e: any) {
@@ -23,7 +25,9 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
 }
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = getSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const businessId = session.businessId as string;
   try {
     const body = await req.json();
     const { items, status, ...poData } = body;
@@ -33,20 +37,17 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       // Fetch freight treatment setting for this business
       let freightTreatment: 'expense' | 'capitalise' = 'expense';
       try {
-        const session = getSession();
-        if (session?.userSpreadsheetId) {
-          const rows = await imsQuery<{ value: string }>(
-            `SELECT value FROM ims_settings WHERE business_id = ? AND \`key\` = 'freight_treatment' LIMIT 1`,
-            [session.userSpreadsheetId]
-          );
-          if (rows[0]?.value === 'capitalise') freightTreatment = 'capitalise';
-        }
+        const rows = await imsQuery<{ value: string }>(
+          `SELECT value FROM ims_settings WHERE business_id = ? AND \`key\` = 'freight_treatment' LIMIT 1`,
+          [businessId]
+        );
+        if (rows[0]?.value === 'capitalise') freightTreatment = 'capitalise';
       } catch {}
 
       await ImsPORepo.changeStatus(Number(params.id), status, freightTreatment);
 
       // EVENT-DRIVEN CACHE UPDATE: update global_incoming and stock fields on PO changes
-      const poDataFull = await ImsPORepo.get(Number(params.id));
+      const poDataFull = await ImsPORepo.get(Number(params.id), businessId);
       if (poDataFull && (poDataFull.items?.length ?? 0) > 0) {
         const vids = poDataFull.items!.map(i => i.variant_id).filter(Boolean) as string[];
         if (vids.length > 0) {
@@ -55,12 +56,11 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       }
 
       // Fire-and-forget Xero sync on status change
-      const session = getSession();
-      if (session?.userSpreadsheetId) {
-        triggerPOXeroSync(session.userSpreadsheetId, Number(params.id), status).catch(() => {});
-      }
+      triggerPOXeroSync(businessId, Number(params.id), status).catch(() => {});
 
     } else {
+      const existing = await ImsPORepo.get(Number(params.id), businessId);
+      if (!existing) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
       const { landed_costs, ...cleanPoData } = poData;
       await ImsPORepo.update(Number(params.id), cleanPoData, items, landed_costs);
 
@@ -79,9 +79,12 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 }
 
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = getSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const businessId = session.businessId as string;
   try {
-    const existing = await ImsPORepo.get(Number(params.id));
+    const existing = await ImsPORepo.get(Number(params.id), businessId);
+    if (!existing) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
     await ImsPORepo.delete(Number(params.id));
 
     // EVENT-DRIVEN CACHE UPDATE (Deletion reverses incoming stock)

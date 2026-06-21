@@ -200,8 +200,10 @@ export const ImsContactsRepo = {
     );
   },
 
-  async get(id: number): Promise<ImsContact | null> {
-    const rows = await imsQuery<ImsContact>(`SELECT * FROM ims_contacts WHERE id = ?`, [id]);
+  async get(id: number, businessId?: string): Promise<ImsContact | null> {
+    const where = businessId ? 'WHERE id = ? AND business_id = ?' : 'WHERE id = ?';
+    const params = businessId ? [id, businessId] : [id];
+    const rows = await imsQuery<ImsContact>(`SELECT * FROM ims_contacts ${where}`, params);
     return rows[0] ?? null;
   },
 
@@ -250,8 +252,10 @@ export const ImsLocationsRepo = {
     return imsQuery<ImsLocation>(`SELECT * FROM ims_locations ${where} ORDER BY name`, params);
   },
 
-  async get(id: number): Promise<ImsLocation | null> {
-    const rows = await imsQuery<ImsLocation>(`SELECT * FROM ims_locations WHERE id = ?`, [id]);
+  async get(id: number, businessId?: string): Promise<ImsLocation | null> {
+    const where = businessId ? 'WHERE id = ? AND business_id = ?' : 'WHERE id = ?';
+    const params = businessId ? [id, businessId] : [id];
+    const rows = await imsQuery<ImsLocation>(`SELECT * FROM ims_locations ${where}`, params);
     return rows[0] ?? null;
   },
 
@@ -314,10 +318,10 @@ export const ImsProductsRepo = {
     return products.map(p => ({ ...p, variants: byProduct.get(p.product_id) ?? [] }));
   },
 
-  async get(productId: string): Promise<ImsProduct | null> {
-    const rows = await imsQuery<ImsProduct>(
-      `SELECT * FROM ims_products WHERE product_id = ?`, [productId]
-    );
+  async get(productId: string, businessId?: string): Promise<ImsProduct | null> {
+    const where = businessId ? 'WHERE product_id = ? AND business_id = ?' : 'WHERE product_id = ?';
+    const params = businessId ? [productId, businessId] : [productId];
+    const rows = await imsQuery<ImsProduct>(`SELECT * FROM ims_products ${where}`, params);
     if (!rows[0]) return null;
     const variants = await imsQuery<ImsVariant>(
       `SELECT * FROM ims_product_variants WHERE product_id = ? ORDER BY sku`, [productId]
@@ -644,7 +648,9 @@ export const ImsPORepo = {
     }
   },
 
-  async get(id: number): Promise<ImsPO | null> {
+  async get(id: number, businessId?: string): Promise<ImsPO | null> {
+    const bizFilter = businessId ? ' AND po.business_id = ?' : '';
+    const bizParam = businessId ? [businessId] : [];
     let rows: ImsPO[];
     let payments: ImsPayment[] = [];
     try {
@@ -667,8 +673,8 @@ export const ImsPORepo = {
            FROM ims_purchase_order_payments
            GROUP BY po_id
          ) pay ON pay.po_id = po.id
-         WHERE po.id = ?`,
-        [id]
+         WHERE po.id = ?${bizFilter}`,
+        [id, ...bizParam]
       );
       payments = await imsQuery<ImsPayment>(
         `SELECT * FROM ims_purchase_order_payments WHERE po_id = ? ORDER BY payment_date ASC, id ASC`,
@@ -683,8 +689,8 @@ export const ImsPORepo = {
          FROM ims_purchase_orders po
          LEFT JOIN ims_contacts c ON c.id = po.supplier_id
          JOIN ims_locations l ON l.id = po.location_id
-         WHERE po.id = ?`,
-        [id]
+         WHERE po.id = ?${bizFilter}`,
+        [id, ...bizParam]
       );
     }
     if (!rows[0]) return null;
@@ -1188,7 +1194,9 @@ export const ImsSORepo = {
     }
   },
 
-  async get(id: number): Promise<ImsSO | null> {
+  async get(id: number, businessId?: string): Promise<ImsSO | null> {
+    const bizFilter = businessId ? ' AND so.business_id = ?' : '';
+    const bizParam = businessId ? [businessId] : [];
     let rows: ImsSO[];
     let payments: ImsPayment[] = [];
     try {
@@ -1211,8 +1219,8 @@ export const ImsSORepo = {
            FROM ims_sales_order_payments
            GROUP BY so_id
          ) pay ON pay.so_id = so.id
-         WHERE so.id = ?`,
-        [id]
+         WHERE so.id = ?${bizFilter}`,
+        [id, ...bizParam]
       );
       payments = await imsQuery<ImsPayment>(
         `SELECT * FROM ims_sales_order_payments WHERE so_id = ? ORDER BY payment_date ASC, id ASC`,
@@ -1227,8 +1235,8 @@ export const ImsSORepo = {
          FROM ims_sales_orders so
          LEFT JOIN ims_contacts c ON c.id = so.customer_id
          JOIN ims_locations l ON l.id = so.location_id
-         WHERE so.id = ?`,
-        [id]
+         WHERE so.id = ?${bizFilter}`,
+        [id, ...bizParam]
       );
     }
     if (!rows[0]) return null;

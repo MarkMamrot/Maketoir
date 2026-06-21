@@ -11,12 +11,14 @@ function getSession() {
 // GET /api/ims/online-sales?location_id=X
 // Returns list of days with SO summary, most recent first.
 export async function GET(req: NextRequest) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = getSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const businessId = session.businessId as string;
 
   const { searchParams } = new URL(req.url);
   const locationId = searchParams.get('location_id');
 
-  const params: any[] = [];
+  const params: any[] = [businessId];
   const locWhere = locationId ? 'AND so.location_id = ?' : '';
   if (locationId) params.push(Number(locationId));
 
@@ -46,7 +48,7 @@ export async function GET(req: NextRequest) {
          GROUP_CONCAT(DISTINCT l.name ORDER BY l.name SEPARATOR ', ') AS locations
        FROM ims_sales_orders so
        LEFT JOIN ims_locations l ON l.id = so.location_id
-       WHERE so.so_type = 'online' ${locWhere}
+       WHERE so.so_type = 'online' AND so.business_id = ? ${locWhere}
        GROUP BY DATE_FORMAT(so.order_date, '%Y-%m-%d')
        ORDER BY day DESC`,
       params,

@@ -42,7 +42,7 @@ function parseMoney(v: unknown): number {
 
 import { query as mysqlQuery } from '@/services/MySQLService';
 
-// getWebsiteSheetId removed — online reports now read from sales table (source = Shopify)
+// getWebsiteSheetId removed ï¿½ online reports now read from sales table (source = Shopify)
 
 // -- Margin tier helpers -----------------------------------------------------
 
@@ -429,6 +429,9 @@ export async function GET(req: Request) {
   const databaseId = searchParams.get('databaseId');
   if (!databaseId) return NextResponse.json({ success: false, error: 'databaseId required.' }, { status: 400 });
 
+  const _cr = JSON.parse(session.value);
+  if (databaseId !== _cr.businessId) return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
+
   try {
     const inventorySystemId = await resolveInventorySystemId(databaseId);
 
@@ -468,7 +471,7 @@ export async function GET(req: Request) {
       lines.push('', '--- Yearly Revenue by Branch ---');
       const yearKeys = Object.keys(yearlyRows[0]).filter(k => k !== 'branch');
       lines.push(`Branch | ${yearKeys.join(' | ')}`);
-      for (const r of yearlyRows) lines.push(`${r.branch} | ${yearKeys.map(y => r[y] || '—').join(' | ')}`);
+      for (const r of yearlyRows) lines.push(`${r.branch} | ${yearKeys.map(y => r[y] || 'ï¿½').join(' | ')}`);
     }
     if (slowReport?.rows?.length) {
       lines.push('', '--- Slowest Sellers ---');
