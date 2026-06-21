@@ -35,14 +35,16 @@ const NAV = [
   { id: '__orders',        label: 'Orders',           section: 'orders', children: [
     { id: 'purchase-orders',  label: 'Purchase Orders' },
     { id: 'sales-orders',     label: 'Sales Orders' },
-    { id: 'branch-transfers',      label: 'Branch Transfers' },
     { id: 'smart-device-receive', label: '📱 Smart Device Receive' },
     { id: 'pos-sales',            label: 'POS Sales' },
     { id: 'online-sales',     label: 'Online Sales' },
     { id: 'order-planner',    label: 'Order Planner' },
   ]},
   { id: 'contacts',        label: 'Contacts',         section: null },
-  { id: 'locations',       label: 'Locations',        section: null },
+  { id: '__locations',     label: 'Locations',        section: 'locations', children: [
+    { id: 'locations',      label: 'Locations' },
+    { id: 'branch-transfers', label: 'Branch Transfers' },
+  ]},
   { id: 'stocktakes',       label: '📋 Stocktakes',     section: null },
   { id: 'reports',          label: '📊 Reports',         section: null },
   { id: '__integrations',   label: 'Integrations',     section: 'integrations', children: [
@@ -290,7 +292,7 @@ function Row3({ children }: { children: React.ReactNode }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView) => void }) {
-  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: false, __orders: false, __integrations: false });
+  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: false, __orders: false, __locations: false, __integrations: false });
   const [collapsed, setCollapsed] = useState(false);
 
   const toggleSection = (id: string) => setSectionOpen(p => ({ ...p, [id]: !p[id] }));
@@ -302,6 +304,7 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
     stock:              'M3 6h18M3 10h18M3 14h18M3 18h18',
     brands:             'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z',
     __orders:           'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
+    __locations:        'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z',
     'purchase-orders':  'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 12h6M9 16h4',
     'sales-orders':     'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2 5h12',
     'branch-transfers': 'M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4',
@@ -8233,7 +8236,7 @@ function BranchTransfersView() {
         apiFetch('/api/ims/variants'),
       ]);
       setTransfers(bts.data || []);
-      setLocations((locs.data || []).filter((l: any) => l.is_active));
+      setLocations(locs.data || []);
       setVariants(vars.data || []);
     } catch {}
     setLoading(false);
