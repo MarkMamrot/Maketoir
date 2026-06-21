@@ -74,7 +74,7 @@ export async function POST(req: Request) {
        s.reorder_qty,
        s.avg_cost,
        v.sku,
-       br.name AS brand_name,
+       p.brand AS brand_name,
        p.name AS product_name,
        NULLIF(TRIM(CONCAT_WS(' / ',
          NULLIF(TRIM(COALESCE(v.option1_value,'')), ''),
@@ -85,7 +85,6 @@ export async function POST(req: Request) {
      JOIN ims_locations l ON l.id = s.location_id
      JOIN ims_product_variants v ON v.variant_id = s.variant_id AND v.is_active = 1
      JOIN ims_products p ON p.product_id = v.product_id AND p.is_active = 1
-     LEFT JOIN ims_brands br ON br.id = p.brand_id
      WHERE s.location_id IN (${branchPlaceholders})
        AND s.qty_on_hand < s.min_qty
        AND s.min_qty > 0`,
