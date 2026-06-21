@@ -8101,8 +8101,8 @@ function BranchTransfersView() {
 
   // ── Replenish Wizard ──────────────────────────────────────────────────────
   type ReplenishItem = {
-    variant_id: string; sku: string | null; product_name: string; variant_label: string | null;
-    need: number; warehouse_soh: number; allocated: number; unit_cost: number;
+    variant_id: string; sku: string | null; brand_name: string | null; product_name: string; variant_label: string | null;
+    need: number; branch_soh: number; warehouse_soh: number; allocated: number; unit_cost: number;
   };
   type ReplenishBranch = { location_id: number; location_name: string; items: ReplenishItem[] };
   const REPLENISH_KEY = 'ims_replenish_defaults';
@@ -8116,6 +8116,7 @@ function BranchTransfersView() {
   const [rpPlan, setRpPlan]           = useState<ReplenishBranch[]>([]);
   const [rpCreating, setRpCreating]   = useState(false);
   const [rpCreateResults, setRpCreateResults] = useState<string[]>([]);
+  const [rpHideZeroWh, setRpHideZeroWh] = useState(true);
 
   const openReplenish = () => {
     // Load defaults from localStorage
@@ -8828,7 +8829,10 @@ function BranchTransfersView() {
 
                   {/* Branch allocation tables */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxHeight: '55vh', overflowY: 'auto', paddingRight: 4 }}>
-                    {rpPlan.map((branch, bi) => (
+                    {rpPlan.map((branch, bi) => {
+                      const visibleItems = rpHideZeroWh ? branch.items.filter(i => i.warehouse_soh > 0) : branch.items;
+                      if (visibleItems.length === 0) return null;
+                      return (
                       <div key={branch.location_id}>
                         <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--sv-text-strong)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
                           {branch.location_name}
@@ -8839,22 +8843,27 @@ function BranchTransfersView() {
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                           <thead>
                             <tr style={{ background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)' }}>
+                              <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600 }}>Brand</th>
                               <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600 }}>Product</th>
+                              <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, whiteSpace: 'nowrap' }}>Branch SOH</th>
                               <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, whiteSpace: 'nowrap' }}>Need</th>
                               <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, whiteSpace: 'nowrap' }}>WH Stock</th>
                               <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, whiteSpace: 'nowrap' }}>Allocate</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {branch.items.map((item, ii) => {
+                            {visibleItems.map((item, ii) => {
+                              const realIdx = branch.items.indexOf(item);
                               const isShort = item.allocated < item.need;
                               const isZero  = item.allocated === 0;
                               return (
                                 <tr key={item.variant_id} style={{ borderBottom: '1px solid var(--sv-etch)', background: isZero ? 'rgba(239,68,68,.05)' : isShort ? 'rgba(245,158,11,.05)' : 'transparent' }}>
+                                  <td style={{ padding: '6px 10px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{item.brand_name ?? '—'}</td>
                                   <td style={{ padding: '6px 10px' }}>
                                     <div style={{ fontWeight: 500, color: isZero ? 'var(--sv-text-dim)' : 'var(--sv-text-strong)' }}>{item.product_name}{item.variant_label ? ` — ${item.variant_label}` : ''}</div>
                                     {item.sku && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{item.sku}</div>}
                                   </td>
+                                  <td style={{ textAlign: 'right', padding: '6px 10px', color: 'var(--sv-text-dim)' }}>{item.branch_soh ?? 0}</td>
                                   <td style={{ textAlign: 'right', padding: '6px 10px', color: 'var(--sv-text-dim)' }}>{item.need}</td>
                                   <td style={{ textAlign: 'right', padding: '6px 10px', color: item.warehouse_soh === 0 ? 'var(--sv-red)' : item.warehouse_soh < item.need ? 'var(--sv-amber)' : 'var(--sv-mint)', fontWeight: 600 }}>{item.warehouse_soh}</td>
                                   <td style={{ textAlign: 'right', padding: '6px 4px' }}>
@@ -8866,7 +8875,7 @@ function BranchTransfersView() {
                                         min={0}
                                         max={item.warehouse_soh}
                                         value={item.allocated}
-                                        onChange={e => updateRpAllocated(bi, ii, Number(e.target.value))}
+                                        onChange={e => updateRpAllocated(bi, realIdx, Number(e.target.value))}
                                         style={{ ...inputStyle, width: 70, textAlign: 'right', fontSize: 13, padding: '4px 6px', marginBottom: 0, borderColor: isShort ? 'var(--sv-amber)' : undefined }}
                                       />
                                     )}
@@ -8877,12 +8886,18 @@ function BranchTransfersView() {
                           </tbody>
                         </table>
                       </div>
-                    ))}
+                    )})}
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, paddingTop: 14, borderTop: '1px solid var(--sv-etch)', marginTop: 4 }}>
                     <button type="button" onClick={() => setRpStep(1)} style={btnStyle('ghost')}>← Back</button>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => setRpHideZeroWh(v => !v)}
+                        style={{ ...btnStyle('ghost'), fontSize: 12, padding: '5px 10px', opacity: rpHideZeroWh ? 1 : 0.6 }}
+                        title={rpHideZeroWh ? 'Currently hiding lines with 0 warehouse stock — click to show all' : 'Currently showing all lines — click to hide zero-stock lines'}
+                      >{rpHideZeroWh ? '🚫 WH=0 hidden' : '👁 Show all'}</button>
                       <button type="button" onClick={() => setRpOpen(false)} style={btnStyle('ghost')}>Cancel</button>
                       <button
                         type="button"

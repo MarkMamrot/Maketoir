@@ -11,9 +11,11 @@ function getSession() {
 export interface ReplenishItem {
   variant_id: string;
   sku: string | null;
+  brand_name: string | null;
   product_name: string;
   variant_label: string | null;
   need: number;
+  branch_soh: number;
   warehouse_soh: number;
   allocated: number;
   unit_cost: number;
@@ -58,6 +60,7 @@ export async function POST(req: Request) {
     reorder_qty: number;
     avg_cost: number | null;
     sku: string | null;
+    brand_name: string | null;
     product_name: string;
     variant_label: string | null;
   }>(
@@ -70,6 +73,7 @@ export async function POST(req: Request) {
        s.reorder_qty,
        s.avg_cost,
        v.sku,
+       br.name AS brand_name,
        p.name AS product_name,
        NULLIF(TRIM(CONCAT_WS(' / ',
          NULLIF(TRIM(COALESCE(v.option1_value,'')), ''),
@@ -80,6 +84,7 @@ export async function POST(req: Request) {
      JOIN ims_locations l ON l.id = s.location_id
      JOIN ims_product_variants v ON v.variant_id = s.variant_id AND v.is_active = 1
      JOIN ims_products p ON p.product_id = v.product_id AND p.is_active = 1
+     LEFT JOIN ims_brands br ON br.id = p.brand_id
      WHERE s.location_id IN (${branchPlaceholders})
        AND s.qty_on_hand < s.min_qty
        AND s.min_qty > 0`,
@@ -109,7 +114,7 @@ export async function POST(req: Request) {
   const warehouseMap = new Map(warehouseStockRaw.map(r => [r.variant_id, r]));
 
   // ── 4. Build needs map: variant_id → { branch_id → need } ──
-  type BranchNeed = { location_id: number; location_name: string; need: number; unit_cost: number; sku: string | null; product_name: string; variant_label: string | null };
+  type BranchNeed = { location_id: number; location_name: string; need: number; branch_soh: number; unit_cost: number; sku: string | null; brand_name: string | null; product_name: string; variant_label: string | null };
   const needsByVariant = new Map<string, BranchNeed[]>();
 
   for (const row of branchNeedsRaw) {
@@ -124,8 +129,10 @@ export async function POST(req: Request) {
       location_id: row.location_id,
       location_name: row.location_name,
       need,
+      branch_soh: row.qty_on_hand,
       unit_cost: unitCost,
       sku: row.sku,
+      brand_name: row.brand_name,
       product_name: row.product_name,
       variant_label: row.variant_label,
     });
@@ -204,9 +211,11 @@ export async function POST(req: Request) {
       branchMap.set(variant_id, {
         variant_id,
         sku: bn.sku,
+        brand_name: bn.brand_name,
         product_name: bn.product_name,
         variant_label: bn.variant_label,
         need: bn.need,
+        branch_soh: bn.branch_soh,
         warehouse_soh,
         allocated,
         unit_cost: bn.unit_cost,
@@ -220,11 +229,11 @@ export async function POST(req: Request) {
   const branches: ReplenishBranch[] = filteredBranchIds
     .map(branchId => {
       const items = [...(allocation.get(branchId)?.values() ?? [])];
-      // Sort: shortfalls first (allocated < need), then by product name
+      // Sort: by brand then product name
       items.sort((a, b) => {
-        const aShort = a.allocated < a.need ? 0 : 1;
-        const bShort = b.allocated < b.need ? 0 : 1;
-        if (aShort !== bShort) return aShort - bShort;
+        const aBrand = a.brand_name ?? '';
+        const bBrand = b.brand_name ?? '';
+        if (aBrand !== bBrand) return aBrand.localeCompare(bBrand);
         return a.product_name.localeCompare(b.product_name);
       });
       return {
