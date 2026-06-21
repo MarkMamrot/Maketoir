@@ -7,6 +7,7 @@ const KEYS = {
   offlineQueue:  'pos_offline_queue',
   parkedSales:   'pos_parked_sales',
   currentCart:   'pos_current_cart',
+  sessionLocal:  'pos_session_local',
 };
 
 // ── Device Config ────────────────────────────────────────────
@@ -24,6 +25,23 @@ export function saveDeviceConfig(config: DeviceConfig): void {
 
 export function clearDeviceConfig(): void {
   localStorage.removeItem(KEYS.deviceConfig);
+}
+
+// ── Local Session Cache (offline startup recovery) ─────────────────────────────
+
+export function saveLocalSession(session: unknown): void {
+  localStorage.setItem(KEYS.sessionLocal, JSON.stringify(session));
+}
+
+export function loadLocalSession(): unknown | null {
+  try {
+    const raw = localStorage.getItem(KEYS.sessionLocal);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+export function clearLocalSession(): void {
+  localStorage.removeItem(KEYS.sessionLocal);
 }
 
 // ── Products Cache ───────────────────────────────────────────

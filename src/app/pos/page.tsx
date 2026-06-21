@@ -6,7 +6,8 @@ import {
   loadProductsCache, saveProductsCache,
   loadCurrentCart, saveCurrentCart,
   loadParkedSales, saveParkedSales,
-  addToOfflineQueue, drainOfflineQueue,
+  addToOfflineQueue, drainOfflineQueue, loadOfflineQueue,
+  saveLocalSession, loadLocalSession, clearLocalSession,
   newLocalId,
 } from './_store';
 
@@ -134,6 +135,7 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
       const methodData = await methodRes.json().catch(() => ({ methods: ['Cash', 'Card', 'EFT'] }));
 
       saveProductsCache(prodData.products ?? []);
+      saveLocalSession(data.session);
       onLogin(data.session, prodData.products ?? [], methodData.methods ?? ['Cash', 'Card', 'EFT']);
     } catch (e: any) {
       setError(e.message || 'Network error.');
@@ -181,15 +183,17 @@ type MainScreen = 'pos' | 'eod' | 'reports' | 'parked';
 
 function MainPos({
   deviceConfig, session, products, paymentMethods, defaultView,
-  onLogout, onReceipt,
+  offlineMode, onLogout, onReceipt, onSync,
 }: {
   deviceConfig:   DeviceConfig;
   session:        PosSession;
   products:       CachedProduct[];
   paymentMethods: string[];
   defaultView:    string;
+  offlineMode:    boolean;
   onLogout:       () => void;
   onReceipt:      (sale: CompletedSale) => void;
+  onSync:         () => Promise<void>;
 }) {
   const [screen, setScreen] = useState<MainScreen>('pos');
   const [cart, setCart] = useState<CartItem[]>(() => loadCurrentCart());
@@ -199,16 +203,43 @@ function MainPos({
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [isLayby, setIsLayby] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [queueCount, setQueueCount] = useState(() => loadOfflineQueue().length);
+
+  function refreshQueueCount() { setQueueCount(loadOfflineQueue().length); }
+
+  async function handleSync() {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      await drainOfflineQueue();
+      refreshQueueCount();
+      await onSync();
+      setSyncMsg('✓ Synced');
+    } catch {
+      setSyncMsg('Sync failed');
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncMsg(null), 3000);
+    }
+  }
 
   // Persist cart on change
   useEffect(() => { saveCurrentCart(cart); }, [cart]);
 
   // Drain offline queue on mount and when online
   useEffect(() => {
-    drainOfflineQueue();
-    const handler = () => drainOfflineQueue();
-    window.addEventListener('online', handler);
-    return () => window.removeEventListener('online', handler);
+    drainOfflineQueue().then(refreshQueueCount);
+    const handleOnline  = () => { setIsOnline(true);  drainOfflineQueue().then(refreshQueueCount); };
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online',  handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online',  handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
   const totals = useMemo(() => calcTotals(cart), [cart]);
@@ -343,6 +374,7 @@ function MainPos({
     } catch {
       addToOfflineQueue(payload);
     }
+    refreshQueueCount();
 
     const completedSale: CompletedSale = {
       id:            serverId,
@@ -386,6 +418,24 @@ function MainPos({
         <span style={{ color: 'var(--sv-text-strong)', fontSize: '.9rem', fontWeight: 600 }}>{session.location_name}</span>
         <span style={{ color: 'var(--sv-text-dim)', fontSize: '.82rem' }}>· {session.full_name}</span>
         <div style={{ flex: 1 }} />
+        {/* Online / Offline badge */}
+        <span style={{ display: 'flex', alignItems: 'center', gap: '.3rem', padding: '.15rem .5rem', borderRadius: 99, background: isOnline ? 'rgba(74,222,128,.12)' : 'rgba(248,113,113,.12)', border: `1px solid ${isOnline ? 'rgba(74,222,128,.3)' : 'rgba(248,113,113,.3)'}`, fontSize: '.73rem', fontWeight: 600, color: isOnline ? '#4ade80' : '#f87171', flexShrink: 0 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: isOnline ? '#4ade80' : '#f87171', flexShrink: 0 }} />
+          {isOnline ? 'Online' : 'Offline'}
+        </span>
+        {/* Queued sales badge */}
+        {queueCount > 0 && (
+          <span style={{ padding: '.15rem .5rem', borderRadius: 99, background: 'rgba(251,191,36,.12)', border: '1px solid rgba(251,191,36,.3)', fontSize: '.73rem', fontWeight: 600, color: '#fbbf24', flexShrink: 0 }}>
+            ⏳ {queueCount} queued
+          </span>
+        )}
+        <button
+          onClick={handleSync}
+          disabled={syncing}
+          style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: syncMsg === '✓ Synced' ? 'var(--sv-green, #4ade80)' : syncMsg ? 'var(--sv-red)' : 'var(--sv-text-strong)', border: `1px solid ${syncMsg === '✓ Synced' ? 'rgba(74,222,128,.35)' : syncMsg ? 'var(--sv-red-border)' : 'rgba(255,255,255,.18)'}`, opacity: syncing ? .7 : 1 }}
+        >
+          {syncing ? '⟳ Syncing…' : syncMsg ?? '⟳ Sync'}
+        </button>
         <button onClick={() => setIsReturn(!isReturn)} style={{ ...smallBtn, background: isReturn ? 'var(--sv-red-tint)' : 'rgba(255,255,255,.1)', color: isReturn ? 'var(--sv-red)' : 'var(--sv-text-strong)', border: `1px solid ${isReturn ? 'var(--sv-red-border)' : 'rgba(255,255,255,.18)'}` }}>
           {isReturn ? '↩ Return Mode ON' : 'Return / Refund'}
         </button>
@@ -400,6 +450,14 @@ function MainPos({
         <button onClick={() => setScreen('reports')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>Reports</button>
         <button onClick={onLogout} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-red)', border: '1px solid var(--sv-red-border)' }}>Log Out</button>
       </div>
+
+      {/* Offline-mode banner (loaded from cache, no server contact) */}
+      {offlineMode && (
+        <div style={{ background: 'rgba(251,191,36,.12)', borderBottom: '1px solid rgba(251,191,36,.25)', padding: '.3rem 1rem', fontSize: '.78rem', color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '.5rem', flexShrink: 0 }}>
+          <span style={{ fontWeight: 700 }}>⚠️ Offline mode</span>
+          <span style={{ color: 'var(--sv-text-dim)' }}>Running from cached data. Sales are queued locally and will sync when connection is restored. Press ⟳ Sync once back online.</span>
+        </div>
+      )}
 
       {/* Body */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -1448,6 +1506,7 @@ export default function PosPage() {
   const [defaultView, setDefaultView]   = useState<string>('all');
   const [completedSale, setCompletedSale] = useState<CompletedSale | null>(null);
   const [printSettings, setPrintSettings] = useState<ReceiptPrintSettings>({ business_name: '', business_address: '', business_abn: '', pos_receipt_footer: '' });
+  const [offlineMode, setOfflineMode]   = useState(false);
 
   useEffect(() => {
     fetch('/api/pos/settings/receipt').then(r => r.json()).then(d => setPrintSettings(d)).catch(() => {});
@@ -1461,6 +1520,8 @@ export default function PosPage() {
       // Check if still logged in
       fetch('/api/pos/auth/me').then(r => r.json()).then(d => {
         if (d.session) {
+          saveLocalSession(d.session); // keep local cache fresh
+          setOfflineMode(false);
           setSession(d.session);
           // Show cached products immediately while fetching fresh
           const cached = loadProductsCache();
@@ -1486,9 +1547,22 @@ export default function PosPage() {
             if (viewData.defaultView) setDefaultView(viewData.defaultView);
           }).catch(() => {/* offline — keep cached */});
         } else {
+          clearLocalSession();
           setScreen('login');
         }
-      }).catch(() => setScreen('login'));
+      }).catch(() => {
+        // Network error — try offline recovery from local cache
+        const cachedSession = loadLocalSession() as PosSession | null;
+        const cachedProducts = loadProductsCache();
+        if (cachedSession && cachedProducts.length) {
+          setSession(cachedSession);
+          setProducts(cachedProducts);
+          setOfflineMode(true);
+          setScreen('pos');
+        } else {
+          setScreen('login');
+        }
+      });
     } else {
       setScreen('setup');
     }
@@ -1531,6 +1605,20 @@ export default function PosPage() {
     );
   }
 
+  async function handleSync() {
+    if (!deviceConfig) return;
+    const [prodRes, methodRes] = await Promise.all([
+      fetch(`/api/pos/products?location_id=${deviceConfig.location_id}`),
+      fetch('/api/pos/settings/payment-methods'),
+    ]);
+    const prodData   = await prodRes.json().catch(() => ({ products: [] }));
+    const methodData = await methodRes.json().catch(() => ({ methods: [] }));
+    const freshProducts = prodData.products ?? [];
+    if (freshProducts.length) { saveProductsCache(freshProducts); setProducts(freshProducts); }
+    if (Array.isArray(methodData.methods) && methodData.methods.length) setMethods(methodData.methods);
+    setOfflineMode(false);
+  }
+
   return (
     <MainPos
       deviceConfig={deviceConfig}
@@ -1538,8 +1626,11 @@ export default function PosPage() {
       products={products}
       paymentMethods={methods}
       defaultView={defaultView}
+      offlineMode={offlineMode}
+      onSync={handleSync}
       onLogout={async () => {
         await fetch('/api/pos/auth/logout', { method: 'POST' });
+        clearLocalSession();
         setSession(null);
         setScreen('login');
       }}
