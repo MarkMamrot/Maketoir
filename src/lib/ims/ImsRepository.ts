@@ -1846,7 +1846,7 @@ export const ImsBTRepo = {
                 NULLIF(v.option1_value,''), NULLIF(v.option2_value,''),
                 NULLIF(v.option3_value,'')) AS variant_label
          FROM ims_branch_transfer_items bti
-         JOIN ims_variants v ON v.variant_id = bti.variant_id
+         JOIN ims_product_variants v ON v.variant_id = bti.variant_id
          JOIN ims_products p ON p.product_id = v.product_id
          WHERE bti.transfer_id = ?`,
       [id]

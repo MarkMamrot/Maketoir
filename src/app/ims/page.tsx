@@ -8102,7 +8102,7 @@ function BranchTransfersView() {
   // ── Replenish Wizard ──────────────────────────────────────────────────────
   type ReplenishItem = {
     variant_id: string; sku: string | null; brand_name: string | null; product_name: string; variant_label: string | null;
-    need: number; branch_soh: number; warehouse_soh: number; allocated: number; unit_cost: number;
+    need: number; min_qty: number; branch_soh: number; warehouse_soh: number; allocated: number; unit_cost: number;
   };
   type ReplenishBranch = { location_id: number; location_name: string; items: ReplenishItem[] };
   const REPLENISH_KEY = 'ims_replenish_defaults';
@@ -8846,6 +8846,7 @@ function BranchTransfersView() {
                               <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600 }}>Brand</th>
                               <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600 }}>Product</th>
                               <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, whiteSpace: 'nowrap' }}>Branch SOH</th>
+                              <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, whiteSpace: 'nowrap' }}>Min Qty</th>
                               <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, whiteSpace: 'nowrap' }}>Need</th>
                               <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, whiteSpace: 'nowrap' }}>WH Stock</th>
                               <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, whiteSpace: 'nowrap' }}>Allocate</th>
@@ -8864,6 +8865,7 @@ function BranchTransfersView() {
                                     {item.sku && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{item.sku}</div>}
                                   </td>
                                   <td style={{ textAlign: 'right', padding: '6px 10px', color: 'var(--sv-text-dim)' }}>{item.branch_soh ?? 0}</td>
+                                  <td style={{ textAlign: 'right', padding: '6px 10px', color: 'var(--sv-text-dim)' }}>{item.min_qty}</td>
                                   <td style={{ textAlign: 'right', padding: '6px 10px', color: 'var(--sv-text-dim)' }}>{item.need}</td>
                                   <td style={{ textAlign: 'right', padding: '6px 10px', color: item.warehouse_soh === 0 ? 'var(--sv-red)' : item.warehouse_soh < item.need ? 'var(--sv-amber)' : 'var(--sv-mint)', fontWeight: 600 }}>{item.warehouse_soh}</td>
                                   <td style={{ textAlign: 'right', padding: '6px 4px' }}>
