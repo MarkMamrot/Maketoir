@@ -333,7 +333,7 @@ export async function POST(req: Request) {
         // -- Step C+D: Products + Variants from Cin7 /Products --------------
         if (stepsRequested.includes('products')) {
           const modeLabel = syncType === 'full'
-            ? 'Full sync — clearing Cin7 products...'
+            ? 'Full sync â€” clearing Cin7 products...'
             : 'Fetching modified products from Cin7...';
           send({ step: 'products', status: 'running', message: modeLabel });
 
@@ -342,7 +342,7 @@ export async function POST(req: Request) {
               'DELETE FROM ims_stock WHERE variant_id IN (SELECT variant_id FROM ims_product_variants WHERE cin7_option_id IS NOT NULL)',
               [],
             );
-            // NULL out order item references before deleting variants (FK constraint — no CASCADE)
+            // NULL out order item references before deleting variants (FK constraint â€” no CASCADE)
             await imsExecute(
               'UPDATE ims_purchase_order_items SET variant_id = NULL WHERE variant_id IN (SELECT variant_id FROM ims_product_variants WHERE cin7_option_id IS NOT NULL)',
               [],
@@ -380,7 +380,7 @@ export async function POST(req: Request) {
           send({ step: 'products', status: 'running', message: 'Fetching and syncing products from Cin7...' });
 
           const totalProducts = await cin7ForEachPage(creds.authHeader, '/Products', extraParams, 'ims/products', async (pageProducts, pageNum) => {
-          send({ step: 'products', status: 'running', message: `Page ${pageNum} — syncing ${pageProducts.length} products...` });
+          send({ step: 'products', status: 'running', message: `Page ${pageNum} â€” syncing ${pageProducts.length} products...` });
           for (const p of pageProducts) {
             const cin7Id = Number(p.id);
             if (!cin7Id || isNaN(cin7Id)) continue;
@@ -565,7 +565,7 @@ export async function POST(req: Request) {
             }
             if (p.brand) uniqueBrands.add(p.brand.trim());
           } // end for pageProducts
-          send({ step: 'products', status: 'running', message: `Page ${pageNum} done — ${productNew} products, ${variantSynced} variants so far` });
+          send({ step: 'products', status: 'running', message: `Page ${pageNum} done â€” ${productNew} products, ${variantSynced} variants so far` });
           }); // end cin7ForEachPage
 
           // Upsert unique brands into ims_brands
@@ -889,7 +889,7 @@ export async function POST(req: Request) {
               const lineDiscount = Number(line.discount ?? 0);
               const lineTotal = Math.round(qty * unitPrice * (1 - lineDiscount / 100) * 10000) / 10000;
               const soItemVariantId = (line.code ? variantBySku.get(line.code) : undefined) ?? null;
-              // Cin7 line taxRate can be percentage (10) or decimal (0.1) — normalise to decimal
+              // Cin7 line taxRate can be percentage (10) or decimal (0.1) â€” normalise to decimal
               const rawLineTaxRate = line.taxRate != null ? Number(line.taxRate) : null;
               const lineItemSoTaxRate = rawLineTaxRate != null
                 ? (rawLineTaxRate > 1 ? rawLineTaxRate / 100 : rawLineTaxRate)
@@ -938,7 +938,7 @@ export async function POST(req: Request) {
           send({
             step: 'sales', status: 'done',
             count: histRows[0]?.cnt ?? 0,
-            message: `${salesOrderCount} orders — ${histRows[0]?.cnt ?? 0} lines, ${cacheRows[0]?.cnt ?? 0} variants in cache`,
+            message: `${salesOrderCount} orders â€” ${histRows[0]?.cnt ?? 0} lines, ${cacheRows[0]?.cnt ?? 0} variants in cache`,
           });
         }
 
