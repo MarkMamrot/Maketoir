@@ -7813,6 +7813,8 @@ export default function ImsPage() {
   const [view, setView] = useState<ImsView>('dashboard');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('general');
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpSection, setHelpSection] = useState<SettingsSection>('general');
   const [syncing, setSyncing] = useState(false);
   const [syncingSteps, setSyncingSteps] = useState<string[]>([]);
   const [syncLog, setSyncLog] = useState<{ step: string; status: string; message: string }[]>([]);
@@ -7949,6 +7951,13 @@ export default function ImsPage() {
           🖥️ POS
         </a>
         <button
+          onClick={() => { setHelpSection(sectionFromView(view)); setHelpOpen(true); }}
+          title="Help"
+          style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '5px 8px', cursor: 'pointer', color: 'var(--sv-text-dim)', display: 'flex', alignItems: 'center' }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17" strokeLinecap="round" strokeWidth="2.5"/></svg>
+        </button>
+        <button
           onClick={() => { setSettingsSection(sectionFromView(view)); setSettingsOpen(true); }}
           title="Settings"
           style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '5px 8px', cursor: 'pointer', color: 'var(--sv-text-dim)', display: 'flex', alignItems: 'center' }}
@@ -8005,6 +8014,11 @@ export default function ImsPage() {
         </div>
       )}
 
+      <HelpModal
+        isOpen={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        defaultSection={helpSection}
+      />
       <SettingsModal
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
@@ -10383,3 +10397,328 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
 
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HelpModal — context-aware documentation, mirrors SettingsModal structure
+// ─────────────────────────────────────────────────────────────────────────────
+
+function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClose: () => void; defaultSection: SettingsSection }) {
+  const [active, setActive] = useState<SettingsSection>(defaultSection);
+  useEffect(() => { if (isOpen) setActive(defaultSection); }, [defaultSection, isOpen]);
+
+  if (!isOpen) return null;
+
+  const NAV_ITEMS: { id: SettingsSection; label: string; icon: string }[] = [
+    { id: 'general',         label: 'General',         icon: '📖' },
+    { id: 'purchase-orders', label: 'Purchase Orders', icon: '📦' },
+    { id: 'sales-orders',    label: 'Sales Orders',    icon: '🧾' },
+    { id: 'pos',             label: 'Point of Sale',   icon: '🖥' },
+    { id: 'xero',            label: 'Xero',            icon: '🔗' },
+    { id: 'sync',            label: 'Sync & Import',   icon: '🔄' },
+    { id: 'users',           label: 'Users',           icon: '👥' },
+  ];
+
+  const h2: React.CSSProperties = { margin: '0 0 6px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' };
+  const h3: React.CSSProperties = { margin: '24px 0 6px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', borderBottom: '1px solid var(--sv-etch)', paddingBottom: 6 };
+  const p: React.CSSProperties  = { margin: '6px 0 10px', fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.65 };
+  const ul: React.CSSProperties = { margin: '6px 0 10px', paddingLeft: 20, fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.75 };
+  const tag: React.CSSProperties = { display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, marginRight: 5, marginBottom: 4 };
+  const code: React.CSSProperties = { fontFamily: 'monospace', fontSize: 12, background: 'var(--sv-bg-0)', padding: '1px 5px', borderRadius: 3, color: 'var(--sv-mint)' };
+
+  type Row = { trigger: string; object: string; status: string; notes: string };
+  const TriggerTable = ({ rows }: { rows: Row[] }) => (
+    <div style={{ overflowX: 'auto', marginTop: 10 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <thead>
+          <tr style={{ background: 'var(--sv-bg-0)' }}>
+            {['Trigger', 'Xero Object', 'Status', 'Notes'].map(h => (
+              <th key={h} style={{ padding: '8px 10px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, borderBottom: '1px solid var(--sv-etch)', whiteSpace: 'nowrap' }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i} style={{ borderBottom: '1px solid var(--sv-etch)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,.02)' }}>
+              <td style={{ padding: '7px 10px', color: 'var(--sv-text-strong)', fontWeight: 500 }}>{r.trigger}</td>
+              <td style={{ padding: '7px 10px', color: 'var(--sv-text-dim)' }}>{r.object}</td>
+              <td style={{ padding: '7px 10px' }}><span style={{ ...tag, background: 'rgba(99,179,117,.15)', color: '#6dbf7e' }}>{r.status}</span></td>
+              <td style={{ padding: '7px 10px', color: 'var(--sv-text-dim)', fontSize: 11 }}>{r.notes}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  type AccRow = { role: string; type: string; description: string; required: boolean };
+  const AccountTable = ({ rows }: { rows: AccRow[] }) => (
+    <div style={{ overflowX: 'auto', marginTop: 10 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <thead>
+          <tr style={{ background: 'var(--sv-bg-0)' }}>
+            {['Role Key', 'Account Class', 'Description', ''].map(h => (
+              <th key={h} style={{ padding: '8px 10px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, borderBottom: '1px solid var(--sv-etch)' }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i} style={{ borderBottom: '1px solid var(--sv-etch)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,.02)' }}>
+              <td style={{ padding: '7px 10px' }}><code style={code}>{r.role}</code></td>
+              <td style={{ padding: '7px 10px', color: 'var(--sv-text-dim)' }}>{r.type}</td>
+              <td style={{ padding: '7px 10px', color: 'var(--sv-text-dim)' }}>{r.description}</td>
+              <td style={{ padding: '7px 10px' }}>{r.required ? <span style={{ ...tag, background: 'rgba(248,113,113,.15)', color: '#f87171' }}>Required</span> : <span style={{ ...tag, background: 'rgba(99,179,117,.10)', color: '#6dbf7e' }}>Optional</span>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const Content = () => {
+    // ── General ──────────────────────────────────────────────────────────────
+    if (active === 'general') return (
+      <div style={{ padding: 32, maxWidth: 760 }}>
+        <h2 style={h2}>IMS Overview</h2>
+        <p style={{ ...p, color: 'var(--sv-text-dim)', marginBottom: 16 }}>The Inventory Management System (IMS) is Marketoir's central hub for managing stock, orders, contacts, and financial integrations.</p>
+        <h3 style={h3}>What IMS manages</h3>
+        <ul style={ul}>
+          <li><strong>Products & variants</strong> — SKU catalog with multi-option variants, brand grouping, and bulk editing</li>
+          <li><strong>Stock levels</strong> — Per-location stock quantities, low-stock alerts, and sales cache for fast reporting</li>
+          <li><strong>Purchase Orders</strong> — Supplier orders, landed cost tracking, freight treatment, and Xero bill sync</li>
+          <li><strong>Sales Orders</strong> — Wholesale invoicing with Xero sync; POS and online sales tracked separately</li>
+          <li><strong>Point of Sale</strong> — In-store POS transactions batched daily for Xero reconciliation</li>
+          <li><strong>Contacts</strong> — Shared supplier and customer records used across POs and SOs</li>
+          <li><strong>Locations</strong> — Physical branches; used for stock allocation, POS, and Xero tracking categories</li>
+          <li><strong>Xero integration</strong> — Automated bill, invoice, payment, and journal sync (see Xero help for full detail)</li>
+          <li><strong>Stocktakes</strong> — Periodic physical count imports to adjust stock levels</li>
+        </ul>
+        <h3 style={h3}>Context-aware Help &amp; Settings</h3>
+        <p style={p}>Both the <strong>Help</strong> (?) and <strong>Settings</strong> (⚙) buttons in the top-right header open to the section most relevant to your current view. For example: clicking Help or Settings while in the Purchase Orders view opens directly to the Purchase Orders tab.</p>
+      </div>
+    );
+
+    // ── Purchase Orders ───────────────────────────────────────────────────────
+    if (active === 'purchase-orders') return (
+      <div style={{ padding: 32, maxWidth: 760 }}>
+        <h2 style={h2}>Purchase Orders</h2>
+        <p style={p}>Purchase Orders track stock ordered from suppliers. Each PO moves through a defined status lifecycle and integrates with Xero accounting.</p>
+        <h3 style={h3}>Status lifecycle</h3>
+        <ul style={ul}>
+          <li><strong>Draft</strong> — Created, not yet sent to supplier. No Xero action.</li>
+          <li><strong>Approved</strong> — PO approved for ordering. Triggers a <em>Draft Bill</em> in Xero (ACCPAY).</li>
+          <li><strong>Received</strong> — Goods received into stock. Xero bill moves to <em>Authorised</em>; if deposits were recorded, a journal transfers cost from <em>Inventory In Transit</em> to <em>Inventory Asset</em>.</li>
+          <li><strong>Closed</strong> — Fully processed. No further sync.</li>
+        </ul>
+        <h3 style={h3}>Freight treatment</h3>
+        <p style={p}>Configurable in Settings → Purchase Orders:</p>
+        <ul style={ul}>
+          <li><strong>Expense (default)</strong> — Freight posts as a separate line to the mapped freight account; cost hits P&amp;L immediately on approval.</li>
+          <li><strong>Capitalise</strong> — Freight is added to the inventory asset account, increasing the average landed cost of received stock.</li>
+        </ul>
+        <h3 style={h3}>Email &amp; PDF templates</h3>
+        <p style={p}>Email subject, body, and PDF terms are configurable in Settings → Purchase Orders. Template variables: <span style={code}>{'{{order_number}}'}</span> <span style={code}>{'{{contact_name}}'}</span> <span style={code}>{'{{total}}'}</span> <span style={code}>{'{{date}}'}</span></p>
+        <h3 style={h3}>Landed costs</h3>
+        <p style={p}>Additional landed costs (customs, duties, brokerage) can be added to a PO after creation. These are factored into average cost calculations when freight treatment is set to Capitalise.</p>
+      </div>
+    );
+
+    // ── Sales Orders ──────────────────────────────────────────────────────────
+    if (active === 'sales-orders') return (
+      <div style={{ padding: 32, maxWidth: 760 }}>
+        <h2 style={h2}>Sales Orders</h2>
+        <p style={p}>Sales Orders track wholesale invoices issued to customers. POS and online sales are tracked separately and batched to Xero daily rather than per-transaction.</p>
+        <h3 style={h3}>Status lifecycle</h3>
+        <ul style={ul}>
+          <li><strong>Draft</strong> — Created, not yet finalised. No Xero action.</li>
+          <li><strong>Confirmed</strong> — Wholesale SO confirmed. Triggers an <em>Authorised Invoice</em> in Xero (ACCREC) immediately.</li>
+          <li><strong>Fulfilled</strong> — Goods dispatched. Stock levels adjusted. No additional Xero action.</li>
+          <li><strong>Closed</strong> — Fully processed and paid.</li>
+        </ul>
+        <h3 style={h3}>Wholesale vs. POS vs. Online</h3>
+        <ul style={ul}>
+          <li><strong>Wholesale SOs</strong> — Individual invoices; each confirmation triggers a Xero invoice sync immediately.</li>
+          <li><strong>POS sales</strong> — In-store POS transactions; grouped by location and day, batched to Xero as a single summary invoice. Not individually synced.</li>
+          <li><strong>Online sales</strong> — Shopify/e-commerce orders; grouped by day across all locations, batched as a single Xero invoice. Not individually synced.</li>
+        </ul>
+        <h3 style={h3}>Payments</h3>
+        <p style={p}>Payments recorded against a SO are synced to Xero as Payment records attached to the corresponding invoice, updating the balance outstanding in both systems.</p>
+      </div>
+    );
+
+    // ── POS ───────────────────────────────────────────────────────────────────
+    if (active === 'pos') return (
+      <div style={{ padding: 32, maxWidth: 760 }}>
+        <h2 style={h2}>Point of Sale</h2>
+        <p style={p}>The IMS POS records in-store transactions per location. Sales data flows into IMS stock and is summarised into Xero daily invoices.</p>
+        <h3 style={h3}>Daily Xero batch</h3>
+        <p style={p}>POS sales are not individually synced to Xero. Instead, a single <em>summary invoice</em> is created in Xero per location per day. This keeps your Xero ledger clean while maintaining full transaction detail in IMS.</p>
+        <ul style={ul}>
+          <li>Reference format: <span style={code}>POS-YYYY-MM-DD-L{'{locationId}'}</span></li>
+          <li>Description: <em>"POS Sales 2026-06-16 — Store 1 (42 transactions)"</em></li>
+          <li>Tracking category maps the location to your Xero dimension</li>
+          <li>Status: AUTHORISED immediately on creation</li>
+        </ul>
+        <h3 style={h3}>POS Users vs IMS Users</h3>
+        <p style={p}>POS users are PIN-based terminal operators — they are separate from IMS web users. POS users are managed in Settings → Point of Sale. IMS web users (with email login) are managed in Settings → Users.</p>
+        <h3 style={h3}>Product display settings</h3>
+        <p style={p}>The POS product browser can be configured to show specific product subsets per location. This is managed in Settings → Point of Sale → Product Display.</p>
+      </div>
+    );
+
+    // ── Xero ──────────────────────────────────────────────────────────────────
+    if (active === 'xero') return (
+      <div style={{ padding: 32, maxWidth: 820 }}>
+        <h2 style={h2}>Xero Integration</h2>
+        <p style={{ ...p, color: 'var(--sv-text-dim)', fontSize: 13 }}>IMS connects to Xero via OAuth 2.0 (PKCE). The integration is <strong>unidirectional</strong> — data flows from IMS into Xero only. Xero does not push data back into IMS.</p>
+
+        <h3 style={h3}>Connection</h3>
+        <p style={p}>Connect your Xero organisation from the <strong>Xero</strong> tab in IMS. You'll be redirected to Xero to authorise. Once connected, the integration stores an access token and refresh token. Tokens are automatically refreshed — you won't need to reconnect unless you explicitly disconnect or revoke access in Xero.</p>
+
+        <h3 style={h3}>What gets synced — trigger table</h3>
+        <TriggerTable rows={[
+          { trigger: 'PO status → Approved',          object: 'Bill (ACCPAY)',        status: 'DRAFT',        notes: 'One bill per PO; line items per SKU + optional freight line' },
+          { trigger: 'PO status → Received',          object: 'Bill (ACCPAY)',        status: 'AUTHORISED',   notes: 'Bill approved; if deposits exist, journal transfers In Transit → Inventory Asset' },
+          { trigger: 'Payment added to PO',           object: 'Payment',              status: 'Applied',      notes: 'Applied to the Xero bill; bill approved if not already' },
+          { trigger: 'SO (wholesale) → Confirmed',    object: 'Invoice (ACCREC)',     status: 'AUTHORISED',   notes: 'Immediate sync; POS and online SOs are excluded from this flow' },
+          { trigger: 'Payment added to SO',           object: 'Payment',              status: 'Applied',      notes: 'Applied to the Xero invoice' },
+          { trigger: 'Daily batch (manual/scheduled)',object: 'Invoice (ACCREC)',     status: 'AUTHORISED',   notes: 'One invoice per location per day for POS; one per day for online' },
+          { trigger: 'Monthly COGS (manual)',         object: 'Manual Journal',       status: 'Posted',       notes: 'DR Cost of Goods Sold / CR Inventory Asset; one journal per branch' },
+        ]} />
+
+        <h3 style={h3}>Account mappings</h3>
+        <p style={p}>Five account roles must be mapped to accounts in your Xero chart of accounts. All are required for full sync functionality. If a required mapping is missing, the affected sync is skipped and logged as "skipped".</p>
+        <AccountTable rows={[
+          { role: 'inventory_asset',       type: 'Asset',   description: 'Stock on hand — used for PO bill lines and inventory journals', required: true },
+          { role: 'inventory_in_transit',  type: 'Asset',   description: 'Goods ordered but not yet received — used when a PO has deposits/prepayments', required: true },
+          { role: 'cogs',                  type: 'Expense', description: 'Cost of goods sold — debited in monthly COGS journals', required: true },
+          { role: 'sales_revenue',         type: 'Revenue', description: 'Sales income — used for SO and batch POS invoice lines', required: true },
+          { role: 'freight',               type: 'Expense', description: 'Freight / shipping expense — used when freight treatment is set to "Expense"', required: false },
+        ]} />
+
+        <h3 style={h3}>Tracking categories</h3>
+        <p style={p}>Xero Tracking Categories allow your Xero reports to segment P&amp;L by dimension (e.g. "Location", "Sales Channel"). Map each IMS location and sales channel to a Xero Tracking Option in the Xero settings tab.</p>
+        <ul style={ul}>
+          <li><strong>Lookup priority:</strong> Channel mapping checked first (e.g. "online", "wholesale"); if no channel match, location mapping is used; if neither, no tracking is applied to that line.</li>
+          <li><strong>Channels:</strong> <span style={code}>online</span>, <span style={code}>wholesale</span> (plus any IMS location)</li>
+          <li>Tracking is optional — bills and invoices post fine without it, just won't appear in dimension reports in Xero.</li>
+        </ul>
+
+        <h3 style={h3}>Freight treatment</h3>
+        <p style={p}>Controlled in Settings → Purchase Orders → Freight Treatment:</p>
+        <ul style={ul}>
+          <li><strong>Expense (default)</strong> — Freight posts as a separate line to the <span style={code}>freight</span> account. Cost hits P&amp;L immediately.</li>
+          <li><strong>Capitalise</strong> — Freight is added to the <span style={code}>inventory_asset</span> account. No separate line; the freight amount increases the average landed cost of the received stock.</li>
+        </ul>
+
+        <h3 style={h3}>In-transit accounting (deposits &amp; prepayments)</h3>
+        <p style={p}>When a PO has payments recorded before the goods arrive:</p>
+        <ul style={ul}>
+          <li>PO bill line items code to <span style={code}>inventory_in_transit</span> (instead of <span style={code}>inventory_asset</span>)</li>
+          <li>On receive (PO status → Received), a Xero Manual Journal is automatically created: <strong>DR Inventory Asset / CR Inventory In Transit</strong></li>
+          <li>This correctly moves the cost from a transit holding account to on-hand stock at the moment goods arrive</li>
+        </ul>
+
+        <h3 style={h3}>Queued / retry system</h3>
+        <p style={p}>All Xero syncs are <strong>non-blocking</strong> — a sync failure never interrupts IMS operations. The retry flow:</p>
+        <ul style={ul}>
+          <li><strong>Attempt 1</strong> — Sync fires immediately on the triggering action</li>
+          <li><strong>2 second wait</strong> — If attempt 1 fails</li>
+          <li><strong>Attempt 2</strong> — One automatic retry</li>
+          <li><strong>Queued</strong> — If both attempts fail, the item is marked as queued in the database</li>
+          <li><strong>Manual retry</strong> — From the Xero tab: click <em>Retry</em> on a single item, or <em>Push All</em> to retry all queued items at once</li>
+        </ul>
+        <p style={p}>The sync log (accessible from the Xero tab) shows every attempt with status, timestamp, and error detail for diagnosis.</p>
+
+        <h3 style={h3}>Tax types</h3>
+        <p style={p}>Xero tax type codes are configurable in IMS Settings. Defaults that work for most Australian Xero organisations:</p>
+        <ul style={ul}>
+          <li><span style={code}>xero_tax_type_sales</span> — <span style={code}>OUTPUT</span> (GST on income)</li>
+          <li><span style={code}>xero_tax_type_purchases</span> — <span style={code}>INPUT</span> (GST on expenses)</li>
+          <li><span style={code}>xero_tax_type_exempt</span> — <span style={code}>NONE</span> (GST-free / exempt)</li>
+        </ul>
+        <p style={p}>If your Xero organisation uses different tax codes (e.g. UK VAT codes), update these in settings before syncing.</p>
+
+        <h3 style={h3}>Monthly COGS journal</h3>
+        <p style={p}>The COGS journal is a <strong>manual, on-demand action</strong> triggered from the Xero tab. It creates a Xero Manual Journal for each branch:</p>
+        <ul style={ul}>
+          <li><strong>Debit:</strong> Cost of Goods Sold (<span style={code}>cogs</span> account)</li>
+          <li><strong>Credit:</strong> Inventory Asset (<span style={code}>inventory_asset</span> account)</li>
+          <li>Amount is the total cost of all stock sold that month for that branch</li>
+          <li>Narration format: <span style={code}>Monthly COGS — YYYY-MM</span></li>
+          <li>Tracking category applied per branch if mapped</li>
+        </ul>
+        <p style={p}>Run this once per month after closing your month-end. It is safe to run multiple times — each run creates a new journal; duplicate detection and reversal must be managed in Xero if needed.</p>
+      </div>
+    );
+
+    // ── Sync & Import ─────────────────────────────────────────────────────────
+    if (active === 'sync') return (
+      <div style={{ padding: 32, maxWidth: 760 }}>
+        <h2 style={h2}>Sync &amp; Import</h2>
+        <p style={p}>IMS can import historical and ongoing data from Cin7 Core and Shopify. Syncs are initiated manually from the Settings → Sync &amp; Import panel.</p>
+        <h3 style={h3}>Cin7 Core import</h3>
+        <ul style={ul}>
+          <li><strong>Products</strong> — Imports full product and variant catalog from Cin7. Existing IMS products with matching SKUs are updated; new SKUs are created.</li>
+          <li><strong>Sales (historical)</strong> — Imports Cin7 sales order history. Configurable date range in months.</li>
+          <li><strong>Purchase Orders (historical)</strong> — Imports Cin7 PO history. Configurable date range in months.</li>
+          <li><strong>Full sync</strong> — Re-imports everything from scratch, overwriting existing data. Use with caution.</li>
+          <li><strong>Latest sync</strong> — Imports only records created or updated since the last sync run.</li>
+        </ul>
+        <h3 style={h3}>Shopify catalog sync</h3>
+        <p style={p}>Syncs the Shopify product catalog (variants + SKUs) into the IMS products table. Used to cross-reference Shopify orders with IMS stock. Requires a Shopify connection configured in Connections → Shopify.</p>
+        <h3 style={h3}>Sales cache</h3>
+        <p style={p}>The IMS maintains an internal sales cache (<span style={code}>ims_sales_cache</span>) that pre-aggregates variant-level sales and stock metrics for fast reporting. The cache is updated automatically on key events (PO/SO status changes, POS transactions) but can be manually rebuilt from the Sync panel if data appears stale.</p>
+      </div>
+    );
+
+    // ── Users ─────────────────────────────────────────────────────────────────
+    if (active === 'users') return (
+      <div style={{ padding: 32, maxWidth: 760 }}>
+        <h2 style={h2}>Users</h2>
+        <p style={p}>Marketoir has two distinct user types that serve different purposes.</p>
+        <h3 style={h3}>IMS web users</h3>
+        <p style={p}>Full-access users who log in with email and password at the Marketoir web app. They can access all IMS views, orders, reports, and settings based on their role.</p>
+        <ul style={ul}>
+          <li><strong>Admin</strong> — Full access including user management and settings</li>
+          <li><strong>Standard</strong> — Access to all operational views (orders, stock, contacts) but not user admin</li>
+        </ul>
+        <p style={p}>Invite new IMS users from Settings → Users → Add User. They receive an email with a one-time invite link to set their password.</p>
+        <h3 style={h3}>POS terminal users</h3>
+        <p style={p}>PIN-based operators for the in-store POS terminal. These are <strong>separate</strong> from IMS web users — they do not have web app access. POS users are assigned to one or more locations and authenticate with a short PIN on the POS screen.</p>
+        <p style={p}>Manage POS users from Settings → Point of Sale → Users.</p>
+        <h3 style={h3}>Business isolation</h3>
+        <p style={p}>All IMS data is scoped to your business. Users from different businesses cannot see each other's data. Multiple users within the same business share the same view of all orders, stock, and settings.</p>
+      </div>
+    );
+
+    return null;
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', zIndex: 200, display: 'flex' }}>
+      {/* Left nav */}
+      <div style={{ width: 210, background: 'var(--sv-bg-0)', borderRight: '1px solid var(--sv-etch)', display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 16px 14px' }}>
+          <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--sv-text-strong)' }}>Help</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 22, lineHeight: 1, padding: 0 }}>×</button>
+        </div>
+        <div style={{ height: 1, background: 'var(--sv-etch)', margin: '0 0 8px' }} />
+        {NAV_ITEMS.map(item => {
+          const isActive = active === item.id;
+          return (
+            <button key={item.id} onClick={() => setActive(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '9px 16px', background: isActive ? 'rgba(96,165,250,.12)' : 'transparent', border: 'none', cursor: 'pointer', color: isActive ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontWeight: isActive ? 600 : 400, fontSize: 13, textAlign: 'left', borderLeft: isActive ? '3px solid #60a5fa' : '3px solid transparent', transition: 'background .12s' }}>
+              <span style={{ width: 16, textAlign: 'center', flexShrink: 0 }}>{item.icon}</span>
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Right content */}
+      <div style={{ flex: 1, background: 'var(--sv-bg-1)', overflow: 'auto', minWidth: 0 }}>
+        <Content />
+      </div>
+    </div>
+  );
+}
