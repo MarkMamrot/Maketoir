@@ -30,7 +30,8 @@ export interface ReplenishBranch {
 export async function POST(req: Request) {
   if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
-  const body = await req.json() as {
+  try {
+    const body = await req.json() as {
     warehouse_id: number;
     branch_ids: number[];
     strategy: 'even' | 'priority';
@@ -248,4 +249,8 @@ export async function POST(req: Request) {
     .filter(b => b.items.length > 0);
 
   return NextResponse.json({ branches });
+  } catch (err: any) {
+    console.error('[replenish] error:', err);
+    return NextResponse.json({ error: err?.message ?? 'Internal server error' }, { status: 500 });
+  }
 }
