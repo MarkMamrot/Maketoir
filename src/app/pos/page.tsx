@@ -1508,6 +1508,13 @@ export default function PosPage() {
   const [printSettings, setPrintSettings] = useState<ReceiptPrintSettings>({ business_name: '', business_address: '', business_abn: '', pos_receipt_footer: '' });
   const [offlineMode, setOfflineMode]   = useState(false);
 
+  // Register service worker for offline shell caching
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  }, []);
+
   useEffect(() => {
     fetch('/api/pos/settings/receipt').then(r => r.json()).then(d => setPrintSettings(d)).catch(() => {});
     fetch('/api/pos/settings/products').then(r => r.json()).then(d => { if (d.defaultView) setDefaultView(d.defaultView); }).catch(() => {});
