@@ -8117,6 +8117,7 @@ function BranchTransfersView() {
   const [rpCreating, setRpCreating]   = useState(false);
   const [rpCreateResults, setRpCreateResults] = useState<string[]>([]);
   const [rpHideZeroWh, setRpHideZeroWh] = useState(true);
+  const [btPrintId, setBtPrintId]     = useState<number | null>(null);
 
   const openReplenish = () => {
     // Load defaults from localStorage
@@ -8469,7 +8470,7 @@ function BranchTransfersView() {
                   <td style={{ padding: '10px 12px' }}><StatusBadge status={bt.status} /></td>
                   <td style={{ padding: '10px 12px', fontSize: 13 }}>{fmtCurrency(bt.total_value)}</td>
                   <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
-                    <BTActions bt={bt} onEdit={() => openEdit(bt)} onDelete={() => handleDelete(bt)} onStatus={changeStatus} onReceive={() => openReceive(bt)} />
+                    <BTActions bt={bt} onEdit={() => openEdit(bt)} onDelete={() => handleDelete(bt)} onStatus={changeStatus} onReceive={() => openReceive(bt)} onPrint={() => setBtPrintId(bt.id)} />
                   </td>
                 </tr>
               ))}
@@ -8587,6 +8588,7 @@ function BranchTransfersView() {
               onDelete={() => { setViewModal({ open: false, bt: null }); handleDelete(viewModal.bt); }}
               onStatus={changeStatus}
               onReceive={() => { setViewModal({ open: false, bt: null }); openReceive(viewModal.bt); }}
+              onPrint={() => setBtPrintId(viewModal.bt.id)}
             />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
@@ -8684,6 +8686,8 @@ function BranchTransfersView() {
           </div>
         </Modal>
       )}
+
+      {btPrintId && <BTPrintModal id={btPrintId} onClose={() => setBtPrintId(null)} />}
 
       {/* ── Replenish Wizard Modal ─────────────────────────────────────────── */}
       {rpOpen && (
@@ -8919,11 +8923,12 @@ function BranchTransfersView() {
   );
 }
 
-function BTActions({ bt, onEdit, onDelete, onStatus, onReceive }: {
+function BTActions({ bt, onEdit, onDelete, onStatus, onReceive, onPrint }: {
   bt: any; onEdit: () => void; onDelete: () => void;
-  onStatus: (bt: any, s: string) => void; onReceive: () => void;
+  onStatus: (bt: any, s: string) => void; onReceive: () => void; onPrint: () => void;
 }) {
   const btns: React.ReactNode[] = [];
+  btns.push(<button key="p" onClick={onPrint} style={btnStyle('secondary', 'xs')}>🖨 Print</button>);
   if (bt.status === 'draft') {
     btns.push(<button key="e" onClick={onEdit} style={btnStyle('secondary', 'xs')}>Edit</button>);
     btns.push(<button key="s" onClick={() => onStatus(bt, 'sent')} style={btnStyle('action', 'xs')}>Mark Sent</button>);
@@ -8937,6 +8942,114 @@ function BTActions({ bt, onEdit, onDelete, onStatus, onReceive }: {
     btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>);
   }
   return <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{btns}</div>;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BT Print Modal
+// ─────────────────────────────────────────────────────────────────────────────
+
+function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
+  const [data,      setData]      = useState<any | null>(null);
+  const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState<string | null>(null);
+  const [shortCode, setShortCode] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/ims/branch-transfers/${id}/print`)
+      .then(r => r.json())
+      .then(d => { if (d.error) setError(d.error); else setData(d); })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  const barcode = (raw: string | null) => {
+    if (!raw) return '—';
+    return shortCode ? raw.slice(-4) : raw;
+  };
+
+  return (
+    <>
+      {/* Print-only CSS: hides everything except #bt-print-zone */}
+      <style>{`
+        @media print {
+          body > * { visibility: hidden !important; }
+          #bt-print-zone, #bt-print-zone * { visibility: visible !important; }
+          #bt-print-zone { position: fixed; inset: 0; background: #fff; z-index: 99999; padding: 16px; }
+          .bt-print-no-print { display: none !important; }
+        }
+      `}</style>
+
+      {/* Screen overlay */}
+      <div className="bt-print-no-print" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 1000 }} onClick={onClose} />
+
+      <div id="bt-print-zone" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 10, width: 'min(98vw, 1100px)', maxHeight: '92vh', overflowY: 'auto', zIndex: 1001, padding: 24 }}>
+
+        {/* Header row */}
+        <div className="bt-print-no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
+            {loading ? 'Loading…' : data ? `Branch Transfer — ${data.transfer_number}` : 'Print'}
+          </h2>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+              <input type="checkbox" checked={shortCode} onChange={e => setShortCode(e.target.checked)} />
+              Last 4 digits of barcode only
+            </label>
+            <button
+              onClick={() => window.print()}
+              style={{ padding: '7px 18px', borderRadius: 6, border: 'none', background: '#2563eb', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
+            >🖨 Print</button>
+            <button onClick={onClose} style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', cursor: 'pointer', fontSize: 13 }}>✕ Close</button>
+          </div>
+        </div>
+
+        {loading && <div style={{ padding: 40, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</div>}
+        {error   && <div style={{ padding: 40, textAlign: 'center', color: 'var(--sv-red)' }}>{error}</div>}
+
+        {data && (
+          <>
+            {/* Transfer meta — shown on print */}
+            <div style={{ marginBottom: 16, display: 'grid', gridTemplateColumns: 'repeat(4, auto)', gap: '4px 24px', fontSize: 13 }}>
+              <span style={{ fontWeight: 600 }}>Transfer:</span><span>{data.transfer_number}</span>
+              <span style={{ fontWeight: 600 }}>Date:</span><span>{data.transfer_date?.slice(0,10)}</span>
+              <span style={{ fontWeight: 600 }}>From:</span><span>{data.from_location_name}</span>
+              <span style={{ fontWeight: 600 }}>To:</span><span>{data.to_location_name}</span>
+            </div>
+            {data.notes && <div style={{ marginBottom: 14, fontSize: 12, color: 'var(--sv-text-dim)', fontStyle: 'italic' }}>Note: {data.notes}</div>}
+
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1' }}>
+                  {['Zone', 'Bin', 'Brand', 'Product / Variant', 'Code', 'Barcode', 'Branch', 'Qty to Repack', 'WH Qty'].map(h => (
+                    <th key={h} style={{ padding: '7px 10px', textAlign: h === 'Qty to Repack' || h === 'WH Qty' ? 'right' : 'left', fontWeight: 700, color: '#374151', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.items.map((item: any, i: number) => (
+                  <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i % 2 === 1 ? '#f8fafc' : '#fff' }}>
+                    <td style={{ padding: '8px 10px', color: '#6b7280', whiteSpace: 'nowrap' }}>{item.zone || '—'}</td>
+                    <td style={{ padding: '8px 10px', color: '#6b7280', whiteSpace: 'nowrap' }}>{item.bin  || '—'}</td>
+                    <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{item.brand || '—'}</td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <div style={{ fontWeight: 600, color: '#111827' }}>{item.product_name}</div>
+                      {item.variant_label && <div style={{ fontSize: 11, color: '#6b7280' }}>{item.variant_label}</div>}
+                    </td>
+                    <td style={{ padding: '8px 10px', fontFamily: 'monospace', color: '#0369a1', whiteSpace: 'nowrap' }}>{item.sku || '—'}</td>
+                    <td style={{ padding: '8px 10px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{barcode(item.barcode)}</td>
+                    <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{item.to_location_name}</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, fontSize: 18, color: '#111827', whiteSpace: 'nowrap' }}>{Number(item.qty_sent)}</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', color: Number(item.wh_qty) <= 0 ? '#ef4444' : '#374151' }}>{Number(item.wh_qty)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div style={{ marginTop: 14, fontSize: 12, color: '#9ca3af', textAlign: 'right' }}>{data.items.length} line{data.items.length !== 1 ? 's' : ''}</div>
+          </>
+        )}
+      </div>
+    </>
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
