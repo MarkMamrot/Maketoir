@@ -118,18 +118,21 @@ export async function POST(req: Request) {
   const needsByVariant = new Map<string, BranchNeed[]>();
 
   for (const row of branchNeedsRaw) {
-    const need = row.reorder_qty > 0
-      ? row.reorder_qty
-      : Math.max(0, row.min_qty - row.qty_on_hand);
+    const qty_on_hand = Number(row.qty_on_hand);
+    const min_qty     = Number(row.min_qty);
+    const reorder_qty = Number(row.reorder_qty);
+    const need = reorder_qty > 0
+      ? reorder_qty
+      : Math.max(0, min_qty - qty_on_hand);
     if (need <= 0) continue;
 
-    const unitCost = row.avg_cost ?? 0;
+    const unitCost = Number(row.avg_cost ?? 0);
     if (!needsByVariant.has(row.variant_id)) needsByVariant.set(row.variant_id, []);
     needsByVariant.get(row.variant_id)!.push({
       location_id: row.location_id,
       location_name: row.location_name,
       need,
-      branch_soh: row.qty_on_hand,
+      branch_soh: Number(row.qty_on_hand),
       unit_cost: unitCost,
       sku: row.sku,
       brand_name: row.brand_name,
@@ -156,7 +159,7 @@ export async function POST(req: Request) {
 
   for (const [variant_id, branchNeeds] of needsByVariant) {
     const wh = warehouseMap.get(variant_id);
-    const warehouse_soh = wh?.qty_on_hand ?? 0;
+    const warehouse_soh = Number(wh?.qty_on_hand ?? 0);
     const totalNeed = branchNeeds.reduce((s, b) => s + b.need, 0);
 
     let allocations: Map<number, number>;
