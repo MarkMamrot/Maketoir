@@ -67,7 +67,8 @@ export async function POST(req: Request) {
     for (const entry of entries) {
       await PosEodRepo.save({
         location_id:       resolvedLocationId,
-        cashier_id:        session.pos_user_id,
+        cashier_id:        session.pos_user_id || null,
+        cashier_name:      session.full_name || session.username || null,
         recon_date:        resolvedDate,
         payment_method:    entry.payment_method,
         expected_amount:   expected[entry.payment_method] ?? 0,

@@ -253,7 +253,7 @@ CREATE TABLE IF NOT EXISTS pos_sales (
   local_id          VARCHAR(100) UNIQUE,
   location_id       INT NOT NULL,
   cashier_id        INT NULL,
-  sale_type         ENUM('sale','return','layby') NOT NULL DEFAULT 'sale',
+  cashier_name      VARCHAR(255),('sale','return','layby') NOT NULL DEFAULT 'sale',
   status            ENUM('open','parked','completed','voided','layby_active','layby_complete') NOT NULL DEFAULT 'open',
   customer_name     VARCHAR(255),
   customer_phone    VARCHAR(50),
@@ -307,7 +307,8 @@ CREATE TABLE IF NOT EXISTS pos_payments (
 CREATE TABLE IF NOT EXISTS pos_eod_reconciliations (
   id                INT AUTO_INCREMENT PRIMARY KEY,
   location_id       INT NOT NULL,
-  cashier_id        INT NOT NULL,
+  cashier_id        INT NULL,
+  cashier_name      VARCHAR(255),
   recon_date        DATE NOT NULL,
   payment_method    VARCHAR(100) NOT NULL,
   expected_amount   DECIMAL(12,2),

@@ -248,6 +248,7 @@ export const PosSalesRepo = {
     local_id:          string | null;
     location_id:       number;
     cashier_id:        number | null;
+    cashier_name:      string | null;
     sale_type:         'sale' | 'return' | 'layby';
     status:            'completed' | 'layby_active' | 'layby_complete' | 'parked' | 'voided';
     customer_name?:    string | null;
@@ -289,14 +290,15 @@ export const PosSalesRepo = {
       // 1. Insert sale
       const [saleResult]: any = await conn.execute(
         `INSERT INTO pos_sales
-           (local_id, location_id, cashier_id, sale_type, status,
+           (local_id, location_id, cashier_id, cashier_name, sale_type, status,
             customer_name, customer_phone, subtotal, discount_total,
             tax_total, total, notes, parked_label, return_of_sale_id, completed_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           data.local_id ?? null,
           data.location_id,
           data.cashier_id,
+          data.cashier_name ?? null,
           data.sale_type,
           data.status,
           data.customer_name ?? null,
@@ -458,7 +460,8 @@ export const PosEodRepo = {
 
   async save(data: {
     location_id:      number;
-    cashier_id:       number;
+    cashier_id:       number | null;
+    cashier_name:     string | null;
     recon_date:       string;
     payment_method:   string;
     expected_amount:  number | null;
@@ -469,11 +472,12 @@ export const PosEodRepo = {
   }): Promise<void> {
     await imsExecute(
       `INSERT INTO pos_eod_reconciliations
-         (location_id, cashier_id, recon_date, payment_method,
+         (location_id, cashier_id, cashier_name, recon_date, payment_method,
           expected_amount, counted_amount, opening_float, denomination_data, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
          cashier_id        = VALUES(cashier_id),
+         cashier_name      = VALUES(cashier_name),
          expected_amount   = VALUES(expected_amount),
          counted_amount    = VALUES(counted_amount),
          opening_float     = VALUES(opening_float),
@@ -481,7 +485,8 @@ export const PosEodRepo = {
          notes             = VALUES(notes)`,
       [
         data.location_id,
-        data.cashier_id,
+        data.cashier_id ?? null,
+        data.cashier_name ?? null,
         data.recon_date,
         data.payment_method,
         data.expected_amount ?? null,
@@ -512,7 +517,7 @@ export const PosReportsRepo = {
     payments: PosPaymentRow[];
   }[]> {
     const sales = await imsQuery<any>(
-      `SELECT s.*, u.full_name AS cashier_name
+      `SELECT s.*, COALESCE(s.cashier_name, u.full_name) AS cashier_name
        FROM pos_sales s
        LEFT JOIN pos_users u ON u.id = s.cashier_id
        WHERE s.location_id = ? AND DATE(s.created_at) = ?
