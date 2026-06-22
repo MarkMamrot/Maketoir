@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, useDeferredValue } from 'react';
 import type { DeviceConfig, PosSession, CachedProduct, CartItem, PaymentEntry, ParkedSale, CompletedSale } from './_types';
 import {
   loadDeviceConfig, saveDeviceConfig, clearDeviceConfig,
@@ -561,6 +561,10 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
   highlightRef.current = highlightIdx;
   searchRef.current    = search;
 
+  // Defer the expensive grid filter so keystrokes feel instant
+  const deferredSearch = useDeferredValue(search);
+  const deferredMode   = useDeferredValue(mode);
+
   // Focus search on mount
   useEffect(() => { inputRef.current?.focus(); }, []);
 
@@ -612,19 +616,20 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
   }, [sortedProducts, brand, search]);
 
   // Main grid products: browse = smart-sorted full list; search = filtered
+  // Uses deferredSearch/deferredMode so the grid update is low-priority — keystrokes stay instant
   const filtered = useMemo(() => {
     let list = inStockOnly ? sortedProducts.filter(p => p.soh > 0) : sortedProducts;
     if (brand) list = list.filter(p => p.brand === brand);
     // In browse mode, if specific variants are pinned, restrict to those only
-    if (mode === 'browse' && !search.trim() && pinnedIds) {
+    if (deferredMode === 'browse' && !deferredSearch.trim() && pinnedIds) {
       list = list.filter(p => pinnedIds.has(p.variant_id));
     }
-    if (mode === 'search' && search.trim()) {
-      const q = search.toLowerCase();
+    if (deferredMode === 'search' && deferredSearch.trim()) {
+      const q = deferredSearch.toLowerCase();
       list = list.filter(p => matchQuery(p, q));
     }
     return list;
-  }, [sortedProducts, brand, inStockOnly, pinnedIds, mode, search]);
+  }, [sortedProducts, brand, inStockOnly, pinnedIds, deferredMode, deferredSearch]);
 
   // Keep dropItemsRef current so the keydown handler always sees the latest list
   dropItemsRef.current = dropdownItems;
