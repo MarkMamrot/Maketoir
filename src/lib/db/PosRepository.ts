@@ -406,7 +406,7 @@ export const PosSalesRepo = {
 
   async updateStatus(id: number, status: PosSaleRow['status'], extra?: { parked_label?: string }): Promise<void> {
     const completedAt = ['completed', 'layby_complete', 'voided'].includes(status)
-      ? new Date().toISOString().replace('T', ' ').replace('Z', '').slice(0, 19)
+      ? localNow()
       : null;
     if (extra?.parked_label !== undefined) {
       await imsExecute(

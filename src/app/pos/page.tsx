@@ -1256,7 +1256,7 @@ function calcCash(denoms: Record<string, string>): number {
 }
 
 function EodScreen({ session, onBack }: { session: PosSession; onBack: () => void }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString('sv-SE');
   const [mode, setMode]                   = useState<'open' | 'eod'>(() => new Date().getHours() < 12 ? 'open' : 'eod');
   const [date, setDate]                   = useState(today);
   const [expected, setExpected]           = useState<Record<string, number>>({});
@@ -1692,7 +1692,7 @@ function EodAccountingSection({
 // ─── Reports Screen ───────────────────────────────────────────────────────────
 
 function ReportsScreen({ session, onBack }: { session: PosSession; onBack: () => void }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString('sv-SE');
   const [date, setDate] = useState(today);
   const [data, setData] = useState<any>(null);
   const [graphData, setGraphData] = useState<{ date: string; total: number; count: number }[]>([]);
