@@ -16,17 +16,8 @@ async function addColIfMissing(table, col, definition) {
   console.log(`  Added ${table}.${col}`);
 }
 
-async function makeNullable(table, col, typeDef) {
-  const [cols] = await conn.query(`SHOW COLUMNS FROM ${table} LIKE '${col}'`);
-  if (!cols.length || cols[0].Null === 'YES') { console.log(`  ${table}.${col} already nullable`); return; }
-  await conn.query(`ALTER TABLE ${table} MODIFY COLUMN ${col} ${typeDef} NULL`);
-  console.log(`  Made ${table}.${col} nullable`);
-}
-
-console.log('Running migrations...');
-await makeNullable('pos_eod_reconciliations', 'cashier_id', 'INT');
-await addColIfMissing('pos_sales', 'cashier_name', 'VARCHAR(255) NULL AFTER cashier_id');
-await addColIfMissing('pos_eod_reconciliations', 'cashier_name', 'VARCHAR(255) NULL AFTER cashier_id');
+console.log('Running migration...');
+await addColIfMissing('pos_sales', 'trading_date', 'DATE NULL AFTER location_id');
 console.log('Done.');
 
 await conn.end();
