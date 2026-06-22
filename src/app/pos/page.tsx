@@ -553,12 +553,70 @@ function saveRecentIds(ids: string[]): void {
   try { localStorage.setItem('pos_recent_vids', JSON.stringify(ids)); } catch {}
 }
 
+// ─── POS Stock Modal ──────────────────────────────────────────────────────────
+
+function PosStockModal({ variantId, productName, onClose }: { variantId: string; productName: string; onClose: () => void }) {
+  const [rows, setRows]       = useState<{ location_name: string; qty_on_hand: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState('');
+
+  useEffect(() => {
+    fetch(`/api/ims/stock?variant_id=${encodeURIComponent(variantId)}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) setRows((d.data ?? []).map((r: any) => ({ location_name: r.location_name ?? `Loc ${r.location_id}`, qty_on_hand: Number(r.qty_on_hand ?? 0) })));
+        else setError(d.error ?? 'Failed to load stock.');
+      })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [variantId]);
+
+  const total = rows.reduce((s, r) => s + r.qty_on_hand, 0);
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: '1.5rem', width: 400, maxWidth: '95vw', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 12px 48px rgba(0,0,0,.5)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8, marginBottom: 2 }}>Stock by Location</div>
+            <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--sv-text-strong)', lineHeight: 1.3 }}>{productName}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 22, lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
+        </div>
+        {loading && <div style={{ textAlign: 'center', color: 'var(--sv-text-dim)', padding: '1.5rem 0' }}>Loading…</div>}
+        {error  && <div style={{ color: 'var(--sv-red)', fontSize: '.85rem' }}>{error}</div>}
+        {!loading && !error && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px,1fr))', gap: 8 }}>
+            {rows.map(r => (
+              <div key={r.location_name} style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '10px 14px' }}>
+                <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', fontWeight: 600, marginBottom: 4 }}>{r.location_name}</div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 700, color: r.qty_on_hand === 0 ? 'var(--sv-text-dim)' : 'var(--sv-text-strong)' }}>{r.qty_on_hand}</div>
+              </div>
+            ))}
+            {rows.length > 1 && (
+              <div style={{ background: 'color-mix(in srgb, var(--sv-action) 12%, transparent)', border: '1px solid var(--sv-action)', borderRadius: 8, padding: '10px 14px' }}>
+                <div style={{ fontSize: '.72rem', color: 'var(--sv-action)', fontWeight: 700, marginBottom: 4 }}>TOTAL</div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--sv-action)' }}>{total}</div>
+              </div>
+            )}
+            {rows.length === 0 && <div style={{ color: 'var(--sv-text-dim)', fontSize: '.85rem', gridColumn: '1/-1' }}>No stock records found.</div>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Product Panel ────────────────────────────────────────────────────────────
 
 function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 'all' }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; isReturn: boolean; onChargeEnter?: () => void; defaultView?: string }) {
   const [search, setSearch]             = useState('');
   const [brand, setBrand]               = useState(() => defaultView.startsWith('brand:') ? defaultView.slice(6) : '');
   const [inStockOnly, setInStockOnly]   = useState(() => defaultView === 'in_stock');
+  const [stockModal, setStockModal]     = useState<{ variantId: string; productName: string } | null>(null);
 
   // Pinned variant IDs from the "Specific Products" setting
   const pinnedIds = useMemo(() => {
@@ -740,9 +798,9 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
                     <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[p.brand, p.code].filter(Boolean).join(' · ')}</div>
                   </div>
                   <span style={{ fontWeight: 700, color: 'var(--sv-action)', fontSize: '.85rem', flexShrink: 0 }}>${fmt(p.price)}</span>
-                  <span style={{ fontSize: '.72rem', padding: '2px 6px', borderRadius: 5, background: p.soh > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: p.soh > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', flexShrink: 0 }} title="Stock at this store">{p.soh > 0 ? p.soh : 'OOS'}</span>
+                  <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '2px 6px', borderRadius: 5, background: p.soh > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: p.soh > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', flexShrink: 0, border: 'none', cursor: 'pointer', fontWeight: 700 }} title="Stock at this store — click for breakdown">{p.soh > 0 ? p.soh : 'OOS'}</button>
                   {p.soh_all !== undefined && p.soh_all !== p.soh && (
-                    <span style={{ fontSize: '.72rem', padding: '2px 5px', borderRadius: 5, background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', flexShrink: 0, border: '1px solid var(--sv-etch)' }} title="Total stock across all locations">∑{p.soh_all}</span>
+                    <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '2px 5px', borderRadius: 5, background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', flexShrink: 0, border: '1px solid var(--sv-etch)', cursor: 'pointer' }} title="Total across all locations — click for breakdown">all:{p.soh_all}</button>
                   )}
                 </div>
               ))}
@@ -803,11 +861,11 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontWeight: 800, color: 'var(--sv-action)', fontSize: '1rem' }}>${fmt(p.price)}</span>
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                  <span style={{ fontSize: '.75rem', padding: '.15rem .5rem', borderRadius: 5, background: p.soh > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: p.soh > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 700 }} title="Stock at this store">
+                  <button onClick={e => { e.stopPropagation(); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.75rem', padding: '.15rem .5rem', borderRadius: 5, background: p.soh > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: p.soh > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 700, border: 'none', cursor: 'pointer' }} title="Stock at this store — click for breakdown">
                     {p.soh > 0 ? p.soh : 'OOS'}
-                  </span>
+                  </button>
                   {p.soh_all !== undefined && p.soh_all !== p.soh && (
-                    <span style={{ fontSize: '.72rem', padding: '.1rem .4rem', borderRadius: 5, background: 'var(--sv-bg-0)', color: 'var(--sv-text-dim)', border: '1px solid var(--sv-etch)' }} title="Total across all locations">∑{p.soh_all}</span>
+                    <button onClick={e => { e.stopPropagation(); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '.1rem .4rem', borderRadius: 5, background: 'var(--sv-bg-0)', color: 'var(--sv-text-dim)', border: '1px solid var(--sv-etch)', cursor: 'pointer' }} title="Total across all locations — click for breakdown">all:{p.soh_all}</button>
                   )}
                 </div>
               </div>
@@ -820,6 +878,13 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
           </div>
         )}
       </div>
+      {stockModal && (
+        <PosStockModal
+          variantId={stockModal.variantId}
+          productName={stockModal.productName}
+          onClose={() => setStockModal(null)}
+        />
+      )}
     </div>
   );
 }
