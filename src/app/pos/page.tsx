@@ -189,7 +189,7 @@ function MainPos({
   session:        PosSession;
   products:       CachedProduct[];
   paymentMethods: string[];
-  defaultView:    string;
+  defaultView:    string | null;
   offlineMode:    boolean;
   onLogout:       () => void;
   onReceipt:      (sale: CompletedSale) => void;
@@ -207,6 +207,7 @@ function MainPos({
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [queueCount, setQueueCount] = useState(() => loadOfflineQueue().length);
+  const [cartLeft, setCartLeft] = useState(() => { try { return localStorage.getItem('pos_cart_left') === '1'; } catch { return false; } });
 
   function refreshQueueCount() { setQueueCount(loadOfflineQueue().length); }
 
@@ -448,6 +449,11 @@ function MainPos({
         </button>
         <button onClick={() => setScreen('eod')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>EOD</button>
         <button onClick={() => setScreen('reports')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>Reports</button>
+        <button
+          onClick={() => setCartLeft(v => { const next = !v; try { localStorage.setItem('pos_cart_left', next ? '1' : '0'); } catch {} return next; })}
+          title={cartLeft ? 'Cart on left — click to move right' : 'Cart on right — click to move left'}
+          style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-dim)', border: '1px solid rgba(255,255,255,.18)' }}
+        >{cartLeft ? '⬅ Cart' : 'Cart ➡'}</button>
         <button onClick={onLogout} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-red)', border: '1px solid var(--sv-red-border)' }}>Log Out</button>
       </div>
 
@@ -460,12 +466,16 @@ function MainPos({
       )}
 
       {/* Body */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* Product Panel */}
-        <ProductPanel products={products} onAdd={addToCart} isReturn={isReturn} defaultView={defaultView} onChargeEnter={() => { if (cart.length && !showPayment) setShowPayment(true); }} />
+      <div style={{ flex: 1, display: 'flex', flexDirection: cartLeft ? 'row-reverse' : 'row', overflow: 'hidden' }}>
+        {/* Product Panel — only render once defaultView is known to avoid flash */}
+        {defaultView !== null ? (
+          <ProductPanel products={products} onAdd={addToCart} isReturn={isReturn} defaultView={defaultView} onChargeEnter={() => { if (cart.length && !showPayment) setShowPayment(true); }} />
+        ) : (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontSize: '.9rem' }}>Loading products…</div>
+        )}
 
         {/* Cart Panel */}
-        <div style={{ width: 380, display: 'flex', flexDirection: 'column', borderLeft: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
+        <div style={{ width: 400, display: 'flex', flexDirection: 'column', borderLeft: cartLeft ? 'none' : '1px solid var(--sv-etch)', borderRight: cartLeft ? '1px solid var(--sv-etch)' : 'none', background: 'var(--sv-bg-1)' }}>
           {/* Customer info */}
           <div style={{ padding: '.5rem .75rem', display: 'flex', gap: '.5rem' }}>
             <input placeholder='Customer name' value={customerName} onChange={e => setCustomerName(e.target.value)} style={{ ...inputStyle, flex: 1, marginBottom: 0, padding: '.35rem .5rem', fontSize: '.8rem' }} />
@@ -496,14 +506,15 @@ function MainPos({
             <TotalRow label='GST (incl.)' value={totals.tax_total} muted />
             <TotalRow label='TOTAL' value={totals.total} large />
 
-            <div style={{ display: 'flex', gap: '.5rem', marginTop: '.75rem' }}>
-              <button onClick={clearCart} style={{ ...smallBtn, flex: 1 }} disabled={!cart.length}>Clear</button>
+            <div style={{ display: 'flex', gap: '.5rem', marginTop: '.75rem', flexDirection: 'column' }}>
+              <button onClick={clearCart} style={{ ...smallBtn, width: '100%', padding: '.55rem', fontSize: '.85rem' }} disabled={!cart.length}>Clear Cart</button>
               <button
                 onClick={() => setShowPayment(true)}
                 disabled={!cart.length}
-                style={{ flex: 2, padding: '.7rem', background: 'var(--sv-action)', border: '1px solid var(--sv-action)', borderRadius: 8, color: '#fff', cursor: cart.length ? 'pointer' : 'not-allowed', fontWeight: 700, fontSize: '1rem', opacity: cart.length ? 1 : 0.4, transition: 'opacity .2s' }}
+                style={{ width: '100%', padding: '1rem .5rem', background: cart.length ? 'var(--sv-action)' : 'var(--sv-bg-2)', border: `2px solid ${cart.length ? 'var(--sv-action)' : 'var(--sv-etch)'}`, borderRadius: 10, color: cart.length ? '#fff' : 'var(--sv-text-muted)', cursor: cart.length ? 'pointer' : 'not-allowed', fontWeight: 900, lineHeight: 1.15, transition: 'opacity .15s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.1rem' }}
               >
-                {isLayby ? `Layby $${fmt(totals.total)}` : `Charge $${fmt(totals.total)}`}
+                <span style={{ fontSize: '1rem', letterSpacing: .5, textTransform: 'uppercase' }}>{isLayby ? 'Layby' : 'Charge'}</span>
+                <span style={{ fontSize: '2rem', letterSpacing: -1, fontWeight: 900 }}>${fmt(totals.total)}</span>
               </button>
             </div>
           </div>
@@ -753,7 +764,7 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
       )}
 
       {/* Product grid */}
-      <div style={{ flex: 1, overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px,1fr))', gap: '.5rem', padding: '.75rem', alignContent: 'start' }}>
+      <div style={{ flex: 1, overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px,1fr))', gap: '.6rem', padding: '.75rem', alignContent: 'start' }}>
         {filtered.map(p => {
           const isRecent = mode === 'browse' && recentIds.includes(p.variant_id);
           return (
@@ -764,7 +775,7 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
                 background: isReturn ? 'var(--sv-red-tint)' : 'var(--sv-bg-2)',
                 border: `1px solid ${isRecent ? 'rgba(37,99,235,.35)' : 'var(--sv-etch)'}`,
                 borderRadius: 8,
-                padding: '.6rem .75rem',
+                padding: '.75rem .85rem',
                 textAlign: 'left',
                 cursor: 'pointer',
                 color: 'var(--sv-text-main)',
@@ -774,11 +785,11 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
               onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--sv-action)')}
               onMouseLeave={e => (e.currentTarget.style.borderColor = isRecent ? 'rgba(37,99,235,.35)' : 'var(--sv-etch)')}
             >
-              <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', marginBottom: '.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.brand ?? p.code ?? '—'}</div>
-              <div style={{ fontSize: '.85rem', fontWeight: 600, lineHeight: 1.3, color: 'var(--sv-text-strong)', maxHeight: '2.6em', overflow: 'hidden', marginBottom: '.35rem' }}>{p.name}</div>
+              <div style={{ fontSize: '.75rem', color: 'var(--sv-text-dim)', marginBottom: '.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.brand ?? p.code ?? '—'}</div>
+              <div style={{ fontSize: '.9rem', fontWeight: 700, lineHeight: 1.3, color: 'var(--sv-text-strong)', maxHeight: '2.6em', overflow: 'hidden', marginBottom: '.4rem' }}>{p.name}</div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 700, color: 'var(--sv-action)', fontSize: '.9rem' }}>${fmt(p.price)}</span>
-                <span style={{ fontSize: '.72rem', padding: '.1rem .45rem', borderRadius: 5, background: p.soh > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: p.soh > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 600 }}>
+                <span style={{ fontWeight: 800, color: 'var(--sv-action)', fontSize: '1rem' }}>${fmt(p.price)}</span>
+                <span style={{ fontSize: '.75rem', padding: '.15rem .5rem', borderRadius: 5, background: p.soh > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: p.soh > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 700 }}>
                   {p.soh > 0 ? p.soh : 'OOS'}
                 </span>
               </div>
@@ -873,7 +884,7 @@ function CartRow({ item, onQty, onRemove, onDiscount, onPrice }: {
 
 function TotalRow({ label, value, large, muted, color }: { label: string; value: number; large?: boolean; muted?: boolean; color?: string }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: large ? '.4rem 0' : '.15rem 0', fontSize: large ? '1.2rem' : '.9rem', fontWeight: large ? 700 : 400, color: color ?? (muted ? 'var(--sv-text-dim)' : large ? 'var(--sv-text-strong)' : 'var(--sv-text-main)'), borderTop: large ? '1px solid var(--sv-etch)' : 'none', marginTop: large ? '.25rem' : 0 }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', padding: large ? '.5rem 0' : '.2rem 0', fontSize: large ? '1.4rem' : '.9rem', fontWeight: large ? 900 : 400, color: color ?? (muted ? 'var(--sv-text-dim)' : large ? 'var(--sv-text-strong)' : 'var(--sv-text-main)'), borderTop: large ? '2px solid var(--sv-etch)' : 'none', marginTop: large ? '.3rem' : 0 }}>
       <span>{label}</span>
       <span>${fmt(Math.abs(value))}{value < 0 ? '' : ''}</span>
     </div>
@@ -1508,7 +1519,7 @@ export default function PosPage() {
   const [session, setSession]           = useState<PosSession | null>(null);
   const [products, setProducts]         = useState<CachedProduct[]>([]);
   const [methods,  setMethods]          = useState<string[]>(['Cash', 'Card', 'EFT']);
-  const [defaultView, setDefaultView]   = useState<string>('all');
+  const [defaultView, setDefaultView]   = useState<string | null>(null);
   const [completedSale, setCompletedSale] = useState<CompletedSale | null>(null);
   const [printSettings, setPrintSettings] = useState<ReceiptPrintSettings>({ business_name: '', business_address: '', business_abn: '', pos_receipt_footer: '' });
   const [offlineMode, setOfflineMode]   = useState(false);
@@ -1522,7 +1533,7 @@ export default function PosPage() {
 
   useEffect(() => {
     fetch('/api/pos/settings/receipt').then(r => r.json()).then(d => setPrintSettings(d)).catch(() => {});
-    fetch('/api/pos/settings/products').then(r => r.json()).then(d => { if (d.defaultView) setDefaultView(d.defaultView); }).catch(() => {});
+    fetch('/api/pos/settings/products').then(r => r.json()).then(d => { setDefaultView(d.defaultView || 'all'); }).catch(() => { setDefaultView('all'); });
   }, []);
 
   useEffect(() => {
@@ -1557,6 +1568,7 @@ export default function PosPage() {
               setMethods(methodData.methods);
             }
             if (viewData.defaultView) setDefaultView(viewData.defaultView);
+            else setDefaultView(prev => prev ?? 'all');
           }).catch(() => {/* offline — keep cached */});
         } else {
           clearLocalSession();
