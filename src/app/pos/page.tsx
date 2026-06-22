@@ -475,7 +475,7 @@ function MainPos({
         )}
 
         {/* Cart Panel */}
-        <div style={{ width: 400, display: 'flex', flexDirection: 'column', borderLeft: cartLeft ? 'none' : '1px solid var(--sv-etch)', borderRight: cartLeft ? '1px solid var(--sv-etch)' : 'none', background: 'var(--sv-bg-1)' }}>
+        <div style={{ width: 520, display: 'flex', flexDirection: 'column', borderLeft: cartLeft ? 'none' : '1px solid var(--sv-etch)', borderRight: cartLeft ? '1px solid var(--sv-etch)' : 'none', background: 'var(--sv-bg-1)' }}>
           {/* Customer info */}
           <div style={{ padding: '.5rem .75rem', display: 'flex', gap: '.5rem' }}>
             <input placeholder='Customer name' value={customerName} onChange={e => setCustomerName(e.target.value)} style={{ ...inputStyle, flex: 1, marginBottom: 0, padding: '.35rem .5rem', fontSize: '.8rem' }} />
@@ -514,7 +514,7 @@ function MainPos({
                 style={{ width: '100%', padding: '1rem .5rem', background: cart.length ? 'var(--sv-action)' : 'var(--sv-bg-2)', border: `2px solid ${cart.length ? 'var(--sv-action)' : 'var(--sv-etch)'}`, borderRadius: 10, color: cart.length ? '#fff' : 'var(--sv-text-muted)', cursor: cart.length ? 'pointer' : 'not-allowed', fontWeight: 900, lineHeight: 1.15, transition: 'opacity .15s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.1rem' }}
               >
                 <span style={{ fontSize: '1rem', letterSpacing: .5, textTransform: 'uppercase' }}>{isLayby ? 'Layby' : 'Charge'}</span>
-                <span style={{ fontSize: '2rem', letterSpacing: -1, fontWeight: 900 }}>${fmt(totals.total)}</span>
+                <span style={{ fontSize: '2.6rem', letterSpacing: -1, fontWeight: 900 }}>${fmt(totals.total)}</span>
               </button>
             </div>
           </div>
