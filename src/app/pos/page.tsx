@@ -112,25 +112,31 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
   onLogin:       (session: PosSession, products: CachedProduct[], methods: string[]) => void;
   onDeviceSetup: () => void;
 }) {
-  const [username, setUsername] = useState('');
+  const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
   const passRef = useRef<HTMLInputElement>(null);
 
   async function handleLogin() {
-    if (!username || !password) { setError('Enter username and password.'); return; }
+    if (!email || !password) { setError('Enter email and password.'); return; }
     setLoading(true); setError('');
     try {
-      const res = await fetch('/api/pos/auth/login', {
+      // Step 1: Authenticate with main user system (sets marketoir_session cookie)
+      const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, location_id: deviceConfig.location_id }),
+        body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error ?? 'Login failed.'); return; }
+      if (!res.ok || !data.success) { setError(data.error ?? 'Login failed.'); return; }
 
-      // Fetch products for offline cache
+      // Step 2: Create POS session from the marketoir_session + device location
+      const meRes = await fetch(`/api/pos/auth/me?location_id=${deviceConfig.location_id}`);
+      const meData = await meRes.json();
+      if (!meData.session) { setError('Could not create POS session. Ensure your account has access.'); return; }
+
+      // Step 3: Fetch products + payment methods
       const [prodRes, methodRes] = await Promise.all([
         fetch(`/api/pos/products?location_id=${deviceConfig.location_id}`),
         fetch('/api/pos/settings/payment-methods'),
@@ -139,8 +145,8 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
       const methodData = await methodRes.json().catch(() => ({ methods: ['Cash', 'Card', 'EFT'] }));
 
       saveProductsCache(prodData.products ?? []);
-      saveLocalSession(data.session);
-      onLogin(data.session, prodData.products ?? [], methodData.methods ?? ['Cash', 'Card', 'EFT']);
+      saveLocalSession(meData.session);
+      onLogin(meData.session, prodData.products ?? [], methodData.methods ?? ['Cash', 'Card', 'EFT']);
     } catch (e: any) {
       setError(e.message || 'Network error.');
     } finally {
@@ -157,10 +163,10 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
           <p style={{ margin: '.25rem 0 0', color: 'var(--sv-action)', fontSize: '.95rem', fontWeight: 600 }}>{deviceConfig.location_name}</p>
         </div>
 
-        <label style={labelStyle}>Username</label>
-        <input autoFocus value={username} onChange={e => setUsername(e.target.value)}
+        <label style={labelStyle}>Email</label>
+        <input autoFocus type='email' value={email} onChange={e => setEmail(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && passRef.current?.focus()}
-          style={inputStyle} placeholder='cashier username' />
+          style={inputStyle} placeholder='your@email.com' />
 
         <label style={labelStyle}>Password</label>
         <input ref={passRef} type='password' value={password} onChange={e => setPassword(e.target.value)}
