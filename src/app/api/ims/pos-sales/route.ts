@@ -13,13 +13,12 @@ function getSession() {
 export async function GET(req: NextRequest) {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  const businessId = session.businessId as string;
 
   const { searchParams } = new URL(req.url);
   const locationId = searchParams.get('location_id');
 
-  const params: any[] = [businessId];
-  const locWhere = locationId ? 'AND p.location_id = ?' : '';
+  const params: any[] = [];
+  const locWhere = locationId ? 'WHERE p.location_id = ?' : "WHERE p.status NOT IN ('parked')";
   if (locationId) params.push(Number(locationId));
 
   try {
@@ -44,14 +43,14 @@ export async function GET(req: NextRequest) {
          GROUP_CONCAT(DISTINCT l.name ORDER BY l.name SEPARATOR ', ') AS locations
        FROM pos_sales p
        LEFT JOIN ims_locations l ON l.id = p.location_id
-       WHERE p.business_id = ? ${locWhere}
+       ${locWhere}
        GROUP BY DATE_FORMAT(p.completed_at, '%Y-%m-%d')
        ORDER BY day DESC`,
       params,
     );
 
-    // Payment method totals by day (from live POS transactions; Cin7 historical imports have no payment data)
-    const payParams: any[] = [businessId];
+    // Payment method totals by day
+    const payParams: any[] = [];
     if (locationId) payParams.push(Number(locationId));
     const payRows = await imsQuery<{ day: string; payment_method: string; total: string }>(
       `SELECT DATE_FORMAT(ps.completed_at, '%Y-%m-%d') AS day,
@@ -59,7 +58,7 @@ export async function GET(req: NextRequest) {
               SUM(pp.amount) AS total
        FROM pos_payments pp
        JOIN pos_sales ps ON ps.id = pp.sale_id
-       WHERE ps.business_id = ? ${locationId ? 'AND ps.location_id = ?' : ''}
+       ${locationId ? 'WHERE ps.location_id = ?' : ''}
        GROUP BY DATE_FORMAT(ps.completed_at, '%Y-%m-%d'), pp.payment_method`,
       payParams,
     );

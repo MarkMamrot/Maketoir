@@ -5100,7 +5100,7 @@ function PosSalesView() {
       {daysLoading && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</div>}
 
       {!daysLoading && days.length === 0 && (
-        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No POS sales found. Import from Cin7 in Settings first.</div>
+        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No POS sales found.</div>
       )}
 
       {/* Day rows */}
