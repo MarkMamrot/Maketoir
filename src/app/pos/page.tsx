@@ -1072,8 +1072,9 @@ function ReceiptScreen({ sale, onClose, printSettings }: { sale: CompletedSale; 
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui,sans-serif' }}>
       <style>{`
         @media print {
-          body > *:not(.pos-receipt-wrapper) { display: none !important; }
-          .pos-receipt-wrapper { position: static !important; box-shadow: none !important; background: #fff !important; color: #000 !important; width: 80mm !important; padding: 0 !important; }
+          body * { visibility: hidden !important; }
+          .pos-receipt-wrapper, .pos-receipt-wrapper * { visibility: visible !important; }
+          .pos-receipt-wrapper { position: fixed !important; top: 0 !important; left: 0 !important; box-shadow: none !important; background: #fff !important; color: #000 !important; width: 80mm !important; padding: 4mm !important; border-radius: 0 !important; }
           .no-print { display: none !important; }
         }
       `}</style>
