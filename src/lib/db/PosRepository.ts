@@ -492,6 +492,15 @@ export const PosEodRepo = {
       ],
     );
   },
+
+  async setXeroInvoice(locationId: number, date: string, method: string, invoiceId: string): Promise<void> {
+    await imsExecute(
+      `UPDATE pos_eod_reconciliations
+         SET xero_invoice_id = ?, xero_synced_at = NOW()
+         WHERE location_id = ? AND recon_date = ? AND payment_method = ?`,
+      [invoiceId, locationId, date, method],
+    );
+  },
 };
 
 // ─── POS Reports ──────────────────────────────────────────────────────────────

@@ -315,6 +315,8 @@ CREATE TABLE IF NOT EXISTS pos_eod_reconciliations (
   opening_float     DECIMAL(12,2),
   denomination_data JSON,
   notes             TEXT,
+  xero_invoice_id   VARCHAR(100) NULL,
+  xero_synced_at    DATETIME     NULL,
   created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_eod (location_id, recon_date, payment_method),
   INDEX idx_eod_loc_date (location_id, recon_date)

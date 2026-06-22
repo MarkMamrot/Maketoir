@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { PosEodRepo } from '@/lib/db/PosRepository';
 import { ConfigRepository } from '@/lib/db/ConfigRepository';
+import { triggerEodXeroSync } from '@/services/XeroSyncService';
+import { imsQuery } from '@/services/IMSMySQLService';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -74,6 +76,31 @@ export async function POST(req: Request) {
         denomination_data: entry.denomination_data ?? null,
         notes:             entry.notes ?? null,
       });
+    }
+
+    // Auto-trigger Xero sync on EOD close (fire-and-forget — requires admin session for businessId)
+    const adminRaw     = cookies().get('marketoir_session')?.value;
+    const adminSession = adminRaw ? (() => { try { return JSON.parse(adminRaw); } catch { return null; } })() : null;
+    if (adminSession?.businessId) {
+      // Only sync entries that have a counted_amount (actual EOD close, not just opening float)
+      const hasCount = entries.some((e: any) => e.counted_amount != null);
+      if (hasCount) {
+        imsQuery<{ name: string }>('SELECT name FROM ims_locations WHERE id = ? LIMIT 1', [resolvedLocationId])
+          .then(locs => {
+            const locationName = locs[0]?.name ?? `Location ${resolvedLocationId}`;
+            return PosEodRepo.get(resolvedLocationId, resolvedDate).then(rows =>
+              triggerEodXeroSync(
+                adminSession.businessId,
+                resolvedLocationId,
+                resolvedDate,
+                rows,
+                locationName,
+                PosEodRepo.setXeroInvoice.bind(PosEodRepo),
+              )
+            );
+          })
+          .catch(e => console.error('EOD Xero auto-sync failed:', e.message));
+      }
     }
 
     return NextResponse.json({ success: true });

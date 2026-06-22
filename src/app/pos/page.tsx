@@ -1251,6 +1251,10 @@ const AUD_DENOMS = [
 
 type EodEntryState = { counted: string; openingFloat: string; denominations: Record<string, string>; notes: string; showDenom: boolean };
 
+function calcCash(denoms: Record<string, string>): number {
+  return AUD_DENOMS.reduce((sum, d) => sum + d.value * (parseFloat(denoms[String(d.value)] ?? '0') || 0), 0);
+}
+
 function EodScreen({ session, onBack }: { session: PosSession; onBack: () => void }) {
   const today = new Date().toISOString().slice(0, 10);
   const [mode, setMode]                   = useState<'open' | 'eod'>(() => new Date().getHours() < 12 ? 'open' : 'eod');
@@ -1262,6 +1266,7 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
   const [loading, setLoading]             = useState(false);
   const [saved, setSaved]                 = useState(false);
   const [methods, setMethods]             = useState<string[]>([]);
+  const [xeroInvoiceIds, setXeroInvoiceIds] = useState<Record<string, { id: string; number: string }>>({});
 
   useEffect(() => {
     fetch('/api/pos/settings/payment-methods').then(r => r.json()).then(d => setMethods(d.methods ?? []));
@@ -1288,16 +1293,18 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
           };
         }
         setEntries(init);
+        // Restore xero sync state from DB
+        const ids: Record<string, { id: string; number: string }> = {};
+        for (const rec of d.reconciliations ?? []) {
+          if (rec.xero_invoice_id) ids[rec.payment_method] = { id: rec.xero_invoice_id, number: '' };
+        }
+        setXeroInvoiceIds(ids);
       })
       .finally(() => setLoading(false));
   }, [date, methods, session.location_id]);
 
   function updateEntry(method: string, key: keyof EodEntryState, value: string | boolean | Record<string, string>) {
     setEntries(prev => ({ ...prev, [method]: { ...prev[method], [key]: value } }));
-  }
-
-  function calcCash(denoms: Record<string, string>): number {
-    return AUD_DENOMS.reduce((sum, d) => sum + d.value * (parseFloat(denoms[String(d.value)] ?? '0') || 0), 0);
   }
 
   const openTotal = calcCash(openDenoms);
@@ -1531,10 +1538,153 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
               </button>
               {saved && <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>✓ Saved</span>}
             </div>
+
+            <EodAccountingSection
+              session={session} methods={methods} expected={expected}
+              entries={entries} defaultFloat={defaultFloat} date={date}
+              xeroInvoiceIds={xeroInvoiceIds}
+              onSynced={results => setXeroInvoiceIds(prev => {
+                const next = { ...prev };
+                for (const r of results) next[r.method] = { id: r.xeroId, number: r.invoiceNumber };
+                return next;
+              })}
+            />
           </div>
         )}
 
       </div>
+    </div>
+  );
+}
+
+// ─── EOD Accounting Section ───────────────────────────────────────────────────────────────────────────
+
+function EodAccountingSection({
+  session, methods, expected, entries, defaultFloat, date, xeroInvoiceIds, onSynced,
+}: {
+  session:        PosSession;
+  methods:        string[];
+  expected:       Record<string, number>;
+  entries:        Record<string, EodEntryState>;
+  defaultFloat:   number;
+  date:           string;
+  xeroInvoiceIds: Record<string, { id: string; number: string }>;
+  onSynced:       (results: { method: string; xeroId: string; invoiceNumber: string }[]) => void;
+}) {
+  const [open, setOpen]         = useState(false);
+  const [syncing, setSyncing]   = useState(false);
+  const [syncError, setSyncError] = useState('');
+
+  const rows = methods.map(m => {
+    const e         = entries[m] ?? {} as EodEntryState;
+    const counted   = m === 'Cash' ? calcCash(e.denominations ?? {}) : parseFloat(e.counted ?? '') || 0;
+    const openFloat = m === 'Cash' ? (parseFloat(e.openingFloat ?? '') || defaultFloat) : 0;
+    const salesAmt  = m === 'Cash' ? counted - openFloat : counted;
+    const exp       = expected[m] ?? 0;
+    const variance  = salesAmt - exp;
+    const synced    = xeroInvoiceIds[m] ?? null;
+    return { method: m, salesAmt, exp, variance, synced };
+  });
+
+  const totals = rows.reduce((acc, r) => ({ sales: acc.sales + r.salesAmt, exp: acc.exp + r.exp }), { sales: 0, exp: 0 });
+  const allSynced = rows.length > 0 && rows.every(r => r.synced);
+  const anySynced = rows.some(r => r.synced);
+
+  async function syncToXero() {
+    setSyncing(true);
+    setSyncError('');
+    try {
+      const res  = await fetch('/api/pos/xero/sync-eod', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ locationId: session.location_id, date }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error ?? 'Sync failed.');
+      onSynced(data.results ?? []);
+    } catch (e: any) {
+      setSyncError(e.message);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  const thA: React.CSSProperties = { textAlign: 'left',  padding: '4px 8px', fontSize: '.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .6, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' };
+  const tdA: React.CSSProperties = { padding: '7px 8px', fontSize: '.85rem', borderBottom: '1px solid var(--sv-etch)' };
+
+  return (
+    <div style={{ marginTop: '1.5rem', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+      <div onClick={() => setOpen(o => !o)}
+        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', cursor: 'pointer', background: 'var(--sv-bg-2)', userSelect: 'none' }}>
+        <span style={{ fontSize: '.88rem', fontWeight: 700, color: 'var(--sv-text-strong)' }}>🧮 Accounting</span>
+        <div style={{ flex: 1 }} />
+        {allSynced && <span style={{ fontSize: '.75rem', color: 'var(--sv-mint)', fontWeight: 600 }}>✓ Synced to Xero</span>}
+        {anySynced && !allSynced && <span style={{ fontSize: '.75rem', color: 'var(--sv-amber)', fontWeight: 600 }}>⚠ Partially synced</span>}
+        <span style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>{open ? '▲' : '▼'}</span>
+      </div>
+
+      {open && (
+        <div style={{ padding: '1rem 1.25rem', background: 'var(--sv-bg-1)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '1rem' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid var(--sv-etch)' }}>
+                <th style={thA}>Method</th>
+                <th style={{ ...thA, textAlign: 'right' }}>Sales Amount</th>
+                <th style={{ ...thA, textAlign: 'right' }}>Expected</th>
+                <th style={{ ...thA, textAlign: 'right' }}>Variance</th>
+                <th style={thA}>Xero</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.method}>
+                  <td style={{ ...tdA, fontWeight: 600 }}>{r.method}</td>
+                  <td style={{ ...tdA, textAlign: 'right' }}>${fmt(r.salesAmt)}</td>
+                  <td style={{ ...tdA, textAlign: 'right', color: 'var(--sv-text-dim)' }}>${fmt(r.exp)}</td>
+                  <td style={{ ...tdA, textAlign: 'right', fontWeight: 600, color: r.variance >= 0 ? 'var(--sv-mint)' : 'var(--sv-red)' }}>
+                    {r.variance >= 0 ? '+' : ''}{fmt(r.variance)}
+                  </td>
+                  <td style={{ ...tdA }}>
+                    {r.synced ? (
+                      <a href={`https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${r.synced.id}`}
+                        target='_blank' rel='noopener noreferrer'
+                        style={{ color: 'var(--sv-mint)', fontSize: '.8rem', textDecoration: 'none', fontWeight: 600 }}>
+                        ✓ {r.synced.number || 'View'} ↗
+                      </a>
+                    ) : (
+                      <span style={{ color: 'var(--sv-text-muted)', fontSize: '.78rem' }}>—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              <tr style={{ borderTop: '2px solid var(--sv-etch)', fontWeight: 700 }}>
+                <td style={{ ...tdA, borderBottom: 'none' }}>Total</td>
+                <td style={{ ...tdA, textAlign: 'right', color: 'var(--sv-action)', borderBottom: 'none' }}>${fmt(totals.sales)}</td>
+                <td style={{ ...tdA, textAlign: 'right', color: 'var(--sv-text-dim)', borderBottom: 'none' }}>${fmt(totals.exp)}</td>
+                <td style={{ ...tdA, textAlign: 'right', fontWeight: 700, color: (totals.sales - totals.exp) >= 0 ? 'var(--sv-mint)' : 'var(--sv-red)', borderBottom: 'none' }}>
+                  {(totals.sales - totals.exp) >= 0 ? '+' : ''}{fmt(totals.sales - totals.exp)}
+                </td>
+                <td style={{ ...tdA, borderBottom: 'none' }} />
+              </tr>
+            </tbody>
+          </table>
+
+          <div style={{ fontSize: '.75rem', color: 'var(--sv-text-dim)', marginBottom: '1rem', lineHeight: 1.7 }}>
+            <strong>What is sent to Xero:</strong> One ACCREC invoice (AUTHORISED) per payment type
+            &nbsp;· Contact: <em>POS Reconciliation (Summary)</em>
+            &nbsp;· Reference: EOD-L{session.location_id}-{date}-{'{Method}'}<br />
+            Cash Sales = Counted − Opening Float &nbsp;· Other methods = Counted amount
+            &nbsp;· Auto-synced on EOD save when admin session is active
+          </div>
+
+          {syncError && <div style={{ color: 'var(--sv-red)', fontSize: '.8rem', marginBottom: '.75rem' }}>{syncError}</div>}
+
+          <button onClick={syncToXero} disabled={syncing}
+            style={{ ...primaryBtn, padding: '.5rem 1.5rem', fontSize: '.85rem' }}>
+            {syncing ? 'Syncing…' : allSynced ? 'Re-sync to Xero' : 'Sync to Xero'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

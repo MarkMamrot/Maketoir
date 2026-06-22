@@ -529,3 +529,100 @@ export async function syncMonthlyCOGSJournal(
     return null;
   }
 }
+
+// ─── POS EOD → Xero (one invoice per payment method) ─────────────────────────
+
+/**
+ * Post a single ACCREC AUTHORISED invoice for one EOD payment method.
+ * Reference: EOD-L{locationId}-{YYYYMMDD}-{Method}
+ * This is the trigger that replaces the old manual daily-sales sync.
+ */
+export async function syncEodEntry(
+  businessId: string,
+  entry: {
+    date: string;
+    locationId: number;
+    locationName: string;
+    method: string;
+    salesAmount: number; // cash: counted − float; others: counted
+  },
+): Promise<{ xeroId: string; invoiceNumber: string } | null> {
+  const accounts         = await getAccountMappings(businessId);
+  const trackingMappings = await getTrackingMappings(businessId);
+
+  if (!accounts.sales_revenue) {
+    await logSync(businessId, 'eod_reconciliation', null, null, 'skipped',
+      `No sales_revenue account mapped — EOD ${entry.date} ${entry.method}`);
+    return null;
+  }
+
+  const tracking = getTrackingForLocation(trackingMappings, entry.locationId);
+
+  const invoice: any = {
+    Type:            'ACCREC',
+    Contact:         { Name: 'POS Reconciliation (Summary)' },
+    Date:            entry.date,
+    DueDate:         entry.date,
+    Reference:       `EOD-L${entry.locationId}-${entry.date.replace(/-/g, '')}-${entry.method.replace(/\s+/g, '')}`,
+    Status:          'AUTHORISED',
+    LineAmountTypes: 'Exclusive',
+    CurrencyCode:    'AUD',
+    LineItems: [{
+      Description: `${entry.method} Sales — ${entry.locationName} — ${entry.date}`,
+      Quantity:    1,
+      UnitAmount:  entry.salesAmount,
+      AccountCode: accounts.sales_revenue,
+      TaxType:     'OUTPUT',
+      Tracking:    tracking,
+    }],
+  };
+
+  try {
+    const result        = await xeroApiFetch(businessId, '/Invoices', { method: 'POST', body: { Invoices: [invoice] } });
+    const inv           = result.Invoices?.[0];
+    const xeroId        = inv?.InvoiceID ?? null;
+    const invoiceNumber = inv?.InvoiceNumber ?? '';
+    await logSync(businessId, 'eod_reconciliation', null, xeroId, 'success',
+      `EOD ${entry.date} ${entry.method} — ${entry.locationName}: $${entry.salesAmount.toFixed(2)}`);
+    return xeroId ? { xeroId, invoiceNumber } : null;
+  } catch (err: any) {
+    await logSync(businessId, 'eod_reconciliation', null, null, 'error',
+      `EOD ${entry.date} ${entry.method}: ${err.message}`);
+    return null;
+  }
+}
+
+/**
+ * Trigger EOD Xero sync for all counted payment methods for a location/date.
+ * Called fire-and-forget from POST /api/pos/eod on register close.
+ * Also callable manually for retry.
+ */
+export async function triggerEodXeroSync(
+  businessId: string,
+  locationId: number,
+  date: string,
+  rows: Array<{
+    payment_method: string;
+    counted_amount: number | null;
+    opening_float:  number | null;
+    xero_invoice_id?: string | null;
+  }>,
+  locationName: string,
+  setXeroInvoice: (locationId: number, date: string, method: string, invoiceId: string) => Promise<void>,
+): Promise<{ method: string; xeroId: string; invoiceNumber: string }[]> {
+  const results: { method: string; xeroId: string; invoiceNumber: string }[] = [];
+  for (const row of rows) {
+    if (row.counted_amount == null) continue;
+    // Skip re-sync if already synced
+    if (row.xero_invoice_id) continue;
+    const openFloat  = row.payment_method === 'Cash' ? (row.opening_float ?? 0) : 0;
+    const salesAmount = row.counted_amount - openFloat;
+    if (salesAmount <= 0) continue;
+    const result = await syncEodEntry(businessId, { date, locationId, locationName, method: row.payment_method, salesAmount });
+    if (result) {
+      await setXeroInvoice(locationId, date, row.payment_method, result.xeroId);
+      results.push({ method: row.payment_method, ...result });
+    }
+  }
+  return results;
+}
