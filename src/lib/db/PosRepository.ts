@@ -1,6 +1,12 @@
 import { imsQuery, imsExecute, getIMSPool } from '@/services/IMSMySQLService';
 import bcrypt from 'bcryptjs';
 
+/** Current datetime formatted as MySQL DATETIME in the business's local timezone. */
+function localNow(): string {
+  const tz = process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney';
+  return new Date().toLocaleString('sv-SE', { timeZone: tz }).replace('T', ' ');
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface PosUserRow {
@@ -284,16 +290,16 @@ export const PosSalesRepo = {
     try {
       await conn.beginTransaction();
 
-      const nowMysql = new Date().toISOString().replace('T', ' ').replace('Z', '').slice(0, 19);
-      const completedAt = ['completed', 'layby_complete', 'voided'].includes(data.status) ? nowMysql : null;
+      const now = localNow();
+      const completedAt = ['completed', 'layby_complete', 'voided'].includes(data.status) ? now : null;
 
       // 1. Insert sale
       const [saleResult]: any = await conn.execute(
         `INSERT INTO pos_sales
            (local_id, location_id, cashier_id, cashier_name, sale_type, status,
             customer_name, customer_phone, subtotal, discount_total,
-            tax_total, total, notes, parked_label, return_of_sale_id, completed_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            tax_total, total, notes, parked_label, return_of_sale_id, completed_at, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           data.local_id ?? null,
           data.location_id,
@@ -311,6 +317,7 @@ export const PosSalesRepo = {
           data.parked_label ?? null,
           data.return_of_sale_id ?? null,
           completedAt,
+          now,
         ],
       );
       const saleId: number = saleResult.insertId;
