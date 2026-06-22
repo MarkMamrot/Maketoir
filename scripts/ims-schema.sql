@@ -252,7 +252,7 @@ CREATE TABLE IF NOT EXISTS pos_sales (
   id                INT AUTO_INCREMENT PRIMARY KEY,
   local_id          VARCHAR(100) UNIQUE,
   location_id       INT NOT NULL,
-  cashier_id        INT NOT NULL,
+  cashier_id        INT NULL,
   sale_type         ENUM('sale','return','layby') NOT NULL DEFAULT 'sale',
   status            ENUM('open','parked','completed','voided','layby_active','layby_complete') NOT NULL DEFAULT 'open',
   customer_name     VARCHAR(255),

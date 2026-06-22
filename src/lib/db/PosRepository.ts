@@ -247,7 +247,7 @@ export const PosSalesRepo = {
   async complete(data: {
     local_id:          string | null;
     location_id:       number;
-    cashier_id:        number;
+    cashier_id:        number | null;
     sale_type:         'sale' | 'return' | 'layby';
     status:            'completed' | 'layby_active' | 'layby_complete' | 'parked' | 'voided';
     customer_name?:    string | null;
