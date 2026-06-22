@@ -22,7 +22,7 @@ export interface ImsContact {
 export interface ImsLocation {
   id: number; name: string; code?: string; address?: string;
   city?: string; state?: string; postcode?: string; country?: string;
-  cin7_branch_id?: number;
+  cin7_branch_id?: number; pos_pin?: string;
   is_active: number; created_at?: string; updated_at?: string;
 }
 
@@ -270,7 +270,7 @@ export const ImsLocationsRepo = {
   },
 
   async update(id: number, data: Partial<ImsLocation>): Promise<void> {
-    const fields = ['name','code','address','city','state','postcode','country','is_active','cin7_branch_id'];
+    const fields = ['name','code','address','city','state','postcode','country','is_active','cin7_branch_id','pos_pin'];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of fields) {

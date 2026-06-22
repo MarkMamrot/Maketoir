@@ -50,6 +50,7 @@ export async function GET(req: Request) {
     cost:          string | null;
     price:         string | null;
     qty_on_hand:   string | null;
+    qty_on_hand_all: string | null;
     is_active:     number;
   }>(
     `SELECT
@@ -68,6 +69,7 @@ export async function GET(req: Request) {
        v.cost_aud  AS cost,
        v.price_rrp AS price,
        COALESCE(s.qty_on_hand, 0) AS qty_on_hand,
+       COALESCE((SELECT SUM(s2.qty_on_hand) FROM ims_stock s2 WHERE s2.variant_id = v.variant_id), 0) AS qty_on_hand_all,
        v.is_active
      FROM ims_product_variants v
      JOIN ims_products p ON p.product_id = v.product_id
@@ -92,6 +94,7 @@ export async function GET(req: Request) {
       price:       r.price != null ? Number(r.price) : 0,
       cost:        r.cost  != null ? Number(r.cost)  : null,
       soh:         Number(r.qty_on_hand ?? 0),
+      soh_all:     Number(r.qty_on_hand_all ?? 0),
     };
   });
 

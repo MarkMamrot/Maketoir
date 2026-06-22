@@ -31,8 +31,8 @@ function calcTotals(items: CartItem[]) {
 function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
   const [locations, setLocations]     = useState<{ id: number; name: string }[]>([]);
   const [locationId, setLocationId]   = useState('');
-  const [manualName, setManualName]   = useState('');
   const [pin, setPin]   = useState('');
+  const [supPin, setSupPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
 
@@ -41,18 +41,23 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
   }, []);
 
   async function handleSetup() {
-    if (!locationId && !manualName) { setError('Select or enter a location.'); return; }
+    if (!locationId) { setError('Select a location.'); return; }
     setLoading(true);
     setError('');
     try {
-      const loc = locations.find(l => l.id === Number(locationId));
-      const finalId   = locationId ? Number(locationId) : 0;
-      const finalName = loc?.name ?? manualName.trim() ?? `Location ${finalId}`;
-      if (!finalName) { setError('Enter a location name.'); return; }
+      // Verify location PIN server-side
+      const res = await fetch('/api/pos/setup/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ location_id: Number(locationId), pin: pin.trim() }),
+      });
+      const data = await res.json();
+      if (!data.success) { setError(data.error ?? 'PIN verification failed.'); return; }
+
       const cfg: DeviceConfig = {
-        location_id:   finalId,
-        location_name: finalName,
-        supervisor_pin: pin ? await hashPin(pin) : undefined,
+        location_id:    Number(locationId),
+        location_name:  data.location_name,
+        supervisor_pin: supPin ? await hashPin(supPin) : undefined,
       };
       saveDeviceConfig(cfg);
       onSetup(cfg);
@@ -72,29 +77,28 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui,sans-serif' }}>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', padding: '2.5rem 2rem', borderRadius: 12, width: 380, boxShadow: '0 8px 40px rgba(0,0,0,.4)' }}>
         <h1 style={{ margin: '0 0 .5rem', fontSize: '1.4rem', color: 'var(--sv-text-strong)' }}>POS — Device Setup</h1>
-        <p style={{ color: 'var(--sv-text-dim)', marginBottom: '1.5rem', fontSize: '.9rem' }}>Configure this device once. Use a Supervisor PIN to allow cashiers to change branches without full re-setup.</p>
+        <p style={{ color: 'var(--sv-text-dim)', marginBottom: '1.5rem', fontSize: '.9rem' }}>Configure this device once. Contact your manager for the Location PIN.</p>
 
         <label style={labelStyle}>Branch / Location</label>
         {locations.length > 0 ? (
-          <select value={locationId} onChange={e => setLocationId(e.target.value)} style={inputStyle}>
+          <select value={locationId} onChange={e => { setLocationId(e.target.value); setError(''); }} style={inputStyle}>
             <option value=''>— select location —</option>
             {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         ) : (
-          <div>
-            <input type='number' placeholder='Location ID (number)' value={locationId} onChange={e => setLocationId(e.target.value)} style={{ ...inputStyle, marginBottom: '.4rem' }} />
-            <input placeholder='Location Name' value={manualName} onChange={e => setManualName(e.target.value)} style={inputStyle} />
-            <p style={{ color: 'var(--sv-text-dim)', fontSize: '.75rem', margin: '-.5rem 0 .75rem' }}>Log into the admin portal first to auto-populate locations.</p>
-          </div>
+          <p style={{ color: 'var(--sv-text-dim)', fontSize: '.82rem', padding: '.5rem', border: '1px solid var(--sv-etch)', borderRadius: 6 }}>Loading locations… ensure internet is connected.</p>
         )}
 
-        <label style={labelStyle}>Supervisor PIN (optional)</label>
-        <input type='password' maxLength={8} placeholder='4-8 digit PIN' value={pin} onChange={e => setPin(e.target.value)} style={inputStyle} />
+        <label style={labelStyle}>Location PIN</label>
+        <input type='password' maxLength={20} placeholder='PIN set in IMS Locations (blank if none)' value={pin} onChange={e => setPin(e.target.value)} style={inputStyle} />
+
+        <label style={labelStyle}>Supervisor Override PIN (optional)</label>
+        <input type='password' maxLength={8} placeholder='4-8 digit PIN for supervisor overrides' value={supPin} onChange={e => setSupPin(e.target.value)} style={inputStyle} />
 
         {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', marginBottom: '1rem' }}>{error}</p>}
 
-        <button onClick={handleSetup} disabled={loading} style={primaryBtn}>
-          {loading ? 'Saving…' : 'Set Up Device'}
+        <button onClick={handleSetup} disabled={loading || !locationId} style={primaryBtn}>
+          {loading ? 'Verifying…' : 'Set Up Device'}
         </button>
       </div>
     </div>
@@ -730,7 +734,10 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
                     <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[p.brand, p.code].filter(Boolean).join(' · ')}</div>
                   </div>
                   <span style={{ fontWeight: 700, color: 'var(--sv-action)', fontSize: '.85rem', flexShrink: 0 }}>${fmt(p.price)}</span>
-                  <span style={{ fontSize: '.72rem', padding: '2px 6px', borderRadius: 5, background: p.soh > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: p.soh > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', flexShrink: 0 }}>{p.soh > 0 ? p.soh : 'OOS'}</span>
+                  <span style={{ fontSize: '.72rem', padding: '2px 6px', borderRadius: 5, background: p.soh > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: p.soh > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', flexShrink: 0 }} title="Stock at this store">{p.soh > 0 ? p.soh : 'OOS'}</span>
+                  {p.soh_all !== undefined && p.soh_all !== p.soh && (
+                    <span style={{ fontSize: '.72rem', padding: '2px 5px', borderRadius: 5, background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', flexShrink: 0, border: '1px solid var(--sv-etch)' }} title="Total stock across all locations">∑{p.soh_all}</span>
+                  )}
                 </div>
               ))}
             </div>
@@ -789,9 +796,14 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
               <div style={{ fontSize: '.9rem', fontWeight: 700, lineHeight: 1.3, color: 'var(--sv-text-strong)', maxHeight: '2.6em', overflow: 'hidden', marginBottom: '.4rem' }}>{p.name}</div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontWeight: 800, color: 'var(--sv-action)', fontSize: '1rem' }}>${fmt(p.price)}</span>
-                <span style={{ fontSize: '.75rem', padding: '.15rem .5rem', borderRadius: 5, background: p.soh > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: p.soh > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 700 }}>
-                  {p.soh > 0 ? p.soh : 'OOS'}
-                </span>
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                  <span style={{ fontSize: '.75rem', padding: '.15rem .5rem', borderRadius: 5, background: p.soh > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: p.soh > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 700 }} title="Stock at this store">
+                    {p.soh > 0 ? p.soh : 'OOS'}
+                  </span>
+                  {p.soh_all !== undefined && p.soh_all !== p.soh && (
+                    <span style={{ fontSize: '.72rem', padding: '.1rem .4rem', borderRadius: 5, background: 'var(--sv-bg-0)', color: 'var(--sv-text-dim)', border: '1px solid var(--sv-etch)' }} title="Total across all locations">∑{p.soh_all}</span>
+                  )}
+                </div>
               </div>
             </button>
           );

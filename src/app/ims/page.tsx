@@ -694,7 +694,7 @@ function ContactsView() {
 // Locations View
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BLANK_LOC = { name: '', code: '', address: '', city: '', state: '', postcode: '', country: 'Australia', is_active: 1 };
+const BLANK_LOC = { name: '', code: '', address: '', city: '', state: '', postcode: '', country: 'Australia', is_active: 1, pos_pin: '' };
 
 function LocationsView() {
   const [locations, setLocations] = useState<any[]>([]);
@@ -771,6 +771,10 @@ function LocationsView() {
                 </select>
               </Field>
             </Row2>
+            <Field label="POS Setup PIN" >
+              <input value={form.pos_pin ?? ''} onChange={sf('pos_pin')} style={inputStyle} placeholder="Leave blank for no PIN requirement" maxLength={20} />
+              <p style={{ margin: '4px 0 0', fontSize: '.75rem', color: 'var(--sv-text-dim)' }}>Cashiers must enter this PIN when setting up a new POS register for this location.</p>
+            </Field>
             <FormActions onCancel={() => setModal({ open: false, edit: null })} saving={saving} isEdit={!!modal.edit} />
           </form>
         </Modal>

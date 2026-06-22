@@ -23,7 +23,8 @@ export interface CachedProduct {
   brand:       string | null;
   price:       number;
   cost:        number | null;
-  soh:         number;
+  soh:         number;  // SOH at the POS location
+  soh_all:     number;  // SOH across all locations combined
 }
 
 export interface CartItem {
