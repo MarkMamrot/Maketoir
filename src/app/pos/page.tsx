@@ -1554,8 +1554,8 @@ export default function PosPage() {
     const cfg = loadDeviceConfig();
     if (cfg) {
       setDeviceConfig(cfg);
-      // Check if still logged in
-      fetch('/api/pos/auth/me').then(r => r.json()).then(d => {
+      // Check if still logged in — pass location_id so admin sessions can auto-create a POS session
+      fetch(`/api/pos/auth/me?location_id=${cfg.location_id}`).then(r => r.json()).then(d => {
         if (d.session) {
           saveLocalSession(d.session); // keep local cache fresh
           setOfflineMode(false);
