@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { PosEodRepo } from '@/lib/db/PosRepository';
+import { ConfigRepository } from '@/lib/db/ConfigRepository';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -23,12 +24,19 @@ export async function GET(req: Request) {
 
   const date = searchParams.get('date') ?? new Date().toISOString().slice(0, 10);
 
-  const [existing, expected] = await Promise.all([
+  const adminRaw    = cookies().get('marketoir_session')?.value;
+  const adminSession = adminRaw ? (() => { try { return JSON.parse(adminRaw); } catch { return null; } })() : null;
+  const bizId = adminSession?.businessId ?? 'shared';
+
+  const [existing, expected, floatRaw] = await Promise.all([
     PosEodRepo.get(locationId, date),
     PosEodRepo.getExpected(locationId, date),
+    ConfigRepository.get(bizId, 'POS_DefaultFloat').catch(() => null),
   ]);
 
-  return NextResponse.json({ reconciliations: existing, expected });
+  const default_float = floatRaw !== null ? parseFloat(floatRaw) || 200 : 200;
+
+  return NextResponse.json({ reconciliations: existing, expected, default_float });
 }
 
 // POST /api/pos/eod — save reconciliation entries

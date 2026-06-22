@@ -457,7 +457,7 @@ function MainPos({
         <button onClick={() => setScreen('parked')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>
           Parked {parkedSales.length > 0 ? `(${parkedSales.length})` : ''}
         </button>
-        <button onClick={() => setScreen('eod')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>EOD</button>
+        <button onClick={() => setScreen('eod')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>Register</button>
         <button onClick={() => setScreen('reports')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>Reports</button>
         <button
           onClick={() => setCartLeft(v => { const next = !v; try { localStorage.setItem('pos_cart_left', next ? '1' : '0'); } catch {} return next; })}
@@ -1249,17 +1249,23 @@ const AUD_DENOMS = [
   { label: '5¢', value: 0.05 },
 ];
 
+type EodEntryState = { counted: string; openingFloat: string; denominations: Record<string, string>; notes: string; showDenom: boolean };
+
 function EodScreen({ session, onBack }: { session: PosSession; onBack: () => void }) {
   const today = new Date().toISOString().slice(0, 10);
-  const [date, setDate] = useState(today);
-  const [expected, setExpected] = useState<Record<string, number>>({});
-  const [entries, setEntries]   = useState<Record<string, { counted: string; openingFloat: string; denominations: Record<string, string>; notes: string; showDenom: boolean }>>({});
-  const [loading, setLoading]   = useState(false);
-  const [saved,   setSaved]     = useState(false);
-  const [methods, setMethods]   = useState<string[]>([]);
+  const [mode, setMode]                   = useState<'open' | 'eod'>(() => new Date().getHours() < 12 ? 'open' : 'eod');
+  const [date, setDate]                   = useState(today);
+  const [expected, setExpected]           = useState<Record<string, number>>({});
+  const [defaultFloat, setDefaultFloat]   = useState(200);
+  const [openDenoms, setOpenDenoms]       = useState<Record<string, string>>({});
+  const [entries, setEntries]             = useState<Record<string, EodEntryState>>({});
+  const [loading, setLoading]             = useState(false);
+  const [saved, setSaved]                 = useState(false);
+  const [methods, setMethods]             = useState<string[]>([]);
 
   useEffect(() => {
     fetch('/api/pos/settings/payment-methods').then(r => r.json()).then(d => setMethods(d.methods ?? []));
+    fetch('/api/pos/settings/float').then(r => r.json()).then(d => setDefaultFloat(d.amount ?? 200));
   }, []);
 
   useEffect(() => {
@@ -1269,12 +1275,13 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
       .then(r => r.json())
       .then(d => {
         setExpected(d.expected ?? {});
-        const init: typeof entries = {};
+        const floatDefault: number = d.default_float ?? defaultFloat;
+        const init: Record<string, EodEntryState> = {};
         for (const m of methods) {
           const rec = (d.reconciliations ?? []).find((r: any) => r.payment_method === m);
           init[m] = {
             counted:      rec?.counted_amount != null ? String(rec.counted_amount) : '',
-            openingFloat: rec?.opening_float  != null ? String(rec.opening_float)  : '',
+            openingFloat: rec?.opening_float  != null ? String(rec.opening_float)  : (m === 'Cash' ? String(floatDefault) : '0'),
             denominations: rec?.denomination_data ?? {},
             notes:         rec?.notes ?? '',
             showDenom:     false,
@@ -1285,7 +1292,7 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
       .finally(() => setLoading(false));
   }, [date, methods, session.location_id]);
 
-  function updateEntry(method: string, key: string, value: string | boolean | Record<string, string>) {
+  function updateEntry(method: string, key: keyof EodEntryState, value: string | boolean | Record<string, string>) {
     setEntries(prev => ({ ...prev, [method]: { ...prev[method], [key]: value } }));
   }
 
@@ -1293,19 +1300,44 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
     return AUD_DENOMS.reduce((sum, d) => sum + d.value * (parseFloat(denoms[String(d.value)] ?? '0') || 0), 0);
   }
 
+  const openTotal = calcCash(openDenoms);
+  const openVariance = openTotal - defaultFloat;
+
+  async function saveOpenRegister() {
+    setLoading(true);
+    try {
+      await fetch('/api/pos/eod', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location_id: session.location_id,
+          date,
+          entries: [{ payment_method: 'Cash', counted_amount: null, opening_float: openTotal, denomination_data: null, notes: null }],
+        }),
+      });
+      // Update entries so EOD picks up the new opening float
+      setEntries(prev => ({
+        ...prev,
+        Cash: { ...(prev.Cash ?? { counted: '', openingFloat: String(openTotal), denominations: {}, notes: '', showDenom: false }), openingFloat: String(openTotal) },
+      }));
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function saveEod() {
     setLoading(true);
     const entriesArr = methods.map(m => {
       const e = entries[m] ?? {};
-      const counted = m === 'Cash'
-        ? calcCash(e.denominations ?? {})
-        : parseFloat(e.counted ?? '0') || 0;
+      const counted = m === 'Cash' ? calcCash(e.denominations ?? {}) : parseFloat(e.counted ?? '0') || 0;
       return {
-        payment_method:   m,
-        counted_amount:   counted,
-        opening_float:    parseFloat(e.openingFloat ?? '0') || null,
+        payment_method:    m,
+        counted_amount:    counted,
+        opening_float:     parseFloat(e.openingFloat ?? '0') || null,
         denomination_data: m === 'Cash' ? Object.fromEntries(Object.entries(e.denominations ?? {}).map(([k, v]) => [k, parseFloat(v) || 0])) : null,
-        notes: e.notes || null,
+        notes:             e.notes || null,
       };
     });
     try {
@@ -1323,100 +1355,185 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', padding: '1.5rem', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)' }}>
-      <div style={{ maxWidth: 800, margin: '0 auto' }}>
+      <div style={{ maxWidth: 860, margin: '0 auto' }}>
+
+        {/* ── Header ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
           <button onClick={onBack} style={smallBtn}>← Back to POS</button>
-          <h1 style={{ margin: 0, color: 'var(--sv-text-strong)', flex: 1, fontSize: '1.3rem' }}>End of Day Reconciliation</h1>
-          <input type='date' value={date} onChange={e => setDate(e.target.value)} style={{ ...inputStyle, width: 160, marginBottom: 0 }} />
+          <h1 style={{ margin: 0, color: 'var(--sv-text-strong)', flex: 1, fontSize: '1.3rem' }}>
+            {mode === 'open' ? 'Open Register' : 'End of Day Reconciliation'}
+          </h1>
+          {/* Mode tabs */}
+          <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--sv-etch)' }}>
+            <button onClick={() => setMode('open')} style={{ padding: '.35rem 1rem', background: mode === 'open' ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: mode === 'open' ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer', fontSize: '.82rem', fontWeight: 700 }}>Open Register</button>
+            <button onClick={() => setMode('eod')}  style={{ padding: '.35rem 1rem', background: mode === 'eod'  ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: mode === 'eod'  ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer', fontSize: '.82rem', fontWeight: 700 }}>End of Day</button>
+          </div>
+          {mode === 'eod' && (
+            <input type='date' value={date} onChange={e => setDate(e.target.value)} style={{ ...inputStyle, width: 160, marginBottom: 0 }} />
+          )}
         </div>
 
         {loading && <p style={{ color: 'var(--sv-text-dim)' }}>Loading…</p>}
 
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.9rem' }}>
-            <thead>
-              <tr style={{ background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', borderBottom: '2px solid var(--sv-etch)' }}>
-                <th style={thStyle}>Method</th>
-                <th style={thStyle}>Expected ($)</th>
-                <th style={thStyle}>Opening Float ($)</th>
-                <th style={thStyle}>Counted ($)</th>
-                <th style={thStyle}>Variance</th>
-                <th style={thStyle}>Notes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {methods.map(m => {
-                const e = entries[m] ?? { counted: '', openingFloat: '', denominations: {}, notes: '', showDenom: false };
-                const exp = expected[m] ?? 0;
-                const counted = m === 'Cash' ? calcCash(e.denominations ?? {}) : parseFloat(e.counted ?? '') || 0;
-                const variance = counted - exp;
-                return (
-                  <>
-                    <tr key={m} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-                      <td style={tdStyle}>
-                        <strong>{m}</strong>
-                        {m === 'Cash' && (
-                          <button onClick={() => updateEntry(m, 'showDenom', !e.showDenom)} style={{ marginLeft: '.5rem', fontSize: '.75rem', background: 'transparent', border: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', borderRadius: 4, cursor: 'pointer', padding: '.1rem .3rem' }}>
-                            {e.showDenom ? 'Hide' : 'Count'}
-                          </button>
-                        )}
-                      </td>
-                      <td style={{ ...tdStyle, color: 'var(--sv-action)', fontWeight: 600 }}>${fmt(exp)}</td>
-                      <td style={tdStyle}>
-                        <input type='number' value={e.openingFloat} onChange={ev => updateEntry(m, 'openingFloat', ev.target.value)}
-                          placeholder='0.00' style={{ ...inputStyle, width: 80, marginBottom: 0, padding: '.25rem .4rem', fontSize: '.85rem' }} />
-                      </td>
-                      <td style={tdStyle}>
-                        {m === 'Cash' ? (
-                          <span style={{ fontWeight: 600 }}>${fmt(counted)}</span>
-                        ) : (
-                          <input type='number' value={e.counted} onChange={ev => updateEntry(m, 'counted', ev.target.value)}
-                            placeholder='0.00' style={{ ...inputStyle, width: 90, marginBottom: 0, padding: '.25rem .4rem', fontSize: '.85rem' }} />
-                        )}
-                      </td>
-                      <td style={{ ...tdStyle, color: variance >= 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 600 }}>
-                        {variance >= 0 ? '+' : ''}{fmt(variance)}
-                      </td>
-                      <td style={tdStyle}>
-                        <input value={e.notes} onChange={ev => updateEntry(m, 'notes', ev.target.value)}
-                          placeholder='notes' style={{ ...inputStyle, width: '100%', marginBottom: 0, padding: '.25rem .4rem', fontSize: '.8rem' }} />
-                      </td>
-                    </tr>
-                    {m === 'Cash' && e.showDenom && (
-                      <tr key={`${m}-denom`} style={{ background: 'var(--sv-bg-0)' }}>
-                        <td colSpan={6} style={{ padding: '.75rem 1rem' }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px,1fr))', gap: '.5rem' }}>
-                            {AUD_DENOMS.map(d => (
-                              <label key={d.value} style={{ fontSize: '.8rem', color: 'var(--sv-text-dim)', display: 'flex', flexDirection: 'column', gap: '.15rem' }}>
-                                {d.label}
-                                <input type='number' min='0' step='1'
-                                  value={e.denominations?.[String(d.value)] ?? ''}
-                                  onChange={ev => {
-                                    const newDenoms = { ...(e.denominations ?? {}), [String(d.value)]: ev.target.value };
-                                    updateEntry(m, 'denominations', newDenoms);
-                                  }}
-                                  style={{ ...inputStyle, marginBottom: 0, padding: '.25rem .4rem', fontSize: '.85rem' }}
-                                />
-                              </label>
-                            ))}
-                          </div>
-                          <div style={{ marginTop: '.5rem', fontWeight: 600, color: 'var(--sv-action)' }}>Cash total: ${fmt(calcCash(e.denominations ?? {}))}</div>
-                        </td>
-                      </tr>
-                    )}
-                  </>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        {/* ── OPEN REGISTER ── */}
+        {mode === 'open' && !loading && (
+          <div>
+            {/* Summary cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px,1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '1rem 1.25rem' }}>
+                <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8, marginBottom: 4 }}>Expected Float</div>
+                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--sv-text-strong)' }}>${fmt(defaultFloat)}</div>
+              </div>
+              <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '1rem 1.25rem' }}>
+                <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8, marginBottom: 4 }}>Counted Float</div>
+                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--sv-text-strong)' }}>${fmt(openTotal)}</div>
+              </div>
+              <div style={{ background: openVariance === 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', border: `1px solid ${openVariance === 0 ? 'var(--sv-mint)' : 'var(--sv-red)'}`, borderRadius: 10, padding: '1rem 1.25rem' }}>
+                <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8, marginBottom: 4 }}>Variance</div>
+                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: openVariance >= 0 ? 'var(--sv-mint)' : 'var(--sv-red)' }}>
+                  {openVariance >= 0 ? '+' : ''}{fmt(openVariance)}
+                </div>
+              </div>
+            </div>
 
-        <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <button onClick={saveEod} disabled={loading} style={{ ...primaryBtn, padding: '.65rem 2rem' }}>
-            {loading ? 'Saving…' : 'Save Reconciliation'}
-          </button>
-          {saved && <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>✓ Saved</span>}
-        </div>
+            {/* Denomination counter */}
+            <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '1.25rem', marginBottom: '1.5rem' }}>
+              <div style={{ fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: '1rem', fontSize: '.95rem' }}>Count Opening Float</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(115px,1fr))', gap: '.6rem' }}>
+                {AUD_DENOMS.map(d => {
+                  const count = parseFloat(openDenoms[String(d.value)] ?? '0') || 0;
+                  return (
+                    <label key={d.value} style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                      <span style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', fontWeight: 600 }}>
+                        {d.label}{count > 0 ? ` · $${fmt(count * d.value)}` : ''}
+                      </span>
+                      <input
+                        type='number' min='0' step='1'
+                        value={openDenoms[String(d.value)] ?? ''}
+                        onChange={ev => setOpenDenoms(prev => ({ ...prev, [String(d.value)]: ev.target.value }))}
+                        style={{ ...inputStyle, marginBottom: 0, padding: '.3rem .5rem', fontSize: '.9rem' }}
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              <button onClick={saveOpenRegister} disabled={loading} style={{ ...primaryBtn, padding: '.65rem 2rem' }}>
+                {loading ? 'Saving…' : 'Open Register'}
+              </button>
+              {saved && <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>✓ Register opened — float recorded</span>}
+              {entries.Cash?.openingFloat && parseFloat(entries.Cash.openingFloat) > 0 && !saved && (
+                <span style={{ color: 'var(--sv-text-dim)', fontSize: '.8rem' }}>
+                  Previously recorded today: ${fmt(parseFloat(entries.Cash.openingFloat))}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── END OF DAY ── */}
+        {mode === 'eod' && !loading && (
+          <div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.9rem' }}>
+                <thead>
+                  <tr style={{ background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', borderBottom: '2px solid var(--sv-etch)' }}>
+                    <th style={thStyle}>Method</th>
+                    <th style={thStyle}>Expected ($)</th>
+                    <th style={thStyle}>Opening Float ($)</th>
+                    <th style={thStyle}>Counted ($)</th>
+                    <th style={thStyle}>Cash Sales</th>
+                    <th style={thStyle}>Variance</th>
+                    <th style={thStyle}>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {methods.map(m => {
+                    const e = entries[m] ?? { counted: '', openingFloat: '', denominations: {}, notes: '', showDenom: false };
+                    const exp        = expected[m] ?? 0;
+                    const counted    = m === 'Cash' ? calcCash(e.denominations ?? {}) : parseFloat(e.counted ?? '') || 0;
+                    const openFloat  = m === 'Cash' ? (parseFloat(e.openingFloat ?? '') || 0) : 0;
+                    const cashSales  = m === 'Cash' ? counted - openFloat : null;
+                    const variance   = m === 'Cash' ? (cashSales ?? 0) - exp : counted - exp;
+                    return (
+                      <>
+                        <tr key={m} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                          <td style={tdStyle}>
+                            <strong>{m}</strong>
+                            {m === 'Cash' && (
+                              <button onClick={() => updateEntry(m, 'showDenom', !e.showDenom)} style={{ marginLeft: '.5rem', fontSize: '.75rem', background: 'transparent', border: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', borderRadius: 4, cursor: 'pointer', padding: '.1rem .3rem' }}>
+                                {e.showDenom ? 'Hide' : 'Count'}
+                              </button>
+                            )}
+                          </td>
+                          <td style={{ ...tdStyle, color: 'var(--sv-action)', fontWeight: 600 }}>${fmt(exp)}</td>
+                          <td style={tdStyle}>
+                            {m === 'Cash' ? (
+                              <input type='number' value={e.openingFloat} onChange={ev => updateEntry(m, 'openingFloat', ev.target.value)}
+                                placeholder={String(defaultFloat)} style={{ ...inputStyle, width: 80, marginBottom: 0, padding: '.25rem .4rem', fontSize: '.85rem' }} />
+                            ) : (
+                              <span style={{ color: 'var(--sv-text-muted)' }}>—</span>
+                            )}
+                          </td>
+                          <td style={tdStyle}>
+                            {m === 'Cash' ? (
+                              <span style={{ fontWeight: 600 }}>${fmt(counted)}</span>
+                            ) : (
+                              <input type='number' value={e.counted} onChange={ev => updateEntry(m, 'counted', ev.target.value)}
+                                placeholder='0.00' style={{ ...inputStyle, width: 90, marginBottom: 0, padding: '.25rem .4rem', fontSize: '.85rem' }} />
+                            )}
+                          </td>
+                          <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--sv-text-strong)' }}>
+                            {cashSales !== null ? `$${fmt(cashSales)}` : <span style={{ color: 'var(--sv-text-muted)' }}>—</span>}
+                          </td>
+                          <td style={{ ...tdStyle, color: variance >= 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 600 }}>
+                            {variance >= 0 ? '+' : ''}{fmt(variance)}
+                          </td>
+                          <td style={tdStyle}>
+                            <input value={e.notes} onChange={ev => updateEntry(m, 'notes', ev.target.value)}
+                              placeholder='notes' style={{ ...inputStyle, width: '100%', marginBottom: 0, padding: '.25rem .4rem', fontSize: '.8rem' }} />
+                          </td>
+                        </tr>
+                        {m === 'Cash' && e.showDenom && (
+                          <tr key={`${m}-denom`} style={{ background: 'var(--sv-bg-0)' }}>
+                            <td colSpan={7} style={{ padding: '.75rem 1rem' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px,1fr))', gap: '.5rem' }}>
+                                {AUD_DENOMS.map(d => (
+                                  <label key={d.value} style={{ fontSize: '.8rem', color: 'var(--sv-text-dim)', display: 'flex', flexDirection: 'column', gap: '.15rem' }}>
+                                    {d.label}
+                                    <input type='number' min='0' step='1'
+                                      value={e.denominations?.[String(d.value)] ?? ''}
+                                      onChange={ev => {
+                                        const newDenoms = { ...(e.denominations ?? {}), [String(d.value)]: ev.target.value };
+                                        updateEntry(m, 'denominations', newDenoms);
+                                      }}
+                                      style={{ ...inputStyle, marginBottom: 0, padding: '.25rem .4rem', fontSize: '.85rem' }}
+                                    />
+                                  </label>
+                                ))}
+                              </div>
+                              <div style={{ marginTop: '.5rem', fontWeight: 600, color: 'var(--sv-action)' }}>Cash total: ${fmt(calcCash(e.denominations ?? {}))}</div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              <button onClick={saveEod} disabled={loading} style={{ ...primaryBtn, padding: '.65rem 2rem' }}>
+                {loading ? 'Saving…' : 'Save EOD Reconciliation'}
+              </button>
+              {saved && <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>✓ Saved</span>}
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );

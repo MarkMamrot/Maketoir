@@ -9819,6 +9819,9 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   const [paymentTypes, setPaymentTypes]     = useState<string[]>([]);
   const [newPaymentType, setNewPaymentType] = useState('');
   const [ptSaving, setPtSaving]             = useState(false);
+  const [defaultFloat, setDefaultFloat]     = useState(200);
+  const [defaultFloatInput, setDefaultFloatInput] = useState('200');
+  const [defaultFloatSaving, setDefaultFloatSaving] = useState(false);
   const [posDisplayView, setPosDisplayView]  = useState('all');
   const [posDisplaySaving, setPosDisplaySaving] = useState(false);
   const [posDisplayBrandInput, setPosDisplayBrandInput] = useState('');
@@ -9847,6 +9850,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   useEffect(() => {
     if (!isOpen) return;
     fetch('/api/pos/settings/payment-methods').then(r => r.json()).then(d => { if (Array.isArray(d.methods)) setPaymentTypes(d.methods); }).catch(() => {});
+    fetch('/api/pos/settings/float').then(r => r.json()).then(d => { if (typeof d.amount === 'number') { setDefaultFloat(d.amount); setDefaultFloatInput(String(d.amount)); } }).catch(() => {});
     fetch('/api/pos/settings/products').then(r => r.json()).then(d => {
       if (d.defaultView) {
         setPosDisplayView(d.defaultView);
@@ -9866,6 +9870,16 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
       await fetch('/api/pos/settings/payment-methods', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ methods }) });
       setPaymentTypes(methods);
     } finally { setPtSaving(false); }
+  };
+
+  const saveDefaultFloat = async () => {
+    const amount = parseFloat(defaultFloatInput);
+    if (isNaN(amount) || amount < 0) return;
+    setDefaultFloatSaving(true);
+    try {
+      await fetch('/api/pos/settings/float', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount }) });
+      setDefaultFloat(amount);
+    } finally { setDefaultFloatSaving(false); }
   };
 
   const savePosDisplayView = async (view: string) => {
@@ -10215,6 +10229,16 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <input style={{ ...inputStyle, flex: 1, maxWidth: 220 }} value={newPaymentType} onChange={e => setNewPaymentType(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && newPaymentType.trim()) { savePaymentTypes([...paymentTypes, newPaymentType.trim()]); setNewPaymentType(''); } }} placeholder="Add payment type…" />
                   <button type="button" disabled={!newPaymentType.trim() || ptSaving} onClick={() => { if (newPaymentType.trim()) { savePaymentTypes([...paymentTypes, newPaymentType.trim()]); setNewPaymentType(''); } }} style={btnStyle('action', 'sm')}>{ptSaving ? 'Saving…' : 'Add'}</button>
+                </div>
+                <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--sv-etch)' }}>
+                  <label style={{ ...labelStyle, display: 'block', fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Default Cash Float</label>
+                  <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 10, marginTop: 0 }}>Expected amount in the till at the start of each day. Used in Open Register and EOD reconciliation.</p>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span style={{ fontSize: 14, color: 'var(--sv-text-dim)' }}>$</span>
+                    <input type="number" min="0" step="0.01" style={{ ...inputStyle, width: 120 }} value={defaultFloatInput} onChange={e => setDefaultFloatInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') saveDefaultFloat(); }} />
+                    <button type="button" disabled={defaultFloatSaving} onClick={saveDefaultFloat} style={btnStyle('action', 'sm')}>{defaultFloatSaving ? 'Saving…' : 'Save'}</button>
+                    {defaultFloat > 0 && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Current: ${defaultFloat.toFixed(2)}</span>}
+                  </div>
                 </div>
               </div>
             )}
