@@ -1480,9 +1480,10 @@ const smallBtn: React.CSSProperties = {
   color: 'var(--sv-text-main)',
   border: '1px solid var(--sv-etch)',
   borderRadius: 6,
-  padding: '.35rem .75rem',
+  padding: '.45rem .9rem',
   cursor: 'pointer',
-  fontSize: '.82rem',
+  fontSize: '.92rem',
+  fontWeight: 700,
   whiteSpace: 'nowrap' as const,
 };
 const qtyBtn: React.CSSProperties = {
