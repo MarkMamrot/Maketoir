@@ -1212,6 +1212,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
   const [activeMethod, setActiveMethod] = useState(() => methods.find(m => /card/i.test(m)) ?? methods[0] ?? 'Cash');
   const [amount, setAmount] = useState(() => String(total));
   const [reference, setReference] = useState('');
+  const [changeDue, setChangeDue] = useState<{ amount: number; pendingPayments: PaymentEntry[] } | null>(null);
   const amountRef = useRef<HTMLInputElement>(null);
 
   const paid      = payments.reduce((s, p) => s + p.amount, 0);
@@ -1230,7 +1231,12 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
     setAmount('');
     setReference('');
     if (newPaid >= total - 0.001) {
-      onComplete(newPayments);
+      const changeAmt = Math.round((newPaid - total) * 100) / 100;
+      if (changeAmt > 0.004) {
+        setChangeDue({ amount: changeAmt, pendingPayments: newPayments });
+      } else {
+        onComplete(newPayments);
+      }
     }
   }
 
@@ -1240,6 +1246,23 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      {/* Change Due overlay — shown on top of payment modal */}
+      {changeDue && (
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: 12 }}>
+          <div style={{ background: '#1a0000', border: '3px solid #ef4444', borderRadius: 16, padding: '2.5rem 3rem', textAlign: 'center', boxShadow: '0 0 60px rgba(239,68,68,.5)', maxWidth: 360, width: '90vw' }}>
+            <div style={{ fontSize: '1rem', fontWeight: 700, color: '#ef4444', letterSpacing: 3, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Change Due</div>
+            <div style={{ fontSize: '5rem', fontWeight: 900, color: '#ef4444', lineHeight: 1, marginBottom: '0.25rem', letterSpacing: -2 }}>${fmt(changeDue.amount)}</div>
+            <div style={{ fontSize: '1rem', color: '#fca5a5', marginBottom: '2rem' }}>Give this amount back to the customer</div>
+            <button
+              autoFocus
+              onClick={() => { setChangeDue(null); onComplete(changeDue.pendingPayments); }}
+              style={{ width: '100%', padding: '1rem', background: '#ef4444', border: 'none', borderRadius: 10, color: '#fff', fontSize: '1.2rem', fontWeight: 800, cursor: 'pointer', letterSpacing: .5 }}
+            >
+              OK — Change Given ✓
+            </button>
+          </div>
+        </div>
+      )}
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: '1.5rem', width: 420, maxWidth: '95vw', boxShadow: '0 20px 60px rgba(0,0,0,.6)' }}>
         <h2 style={{ margin: '0 0 1rem', color: 'var(--sv-text-strong)', fontSize: '1.3rem' }}>
           {isLayby ? 'Layby Deposit' : 'Payment'}
