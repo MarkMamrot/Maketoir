@@ -569,7 +569,7 @@ export async function syncEodEntry(
     DueDate:         entry.date,
     Reference:       `EOD-L${entry.locationId}${regSuffix}-${entry.date.replace(/-/g, '')}-${entry.method.replace(/\s+/g, '')}`,
     Status:          'AUTHORISED',
-    LineAmountTypes: 'Exclusive',
+    LineAmountTypes: 'Inclusive',
     CurrencyCode:    'AUD',
     LineItems: [{
       Description: `${entry.method} Sales — ${entry.locationName}${regLabel} — ${entry.date}`,
