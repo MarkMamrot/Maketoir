@@ -2208,6 +2208,14 @@ export default function PosPage() {
       .catch(() => thenGoPos());
   }
 
+  // Background stock sync every 5 minutes while POS is active
+  // NOTE: must be here (before early returns) to satisfy Rules of Hooks
+  useEffect(() => {
+    if (screen !== 'pos' && screen !== 'receipt') return;
+    const id = setInterval(() => { handleSync().catch(() => {}); }, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [screen, deviceConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Register service worker for offline shell caching
   useEffect(() => {
     if ('serviceWorker' in navigator) {
@@ -2342,13 +2350,6 @@ export default function PosPage() {
     if (Array.isArray(methodData.methods) && methodData.methods.length) setMethods(methodData.methods);
     setOfflineMode(false);
   }
-
-  // Background stock sync every 5 minutes while POS is active
-  useEffect(() => {
-    if (screen !== 'pos' && screen !== 'receipt') return;
-    const id = setInterval(() => { handleSync().catch(() => {}); }, 5 * 60 * 1000);
-    return () => clearInterval(id);
-  }, [screen, deviceConfig]);
 
   return (
     <MainPos
