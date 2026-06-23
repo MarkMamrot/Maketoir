@@ -9355,7 +9355,7 @@ function StocktakesView() {
   };
 
   const changeStatus = async (id: number, status: string) => {
-    const labels: Record<string, string> = { in_progress: 'start count', completed: 'mark complete', cancelled: 'cancel' };
+    const labels: Record<string, string> = { in_progress: 'start count', cancelled: 'cancel' };
     if (!confirm(`${labels[status] || status} this stocktake?`)) return;
     await fetch(`/api/ims/stocktakes/${id}`, {
       method: 'PUT',
@@ -9370,8 +9370,30 @@ function StocktakesView() {
     }
   };
 
+  const handleComplete = async (id: number) => {
+    if (!confirm('Mark complete and apply counted quantities to stock? This will update qty_on_hand for all counted items.')) return;
+    setApplying(true);
+    try {
+      // 1. Mark as completed
+      const statusRes = await fetch(`/api/ims/stocktakes/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'change_status', status: 'completed' }),
+      });
+      if (!statusRes.ok) { const e = await statusRes.json(); throw new Error(e.error || 'Failed to mark complete'); }
+      // 2. Apply to stock
+      const applyRes = await fetch(`/api/ims/stocktakes/${id}/apply`, { method: 'POST' });
+      const d        = await applyRes.json();
+      if (!applyRes.ok) throw new Error(d.error || 'Failed to apply');
+      alert(`Stocktake complete. Applied ${d.applied} items. ${d.variances} variance${d.variances !== 1 ? 's' : ''} recorded.`);
+      load();
+      setDetailModal({ open: false, st: null });
+    } catch (e: any) { alert(e.message); }
+    finally { setApplying(false); }
+  };
+
+  // kept for external use (barcode tab still calls apply separately)
   const handleApply = async (id: number) => {
-    if (!confirm('Apply counted quantities to stock? This will update qty_on_hand for all counted items.')) return;
     setApplying(true);
     try {
       const res = await fetch(`/api/ims/stocktakes/${id}/apply`, { method: 'POST' });
@@ -9507,8 +9529,7 @@ function StocktakesView() {
                   <td style={{ padding: '10px 12px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <button onClick={() => openDetail(st)} style={btnStyle('ghost', 'xs')}>View</button>
                     {st.status === 'draft'       && <button onClick={() => changeStatus(st.id, 'in_progress')} style={btnStyle('action', 'xs')}>Start</button>}
-                    {st.status === 'in_progress' && <button onClick={() => changeStatus(st.id, 'completed')} style={btnStyle('action', 'xs')}>Complete</button>}
-                    {st.status === 'completed'   && <button onClick={() => handleApply(st.id)} style={btnStyle('action', 'xs')} disabled={applying}>Apply to Stock</button>}
+                    {st.status === 'in_progress' && <button onClick={() => handleComplete(st.id)} style={btnStyle('action', 'xs')} disabled={applying}>Complete</button>}
                     {(st.status === 'draft' || st.status === 'in_progress') && <button onClick={() => changeStatus(st.id, 'cancelled')} style={btnStyle('secondary', 'xs')}>Cancel</button>}
                     {st.status === 'draft'       && <button onClick={() => handleDelete(st.id, st.reference)} style={btnStyle('danger', 'xs')}>Delete</button>}
                   </td>
@@ -9612,8 +9633,7 @@ function StocktakesView() {
             {detailModal.st.notes && <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>— {detailModal.st.notes}</span>}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               {detailModal.st.status === 'draft'       && <button onClick={() => changeStatus(detailModal.st.id, 'in_progress')} style={btnStyle('action', 'sm')}>Start Count</button>}
-              {detailModal.st.status === 'in_progress' && <button onClick={() => changeStatus(detailModal.st.id, 'completed')} style={btnStyle('action', 'sm')}>Mark Complete</button>}
-              {detailModal.st.status === 'completed'   && <button onClick={() => handleApply(detailModal.st.id)} disabled={applying} style={btnStyle('action', 'sm')}>Apply to Stock</button>}
+              {detailModal.st.status === 'in_progress' && <button onClick={() => handleComplete(detailModal.st.id)} disabled={applying} style={btnStyle('action', 'sm')}>Mark Complete</button>}
               {(detailModal.st.status === 'draft' || detailModal.st.status === 'in_progress') && <button onClick={() => changeStatus(detailModal.st.id, 'cancelled')} style={btnStyle('secondary', 'sm')}>Cancel</button>}
             </div>
           </div>
