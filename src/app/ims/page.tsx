@@ -696,12 +696,141 @@ function ContactsView() {
 
 const BLANK_LOC = { name: '', code: '', address: '', city: '', state: '', postcode: '', country: 'Australia', is_active: 1, pos_pin: '' };
 
+function LocationRegistersPanel({ locationId, locationName, onClose }: { locationId: number; locationName: string; onClose: () => void }) {
+  const [registers, setRegisters] = useState<any[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [adding,    setAdding]    = useState(false);
+  const [newName,   setNewName]   = useState('');
+  const [newFloat,  setNewFloat]  = useState('');
+  const [saving,    setSaving]    = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch(`/api/pos/registers?location_id=${locationId}&include_inactive=1`)
+      .then(r => r.json())
+      .then(d => setRegisters(d.registers ?? []))
+      .finally(() => setLoading(false));
+  }, [locationId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newName.trim()) return;
+    setSaving(true);
+    try {
+      const res = await apiFetch('/api/pos/registers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ location_id: locationId, name: newName.trim(), default_float: newFloat ? Number(newFloat) : 0 }),
+      });
+      if (res) { setNewName(''); setNewFloat(''); setAdding(false); load(); }
+    } catch (e: any) { alert(e.message); }
+    finally { setSaving(false); }
+  }
+
+  async function handleToggle(reg: any) {
+    try {
+      await apiFetch(`/api/pos/registers/${reg.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: reg.is_active ? 0 : 1 }),
+      });
+      load();
+    } catch (e: any) { alert(e.message); }
+  }
+
+  async function handleRename(reg: any) {
+    const name = prompt('New register name:', reg.name);
+    if (!name || name === reg.name) return;
+    try {
+      await apiFetch(`/api/pos/registers/${reg.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      load();
+    } catch (e: any) { alert(e.message); }
+  }
+
+  async function handleFloat(reg: any) {
+    const val = prompt('Default float amount ($):', String(reg.default_float ?? 0));
+    if (val === null) return;
+    const n = Number(val);
+    if (isNaN(n)) { alert('Enter a valid number.'); return; }
+    try {
+      await apiFetch(`/api/pos/registers/${reg.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ default_float: n }),
+      });
+      load();
+    } catch (e: any) { alert(e.message); }
+  }
+
+  return (
+    <div style={{ marginTop: 16, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '1rem 1.25rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)', flex: 1 }}>
+          Registers — {locationName}
+        </span>
+        <button onClick={() => setAdding(a => !a)} style={btnStyle('action', 'xs')}>+ Add Register</button>
+        <button onClick={onClose} style={btnStyle('ghost', 'xs')}>✕ Close</button>
+      </div>
+      {adding && (
+        <form onSubmit={handleAdd} style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'flex-end' }}>
+          <Field label="Register Name">
+            <input autoFocus required value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. Till 1" style={{ ...inputStyle, marginBottom: 0 }} />
+          </Field>
+          <Field label="Default Float ($)">
+            <input type="number" min="0" step="0.01" value={newFloat} onChange={e => setNewFloat(e.target.value)} placeholder="0.00" style={{ ...inputStyle, width: 100, marginBottom: 0 }} />
+          </Field>
+          <button type="submit" disabled={saving || !newName.trim()} style={{ ...btnStyle('action', 'sm'), marginBottom: 1 }}>{saving ? 'Saving…' : 'Save'}</button>
+          <button type="button" onClick={() => setAdding(false)} style={{ ...btnStyle('ghost', 'sm'), marginBottom: 1 }}>Cancel</button>
+        </form>
+      )}
+      {loading ? <Spinner /> : registers.length === 0 ? (
+        <p style={{ color: 'var(--sv-text-dim)', fontSize: 13, padding: '8px 0' }}>No registers yet. Click "+ Add Register" to create one.</p>
+      ) : (
+        <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                {['Name', 'Default Float', 'Status', ''].map(h => (
+                  <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {registers.map(reg => (
+                <tr key={reg.id} style={{ borderTop: '1px solid var(--sv-etch)', opacity: reg.is_active ? 1 : 0.5 }}>
+                  <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)', fontWeight: 500 }}>{reg.name}</td>
+                  <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>${Number(reg.default_float ?? 0).toFixed(2)}</td>
+                  <td style={{ padding: '8px 12px' }}><ActiveDot active={reg.is_active} /></td>
+                  <td style={{ padding: '8px 12px' }}>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => handleRename(reg)} style={btnStyle('ghost', 'xs')}>Rename</button>
+                      <button onClick={() => handleFloat(reg)} style={btnStyle('ghost', 'xs')}>Float</button>
+                      <button onClick={() => handleToggle(reg)} style={btnStyle(reg.is_active ? 'danger' : 'mint', 'xs')}>{reg.is_active ? 'Deactivate' : 'Reactivate'}</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LocationsView() {
   const [locations, setLocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [form, setForm] = useState({ ...BLANK_LOC });
   const [saving, setSaving] = useState(false);
+  const [registersFor, setRegistersFor] = useState<{ id: number; name: string } | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -746,8 +875,18 @@ function LocationsView() {
             <strong style={{ color: 'var(--sv-text-strong)' }}>{l.name}</strong>,
             l.code || '—', l.city || '—', l.state || '—',
             <ActiveDot active={l.is_active} />,
-            <RowActions onEdit={() => { setForm({ ...BLANK_LOC, ...l }); setModal({ open: true, edit: l }); }} onDelete={() => handleDelete(l)} />,
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={() => setRegistersFor(registersFor?.id === l.id ? null : { id: l.id, name: l.name })} style={btnStyle('ghost', 'xs')}>Registers</button>
+              <RowActions onEdit={() => { setForm({ ...BLANK_LOC, ...l }); setModal({ open: true, edit: l }); }} onDelete={() => handleDelete(l)} />
+            </div>,
           ]}
+        />
+      )}
+      {registersFor && (
+        <LocationRegistersPanel
+          locationId={registersFor.id}
+          locationName={registersFor.name}
+          onClose={() => setRegistersFor(null)}
         />
       )}
       {modal.open && (
