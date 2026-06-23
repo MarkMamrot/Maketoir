@@ -385,7 +385,7 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
                 padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8,
                 color: isActive ? 'var(--sv-text-strong)' : 'var(--sv-text-main)',
                 backgroundColor: isActive && !hasChildren ? 'rgba(37,99,235,.12)' : 'transparent',
-                textAlign: 'left', fontSize: 14, fontWeight: isActive ? 600 : 400,
+                textAlign: 'left', fontSize: 14, fontWeight: isActive ? 700 : 500,
                 borderLeft: isActive && !hasChildren ? '3px solid var(--sv-action)' : '3px solid transparent',
                 transition: 'all .15s',
               }}
@@ -408,7 +408,8 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
                       padding: '6px 16px 6px 40px', display: 'flex', alignItems: 'center',
                       color: active === child.id ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)',
                       backgroundColor: active === child.id ? 'rgba(37,99,235,.12)' : 'transparent',
-                      textAlign: 'left', fontSize: 13, fontWeight: active === child.id ? 600 : 400,
+                      fontSize: 13, fontWeight: active === child.id ? 700 : 500,
+                      textAlign: 'left',
                       borderLeft: active === child.id ? '3px solid var(--sv-action)' : '3px solid transparent',
                     }}
                   >
