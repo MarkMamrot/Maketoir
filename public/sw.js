@@ -1,6 +1,6 @@
 // POS Service Worker — caches the /pos shell and JS chunks for offline use.
 // Bump CACHE_VER after a major deploy to evict old cached HTML.
-const CACHE_VER = 'v1';
+const CACHE_VER = 'v2';
 const PAGE_CACHE   = `pos-pages-${CACHE_VER}`;
 const STATIC_CACHE = `pos-static-${CACHE_VER}`;
 
@@ -35,7 +35,7 @@ self.addEventListener('fetch', e => {
       caches.match(request).then(cached =>
         cached ||
         fetch(request).then(res => {
-          if (res.ok) caches.open(STATIC_CACHE).then(c => c.put(request, res.clone()));
+          if (res.ok) { const clone = res.clone(); caches.open(STATIC_CACHE).then(c => c.put(request, clone)); }
           return res;
         })
       )
@@ -50,7 +50,7 @@ self.addEventListener('fetch', e => {
     e.respondWith(
       fetch(request)
         .then(res => {
-          if (res.ok) caches.open(PAGE_CACHE).then(c => c.put(request, res.clone()));
+          if (res.ok) { const clone = res.clone(); caches.open(PAGE_CACHE).then(c => c.put(request, clone)); }
           return res;
         })
         .catch(() =>
@@ -67,7 +67,7 @@ self.addEventListener('fetch', e => {
       caches.match(request).then(cached =>
         cached ||
         fetch(request).then(res => {
-          if (res.ok) caches.open(STATIC_CACHE).then(c => c.put(request, res.clone()));
+          if (res.ok) { const clone = res.clone(); caches.open(STATIC_CACHE).then(c => c.put(request, clone)); }
           return res;
         })
       )
