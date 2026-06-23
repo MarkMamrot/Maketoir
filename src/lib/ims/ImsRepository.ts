@@ -1609,10 +1609,10 @@ export const ImsStocktakeRepo = {
        FROM ims_stocktake_items i
        JOIN ims_product_variants v ON v.variant_id = i.variant_id
        JOIN ims_products p ON p.product_id = v.product_id
-       LEFT JOIN ims_stock sk ON sk.variant_id = i.variant_id AND sk.location_id = st.location_id
+       LEFT JOIN ims_stock sk ON sk.variant_id = i.variant_id AND sk.location_id = ?
        WHERE i.stocktake_id = ?
        ORDER BY p.name, v.sku`,
-      [id]
+      [st.location_id, id]
     );
     return st;
   },
