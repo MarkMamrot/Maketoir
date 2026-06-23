@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { UsersRepository } from '@/lib/db/UsersRepository';
 import { query, execute } from '@/services/MySQLService';
 import { UserTier } from '@/lib/sessionUtils';
+import bcrypt from 'bcryptjs';
 
 function getAdminSession() {
   const raw = cookies().get('marketoir_session')?.value;
@@ -50,8 +51,8 @@ export async function GET() {
   try {
     const users = await query<any>(
       businessId
-        ? `SELECT id, username, name, email, company, role, tier, deleted_at, created_at FROM users WHERE business_id = ? ORDER BY created_at DESC`
-        : `SELECT id, username, name, email, company, role, tier, deleted_at, created_at FROM users ORDER BY created_at DESC`,
+        ? `SELECT id, username, name, email, company, role, tier, deleted_at, created_at, CASE WHEN pos_pin_hash IS NOT NULL THEN 1 ELSE 0 END AS has_pos_pin FROM users WHERE business_id = ? ORDER BY created_at DESC`
+        : `SELECT id, username, name, email, company, role, tier, deleted_at, created_at, CASE WHEN pos_pin_hash IS NOT NULL THEN 1 ELSE 0 END AS has_pos_pin FROM users ORDER BY created_at DESC`,
       businessId ? [businessId] : [],
     );
     return NextResponse.json({ success: true, users });
@@ -160,7 +161,7 @@ export async function PATCH(req: Request) {
     }
 
     const body = await req.json();
-    const { tier, name, username, company } = body;
+    const { tier, name, username, company, pos_pin } = body;
 
     const user = await UsersRepository.findById(Number(userId));
     if (!user) {
@@ -205,6 +206,17 @@ export async function PATCH(req: Request) {
     if (company !== undefined) {
       updates.push('company = ?');
       values.push(company || null);
+    }
+
+    if (pos_pin !== undefined) {
+      if (pos_pin === '' || pos_pin === null) {
+        updates.push('pos_pin_hash = ?');
+        values.push(null);
+      } else {
+        const pinHash = await bcrypt.hash(String(pos_pin), 10);
+        updates.push('pos_pin_hash = ?');
+        values.push(pinHash);
+      }
     }
 
     if (updates.length === 0) {

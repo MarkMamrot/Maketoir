@@ -219,48 +219,60 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
   onLogin:       (session: PosSession, products: CachedProduct[], methods: string[]) => void;
   onDeviceSetup: () => void;
 }) {
-  const [email,    setEmail]    = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState('');
+  type StaffUser = { id: number; name: string; has_pos_pin: boolean };
+  const [staff,        setStaff]        = useState<StaffUser[]>([]);
+  const [staffLoading, setStaffLoading] = useState(true);
+  const [selected,     setSelected]     = useState<StaffUser | null>(null);
+  const [pin,          setPin]          = useState('');
+  const [loading,      setLoading]      = useState(false);
+  const [error,        setError]        = useState('');
+  // Admin fallback — email + password
+  const [adminMode,    setAdminMode]    = useState(false);
+  const [email,        setEmail]        = useState('');
+  const [password,     setPassword]     = useState('');
+  const pinRef  = useRef<HTMLInputElement>(null);
   const passRef = useRef<HTMLInputElement>(null);
 
-  async function handleLogin() {
-    if (!email || !password) { setError('Enter email and password.'); return; }
+  useEffect(() => {
+    fetch(`/api/pos/auth/staff?location_id=${deviceConfig.location_id}`)
+      .then(r => r.json())
+      .then(d => setStaff(d.users ?? []))
+      .catch(() => {})
+      .finally(() => setStaffLoading(false));
+  }, []);
+
+  const initials = (name: string) =>
+    name.split(' ').map(w => w[0]?.toUpperCase() ?? '').join('').slice(0, 2) || '?';
+
+  async function finishLogin(session: PosSession) {
+    const [prodRes, methodRes] = await Promise.all([
+      fetch(`/api/pos/products?location_id=${deviceConfig.location_id}`),
+      fetch('/api/pos/settings/payment-methods'),
+    ]);
+    const prodData   = await prodRes.json().catch(() => ({ products: [] }));
+    const methodData = await methodRes.json().catch(() => ({ methods: ['Cash', 'Card', 'EFT'] }));
+    saveProductsCache(prodData.products ?? []);
+    saveLocalSession(session);
+    onLogin(session, prodData.products ?? [], methodData.methods ?? ['Cash', 'Card', 'EFT']);
+  }
+
+  async function handlePinLogin() {
+    if (!selected) return;
+    if (!pin) { setError('Enter your PIN.'); return; }
     setLoading(true); setError('');
     try {
-      // Step 1: Authenticate with main user system (sets marketoir_session cookie)
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch('/api/pos/auth/pin-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ user_id: selected.id, pin, location_id: deviceConfig.location_id }),
       });
       const data = await res.json();
-      if (!res.ok || !data.success) { setError(data.error ?? 'Login failed.'); return; }
-
-      // Step 2: Create POS session from the marketoir_session + device location
-      const meRes = await fetch(`/api/pos/auth/me?location_id=${deviceConfig.location_id}`);
-      const meData = await meRes.json();
-      if (!meData.session) { setError('Could not create POS session. Ensure your account has access.'); return; }
-
-      // Attach register info from DeviceConfig into the session
-      const session: PosSession = {
-        ...meData.session,
+      if (!res.ok || !data.session) { setError(data.error ?? 'Incorrect PIN.'); return; }
+      await finishLogin({
+        ...data.session,
         register_id:   deviceConfig.register_id   ?? null,
         register_name: deviceConfig.register_name ?? null,
-      };
-
-      // Step 3: Fetch products + payment methods
-      const [prodRes, methodRes] = await Promise.all([
-        fetch(`/api/pos/products?location_id=${deviceConfig.location_id}`),
-        fetch('/api/pos/settings/payment-methods'),
-      ]);
-      const prodData   = await prodRes.json().catch(() => ({ products: [] }));
-      const methodData = await methodRes.json().catch(() => ({ methods: ['Cash', 'Card', 'EFT'] }));
-
-      saveProductsCache(prodData.products ?? []);
-      saveLocalSession(session);
-      onLogin(session, prodData.products ?? [], methodData.methods ?? ['Cash', 'Card', 'EFT']);
+      });
     } catch (e: any) {
       setError(e.message || 'Network error.');
     } finally {
@@ -268,42 +280,134 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
     }
   }
 
-  return (
-    <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui,sans-serif' }}>
-      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', padding: '2.5rem 2rem', borderRadius: 12, width: 360, boxShadow: '0 8px 40px rgba(0,0,0,.4)' }}>
-        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-          <div style={{ fontSize: '2rem', marginBottom: '.25rem' }}>🛒</div>
-          <h1 style={{ margin: 0, fontSize: '1.4rem', color: 'var(--sv-text-strong)' }}>POS Login</h1>
-          <p style={{ margin: '.25rem 0 0', color: 'var(--sv-action)', fontSize: '.95rem', fontWeight: 600 }}>{deviceConfig.location_name}</p>
-          {deviceConfig.register_name && <p style={{ margin: '.1rem 0 0', color: 'var(--sv-text-dim)', fontSize: '.82rem' }}>{deviceConfig.register_name}</p>}
-        </div>
+  async function handleAdminLogin() {
+    if (!email || !password) { setError('Enter email and password.'); return; }
+    setLoading(true); setError('');
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) { setError(data.error ?? 'Login failed.'); return; }
+      const meRes  = await fetch(`/api/pos/auth/me?location_id=${deviceConfig.location_id}`);
+      const meData = await meRes.json();
+      if (!meData.session) { setError('Could not create POS session.'); return; }
+      await finishLogin({
+        ...meData.session,
+        register_id:   deviceConfig.register_id   ?? null,
+        register_name: deviceConfig.register_name ?? null,
+      });
+    } catch (e: any) {
+      setError(e.message || 'Network error.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
+  const header = (
+    <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+      <div style={{ fontSize: '2rem', marginBottom: '.25rem' }}>🛒</div>
+      <h1 style={{ margin: 0, fontSize: '1.4rem', color: 'var(--sv-text-strong)' }}>POS Login</h1>
+      <p style={{ margin: '.25rem 0 0', color: 'var(--sv-action)', fontSize: '.95rem', fontWeight: 600 }}>{deviceConfig.location_name}</p>
+      {deviceConfig.register_name && <p style={{ margin: '.1rem 0 0', color: 'var(--sv-text-dim)', fontSize: '.82rem' }}>{deviceConfig.register_name}</p>}
+    </div>
+  );
+
+  const footer = (
+    <div style={{ marginTop: '1.5rem', paddingTop: '.75rem', borderTop: '1px solid var(--sv-etch)', textAlign: 'center', fontSize: '.73rem', color: 'var(--sv-text-dim)' }}>
+      Device: {deviceConfig.location_name}{deviceConfig.register_name ? ` — ${deviceConfig.register_name}` : ''}
+      <button onClick={onDeviceSetup} style={{ marginLeft: '.5rem', background: 'none', border: 'none', color: 'var(--sv-action)', cursor: 'pointer', fontSize: '.73rem', padding: 0 }}>Change</button>
+    </div>
+  );
+
+  const wrap = (children: React.ReactNode, wide = false) => (
+    <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui,sans-serif' }}>
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', padding: '2.5rem 2rem', borderRadius: 12, width: wide ? 520 : 360, boxShadow: '0 8px 40px rgba(0,0,0,.4)' }}>
+        {children}
+      </div>
+    </div>
+  );
+
+  // ── PIN entry ─────────────────────────────────────────────────────────────
+  if (selected && !adminMode) {
+    return wrap(
+      <>
+        {header}
+        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+          <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--sv-action)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 22, margin: '0 auto .6rem' }}>{initials(selected.name)}</div>
+          <div style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--sv-text-strong)' }}>{selected.name}</div>
+        </div>
+        {!selected.has_pos_pin ? (
+          <p style={{ color: 'var(--sv-red)', fontSize: '.88rem', textAlign: 'center', marginBottom: '1rem' }}>No POS PIN set. Contact your manager.</p>
+        ) : (
+          <>
+            <label style={labelStyle}>PIN</label>
+            <input ref={pinRef} autoFocus type='password' maxLength={8} value={pin}
+              onChange={e => { setPin(e.target.value); setError(''); }}
+              onKeyDown={e => e.key === 'Enter' && handlePinLogin()}
+              style={inputStyle} placeholder='Enter PIN' />
+            {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', margin: '-.5rem 0 .75rem' }}>{error}</p>}
+            <button onClick={handlePinLogin} disabled={loading || !pin} style={{ ...primaryBtn, width: '100%' }}>
+              {loading ? 'Signing in…' : 'Sign In'}
+            </button>
+          </>
+        )}
+        <button onClick={() => { setSelected(null); setPin(''); setError(''); }} style={{ width: '100%', marginTop: '.75rem', padding: '.6rem', background: 'transparent', border: '1px solid var(--sv-etch)', borderRadius: 8, color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.85rem' }}>← Back</button>
+        {footer}
+      </>
+    );
+  }
+
+  // ── Admin email+password fallback ─────────────────────────────────────────
+  if (adminMode) {
+    return wrap(
+      <>
+        {header}
         <label style={labelStyle}>Email</label>
         <input autoFocus type='email' value={email} onChange={e => setEmail(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && passRef.current?.focus()}
           style={inputStyle} placeholder='your@email.com' />
-
         <label style={labelStyle}>Password</label>
         <input ref={passRef} type='password' value={password} onChange={e => setPassword(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleLogin()}
+          onKeyDown={e => e.key === 'Enter' && handleAdminLogin()}
           style={inputStyle} placeholder='password' />
-
         {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', margin: '-.5rem 0 .75rem' }}>{error}</p>}
-
-        <button onClick={handleLogin} disabled={loading} style={{ ...primaryBtn, width: '100%' }}>
+        <button onClick={handleAdminLogin} disabled={loading} style={{ ...primaryBtn, width: '100%' }}>
           {loading ? 'Signing in…' : 'Sign In'}
         </button>
+        <button onClick={() => { setAdminMode(false); setError(''); }} style={{ width: '100%', marginTop: '.75rem', padding: '.6rem', background: 'transparent', border: '1px solid var(--sv-etch)', borderRadius: 8, color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.85rem' }}>← Back</button>
+        {footer}
+      </>
+    );
+  }
 
-        <button onClick={onDeviceSetup} style={{ width: '100%', marginTop: '.75rem', padding: '.6rem', background: 'transparent', border: '1px solid var(--sv-etch)', borderRadius: 8, color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.85rem' }}>
-          Change Branch / Register
-        </button>
-
-        <div style={{ marginTop: '1.5rem', paddingTop: '.75rem', borderTop: '1px solid var(--sv-etch)', textAlign: 'center', fontSize: '.73rem', color: 'var(--sv-text-dim)' }}>
-          Device: {deviceConfig.location_name}{deviceConfig.register_name ? ` — ${deviceConfig.register_name}` : ''}
-          <button onClick={onDeviceSetup} style={{ marginLeft: '.5rem', background: 'none', border: 'none', color: 'var(--sv-action)', cursor: 'pointer', fontSize: '.73rem', padding: 0 }}>Change</button>
+  // ── Staff picker ──────────────────────────────────────────────────────────
+  return wrap(
+    <>
+      {header}
+      <p style={{ margin: '0 0 1rem', fontSize: '.88rem', color: 'var(--sv-text-dim)', textAlign: 'center' }}>Who are you?</p>
+      {staffLoading ? (
+        <p style={{ textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: '.85rem' }}>Loading…</p>
+      ) : (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center', marginBottom: '1rem' }}>
+          {staff.map(u => (
+            <button key={u.id} onClick={() => { setSelected(u); setPin(''); setError(''); setTimeout(() => pinRef.current?.focus(), 80); }}
+              style={{ width: 88, padding: '12px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, cursor: 'pointer', transition: 'border-color .12s' }}>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: u.has_pos_pin ? 'var(--sv-action)' : 'var(--sv-bg-0)', border: u.has_pos_pin ? 'none' : '2px solid var(--sv-etch)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: u.has_pos_pin ? '#fff' : 'var(--sv-text-dim)', fontWeight: 700, fontSize: 16 }}>{initials(u.name)}</div>
+              <span style={{ fontSize: 11, color: 'var(--sv-text-strong)', textAlign: 'center', lineHeight: 1.3 }}>{u.name}</span>
+            </button>
+          ))}
         </div>
+      )}
+      <div style={{ textAlign: 'center', marginTop: '.5rem' }}>
+        <button onClick={() => { setAdminMode(true); setError(''); }} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.78rem', textDecoration: 'underline' }}>Admin login</button>
       </div>
-    </div>
+      <button onClick={onDeviceSetup} style={{ width: '100%', marginTop: '.75rem', padding: '.6rem', background: 'transparent', border: '1px solid var(--sv-etch)', borderRadius: 8, color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.85rem' }}>Change Branch / Register</button>
+      {footer}
+    </>,
+    true,
   );
 }
 

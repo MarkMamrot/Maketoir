@@ -7793,7 +7793,7 @@ function UsersListView() {
   const [users, setUsers] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [editingUser, setEditingUser] = React.useState<any | null>(null);
-  const [editForm, setEditForm] = React.useState({ tier: '', username: '', name: '' });
+  const [editForm, setEditForm] = React.useState({ tier: '', username: '', name: '', pos_pin: '', clearPin: false });
   const [showCreate, setShowCreate] = React.useState(false);
   const [createForm, setCreateForm] = React.useState({ email: '', password: '', name: '', username: '', tier: 'StandardUser' });
   const [msg, setMsg] = React.useState('');
@@ -7815,7 +7815,10 @@ function UsersListView() {
   const reload = () => fetch('/api/admin/users').then(r => r.json()).then(d => setUsers(d.users ?? []));
 
   const saveEdit = async (id: number) => {
-    const r = await fetch(`/api/admin/users?userId=${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editForm) });
+    const body: any = { tier: editForm.tier, name: editForm.name, username: editForm.username };
+    if (editForm.clearPin) body.pos_pin = '';
+    else if (editForm.pos_pin) body.pos_pin = editForm.pos_pin;
+    const r = await fetch(`/api/admin/users?userId=${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (r.ok) { flash('✓ User updated.'); setEditingUser(null); reload(); }
     else { const e = await r.json(); flash(`Error: ${e.error}`); }
   };
@@ -7873,7 +7876,7 @@ function UsersListView() {
               </td>
               <td style={{ padding: '10px 12px' }}>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={() => { setEditingUser(u); setEditForm({ tier: u.tier, username: u.username || '', name: u.name || '' }); }} style={{ padding: '4px 10px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: 'var(--sv-text-strong)' }}>Edit</button>
+                  <button onClick={() => { setEditingUser(u); setEditForm({ tier: u.tier, username: u.username || '', name: u.name || '', pos_pin: '', clearPin: false }); }} style={{ padding: '4px 10px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: 'var(--sv-text-strong)' }}>Edit</button>
                   {u.email !== myEmail && (
                     <button onClick={() => deleteUser(u.id, u.email)} style={{ padding: '4px 10px', background: 'rgba(224,82,82,.12)', border: '1px solid rgba(224,82,82,.3)', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: '#e05252' }}>Delete</button>
                   )}
@@ -7898,39 +7901,29 @@ function UsersListView() {
                 <input type={f.type} value={(editForm as any)[f.field]} onChange={e => setEditForm(p => ({ ...p, [f.field]: e.target.value }))} style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-strong)', fontSize: 13, boxSizing: 'border-box' }} />
               </div>
             ))}
-            <div style={{ marginBottom: 20 }}>
+            <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>Tier</label>
               <select value={editForm.tier} onChange={e => setEditForm(p => ({ ...p, tier: e.target.value }))} style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-strong)', fontSize: 13 }}>
                 {availableTiers.map(t => <option key={t} value={t}>{tierLabel(t)}</option>)}
               </select>
             </div>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => setEditingUser(null)} style={{ padding: '8px 16px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: 'pointer', fontSize: 13, color: 'var(--sv-text-dim)' }}>Cancel</button>
-              <button onClick={() => saveEdit(editingUser.id)} style={{ padding: '8px 16px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Save</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {editingUser && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setEditingUser(null)}>
-          <div style={{ background: 'var(--sv-bg-0)', borderRadius: 10, padding: 28, width: 420, boxShadow: '0 8px 32px rgba(0,0,0,.3)' }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Edit User</h3>
-            <p style={{ margin: '0 0 20px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{editingUser.email}</p>
-            {[
-              { label: 'Name', field: 'name', type: 'text' },
-              { label: 'Username', field: 'username', type: 'text' },
-            ].map(f => (
-              <div key={f.field} style={{ marginBottom: 12 }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>{f.label}</label>
-                <input type={f.type} value={(editForm as any)[f.field]} onChange={e => setEditForm(p => ({ ...p, [f.field]: e.target.value }))} style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-strong)', fontSize: 13, boxSizing: 'border-box' }} />
-              </div>
-            ))}
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>Tier</label>
-              <select value={editForm.tier} onChange={e => setEditForm(p => ({ ...p, tier: e.target.value }))} style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-strong)', fontSize: 13 }}>
-                {availableTiers.map(t => <option key={t} value={t}>{tierLabel(t)}</option>)}
-              </select>
+            <div style={{ marginBottom: 20, paddingTop: 14, borderTop: '1px solid var(--sv-etch)' }}>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.04em' }}>POS PIN</label>
+              {editingUser.has_pos_pin && !editForm.clearPin && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, color: 'var(--sv-mint)' }}>✓ PIN is set</span>
+                  <button onClick={() => setEditForm(p => ({ ...p, clearPin: true, pos_pin: '' }))} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: '1px solid rgba(224,82,82,.5)', background: 'transparent', color: '#e05252', cursor: 'pointer' }}>Clear</button>
+                </div>
+              )}
+              {editForm.clearPin && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, color: '#e05252' }}>PIN will be cleared on save.</span>
+                  <button onClick={() => setEditForm(p => ({ ...p, clearPin: false }))} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer' }}>Undo</button>
+                </div>
+              )}
+              {!editForm.clearPin && (
+                <input type='password' maxLength={8} value={editForm.pos_pin} onChange={e => setEditForm(p => ({ ...p, pos_pin: e.target.value }))} style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-strong)', fontSize: 13, boxSizing: 'border-box' }} placeholder={editingUser.has_pos_pin ? 'New PIN (leave blank to keep current)' : '4–8 digit PIN for POS login'} />
+              )}
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => setEditingUser(null)} style={{ padding: '8px 16px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: 'pointer', fontSize: 13, color: 'var(--sv-text-dim)' }}>Cancel</button>
