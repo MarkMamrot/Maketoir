@@ -67,3 +67,48 @@ Always read this file when starting a new session or implementing a feature to u
 ## 🔗 Xero Integration — Phase 1 Status & Next Steps
 * Phase 1 OAuth scaffolding is complete (connect/callback/status/disconnect routes + Connections UI card).
 * **✅ DONE (architectural fix):** `xero_client_id` / `xero_redirect_uri` moved back to `.env` — they are app-level config, not per-business. The Xero card in Connections now shows a warning if env vars are missing, and the Connect button when they are set.
+
+## 🛒 POS System — Updates (2026-06-23)
+
+### Tax Handling (IMPORTANT)
+* **Product prices are stored tax-inclusive (Australian GST 10%).** Never add tax on top — always extract it.
+* EOD Accounting columns: `taxExc = salesAmt / (1 + rate)`, `gst = salesAmt - taxExc`, `taxInc = salesAmt`.
+* `effectiveTaxRate` is derived as `tax_total / total_exc_tax` from `pos_sales` day totals (= 0.10 for standard GST). Fallback: 0.10.
+* **Xero EOD invoices**: `LineAmountTypes: 'Inclusive'`, `TaxType: 'OUTPUT'` — Xero receives the tax-inc amount and extracts GST itself.
+
+### POS PIN Login
+* Replaced email+password login with staff-picker + PIN UI.
+* `pos_pin_hash VARCHAR(255)` column added to `users` table (migration: `scripts/add-pos-pin.mjs`).
+* New APIs: `GET /api/pos/auth/staff?location_id=X` (returns staff list with `has_pos_pin`), `POST /api/pos/auth/pin-login` (bcrypt PIN verify).
+* IMS Users edit modal supports setting/clearing POS PIN.
+* Admin email+password login still available as fallback link.
+
+### Register Lifecycle
+* `pos_registers` and `pos_register_sessions` tables manage register state.
+* Opening a register blocks re-opening (409 conflict). Register must be closed at EOD.
+* `GET /api/pos/register/session?register_id=X` — returns current open session if any.
+* `RegisterGate` screen shown when a stale open session is detected on login.
+
+### EOD Reconciliation
+* Cash Counted ($) is now a direct input field (not just via denomination count).
+* Denomination count auto-syncs the Counted field when updated — both methods work.
+* `updateEntry` for `denominations` key also sets `counted = String(calcCash(newDenoms))`.
+* All payment methods use `parseFloat(e.counted)` for the counted value (no more `calcCash` in saveEod).
+
+### SOH Sync
+* Instant in-memory SOH patch on sale complete (decrements sold qty, increments on return).
+* Background sync every 5 min via `setInterval` in `useEffect` when screen is `'pos'` or `'receipt'`.
+* **Bug fixed (2026-06-23):** Background sync `useEffect` was placed after early returns — violated Rules of Hooks → React error #310. Fixed by moving it before all early returns in `PosPage`.
+
+### POS Sales View (IMS)
+* Expanded sale dropdown now shows: `#txnId` badge, payment split strip, line item columns Ex-Tax | GST | Total (inc).
+* `/api/ims/pos-sales/day` now fetches payments per sale and attaches `payments[]` to each sale object.
+
+### Service Worker
+* Cache version `v2` — bumped to evict stale cached pages.
+* `res.clone()` race fixed: clone immediately before returning response, then put clone in cache.
+
+### Deployment
+* **Hosting moved to Railway** (not Vercel). Auto-deploys from `main` branch.
+* Two MySQL DBs on Railway: main (`MYSQL_DATABASE` — users, business config) and IMS (`IMS_MYSQL_DATABASE` — all POS/IMS tables).
+* Auth cookies: `marketoir_session` (admin/IMS), `pos_session` (POS cashier, 16-hr).
