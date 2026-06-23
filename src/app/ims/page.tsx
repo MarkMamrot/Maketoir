@@ -5289,6 +5289,7 @@ function PosSalesView() {
               return (
                 <div key={sale.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
                   <div onClick={() => toggleSale(sale.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 20px', cursor: 'pointer', background: saleOpen ? 'rgba(255,255,255,.02)' : 'transparent' }}>
+                    <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', minWidth: 50, fontFamily: 'monospace', opacity: .7 }}>#{sale.id}</span>
                     <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 68 }}>{fmtTime(sale.completed_at)}</span>
                     <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, fontWeight: 600, background: isReturn ? 'rgba(239,68,68,.12)' : 'rgba(16,185,129,.1)', color: isReturn ? 'var(--sv-red)' : 'var(--sv-mint)' }}>{isReturn ? 'Return' : 'Sale'}</span>
                     {sale.location_name && !locationId && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', padding: '1px 7px', borderRadius: 99, border: '1px solid var(--sv-etch)' }}>{sale.location_name}</span>}
@@ -5300,36 +5301,50 @@ function PosSalesView() {
                   </div>
                   {saleOpen && (
                     <div style={{ padding: '0 20px 12px 20px', background: 'rgba(0,0,0,.15)' }}>
+                      {/* Payment split */}
+                      {sale.payments?.length > 0 && (
+                        <div style={{ display: 'flex', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--sv-etch)', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginRight: 2 }}>Paid:</span>
+                          {sale.payments.map((p: any, i: number) => (
+                            <span key={i} style={{ fontSize: 11, padding: '1px 8px', borderRadius: 99, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontWeight: 600 }}>
+                              {p.payment_method} {fmtMoney(p.amount)}{p.reference ? <span style={{ fontWeight: 400, color: 'var(--sv-text-dim)' }}> · {p.reference}</span> : ''}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                         <thead>
                           <tr style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>
-                            <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 500 }}>Product</th>
-                            <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 500 }}>SKU</th>
-                            <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Qty</th>
-                            <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Unit (incl)</th>
-                            <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Ex-Tax</th>
+                            <th style={{ textAlign: 'left', padding: '6px 6px 4px', fontWeight: 500 }}>Product</th>
+                            <th style={{ textAlign: 'left', padding: '6px 6px 4px', fontWeight: 500 }}>SKU</th>
+                            <th style={{ textAlign: 'right', padding: '6px 6px 4px', fontWeight: 500 }}>Qty</th>
+                            <th style={{ textAlign: 'right', padding: '6px 6px 4px', fontWeight: 500 }}>Ex-Tax</th>
+                            <th style={{ textAlign: 'right', padding: '6px 6px 4px', fontWeight: 500 }}>GST</th>
+                            <th style={{ textAlign: 'right', padding: '6px 6px 4px', fontWeight: 500 }}>Total (inc)</th>
                           </tr>
                         </thead>
                         <tbody>
                           {sale.items.map((item: any) => {
                             const taxRatePct = Number(item.tax_rate ?? 10);
-                            const exTaxLine  = taxRatePct > 0 ? Number(item.line_total) / (1 + taxRatePct / 100) : Number(item.line_total);
+                            const lineInc    = Number(item.line_total);
+                            const lineExc    = taxRatePct > 0 ? lineInc / (1 + taxRatePct / 100) : lineInc;
+                            const lineGst    = lineInc - lineExc;
                             return (
                               <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                                <td style={{ padding: '4px 6px', color: 'var(--sv-text-main)' }}>{item.name}</td>
-                                <td style={{ padding: '4px 6px', color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 11 }}>{item.code || '—'}</td>
-                                <td style={{ padding: '4px 6px', textAlign: 'right' }}>{Number(item.qty)}</td>
-                                <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(item.unit_price)}</td>
-                                <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 600 }}>{fmtMoney(exTaxLine)}</td>
+                                <td style={{ padding: '5px 6px', color: 'var(--sv-text-main)' }}>{item.name}</td>
+                                <td style={{ padding: '5px 6px', color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 11 }}>{item.code || '—'}</td>
+                                <td style={{ padding: '5px 6px', textAlign: 'right' }}>{Number(item.qty)}</td>
+                                <td style={{ padding: '5px 6px', textAlign: 'right' }}>{fmtMoney(lineExc)}</td>
+                                <td style={{ padding: '5px 6px', textAlign: 'right', color: 'var(--sv-text-dim)' }}>{fmtMoney(lineGst)}</td>
+                                <td style={{ padding: '5px 6px', textAlign: 'right', fontWeight: 600 }}>{fmtMoney(lineInc)}</td>
                               </tr>
                             );
                           })}
                         </tbody>
                         <tfoot>
-                          <tr><td colSpan={4} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Sub</td><td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(sale.subtotal)}</td></tr>
-                          {Number(sale.discount_total) > 0 && <tr><td colSpan={4} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Disc</td><td style={{ padding: '4px 6px', textAlign: 'right', color: 'var(--sv-red)' }}>−{fmtMoney(sale.discount_total)}</td></tr>}
-                          {Number(sale.tax_total) > 0 && <tr><td colSpan={4} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>GST</td><td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(sale.tax_total)}</td></tr>}
-                          <tr style={{ borderTop: '1px solid var(--sv-etch)' }}><td colSpan={4} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Total</td><td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 700 }}>{fmtMoney(sale.total)}</td></tr>
+                          {Number(sale.discount_total) > 0 && <tr><td colSpan={5} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Discount</td><td style={{ padding: '4px 6px', textAlign: 'right', color: 'var(--sv-red)' }}>−{fmtMoney(sale.discount_total)}</td></tr>}
+                          {Number(sale.tax_total) > 0 && <tr><td colSpan={5} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>GST included</td><td style={{ padding: '4px 6px', textAlign: 'right', color: 'var(--sv-text-dim)' }}>{fmtMoney(sale.tax_total)}</td></tr>}
+                          <tr style={{ borderTop: '2px solid var(--sv-etch)' }}><td colSpan={5} style={{ padding: '5px 6px', textAlign: 'right', fontSize: 12, fontWeight: 600 }}>Total</td><td style={{ padding: '5px 6px', textAlign: 'right', fontWeight: 700, fontSize: 13 }}>{fmtMoney(sale.total)}</td></tr>
                         </tfoot>
                       </table>
                     </div>

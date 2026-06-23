@@ -50,7 +50,17 @@ export async function GET(req: NextRequest) {
       itemsBySale.get(item.sale_id)!.push(item);
     }
 
-    const result = sales.map((s: any) => ({ ...s, items: itemsBySale.get(s.id) ?? [] }));
+    const payments = await imsQuery<any>(
+      `SELECT sale_id, payment_method, amount, reference FROM pos_payments WHERE sale_id IN (${saleIds.map(() => '?').join(',')}) ORDER BY id`,
+      saleIds,
+    );
+    const paysBySale = new Map<number, any[]>();
+    for (const pay of payments) {
+      if (!paysBySale.has(pay.sale_id)) paysBySale.set(pay.sale_id, []);
+      paysBySale.get(pay.sale_id)!.push(pay);
+    }
+
+    const result = sales.map((s: any) => ({ ...s, items: itemsBySale.get(s.id) ?? [], payments: paysBySale.get(s.id) ?? [] }));
     return NextResponse.json({ success: true, sales: result });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
