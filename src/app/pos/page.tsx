@@ -1494,6 +1494,7 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
   const [xeroInvoiceIds, setXeroInvoiceIds] = useState<Record<string, { id: string; number: string }>>({});
   const [regSession, setRegSession]       = useState<any>(null);
   const [regSessionLoading, setRegSessionLoading] = useState(!!session.register_id);
+  const [dayTotals, setDayTotals]         = useState<{ total_inc_tax: number; tax_total: number; total_exc_tax: number; sale_count: number } | null>(null);
 
   useEffect(() => {
     fetch('/api/pos/settings/payment-methods').then(r => r.json()).then(d => setMethods(d.methods ?? []));
@@ -1519,6 +1520,7 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
       .then(r => r.json())
       .then(d => {
         setExpected(d.expected ?? {});
+        setDayTotals(d.day_totals ?? null);
         const floatDefault: number = d.default_float ?? defaultFloat;
         const init: Record<string, EodEntryState> = {};
         for (const m of methods) {
@@ -1837,6 +1839,29 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
               </button>
               {saved && <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>✓ Saved</span>}
             </div>
+
+            {/* ── Tax Summary ── */}
+            {dayTotals && dayTotals.sale_count > 0 && (
+              <div style={{ marginTop: '1.5rem', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '1rem 1.25rem' }}>
+                <div style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8, marginBottom: '.75rem' }}>
+                  Sales Tax Summary — {dayTotals.sale_count} sale{dayTotals.sale_count !== 1 ? 's' : ''}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '1rem' }}>
+                  <div>
+                    <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', marginBottom: 2 }}>Tax-Exc Sales (sent to Xero)</div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--sv-text-strong)' }}>${fmt(dayTotals.total_exc_tax)}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', marginBottom: 2 }}>Tax (GST)</div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--sv-action)' }}>${fmt(dayTotals.tax_total)}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', marginBottom: 2 }}>Tax-Inc Total</div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--sv-text-strong)' }}>${fmt(dayTotals.total_inc_tax)}</div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <EodAccountingSection
               session={session} methods={methods} expected={expected}

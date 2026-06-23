@@ -41,12 +41,38 @@ export async function GET(req: Request) {
     if (floatRaw !== null) default_float = parseFloat(floatRaw) || 200;
   }
 
-  const [existing, expected] = await Promise.all([
+  const [existing, expected, dayTotalsRows] = await Promise.all([
     PosEodRepo.get(locationId, date, registerId),
     PosEodRepo.getExpected(locationId, date, registerId),
+    imsQuery<{ total_inc_tax: string; tax_total: string; total_exc_tax: string; sale_count: string }>(
+      registerId != null
+        ? `SELECT COALESCE(SUM(total), 0) AS total_inc_tax,
+                  COALESCE(SUM(tax_total), 0) AS tax_total,
+                  COALESCE(SUM(total - tax_total), 0) AS total_exc_tax,
+                  COUNT(*) AS sale_count
+           FROM pos_sales
+           WHERE location_id = ? AND register_id = ? AND DATE(completed_at) = ?
+             AND status IN ('completed','layby_complete')`
+        : `SELECT COALESCE(SUM(total), 0) AS total_inc_tax,
+                  COALESCE(SUM(tax_total), 0) AS tax_total,
+                  COALESCE(SUM(total - tax_total), 0) AS total_exc_tax,
+                  COUNT(*) AS sale_count
+           FROM pos_sales
+           WHERE location_id = ? AND DATE(completed_at) = ?
+             AND status IN ('completed','layby_complete')`,
+      registerId != null ? [locationId, registerId, date] : [locationId, date],
+    ),
   ]);
 
-  return NextResponse.json({ reconciliations: existing, expected, default_float });
+  const dt = dayTotalsRows[0] ?? { total_inc_tax: '0', tax_total: '0', total_exc_tax: '0', sale_count: '0' };
+  const day_totals = {
+    total_inc_tax: parseFloat(dt.total_inc_tax) || 0,
+    tax_total:     parseFloat(dt.tax_total)     || 0,
+    total_exc_tax: parseFloat(dt.total_exc_tax) || 0,
+    sale_count:    parseInt(dt.sale_count)       || 0,
+  };
+
+  return NextResponse.json({ reconciliations: existing, expected, default_float, day_totals });
 }
 
 // POST /api/pos/eod — save reconciliation entries
