@@ -49,6 +49,12 @@ export async function PUT(req: NextRequest, { params }: Params) {
       return NextResponse.json({ ok: true });
     }
 
+    // Revert applied stocktake
+    if (body.action === 'revert') {
+      const result = await ImsStocktakeRepo.revertFromStock(id);
+      return NextResponse.json(result);
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 400 });

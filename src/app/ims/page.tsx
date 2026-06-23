@@ -218,6 +218,7 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled:   'background:rgba(248,113,113,.15);color:#f87171',
   in_progress: 'background:rgba(251,191,36,.15);color:#fbbf24',
   completed:   'background:rgba(16,185,129,.18);color:#34d399',
+  reverted:    'background:rgba(139,92,246,.18);color:#a78bfa',
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -9410,6 +9411,28 @@ function StocktakesView() {
     if (!confirm(`Delete stocktake ${ref}?`)) return;
     await fetch(`/api/ims/stocktakes/${id}`, { method: 'DELETE' });
     load();
+    if (detailModal.open && detailModal.st?.id === id) setDetailModal({ open: false, st: null });
+  };
+
+  const handleRevert = async (id: number) => {
+    if (!confirm('Revert this stocktake? Stock quantities will be restored to their pre-stocktake values and all variance movements will be removed.')) return;
+    setApplying(true);
+    try {
+      const res = await fetch(`/api/ims/stocktakes/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'revert' }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Failed to revert');
+      alert(`Reverted. ${d.reverted} item${d.reverted !== 1 ? 's' : ''} restored to pre-stocktake quantities.`);
+      load();
+      if (detailModal.open && detailModal.st?.id === id) {
+        const r2 = await fetch(`/api/ims/stocktakes/${id}`);
+        setDetailModal({ open: true, st: await r2.json() });
+      }
+    } catch (e: any) { alert(e.message); }
+    finally { setApplying(false); }
   };
 
   // Barcode paste processing
@@ -9530,8 +9553,9 @@ function StocktakesView() {
                     <button onClick={() => openDetail(st)} style={btnStyle('ghost', 'xs')}>View</button>
                     {st.status === 'draft'       && <button onClick={() => changeStatus(st.id, 'in_progress')} style={btnStyle('action', 'xs')}>Start</button>}
                     {st.status === 'in_progress' && <button onClick={() => handleComplete(st.id)} style={btnStyle('action', 'xs')} disabled={applying}>Complete</button>}
+                    {st.status === 'completed'   && <button onClick={() => handleRevert(st.id)} style={btnStyle('secondary', 'xs')} disabled={applying}>Revert</button>}
                     {(st.status === 'draft' || st.status === 'in_progress') && <button onClick={() => changeStatus(st.id, 'cancelled')} style={btnStyle('secondary', 'xs')}>Cancel</button>}
-                    {st.status === 'draft'       && <button onClick={() => handleDelete(st.id, st.reference)} style={btnStyle('danger', 'xs')}>Delete</button>}
+                    {['draft','cancelled','in_progress','reverted'].includes(st.status) && <button onClick={() => handleDelete(st.id, st.reference)} style={btnStyle('danger', 'xs')}>Delete</button>}
                   </td>
                 </tr>
               ))}
@@ -9634,7 +9658,9 @@ function StocktakesView() {
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               {detailModal.st.status === 'draft'       && <button onClick={() => changeStatus(detailModal.st.id, 'in_progress')} style={btnStyle('action', 'sm')}>Start Count</button>}
               {detailModal.st.status === 'in_progress' && <button onClick={() => handleComplete(detailModal.st.id)} disabled={applying} style={btnStyle('action', 'sm')}>Mark Complete</button>}
+              {detailModal.st.status === 'completed'   && <button onClick={() => handleRevert(detailModal.st.id)} disabled={applying} style={btnStyle('secondary', 'sm')}>Revert</button>}
               {(detailModal.st.status === 'draft' || detailModal.st.status === 'in_progress') && <button onClick={() => changeStatus(detailModal.st.id, 'cancelled')} style={btnStyle('secondary', 'sm')}>Cancel</button>}
+              {['draft','cancelled','in_progress','reverted'].includes(detailModal.st.status) && <button onClick={() => handleDelete(detailModal.st.id, detailModal.st.reference)} style={btnStyle('danger', 'sm')}>Delete</button>}
             </div>
           </div>
 

@@ -1801,9 +1801,46 @@ export const ImsStocktakeRepo = {
 
   async delete(id: number): Promise<void> {
     const rows = await imsQuery<{ status: string }>(`SELECT status FROM ims_stocktakes WHERE id = ?`, [id]);
-    if (rows[0]?.status !== 'draft') throw new Error('Only draft stocktakes can be deleted');
+    const deletable = ['draft', 'cancelled', 'in_progress', 'reverted'];
+    if (!deletable.includes(rows[0]?.status)) throw new Error('Only incomplete or reverted stocktakes can be deleted');
     await imsExecute(`DELETE FROM ims_stocktake_items WHERE stocktake_id = ?`, [id]);
     await imsExecute(`DELETE FROM ims_stocktakes WHERE id = ?`, [id]);
+  },
+
+  async revertFromStock(id: number): Promise<{ reverted: number }> {
+    const full = await ImsStocktakeRepo.get(id);
+    if (!full) throw new Error('Stocktake not found');
+    if (full.status !== 'completed') throw new Error('Only completed stocktakes can be reverted');
+    const items = (full.items ?? []).filter(i => i.counted_qty !== null);
+
+    const pool = getIMSPool();
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      for (const item of items) {
+        const expected = Number(item.expected_qty);
+        await conn.execute(
+          `UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id = ? AND location_id = ?`,
+          [expected, item.variant_id, full.location_id]
+        );
+      }
+      // Remove variance movements recorded for this stocktake
+      await conn.execute(
+        `DELETE FROM ims_stock_movements WHERE reference_type = 'stocktake' AND reference_id = ?`,
+        [id]
+      );
+      await conn.execute(
+        `UPDATE ims_stocktakes SET status = 'reverted', completed_at = NULL WHERE id = ?`,
+        [id]
+      );
+      await conn.commit();
+      return { reverted: items.length };
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
   },
 
   async previewVariants(data: {
