@@ -9726,20 +9726,6 @@ function StocktakesView() {
             ))}
           </div>
 
-          {/* Uncounted items banner */}
-          {(detailModal.st.status === 'draft' || detailModal.st.status === 'in_progress') && (() => {
-            const n = detailItems.filter((i: any) => i.counted_qty === null && (i.counted_input === '' || i.counted_input == null)).length;
-            if (!n) return null;
-            return (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, padding: '9px 14px', background: 'rgba(251,191,36,.08)', border: '1px solid rgba(251,191,36,.35)', borderRadius: 8 }}>
-                <span style={{ fontSize: 13, color: '#fbbf24', flex: 1 }}>⚠ <strong>{n}</strong> item{n !== 1 ? 's' : ''} not yet counted — will be <strong>ignored</strong> when marking complete (stock qty unchanged for those items).</span>
-                <button type="button" onClick={handleApplyZeroCounts} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #fbbf24', background: 'none', color: '#fbbf24', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' }}>
-                  Apply 0 to uncounted
-                </button>
-              </div>
-            );
-          })()}
-
           {/* Uncounted items banner — shown when counting is active */}
           {(detailModal.st.status === 'draft' || detailModal.st.status === 'in_progress') && (() => {
             const uncountedCount = detailItems.filter((i: any) => i.counted_qty === null && (i.counted_input === '' || i.counted_input == null)).length;
