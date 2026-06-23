@@ -1492,11 +1492,25 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
   const [saved, setSaved]                 = useState(false);
   const [methods, setMethods]             = useState<string[]>([]);
   const [xeroInvoiceIds, setXeroInvoiceIds] = useState<Record<string, { id: string; number: string }>>({});
+  const [regSession, setRegSession]       = useState<any>(null);
+  const [regSessionLoading, setRegSessionLoading] = useState(!!session.register_id);
 
   useEffect(() => {
     fetch('/api/pos/settings/payment-methods').then(r => r.json()).then(d => setMethods(d.methods ?? []));
     fetch('/api/pos/settings/float').then(r => r.json()).then(d => setDefaultFloat(d.amount ?? 200));
   }, []);
+
+  const loadRegSession = () => {
+    if (!session.register_id) { setRegSessionLoading(false); return; }
+    setRegSessionLoading(true);
+    fetch(`/api/pos/register/session?register_id=${session.register_id}`)
+      .then(r => r.json())
+      .then(d => setRegSession(d.session ?? null))
+      .catch(() => {})
+      .finally(() => setRegSessionLoading(false));
+  };
+
+  useEffect(() => { loadRegSession(); }, [session.register_id]);
 
   useEffect(() => {
     if (!methods.length) return;
@@ -1538,6 +1552,7 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
   async function saveOpenRegister() {
     setLoading(true);
     try {
+      // 1. Record opening float in EOD
       await fetch('/api/pos/eod', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1552,6 +1567,30 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
         ...prev,
         Cash: { ...(prev.Cash ?? { counted: '', openingFloat: String(openTotal), denominations: {}, notes: '', showDenom: false }), openingFloat: String(openTotal) },
       }));
+
+      // 2. Open register session (if register_id is set)
+      if (session.register_id) {
+        const openRes = await fetch('/api/pos/register/open', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            register_id:      session.register_id,
+            location_id:      session.location_id,
+            opening_float:    openTotal,
+            denomination_data: Object.fromEntries(
+              Object.entries(openDenoms).map(([k, v]) => [k, parseFloat(v) || 0]),
+            ),
+          }),
+        });
+        if (openRes.status === 409) {
+          const errData = await openRes.json();
+          alert(errData.error ?? 'Register is already open.');
+          await loadRegSession();
+          return;
+        }
+      }
+
+      await loadRegSession();
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } finally {
@@ -1578,6 +1617,15 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ location_id: session.location_id, date, entries: entriesArr }),
       });
+      // Close the register session when EOD is saved
+      if (session.register_id && regSession?.status === 'open') {
+        await fetch('/api/pos/register/close', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ register_id: session.register_id }),
+        });
+        await loadRegSession();
+      }
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } finally {
@@ -1610,58 +1658,84 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
         {/* ── OPEN REGISTER ── */}
         {mode === 'open' && !loading && (
           <div>
-            {/* Summary cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px,1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-              <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '1rem 1.25rem' }}>
-                <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8, marginBottom: 4 }}>Expected Float</div>
-                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--sv-text-strong)' }}>${fmt(defaultFloat)}</div>
-              </div>
-              <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '1rem 1.25rem' }}>
-                <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8, marginBottom: 4 }}>Counted Float</div>
-                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--sv-text-strong)' }}>${fmt(openTotal)}</div>
-              </div>
-              <div style={{ background: openVariance === 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', border: `1px solid ${openVariance === 0 ? 'var(--sv-mint)' : 'var(--sv-red)'}`, borderRadius: 10, padding: '1rem 1.25rem' }}>
-                <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8, marginBottom: 4 }}>Variance</div>
-                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: openVariance >= 0 ? 'var(--sv-mint)' : 'var(--sv-red)' }}>
-                  {openVariance >= 0 ? '+' : ''}{fmt(openVariance)}
+            {regSessionLoading ? (
+              <p style={{ color: 'var(--sv-text-dim)' }}>Checking register status…</p>
+            ) : regSession?.status === 'open' ? (
+              /* ── Register is already open ── */
+              <div style={{ background: 'rgba(99,179,117,.08)', border: '1px solid var(--sv-mint)', borderRadius: 10, padding: '1.5rem', maxWidth: 500 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '1rem' }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--sv-mint)', display: 'inline-block', boxShadow: '0 0 6px var(--sv-mint)' }} />
+                  <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--sv-mint)' }}>Register is Open</span>
                 </div>
+                <div style={{ display: 'grid', gap: '.5rem', fontSize: '.9rem', color: 'var(--sv-text-main)', marginBottom: '1.25rem' }}>
+                  {regSession.opened_at && <div><span style={{ color: 'var(--sv-text-dim)', width: 120, display: 'inline-block' }}>Opened at:</span> {new Date(regSession.opened_at).toLocaleString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, day: 'numeric', month: 'short' })}</div>}
+                  {regSession.opened_by && <div><span style={{ color: 'var(--sv-text-dim)', width: 120, display: 'inline-block' }}>Opened by:</span> {regSession.opened_by}</div>}
+                  {regSession.opening_float != null && <div><span style={{ color: 'var(--sv-text-dim)', width: 120, display: 'inline-block' }}>Opening float:</span> <strong>${fmt(Number(regSession.opening_float))}</strong></div>}
+                </div>
+                <p style={{ fontSize: '.82rem', color: 'var(--sv-text-dim)', margin: '0 0 1rem' }}>
+                  To close this register and record end-of-day totals, use the <strong>End of Day</strong> tab.
+                </p>
+                <button onClick={() => setMode('eod')} style={{ ...primaryBtn, padding: '.5rem 1.25rem' }}>
+                  Go to End of Day →
+                </button>
               </div>
-            </div>
+            ) : (
+              /* ── Register is closed — show open form ── */
+              <>
+                {regSession?.status === 'closed' && (
+                  <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '.75rem 1rem', marginBottom: '1.25rem', fontSize: '.82rem', color: 'var(--sv-text-dim)' }}>
+                    Last session closed {regSession.closed_at ? new Date(regSession.closed_at).toLocaleString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, day: 'numeric', month: 'short' }) : 'today'}{regSession.closed_by ? ` by ${regSession.closed_by}` : ''}.
+                  </div>
+                )}
+                {/* Summary cards */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px,1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+                  <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '1rem 1.25rem' }}>
+                    <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8, marginBottom: 4 }}>Expected Float</div>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--sv-text-strong)' }}>${fmt(defaultFloat)}</div>
+                  </div>
+                  <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '1rem 1.25rem' }}>
+                    <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8, marginBottom: 4 }}>Counted Float</div>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--sv-text-strong)' }}>${fmt(openTotal)}</div>
+                  </div>
+                  <div style={{ background: openVariance === 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', border: `1px solid ${openVariance === 0 ? 'var(--sv-mint)' : 'var(--sv-red)'}`, borderRadius: 10, padding: '1rem 1.25rem' }}>
+                    <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8, marginBottom: 4 }}>Variance</div>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 800, color: openVariance >= 0 ? 'var(--sv-mint)' : 'var(--sv-red)' }}>
+                      {openVariance >= 0 ? '+' : ''}{fmt(openVariance)}
+                    </div>
+                  </div>
+                </div>
 
-            {/* Denomination counter */}
-            <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '1.25rem', marginBottom: '1.5rem' }}>
-              <div style={{ fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: '1rem', fontSize: '.95rem' }}>Count Opening Float</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(115px,1fr))', gap: '.6rem' }}>
-                {AUD_DENOMS.map(d => {
-                  const count = parseFloat(openDenoms[String(d.value)] ?? '0') || 0;
-                  return (
-                    <label key={d.value} style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
-                      <span style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', fontWeight: 600 }}>
-                        {d.label}{count > 0 ? ` · $${fmt(count * d.value)}` : ''}
-                      </span>
-                      <input
-                        type='number' min='0' step='1'
-                        value={openDenoms[String(d.value)] ?? ''}
-                        onChange={ev => setOpenDenoms(prev => ({ ...prev, [String(d.value)]: ev.target.value }))}
-                        style={{ ...inputStyle, marginBottom: 0, padding: '.3rem .5rem', fontSize: '.9rem' }}
-                      />
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
+                {/* Denomination counter */}
+                <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '1.25rem', marginBottom: '1.5rem' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: '1rem', fontSize: '.95rem' }}>Count Opening Float</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(115px,1fr))', gap: '.6rem' }}>
+                    {AUD_DENOMS.map(d => {
+                      const count = parseFloat(openDenoms[String(d.value)] ?? '0') || 0;
+                      return (
+                        <label key={d.value} style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                          <span style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', fontWeight: 600 }}>
+                            {d.label}{count > 0 ? ` · $${fmt(count * d.value)}` : ''}
+                          </span>
+                          <input
+                            type='number' min='0' step='1'
+                            value={openDenoms[String(d.value)] ?? ''}
+                            onChange={ev => setOpenDenoms(prev => ({ ...prev, [String(d.value)]: ev.target.value }))}
+                            style={{ ...inputStyle, marginBottom: 0, padding: '.3rem .5rem', fontSize: '.9rem' }}
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
 
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-              <button onClick={saveOpenRegister} disabled={loading} style={{ ...primaryBtn, padding: '.65rem 2rem' }}>
-                {loading ? 'Saving…' : 'Open Register'}
-              </button>
-              {saved && <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>✓ Register opened — float recorded</span>}
-              {entries.Cash?.openingFloat && parseFloat(entries.Cash.openingFloat) > 0 && !saved && (
-                <span style={{ color: 'var(--sv-text-dim)', fontSize: '.8rem' }}>
-                  Previously recorded today: ${fmt(parseFloat(entries.Cash.openingFloat))}
-                </span>
-              )}
-            </div>
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                  <button onClick={saveOpenRegister} disabled={loading} style={{ ...primaryBtn, padding: '.65rem 2rem' }}>
+                    {loading ? 'Saving…' : 'Open Register'}
+                  </button>
+                  {saved && <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>✓ Register opened — float recorded</span>}
+                </div>
+              </>
+            )}
           </div>
         )}
 

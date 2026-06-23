@@ -22,11 +22,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'register_id and location_id required.' }, { status: 400 });
   }
 
-  // Prevent double-open: close any stale open session first
+  // Block double-open: if a session is already open, return 409
   const existing = await PosRegisterSessionRepo.getCurrent(registerId);
   if (existing) {
-    const now = new Date().toLocaleString('sv-SE', { timeZone: process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney' }).replace('T', ' ');
-    await PosRegisterSessionRepo.close(existing.id, now, session.full_name || session.username || null);
+    return NextResponse.json(
+      { success: false, error: 'This register is already open.', session: existing },
+      { status: 409 },
+    );
   }
 
   const now = new Date().toLocaleString('sv-SE', { timeZone: process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney' }).replace('T', ' ');
