@@ -28,6 +28,7 @@ interface AccountMapping {
   cogs?: string;
   sales_revenue?: string;
   freight?: string;
+  stock_adjustment?: string;
 }
 
 interface TrackingMapping {
@@ -116,8 +117,132 @@ export async function markPoXeroStatus(
   } catch { /* non-critical */ }
 }
 
-/** Write Xero sync status back to the SO row. Silent — never throws. */
-export async function markSoXeroStatus(
+/** Write Xero sync status back to the stocktake row. Silent — never throws. */
+export async function markStocktakeXeroStatus(
+  stocktakeId: number,
+  status: 'synced' | 'queued' | 'error',
+  xeroId?: string | null,
+): Promise<void> {
+  try {
+    await imsExecute(
+      `UPDATE ims_stocktakes
+         SET xero_sync_status = ?, xero_synced_at = NOW()
+             ${xeroId != null ? ', xero_journal_id = ?' : ''}
+         WHERE id = ?`,
+      xeroId != null ? [status, xeroId, stocktakeId] : [status, stocktakeId],
+    );
+  } catch { /* non-critical */ }
+}
+
+// ─── Stocktake → Xero Manual Journal ─────────────────────────────────────────
+
+/**
+ * Post a Xero Manual Journal for all non-zero variances in a completed stocktake.
+ * For each variant where counted_qty ≠ expected_qty:
+ *   Shrinkage (missing stock): DR Stock Adjustment expense / CR Inventory Asset
+ *   Surplus  (extra stock):    DR Inventory Asset / CR Stock Adjustment expense
+ * Valued at avg_cost from ims_stock at the stocktake location.
+ */
+export async function syncStocktakeJournal(
+  businessId: string,
+  stocktakeId: number,
+): Promise<{ journalId: string | null; lines: number; totalValue: number }> {
+  const accounts = await getAccountMappings(businessId);
+  const trackingMappings = await getTrackingMappings(businessId);
+
+  if (!accounts.inventory_asset || !accounts.stock_adjustment) {
+    await logSync(businessId, 'stocktake_journal', stocktakeId, null, 'skipped',
+      'Missing inventory_asset or stock_adjustment account mapping');
+    await markStocktakeXeroStatus(stocktakeId, 'error');
+    throw new Error('Missing Xero account mappings: inventory_asset and stock_adjustment are required');
+  }
+
+  // Fetch stocktake header + items with avg_cost joined from ims_stock
+  const [stRows] = await Promise.all([
+    imsQuery<{ id: number; reference: string; location_id: number; completed_at: string | null; status: string }>(
+      `SELECT id, reference, location_id, completed_at, status FROM ims_stocktakes WHERE id = ?`,
+      [stocktakeId],
+    ),
+  ]);
+  const st = stRows[0];
+  if (!st) throw new Error('Stocktake not found');
+  if (st.status !== 'completed') throw new Error('Stocktake must be completed before syncing to Xero');
+
+  const items = await imsQuery<{
+    variant_id: string; sku: string | null; product_name: string;
+    expected_qty: string; counted_qty: string | null; avg_cost: string | null;
+  }>(
+    `SELECT si.variant_id,
+            pv.sku,
+            p.name AS product_name,
+            si.expected_qty,
+            si.counted_qty,
+            sk.avg_cost
+       FROM ims_stocktake_items si
+       LEFT JOIN ims_product_variants pv ON pv.id = si.variant_id
+       LEFT JOIN ims_products p ON p.id = pv.product_id
+       LEFT JOIN ims_stock sk ON sk.variant_id = si.variant_id AND sk.location_id = ?
+      WHERE si.stocktake_id = ?
+        AND si.counted_qty IS NOT NULL`,
+    [st.location_id, stocktakeId],
+  );
+
+  const tracking = getTrackingForLocation(trackingMappings, st.location_id);
+  const journalDate = st.completed_at?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+
+  const journalLines: any[] = [];
+  let totalValue = 0;
+
+  for (const item of items) {
+    const expected = Number(item.expected_qty);
+    const counted  = Number(item.counted_qty);
+    const variance = counted - expected;
+    if (Math.abs(variance) < 0.00001) continue; // zero variance — skip
+
+    const avgCost     = Number(item.avg_cost ?? 0);
+    const absValue    = Math.abs(variance * avgCost);
+    totalValue       += absValue;
+    const description = `${item.sku || item.variant_id} — ${item.product_name || 'Unknown'} (exp ${expected}, counted ${counted})`;
+
+    if (variance < 0) {
+      // Stock MISSING → DR Stock Adjustment expense / CR Inventory Asset
+      journalLines.push({ LineAmount: absValue, AccountCode: accounts.stock_adjustment, Description: description, Tracking: tracking });
+      journalLines.push({ LineAmount: -absValue, AccountCode: accounts.inventory_asset,  Description: description, Tracking: tracking });
+    } else {
+      // Stock SURPLUS → DR Inventory Asset / CR Stock Adjustment expense
+      journalLines.push({ LineAmount: absValue, AccountCode: accounts.inventory_asset,  Description: description, Tracking: tracking });
+      journalLines.push({ LineAmount: -absValue, AccountCode: accounts.stock_adjustment, Description: description, Tracking: tracking });
+    }
+  }
+
+  if (journalLines.length === 0) {
+    await logSync(businessId, 'stocktake_journal', stocktakeId, null, 'skipped', 'No non-zero variances to post');
+    await markStocktakeXeroStatus(stocktakeId, 'synced', null);
+    return { journalId: null, lines: 0, totalValue: 0 };
+  }
+
+  const journal = {
+    Narration: `Stocktake ${st.reference} — Stock Adjustment — ${journalDate}`,
+    Date: journalDate,
+    JournalLines: journalLines,
+  };
+
+  try {
+    const result = await xeroApiFetch(businessId, '/ManualJournals', {
+      method: 'POST',
+      body: { ManualJournals: [journal] },
+    });
+    const journalId = result.ManualJournals?.[0]?.ManualJournalID ?? null;
+    await logSync(businessId, 'stocktake_journal', stocktakeId, journalId, 'success',
+      `Journal posted: ${journalLines.length / 2} variance lines, total $${totalValue.toFixed(2)}`);
+    await markStocktakeXeroStatus(stocktakeId, 'synced', journalId);
+    return { journalId, lines: journalLines.length / 2, totalValue };
+  } catch (err: any) {
+    await logSync(businessId, 'stocktake_journal', stocktakeId, null, 'error', err.message);
+    await markStocktakeXeroStatus(stocktakeId, 'error');
+    throw err;
+  }
+}
   soId: number,
   status: 'synced' | 'queued' | 'error',
   xeroId?: string | null,

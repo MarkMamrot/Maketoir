@@ -130,6 +130,7 @@ export interface ImsStocktake {
   notes?: string; created_at?: string; completed_at?: string;
   location_name?: string;
   item_count?: number; variance_count?: number;
+  xero_journal_id?: string | null; xero_synced_at?: string | null; xero_sync_status?: 'synced' | 'queued' | 'error' | null;
   items?: ImsStocktakeItem[];
 }
 
@@ -137,6 +138,7 @@ export interface ImsStocktakeItem {
   id: number; stocktake_id: number; variant_id: string;
   expected_qty: number; counted_qty: number | null; notes?: string;
   sku?: string; product_name?: string; variant_label?: string; barcode?: string;
+  avg_cost?: number | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1602,10 +1604,12 @@ export const ImsStocktakeRepo = {
                 NULLIF(v.option1_value,''),
                 NULLIF(v.option2_value,''),
                 NULLIF(v.option3_value,'')
-              ) AS variant_label
+              ) AS variant_label,
+              sk.avg_cost
        FROM ims_stocktake_items i
        JOIN ims_product_variants v ON v.variant_id = i.variant_id
        JOIN ims_products p ON p.product_id = v.product_id
+       LEFT JOIN ims_stock sk ON sk.variant_id = i.variant_id AND sk.location_id = st.location_id
        WHERE i.stocktake_id = ?
        ORDER BY p.name, v.sku`,
       [id]

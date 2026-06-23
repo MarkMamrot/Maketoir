@@ -6851,6 +6851,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
     { key: 'cogs', label: 'Cost of Goods Sold', desc: 'COGS expense (P&L)', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'sales_revenue', label: 'Sales Revenue', desc: 'Income from sales (P&L)', filter: (a: any) => a.class === 'REVENUE' },
     { key: 'freight', label: 'Freight / Shipping', desc: 'Freight Paid expense account (P&L). Only used when PO Freight Treatment = Expense.', filter: (a: any) => a.class === 'EXPENSE' },
+    { key: 'stock_adjustment', label: 'Stock Adjustment / Shrinkage', desc: 'Stocktake variance expense account (P&L) — used for stock write-offs and surpluses', filter: (a: any) => a.class === 'EXPENSE' },
   ].filter(r => !(r.key === 'freight' && freightTreatment === 'capitalise'));
 
   useEffect(() => {
@@ -9260,6 +9261,7 @@ function StocktakesView() {
   const [barcodeText, setBarcodeText]   = useState('');
   const [barcodeResults, setBarcodeResults] = useState<any[] | null>(null);
   const [applying, setApplying]         = useState(false);
+  const [xeroSyncing, setXeroSyncing]   = useState(false);
   // Add-product search
   const [addQuery, setAddQuery]         = useState('');
   const [addMatches, setAddMatches]     = useState<any[]>([]);
@@ -9372,6 +9374,11 @@ function StocktakesView() {
   };
 
   const handleComplete = async (id: number) => {
+    // Warn if uncounted items
+    const uncounted = detailItems.filter((i: any) => i.counted_qty === null && (i.counted_input === '' || i.counted_input == null));
+    if (uncounted.length > 0) {
+      if (!confirm(`⚠ ${uncounted.length} item${uncounted.length !== 1 ? 's' : ''} have not been counted and will be IGNORED — their stock quantities will remain unchanged.\n\nContinue anyway? (Or cancel and use “Apply 0 to uncounted” if you meant to count them as zero.)`)) return;
+    }
     if (!confirm('Mark complete and apply counted quantities to stock? This will update qty_on_hand for all counted items.')) return;
     setApplying(true);
     try {
@@ -9402,7 +9409,22 @@ function StocktakesView() {
       const applyRes = await fetch(`/api/ims/stocktakes/${id}/apply`, { method: 'POST' });
       const d        = await applyRes.json();
       if (!applyRes.ok) throw new Error(d.error || 'Failed to apply');
-      alert(`Stocktake complete. Applied ${d.applied} items. ${d.variances} variance${d.variances !== 1 ? 's' : ''} recorded.`);
+      // 3. Auto-sync to Xero
+      let xeroMsg = '';
+      try {
+        setXeroSyncing(true);
+        const xeroRes = await fetch('/api/xero/sync/stocktake-journal', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stocktakeId: id }),
+        });
+        const xd = await xeroRes.json();
+        if (!xeroRes.ok) xeroMsg = `\n\n⚠ Xero sync failed: ${xd.error || 'Unknown'}. Retry from the accounting panel.`;
+        else if (xd.lines === 0) xeroMsg = '\n\nXero: no variances to post.';
+        else xeroMsg = `\n\n✓ Xero journal posted: ${xd.lines} variance line${xd.lines !== 1 ? 's' : ''}, total $${Number(xd.totalValue).toFixed(2)}.`;
+      } catch (xe: any) {
+        xeroMsg = `\n\n⚠ Xero sync error: ${xe.message}.`;
+      } finally { setXeroSyncing(false); }
+      alert(`Stocktake complete. Applied ${d.applied} items, ${d.variances} variance${d.variances !== 1 ? 's' : ''} recorded.${xeroMsg}`);
       load();
       setDetailModal({ open: false, st: null });
     } catch (e: any) { alert(e.message); }
@@ -9421,6 +9443,20 @@ function StocktakesView() {
       setDetailModal({ open: false, st: null });
     } catch (e: any) { alert(e.message); }
     finally { setApplying(false); }
+  };
+
+  const handleApplyZeroCounts = async () => {
+    const uncounted = detailItems.filter((i: any) => i.counted_qty === null && (i.counted_input === '' || i.counted_input == null));
+    if (!uncounted.length) return;
+    if (!confirm(`Apply 0 as the counted quantity for all ${uncounted.length} uncounted item${uncounted.length !== 1 ? 's' : ''}?\n\nThis means those items will show a variance equal to their full expected quantity.`)) return;
+    await fetch(`/api/ims/stocktakes/${detailModal.st.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'bulk_update_items', items: uncounted.map((i: any) => ({ item_id: i.id, counted_qty: 0 })) }),
+    });
+    setDetailItems(p => p.map((i: any) =>
+      i.counted_qty === null && (i.counted_input === '' || i.counted_input == null)
+        ? { ...i, counted_qty: 0, counted_input: '0' } : i
+    ));
   };
 
   const handleDelete = async (id: number, ref: string) => {
@@ -9689,6 +9725,34 @@ function StocktakesView() {
             ))}
           </div>
 
+          {/* Uncounted items banner */}
+          {(detailModal.st.status === 'draft' || detailModal.st.status === 'in_progress') && (() => {
+            const n = detailItems.filter((i: any) => i.counted_qty === null && (i.counted_input === '' || i.counted_input == null)).length;
+            if (!n) return null;
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, padding: '9px 14px', background: 'rgba(251,191,36,.08)', border: '1px solid rgba(251,191,36,.35)', borderRadius: 8 }}>
+                <span style={{ fontSize: 13, color: '#fbbf24', flex: 1 }}>⚠ <strong>{n}</strong> item{n !== 1 ? 's' : ''} not yet counted — will be <strong>ignored</strong> when marking complete (stock qty unchanged for those items).</span>
+                <button type="button" onClick={handleApplyZeroCounts} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #fbbf24', background: 'none', color: '#fbbf24', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' }}>
+                  Apply 0 to uncounted
+                </button>
+              </div>
+            );
+          })()}
+
+          {/* Uncounted items banner — shown when counting is active */}
+          {(detailModal.st.status === 'draft' || detailModal.st.status === 'in_progress') && (() => {
+            const uncountedCount = detailItems.filter((i: any) => i.counted_qty === null && (i.counted_input === '' || i.counted_input == null)).length;
+            if (!uncountedCount) return null;
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, padding: '9px 14px', background: 'rgba(251,191,36,.1)', border: '1px solid rgba(251,191,36,.4)', borderRadius: 8 }}>
+                <span style={{ fontSize: 13, color: '#fbbf24', flex: 1 }}>⚠ <strong>{uncountedCount}</strong> item{uncountedCount !== 1 ? 's' : ''} not yet counted — will be <strong>ignored</strong> when you mark complete (stock qty unchanged).</span>
+                <button type="button" onClick={handleApplyZeroCounts} style={{ ...btnStyle('secondary', 'xs'), whiteSpace: 'nowrap', borderColor: '#fbbf24', color: '#fbbf24' }}>
+                  Apply 0 to uncounted
+                </button>
+              </div>
+            );
+          })()}
+
           {detailTab === 'manual' && (
             <div>
               {/* Add product bar — shown when editable */}
@@ -9851,6 +9915,94 @@ function StocktakesView() {
               )}
             </div>
           )}
+
+          {/* ── Accounting / Xero panel ── shown for completed stocktakes ── */}
+          {detailModal.st.status === 'completed' && (() => {
+            const varItems = detailItems.filter((i: any) => i.counted_qty !== null && Number(i.counted_qty) !== Number(i.expected_qty));
+            const netValue = varItems.reduce((s: number, i: any) => s + (Number(i.counted_qty) - Number(i.expected_qty)) * Number(i.avg_cost ?? 0), 0);
+            const hasZeroCost = varItems.some((i: any) => Number(i.avg_cost ?? 0) === 0);
+            const ss = detailModal.st.xero_sync_status;
+            return (
+              <div style={{ marginTop: 20, padding: '14px 16px', background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--sv-text-strong)' }}>Accounting / Xero</span>
+                  {ss === 'synced' && <span style={{ fontSize: 12, color: '#34d399', fontWeight: 600 }}>✓ Synced to Xero{detailModal.st.xero_synced_at ? ` — ${String(detailModal.st.xero_synced_at).slice(0, 10)}` : ''}</span>}
+                  {ss === 'error'  && <span style={{ fontSize: 12, color: '#f87171', fontWeight: 600 }}>⚠ Sync failed</span>}
+                  {!ss            && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>○ Not yet synced to Xero</span>}
+                  {ss !== 'synced' && (
+                    <button type="button" disabled={applying || xeroSyncing} onClick={async () => {
+                      setXeroSyncing(true);
+                      try {
+                        const res = await fetch('/api/xero/sync/stocktake-journal', {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ stocktakeId: detailModal.st.id }),
+                        });
+                        const j = await res.json();
+                        if (!res.ok) throw new Error(j.error || 'Sync failed');
+                        alert(j.lines === 0 ? 'No variances to post to Xero.' : `✓ Journal posted: ${j.lines} line${j.lines !== 1 ? 's' : ''}, total $${Number(j.totalValue).toFixed(2)}`);
+                        const r2 = await fetch(`/api/ims/stocktakes/${detailModal.st.id}`);
+                        const d2 = await r2.json();
+                        setDetailModal({ open: true, st: d2 });
+                        setDetailItems(prev => prev.map((it: any) => {
+                          const fresh = (d2.items || []).find((fi: any) => fi.id === it.id);
+                          return fresh ? { ...it, avg_cost: fresh.avg_cost } : it;
+                        }));
+                      } catch (e: any) { alert(e.message); }
+                      finally { setXeroSyncing(false); }
+                    }} style={btnStyle('action', 'sm')}>
+                      {xeroSyncing ? '…' : ss === 'error' ? 'Retry Xero Sync' : 'Sync to Xero'}
+                    </button>
+                  )}
+                </div>
+                {varItems.length === 0
+                  ? <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>No variances — all counted quantities matched expected. Nothing to post to Xero.</div>
+                  : (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                        <thead>
+                          <tr style={{ background: 'var(--sv-bg-2)' }}>
+                            {['SKU', 'Product', 'Expected', 'Counted', 'Variance Qty', 'Avg Cost', 'Variance Value'].map(h => (
+                              <th key={h} style={{ padding: '5px 10px', textAlign: ['SKU','Product'].includes(h) ? 'left' : 'right', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {varItems.map((i: any) => {
+                            const vq  = Number(i.counted_qty) - Number(i.expected_qty);
+                            const val = vq * Number(i.avg_cost ?? 0);
+                            const col = vq < 0 ? '#f87171' : '#34d399';
+                            return (
+                              <tr key={i.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                                <td style={{ padding: '4px 10px', color: 'var(--sv-text-dim)' }}>{i.sku || '—'}</td>
+                                <td style={{ padding: '4px 10px', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.product_name}</td>
+                                <td style={{ padding: '4px 10px', textAlign: 'right' }}>{Number(i.expected_qty)}</td>
+                                <td style={{ padding: '4px 10px', textAlign: 'right' }}>{Number(i.counted_qty)}</td>
+                                <td style={{ padding: '4px 10px', textAlign: 'right', color: col, fontWeight: 600 }}>{vq > 0 ? '+' : ''}{vq}</td>
+                                <td style={{ padding: '4px 10px', textAlign: 'right', color: Number(i.avg_cost ?? 0) === 0 ? '#fbbf24' : undefined }}>
+                                  {Number(i.avg_cost ?? 0) === 0 ? <span title="No avg cost — will post $0">$0 ⚠</span> : `$${Number(i.avg_cost).toFixed(2)}`}
+                                </td>
+                                <td style={{ padding: '4px 10px', textAlign: 'right', color: col, fontWeight: 600 }}>{val < 0 ? '-' : ''}${Math.abs(val).toFixed(2)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr style={{ borderTop: '2px solid var(--sv-etch)', fontWeight: 700 }}>
+                            <td colSpan={5} style={{ padding: '5px 10px', fontSize: 12 }}>Net adjustment</td>
+                            <td />
+                            <td style={{ padding: '5px 10px', textAlign: 'right', fontSize: 12, color: netValue < 0 ? '#f87171' : netValue > 0 ? '#34d399' : undefined }}>
+                              {netValue < 0 ? '-' : netValue > 0 ? '+' : ''}${Math.abs(netValue).toFixed(2)}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                      {hasZeroCost && <div style={{ marginTop: 8, fontSize: 12, color: '#fbbf24' }}>⚠ Some items have avg cost $0 — their lines will post as $0 to Xero. Check Cin7 cost sync.</div>}
+                    </div>
+                  )
+                }
+              </div>
+            );
+          })()}
         </Modal>
       )}
     </div>
