@@ -2341,6 +2341,13 @@ export default function PosPage() {
     setOfflineMode(false);
   }
 
+  // Background stock sync every 5 minutes while POS is active
+  useEffect(() => {
+    if (screen !== 'pos' && screen !== 'receipt') return;
+    const id = setInterval(() => { handleSync().catch(() => {}); }, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [screen, deviceConfig]);
+
   return (
     <MainPos
       deviceConfig={deviceConfig}
@@ -2357,6 +2364,29 @@ export default function PosPage() {
         setScreen('login');
       }}
       onReceipt={(sale) => {
+        // Instantly patch local SOH so counts update without waiting for a full sync
+        if (sale.sale_type !== 'return') {
+          setProducts(prev => {
+            const updated = prev.map(p => {
+              const item = sale.items.find(i => i.variant_id === p.variant_id);
+              if (!item) return p;
+              return { ...p, soh: Math.max(0, p.soh - item.qty), soh_all: Math.max(0, p.soh_all - item.qty) };
+            });
+            saveProductsCache(updated);
+            return updated;
+          });
+        } else {
+          // Return — add stock back
+          setProducts(prev => {
+            const updated = prev.map(p => {
+              const item = sale.items.find(i => i.variant_id === p.variant_id);
+              if (!item) return p;
+              return { ...p, soh: p.soh + item.qty, soh_all: p.soh_all + item.qty };
+            });
+            saveProductsCache(updated);
+            return updated;
+          });
+        }
         setCompletedSale(sale);
         setScreen('receipt');
       }}
