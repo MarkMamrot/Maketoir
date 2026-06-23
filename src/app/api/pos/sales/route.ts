@@ -46,6 +46,7 @@ export async function POST(req: Request) {
 
     const saleId = await PosSalesRepo.complete({
       local_id:          body.local_id ?? null,
+      register_id:       body.register_id ?? session.register_id ?? null,
       location_id:       body.location_id ?? session.location_id,
       cashier_id:        (body.cashier_id || session.pos_user_id) || null,
       cashier_name:      session.full_name || session.username || null,

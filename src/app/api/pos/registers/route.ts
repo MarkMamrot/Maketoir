@@ -1,0 +1,39 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { PosRegistersRepo } from '@/lib/db/PosRepository';
+
+function getAdminSession() {
+  const raw = cookies().get('marketoir_session')?.value;
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+function getAnySession() {
+  const raw = cookies().get('pos_session')?.value ?? cookies().get('marketoir_session')?.value;
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+// GET /api/pos/registers?location_id=X — list registers for a location (public for device setup)
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const locationId = parseInt(searchParams.get('location_id') ?? '', 10);
+  if (!locationId || isNaN(locationId)) {
+    return NextResponse.json({ error: 'location_id required.' }, { status: 400 });
+  }
+  const registers = await PosRegistersRepo.listForLocation(locationId);
+  return NextResponse.json({ registers });
+}
+
+// POST /api/pos/registers — create a new register (admin only)
+export async function POST(req: NextRequest) {
+  if (!getAdminSession()) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  const body = await req.json();
+  const { location_id, name, default_float } = body;
+  if (!location_id || !name?.trim()) {
+    return NextResponse.json({ error: 'location_id and name required.' }, { status: 400 });
+  }
+  const id = await PosRegistersRepo.create(Number(location_id), name.trim(), Number(default_float ?? 200));
+  const register = await PosRegistersRepo.get(id);
+  return NextResponse.json({ success: true, register });
+}

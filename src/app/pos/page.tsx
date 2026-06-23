@@ -29,34 +29,56 @@ function calcTotals(items: CartItem[]) {
 // ─── DeviceSetup Screen ───────────────────────────────────────────────────────
 
 function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
-  const [locations, setLocations]     = useState<{ id: number; name: string }[]>([]);
-  const [locationId, setLocationId]   = useState('');
-  const [pin, setPin]   = useState('');
+  const [locations, setLocations]   = useState<{ id: number; name: string }[]>([]);
+  const [registers, setRegisters]   = useState<{ id: number; name: string; default_float: number }[]>([]);
+  const [locationId, setLocationId] = useState('');
+  const [registerId, setRegisterId] = useState('');
+  const [pin,    setPin]    = useState('');
   const [supPin, setSupPin] = useState('');
+  const [step,    setStep]    = useState<'location' | 'register'>('location');
   const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState('');
+  const [error,   setError]   = useState('');
+  const [verifiedLocation, setVerifiedLocation] = useState<{ name: string } | null>(null);
 
   useEffect(() => {
     fetch('/api/pos/locations').then(r => r.json()).then(d => setLocations(d.locations ?? [])).catch(() => {});
   }, []);
 
-  async function handleSetup() {
+  async function handleVerifyLocation() {
     if (!locationId) { setError('Select a location.'); return; }
-    setLoading(true);
-    setError('');
+    setLoading(true); setError('');
     try {
-      // Verify location PIN server-side
-      const res = await fetch('/api/pos/setup/verify', {
+      const res  = await fetch('/api/pos/setup/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ location_id: Number(locationId), pin: pin.trim() }),
       });
       const data = await res.json();
       if (!data.success) { setError(data.error ?? 'PIN verification failed.'); return; }
+      setVerifiedLocation({ name: data.location_name });
+      const regRes  = await fetch(`/api/pos/registers?location_id=${locationId}`);
+      const regData = await regRes.json();
+      const activeRegs = (regData.registers ?? []).filter((r: any) => r.is_active);
+      setRegisters(activeRegs);
+      if (activeRegs.length === 1) setRegisterId(String(activeRegs[0].id));
+      setStep('register');
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
+  async function handleSetup() {
+    if (!registerId) { setError('Select a register.'); return; }
+    setLoading(true); setError('');
+    try {
+      const reg = registers.find(r => r.id === Number(registerId))!;
       const cfg: DeviceConfig = {
         location_id:    Number(locationId),
-        location_name:  data.location_name,
+        location_name:  verifiedLocation!.name,
+        register_id:    reg.id,
+        register_name:  reg.name,
         supervisor_pin: supPin ? await hashPin(supPin) : undefined,
       };
       saveDeviceConfig(cfg);
@@ -79,27 +101,98 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
         <h1 style={{ margin: '0 0 .5rem', fontSize: '1.4rem', color: 'var(--sv-text-strong)' }}>POS — Device Setup</h1>
         <p style={{ color: 'var(--sv-text-dim)', marginBottom: '1.5rem', fontSize: '.9rem' }}>Configure this device once. Contact your manager for the Location PIN.</p>
 
-        <label style={labelStyle}>Branch / Location</label>
-        {locations.length > 0 ? (
-          <select value={locationId} onChange={e => { setLocationId(e.target.value); setError(''); }} style={inputStyle}>
-            <option value=''>— select location —</option>
-            {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-          </select>
+        {step === 'location' ? (
+          <>
+            <label style={labelStyle}>Branch / Location</label>
+            {locations.length > 0 ? (
+              <select value={locationId} onChange={e => { setLocationId(e.target.value); setError(''); }} style={inputStyle}>
+                <option value=''>— select location —</option>
+                {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
+            ) : (
+              <p style={{ color: 'var(--sv-text-dim)', fontSize: '.82rem', padding: '.5rem', border: '1px solid var(--sv-etch)', borderRadius: 6 }}>Loading locations… ensure internet is connected.</p>
+            )}
+            <label style={labelStyle}>Location PIN</label>
+            <input type='password' maxLength={20} placeholder='PIN set in IMS Locations (blank if none)' value={pin} onChange={e => setPin(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleVerifyLocation()} style={inputStyle} />
+            {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', marginBottom: '1rem' }}>{error}</p>}
+            <button onClick={handleVerifyLocation} disabled={loading || !locationId} style={primaryBtn}>
+              {loading ? 'Verifying…' : 'Next →'}
+            </button>
+          </>
         ) : (
-          <p style={{ color: 'var(--sv-text-dim)', fontSize: '.82rem', padding: '.5rem', border: '1px solid var(--sv-etch)', borderRadius: 6 }}>Loading locations… ensure internet is connected.</p>
+          <>
+            <p style={{ color: 'var(--sv-action)', fontWeight: 600, marginBottom: '1.25rem' }}>{verifiedLocation?.name}</p>
+            <label style={labelStyle}>Register / Till</label>
+            {registers.length > 0 ? (
+              <select value={registerId} onChange={e => { setRegisterId(e.target.value); setError(''); }} style={inputStyle}>
+                <option value=''>— select register —</option>
+                {registers.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+            ) : (
+              <p style={{ color: 'var(--sv-text-dim)', fontSize: '.82rem', padding: '.5rem', border: '1px solid var(--sv-etch)', borderRadius: 6 }}>No registers found for this location. Ask your manager to add one in IMS.</p>
+            )}
+            <label style={labelStyle}>Supervisor Override PIN (optional)</label>
+            <input type='password' maxLength={8} placeholder='4-8 digit PIN for supervisor overrides' value={supPin} onChange={e => setSupPin(e.target.value)} style={inputStyle} />
+            {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', marginBottom: '1rem' }}>{error}</p>}
+            <div style={{ display: 'flex', gap: '.5rem' }}>
+              <button onClick={() => { setStep('location'); setError(''); }} style={{ ...primaryBtn, flex: '0 0 auto', background: 'var(--sv-bg-2)' }}>← Back</button>
+              <button onClick={handleSetup} disabled={loading || !registerId} style={{ ...primaryBtn, flex: 1 }}>
+                {loading ? 'Saving…' : 'Set Up Device'}
+              </button>
+            </div>
+          </>
         )}
+      </div>
+    </div>
+  );
+}
 
-        <label style={labelStyle}>Location PIN</label>
-        <input type='password' maxLength={20} placeholder='PIN set in IMS Locations (blank if none)' value={pin} onChange={e => setPin(e.target.value)} style={inputStyle} />
+// ─── Register Gate ─ shown when a stale open session is detected on login ─────
 
-        <label style={labelStyle}>Supervisor Override PIN (optional)</label>
-        <input type='password' maxLength={8} placeholder='4-8 digit PIN for supervisor overrides' value={supPin} onChange={e => setSupPin(e.target.value)} style={inputStyle} />
+function RegisterGate({ session, deviceConfig, staleSession, onContinue, onCloseAndReopen }: {
+  session:          PosSession;
+  deviceConfig:     DeviceConfig;
+  staleSession:     any;
+  onContinue:       () => void;
+  onCloseAndReopen: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const openedAt   = staleSession?.opened_at
+    ? new Date(staleSession.opened_at).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })
+    : 'unknown time';
+  const openedDate = staleSession?.session_date ?? '';
 
-        {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', marginBottom: '1rem' }}>{error}</p>}
+  async function handleCloseAndReopen() {
+    setLoading(true);
+    try {
+      await fetch('/api/pos/register/close', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: staleSession.id }),
+      });
+    } catch {}
+    setLoading(false);
+    onCloseAndReopen();
+  }
 
-        <button onClick={handleSetup} disabled={loading || !locationId} style={primaryBtn}>
-          {loading ? 'Verifying…' : 'Set Up Device'}
-        </button>
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui,sans-serif' }}>
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid rgba(251,191,36,.35)', padding: '2rem', borderRadius: 12, width: 400, boxShadow: '0 8px 40px rgba(0,0,0,.4)' }}>
+        <div style={{ fontSize: '2rem', marginBottom: '.5rem', textAlign: 'center' }}>⚠️</div>
+        <h2 style={{ margin: '0 0 .75rem', textAlign: 'center', color: 'var(--sv-text-strong)' }}>Register Left Open</h2>
+        <p style={{ color: 'var(--sv-text-main)', marginBottom: '.5rem', textAlign: 'center', lineHeight: 1.5 }}>
+          <strong>{deviceConfig.register_name}</strong> was opened on <strong>{openedDate}</strong> at <strong>{openedAt}</strong> and was not closed.
+        </p>
+        <p style={{ color: 'var(--sv-text-dim)', marginBottom: '1.5rem', textAlign: 'center', fontSize: '.88rem' }}>
+          Continue that session or close it and start a new one.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
+          <button onClick={onContinue} style={{ ...primaryBtn, width: '100%' }}>Continue Session</button>
+          <button onClick={handleCloseAndReopen} disabled={loading} style={{ ...primaryBtn, width: '100%', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)' }}>
+            {loading ? 'Closing…' : 'Close Register & Open New'}
+          </button>
+        </div>
+        <p style={{ color: 'var(--sv-text-dim)', fontSize: '.78rem', marginTop: '1rem', textAlign: 'center' }}>{session.full_name} · {deviceConfig.location_name}</p>
       </div>
     </div>
   );
@@ -136,6 +229,13 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
       const meData = await meRes.json();
       if (!meData.session) { setError('Could not create POS session. Ensure your account has access.'); return; }
 
+      // Attach register info from DeviceConfig into the session
+      const session: PosSession = {
+        ...meData.session,
+        register_id:   deviceConfig.register_id   ?? null,
+        register_name: deviceConfig.register_name ?? null,
+      };
+
       // Step 3: Fetch products + payment methods
       const [prodRes, methodRes] = await Promise.all([
         fetch(`/api/pos/products?location_id=${deviceConfig.location_id}`),
@@ -145,8 +245,8 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
       const methodData = await methodRes.json().catch(() => ({ methods: ['Cash', 'Card', 'EFT'] }));
 
       saveProductsCache(prodData.products ?? []);
-      saveLocalSession(meData.session);
-      onLogin(meData.session, prodData.products ?? [], methodData.methods ?? ['Cash', 'Card', 'EFT']);
+      saveLocalSession(session);
+      onLogin(session, prodData.products ?? [], methodData.methods ?? ['Cash', 'Card', 'EFT']);
     } catch (e: any) {
       setError(e.message || 'Network error.');
     } finally {
@@ -161,6 +261,7 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
           <div style={{ fontSize: '2rem', marginBottom: '.25rem' }}>🛒</div>
           <h1 style={{ margin: 0, fontSize: '1.4rem', color: 'var(--sv-text-strong)' }}>POS Login</h1>
           <p style={{ margin: '.25rem 0 0', color: 'var(--sv-action)', fontSize: '.95rem', fontWeight: 600 }}>{deviceConfig.location_name}</p>
+          {deviceConfig.register_name && <p style={{ margin: '.1rem 0 0', color: 'var(--sv-text-dim)', fontSize: '.82rem' }}>{deviceConfig.register_name}</p>}
         </div>
 
         <label style={labelStyle}>Email</label>
@@ -180,8 +281,13 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
         </button>
 
         <button onClick={onDeviceSetup} style={{ width: '100%', marginTop: '.75rem', padding: '.6rem', background: 'transparent', border: '1px solid var(--sv-etch)', borderRadius: 8, color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.85rem' }}>
-          Change Branch / Device Setup
+          Change Branch / Register
         </button>
+
+        <div style={{ marginTop: '1.5rem', paddingTop: '.75rem', borderTop: '1px solid var(--sv-etch)', textAlign: 'center', fontSize: '.73rem', color: 'var(--sv-text-dim)' }}>
+          Device: {deviceConfig.location_name}{deviceConfig.register_name ? ` — ${deviceConfig.register_name}` : ''}
+          <button onClick={onDeviceSetup} style={{ marginLeft: '.5rem', background: 'none', border: 'none', color: 'var(--sv-action)', cursor: 'pointer', fontSize: '.73rem', padding: 0 }}>Change</button>
+        </div>
       </div>
     </div>
   );
@@ -1866,7 +1972,7 @@ const tdStyle: React.CSSProperties = {
 // ─── Root Page ────────────────────────────────────────────────────────────────
 
 export default function PosPage() {
-  const [screen, setScreen] = useState<'loading' | 'setup' | 'login' | 'pos' | 'receipt'>('loading');
+  const [screen, setScreen] = useState<'loading' | 'setup' | 'login' | 'register_gate' | 'pos' | 'receipt'>('loading');
   const [deviceConfig, setDeviceConfig] = useState<DeviceConfig | null>(null);
   const [session, setSession]           = useState<PosSession | null>(null);
   const [products, setProducts]         = useState<CachedProduct[]>([]);
@@ -1875,6 +1981,18 @@ export default function PosPage() {
   const [completedSale, setCompletedSale] = useState<CompletedSale | null>(null);
   const [printSettings, setPrintSettings] = useState<ReceiptPrintSettings>({ business_name: '', business_address: '', business_abn: '', pos_receipt_footer: '' });
   const [offlineMode, setOfflineMode]   = useState(false);
+  const [openRegSession, setOpenRegSession] = useState<any>(null);
+
+  function checkRegisterGate(sess: PosSession, cfg: DeviceConfig, thenGoPos: () => void) {
+    if (!cfg.register_id) { thenGoPos(); return; }
+    fetch(`/api/pos/register/session?register_id=${cfg.register_id}`)
+      .then(r => r.json())
+      .then(rd => {
+        if (rd.session) { setOpenRegSession(rd.session); setScreen('register_gate'); }
+        else thenGoPos();
+      })
+      .catch(() => thenGoPos());
+  }
 
   // Register service worker for offline shell caching
   useEffect(() => {
@@ -1895,13 +2013,17 @@ export default function PosPage() {
       // Check if still logged in — pass location_id so admin sessions can auto-create a POS session
       fetch(`/api/pos/auth/me?location_id=${cfg.location_id}`).then(r => r.json()).then(d => {
         if (d.session) {
-          saveLocalSession(d.session); // keep local cache fresh
+          const sess: PosSession = {
+            ...d.session,
+            register_id:   cfg.register_id   ?? null,
+            register_name: cfg.register_name ?? null,
+          };
+          saveLocalSession(sess);
           setOfflineMode(false);
-          setSession(d.session);
-          // Show cached products immediately while fetching fresh
+          setSession(sess);
           const cached = loadProductsCache();
           if (cached.length) setProducts(cached);
-          setScreen('pos');
+          checkRegisterGate(sess, cfg, () => setScreen('pos'));
           // Always refresh products + payment methods in background
           Promise.all([
             fetch(`/api/pos/products?location_id=${cfg.location_id}`),
@@ -1964,9 +2086,21 @@ export default function PosPage() {
           setSession(sess);
           setProducts(prods);
           setMethods(mets);
-          setScreen('pos');
+          checkRegisterGate(sess, deviceConfig, () => setScreen('pos'));
         }}
         onDeviceSetup={() => { clearDeviceConfig(); setDeviceConfig(null); setScreen('setup'); }}
+      />
+    );
+  }
+
+  if (screen === 'register_gate' && session && deviceConfig) {
+    return (
+      <RegisterGate
+        session={session}
+        deviceConfig={deviceConfig}
+        staleSession={openRegSession}
+        onContinue={() => { setOpenRegSession(null); setScreen('pos'); }}
+        onCloseAndReopen={() => { setOpenRegSession(null); setScreen('pos'); }}
       />
     );
   }

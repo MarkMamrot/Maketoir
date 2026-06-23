@@ -70,6 +70,7 @@ export interface PosPaymentRow {
 export interface PosEodRow {
   id:                number;
   location_id:       number;
+  register_id:       number | null;
   cashier_id:        number;
   recon_date:        string;
   payment_method:    string;
@@ -78,7 +79,32 @@ export interface PosEodRow {
   opening_float:     number | null;
   denomination_data: Record<string, number> | null;
   notes:             string | null;
+  xero_invoice_id?:  string | null;
+  xero_synced_at?:   string | null;
   created_at:        string;
+}
+
+export interface PosRegisterRow {
+  id:            number;
+  location_id:   number;
+  name:          string;
+  default_float: number;
+  is_active:     number;
+  created_at:    string;
+}
+
+export interface PosRegisterSessionRow {
+  id:               number;
+  register_id:      number;
+  location_id:      number;
+  session_date:     string;
+  opened_at:        string;
+  closed_at:        string | null;
+  opened_by:        string | null;
+  closed_by:        string | null;
+  opening_float:    number | null;
+  denomination_data: Record<string, number> | null;
+  status:           'open' | 'closed';
 }
 
 // ─── Helper: coerce mysql2 decimals ──────────────────────────────────────────
@@ -252,6 +278,7 @@ export const PosSalesRepo = {
    */
   async complete(data: {
     local_id:          string | null;
+    register_id:       number | null;
     location_id:       number;
     cashier_id:        number | null;
     cashier_name:      string | null;
@@ -296,12 +323,13 @@ export const PosSalesRepo = {
       // 1. Insert sale
       const [saleResult]: any = await conn.execute(
         `INSERT INTO pos_sales
-           (local_id, location_id, cashier_id, cashier_name, sale_type, status,
+           (local_id, register_id, location_id, cashier_id, cashier_name, sale_type, status,
             customer_name, customer_phone, subtotal, discount_total,
             tax_total, total, notes, parked_label, return_of_sale_id, completed_at, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           data.local_id ?? null,
+          data.register_id ?? null,
           data.location_id,
           data.cashier_id,
           data.cashier_name ?? null,
@@ -432,10 +460,12 @@ export const PosSalesRepo = {
 // ─── POS EOD Repository ───────────────────────────────────────────────────────
 
 export const PosEodRepo = {
-  async get(locationId: number, date: string): Promise<PosEodRow[]> {
+  async get(locationId: number, date: string, registerId?: number | null): Promise<PosEodRow[]> {
     const rows = await imsQuery<any>(
-      'SELECT * FROM pos_eod_reconciliations WHERE location_id = ? AND recon_date = ? ORDER BY payment_method',
-      [locationId, date],
+      registerId != null
+        ? 'SELECT * FROM pos_eod_reconciliations WHERE location_id = ? AND recon_date = ? AND register_id = ? ORDER BY payment_method'
+        : 'SELECT * FROM pos_eod_reconciliations WHERE location_id = ? AND recon_date = ? ORDER BY payment_method',
+      registerId != null ? [locationId, date, registerId] : [locationId, date],
     );
     return rows.map((r: any) => ({
       ...r,
@@ -448,15 +478,22 @@ export const PosEodRepo = {
     }));
   },
 
-  async getExpected(locationId: number, date: string): Promise<Record<string, number>> {
+  async getExpected(locationId: number, date: string, registerId?: number | null): Promise<Record<string, number>> {
     const rows = await imsQuery<any>(
-      `SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total
-       FROM pos_payments p
-       JOIN pos_sales s ON s.id = p.sale_id
-       WHERE s.location_id = ? AND DATE(s.completed_at) = ?
-         AND s.status IN ('completed','layby_complete')
-       GROUP BY p.payment_method`,
-      [locationId, date],
+      registerId != null
+        ? `SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total
+           FROM pos_payments p
+           JOIN pos_sales s ON s.id = p.sale_id
+           WHERE s.location_id = ? AND s.register_id = ? AND DATE(s.completed_at) = ?
+             AND s.status IN ('completed','layby_complete')
+           GROUP BY p.payment_method`
+        : `SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total
+           FROM pos_payments p
+           JOIN pos_sales s ON s.id = p.sale_id
+           WHERE s.location_id = ? AND DATE(s.completed_at) = ?
+             AND s.status IN ('completed','layby_complete')
+           GROUP BY p.payment_method`,
+      registerId != null ? [locationId, registerId, date] : [locationId, date],
     );
     const result: Record<string, number> = {};
     for (const row of rows) {
@@ -467,6 +504,7 @@ export const PosEodRepo = {
 
   async save(data: {
     location_id:      number;
+    register_id:      number | null;
     cashier_id:       number | null;
     cashier_name:     string | null;
     recon_date:       string;
@@ -479,9 +517,9 @@ export const PosEodRepo = {
   }): Promise<void> {
     await imsExecute(
       `INSERT INTO pos_eod_reconciliations
-         (location_id, cashier_id, cashier_name, recon_date, payment_method,
+         (location_id, register_id, cashier_id, cashier_name, recon_date, payment_method,
           expected_amount, counted_amount, opening_float, denomination_data, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
          cashier_id        = VALUES(cashier_id),
          cashier_name      = VALUES(cashier_name),
@@ -492,6 +530,7 @@ export const PosEodRepo = {
          notes             = VALUES(notes)`,
       [
         data.location_id,
+        data.register_id ?? null,
         data.cashier_id ?? null,
         data.cashier_name ?? null,
         data.recon_date,
@@ -505,12 +544,134 @@ export const PosEodRepo = {
     );
   },
 
-  async setXeroInvoice(locationId: number, date: string, method: string, invoiceId: string): Promise<void> {
+  async setXeroInvoice(locationId: number, date: string, method: string, invoiceId: string, registerId?: number | null): Promise<void> {
+    if (registerId != null) {
+      await imsExecute(
+        `UPDATE pos_eod_reconciliations
+           SET xero_invoice_id = ?, xero_synced_at = NOW()
+           WHERE location_id = ? AND register_id = ? AND recon_date = ? AND payment_method = ?`,
+        [invoiceId, locationId, registerId, date, method],
+      );
+    } else {
+      await imsExecute(
+        `UPDATE pos_eod_reconciliations
+           SET xero_invoice_id = ?, xero_synced_at = NOW()
+           WHERE location_id = ? AND recon_date = ? AND payment_method = ?`,
+        [invoiceId, locationId, date, method],
+      );
+    }
+  },
+};
+
+// ─── POS Registers Repository ─────────────────────────────────────────────────
+
+function parseRegister(r: any): PosRegisterRow {
+  return { ...r, default_float: toNum(r.default_float) };
+}
+
+export const PosRegistersRepo = {
+  async listForLocation(locationId: number): Promise<PosRegisterRow[]> {
+    const rows = await imsQuery<any>(
+      'SELECT * FROM pos_registers WHERE location_id = ? ORDER BY id',
+      [locationId],
+    );
+    return rows.map(parseRegister);
+  },
+
+  async get(id: number): Promise<PosRegisterRow | null> {
+    const rows = await imsQuery<any>('SELECT * FROM pos_registers WHERE id = ? LIMIT 1', [id]);
+    return rows[0] ? parseRegister(rows[0]) : null;
+  },
+
+  async getDefaultForLocation(locationId: number): Promise<PosRegisterRow | null> {
+    const rows = await imsQuery<any>(
+      "SELECT * FROM pos_registers WHERE location_id = ? AND name = 'Default Register' LIMIT 1",
+      [locationId],
+    );
+    return rows[0] ? parseRegister(rows[0]) : null;
+  },
+
+  async create(locationId: number, name: string, defaultFloat: number): Promise<number> {
+    const result = await imsExecute(
+      'INSERT INTO pos_registers (location_id, name, default_float) VALUES (?, ?, ?)',
+      [locationId, name.trim(), defaultFloat],
+    );
+    return result.insertId;
+  },
+
+  async update(id: number, data: { name?: string; default_float?: number; is_active?: number }): Promise<void> {
+    const fields: string[] = [];
+    const vals:   any[]    = [];
+    if (data.name          !== undefined) { fields.push('name = ?');          vals.push(data.name.trim()); }
+    if (data.default_float !== undefined) { fields.push('default_float = ?'); vals.push(data.default_float); }
+    if (data.is_active     !== undefined) { fields.push('is_active = ?');     vals.push(data.is_active); }
+    if (!fields.length) return;
+    vals.push(id);
+    await imsExecute(`UPDATE pos_registers SET ${fields.join(', ')} WHERE id = ?`, vals);
+  },
+};
+
+// ─── POS Register Session Repository ─────────────────────────────────────────
+
+function parseSession(r: any): PosRegisterSessionRow {
+  return {
+    ...r,
+    opening_float: r.opening_float != null ? toNum(r.opening_float) : null,
+    denomination_data: r.denomination_data
+      ? (typeof r.denomination_data === 'string' ? JSON.parse(r.denomination_data) : r.denomination_data)
+      : null,
+  };
+}
+
+export const PosRegisterSessionRepo = {
+  /** Get the currently open session for a register (null if none). */
+  async getCurrent(registerId: number): Promise<PosRegisterSessionRow | null> {
+    const rows = await imsQuery<any>(
+      "SELECT * FROM pos_register_sessions WHERE register_id = ? AND status = 'open' ORDER BY opened_at DESC LIMIT 1",
+      [registerId],
+    );
+    return rows[0] ? parseSession(rows[0]) : null;
+  },
+
+  /** Get the session for a specific date (any status). */
+  async getForDay(registerId: number, date: string): Promise<PosRegisterSessionRow | null> {
+    const rows = await imsQuery<any>(
+      'SELECT * FROM pos_register_sessions WHERE register_id = ? AND session_date = ? ORDER BY opened_at DESC LIMIT 1',
+      [registerId, date],
+    );
+    return rows[0] ? parseSession(rows[0]) : null;
+  },
+
+  async open(data: {
+    register_id:      number;
+    location_id:      number;
+    session_date:     string;
+    opened_at:        string;
+    opened_by:        string | null;
+    opening_float:    number | null;
+    denomination_data?: Record<string, number> | null;
+  }): Promise<number> {
+    const result = await imsExecute(
+      `INSERT INTO pos_register_sessions
+         (register_id, location_id, session_date, opened_at, opened_by, opening_float, denomination_data, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'open')`,
+      [
+        data.register_id,
+        data.location_id,
+        data.session_date,
+        data.opened_at,
+        data.opened_by ?? null,
+        data.opening_float ?? null,
+        data.denomination_data ? JSON.stringify(data.denomination_data) : null,
+      ],
+    );
+    return result.insertId;
+  },
+
+  async close(sessionId: number, closedAt: string, closedBy: string | null): Promise<void> {
     await imsExecute(
-      `UPDATE pos_eod_reconciliations
-         SET xero_invoice_id = ?, xero_synced_at = NOW()
-         WHERE location_id = ? AND recon_date = ? AND payment_method = ?`,
-      [invoiceId, locationId, date, method],
+      "UPDATE pos_register_sessions SET status = 'closed', closed_at = ?, closed_by = ? WHERE id = ?",
+      [closedAt, closedBy ?? null, sessionId],
     );
   },
 };

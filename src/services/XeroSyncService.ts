@@ -543,6 +543,8 @@ export async function syncEodEntry(
     date: string;
     locationId: number;
     locationName: string;
+    registerId?: number | null;
+    registerName?: string | null;
     method: string;
     salesAmount: number; // cash: counted − float; others: counted
   },
@@ -557,18 +559,20 @@ export async function syncEodEntry(
   }
 
   const tracking = getTrackingForLocation(trackingMappings, entry.locationId);
+  const regSuffix = entry.registerId ? `-R${entry.registerId}` : '';
+  const regLabel  = entry.registerName ? ` — ${entry.registerName}` : '';
 
   const invoice: any = {
     Type:            'ACCREC',
     Contact:         { Name: 'POS Reconciliation (Summary)' },
     Date:            entry.date,
     DueDate:         entry.date,
-    Reference:       `EOD-L${entry.locationId}-${entry.date.replace(/-/g, '')}-${entry.method.replace(/\s+/g, '')}`,
+    Reference:       `EOD-L${entry.locationId}${regSuffix}-${entry.date.replace(/-/g, '')}-${entry.method.replace(/\s+/g, '')}`,
     Status:          'AUTHORISED',
     LineAmountTypes: 'Exclusive',
     CurrencyCode:    'AUD',
     LineItems: [{
-      Description: `${entry.method} Sales — ${entry.locationName} — ${entry.date}`,
+      Description: `${entry.method} Sales — ${entry.locationName}${regLabel} — ${entry.date}`,
       Quantity:    1,
       UnitAmount:  entry.salesAmount,
       AccountCode: accounts.sales_revenue,
@@ -608,7 +612,9 @@ export async function triggerEodXeroSync(
     xero_invoice_id?: string | null;
   }>,
   locationName: string,
-  setXeroInvoice: (locationId: number, date: string, method: string, invoiceId: string) => Promise<void>,
+  registerId: number | null,
+  setXeroInvoice: (locationId: number, date: string, method: string, invoiceId: string, registerId?: number | null) => Promise<void>,
+  registerName?: string | null,
 ): Promise<{ method: string; xeroId: string; invoiceNumber: string }[]> {
   const results: { method: string; xeroId: string; invoiceNumber: string }[] = [];
   for (const row of rows) {
@@ -618,9 +624,15 @@ export async function triggerEodXeroSync(
     const openFloat  = row.payment_method === 'Cash' ? (row.opening_float ?? 0) : 0;
     const salesAmount = row.counted_amount - openFloat;
     if (salesAmount <= 0) continue;
-    const result = await syncEodEntry(businessId, { date, locationId, locationName, method: row.payment_method, salesAmount });
+    const result = await syncEodEntry(businessId, {
+      date, locationId, locationName,
+      registerId: registerId ?? undefined,
+      registerName: registerName ?? undefined,
+      method: row.payment_method,
+      salesAmount,
+    });
     if (result) {
-      await setXeroInvoice(locationId, date, row.payment_method, result.xeroId);
+      await setXeroInvoice(locationId, date, row.payment_method, result.xeroId, registerId);
       results.push({ method: row.payment_method, ...result });
     }
   }

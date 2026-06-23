@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   const { user, response } = requireAdminSession();
   if (response) return response;
 
-  const { locationId, date } = await req.json();
+  const { locationId, date, registerId } = await req.json();
   if (!locationId || !date) {
     return NextResponse.json({ error: 'locationId and date are required.' }, { status: 400 });
   }
@@ -25,7 +25,13 @@ export async function POST(req: Request) {
     const locs = await imsQuery<{ name: string }>('SELECT name FROM ims_locations WHERE id = ? LIMIT 1', [locationId]);
     const locationName = locs[0]?.name ?? `Location ${locationId}`;
 
-    const rows = await PosEodRepo.get(locationId, date);
+    let registerName: string | null = null;
+    if (registerId) {
+      const regs = await imsQuery<{ name: string }>('SELECT name FROM pos_registers WHERE id = ? LIMIT 1', [registerId]);
+      registerName = regs[0]?.name ?? null;
+    }
+
+    const rows = await PosEodRepo.get(locationId, date, registerId ?? null);
 
     const results = await triggerEodXeroSync(
       user.businessId,
@@ -33,7 +39,9 @@ export async function POST(req: Request) {
       date,
       rows,
       locationName,
+      registerId ?? null,
       PosEodRepo.setXeroInvoice.bind(PosEodRepo),
+      registerName,
     );
 
     return NextResponse.json({ success: true, results });

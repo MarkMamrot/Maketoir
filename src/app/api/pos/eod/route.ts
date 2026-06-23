@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { PosEodRepo } from '@/lib/db/PosRepository';
+import { PosEodRepo, PosRegistersRepo } from '@/lib/db/PosRepository';
 import { ConfigRepository } from '@/lib/db/ConfigRepository';
 import { triggerEodXeroSync } from '@/services/XeroSyncService';
 import { imsQuery } from '@/services/IMSMySQLService';
@@ -24,19 +24,27 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Invalid or unauthorised location_id.' }, { status: 400 });
   }
 
-  const date = searchParams.get('date') ?? new Date().toISOString().slice(0, 10);
+  const date = searchParams.get('date') ?? new Date().toLocaleDateString('sv-SE');
+  const registerId = searchParams.get('register_id') ? Number(searchParams.get('register_id')) : (session.register_id ?? null);
 
   const adminRaw    = cookies().get('marketoir_session')?.value;
   const adminSession = adminRaw ? (() => { try { return JSON.parse(adminRaw); } catch { return null; } })() : null;
   const bizId = adminSession?.businessId ?? 'shared';
 
-  const [existing, expected, floatRaw] = await Promise.all([
-    PosEodRepo.get(locationId, date),
-    PosEodRepo.getExpected(locationId, date),
-    ConfigRepository.get(bizId, 'POS_DefaultFloat').catch(() => null),
-  ]);
+  // Get default_float: prefer per-register setting, fall back to global config
+  let default_float = 200;
+  if (registerId) {
+    const reg = await PosRegistersRepo.get(registerId).catch(() => null);
+    if (reg) default_float = reg.default_float;
+  } else {
+    const floatRaw = await ConfigRepository.get(bizId, 'POS_DefaultFloat').catch(() => null);
+    if (floatRaw !== null) default_float = parseFloat(floatRaw) || 200;
+  }
 
-  const default_float = floatRaw !== null ? parseFloat(floatRaw) || 200 : 200;
+  const [existing, expected] = await Promise.all([
+    PosEodRepo.get(locationId, date, registerId),
+    PosEodRepo.getExpected(locationId, date, registerId),
+  ]);
 
   return NextResponse.json({ reconciliations: existing, expected, default_float });
 }
@@ -60,13 +68,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid or unauthorised location_id.' }, { status: 403 });
     }
 
-    const resolvedDate = date ?? new Date().toISOString().slice(0, 10);
+    const resolvedDate = date ?? new Date().toLocaleDateString('sv-SE');
+    const register_id = body.register_id ?? session.register_id ?? null;
 
-    const expected = await PosEodRepo.getExpected(resolvedLocationId, resolvedDate);
+    const expected = await PosEodRepo.getExpected(resolvedLocationId, resolvedDate, register_id);
 
     for (const entry of entries) {
       await PosEodRepo.save({
         location_id:       resolvedLocationId,
+        register_id:       register_id,
         cashier_id:        session.pos_user_id || null,
         cashier_name:      session.full_name || session.username || null,
         recon_date:        resolvedDate,
@@ -89,13 +99,14 @@ export async function POST(req: Request) {
         imsQuery<{ name: string }>('SELECT name FROM ims_locations WHERE id = ? LIMIT 1', [resolvedLocationId])
           .then(locs => {
             const locationName = locs[0]?.name ?? `Location ${resolvedLocationId}`;
-            return PosEodRepo.get(resolvedLocationId, resolvedDate).then(rows =>
+            return PosEodRepo.get(resolvedLocationId, resolvedDate, register_id).then(rows =>
               triggerEodXeroSync(
                 adminSession.businessId,
                 resolvedLocationId,
                 resolvedDate,
                 rows,
                 locationName,
+                register_id,
                 PosEodRepo.setXeroInvoice.bind(PosEodRepo),
               )
             );
