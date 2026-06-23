@@ -243,6 +243,9 @@ export async function syncStocktakeJournal(
     throw err;
   }
 }
+
+/** Write Xero sync status back to the SO row. Silent — never throws. */
+export async function markSoXeroStatus(
   soId: number,
   status: 'synced' | 'queued' | 'error',
   xeroId?: string | null,
