@@ -6,8 +6,7 @@ export async function GET() {
   try {
     const session = getImportSession();
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    const businessId = session.businessId as string;
-    const list = await ImsStocktakeRepo.list(businessId);
+    const list = await ImsStocktakeRepo.list();
     return NextResponse.json(list);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 400 });

@@ -1569,9 +1569,7 @@ export const ImsDashboardRepo = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const ImsStocktakeRepo = {
-  async list(businessId?: string): Promise<ImsStocktake[]> {
-    const where = businessId ? 'WHERE st.business_id = ?' : '';
-    const params = businessId ? [businessId] : [];
+  async list(): Promise<ImsStocktake[]> {
     return imsQuery<ImsStocktake>(
       `SELECT st.*,
               l.name AS location_name,
@@ -1580,10 +1578,9 @@ export const ImsStocktakeRepo = {
        FROM ims_stocktakes st
        JOIN ims_locations l ON l.id = st.location_id
        LEFT JOIN ims_stocktake_items i ON i.stocktake_id = st.id
-       ${where}
        GROUP BY st.id
        ORDER BY st.created_at DESC`,
-      params
+      []
     );
   },
 
