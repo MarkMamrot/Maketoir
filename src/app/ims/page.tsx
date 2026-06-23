@@ -5128,36 +5128,309 @@ function BrandsView() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POS Sales View — historical, grouped by day
+// POS Sales View — grouped by register→day when a location is selected, by day otherwise
 // ─────────────────────────────────────────────────────────────────────────────
 
 function PosSalesView() {
   const [locationId, setLocationId] = useState<number | ''>('');
   const [locations, setLocations]   = useState<{ id: number; name: string }[]>([]);
-  const [days, setDays]             = useState<any[]>([]);
+
+  // Day-grouped mode (all branches)
+  const [days, setDays]           = useState<any[]>([]);
   const [daysLoading, setDaysLoading] = useState(false);
-  const [expandedDays, setExpandedDays]   = useState<Set<string>>(new Set());
-  const [dayData, setDayData]             = useState<Record<string, any[]>>({});
-  const [dayLoading, setDayLoading]       = useState<Set<string>>(new Set());
+
+  // Register-grouped mode (single location)
+  const [registers, setRegisters]     = useState<any[]>([]);
+  const [regsLoading, setRegsLoading] = useState(false);
+
+  // Expansion state keyed by "registerId:date" (register mode) or "date" (day mode)
+  const [expandedDays,  setExpandedDays]  = useState<Set<string>>(new Set());
+  const [expandedRegs,  setExpandedRegs]  = useState<Set<number>>(new Set());
+  const [dayData,       setDayData]       = useState<Record<string, any[]>>({});
+  const [dayLoading,    setDayLoading]    = useState<Set<string>>(new Set());
   const [expandedSales, setExpandedSales] = useState<Set<number>>(new Set());
 
-  // Load IMS locations
   useEffect(() => {
     fetch('/api/ims/locations').then(r => r.json()).then(d => {
       if (d.success) setLocations(d.data ?? []);
     }).catch(() => {});
   }, []);
 
-  // Load day summaries whenever location filter changes
-  const loadDays = useCallback(() => {
-    setDaysLoading(true);
-    const qs = locationId ? `?location_id=${locationId}` : '';
-    fetch(`/api/ims/pos-sales${qs}`)
-      .then(r => r.json())
-      .then(d => { if (d.success) setDays(d.days ?? []); })
-      .catch(() => {})
-      .finally(() => setDaysLoading(false));
+  const load = useCallback(() => {
+    setExpandedDays(new Set()); setExpandedRegs(new Set());
+    setDayData({}); setExpandedSales(new Set());
+
+    if (locationId) {
+      // Register-grouped
+      setRegsLoading(true);
+      fetch(`/api/ims/pos-sales?location_id=${locationId}&group_by_register=1`)
+        .then(r => r.json())
+        .then(d => { if (d.success) setRegisters(d.registers ?? []); })
+        .catch(() => {})
+        .finally(() => setRegsLoading(false));
+    } else {
+      // Day-grouped (all branches)
+      setDaysLoading(true);
+      fetch('/api/ims/pos-sales')
+        .then(r => r.json())
+        .then(d => { if (d.success) setDays(d.days ?? []); })
+        .catch(() => {})
+        .finally(() => setDaysLoading(false));
+    }
   }, [locationId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const toggleReg = (rid: number) => {
+    setExpandedRegs(prev => {
+      const s = new Set(prev);
+      s.has(rid) ? s.delete(rid) : s.add(rid);
+      return s;
+    });
+  };
+
+  const toggleDay = async (key: string, date: string, regId?: number) => {
+    const next = new Set(expandedDays);
+    if (next.has(key)) { next.delete(key); setExpandedDays(next); return; }
+    next.add(key);
+    setExpandedDays(next);
+    if (!dayData[key]) {
+      setDayLoading(prev => new Set(prev).add(key));
+      const qs = new URLSearchParams({ date });
+      if (locationId) qs.set('location_id', String(locationId));
+      if (regId !== undefined && regId > 0) qs.set('register_id', String(regId));
+      try {
+        const d = await fetch(`/api/ims/pos-sales/day?${qs}`).then(r => r.json());
+        if (d.success) setDayData(prev => ({ ...prev, [key]: d.sales ?? [] }));
+      } catch {}
+      setDayLoading(prev => { const s = new Set(prev); s.delete(key); return s; });
+    }
+  };
+
+  const toggleSale = (id: number) => {
+    setExpandedSales(prev => {
+      const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s;
+    });
+  };
+
+  const fmtMoney = (n: any) => `$${Number(n).toFixed(2)}`;
+  const fmtDate  = (d: any) => {
+    const s = d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10);
+    return new Date(s + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  };
+  const fmtTime  = (dt: any) => {
+    const s = dt instanceof Date ? dt.toISOString() : String(dt).replace(' ', 'T');
+    return new Date(s).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true });
+  };
+
+  const selStyle: React.CSSProperties = { padding: '6px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'inherit', fontSize: 13 };
+
+  // ── Day row (shared between both modes) ────────────────────────────────────
+  const renderDayRow = (day: any, key: string, regId?: number) => {
+    const isOpen    = expandedDays.has(key);
+    const isLoading = dayLoading.has(key);
+    const sales     = dayData[key] ?? [];
+    const dayTotal  = Number(day.total);
+    const returns   = Number(day.returns);
+
+    return (
+      <div key={key} style={{ marginBottom: 4, border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden' }}>
+        <div
+          onClick={() => toggleDay(key, day.day, regId)}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', cursor: 'pointer', background: isOpen ? 'color-mix(in srgb, var(--sv-action) 8%, var(--sv-bg-2))' : 'var(--sv-bg-2)', userSelect: 'none', borderBottom: isOpen ? '1px solid var(--sv-etch)' : 'none' }}
+        >
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)', minWidth: 164, flexShrink: 0 }}>{fmtDate(day.day)}</span>
+          {!locationId && day.locations && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 110, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{day.locations}</span>}
+          <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
+            <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Sub <strong style={{ color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtMoney(Number(day.subtotal ?? 0))}</strong></span>
+            {Number(day.tax ?? 0) > 0 && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>GST <strong style={{ color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtMoney(Number(day.tax))}</strong></span>}
+            {Number(day.discount ?? 0) > 0 && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Disc <strong style={{ color: 'var(--sv-red)', fontWeight: 600 }}>−{fmtMoney(Number(day.discount))}</strong></span>}
+          </div>
+          {Object.keys(day.payments ?? {}).length > 0 && (
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              {Object.entries(day.payments ?? {}).map(([method, total]) => (
+                <span key={method} style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, border: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', background: 'var(--sv-bg-2)' }}>
+                  {method}: {fmtMoney(total as number)}
+                </span>
+              ))}
+            </div>
+          )}
+          <span style={{ flex: 1 }} />
+          {returns > 0 && <span style={{ fontSize: 11, color: 'var(--sv-red)', padding: '1px 7px', borderRadius: 99, border: '1px solid rgba(248,113,113,.3)', background: 'rgba(248,113,113,.08)', flexShrink: 0 }}>{returns} return{returns !== 1 ? 's' : ''}</span>}
+          <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 54, textAlign: 'right', flexShrink: 0 }}>{Number(day.count)} txn{Number(day.count) !== 1 ? 's' : ''}</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', minWidth: 96, textAlign: 'right', flexShrink: 0 }}>{fmtMoney(dayTotal)}</span>
+          <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', width: 14, textAlign: 'center', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
+        </div>
+
+        {isOpen && (
+          <div style={{ borderTop: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)' }}>
+            {/* Session info strip */}
+            {day.session && (
+              <div style={{ display: 'flex', gap: 16, padding: '8px 14px', borderBottom: '1px solid var(--sv-etch)', background: 'rgba(255,255,255,.02)', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>
+                  Float <strong style={{ color: 'var(--sv-text-main)' }}>{fmtMoney(day.session.opening_float ?? 0)}</strong>
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>
+                  Opened <strong style={{ color: 'var(--sv-mint)' }}>{day.session.opened_at ? fmtTime(day.session.opened_at) : '—'}</strong>
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>
+                  Closed <strong style={{ color: day.session.closed_at ? 'var(--sv-text-main)' : 'var(--sv-yellow, #fbbf24)' }}>{day.session.closed_at ? fmtTime(day.session.closed_at) : 'Still open'}</strong>
+                </span>
+                <span style={{ fontSize: 11, padding: '0 6px', borderRadius: 99, border: '1px solid var(--sv-etch)', color: day.session.status === 'closed' ? 'var(--sv-text-dim)' : 'var(--sv-mint)' }}>
+                  {day.session.status}
+                </span>
+              </div>
+            )}
+            {isLoading && <div style={{ padding: '16px 20px', fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading transactions…</div>}
+            {!isLoading && sales.length === 0 && <div style={{ padding: '16px 20px', fontSize: 13, color: 'var(--sv-text-dim)' }}>No transactions found.</div>}
+            {!isLoading && sales.map((sale: any) => {
+              const saleOpen = expandedSales.has(sale.id);
+              const isReturn = sale.sale_type === 'return';
+              return (
+                <div key={sale.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                  <div onClick={() => toggleSale(sale.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 20px', cursor: 'pointer', background: saleOpen ? 'rgba(255,255,255,.02)' : 'transparent' }}>
+                    <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 68 }}>{fmtTime(sale.completed_at)}</span>
+                    <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, fontWeight: 600, background: isReturn ? 'rgba(239,68,68,.12)' : 'rgba(16,185,129,.1)', color: isReturn ? 'var(--sv-red)' : 'var(--sv-mint)' }}>{isReturn ? 'Return' : 'Sale'}</span>
+                    {sale.location_name && !locationId && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', padding: '1px 7px', borderRadius: 99, border: '1px solid var(--sv-etch)' }}>{sale.location_name}</span>}
+                    {sale.cashier_name && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{sale.cashier_name}</span>}
+                    <span style={{ flex: 1, fontSize: 13, color: 'var(--sv-text-main)' }}>{sale.customer_name || <span style={{ color: 'var(--sv-text-dim)' }}>Walk-in</span>}</span>
+                    <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{sale.items.length} item{sale.items.length !== 1 ? 's' : ''}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: isReturn ? 'var(--sv-red)' : 'var(--sv-text-strong)', minWidth: 72, textAlign: 'right' }}>{isReturn ? '−' : ''}{fmtMoney(sale.total)}</span>
+                    <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginLeft: 4 }}>{saleOpen ? '▲' : '▼'}</span>
+                  </div>
+                  {saleOpen && (
+                    <div style={{ padding: '0 20px 12px 20px', background: 'rgba(0,0,0,.15)' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                        <thead>
+                          <tr style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>
+                            <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 500 }}>Product</th>
+                            <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 500 }}>SKU</th>
+                            <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Qty</th>
+                            <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Unit (incl)</th>
+                            <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Ex-Tax</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sale.items.map((item: any) => {
+                            const taxRatePct = Number(item.tax_rate ?? 10);
+                            const exTaxLine  = taxRatePct > 0 ? Number(item.line_total) / (1 + taxRatePct / 100) : Number(item.line_total);
+                            return (
+                              <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                                <td style={{ padding: '4px 6px', color: 'var(--sv-text-main)' }}>{item.name}</td>
+                                <td style={{ padding: '4px 6px', color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 11 }}>{item.code || '—'}</td>
+                                <td style={{ padding: '4px 6px', textAlign: 'right' }}>{Number(item.qty)}</td>
+                                <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(item.unit_price)}</td>
+                                <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 600 }}>{fmtMoney(exTaxLine)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr><td colSpan={4} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Sub</td><td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(sale.subtotal)}</td></tr>
+                          {Number(sale.discount_total) > 0 && <tr><td colSpan={4} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Disc</td><td style={{ padding: '4px 6px', textAlign: 'right', color: 'var(--sv-red)' }}>−{fmtMoney(sale.discount_total)}</td></tr>}
+                          {Number(sale.tax_total) > 0 && <tr><td colSpan={4} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>GST</td><td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(sale.tax_total)}</td></tr>}
+                          <tr style={{ borderTop: '1px solid var(--sv-etch)' }}><td colSpan={4} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Total</td><td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 700 }}>{fmtMoney(sale.total)}</td></tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const loading = locationId ? regsLoading : daysLoading;
+  const totalRevenue = locationId
+    ? registers.reduce((s, r) => s + r.total, 0)
+    : days.reduce((s, d) => s + Number(d.total), 0);
+  const totalTxns = locationId
+    ? registers.reduce((s, r) => s + r.count, 0)
+    : days.reduce((s, d) => s + Number(d.count), 0);
+  const totalDays = locationId
+    ? new Set(registers.flatMap(r => r.days.map((d: any) => d.day))).size
+    : days.length;
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', flex: 1 }}>POS Sales</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Branch:</span>
+          <select value={locationId} onChange={e => setLocationId(e.target.value ? Number(e.target.value) : '')} style={selStyle}>
+            <option value=''>All branches</option>
+            {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Summary strip */}
+      {!loading && (locationId ? registers.length > 0 : days.length > 0) && (
+        <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
+          {[
+            { label: 'TOTAL REVENUE',   value: fmtMoney(totalRevenue) },
+            { label: 'TRANSACTIONS',    value: totalTxns.toLocaleString() },
+            { label: 'TRADING DAYS',    value: String(totalDays) },
+            ...(locationId ? [{ label: 'REGISTERS', value: String(registers.length) }] : []),
+          ].map(s => (
+            <div key={s.label} style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '10px 18px' }}>
+              <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 2 }}>{s.label}</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{s.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {loading && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</div>}
+      {!loading && !locationId && days.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No POS sales found.</div>}
+      {!loading && locationId  && registers.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No POS sales for this location.</div>}
+
+      {/* Register-grouped view */}
+      {!loading && locationId ? registers.map(reg => {
+        const regOpen = expandedRegs.has(reg.register_id);
+        return (
+          <div key={reg.register_id} style={{ marginBottom: 12, border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+            {/* Register header */}
+            <div
+              onClick={() => toggleReg(reg.register_id)}
+              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', cursor: 'pointer', background: regOpen ? 'color-mix(in srgb, var(--sv-action) 12%, var(--sv-bg-2))' : 'var(--sv-bg-2)', userSelect: 'none', borderBottom: regOpen ? '1px solid var(--sv-etch)' : 'none' }}
+            >
+              <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)', flex: 1 }}>📟 {reg.register_name}</span>
+              <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{reg.days.length} day{reg.days.length !== 1 ? 's' : ''}</span>
+              <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{reg.count.toLocaleString()} txns</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)', minWidth: 96, textAlign: 'right' }}>{fmtMoney(reg.total)}</span>
+              <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', width: 14, textAlign: 'center' }}>{regOpen ? '▲' : '▼'}</span>
+            </div>
+            {/* Day rows inside register */}
+            {regOpen && (
+              <div style={{ padding: '12px', background: 'var(--sv-bg-0)' }}>
+                {reg.days.map((day: any) => renderDayRow(day, `${reg.register_id}:${day.day}`, reg.register_id))}
+              </div>
+            )}
+          </div>
+        );
+      }) : null}
+
+      {/* Day-grouped view (all branches) */}
+      {!loading && !locationId && days.map(day => renderDayRow(day, day.day))}
+    </div>
+  );
+}
+
+}
+
+function SummaryCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ background: 'var(--sv-bg-2)', borderRadius: 10, padding: '14px 16px', border: '1px solid var(--sv-border)' }}>
+      <div style={{ fontSize: 11, color: 'var(--sv-text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 700 }}>{value}</div>
+    </div>
+  );
+}
 
   useEffect(() => {
     loadDays();

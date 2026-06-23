@@ -14,14 +14,16 @@ export async function GET(req: NextRequest) {
   if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const date = searchParams.get('date');
+  const date       = searchParams.get('date');
   const locationId = searchParams.get('location_id');
+  const registerId = searchParams.get('register_id');
 
   if (!date) return NextResponse.json({ success: false, error: 'date is required' }, { status: 400 });
 
   const params: any[] = [date];
-  const locWhere = locationId ? 'AND p.location_id = ?' : '';
-  if (locationId) params.push(Number(locationId));
+  let where = '';
+  if (locationId) { where += ' AND p.location_id = ?'; params.push(Number(locationId)); }
+  if (registerId) { where += ' AND p.register_id = ?'; params.push(Number(registerId)); }
 
   try {
     const sales = await imsQuery<any>(
@@ -29,7 +31,7 @@ export async function GET(req: NextRequest) {
        FROM pos_sales p
        LEFT JOIN ims_locations l ON l.id = p.location_id
        WHERE DATE(p.completed_at) = ?
-       ${locWhere}
+       ${where}
        ORDER BY p.completed_at ASC`,
       params,
     );
