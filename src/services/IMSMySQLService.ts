@@ -52,6 +52,7 @@ export function getIMSPool(dbName?: string): mysql.Pool {
         keepAliveInitialDelay: 0,
         timezone:           'Z',
         charset:            'utf8mb4',
+        dateStrings:        true,  // Return DATETIME as strings (not Date objects) — preserves local time stored by localNow()
       })
     );
   }
