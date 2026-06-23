@@ -9287,7 +9287,9 @@ function StocktakesView() {
   // Default reference when opening create modal
   const openCreate = () => {
     const d = new Date();
-    const ref = `ST-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+    const base = `ST-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+    const sameDay = list.filter((s: any) => s.reference && s.reference.startsWith(base)).length;
+    const ref = sameDay === 0 ? base : `${base}-${sameDay + 1}`;
     setCreateForm({ reference: ref, location_id: '', notes: '', blank: false, brand_id: '', supplier_id: '', product_type: '' });
     setPreviewCount(null);
     setCreateModal(true);
