@@ -10,6 +10,6 @@ export async function GET() {
     return NextResponse.json({ locations: rows });
   } catch (err: any) {
     console.error('POS locations error:', err);
-    return NextResponse.json({ locations: [] });
+    return NextResponse.json({ error: err?.message ?? 'DB error' }, { status: 500 });
   }
 }
