@@ -9328,6 +9328,7 @@ function StocktakesView() {
       if (!res.ok) throw new Error(j.error || 'Failed');
       load();
       setCreateModal(false);
+      openDetail(j);
     } catch (e: any) { alert(e.message); }
     finally { setSaving(false); }
   };
@@ -9652,6 +9653,9 @@ function StocktakesView() {
                       setAddMatches(r.matches ?? []); setAddSearching(false);
                       if (!r.matches?.length) setAddError('No matches found.');
                     }}>{addSearching ? '…' : 'Search'}</button>
+                  {(addMatches.length > 0 || addError) && (
+                    <button type="button" onClick={() => { setAddMatches([]); setAddError(''); setAddQuery(''); }} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '2px 6px', alignSelf: 'center' }} title="Dismiss">×</button>
+                  )}
                   {addError && <span style={{ fontSize: 12, color: 'var(--sv-red)', alignSelf: 'center' }}>{addError}</span>}
                   {addMatches.length > 0 && (
                     <div style={{ width: '100%', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-2)', overflow: 'hidden' }}>
@@ -9697,11 +9701,11 @@ function StocktakesView() {
                         <td style={{ padding: '6px 10px', fontSize: 12, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.product_name}</td>
                         <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{item.variant_label || 'Default'}</td>
                         <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{item.barcode || '—'}</td>
-                        <td style={{ padding: '6px 10px', fontSize: 12, whiteSpace: 'nowrap' }}>{item.expected_qty}</td>
+                        <td style={{ padding: '6px 10px', fontSize: 12, whiteSpace: 'nowrap' }}>{Number(item.expected_qty)}</td>
                         <td style={{ padding: '6px 10px' }}>
                           {editable ? (
                             <input
-                              type="number" step="0.0001"
+                              type="number" step="1"
                               value={item.counted_input}
                               onChange={e => setDetailItems(p => p.map((i: any) => i.id === item.id ? { ...i, counted_input: e.target.value } : i))}
                               onBlur={e => saveItemCount(item, e.target.value)}
@@ -9709,11 +9713,11 @@ function StocktakesView() {
                               placeholder="—"
                             />
                           ) : (
-                            <span style={{ fontSize: 12 }}>{item.counted_qty !== null ? item.counted_qty : '—'}</span>
+                            <span style={{ fontSize: 12 }}>{item.counted_qty !== null ? Number(item.counted_qty) : '—'}</span>
                           )}
                         </td>
                         <td style={{ padding: '6px 10px', fontSize: 12, color: varColor, fontWeight: variance !== null && variance !== 0 ? 600 : 400, whiteSpace: 'nowrap' }}>
-                          {variance !== null ? (variance >= 0 ? '+' : '') + variance : '—'}
+                          {variance !== null ? (variance >= 0 ? '+' : '') + Math.round(variance * 10000) / 10000 : '—'}
                         </td>
                         <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{item.notes || ''}</td>
                         <td style={{ padding: '6px 4px' }}>
