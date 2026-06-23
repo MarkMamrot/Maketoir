@@ -533,6 +533,7 @@ function MainPos({
       <div style={{ display: 'flex', alignItems: 'center', padding: '.4rem 1rem', borderBottom: '1px solid var(--sv-etch)', gap: '.5rem', flexShrink: 0 }}>
         <span style={{ fontWeight: 700, color: 'var(--sv-action)', fontSize: '1rem', letterSpacing: -.2 }}>🛒 POS</span>
         <span style={{ color: 'var(--sv-text-strong)', fontSize: '.9rem', fontWeight: 600 }}>{session.location_name}</span>
+        {session.register_name && <span style={{ color: 'var(--sv-text-dim)', fontSize: '.82rem' }}>· {session.register_name}</span>}
         <span style={{ color: 'var(--sv-text-dim)', fontSize: '.82rem' }}>· {session.full_name}</span>
         <div style={{ flex: 1 }} />
         {/* Online / Offline badge */}
