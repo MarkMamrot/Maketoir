@@ -1545,7 +1545,14 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
   }, [date, methods, session.location_id]);
 
   function updateEntry(method: string, key: keyof EodEntryState, value: string | boolean | Record<string, string>) {
-    setEntries(prev => ({ ...prev, [method]: { ...prev[method], [key]: value } }));
+    setEntries(prev => {
+      const updated = { ...prev[method], [key]: value };
+      // When denominations are updated, sync the counted field to the calculated total
+      if (key === 'denominations') {
+        updated.counted = String(calcCash(value as Record<string, string>));
+      }
+      return { ...prev, [method]: updated };
+    });
   }
 
   const openTotal = calcCash(openDenoms);
@@ -1604,7 +1611,7 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
     setLoading(true);
     const entriesArr = methods.map(m => {
       const e = entries[m] ?? {};
-      const counted = m === 'Cash' ? calcCash(e.denominations ?? {}) : parseFloat(e.counted ?? '0') || 0;
+      const counted = parseFloat(e.counted ?? '0') || 0;
       return {
         payment_method:    m,
         counted_amount:    counted,
@@ -1761,7 +1768,7 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
                   {methods.map(m => {
                     const e = entries[m] ?? { counted: '', openingFloat: '', denominations: {}, notes: '', showDenom: false };
                     const exp        = expected[m] ?? 0;
-                    const counted    = m === 'Cash' ? calcCash(e.denominations ?? {}) : parseFloat(e.counted ?? '') || 0;
+                    const counted    = parseFloat(e.counted ?? '') || 0;
                     const openFloat  = m === 'Cash' ? (parseFloat(e.openingFloat ?? '') || 0) : 0;
                     const cashSales  = m === 'Cash' ? counted - openFloat : null;
                     const variance   = m === 'Cash' ? (cashSales ?? 0) - exp : counted - exp;
@@ -1786,12 +1793,8 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
                             )}
                           </td>
                           <td style={tdStyle}>
-                            {m === 'Cash' ? (
-                              <span style={{ fontWeight: 600 }}>${fmt(counted)}</span>
-                            ) : (
-                              <input type='number' value={e.counted} onChange={ev => updateEntry(m, 'counted', ev.target.value)}
-                                placeholder='0.00' style={{ ...inputStyle, width: 90, marginBottom: 0, padding: '.25rem .4rem', fontSize: '.85rem' }} />
-                            )}
+                            <input type='number' value={e.counted} onChange={ev => updateEntry(m, 'counted', ev.target.value)}
+                              placeholder='0.00' style={{ ...inputStyle, width: 90, marginBottom: 0, padding: '.25rem .4rem', fontSize: '.85rem' }} />
                           </td>
                           <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--sv-text-strong)' }}>
                             {cashSales !== null ? `$${fmt(cashSales)}` : <span style={{ color: 'var(--sv-text-muted)' }}>—</span>}
@@ -1885,7 +1888,7 @@ function EodAccountingSection({
 
   const rows = methods.map(m => {
     const e         = entries[m] ?? {} as EodEntryState;
-    const counted   = m === 'Cash' ? calcCash(e.denominations ?? {}) : parseFloat(e.counted ?? '') || 0;
+    const counted   = parseFloat(e.counted ?? '') || 0;
     const openFloat = m === 'Cash' ? (parseFloat(e.openingFloat ?? '') || defaultFloat) : 0;
     const salesAmt  = m === 'Cash' ? counted - openFloat : counted;
     const exp       = expected[m] ?? 0;
@@ -1990,9 +1993,10 @@ function EodAccountingSection({
           </table>
 
           <div style={{ fontSize: '.75rem', color: 'var(--sv-text-dim)', marginBottom: '1rem', lineHeight: 1.7 }}>
-            <strong>What is sent to Xero:</strong> One ACCREC invoice (AUTHORISED) per payment type
+            <strong>What is sent to Xero:</strong> One ACCREC invoice (AUTHORISED) per payment method
             &nbsp;· Contact: <em>POS Reconciliation (Summary)</em>
             &nbsp;· Reference: EOD-L{session.location_id}-{date}-{'{Method}'}<br />
+            Amount sent = Tax-Inc Total (Inclusive tax treatment) — Xero extracts the GST automatically<br />
             Cash Sales = Counted − Opening Float &nbsp;· Other methods = Counted amount
             &nbsp;· Auto-synced on EOD save when admin session is active
           </div>
