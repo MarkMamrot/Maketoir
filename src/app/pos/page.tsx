@@ -1944,9 +1944,9 @@ function EodAccountingSection({
             <thead>
               <tr style={{ borderBottom: '2px solid var(--sv-etch)' }}>
                 <th style={thA}>Method</th>
-                <th style={{ ...thA, textAlign: 'right' }}>Tax-Exc (→ Xero)</th>
+                <th style={{ ...thA, textAlign: 'right' }}>Ex-Tax</th>
                 <th style={{ ...thA, textAlign: 'right' }}>GST</th>
-                <th style={{ ...thA, textAlign: 'right' }}>Tax-Inc Total</th>
+                <th style={{ ...thA, textAlign: 'right' }}>Total (inc) → Xero</th>
                 <th style={{ ...thA, textAlign: 'right' }}>Expected</th>
                 <th style={{ ...thA, textAlign: 'right' }}>Variance</th>
                 <th style={thA}>Xero</th>
