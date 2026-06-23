@@ -9937,9 +9937,6 @@ interface SettingsModalProps {
   setPoMonthsInput: (v: number) => void;
 }
 
-type PosUser = { id: number; username: string; full_name: string | null; email: string | null; phone: string | null; branch_ids: number[] | null; is_active: number };
-type PosLocation = { id: number; name: string };
-
 function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, syncingSteps, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput }: SettingsModalProps) {
   const { settings, saveSettings } = useImsSettings();
   const [active, setActive] = useState<SettingsSection>(defaultSection);
@@ -9995,21 +9992,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   const [posPickerResults, setPosPickerResults] = useState<{ value: string; label: string; meta?: string }[]>([]);
   const [posPickerOpen, setPosPickerOpen]    = useState(false);
 
-  // POS Staff state
-  const [posStaffOpen, setPosStaffOpen]     = useState(false);
   const [posConfigOpen, setPosConfigOpen]   = useState(false);
-  const [posUsers, setPosUsers]             = useState<PosUser[]>([]);
-  const [posLocations, setPosLocations]     = useState<PosLocation[]>([]);
-  const [posUsersLoading, setPosUsersLoading] = useState(false);
-  const [newUser, setNewUser]               = useState<{ username: string; password: string; full_name: string; branch_ids: number[] }>({ username: '', password: '', full_name: '', branch_ids: [] });
-  const [newUserSaving, setNewUserSaving]   = useState(false);
-  const [newUserError, setNewUserError]     = useState('');
-  const [editingPwd, setEditingPwd]         = useState<{ id: number; pwd: string } | null>(null);
-
-  const loadPosUsers = () => {
-    setPosUsersLoading(true);
-    fetch('/api/pos/users').then(r => r.json()).then(d => { if (Array.isArray(d.users)) setPosUsers(d.users); }).catch(() => {}).finally(() => setPosUsersLoading(false));
-  };
 
   useEffect(() => { setProfileDraft(settings); }, [settings]);
   useEffect(() => {
@@ -10023,10 +10006,6 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
         if (d.defaultView.startsWith('variants:') && Array.isArray(d.selectedVariants)) setPosDisplayVariants(d.selectedVariants);
       }
     }).catch(() => {});
-    fetch('/api/pos/locations').then(r => r.json()).then(d => {
-      if (Array.isArray(d.locations)) setPosLocations(d.locations);
-    }).catch(() => {});
-    loadPosUsers();
   }, [isOpen]);
 
   const savePaymentTypes = async (methods: string[]) => {
@@ -10562,132 +10541,6 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                   onClick={() => savePosDisplayView(posDisplayView)}
                   style={btnStyle('action', 'sm')}
                 >{posDisplaySaving ? 'Saving…' : 'Save'}</button>
-              </div>
-            )}
-          </div>
-
-          {/* ── POS Staff ── */}
-          <div style={{ marginBottom: 8 }}>
-            <CollHeader label="👤 POS Staff" open={posStaffOpen} toggle={() => setPosStaffOpen(o => !o)} />
-            {posStaffOpen && (
-              <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
-                <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 14, marginTop: 0 }}>Staff accounts for the POS terminal. Separate from IMS/Marketoir accounts.</p>
-
-                {/* User list */}
-                {posUsersLoading ? (
-                  <div style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 12 }}>Loading…</div>
-                ) : posUsers.length === 0 ? (
-                  <div style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 12 }}>No POS staff accounts yet.</div>
-                ) : (
-                  <div style={{ marginBottom: 16 }}>
-                    {posUsers.map(u => {
-                      const branchNames = u.branch_ids == null
-                        ? 'All locations'
-                        : u.branch_ids.length === 0
-                          ? 'No locations'
-                          : u.branch_ids.map(bid => posLocations.find(l => l.id === bid)?.name ?? `#${bid}`).join(', ');
-                      const isEditingThis = editingPwd?.id === u.id;
-                      return (
-                        <div key={u.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 7, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', marginBottom: 6 }}>
-                          <div style={{ flex: '1 1 160px', minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.full_name || u.username}</div>
-                            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>@{u.username} · {branchNames}</div>
-                          </div>
-                          <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 99, background: u.is_active ? 'rgba(34,197,94,.15)' : 'rgba(239,68,68,.12)', color: u.is_active ? '#22c55e' : '#ef4444', flexShrink: 0 }}>
-                            {u.is_active ? 'Active' : 'Inactive'}
-                          </span>
-                          <button
-                            onClick={async () => {
-                              await fetch(`/api/pos/users/${u.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active: u.is_active ? 0 : 1 }) });
-                              loadPosUsers();
-                            }}
-                            style={{ fontSize: 11, padding: '3px 9px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', cursor: 'pointer', flexShrink: 0 }}
-                          >
-                            {u.is_active ? 'Deactivate' : 'Activate'}
-                          </button>
-                          {isEditingThis ? (
-                            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flex: '1 1 220px' }}>
-                              <input
-                                type="password"
-                                placeholder="New password…"
-                                value={editingPwd.pwd}
-                                onChange={e => setEditingPwd({ id: u.id, pwd: e.target.value })}
-                                style={{ ...inputStyle, flex: 1, minWidth: 120 }}
-                              />
-                              <button
-                                onClick={async () => {
-                                  if (!editingPwd.pwd.trim()) return;
-                                  await fetch(`/api/pos/users/${u.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: editingPwd.pwd }) });
-                                  setEditingPwd(null);
-                                }}
-                                style={btnStyle('action', 'sm')}
-                              >Save</button>
-                              <button onClick={() => setEditingPwd(null)} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer' }}>✕</button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => setEditingPwd({ id: u.id, pwd: '' })}
-                              style={{ fontSize: 11, padding: '3px 9px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-dim)', cursor: 'pointer', flexShrink: 0 }}
-                            >
-                              Reset Password
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Add new user */}
-                <div style={{ borderTop: '1px solid var(--sv-etch)', paddingTop: 14 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 10 }}>Add Staff Member</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                    <input style={inputStyle} placeholder="Username *" value={newUser.username} onChange={e => setNewUser(u => ({ ...u, username: e.target.value }))} />
-                    <input style={inputStyle} placeholder="Full name" value={newUser.full_name} onChange={e => setNewUser(u => ({ ...u, full_name: e.target.value }))} />
-                    <input type="password" style={inputStyle} placeholder="Password *" value={newUser.password} onChange={e => setNewUser(u => ({ ...u, password: e.target.value }))} />
-                  </div>
-                  {posLocations.length > 0 && (
-                    <div style={{ marginBottom: 10 }}>
-                      <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 6 }}>Locations (leave blank for all)</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        {posLocations.map(loc => {
-                          const checked = newUser.branch_ids.includes(loc.id);
-                          return (
-                            <label key={loc.id} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer', padding: '3px 8px', borderRadius: 5, border: `1px solid ${checked ? 'var(--sv-action)' : 'var(--sv-etch)'}`, background: checked ? 'rgba(99,102,241,.1)' : 'var(--sv-bg-2)', color: checked ? 'var(--sv-action)' : 'var(--sv-text-main)' }}>
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                style={{ display: 'none' }}
-                                onChange={() => setNewUser(u => ({ ...u, branch_ids: checked ? u.branch_ids.filter(id => id !== loc.id) : [...u.branch_ids, loc.id] }))}
-                              />
-                              {loc.name}
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  {newUserError && <div style={{ fontSize: 12, color: 'var(--sv-red)', marginBottom: 8 }}>{newUserError}</div>}
-                  <button
-                    disabled={newUserSaving || !newUser.username.trim() || !newUser.password.trim()}
-                    onClick={async () => {
-                      setNewUserError('');
-                      setNewUserSaving(true);
-                      try {
-                        const body: Record<string, unknown> = { username: newUser.username.trim(), password: newUser.password, full_name: newUser.full_name.trim() || null };
-                        if (newUser.branch_ids.length > 0) body.branch_ids = newUser.branch_ids;
-                        const res = await fetch('/api/pos/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                        const data = await res.json();
-                        if (!res.ok) { setNewUserError(data.error || 'Failed to create user.'); return; }
-                        setNewUser({ username: '', password: '', full_name: '', branch_ids: [] });
-                        loadPosUsers();
-                      } finally { setNewUserSaving(false); }
-                    }}
-                    style={btnStyle('action', 'sm')}
-                  >
-                    {newUserSaving ? 'Adding…' : 'Add Staff Member'}
-                  </button>
-                </div>
               </div>
             )}
           </div>
