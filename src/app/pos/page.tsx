@@ -1213,13 +1213,16 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
   const [amount, setAmount] = useState(() => String(total));
   const [reference, setReference] = useState('');
   const [changeDue, setChangeDue] = useState<{ amount: number; pendingPayments: PaymentEntry[] } | null>(null);
-  const amountRef = useRef<HTMLInputElement>(null);
+  const amountRef      = useRef<HTMLInputElement>(null);
+  const changeDueOkRef  = useRef<HTMLButtonElement>(null);
 
   const paid      = payments.reduce((s, p) => s + p.amount, 0);
   const remaining = total - paid;
   const change    = Math.max(0, paid - total);
 
   useEffect(() => { amountRef.current?.focus(); }, [activeMethod]);
+  // Delay focus so any in-flight Enter keyup can't immediately click the button
+  useEffect(() => { if (changeDue) { const t = setTimeout(() => changeDueOkRef.current?.focus(), 120); return () => clearTimeout(t); } }, [changeDue]);
 
   function addPayment() {
     const amt = parseFloat(amount) || remaining;
@@ -1254,7 +1257,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
             <div style={{ fontSize: '5rem', fontWeight: 900, color: '#ef4444', lineHeight: 1, marginBottom: '0.25rem', letterSpacing: -2 }}>${fmt(changeDue.amount)}</div>
             <div style={{ fontSize: '1rem', color: '#fca5a5', marginBottom: '2rem' }}>Give this amount back to the customer</div>
             <button
-              autoFocus
+              ref={changeDueOkRef}
               onClick={() => { setChangeDue(null); onComplete(changeDue.pendingPayments); }}
               style={{ width: '100%', padding: '1rem', background: '#ef4444', border: 'none', borderRadius: 10, color: '#fff', fontSize: '1.2rem', fontWeight: 800, cursor: 'pointer', letterSpacing: .5 }}
             >
