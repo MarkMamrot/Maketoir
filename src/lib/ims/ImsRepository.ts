@@ -1628,7 +1628,7 @@ export const ImsStocktakeRepo = {
     const varWheres: string[] = ['v.is_active = 1'];
     const varParams: any[] = [];
     if (data.brand_id) {
-      varWheres.push('p.brand_id = ?');
+      varWheres.push('p.brand = (SELECT name FROM ims_brands WHERE id = ?)');
       varParams.push(data.brand_id);
     }
     if (data.supplier_id) {
@@ -1762,9 +1762,18 @@ export const ImsStocktakeRepo = {
   }): Promise<number> {
     const varWheres: string[] = ['v.is_active = 1'];
     const varParams: any[] = [];
-    if (data.brand_id) { varWheres.push('p.brand_id = ?'); varParams.push(data.brand_id); }
-    if (data.supplier_id) { varWheres.push('p.supplier_id = ?'); varParams.push(data.supplier_id); }
-    if (data.product_type) { varWheres.push('p.product_type = ?'); varParams.push(data.product_type); }
+    if (data.brand_id) {
+      varWheres.push('p.brand = (SELECT name FROM ims_brands WHERE id = ?)');
+      varParams.push(data.brand_id);
+    }
+    if (data.supplier_id) {
+      varWheres.push('p.supplier_id = ?');
+      varParams.push(data.supplier_id);
+    }
+    if (data.product_type) {
+      varWheres.push('p.product_type = ?');
+      varParams.push(data.product_type);
+    }
     const rows = await imsQuery<{ cnt: number }>(
       `SELECT COUNT(*) AS cnt
        FROM ims_product_variants v
