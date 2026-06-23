@@ -39,10 +39,19 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState('');
   const [verifiedLocation, setVerifiedLocation] = useState<{ name: string } | null>(null);
+  const [locLoading, setLocLoading] = useState(true);
+  const [locError,   setLocError]   = useState('');
 
-  useEffect(() => {
-    fetch('/api/pos/locations').then(r => r.json()).then(d => setLocations(d.locations ?? [])).catch(() => {});
-  }, []);
+  const loadLocations = () => {
+    setLocLoading(true); setLocError('');
+    fetch('/api/pos/locations')
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(d => { setLocations(d.locations ?? []); if (!d.locations?.length) setLocError('No active locations found. Add one in IMS → Locations.'); })
+      .catch(e => setLocError(e.message || 'Failed to load locations.'))
+      .finally(() => setLocLoading(false));
+  };
+
+  useEffect(() => { loadLocations(); }, []);
 
   async function handleVerifyLocation() {
     if (!locationId) { setError('Select a location.'); return; }
@@ -104,18 +113,23 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
         {step === 'location' ? (
           <>
             <label style={labelStyle}>Branch / Location</label>
-            {locations.length > 0 ? (
+            {locLoading ? (
+              <p style={{ color: 'var(--sv-text-dim)', fontSize: '.82rem', padding: '.5rem', border: '1px solid var(--sv-etch)', borderRadius: 6 }}>Loading locations…</p>
+            ) : locError ? (
+              <div>
+                <p style={{ color: 'var(--sv-red)', fontSize: '.82rem', marginBottom: '.4rem' }}>{locError}</p>
+                <button onClick={loadLocations} style={{ fontSize: '.8rem', padding: '.3rem .75rem', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', cursor: 'pointer' }}>Retry</button>
+              </div>
+            ) : (
               <select value={locationId} onChange={e => { setLocationId(e.target.value); setError(''); }} style={inputStyle}>
                 <option value=''>— select location —</option>
                 {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
-            ) : (
-              <p style={{ color: 'var(--sv-text-dim)', fontSize: '.82rem', padding: '.5rem', border: '1px solid var(--sv-etch)', borderRadius: 6 }}>Loading locations… ensure internet is connected.</p>
             )}
             <label style={labelStyle}>Location PIN</label>
             <input type='password' maxLength={20} placeholder='PIN set in IMS Locations (blank if none)' value={pin} onChange={e => setPin(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleVerifyLocation()} style={inputStyle} />
             {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', marginBottom: '1rem' }}>{error}</p>}
-            <button onClick={handleVerifyLocation} disabled={loading || !locationId} style={primaryBtn}>
+            <button onClick={handleVerifyLocation} disabled={loading || !locationId || locLoading} style={primaryBtn}>
               {loading ? 'Verifying…' : 'Next →'}
             </button>
           </>
