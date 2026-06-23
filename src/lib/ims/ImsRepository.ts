@@ -123,7 +123,7 @@ export interface ImsSOItem {
   sku?: string; product_name?: string; variant_label?: string;
 }
 
-export type StocktakeStatus = 'draft' | 'in_progress' | 'completed' | 'cancelled';
+export type StocktakeStatus = 'draft' | 'in_progress' | 'completed' | 'cancelled' | 'reverted';
 
 export interface ImsStocktake {
   id: number; reference: string; location_id: number; status: StocktakeStatus;
@@ -1745,6 +1745,7 @@ export const ImsStocktakeRepo = {
       in_progress: ['completed', 'cancelled'],
       completed:   [],
       cancelled:   [],
+      reverted:    [],
     };
     const rows = await imsQuery<{ status: StocktakeStatus }>(`SELECT status FROM ims_stocktakes WHERE id = ?`, [id]);
     const st = rows[0];
