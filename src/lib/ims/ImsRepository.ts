@@ -1617,35 +1617,11 @@ export const ImsStocktakeRepo = {
     reference: string;
     location_id: number;
     notes?: string;
+    blank?: boolean;
     brand_id?: number;
     supplier_id?: number;
     product_type?: string;
   }): Promise<number> {
-    // Build variant filter
-    const varWheres: string[] = ['v.is_active = 1'];
-    const varParams: any[] = [];
-    if (data.brand_id) {
-      varWheres.push('p.brand = (SELECT name FROM ims_brands WHERE id = ?)');
-      varParams.push(data.brand_id);
-    }
-    if (data.supplier_id) {
-      varWheres.push('p.supplier_id = ?');
-      varParams.push(data.supplier_id);
-    }
-    if (data.product_type) {
-      varWheres.push('p.product_type = ?');
-      varParams.push(data.product_type);
-    }
-    const variants = await imsQuery<{ variant_id: string; qty_on_hand: number }>(
-      `SELECT v.variant_id,
-              COALESCE(s.qty_on_hand, 0) AS qty_on_hand
-       FROM ims_product_variants v
-       JOIN ims_products p ON p.product_id = v.product_id
-       LEFT JOIN ims_stock s ON s.variant_id = v.variant_id AND s.location_id = ?
-       WHERE ${varWheres.join(' AND ')}`,
-      [data.location_id, ...varParams]
-    );
-
     const pool = getIMSPool();
     const conn = await pool.getConnection();
     try {
@@ -1656,17 +1632,43 @@ export const ImsStocktakeRepo = {
         [data.reference, data.location_id, data.notes ?? null]
       );
       const stocktakeId: number = res.insertId;
-      if (variants.length > 0) {
-        const placeholders = variants.map(() => '(?,?,?)').join(',');
-        const vals: any[] = [];
-        for (const v of variants) {
-          vals.push(stocktakeId, v.variant_id, v.qty_on_hand);
+
+      if (!data.blank) {
+        // Build variant filter and pre-populate
+        const varWheres: string[] = ['v.is_active = 1'];
+        const varParams: any[] = [];
+        if (data.brand_id) {
+          varWheres.push('p.brand = (SELECT name FROM ims_brands WHERE id = ?)');
+          varParams.push(data.brand_id);
         }
-        await conn.execute(
-          `INSERT INTO ims_stocktake_items (stocktake_id, variant_id, expected_qty) VALUES ${placeholders}`,
-          vals
+        if (data.supplier_id) {
+          varWheres.push('p.supplier_id = ?');
+          varParams.push(data.supplier_id);
+        }
+        if (data.product_type) {
+          varWheres.push('p.product_type = ?');
+          varParams.push(data.product_type);
+        }
+        const variants = await imsQuery<{ variant_id: string; qty_on_hand: number }>(
+          `SELECT v.variant_id,
+                  COALESCE(s.qty_on_hand, 0) AS qty_on_hand
+           FROM ims_product_variants v
+           JOIN ims_products p ON p.product_id = v.product_id
+           LEFT JOIN ims_stock s ON s.variant_id = v.variant_id AND s.location_id = ?
+           WHERE ${varWheres.join(' AND ')}`,
+          [data.location_id, ...varParams]
         );
+        if (variants.length > 0) {
+          const placeholders = variants.map(() => '(?,?,?)').join(',');
+          const vals: any[] = [];
+          for (const v of variants) vals.push(stocktakeId, v.variant_id, v.qty_on_hand);
+          await conn.execute(
+            `INSERT INTO ims_stocktake_items (stocktake_id, variant_id, expected_qty) VALUES ${placeholders}`,
+            vals
+          );
+        }
       }
+
       await conn.commit();
       return stocktakeId;
     } catch (err) {
@@ -1675,6 +1677,59 @@ export const ImsStocktakeRepo = {
     } finally {
       conn.release();
     }
+  },
+
+  async removeItem(itemId: number): Promise<void> {
+    await imsExecute('DELETE FROM ims_stocktake_items WHERE id = ?', [itemId]);
+  },
+
+  async addItem(stocktakeId: number, variantId: string, locationId: number): Promise<any> {
+    // Check not already present
+    const existing = await imsQuery<{ id: number }>(
+      'SELECT id FROM ims_stocktake_items WHERE stocktake_id = ? AND variant_id = ?',
+      [stocktakeId, variantId]
+    );
+    if (existing.length) throw new Error('Variant already in this stocktake.');
+    // Get current stock as expected_qty
+    const stock = await imsQuery<{ qty_on_hand: number }>(
+      'SELECT COALESCE(qty_on_hand, 0) AS qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ?',
+      [variantId, locationId]
+    );
+    const expectedQty = stock[0]?.qty_on_hand ?? 0;
+    await imsExecute(
+      'INSERT INTO ims_stocktake_items (stocktake_id, variant_id, expected_qty) VALUES (?, ?, ?)',
+      [stocktakeId, variantId, expectedQty]
+    );
+    const rows = await imsQuery<any>(
+      `SELECT i.*, v.sku, v.barcode,
+              p.name AS product_name,
+              CONCAT_WS(' / ', NULLIF(v.option1_value,''), NULLIF(v.option2_value,''), NULLIF(v.option3_value,'')) AS variant_label
+       FROM ims_stocktake_items i
+       JOIN ims_product_variants v ON v.variant_id = i.variant_id
+       JOIN ims_products p ON p.product_id = v.product_id
+       WHERE i.stocktake_id = ? AND i.variant_id = ?`,
+      [stocktakeId, variantId]
+    );
+    return rows[0];
+  },
+
+  async searchVariants(query: string, stocktakeId: number, locationId: number): Promise<any[]> {
+    const like = `%${query}%`;
+    return imsQuery<any>(
+      `SELECT v.variant_id, v.sku, v.barcode,
+              p.name AS product_name,
+              CONCAT_WS(' / ', NULLIF(v.option1_value,''), NULLIF(v.option2_value,''), NULLIF(v.option3_value,'')) AS variant_label,
+              COALESCE(s.qty_on_hand, 0) AS qty_on_hand
+       FROM ims_product_variants v
+       JOIN ims_products p ON p.product_id = v.product_id
+       LEFT JOIN ims_stock s ON s.variant_id = v.variant_id AND s.location_id = ?
+       WHERE v.is_active = 1
+         AND v.variant_id NOT IN (SELECT variant_id FROM ims_stocktake_items WHERE stocktake_id = ?)
+         AND (v.sku LIKE ? OR v.barcode LIKE ? OR p.name LIKE ?)
+       ORDER BY p.name, v.sku
+       LIMIT 20`,
+      [locationId, stocktakeId, like, like, like]
+    );
   },
 
   async updateItem(itemId: number, counted_qty: number | null, notes?: string): Promise<void> {

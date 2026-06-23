@@ -43,6 +43,12 @@ export async function PUT(req: NextRequest, { params }: Params) {
       return NextResponse.json({ ok: true });
     }
 
+    // Remove a single item
+    if (body.action === 'remove_item') {
+      await ImsStocktakeRepo.removeItem(body.item_id);
+      return NextResponse.json({ ok: true });
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 400 });

@@ -17,11 +17,11 @@ export async function POST(req: NextRequest) {
   try {
     await getImportSession();
     const body = await req.json();
-    const { reference, location_id, notes, brand_id, supplier_id, product_type } = body;
+    const { reference, location_id, notes, blank, brand_id, supplier_id, product_type } = body;
     if (!reference || !location_id) {
-      return NextResponse.json({ error: 'reference and location_id required' }, { status: 400 });
+      return NextResponse.json({ error: 'reference and location_id are required' }, { status: 400 });
     }
-    const id = await ImsStocktakeRepo.create({ reference, location_id, notes, brand_id, supplier_id, product_type });
+    const id = await ImsStocktakeRepo.create({ reference, location_id, notes, blank: !!blank, brand_id, supplier_id, product_type });
     return NextResponse.json({ id }, { status: 201 });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 400 });

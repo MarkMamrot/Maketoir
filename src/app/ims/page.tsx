@@ -9247,7 +9247,7 @@ function StocktakesView() {
 
   // Create modal
   const [createModal, setCreateModal] = useState(false);
-  const [createForm, setCreateForm]   = useState<any>({ reference: '', location_id: '', notes: '', brand_id: '', supplier_id: '', product_type: '' });
+  const [createForm, setCreateForm]   = useState<any>({ reference: '', location_id: '', notes: '', blank: false, brand_id: '', supplier_id: '', product_type: '' });
   const [previewCount, setPreviewCount] = useState<number | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [saving, setSaving]             = useState(false);
@@ -9259,6 +9259,11 @@ function StocktakesView() {
   const [barcodeText, setBarcodeText]   = useState('');
   const [barcodeResults, setBarcodeResults] = useState<any[] | null>(null);
   const [applying, setApplying]         = useState(false);
+  // Add-product search
+  const [addQuery, setAddQuery]         = useState('');
+  const [addMatches, setAddMatches]     = useState<any[]>([]);
+  const [addSearching, setAddSearching] = useState(false);
+  const [addError, setAddError]         = useState('');
 
   const load = useCallback(() => {
     setLoading(true);
@@ -9279,7 +9284,7 @@ function StocktakesView() {
   const openCreate = () => {
     const d = new Date();
     const ref = `ST-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
-    setCreateForm({ reference: ref, location_id: '', notes: '', brand_id: '', supplier_id: '', product_type: '' });
+    setCreateForm({ reference: ref, location_id: '', notes: '', blank: false, brand_id: '', supplier_id: '', product_type: '' });
     setPreviewCount(null);
     setCreateModal(true);
   };
@@ -9313,6 +9318,7 @@ function StocktakesView() {
           reference:    createForm.reference,
           location_id:  parseInt(createForm.location_id, 10),
           notes:        createForm.notes || undefined,
+          blank:        createForm.blank,
           brand_id:     createForm.brand_id    ? parseInt(createForm.brand_id,    10) : undefined,
           supplier_id:  createForm.supplier_id ? parseInt(createForm.supplier_id, 10) : undefined,
           product_type: createForm.product_type || undefined,
@@ -9334,6 +9340,7 @@ function StocktakesView() {
     setDetailTab('manual');
     setBarcodeText('');
     setBarcodeResults(null);
+    setAddQuery(''); setAddMatches([]); setAddError('');
   };
 
   const saveItemCount = async (item: any, value: string) => {
@@ -9536,31 +9543,52 @@ function StocktakesView() {
                 </select>
               </Field>
             </Row2>
-            <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 6, marginTop: 4 }}>PRODUCT FILTERS (optional — leave blank to include all active variants)</div>
-            <Row3>
-              <Field label="Brand">
-                <select value={createForm.brand_id} onChange={cf('brand_id')} style={inputStyle}>
-                  <option value="">All Brands</option>
-                  {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
-              </Field>
-              <Field label="Supplier">
-                <select value={createForm.supplier_id} onChange={cf('supplier_id')} style={inputStyle}>
-                  <option value="">All Suppliers</option>
-                  {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </Field>
-              <Field label="Product Type">
-                <input value={createForm.product_type} onChange={cf('product_type')} style={inputStyle} placeholder="e.g. T-Shirt" />
-              </Field>
-            </Row3>
-            {createForm.location_id && (
-              <div style={{ marginBottom: 14, padding: '8px 12px', background: 'var(--sv-bg-1)', borderRadius: 6, border: '1px solid var(--sv-etch)', fontSize: 13 }}>
-                {previewLoading ? 'Counting variants…' : previewCount !== null ? (
-                  <span style={{ color: previewCount > 0 ? 'var(--sv-text-main)' : 'var(--sv-text-dim)' }}>
-                    <strong>{previewCount}</strong> active variant{previewCount !== 1 ? 's' : ''} will be included
-                  </span>
-                ) : null}
+
+            {/* Mode toggle */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+              {[{ v: false, label: 'Pre-populate from filters' }, { v: true, label: 'Blank (add items manually)' }].map(opt => (
+                <button key={String(opt.v)} type="button"
+                  onClick={() => setCreateForm((p: any) => ({ ...p, blank: opt.v }))}
+                  style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: `2px solid ${createForm.blank === opt.v ? 'var(--sv-action)' : 'var(--sv-etch)'}`, background: createForm.blank === opt.v ? 'color-mix(in srgb, var(--sv-action) 12%, var(--sv-bg-1))' : 'var(--sv-bg-2)', color: createForm.blank === opt.v ? 'var(--sv-action)' : 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 13, fontWeight: createForm.blank === opt.v ? 700 : 400 }}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            {!createForm.blank && (
+              <>
+                <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 6 }}>PRODUCT FILTERS (optional — leave blank to include all active variants)</div>
+                <Row3>
+                  <Field label="Brand">
+                    <select value={createForm.brand_id} onChange={cf('brand_id')} style={inputStyle}>
+                      <option value="">All Brands</option>
+                      {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Supplier">
+                    <select value={createForm.supplier_id} onChange={cf('supplier_id')} style={inputStyle}>
+                      <option value="">All Suppliers</option>
+                      {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Product Type">
+                    <input value={createForm.product_type} onChange={cf('product_type')} style={inputStyle} placeholder="e.g. T-Shirt" />
+                  </Field>
+                </Row3>
+                {createForm.location_id && (
+                  <div style={{ marginBottom: 14, padding: '8px 12px', background: 'var(--sv-bg-1)', borderRadius: 6, border: '1px solid var(--sv-etch)', fontSize: 13 }}>
+                    {previewLoading ? 'Counting variants…' : previewCount !== null ? (
+                      <span style={{ color: previewCount > 0 ? 'var(--sv-text-main)' : 'var(--sv-text-dim)' }}>
+                        <strong>{previewCount}</strong> active variant{previewCount !== 1 ? 's' : ''} will be included
+                      </span>
+                    ) : null}
+                  </div>
+                )}
+              </>
+            )}
+            {createForm.blank && (
+              <div style={{ marginBottom: 14, padding: '8px 12px', background: 'var(--sv-bg-1)', borderRadius: 6, border: '1px solid var(--sv-etch)', fontSize: 13, color: 'var(--sv-text-dim)' }}>
+                Stocktake will be created empty. Add products one by one after opening.
               </div>
             )}
             <Field label="Notes">
@@ -9599,11 +9627,61 @@ function StocktakesView() {
           </div>
 
           {detailTab === 'manual' && (
-            <div style={{ maxHeight: 460, overflowY: 'auto' }}>
+            <div>
+              {/* Add product bar — shown when editable */}
+              {(detailModal.st.status === 'draft' || detailModal.st.status === 'in_progress') && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12, padding: '10px 12px', background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)', flexWrap: 'wrap' }}>
+                  <input
+                    value={addQuery}
+                    onChange={e => { setAddQuery(e.target.value); setAddMatches([]); setAddError(''); }}
+                    onKeyDown={async e => {
+                      if (e.key === 'Enter' && addQuery.trim()) {
+                        setAddSearching(true); setAddError('');
+                        const r = await fetch(`/api/ims/stocktakes/${detailModal.st.id}/items?q=${encodeURIComponent(addQuery)}&location_id=${detailModal.st.location_id}`).then(x => x.json()).catch(() => ({}));
+                        setAddMatches(r.matches ?? []); setAddSearching(false);
+                        if (!r.matches?.length) setAddError('No matches found.');
+                      }
+                    }}
+                    placeholder="Search SKU / barcode / name — press Enter"
+                    style={{ ...inputStyle, flex: '1 1 220px', marginBottom: 0, fontSize: 13 }}
+                  />
+                  <button type="button" disabled={addSearching || !addQuery.trim()} style={btnStyle('action', 'sm')}
+                    onClick={async () => {
+                      setAddSearching(true); setAddError('');
+                      const r = await fetch(`/api/ims/stocktakes/${detailModal.st.id}/items?q=${encodeURIComponent(addQuery)}&location_id=${detailModal.st.location_id}`).then(x => x.json()).catch(() => ({}));
+                      setAddMatches(r.matches ?? []); setAddSearching(false);
+                      if (!r.matches?.length) setAddError('No matches found.');
+                    }}>{addSearching ? '…' : 'Search'}</button>
+                  {addError && <span style={{ fontSize: 12, color: 'var(--sv-red)', alignSelf: 'center' }}>{addError}</span>}
+                  {addMatches.length > 0 && (
+                    <div style={{ width: '100%', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-2)', overflow: 'hidden' }}>
+                      {addMatches.map((m: any) => (
+                        <div key={m.variant_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', borderBottom: '1px solid var(--sv-etch)', fontSize: 13 }}>
+                          <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 80 }}>{m.sku || '—'}</span>
+                          <span style={{ flex: 1 }}>{m.product_name}{m.variant_label ? ` — ${m.variant_label}` : ''}</span>
+                          <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>SOH: {m.qty_on_hand}</span>
+                          <button type="button" style={btnStyle('action', 'xs')} onClick={async () => {
+                            const res = await fetch(`/api/ims/stocktakes/${detailModal.st.id}/items`, {
+                              method: 'POST', headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ variant_id: m.variant_id, location_id: detailModal.st.location_id }),
+                            });
+                            const j = await res.json();
+                            if (!res.ok) { setAddError(j.error || 'Failed to add'); return; }
+                            setDetailItems(p => [...p, { ...j.item, counted_input: '' }]);
+                            setAddMatches(prev => prev.filter(x => x.variant_id !== m.variant_id));
+                            setAddQuery('');
+                          }}>+ Add</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              <div style={{ maxHeight: 400, overflowY: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ position: 'sticky', top: 0, background: 'var(--sv-bg-1)', zIndex: 1 }}>
-                    {['SKU', 'Product', 'Variant', 'Barcode', 'Expected', 'Counted', 'Variance', 'Notes'].map(h => (
+                    {['SKU', 'Product', 'Variant', 'Barcode', 'Expected', 'Counted', 'Variance', 'Notes', ''].map(h => (
                       <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7, whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -9638,11 +9716,23 @@ function StocktakesView() {
                           {variance !== null ? (variance >= 0 ? '+' : '') + variance : '—'}
                         </td>
                         <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{item.notes || ''}</td>
+                        <td style={{ padding: '6px 4px' }}>
+                          {editable && (
+                            <button type="button" title="Remove from stocktake" onClick={async () => {
+                              await fetch(`/api/ims/stocktakes/${detailModal.st.id}`, {
+                                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ action: 'remove_item', item_id: item.id }),
+                              });
+                              setDetailItems(p => p.filter((i: any) => i.id !== item.id));
+                            }} style={{ background: 'none', border: 'none', color: 'var(--sv-red)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '2px 4px', opacity: .7 }}>×</button>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
