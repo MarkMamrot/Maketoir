@@ -9375,6 +9375,22 @@ function StocktakesView() {
     if (!confirm('Mark complete and apply counted quantities to stock? This will update qty_on_hand for all counted items.')) return;
     setApplying(true);
     try {
+      // 0. Flush any counts that are in the input but not yet saved to DB
+      //    (race condition: onBlur is fire-and-forget; user may click Complete before the save lands)
+      const unsaved = detailItems.filter((i: any) =>
+        i.counted_input !== '' && i.counted_input != null &&
+        String(i.counted_qty ?? '') !== String(i.counted_input)
+      );
+      if (unsaved.length > 0) {
+        await fetch(`/api/ims/stocktakes/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'bulk_update_items',
+            items: unsaved.map((i: any) => ({ item_id: i.id, counted_qty: Number(i.counted_input) })),
+          }),
+        });
+      }
       // 1. Mark as completed
       const statusRes = await fetch(`/api/ims/stocktakes/${id}`, {
         method: 'PUT',
