@@ -1878,7 +1878,7 @@ function EodAccountingSection({
   const [syncing, setSyncing]   = useState(false);
   const [syncError, setSyncError] = useState('');
 
-  // Effective tax rate from actual sales (fallback to 10% GST)
+  // Standard tax rate from actual sales data (e.g. 0.10 for 10% GST), fallback to 10%
   const effectiveTaxRate = dayTotals && dayTotals.total_exc_tax > 0
     ? dayTotals.tax_total / dayTotals.total_exc_tax
     : 0.10;
@@ -1891,9 +1891,11 @@ function EodAccountingSection({
     const exp       = expected[m] ?? 0;
     const variance  = salesAmt - exp;
     const synced    = xeroInvoiceIds[m] ?? null;
-    const gst       = salesAmt * effectiveTaxRate;
-    const taxInc    = salesAmt + gst;
-    return { method: m, salesAmt, exp, variance, synced, gst, taxInc };
+    // Prices are stored tax-inclusive — extract GST from the inclusive amount
+    const taxExc    = salesAmt / (1 + effectiveTaxRate);
+    const gst       = salesAmt - taxExc;
+    const taxInc    = salesAmt;
+    return { method: m, salesAmt, exp, variance, synced, taxExc, gst, taxInc };
   });
 
   const totals = rows.reduce((acc, r) => ({ sales: acc.sales + r.salesAmt, exp: acc.exp + r.exp }), { sales: 0, exp: 0 });
@@ -1951,7 +1953,7 @@ function EodAccountingSection({
               {rows.map(r => (
                 <tr key={r.method}>
                   <td style={{ ...tdA, fontWeight: 600 }}>{r.method}</td>
-                  <td style={{ ...tdA, textAlign: 'right', fontWeight: 600 }}>${fmt(r.salesAmt)}</td>
+                  <td style={{ ...tdA, textAlign: 'right', fontWeight: 600 }}>${fmt(r.taxExc)}</td>
                   <td style={{ ...tdA, textAlign: 'right', color: 'var(--sv-text-dim)' }}>${fmt(r.gst)}</td>
                   <td style={{ ...tdA, textAlign: 'right' }}>${fmt(r.taxInc)}</td>
                   <td style={{ ...tdA, textAlign: 'right', color: 'var(--sv-text-dim)' }}>${fmt(r.exp)}</td>
@@ -1974,13 +1976,13 @@ function EodAccountingSection({
               <tr style={{ borderTop: '2px solid var(--sv-etch)', fontWeight: 700, background: 'var(--sv-bg-0)' }}>
                 <td style={{ ...tdA, borderBottom: 'none' }}>Total</td>
                 <td style={{ ...tdA, textAlign: 'right', color: 'var(--sv-action)', borderBottom: 'none' }}>
-                  ${fmt(dayTotals ? dayTotals.total_exc_tax : totals.sales)}
+                  ${fmt(dayTotals ? dayTotals.total_exc_tax : totals.sales / (1 + effectiveTaxRate))}
                 </td>
                 <td style={{ ...tdA, textAlign: 'right', color: 'var(--sv-action)', borderBottom: 'none' }}>
-                  ${fmt(dayTotals ? dayTotals.tax_total : totals.sales * effectiveTaxRate)}
+                  ${fmt(dayTotals ? dayTotals.tax_total : totals.sales - totals.sales / (1 + effectiveTaxRate))}
                 </td>
                 <td style={{ ...tdA, textAlign: 'right', color: 'var(--sv-action)', borderBottom: 'none' }}>
-                  ${fmt(dayTotals ? dayTotals.total_inc_tax : totals.sales * (1 + effectiveTaxRate))}
+                  ${fmt(dayTotals ? dayTotals.total_inc_tax : totals.sales)}
                 </td>
                 <td style={{ ...tdA, borderBottom: 'none' }} />
               </tr>
