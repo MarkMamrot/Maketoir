@@ -3826,6 +3826,8 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
   const [xeroVoiding, setXeroVoiding] = useState(false);
   const [xeroVoidResult, setXeroVoidResult] = useState<'voided' | 'failed' | null>(null);
   const [xeroVoidMsg, setXeroVoidMsg] = useState<string | null>(null);
+  const [xeroBillDetails, setXeroBillDetails] = useState<{ invoiceNumber: string | null; total: number | null } | null>(null);
+  const [xeroBillFetching, setXeroBillFetching] = useState(false);
   const doXeroRetry = async () => {
     setXeroRetrying(true); setXeroRetried(null);
     try {
@@ -3848,17 +3850,47 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
   const xeroStatus = (xeroRetried === true ? 'synced' : po.xero_sync_status) as string | null;
   const xeroId = po.xero_bill_id as string | null;
   const xeroAt = po.xero_synced_at ? new Date(po.xero_synced_at).toLocaleString() : null;
+
+  // Fetch live Xero bill details (number + total) whenever a linked bill exists
+  useEffect(() => {
+    if (!xeroId || xeroVoidResult === 'voided') { setXeroBillDetails(null); return; }
+    let cancelled = false;
+    setXeroBillFetching(true);
+    fetch(`/api/ims/xero/bill-details?poId=${po.id}`)
+      .then(r => r.json())
+      .then(d => { if (!cancelled && d.success) setXeroBillDetails({ invoiceNumber: d.invoiceNumber, total: d.total }); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setXeroBillFetching(false); });
+    return () => { cancelled = true; };
+  }, [xeroId, xeroVoidResult, xeroRetried, po.id]);
+
   const XeroBadge = () => (
     xeroStatus === 'synced' || xeroVoidResult === 'voided'
-      ? <div style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 10px', background: xeroVoidResult === 'voided' ? 'rgba(251,191,36,.1)' : 'rgba(16,185,129,.1)', borderRadius:6, fontSize:11, marginBottom:6, flexWrap:'wrap' }}>
-          {xeroVoidResult === 'voided'
-            ? <span style={{ color:'#fbbf24', fontWeight:700 }}>✕ Removed from Xero</span>
-            : <span style={{ color:'#34d399', fontWeight:700 }}>✓ Synced to Xero</span>}
-          {xeroAt && <span style={{ color:'var(--sv-text-dim)' }}>{xeroAt}</span>}
-          {xeroId && <span style={{ color:'var(--sv-text-dim)', fontFamily:'monospace', fontSize:10 }}>{xeroId.slice(0,8)}…</span>}
-          {xeroId && <a href={`https://go.xero.com/AccountsPayable/View.aspx?InvoiceID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color:'var(--sv-mint)' }}>View Bill ↗</a>}
-          {xeroId && xeroVoidResult !== 'voided' && <button onClick={doXeroVoid} disabled={xeroVoiding} style={{ background:'none', border:'1px solid #f87171', borderRadius:4, cursor:'pointer', padding:'2px 8px', fontSize:11, color:'#f87171' }}>{xeroVoiding ? 'Removing…' : po.status === 'received' ? 'Void in Xero' : 'Delete from Xero'}</button>}
-          {xeroVoidResult === 'failed' && <span style={{ color:'#f87171' }}>{xeroVoidMsg}</span>}
+      ? <div style={{ display:'flex', flexDirection:'column', gap:4, padding:'5px 10px', background: xeroVoidResult === 'voided' ? 'rgba(251,191,36,.1)' : 'rgba(16,185,129,.1)', borderRadius:6, fontSize:11, marginBottom:6 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+            {xeroVoidResult === 'voided'
+              ? <span style={{ color:'#fbbf24', fontWeight:700 }}>✕ Removed from Xero</span>
+              : <span style={{ color:'#34d399', fontWeight:700 }}>✓ Synced to Xero</span>}
+            {xeroAt && <span style={{ color:'var(--sv-text-dim)' }}>{xeroAt}</span>}
+            {xeroId && <span style={{ color:'var(--sv-text-dim)', fontFamily:'monospace', fontSize:10 }}>{xeroId.slice(0,8)}…</span>}
+            {xeroId && <a href={`https://go.xero.com/AccountsPayable/View.aspx?InvoiceID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color:'var(--sv-mint)' }}>View Bill ↗</a>}
+            {xeroId && xeroVoidResult !== 'voided' && <button onClick={doXeroVoid} disabled={xeroVoiding} style={{ background:'none', border:'1px solid #f87171', borderRadius:4, cursor:'pointer', padding:'2px 8px', fontSize:11, color:'#f87171' }}>{xeroVoiding ? 'Removing…' : po.status === 'received' ? 'Void in Xero' : 'Delete from Xero'}</button>}
+            {xeroVoidResult === 'failed' && <span style={{ color:'#f87171' }}>{xeroVoidMsg}</span>}
+          </div>
+          {xeroBillFetching && !xeroBillDetails && xeroVoidResult !== 'voided' && (
+            <span style={{ fontSize:10, color:'var(--sv-text-dim)' }}>Loading Xero details…</span>
+          )}
+          {xeroBillDetails && xeroVoidResult !== 'voided' && (
+            <div style={{ display:'flex', gap:12, fontSize:10.5, color:'var(--sv-text-dim)' }}>
+              {xeroBillDetails.invoiceNumber && <span>Bill #: <strong style={{ color:'var(--sv-text-main)' }}>{xeroBillDetails.invoiceNumber}</strong></span>}
+              {xeroBillDetails.total !== null && <span>Xero Total: <strong style={{ color:'var(--sv-text-main)' }}>{fmtCurrency(xeroBillDetails.total)}</strong></span>}
+            </div>
+          )}
+          {xeroBillDetails && xeroBillDetails.total !== null && xeroVoidResult !== 'voided' && Math.abs(xeroBillDetails.total - Number(po.total_amount || 0)) > 0.01 && (
+            <div style={{ background:'rgba(251,191,36,.15)', border:'1px solid rgba(251,191,36,.6)', borderRadius:4, padding:'5px 8px', fontSize:11, color:'var(--sv-text-main)', lineHeight:1.5 }}>
+              ⚠ <strong>Total mismatch:</strong> IMS PO #{po.po_number} total is {fmtCurrency(Number(po.total_amount || 0))} but the linked Xero bill shows {fmtCurrency(xeroBillDetails.total)}. This can happen if the PO was edited after the Xero bill was approved. Please contact your bookkeeper with these details.
+            </div>
+          )}
         </div>
       : xeroStatus === 'queued' || xeroStatus === 'error'
         ? <div style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 10px', background:'rgba(251,191,36,.1)', borderRadius:6, fontSize:11, marginBottom:6 }}>
