@@ -26,9 +26,10 @@ export async function GET() {
       business_name: settings['business_name'] || '',
       business_address: settings['business_address'] || '',
       business_abn: settings['business_abn'] || '',
-      pos_receipt_footer: settings['pos_receipt_footer'] || ''
+      pos_receipt_footer: settings['pos_receipt_footer'] || '',
+      gift_receipt_message: settings['gift_receipt_message'] || ''
     });
   } catch (err: any) {
-    return NextResponse.json({ business_name: '', business_address: '', business_abn: '', pos_receipt_footer: '' });
+    return NextResponse.json({ business_name: '', business_address: '', business_abn: '', pos_receipt_footer: '', gift_receipt_message: '' });
   }
 }

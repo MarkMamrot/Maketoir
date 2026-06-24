@@ -78,5 +78,6 @@ export interface CompletedSale {
   total:         number;
   customer_name?: string | null;
   customer_phone?: string | null;
+  notes?: string | null;
   created_at:    string;
 }

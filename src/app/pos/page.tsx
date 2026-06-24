@@ -446,6 +446,8 @@ function MainPos({
   const [isReturn, setIsReturn] = useState(false);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [saleNotes, setSaleNotes] = useState('');
+  const [lastSale, setLastSale] = useState<CompletedSale | null>(null);
   const [isLayby, setIsLayby] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
@@ -629,6 +631,7 @@ function MainPos({
     setCart([]);
     setCustomerName('');
     setCustomerPhone('');
+    setSaleNotes('');
     setIsLayby(false);
     setIsReturn(false);
     saveCurrentCart([]);
@@ -679,6 +682,7 @@ function MainPos({
         status:         isLayby ? 'layby_active' : 'completed',
         customer_name:  customerName || null,
         customer_phone: customerPhone || null,
+        notes:          saleNotes || null,
         subtotal, discount_total, tax_total, total,
         items:    cart.map(i => ({ variant_id: i.variant_id, code: i.code, name: i.name, qty: i.qty, unit_price: i.unit_price, original_price: i.original_price, discount_type: i.discount_type, discount_value: i.discount_value, discount_amount: i.discount_amount, tax_rate: i.tax_rate, line_total: i.line_total })),
         payments: payments.map(p => ({ payment_method: p.method, amount: p.amount, reference: p.reference || null })),
@@ -718,6 +722,7 @@ function MainPos({
         created_at:    now,
       };
 
+      setLastSale(completedSale);
       clearCart();
       setShowPayment(false);
       onReceipt(completedSale);
@@ -754,11 +759,11 @@ function MainPos({
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--sv-bg-0)', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', padding: '.4rem 1rem', borderBottom: '1px solid var(--sv-etch)', gap: '.5rem', flexShrink: 0 }}>
-        <span style={{ fontWeight: 700, color: 'var(--sv-action)', fontSize: '1rem', letterSpacing: -.2 }}>🛒 POS</span>
-        <span style={{ color: 'var(--sv-text-strong)', fontSize: '.9rem', fontWeight: 600 }}>{session.location_name}</span>
-        {session.register_name && <span style={{ color: 'var(--sv-text-dim)', fontSize: '.82rem' }}>· {session.register_name}</span>}
-        <span style={{ color: 'var(--sv-text-dim)', fontSize: '.82rem' }}>· {session.full_name}</span>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '.6rem 1rem', borderBottom: '1px solid var(--sv-etch)', gap: '.5rem', flexShrink: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', marginRight: '.25rem' }}>
+          <span style={{ fontWeight: 700, color: 'var(--sv-action)', fontSize: '1rem', letterSpacing: -.2, lineHeight: 1.35 }}>🛒 POS {session.location_name}</span>
+          <span style={{ color: 'var(--sv-text-dim)', fontSize: '.73rem', lineHeight: 1.3 }}>{session.register_name ? `${session.register_name} · ` : ''}{session.full_name}</span>
+        </div>
         <div style={{ flex: 1 }} />
         {/* Online / Offline badge */}
         <span style={{ display: 'flex', alignItems: 'center', gap: '.3rem', padding: '.15rem .5rem', borderRadius: 99, background: isOnline ? 'rgba(74,222,128,.12)' : 'rgba(248,113,113,.12)', border: `1px solid ${isOnline ? 'rgba(74,222,128,.3)' : 'rgba(248,113,113,.3)'}`, fontSize: '.73rem', fontWeight: 600, color: isOnline ? '#4ade80' : '#f87171', flexShrink: 0 }}>
@@ -835,6 +840,12 @@ function MainPos({
         <button onClick={() => setScreen('parked')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>
           Parked {parkedSales.length > 0 ? `(${parkedSales.length})` : ''}
         </button>
+        <button
+          onClick={() => lastSale && onReceipt(lastSale)}
+          disabled={!lastSale}
+          title={lastSale ? 'Reprint last receipt' : 'No recent sale to reprint'}
+          style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: lastSale ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', border: '1px solid rgba(255,255,255,.18)', opacity: lastSale ? 1 : .45 }}
+        >🔁 Reprint</button>
         <button onClick={() => setScreen('eod')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>Register</button>
         <button onClick={() => setScreen('reports')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>Reports</button>
         <button
@@ -887,6 +898,11 @@ function MainPos({
             <input placeholder='Phone' value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} style={{ ...inputStyle, width: 110, marginBottom: 0, padding: '.35rem .5rem', fontSize: '.8rem' }} />
           </div>
 
+          {/* Order notes */}
+          <div style={{ padding: '0 .75rem .4rem' }}>
+            <input placeholder='Order notes (optional)' value={saleNotes} onChange={e => setSaleNotes(e.target.value)} style={{ ...inputStyle, width: '100%', marginBottom: 0, padding: '.35rem .5rem', fontSize: '.8rem', boxSizing: 'border-box' }} />
+          </div>
+
           {/* Cart items */}
           <div style={{ flex: 1, overflow: 'auto', padding: '.5rem .75rem' }}>
             {cart.length === 0 && (
@@ -924,7 +940,7 @@ function MainPos({
               </div>
             )}
             <div style={{ display: 'flex', gap: '.5rem', marginTop: '.75rem', flexDirection: 'column' }}>
-              <button onClick={clearCart} style={{ ...smallBtn, width: '100%', padding: '.55rem', fontSize: '.85rem' }} disabled={!cart.length}>Clear Cart</button>
+              <button onClick={clearCart} style={{ ...smallBtn, width: '100%', padding: '.55rem', fontSize: '.85rem', background: 'transparent', border: '1px solid rgba(248,113,113,.5)', color: '#ef4444', opacity: !cart.length ? 0.4 : 1 }} disabled={!cart.length}>Clear Cart</button>
               <button
                 onClick={() => { if (!mustOpenRegister) setShowPayment(true); }}
                 disabled={!cart.length || mustOpenRegister}
@@ -1338,9 +1354,14 @@ function CartRow({ item, onQty, onRemove, onDiscount, onPrice }: {
             style={{ width: 70, padding: '.2rem .3rem', background: 'var(--sv-bg-0)', border: '1px solid var(--sv-action)', borderRadius: 4, color: 'var(--sv-text-main)', fontSize: '.85rem' }}
           />
         ) : (
-          <button onClick={() => setEditPrice(true)} style={{ background: 'transparent', border: 'none', color: 'var(--sv-action)', cursor: 'pointer', fontSize: '.85rem', fontWeight: 600 }}>
-            ${fmt(item.unit_price)}
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+            {item.original_price != null && item.original_price !== item.unit_price && (
+              <span style={{ fontSize: '.65rem', color: 'var(--sv-text-muted)', textDecoration: 'line-through', lineHeight: 1, marginBottom: '.05rem' }}>${fmt(item.original_price)}</span>
+            )}
+            <button onClick={() => setEditPrice(true)} style={{ background: 'transparent', border: 'none', color: item.original_price != null && item.original_price !== item.unit_price ? '#fb923c' : 'var(--sv-action)', cursor: 'pointer', fontSize: '.85rem', fontWeight: 600, padding: 0 }}>
+              ${fmt(item.unit_price)}
+            </button>
+          </div>
         )}
 
         {/* Discount */}
@@ -1360,8 +1381,10 @@ function CartRow({ item, onQty, onRemove, onDiscount, onPrice }: {
             />
           </div>
         ) : (
-          <button onClick={() => setEditDisc(true)} style={{ background: 'transparent', border: 'none', color: item.discount_amount > 0 ? 'var(--sv-amber)' : 'var(--sv-text-muted)', cursor: 'pointer', fontSize: '.78rem' }}>
-            {item.discount_amount > 0 ? `-$${fmt(item.discount_amount)}` : 'disc.'}
+          <button onClick={() => setEditDisc(true)} style={{ background: item.discount_amount > 0 ? 'rgba(251,191,36,.15)' : 'transparent', border: item.discount_amount > 0 ? '1px solid rgba(251,191,36,.4)' : '1px solid transparent', borderRadius: 4, color: item.discount_amount > 0 ? 'var(--sv-amber)' : 'var(--sv-text-muted)', cursor: 'pointer', fontSize: '.75rem', padding: '.15rem .35rem', fontWeight: item.discount_amount > 0 ? 600 : 400, lineHeight: 1.2, whiteSpace: 'nowrap' }}>
+            {item.discount_amount > 0
+              ? `${item.discount_type === 'percent' ? `${item.discount_value}%` : `$${fmt(item.discount_value)} off`} · −$${fmt(item.discount_amount)}`
+              : '+ Disc.'}
           </button>
         )}
 
@@ -1582,12 +1605,31 @@ interface ReceiptPrintSettings {
   business_address: string;
   business_abn: string;
   pos_receipt_footer: string;
+  gift_receipt_message?: string;
 }
 
 function ReceiptScreen({ sale, onClose, printSettings }: { sale: CompletedSale; onClose: () => void; printSettings?: ReceiptPrintSettings }) {
+  const [printMode, setPrintMode] = useState<'normal' | 'gift'>('normal');
+
+  const handlePrint = () => { setPrintMode('normal'); window.print(); };
+  const handleGiftPrint = () => {
+    setPrintMode('gift');
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      window.addEventListener('afterprint', () => setPrintMode('normal'), { once: true });
+      window.print();
+    }));
+  };
+
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui,sans-serif' }}>
-      <style>{`
+    <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', paddingTop: '2rem', paddingBottom: '2rem', fontFamily: 'system-ui,sans-serif', gap: '1.5rem' }}>
+      <style>{printMode === 'gift' ? `
+        @media print {
+          body * { visibility: hidden !important; }
+          .pos-gift-receipt-wrapper, .pos-gift-receipt-wrapper * { visibility: visible !important; }
+          .pos-gift-receipt-wrapper { position: fixed !important; top: 0 !important; left: 0 !important; box-shadow: none !important; background: #fff !important; color: #000 !important; width: 80mm !important; padding: 4mm !important; border-radius: 0 !important; }
+          .no-print { display: none !important; }
+        }
+      ` : `
         @media print {
           body * { visibility: hidden !important; }
           .pos-receipt-wrapper, .pos-receipt-wrapper * { visibility: visible !important; }
@@ -1596,76 +1638,112 @@ function ReceiptScreen({ sale, onClose, printSettings }: { sale: CompletedSale; 
         }
       `}</style>
 
-      <div className='pos-receipt-wrapper' style={{ background: '#fff', color: '#000', width: 300, padding: '1.5rem', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,.4)', fontFamily: 'monospace' }}>
-        <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
-          <div style={{ fontWeight: 700, fontSize: '1.2rem' }}>{printSettings?.business_name || 'Marketoir POS'}</div>
-          {(printSettings?.business_address || sale.location_name) && (
-            <div style={{ fontSize: '.8rem', color: '#555' }}>{printSettings?.business_address || sale.location_name}</div>
-          )}
-          {printSettings?.business_abn && (
-            <div style={{ fontSize: '.8rem', color: '#555' }}>ABN: {printSettings.business_abn}</div>
-          )}
-          <br/>
-          <div style={{ fontSize: '.8rem', color: '#555' }}>
-            {new Date(sale.created_at).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' })}
-          </div>
-          <div style={{ fontSize: '.8rem', color: '#555' }}>Served by: {sale.cashier_name}</div>
-          {sale.customer_name && <div style={{ fontSize: '.85rem', fontWeight: 600, marginTop: '.25rem' }}>{sale.customer_name}</div>}
-          <div style={{ borderTop: '1px dashed #ccc', marginTop: '.5rem', paddingTop: '.5rem', fontSize: '.75rem', color: '#888' }}>
-            {sale.id ? `#${sale.id}` : `local:${sale.local_id.slice(-8)}`} — {sale.sale_type.toUpperCase()}
-          </div>
-        </div>
-        {/* Items */}
-        <div style={{ marginBottom: '.75rem', fontSize: '.8rem' }}>
-          {sale.items.map(i => (
-            <div key={i.localId} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.2rem' }}>
-              <span style={{ flex: 1, paddingRight: '.5rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {i.qty}x {i.name}
-              </span>
-              <span>${fmt(i.line_total)}</span>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ borderTop: '1px dashed #ccc', paddingTop: '.5rem', fontSize: '.85rem' }}>
-          {sale.discount_total > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#888' }}>
-              <span>Discount</span><span>-${fmt(sale.discount_total)}</span>
-            </div>
-          )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#555', fontSize: '.75rem' }}>
-            <span>GST included</span><span>${fmt(sale.tax_total)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '1rem', marginTop: '.25rem' }}>
-            <span>TOTAL</span><span>${fmt(sale.total)}</span>
-          </div>
-        </div>
-
-        {/* Payments */}
-        <div style={{ borderTop: '1px dashed #ccc', marginTop: '.5rem', paddingTop: '.5rem', fontSize: '.8rem' }}>
-          {sale.payments.map(p => (
-            <div key={p.localId} style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>{p.method}</span><span>${fmt(p.amount)}</span>
-            </div>
-          ))}
-          {(() => {
-            const paid = sale.payments.reduce((s, p) => s + p.amount, 0);
-            const change = paid - sale.total;
-            return change > 0.005 ? (
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#888' }}>
-                <span>Change</span><span>${fmt(change)}</span>
+      <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'flex-start' }}>
+        {/* Regular Receipt */}
+        <div>
+          <div className='no-print' style={{ textAlign: 'center', marginBottom: '.5rem', fontSize: '.72rem', color: 'var(--sv-text-dim)', fontFamily: 'system-ui,sans-serif', fontWeight: 600, letterSpacing: .6, textTransform: 'uppercase' }}>Receipt</div>
+          <div className='pos-receipt-wrapper' style={{ background: '#fff', color: '#000', width: 300, padding: '1.5rem', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,.4)', fontFamily: 'monospace' }}>
+            <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+              <div style={{ fontWeight: 700, fontSize: '1.2rem' }}>{printSettings?.business_name || 'Marketoir POS'}</div>
+              {(printSettings?.business_address || sale.location_name) && (
+                <div style={{ fontSize: '.8rem', color: '#555' }}>{printSettings?.business_address || sale.location_name}</div>
+              )}
+              {printSettings?.business_abn && (
+                <div style={{ fontSize: '.8rem', color: '#555' }}>ABN: {printSettings.business_abn}</div>
+              )}
+              <br/>
+              <div style={{ fontSize: '.8rem', color: '#555' }}>
+                {new Date(sale.created_at).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' })}
               </div>
-            ) : null;
-          })()}
+              <div style={{ fontSize: '.8rem', color: '#555' }}>Served by: {sale.cashier_name}</div>
+              {sale.customer_name && <div style={{ fontSize: '.85rem', fontWeight: 600, marginTop: '.25rem' }}>{sale.customer_name}</div>}
+              <div style={{ borderTop: '1px dashed #ccc', marginTop: '.5rem', paddingTop: '.5rem', fontSize: '.75rem', color: '#888' }}>
+                {sale.id ? `#${sale.id}` : `local:${sale.local_id.slice(-8)}`} — {sale.sale_type.toUpperCase()}
+              </div>
+            </div>
+            {/* Items */}
+            <div style={{ marginBottom: '.75rem', fontSize: '.8rem' }}>
+              {sale.items.map(i => (
+                <div key={i.localId} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.2rem' }}>
+                  <span style={{ flex: 1, paddingRight: '.5rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {i.qty}x {i.name}
+                  </span>
+                  <span>${fmt(i.line_total)}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ borderTop: '1px dashed #ccc', paddingTop: '.5rem', fontSize: '.85rem' }}>
+              {sale.discount_total > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#888' }}>
+                  <span>Discount</span><span>-${fmt(sale.discount_total)}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#555', fontSize: '.75rem' }}>
+                <span>GST included</span><span>${fmt(sale.tax_total)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '1rem', marginTop: '.25rem' }}>
+                <span>TOTAL</span><span>${fmt(sale.total)}</span>
+              </div>
+            </div>
+            {/* Payments */}
+            <div style={{ borderTop: '1px dashed #ccc', marginTop: '.5rem', paddingTop: '.5rem', fontSize: '.8rem' }}>
+              {sale.payments.map(p => (
+                <div key={p.localId} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>{p.method}</span><span>${fmt(p.amount)}</span>
+                </div>
+              ))}
+              {(() => {
+                const paid = sale.payments.reduce((s, p) => s + p.amount, 0);
+                const change = paid - sale.total;
+                return change > 0.005 ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#888' }}>
+                    <span>Change</span><span>${fmt(change)}</span>
+                  </div>
+                ) : null;
+              })()}
+            </div>
+            <div style={{ textAlign: 'center', marginTop: '1rem', fontSize: '.75rem', color: '#888', whiteSpace: 'pre-wrap' }}>
+              {printSettings?.pos_receipt_footer || 'Thank you for your purchase!'}
+            </div>
+          </div>
+          <div className='no-print' style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
+            <button onClick={handlePrint} style={{ ...primaryBtn, padding: '.6rem 1.5rem' }}>🖨 Print Receipt</button>
+          </div>
         </div>
 
-        <div style={{ textAlign: 'center', marginTop: '1rem', fontSize: '.75rem', color: '#888', whiteSpace: 'pre-wrap' }}>
-          {printSettings?.pos_receipt_footer || 'Thank you for your purchase!'}
+        {/* Gift Receipt */}
+        <div>
+          <div className='no-print' style={{ textAlign: 'center', marginBottom: '.5rem', fontSize: '.72rem', color: 'var(--sv-text-dim)', fontFamily: 'system-ui,sans-serif', fontWeight: 600, letterSpacing: .6, textTransform: 'uppercase' }}>Gift Receipt</div>
+          <div className='pos-gift-receipt-wrapper' style={{ background: '#fff', color: '#000', width: 300, padding: '1.5rem', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,.4)', fontFamily: 'monospace' }}>
+            <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+              <div style={{ fontWeight: 700, fontSize: '1.2rem' }}>{printSettings?.business_name || 'Marketoir POS'}</div>
+              {(printSettings?.business_address || sale.location_name) && (
+                <div style={{ fontSize: '.8rem', color: '#555' }}>{printSettings?.business_address || sale.location_name}</div>
+              )}
+              <div style={{ marginTop: '.5rem', fontSize: '.95rem', fontWeight: 700 }}>🎁 Gift Receipt</div>
+              <div style={{ fontSize: '.8rem', color: '#555' }}>
+                {new Date(sale.created_at).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' })}
+              </div>
+            </div>
+            {/* Items — no prices */}
+            <div style={{ fontSize: '.85rem', borderTop: '1px dashed #ccc', paddingTop: '.75rem', marginBottom: '.75rem' }}>
+              {sale.items.map(i => (
+                <div key={i.localId} style={{ marginBottom: '.35rem' }}>
+                  {Math.abs(i.qty)}× {i.name}
+                </div>
+              ))}
+            </div>
+            <div style={{ textAlign: 'center', marginTop: '.75rem', fontSize: '.8rem', color: '#666', borderTop: '1px dashed #ccc', paddingTop: '.75rem', whiteSpace: 'pre-wrap', fontStyle: 'italic' }}>
+              {printSettings?.gift_receipt_message || 'We hope this gift brings you joy and happiness!'}
+            </div>
+          </div>
+          <div className='no-print' style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
+            <button onClick={handleGiftPrint} style={{ ...smallBtn, padding: '.6rem 1.5rem' }}>🎁 Print Gift Receipt</button>
+          </div>
         </div>
       </div>
 
-      <div className='no-print' style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
-        <button onClick={() => window.print()} style={{ ...primaryBtn, padding: '.6rem 1.5rem' }}>🖨 Print Receipt</button>
+      <div className='no-print'>
         <button onClick={onClose} style={{ ...smallBtn, padding: '.6rem 1.5rem' }}>New Sale</button>
       </div>
     </div>
