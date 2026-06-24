@@ -6780,8 +6780,37 @@ function XeroView({ businessId }: { businessId: string }) {
 }
 
 function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId: () => string }) {
-  const tokenExpiry = status?.tokenExpiry ? new Date(status.tokenExpiry) : null;
-  const isExpired = tokenExpiry && tokenExpiry.getTime() < Date.now();
+  const [tokenExpiry, setTokenExpiry] = React.useState<Date | null>(
+    status?.tokenExpiry ? new Date(status.tokenExpiry) : null
+  );
+  const [testing, setTesting] = React.useState(false);
+  const [testResult, setTestResult] = React.useState<{ ok: boolean; message: string } | null>(null);
+
+  const lastRefreshed = tokenExpiry ? tokenExpiry.toLocaleString() : null;
+
+  const handleTestConnection = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch('/api/xero/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId: getBusinessId() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        const newExp = data.newExpiry ? new Date(data.newExpiry) : null;
+        setTokenExpiry(newExp);
+        setTestResult({ ok: true, message: `Connection verified. Token valid until ${newExp?.toLocaleString() ?? 'unknown'}.` });
+      } else {
+        setTestResult({ ok: false, message: data.error ?? 'Refresh failed. You may need to reconnect to Xero.' });
+      }
+    } catch (e: any) {
+      setTestResult({ ok: false, message: 'Network error: ' + e.message });
+    } finally {
+      setTesting(false);
+    }
+  };
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, maxWidth: 800 }}>
@@ -6790,23 +6819,55 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
         <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Connection</h3>
         <div style={{ fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 2 }}>
           <div><strong>Organisation:</strong> {status.tenantName}</div>
-          <div><strong>Token Status:</strong> <span style={{ color: isExpired ? '#f87171' : '#34d399' }}>{isExpired ? 'Expired' : 'Valid'}</span></div>
-          {tokenExpiry && <div><strong>Token Expires:</strong> {tokenExpiry.toLocaleString()}</div>}
+          <div><strong>Status:</strong> <span style={{ color: '#34d399' }}>Connected</span></div>
+          {lastRefreshed && (
+            <div style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>
+              Access token last issued: {lastRefreshed}
+              <span style={{ marginLeft: 6, color: 'var(--sv-text-muted,#666)', fontSize: 11 }}>(auto-refreshes on next sync)</span>
+            </div>
+          )}
         </div>
-        <button
-          onClick={() => {
-            if (confirm('Disconnect from Xero? This will stop all syncing.')) {
-              fetch('/api/xero/disconnect', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ databaseId: getBusinessId() }),
-              }).then(() => window.location.reload());
-            }
-          }}
-          style={{ marginTop: 14, padding: '6px 14px', background: 'rgba(248,113,113,.15)', color: '#f87171', border: '1px solid rgba(248,113,113,.3)', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
-        >
-          Disconnect
-        </button>
+        {testResult && (
+          <div style={{
+            marginTop: 10, padding: '8px 12px', borderRadius: 6, fontSize: 12,
+            background: testResult.ok ? 'rgba(16,185,129,.1)' : 'rgba(248,113,113,.1)',
+            color: testResult.ok ? '#34d399' : '#f87171',
+            border: `1px solid ${testResult.ok ? 'rgba(16,185,129,.3)' : 'rgba(248,113,113,.3)'}`,
+          }}>
+            {testResult.ok ? '✓' : '✗'} {testResult.message}
+          </div>
+        )}
+        {!testResult?.ok && testResult && (
+          <a
+            href={`/api/xero/connect?databaseId=${encodeURIComponent(getBusinessId())}`}
+            style={{ display: 'inline-block', marginTop: 8, padding: '6px 14px', background: 'var(--sv-action)', color: '#fff', borderRadius: 6, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}
+          >
+            Reconnect to Xero
+          </a>
+        )}
+        <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+          <button
+            onClick={handleTestConnection}
+            disabled={testing}
+            style={{ padding: '6px 14px', background: 'rgba(37,99,235,.15)', color: '#60a5fa', border: '1px solid rgba(37,99,235,.3)', borderRadius: 6, cursor: testing ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600, opacity: testing ? 0.7 : 1 }}
+          >
+            {testing ? 'Testing…' : 'Test Connection'}
+          </button>
+          <button
+            onClick={() => {
+              if (confirm('Disconnect from Xero? This will stop all syncing.')) {
+                fetch('/api/xero/disconnect', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ databaseId: getBusinessId() }),
+                }).then(() => window.location.reload());
+              }
+            }}
+            style={{ padding: '6px 14px', background: 'rgba(248,113,113,.15)', color: '#f87171', border: '1px solid rgba(248,113,113,.3)', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+          >
+            Disconnect
+          </button>
+        </div>
       </div>
 
       {/* Sync summary */}
@@ -11094,23 +11155,40 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
       <div style={{ padding: 32, maxWidth: 760 }}>
         <h2 style={h2}>Purchase Orders</h2>
         <p style={p}>Purchase Orders track stock ordered from suppliers. Each PO moves through a defined status lifecycle and integrates with Xero accounting.</p>
+
         <h3 style={h3}>Status lifecycle</h3>
         <ul style={ul}>
-          <li><strong>Draft</strong> — Created, not yet sent to supplier. No Xero action.</li>
-          <li><strong>Approved</strong> — PO approved for ordering. Triggers a <em>Draft Bill</em> in Xero (ACCPAY).</li>
-          <li><strong>Received</strong> — Goods received into stock. Xero bill moves to <em>Authorised</em>; if deposits were recorded, a journal transfers cost from <em>Inventory In Transit</em> to <em>Inventory Asset</em>.</li>
-          <li><strong>Closed</strong> — Fully processed. No further sync.</li>
+          <li><strong>Draft</strong> — Created, not yet sent to supplier. No stock impact. No Xero action.</li>
+          <li><strong>Approved</strong> — PO approved for ordering. Increments <em>qty_incoming</em> in stock. Triggers a <em>Draft Bill</em> in Xero (ACCPAY).</li>
+          <li><strong>Partially Received</strong> — Some items have been scanned in via the smart device receive page but the PO is not yet complete. Stock levels are updated per item as each receive session is saved. The Xero bill stays in <em>Draft</em> until fully received.</li>
+          <li><strong>Received</strong> — All goods received into stock. Xero bill moves to <em>Authorised</em>; if deposits were recorded, a journal transfers cost from <em>Inventory In Transit</em> to <em>Inventory Asset</em>.</li>
+          <li><strong>Cancelled</strong> — PO cancelled. Stock impacts are fully reversed. If a Xero bill exists, it is voided automatically.</li>
         </ul>
+
+        <h3 style={h3}>Partial receives &amp; backorder POs</h3>
+        <p style={p}>When receiving via the <strong>📱 Smart Device Receive</strong> page:</p>
+        <ul style={ul}>
+          <li><strong>Save Progress</strong> — Records the quantities scanned so far. The PO moves to <em>Partially Received</em> and the receive page reloads, showing updated counts. You can return and scan more items in multiple sessions.</li>
+          <li><strong>Mark as Received</strong> — Finalises the PO as fully received. If any items are short, you are prompted to create a <strong>Backorder PO</strong> for the missing stock.</li>
+          <li>Backorder POs are named <span style={code}>{'{original}-B'}</span> (e.g. <span style={code}>PO-2025-0042-B</span>) and start in <em>Draft</em> status, ready to approve and track separately.</li>
+          <li>You can also click <strong>Mark Received</strong> directly from the IMS PO list or view modal — this force-completes a partially received PO, processing the remaining unscanned items at their full ordered quantity.</li>
+        </ul>
+
+        <h3 style={h3}>Reverting a partially received PO</h3>
+        <p style={p}>From the PO view modal, <strong>Revert to Approved</strong> fully undoes all partial stock updates — <em>qty_on_hand</em> is decremented and <em>qty_incoming</em> is restored for each item received so far. No Xero action is taken (the original draft bill remains).</p>
+
         <h3 style={h3}>Freight treatment</h3>
         <p style={p}>Configurable in Settings → Purchase Orders:</p>
         <ul style={ul}>
           <li><strong>Expense (default)</strong> — Freight posts as a separate line to the mapped freight account; cost hits P&amp;L immediately on approval.</li>
           <li><strong>Capitalise</strong> — Freight is added to the inventory asset account, increasing the average landed cost of received stock.</li>
         </ul>
+
         <h3 style={h3}>Email &amp; PDF templates</h3>
-        <p style={p}>Email subject, body, and PDF terms are configurable in Settings → Purchase Orders. Template variables: <span style={code}>{'{{order_number}}'}</span> <span style={code}>{'{{contact_name}}'}</span> <span style={code}>{'{{total}}'}</span> <span style={code}>{'{{date}}'}</span></p>
+        <p style={p}>Email subject, body, and PDF terms are configurable in Settings → Purchase Orders. Template variables: <span style={code}>{'{{'+'order_number}}'}</span> <span style={code}>{'{{'+'contact_name}}'}</span> <span style={code}>{'{{'+'total}}'}</span> <span style={code}>{'{{'+'date}}'}</span></p>
+
         <h3 style={h3}>Landed costs</h3>
-        <p style={p}>Additional landed costs (customs, duties, brokerage) can be added to a PO after creation. These are factored into average cost calculations when freight treatment is set to Capitalise.</p>
+        <p style={p}>Additional landed costs (customs, duties, brokerage) can be added to a PO after creation. These are factored into average cost calculations on receive. Note: landed cost distribution applies when receiving via the IMS list; the smart device receive page uses a simplified cost update.</p>
       </div>
     );
 
@@ -11208,6 +11286,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <h3 style={h3}>What gets synced — trigger table</h3>
         <TriggerTable rows={[
           { trigger: 'PO status → Approved',          object: 'Bill (ACCPAY)',        status: 'DRAFT',        notes: 'One bill per PO; line items per SKU + optional freight line' },
+          { trigger: 'PO status → Partially Received', object: '(no action)',           status: '—',            notes: 'Bill remains in DRAFT; Xero is updated only on full receive' },
           { trigger: 'PO status → Received',          object: 'Bill (ACCPAY)',        status: 'AUTHORISED',   notes: 'Bill approved; if deposits exist, journal transfers In Transit → Inventory Asset' },
           { trigger: 'PO reverted or cancelled',      object: 'Bill (ACCPAY)',        status: 'VOIDED',       notes: 'Draft bill is voided automatically — safe because no payments can be on a draft bill' },
           { trigger: 'Payment added to PO',           object: 'Payment',              status: 'Applied',      notes: 'Applied to the Xero bill; bill approved if not already' },

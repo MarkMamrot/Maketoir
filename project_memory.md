@@ -112,3 +112,35 @@ Always read this file when starting a new session or implementing a feature to u
 * **Hosting moved to Railway** (not Vercel). Auto-deploys from `main` branch.
 * Two MySQL DBs on Railway: main (`MYSQL_DATABASE` — users, business config) and IMS (`IMS_MYSQL_DATABASE` — all POS/IMS tables).
 * Auth cookies: `marketoir_session` (admin/IMS), `pos_session` (POS cashier, 16-hr).
+
+---
+
+## 📦 IMS — Purchase Orders (2026-06-24)
+
+### Partial Receives & Backorder POs
+* `POStatus` type now includes `'partially_received'` (between `approved` and `received`).
+* Smart device `/receive` page has two submit buttons: **Save Progress** (partial, stays on page) and **Mark as Received** (finalise).
+* **Save Progress** sets PO to `partially_received`; items accumulate across multiple receive sessions.
+* **Mark as Received** with shortfall prompts user to create a **Backorder PO** for missing items.
+* Backorder POs named `{original}-B` (e.g. `PO-2025-0042-B`), falling back to `-B2`, `-B3`; start in `draft`.
+* From the IMS PO list, `partially_received` POs show: "Continue" (device link), "Mark Received", "Revert to Approved" (view context), "Cancel".
+* **Revert to Approved** from `partially_received`: fully reverses all stock updates (decrements `qty_on_hand`, restores `qty_incoming`, resets `qty_received = 0` per item).
+* **Cancel** from `partially_received`: reverses on-hand stock AND remaining incoming, then cancels.
+
+### Batch Receive API (`/api/ims/receive/batch`) — Bug fixes + new fields
+* **`qty_received` now accumulates** (`qty_received = qty_received + ?`) — multiple partial sessions are safe.
+* **`qty_incoming` is now decremented** on each item received (was missing before).
+* Returns `shortfallItems[]`, `newStatus`, `allReceived`, `backorderPoId`, `backorderPoNumber`.
+* Fires `triggerPOXeroSync(businessId, poId, 'received')` post-commit when PO is fully received.
+* Fires `refreshVariantCache` post-commit for all received variant IDs.
+
+### Xero on Revert/Cancel (2026-06-24)
+* **PO revert/cancel** → attempts to void the Xero Draft Bill (always safe — no payments on drafts).
+* **SO revert/cancel** → voids Xero Invoice only if `AmountPaid === 0`; if payments exist, returns a warning requiring manual Xero reconciliation.
+* Both operations are non-blocking; failures logged to `xero_sync_log` and surfaced as `xeroWarning` in the API response / UI alert.
+* PO route Xero dispatch is now explicit: `cancelled` → void, `draft` → void, `received` → approve bill, `approved`/`partially_received` → no Xero action (prevents duplicate draft bill on revert).
+
+### `changeStatus` transitions (ImsRepository.ts)
+* `partially_received → received`: processes only remaining items (qty_ordered − qty_received) with full landed cost + avg cost calculation.
+* `partially_received → approved`: reverses received stock, restores incoming, resets qty_received = 0.
+* `partially_received → cancelled`: reverses received stock + remaining incoming qty, resets qty_received = 0.
