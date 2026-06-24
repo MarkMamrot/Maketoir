@@ -8,7 +8,7 @@
 
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { ImsPORepo, ImsSORepo } from '@/lib/ims/ImsRepository';
-import { syncPOAsDraftBill, updateXeroDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOAsInvoice, updateXeroDraftInvoice, approveInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice } from '@/services/XeroSyncService';
+import { syncPOAsDraftBill, updateXeroDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOPayment, syncSOAsInvoice, updateXeroDraftInvoice, approveInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice } from '@/services/XeroSyncService';
 import { imsQuery } from '@/services/IMSMySQLService';
 
 /**
@@ -127,9 +127,49 @@ export async function triggerPOPaymentXeroSync(businessId: string, poId: number,
   await approveBill(businessId, xeroInvoiceId, poId);
 
   const payment = (po as any).payments?.find((p: any) => p.id === paymentId);
-  if (payment) {
-    await syncPOPayment(businessId, xeroInvoiceId, poId, payment.amount, payment.payment_date, payment.currency_code || 'AUD');
+  if (!payment) return;
+  // Look up xero_account_code from payment method — skip Xero payment if none set
+  if (!payment.payment_method_id) return;
+  const [method] = await imsQuery<{ xero_account_code: string }>(
+    'SELECT xero_account_code FROM ims_payment_methods WHERE id = ?',
+    [payment.payment_method_id],
+  );
+  if (!method?.xero_account_code) return;
+  await syncPOPayment(businessId, xeroInvoiceId, poId, payment.amount, payment.payment_date, payment.currency_code || 'AUD', method.xero_account_code);
+}
+
+/**
+ * Triggered when a payment is added to an SO.
+ * Ensures invoice exists and is approved, then records the payment in Xero.
+ */
+export async function triggerSOPaymentXeroSync(businessId: string, soId: number, paymentId: number): Promise<void> {
+  if (!await isXeroConnected(businessId)) return;
+
+  const so = await ImsSORepo.get(soId);
+  if (!so) return;
+
+  const payment = (so as any).payments?.find((p: any) => p.id === paymentId);
+  if (!payment) return;
+  // Skip Xero payment sync if no payment method is set
+  if (!payment.payment_method_id) return;
+  const [method] = await imsQuery<{ xero_account_code: string }>(
+    'SELECT xero_account_code FROM ims_payment_methods WHERE id = ?',
+    [payment.payment_method_id],
+  );
+  if (!method?.xero_account_code) return;
+
+  // Ensure invoice exists (and is approved) before applying payment
+  let xeroInvoiceId = (so as any).xero_invoice_id ?? null;
+  if (!xeroInvoiceId) {
+    xeroInvoiceId = await withRetry(
+      () => syncSOAsInvoice(businessId, so as any),
+      () => markSoXeroStatus(Number(soId), 'queued'),
+    );
   }
+  if (!xeroInvoiceId) return;
+  await approveInvoice(businessId, xeroInvoiceId, Number(soId));
+
+  await syncSOPayment(businessId, xeroInvoiceId, soId, payment.amount, payment.payment_date, payment.currency_code || 'AUD', method.xero_account_code);
 }
 
 /**

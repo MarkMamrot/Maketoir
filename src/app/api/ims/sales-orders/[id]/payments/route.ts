@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { ImsSORepo } from '@/lib/ims/ImsRepository';
+import { triggerSOPaymentXeroSync } from '@/lib/ims/xeroHooks';
+
+function getSession() {
+  const c = cookies().get('marketoir_session');
+  if (!c?.value) return null;
+  try { return JSON.parse(c.value); } catch { return null; }
+}
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -14,7 +22,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const body = await req.json();
-    const { payment_date, amount, currency_code, exchange_rate, notes } = body;
+    const { payment_date, amount, currency_code, exchange_rate, notes, payment_method_id } = body;
     if (!payment_date || !amount) {
       return NextResponse.json({ success: false, error: 'payment_date and amount are required' }, { status: 400 });
     }
@@ -33,7 +41,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       exchange_rate: parsedRate,
       amount_local: parsedAmount * parsedRate,
       notes: notes || undefined,
+      payment_method_id: payment_method_id ? Number(payment_method_id) : undefined,
     });
+
+    // Fire-and-forget Xero payment sync (skipped silently if no payment method set)
+    const session = getSession();
+    if (session?.businessId && payment?.id) {
+      triggerSOPaymentXeroSync(session.businessId, Number(params.id), payment.id).catch(() => {});
+    }
+
     return NextResponse.json({ success: true, data: payment });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });

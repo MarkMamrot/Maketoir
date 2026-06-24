@@ -2902,7 +2902,7 @@ function PurchaseOrdersView() {
   const [statusFilter, setStatusFilter] = useState('');
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [viewModal, setViewModal] = useState<{ open: boolean; po: any | null }>({ open: false, po: null });
-  const [poPayForm, setPoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string } | null>(null);
+  const [poPayForm, setPoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string; method: string } | null>(null);
   const [poFiles, setPoFiles] = useState<any[]>([]);
   const [poFileUploading, setPoFileUploading] = useState(false);
   const [suppliers, setSuppliers] = useState<any[]>([]);
@@ -2922,6 +2922,7 @@ function PurchaseOrdersView() {
   const [sortCol, setSortCol] = useState<string>('order_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const { settings } = useImsSettings();
   const load = useCallback(() => {
     setLoading(true);
@@ -2936,6 +2937,7 @@ function PurchaseOrdersView() {
     fetch('/api/ims/contacts?type=supplier&active=1').then(r => r.json()).then(d => { if (d.success) setSuppliers(d.data); });
     fetch('/api/ims/locations').then(r => r.json()).then(d => { if (d.success) setLocations(d.data); });
     fetch('/api/ims/variants').then(r => r.json()).then(d => { if (d.success) setVariants(d.data); });
+    fetch('/api/ims/payment-methods').then(r => r.json()).then(d => { if (d.success) setPaymentMethods(d.data); });
   }, []);
 
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((p: any) => ({ ...p, [k]: e.target.value }));
@@ -3081,7 +3083,7 @@ function PurchaseOrdersView() {
       await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}/payments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payment_date: poPayForm.date, amount: Number(poPayForm.amount), currency_code: currency, exchange_rate: rate, notes: poPayForm.notes || undefined }),
+        body: JSON.stringify({ payment_date: poPayForm.date, amount: Number(poPayForm.amount), currency_code: currency, exchange_rate: rate, notes: poPayForm.notes || undefined, payment_method_id: poPayForm.method ? Number(poPayForm.method) : undefined }),
       });
       setPoPayForm(null);
       await refreshPoView(viewModal.po.id);
@@ -3774,7 +3776,7 @@ function PurchaseOrdersView() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Payments</div>
                   {!poPayForm && (
-                    <button onClick={() => setPoPayForm({ date: today(), amount: '', rate: '1', notes: '' })} style={btnStyle('mint', 'xs')}>+ Add Payment</button>
+                    <button onClick={() => setPoPayForm({ date: today(), amount: '', rate: '1', notes: '', method: '' })} style={btnStyle('mint', 'xs')}>+ Add Payment</button>
                   )}
                 </div>
 
@@ -3831,6 +3833,13 @@ function PurchaseOrdersView() {
                       {isFx && poPayForm.amount && poPayForm.rate && (
                         <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', paddingBottom: 6 }}>≈ {fmtCurrency(Number(poPayForm.amount) * Number(poPayForm.rate))} AUD</div>
                       )}
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Payment Method</div>
+                        <select value={poPayForm.method} onChange={e => setPoPayForm(f => f ? { ...f, method: e.target.value } : f)} style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13, minWidth: 130 }}>
+                          <option value="">— None (no Xero sync) —</option>
+                          {paymentMethods.map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                        </select>
+                      </div>
                       <div style={{ flex: 1, minWidth: 120 }}>
                         <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Notes</div>
                         <input type="text" value={poPayForm.notes} onChange={e => setPoPayForm(f => f ? { ...f, notes: e.target.value } : f)} style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13 }} placeholder="Optional" />
@@ -4537,7 +4546,7 @@ function SalesOrdersView() {
   const [statusFilter, setStatusFilter] = useState('');
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [viewModal, setViewModal] = useState<{ open: boolean; so: any | null }>({ open: false, so: null });
-  const [soPayForm, setSoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string } | null>(null);
+  const [soPayForm, setSoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string; method: string } | null>(null);
   const [customers, setCustomers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [variants, setVariants] = useState<any[]>([]);
@@ -4552,6 +4561,7 @@ function SalesOrdersView() {
   const [sortCol, setSortCol] = useState<string>('order_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const { settings } = useImsSettings();
   const load = useCallback(() => {
     setLoading(true);
@@ -4566,6 +4576,7 @@ function SalesOrdersView() {
     fetch('/api/ims/contacts?type=customer&active=1').then(r => r.json()).then(d => { if (d.success) setCustomers(d.data); });
     fetch('/api/ims/locations').then(r => r.json()).then(d => { if (d.success) setLocations(d.data); });
     fetch('/api/ims/variants').then(r => r.json()).then(d => { if (d.success) setVariants(d.data); });
+    fetch('/api/ims/payment-methods').then(r => r.json()).then(d => { if (d.success) setPaymentMethods(d.data); });
   }, []);
 
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((p: any) => ({ ...p, [k]: e.target.value }));
@@ -4636,7 +4647,7 @@ function SalesOrdersView() {
       await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}/payments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payment_date: soPayForm.date, amount: Number(soPayForm.amount), currency_code: currency, exchange_rate: rate, notes: soPayForm.notes || undefined }),
+        body: JSON.stringify({ payment_date: soPayForm.date, amount: Number(soPayForm.amount), currency_code: currency, exchange_rate: rate, notes: soPayForm.notes || undefined, payment_method_id: soPayForm.method ? Number(soPayForm.method) : undefined }),
       });
       setSoPayForm(null);
       await refreshSoView(viewModal.so.id);
@@ -5109,7 +5120,7 @@ function SalesOrdersView() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Payments</div>
                   {!soPayForm && (
-                    <button onClick={() => setSoPayForm({ date: today(), amount: '', rate: '1', notes: '' })} style={btnStyle('mint', 'xs')}>+ Add Payment</button>
+                    <button onClick={() => setSoPayForm({ date: today(), amount: '', rate: '1', notes: '', method: '' })} style={btnStyle('mint', 'xs')}>+ Add Payment</button>
                   )}
                 </div>
 
@@ -5117,7 +5128,7 @@ function SalesOrdersView() {
                   <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 10, border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', fontSize: 13 }}>
                     <thead>
                       <tr style={{ background: 'var(--sv-bg-1)' }}>
-                        {(['Date', 'Amount', ...(isFx ? ['Rate', 'AUD'] : []), 'Notes', '']).map((h: string, idx: number) => (
+                        {(['Date', 'Amount', ...(isFx ? ['Rate', 'AUD'] : []), 'Method', 'Notes', '']).map((h: string, idx: number) => (
                           <th key={idx} style={{ padding: '5px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
                         ))}
                       </tr>
@@ -5129,6 +5140,7 @@ function SalesOrdersView() {
                           <td style={{ padding: '5px 10px', fontWeight: 600 }}>{fmtFx(p.amount, currency)}</td>
                           {isFx && <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{Number(p.exchange_rate).toFixed(4)}</td>}
                           {isFx && <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{fmtCurrency(p.amount_local)}</td>}
+                          <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{p.payment_method_name || '—'}</td>
                           <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.notes || '—'}</td>
                           <td style={{ padding: '5px 10px', textAlign: 'right' }}>
                             <button onClick={() => handleDeleteSoPayment(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>✕</button>
@@ -5166,6 +5178,13 @@ function SalesOrdersView() {
                       {isFx && soPayForm.amount && soPayForm.rate && (
                         <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', paddingBottom: 6 }}>≈ {fmtCurrency(Number(soPayForm.amount) * Number(soPayForm.rate))} AUD</div>
                       )}
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Payment Method</div>
+                        <select value={soPayForm.method} onChange={e => setSoPayForm(f => f ? { ...f, method: e.target.value } : f)} style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13, minWidth: 130 }}>
+                          <option value="">— None (no Xero sync) —</option>
+                          {paymentMethods.map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                        </select>
+                      </div>
                       <div style={{ flex: 1, minWidth: 120 }}>
                         <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Notes</div>
                         <input type="text" value={soPayForm.notes} onChange={e => setSoPayForm(f => f ? { ...f, notes: e.target.value } : f)} style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13 }} placeholder="Optional" />
@@ -7230,6 +7249,135 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
   );
 }
 
+function PaymentMethodsSection({ getBusinessId }: { getBusinessId: () => string }) {
+  const [methods, setMethods] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newForm, setNewForm] = useState<{ name: string; xero_account_code: string } | null>(null);
+  const [editForm, setEditForm] = useState<{ id: number; name: string; xero_account_code: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/ims/payment-methods').then(r => r.json());
+      if (res.success) setMethods(res.data);
+    } catch {}
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleCreate = async () => {
+    if (!newForm?.name?.trim()) return;
+    setSaving(true);
+    try {
+      await fetch('/api/ims/payment-methods', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newForm) });
+      setNewForm(null);
+      await load();
+    } catch {}
+    setSaving(false);
+  };
+
+  const handleUpdate = async () => {
+    if (!editForm) return;
+    setSaving(true);
+    try {
+      await fetch('/api/ims/payment-methods', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editForm) });
+      setEditForm(null);
+      await load();
+    } catch {}
+    setSaving(false);
+  };
+
+  const handleToggleActive = async (m: any) => {
+    try {
+      await fetch('/api/ims/payment-methods', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: m.id, is_active: !m.is_active }) });
+      await load();
+    } catch {}
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('Delete this payment method?')) return;
+    try {
+      await fetch(`/api/ims/payment-methods?id=${id}`, { method: 'DELETE' });
+      await load();
+    } catch {}
+  };
+
+  const inputSt = { padding: '6px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 13 };
+
+  return (
+    <div style={{ marginTop: 16, padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Payment Methods</h3>
+        {!newForm && <button onClick={() => setNewForm({ name: '', xero_account_code: '' })} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 5, background: 'var(--sv-mint,#0c9)', color: '#fff', border: 'none', cursor: 'pointer' }}>+ Add</button>}
+      </div>
+      <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
+        Map payment methods to Xero bank/clearing account codes. When a payment is recorded with a method, it is synced to Xero using that account. Payments with no method selected are saved locally only.
+      </p>
+      {loading ? <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading…</div> : (
+        <>
+          {methods.length > 0 && (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                  {['Name', 'Xero Account Code', 'Active', ''].map(h => (
+                    <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {methods.map(m => (
+                  <tr key={m.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                    {editForm?.id === m.id ? (
+                      <>
+                        <td style={{ padding: '6px 8px' }}><input value={editForm.name} onChange={e => setEditForm(f => f ? { ...f, name: e.target.value } : f)} style={{ ...inputSt, width: 140 }} /></td>
+                        <td style={{ padding: '6px 8px' }}><input value={editForm.xero_account_code} onChange={e => setEditForm(f => f ? { ...f, xero_account_code: e.target.value } : f)} style={{ ...inputSt, width: 120 }} placeholder="e.g. 090" /></td>
+                        <td />
+                        <td style={{ padding: '6px 8px', whiteSpace: 'nowrap' }}>
+                          <button onClick={handleUpdate} disabled={saving} style={{ marginRight: 6, fontSize: 12, padding: '3px 8px', borderRadius: 4, background: 'var(--sv-mint,#0c9)', color: '#fff', border: 'none', cursor: 'pointer' }}>Save</button>
+                          <button onClick={() => setEditForm(null)} style={{ fontSize: 12, padding: '3px 8px', borderRadius: 4, background: 'transparent', color: 'var(--sv-text-dim)', border: '1px solid var(--sv-etch)', cursor: 'pointer' }}>Cancel</button>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td style={{ padding: '6px 8px', color: m.is_active ? 'var(--sv-text-main)' : 'var(--sv-text-dim)' }}>{m.name}</td>
+                        <td style={{ padding: '6px 8px' }}><code style={{ fontSize: 12, color: 'var(--sv-mint)' }}>{m.xero_account_code || '—'}</code></td>
+                        <td style={{ padding: '6px 8px' }}>
+                          <button onClick={() => handleToggleActive(m)} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, border: 'none', cursor: 'pointer', background: m.is_active ? 'rgba(16,185,129,.15)' : 'rgba(156,163,175,.15)', color: m.is_active ? '#34d399' : '#9ca3af' }}>{m.is_active ? 'Active' : 'Inactive'}</button>
+                        </td>
+                        <td style={{ padding: '6px 8px', whiteSpace: 'nowrap' }}>
+                          <button onClick={() => setEditForm({ id: m.id, name: m.name, xero_account_code: m.xero_account_code })} style={{ marginRight: 6, fontSize: 12, padding: '3px 8px', borderRadius: 4, background: 'transparent', color: 'var(--sv-text-dim)', border: '1px solid var(--sv-etch)', cursor: 'pointer' }}>Edit</button>
+                          <button onClick={() => handleDelete(m.id)} style={{ fontSize: 12, padding: '3px 8px', borderRadius: 4, background: 'transparent', color: '#f87171', border: '1px solid rgba(248,113,113,.3)', cursor: 'pointer' }}>Delete</button>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {newForm && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', padding: '10px 12px', background: 'var(--sv-bg-1)', borderRadius: 6, border: '1px solid var(--sv-etch)' }}>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Name</div>
+                <input value={newForm.name} onChange={e => setNewForm(f => f ? { ...f, name: e.target.value } : f)} style={{ ...inputSt, width: 150 }} placeholder="e.g. Bank Transfer" autoFocus />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Xero Account Code</div>
+                <input value={newForm.xero_account_code} onChange={e => setNewForm(f => f ? { ...f, xero_account_code: e.target.value } : f)} style={{ ...inputSt, width: 130 }} placeholder="e.g. 090" />
+              </div>
+              <button onClick={handleCreate} disabled={saving || !newForm.name.trim()} style={{ padding: '6px 14px', borderRadius: 5, background: 'var(--sv-mint,#0c9)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13 }}>Add</button>
+              <button onClick={() => setNewForm(null)} style={{ padding: '6px 10px', borderRadius: 5, background: 'transparent', color: 'var(--sv-text-dim)', border: '1px solid var(--sv-etch)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+            </div>
+          )}
+          {methods.length === 0 && !newForm && <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: 0 }}>No payment methods yet. Add one to enable Xero payment sync.</p>}
+        </>
+      )}
+    </div>
+  );
+}
+
 function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
   const [accounts, setAccounts] = useState<{ accountId: string; code: string; name: string; type: string; class: string }[]>([]);
   const [mappings, setMappings] = useState<Record<string, { xero_account_id: string; xero_account_code: string; xero_account_name: string }>>({});
@@ -7406,6 +7554,9 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
           <p style={{ margin: '12px 0 0', fontSize: 12, color: '#f87171' }}>No tracking categories found in Xero. Create them in Xero first.</p>
         )}
       </div>
+
+      {/* Payment Methods */}
+      <PaymentMethodsSection getBusinessId={getBusinessId} />
     </div>
   );
 }

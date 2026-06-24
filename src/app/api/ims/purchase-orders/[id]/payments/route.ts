@@ -22,7 +22,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const body = await req.json();
-    const { payment_date, amount, currency_code, exchange_rate, notes } = body;
+    const { payment_date, amount, currency_code, exchange_rate, notes, payment_method_id } = body;
     if (!payment_date || !amount) {
       return NextResponse.json({ success: false, error: 'payment_date and amount are required' }, { status: 400 });
     }
@@ -41,12 +41,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       exchange_rate: parsedRate,
       amount_local: parsedAmount * parsedRate,
       notes: notes || undefined,
+      payment_method_id: payment_method_id ? Number(payment_method_id) : undefined,
     });
 
     // Fire-and-forget Xero payment sync
     const session = getSession();
-    if (session?.userSpreadsheetId && payment?.id) {
-      triggerPOPaymentXeroSync(session.userSpreadsheetId, Number(params.id), payment.id).catch(() => {});
+    if (session?.businessId && payment?.id) {
+      triggerPOPaymentXeroSync(session.businessId, Number(params.id), payment.id).catch(() => {});
     }
 
     return NextResponse.json({ success: true, data: payment });

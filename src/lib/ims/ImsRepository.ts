@@ -70,6 +70,18 @@ export interface ImsPayment {
   exchange_rate: number;
   amount_local: number;
   notes?: string;
+  payment_method_id?: number;
+  payment_method_name?: string;
+  created_at?: string;
+}
+
+export interface ImsPaymentMethod {
+  id: number;
+  business_id: string;
+  name: string;
+  xero_account_code: string;
+  sort_order?: number;
+  is_active: boolean;
   created_at?: string;
 }
 
@@ -750,14 +762,14 @@ export const ImsPORepo = {
 
   async addPayment(
     poId: number,
-    data: { payment_date: string; amount: number; currency_code: string; exchange_rate: number; amount_local: number; notes?: string },
+    data: { payment_date: string; amount: number; currency_code: string; exchange_rate: number; amount_local: number; notes?: string; payment_method_id?: number },
   ): Promise<ImsPayment> {
     const res = await imsExecute(
-      `INSERT INTO ims_purchase_order_payments (po_id, payment_date, amount, currency_code, exchange_rate, amount_local, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [poId, data.payment_date, data.amount, data.currency_code, data.exchange_rate, data.amount_local, data.notes || null],
+      `INSERT INTO ims_purchase_order_payments (po_id, payment_date, amount, currency_code, exchange_rate, amount_local, notes, payment_method_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [poId, data.payment_date, data.amount, data.currency_code, data.exchange_rate, data.amount_local, data.notes || null, data.payment_method_id ?? null],
     );
-    const rows = await imsQuery<ImsPayment>(`SELECT * FROM ims_purchase_order_payments WHERE id = ?`, [res.insertId]);
+    const rows = await imsQuery<ImsPayment>(`SELECT p.*, pm.name AS payment_method_name FROM ims_purchase_order_payments p LEFT JOIN ims_payment_methods pm ON pm.id = p.payment_method_id WHERE p.id = ?`, [res.insertId]);
     return rows[0];
   },
 
@@ -1447,14 +1459,14 @@ export const ImsSORepo = {
 
   async addPayment(
     soId: number,
-    data: { payment_date: string; amount: number; currency_code: string; exchange_rate: number; amount_local: number; notes?: string },
+    data: { payment_date: string; amount: number; currency_code: string; exchange_rate: number; amount_local: number; notes?: string; payment_method_id?: number },
   ): Promise<ImsPayment> {
     const res = await imsExecute(
-      `INSERT INTO ims_sales_order_payments (so_id, payment_date, amount, currency_code, exchange_rate, amount_local, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [soId, data.payment_date, data.amount, data.currency_code, data.exchange_rate, data.amount_local, data.notes || null],
+      `INSERT INTO ims_sales_order_payments (so_id, payment_date, amount, currency_code, exchange_rate, amount_local, notes, payment_method_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [soId, data.payment_date, data.amount, data.currency_code, data.exchange_rate, data.amount_local, data.notes || null, data.payment_method_id ?? null],
     );
-    const rows = await imsQuery<ImsPayment>(`SELECT * FROM ims_sales_order_payments WHERE id = ?`, [res.insertId]);
+    const rows = await imsQuery<ImsPayment>(`SELECT p.*, pm.name AS payment_method_name FROM ims_sales_order_payments p LEFT JOIN ims_payment_methods pm ON pm.id = p.payment_method_id WHERE p.id = ?`, [res.insertId]);
     return rows[0];
   },
 
@@ -2596,5 +2608,50 @@ export const ImsPoFilesRepo = {
 
   async delete(fileId: number): Promise<void> {
     await imsExecute(`DELETE FROM ims_po_files WHERE id = ?`, [fileId]);
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Payment Methods
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const ImsPaymentMethodsRepo = {
+  async list(businessId: string): Promise<ImsPaymentMethod[]> {
+    return imsQuery<ImsPaymentMethod>(
+      'SELECT * FROM ims_payment_methods WHERE business_id = ? ORDER BY sort_order ASC, name ASC',
+      [businessId],
+    );
+  },
+
+  async listActive(businessId: string): Promise<ImsPaymentMethod[]> {
+    return imsQuery<ImsPaymentMethod>(
+      'SELECT * FROM ims_payment_methods WHERE business_id = ? AND is_active = 1 ORDER BY sort_order ASC, name ASC',
+      [businessId],
+    );
+  },
+
+  async create(businessId: string, data: { name: string; xero_account_code?: string; sort_order?: number }): Promise<ImsPaymentMethod> {
+    const res = await imsExecute(
+      'INSERT INTO ims_payment_methods (business_id, name, xero_account_code, sort_order, is_active) VALUES (?, ?, ?, ?, 1)',
+      [businessId, data.name, data.xero_account_code ?? '', data.sort_order ?? 0],
+    );
+    const rows = await imsQuery<ImsPaymentMethod>('SELECT * FROM ims_payment_methods WHERE id = ?', [(res as any).insertId]);
+    return rows[0];
+  },
+
+  async update(id: number, businessId: string, data: Partial<{ name: string; xero_account_code: string; sort_order: number; is_active: boolean }>): Promise<void> {
+    const fields: string[] = [];
+    const vals: any[] = [];
+    if (data.name !== undefined)               { fields.push('name = ?');               vals.push(data.name); }
+    if (data.xero_account_code !== undefined)  { fields.push('xero_account_code = ?');  vals.push(data.xero_account_code); }
+    if (data.sort_order !== undefined)         { fields.push('sort_order = ?');          vals.push(data.sort_order); }
+    if (data.is_active !== undefined)          { fields.push('is_active = ?');           vals.push(data.is_active ? 1 : 0); }
+    if (!fields.length) return;
+    vals.push(id, businessId);
+    await imsExecute(`UPDATE ims_payment_methods SET ${fields.join(', ')} WHERE id = ? AND business_id = ?`, vals);
+  },
+
+  async delete(id: number, businessId: string): Promise<void> {
+    await imsExecute('DELETE FROM ims_payment_methods WHERE id = ? AND business_id = ?', [id, businessId]);
   },
 };

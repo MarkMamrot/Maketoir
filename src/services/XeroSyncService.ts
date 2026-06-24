@@ -541,11 +541,11 @@ export async function syncPOPayment(
   amount: number,
   paymentDate: string,
   currencyCode: string = 'AUD',
+  xeroAccountCode: string,
 ): Promise<string | null> {
-  // We need a bank account to allocate the payment to.
-  // For now, Xero will use the default "Accounts Payable" flow.
   const payment = {
     Invoice: { InvoiceID: xeroInvoiceId },
+    Account: { Code: xeroAccountCode },
     Amount: amount,
     Date: paymentDate,
     CurrencyRate: 1,
@@ -558,6 +558,34 @@ export async function syncPOPayment(
     return paymentId;
   } catch (err: any) {
     await logSync(businessId, 'po_payment', poId, null, 'error', err.message);
+    return null;
+  }
+}
+
+export async function syncSOPayment(
+  businessId: string,
+  xeroInvoiceId: string,
+  soId: number,
+  amount: number,
+  paymentDate: string,
+  currencyCode: string = 'AUD',
+  xeroAccountCode: string,
+): Promise<string | null> {
+  const payment = {
+    Invoice: { InvoiceID: xeroInvoiceId },
+    Account: { Code: xeroAccountCode },
+    Amount: amount,
+    Date: paymentDate,
+    CurrencyRate: 1,
+  };
+
+  try {
+    const result = await xeroApiFetch(businessId, '/Payments', { method: 'POST', body: { Payments: [payment] } });
+    const paymentId = result.Payments?.[0]?.PaymentID ?? null;
+    await logSync(businessId, 'so_payment', soId, paymentId, 'success', `Payment $${amount} on ${paymentDate}`);
+    return paymentId;
+  } catch (err: any) {
+    await logSync(businessId, 'so_payment', soId, null, 'error', err.message);
     return null;
   }
 }
