@@ -3089,12 +3089,13 @@ function PurchaseOrdersView() {
     const labels: Record<string, string> = { approved: 'approve', received: 'mark as received', draft: 'revert to draft', cancelled: 'cancel' };
     if (!confirm(`${labels[status] || status} PO ${po.po_number}?`)) return;
     try {
-      await apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+      const res = await apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
       load();
       if (viewModal.open && viewModal.po?.id === po.id) {
         const d = await apiFetch(`/api/ims/purchase-orders/${po.id}`);
         setViewModal({ open: true, po: d.data });
       }
+      if (res?.xeroWarning) alert(`Xero notice:\n\n${res.xeroWarning}`);
     } catch (e: any) { alert(e.message); }
   };
 
@@ -4424,12 +4425,13 @@ function SalesOrdersView() {
     const labels: Record<string, string> = { confirmed: 'confirm', fulfilled: 'mark as fulfilled', draft: 'revert to draft', cancelled: 'cancel' };
     if (!confirm(`${labels[status] || status} SO ${so.so_number}?`)) return;
     try {
-      await apiFetch(`/api/ims/sales-orders/${so.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+      const res = await apiFetch(`/api/ims/sales-orders/${so.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
       load();
       if (viewModal.open && viewModal.so?.id === so.id) {
         const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);
         setViewModal({ open: true, so: d.data });
       }
+      if (res?.xeroWarning) alert(`Xero notice:\n\n${res.xeroWarning}`);
     } catch (e: any) { alert(e.message); }
   };
 
@@ -11202,8 +11204,10 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <TriggerTable rows={[
           { trigger: 'PO status → Approved',          object: 'Bill (ACCPAY)',        status: 'DRAFT',        notes: 'One bill per PO; line items per SKU + optional freight line' },
           { trigger: 'PO status → Received',          object: 'Bill (ACCPAY)',        status: 'AUTHORISED',   notes: 'Bill approved; if deposits exist, journal transfers In Transit → Inventory Asset' },
+          { trigger: 'PO reverted or cancelled',      object: 'Bill (ACCPAY)',        status: 'VOIDED',       notes: 'Draft bill is voided automatically — safe because no payments can be on a draft bill' },
           { trigger: 'Payment added to PO',           object: 'Payment',              status: 'Applied',      notes: 'Applied to the Xero bill; bill approved if not already' },
           { trigger: 'SO (wholesale) → Confirmed',    object: 'Invoice (ACCREC)',     status: 'AUTHORISED',   notes: 'Immediate sync; POS and online SOs are excluded from this flow' },
+          { trigger: 'SO reverted or cancelled',      object: 'Invoice (ACCREC)',     status: 'VOIDED',       notes: 'Voided automatically if no payments applied; warning shown if payments exist (manual action required)' },
           { trigger: 'Payment added to SO',           object: 'Payment',              status: 'Applied',      notes: 'Applied to the Xero invoice' },
           { trigger: 'Daily batch (manual/scheduled)',object: 'Invoice (ACCREC)',     status: 'AUTHORISED',   notes: 'One invoice per location per day for POS; one per day for online' },
           { trigger: 'Monthly COGS (manual)',         object: 'Manual Journal',       status: 'Posted',       notes: 'DR Cost of Goods Sold / CR Inventory Asset; one journal per branch' },

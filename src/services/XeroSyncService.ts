@@ -559,6 +559,83 @@ export async function syncSOAsInvoice(businessId: string, so: SOForSync): Promis
   }
 }
 
+// ─── Void Bill / Invoice ─────────────────────────────────────────────────────
+
+/**
+ * Void a Xero Bill (ACCPAY) by its InvoiceID.
+ * Safe for DRAFT bills — they cannot have payments, so voiding is always possible.
+ * Returns the xeroInvoiceId on success, null on failure (failure is logged).
+ */
+export async function voidXeroBill(
+  businessId: string,
+  xeroInvoiceId: string,
+  poId: number,
+): Promise<string | null> {
+  try {
+    const res = await xeroApiFetch(businessId, `/Invoices/${xeroInvoiceId}`, {
+      method: 'POST',
+      body: { Invoices: [{ InvoiceID: xeroInvoiceId, Status: 'VOIDED' }] },
+    });
+    const voided = res?.Invoices?.[0];
+    if (voided?.Status === 'VOIDED') {
+      await logSync(businessId, 'po_bill_void', poId, xeroInvoiceId, 'success', 'Bill voided');
+      return xeroInvoiceId;
+    }
+    await logSync(businessId, 'po_bill_void', poId, xeroInvoiceId, 'error', 'Void returned unexpected status');
+    return null;
+  } catch (e: any) {
+    await logSync(businessId, 'po_bill_void', poId, xeroInvoiceId, 'error', e.message);
+    return null;
+  }
+}
+
+/**
+ * Void a Xero Invoice (ACCREC) by its InvoiceID.
+ * First checks whether payments have been applied — only voids if the full amount is still outstanding.
+ * Returns { voided, hasPayments }.
+ */
+export async function voidXeroInvoice(
+  businessId: string,
+  xeroInvoiceId: string,
+  soId: number,
+): Promise<{ voided: boolean; hasPayments: boolean }> {
+  try {
+    const res = await xeroApiFetch(businessId, `/Invoices/${xeroInvoiceId}`);
+    const invoice = res?.Invoices?.[0];
+    if (!invoice) {
+      await logSync(businessId, 'so_invoice_void', soId, xeroInvoiceId, 'error', 'Invoice not found in Xero');
+      return { voided: false, hasPayments: false };
+    }
+
+    const amountDue = Number(invoice.AmountDue ?? 0);
+    const total = Number(invoice.Total ?? 0);
+    const hasPayments = total > 0 && amountDue < total;
+
+    if (hasPayments) {
+      await logSync(
+        businessId, 'so_invoice_void', soId, xeroInvoiceId, 'skipped',
+        `Invoice has payments applied (outstanding: ${amountDue}, total: ${total}) — manual void required`,
+      );
+      return { voided: false, hasPayments: true };
+    }
+
+    const voidRes = await xeroApiFetch(businessId, `/Invoices/${xeroInvoiceId}`, {
+      method: 'POST',
+      body: { Invoices: [{ InvoiceID: xeroInvoiceId, Status: 'VOIDED' }] },
+    });
+    const voided = voidRes?.Invoices?.[0];
+    if (voided?.Status === 'VOIDED') {
+      await logSync(businessId, 'so_invoice_void', soId, xeroInvoiceId, 'success', 'Invoice voided');
+      return { voided: true, hasPayments: false };
+    }
+    await logSync(businessId, 'so_invoice_void', soId, xeroInvoiceId, 'error', 'Void returned unexpected status');
+    return { voided: false, hasPayments: false };
+  } catch (e: any) {
+    await logSync(businessId, 'so_invoice_void', soId, xeroInvoiceId, 'error', e.message);
+    return { voided: false, hasPayments: false };
+  }
+}
+
 // ─── POS/Online Daily Batch → Summary Invoice ────────────────────────────────
 
 interface DailySalesBatch {

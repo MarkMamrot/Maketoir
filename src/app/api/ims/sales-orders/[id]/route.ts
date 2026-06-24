@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { ImsSORepo } from '@/lib/ims/ImsRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
-import { triggerSOXeroSync } from '@/lib/ims/xeroHooks';
+import { triggerSOXeroSync, triggerSOXeroVoid } from '@/lib/ims/xeroHooks';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -31,6 +31,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     const body = await req.json();
     const { items, status, ...soData } = body;
 
+    let xeroWarning: string | null = null;
     if (status) {
       const existing = await ImsSORepo.get(Number(params.id), businessId);
       if (!existing) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
@@ -44,8 +45,12 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         }
       }
 
-      // Fire-and-forget Xero sync on SO status change (confirmed → invoice)
-      triggerSOXeroSync(businessId, Number(params.id), status).catch(() => {});
+      // Await void for revert/cancel so warning can be returned; fire-and-forget for other transitions
+      if (status === 'draft' || status === 'cancelled') {
+        xeroWarning = await triggerSOXeroVoid(businessId, Number(params.id)).catch(() => null);
+      } else {
+        triggerSOXeroSync(businessId, Number(params.id), status).catch(() => {});
+      }
 
     } else {
       const existing = await ImsSORepo.get(Number(params.id), businessId);
@@ -60,7 +65,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         }
       }
     }
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, ...(xeroWarning ? { xeroWarning } : {}) });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

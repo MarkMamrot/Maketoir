@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { ImsPORepo } from '@/lib/ims/ImsRepository';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
-import { triggerPOXeroSync } from '@/lib/ims/xeroHooks';
+import { triggerPOXeroSync, triggerPOXeroVoid } from '@/lib/ims/xeroHooks';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -33,6 +33,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     const { items, status, ...poData } = body;
 
     // Handle status transition
+    let xeroWarning: string | null = null;
     if (status) {
       // Fetch freight treatment setting for this business
       let freightTreatment: 'expense' | 'capitalise' = 'expense';
@@ -55,8 +56,12 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         }
       }
 
-      // Fire-and-forget Xero sync on status change
-      triggerPOXeroSync(businessId, Number(params.id), status).catch(() => {});
+      // Await void for revert/cancel so warning can be returned; fire-and-forget for other transitions
+      if (status === 'draft' || status === 'cancelled') {
+        xeroWarning = await triggerPOXeroVoid(businessId, Number(params.id)).catch(() => null);
+      } else {
+        triggerPOXeroSync(businessId, Number(params.id), status).catch(() => {});
+      }
 
     } else {
       const existing = await ImsPORepo.get(Number(params.id), businessId);
@@ -72,7 +77,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         }
       }
     }
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, ...(xeroWarning ? { xeroWarning } : {}) });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

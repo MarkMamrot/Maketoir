@@ -8,7 +8,7 @@
 
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { ImsPORepo, ImsSORepo } from '@/lib/ims/ImsRepository';
-import { syncPOAsDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOAsInvoice, markPoXeroStatus, markSoXeroStatus } from '@/services/XeroSyncService';
+import { syncPOAsDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOAsInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice } from '@/services/XeroSyncService';
 import { query } from '@/services/MySQLService';
 
 /**
@@ -130,4 +130,72 @@ export async function triggerSOXeroSync(businessId: string, soId: number, newSta
     () => syncSOAsInvoice(businessId, so as any),
     () => markSoXeroStatus(Number(soId), 'queued'),
   );
+}
+
+/**
+ * Triggered when a PO is reverted (approved → draft) or cancelled.
+ * Voids the Xero Draft Bill if one exists.
+ * Non-blocking — returns a human-readable warning string if the void failed, null if successful or no bill existed.
+ */
+export async function triggerPOXeroVoid(businessId: string, poId: number): Promise<string | null> {
+  if (!await isXeroConnected(businessId)) return null;
+
+  const po = await ImsPORepo.get(poId);
+  if (!po) return null;
+
+  // Prefer stored xero_bill_id, fall back to sync_log
+  const storedXeroId = (po as any).xero_bill_id ?? null;
+  let xeroInvoiceId = storedXeroId;
+  if (!xeroInvoiceId) {
+    const logRows = await query(
+      `SELECT xero_id FROM xero_sync_log WHERE business_id = ? AND sync_type = 'po_bill' AND reference_id = ? AND status = 'success' AND xero_id IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
+      [businessId, poId],
+    );
+    xeroInvoiceId = logRows[0]?.xero_id ?? null;
+  }
+
+  if (!xeroInvoiceId) return null; // No Xero bill was ever created — nothing to void
+
+  const voided = await voidXeroBill(businessId, xeroInvoiceId, poId);
+  if (!voided) {
+    return `The Xero bill for PO ${(po as any).po_number} could not be voided automatically. Please void it manually in Xero.`;
+  }
+  // Clear the stored bill ID so it isn't re-used
+  await markPoXeroStatus(poId, 'synced', null);
+  return null;
+}
+
+/**
+ * Triggered when an SO is reverted (confirmed → draft) or cancelled.
+ * Voids the Xero Invoice if no payments have been applied.
+ * Returns a warning string if a manual Xero action is needed, null otherwise.
+ */
+export async function triggerSOXeroVoid(businessId: string, soId: number): Promise<string | null> {
+  if (!await isXeroConnected(businessId)) return null;
+
+  const so = await ImsSORepo.get(soId);
+  if (!so) return null;
+
+  const storedXeroId = (so as any).xero_invoice_id ?? null;
+  let xeroInvoiceId = storedXeroId;
+  if (!xeroInvoiceId) {
+    const logRows = await query(
+      `SELECT xero_id FROM xero_sync_log WHERE business_id = ? AND sync_type = 'so_invoice' AND reference_id = ? AND status = 'success' AND xero_id IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
+      [businessId, soId],
+    );
+    xeroInvoiceId = logRows[0]?.xero_id ?? null;
+  }
+
+  if (!xeroInvoiceId) return null; // No Xero invoice was ever created — nothing to void
+
+  const result = await voidXeroInvoice(businessId, xeroInvoiceId, soId);
+  if (result.hasPayments) {
+    return `⚠ The Xero invoice for SO ${(so as any).so_number} has payments applied and cannot be voided automatically. You must manually void or raise a credit note against it in Xero to keep your accounts accurate.`;
+  }
+  if (!result.voided) {
+    return `The Xero invoice for SO ${(so as any).so_number} could not be voided automatically. Please void it manually in Xero.`;
+  }
+  // Clear the stored invoice ID
+  await markSoXeroStatus(Number(soId), 'synced', null);
+  return null;
 }
