@@ -3167,7 +3167,8 @@ function PurchaseOrdersView() {
 
   const editPoWithWarn = (po: any, beforeAction?: () => void) => {
     if (po.status === 'received') {
-      showXeroWarnForReceived('edit', po, () => { beforeAction?.(); openEdit(po); });
+      beforeAction?.(); // close view modal before showing warning so it renders on top
+      showXeroWarnForReceived('edit', po, () => openEdit(po));
     } else {
       beforeAction?.();
       openEdit(po);
@@ -3176,8 +3177,8 @@ function PurchaseOrdersView() {
 
   const deletePoWithWarn = (po: any, beforeAction?: () => void) => {
     if (po.status === 'received') {
+      beforeAction?.(); // close view modal before showing warning so it renders on top
       showXeroWarnForReceived('delete', po, () => {
-        beforeAction?.();
         apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'DELETE' }).then(() => load()).catch((e: any) => alert(e.message));
       });
     } else {
@@ -4246,6 +4247,18 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
   const [xeroVoiding, setXeroVoiding] = useState(false);
   const [xeroVoidResult, setXeroVoidResult] = useState<'voided' | 'failed' | null>(null);
   const [xeroVoidMsg, setXeroVoidMsg] = useState<string | null>(null);
+  const [xeroBillDetails, setXeroBillDetails] = useState<{ invoiceNumber: string | null; total: number | null } | null>(null);
+  const [xeroBillFetching, setXeroBillFetching] = useState(false);
+  useEffect(() => {
+    const xid = so.xero_invoice_id as string | null;
+    if (!xid) { setXeroBillDetails(null); return; }
+    setXeroBillFetching(true);
+    fetch(`/api/ims/xero/invoice-details?soId=${so.id}`)
+      .then(r => r.json())
+      .then(d => setXeroBillDetails({ invoiceNumber: d.invoiceNumber ?? null, total: d.total ?? null }))
+      .catch(() => setXeroBillDetails(null))
+      .finally(() => setXeroBillFetching(false));
+  }, [so.xero_invoice_id, so.id]);
   const doXeroRetry = async () => {
     setXeroRetrying(true); setXeroRetried(null);
     try {
@@ -4275,6 +4288,8 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
             ? <span style={{ color:'#fbbf24', fontWeight:700 }}>✕ Voided in Xero</span>
             : <span style={{ color:'#34d399', fontWeight:700 }}>✓ Synced to Xero</span>}
           {xeroAt && <span style={{ color:'var(--sv-text-dim)' }}>{xeroAt}</span>}
+          {xeroBillDetails?.invoiceNumber && <span style={{ color:'var(--sv-text-dim)' }}>Invoice #: <strong>{xeroBillDetails.invoiceNumber}</strong></span>}
+          {xeroBillDetails?.total != null && <span style={{ color:'var(--sv-text-dim)' }}>Xero Total: {fmtCurrency(xeroBillDetails.total)}</span>}
           {xeroId && <span style={{ color:'var(--sv-text-dim)', fontFamily:'monospace', fontSize:10 }}>{xeroId.slice(0,8)}…</span>}
           {xeroId && <a href={`https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color:'var(--sv-mint)' }}>View Invoice ↗</a>}
           {xeroId && xeroVoidResult !== 'voided' && <button onClick={doXeroVoid} disabled={xeroVoiding} style={{ background:'none', border:'1px solid #f87171', borderRadius:4, cursor:'pointer', padding:'2px 8px', fontSize:11, color:'#f87171' }}>{xeroVoiding ? 'Voiding…' : 'Void in Xero'}</button>}
@@ -4342,6 +4357,11 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
         <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11 }}>hide ↑</button>
       </div>
       <XeroBadge />
+      {xeroBillDetails?.total != null && Math.abs(xeroBillDetails.total - Number(so.total_amount)) > 0.01 && (
+        <div style={{ padding:'6px 10px', background:'color-mix(in srgb, var(--sv-red,#e05) 10%, transparent)', border:'1px solid color-mix(in srgb, var(--sv-red,#e05) 30%, var(--sv-border,#444))', borderRadius:5, fontSize:11, color:'var(--sv-red,#e05)', marginBottom:6 }}>
+          ⚠ IMS total ({fmtCurrency(Number(so.total_amount))}) differs from Xero total ({fmtCurrency(xeroBillDetails.total)}) — Xero may need manual update.
+        </div>
+      )}
 
       {/* A – Line Revenue */}
       <div style={lbl}>A — Line Revenue {isFx ? `(${currency} → AUD @ ${rate.toFixed(4)})` : ''}</div>
@@ -4484,7 +4504,7 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
       {/* D – Xero Invoice */}
       <div style={lbl}>D — Xero Invoice (what will be sent)</div>
       <div style={{ ...dim, lineHeight: 1.7 }}>
-        <div><strong>Type:</strong> ACCREC (Accounts Receivable) · <strong>Status: <span style={{ color: 'var(--sv-mint,#0c9)' }}>AUTHORISED</span></strong> (posted immediately — not a draft) · <strong>Lines:</strong> Exclusive</div>
+        <div><strong>Type:</strong> ACCREC (Accounts Receivable) · <strong>Status: <span style={{ color: 'var(--sv-amber,#f90)' }}>DRAFT</span></strong> (on confirm) → <strong><span style={{ color: 'var(--sv-mint,#0c9)' }}>AUTHORISED</span></strong> (on fulfil) · <strong>Lines:</strong> Exclusive</div>
         <div><strong>Currency:</strong> {currency}{isFx ? ` · Xero fetches live rate at invoice date` : ''}</div>
         <div><strong>Contact:</strong> {so.customer_name || '—'} · <strong>Ref:</strong> {so.so_number}</div>
         <div>
@@ -4525,6 +4545,9 @@ function SalesOrdersView() {
   const [lineItems, setLineItems] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [soXeroWarnModal, setSoXeroWarnModal] = useState<{ action: 'edit' | 'delete'; so: any; onConfirm: () => void } | null>(null);
+  const [soXeroWarnBillNum, setSoXeroWarnBillNum] = useState<string | null>(null);
+  const [soXeroWarnFetching, setSoXeroWarnFetching] = useState(false);
   const [filterCustomer, setFilterCustomer] = useState('');
   const [sortCol, setSortCol] = useState<string>('order_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -4665,6 +4688,41 @@ function SalesOrdersView() {
     catch (e: any) { alert(e.message); }
   };
 
+  const showSoXeroWarnForFulfilled = (action: 'edit' | 'delete', so: any, onConfirm: () => void) => {
+    setSoXeroWarnModal({ action, so, onConfirm });
+    setSoXeroWarnBillNum(null);
+    if (so.xero_invoice_id) {
+      setSoXeroWarnFetching(true);
+      fetch(`/api/ims/xero/invoice-details?soId=${so.id}`)
+        .then(r => r.json())
+        .then(d => setSoXeroWarnBillNum(d.invoiceNumber ?? null))
+        .catch(() => {})
+        .finally(() => setSoXeroWarnFetching(false));
+    }
+  };
+
+  const editSoWithWarn = (so: any, beforeAction?: () => void) => {
+    if (so.status === 'fulfilled') {
+      beforeAction?.(); // close view modal before showing warning so it renders on top
+      showSoXeroWarnForFulfilled('edit', so, () => openEdit(so));
+    } else {
+      beforeAction?.();
+      openEdit(so);
+    }
+  };
+
+  const deleteSoWithWarn = (so: any, beforeAction?: () => void) => {
+    if (so.status === 'fulfilled') {
+      beforeAction?.(); // close view modal before showing warning so it renders on top
+      showSoXeroWarnForFulfilled('delete', so, () => {
+        apiFetch(`/api/ims/sales-orders/${so.id}`, { method: 'DELETE' }).then(() => load()).catch((e: any) => alert(e.message));
+      });
+    } else {
+      beforeAction?.();
+      handleDelete(so);
+    }
+  };
+
   const customerOptions = [...new Set(sos.map((s: any) => s.customer_name).filter(Boolean))].sort() as string[];
   const filteredSOs = sos.filter((s: any) => {
     if (statusFilter && s.status !== statusFilter) return false;
@@ -4749,7 +4807,7 @@ function SalesOrdersView() {
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{so.order_date?.slice(0, 10)}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(so.total_amount)}</td>
                   <td style={{ padding: '10px 12px' }}><StatusBadge status={so.status} /></td>
-                  <td style={{ padding: '10px 12px' }}><SOActions so={so} onEdit={() => openEdit(so)} onDelete={() => handleDelete(so)} onStatus={changeStatus} /></td>
+                  <td style={{ padding: '10px 12px' }}><SOActions so={so} onEdit={() => editSoWithWarn(so)} onDelete={() => deleteSoWithWarn(so)} onStatus={changeStatus} /></td>
                 </tr>
               ))}
             </tbody>
@@ -4892,11 +4950,53 @@ function SalesOrdersView() {
         />
       )}
 
+      {/* Xero warning modal for fulfilled SO edit/delete */}
+      {soXeroWarnModal && (
+        <Modal title="⚠️ Xero Manual Update Required" onClose={() => setSoXeroWarnModal(null)}>
+          <div style={{ padding: '4px 0 8px', lineHeight: 1.6 }}>
+            {soXeroWarnModal.action === 'edit' ? (
+              <p>This SO (<strong>{soXeroWarnModal.so.so_number}</strong>) is fulfilled. The Xero invoice is <strong>AUTHORISED</strong> and cannot be automatically updated. Any edits saved in IMS <strong>will not sync to Xero</strong> — Xero will need to be updated manually.</p>
+            ) : (
+              <p>Deleting <strong>{soXeroWarnModal.so.so_number}</strong> will only remove it from IMS. The corresponding Xero invoice will remain and may need to be manually voided.</p>
+            )}
+            <div style={{ background: 'color-mix(in srgb, var(--sv-amber) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sv-amber) 40%, var(--sv-border,#444))', borderRadius: 6, padding: '10px 14px', margin: '14px 0 6px' }}>
+              <div style={{ fontWeight: 600, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8, color: 'var(--sv-amber)' }}>Draft message for bookkeeper</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                {soXeroWarnFetching
+                  ? 'Loading Xero invoice details…'
+                  : soXeroWarnModal.action === 'edit'
+                    ? `Hi, just a heads up — ${soXeroWarnModal.so.so_number} in IMS has been updated. The corresponding Xero invoice${soXeroWarnBillNum ? ` (${soXeroWarnBillNum})` : ''} will need to be manually updated to reflect the changes.`
+                    : `Hi, just a heads up — ${soXeroWarnModal.so.so_number} in IMS has been deleted. The corresponding Xero invoice${soXeroWarnBillNum ? ` (${soXeroWarnBillNum})` : ''} may need to be manually voided in Xero.`
+                }
+              </div>
+              {!soXeroWarnFetching && (
+                <button
+                  onClick={() => {
+                    const msg = soXeroWarnModal.action === 'edit'
+                      ? `Hi, just a heads up — ${soXeroWarnModal.so.so_number} in IMS has been updated. The corresponding Xero invoice${soXeroWarnBillNum ? ` (${soXeroWarnBillNum})` : ''} will need to be manually updated to reflect the changes.`
+                      : `Hi, just a heads up — ${soXeroWarnModal.so.so_number} in IMS has been deleted. The corresponding Xero invoice${soXeroWarnBillNum ? ` (${soXeroWarnBillNum})` : ''} may need to be manually voided in Xero.`;
+                    navigator.clipboard.writeText(msg).catch(() => {});
+                  }}
+                  style={{ ...btnStyle('ghost', 'xs'), marginTop: 8 }}
+                >Copy message</button>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+              <button onClick={() => setSoXeroWarnModal(null)} style={btnStyle('ghost', 'sm')}>Cancel</button>
+              <button
+                onClick={() => { const fn = soXeroWarnModal.onConfirm; setSoXeroWarnModal(null); fn(); }}
+                style={btnStyle(soXeroWarnModal.action === 'delete' ? 'danger' : 'action', 'sm')}
+              >{soXeroWarnModal.action === 'delete' ? 'Delete Anyway' : 'Proceed to Edit'}</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {/* View SO detail modal */}
       {viewModal.open && viewModal.so && (
         <Modal title={`${viewModal.so.so_number} — ${viewModal.so.status}`} onClose={() => { setViewModal({ open: false, so: null }); setSoPayForm(null); }} wide>
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <SOActions so={viewModal.so} onEdit={() => { setViewModal({ open: false, so: null }); openEdit(viewModal.so); }} onDelete={() => { setViewModal({ open: false, so: null }); handleDelete(viewModal.so); }} onStatus={changeStatus} />
+            <SOActions so={viewModal.so} onEdit={() => editSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onDelete={() => deleteSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onStatus={changeStatus} />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <button
                 onClick={() => { window.open(`/api/ims/sales-orders/${viewModal.so.id}/pdf`, '_blank'); }}
@@ -5093,6 +5193,10 @@ function SOActions({ so, onEdit, onDelete, onStatus }: { so: any; onEdit: () => 
   if (so.status === 'draft')     { btns.push(<button key="c" onClick={() => onStatus(so, 'confirmed')} style={btnStyle('mint', 'xs')}>Confirm</button>); }
   if (so.status === 'confirmed') { btns.push(<button key="f" onClick={() => onStatus(so, 'fulfilled')} style={btnStyle('mint', 'xs')}>Fulfill</button>); }
   if (so.status === 'confirmed') { btns.push(<button key="b" onClick={() => onStatus(so, 'draft')}     style={btnStyle('ghost', 'xs')}>Revert</button>); }
+  if (so.status === 'fulfilled') {
+    btns.push(<button key="e" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>);
+    btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>);
+  }
   if (so.status !== 'fulfilled' && so.status !== 'cancelled') {
     btns.push(<button key="e" onClick={onEdit}  style={btnStyle('ghost', 'xs')}>Edit</button>);
     btns.push(<button key="x" onClick={() => onStatus(so, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
@@ -11522,17 +11626,23 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
 
         <h3 style={h3}>What gets synced — trigger table</h3>
         <TriggerTable rows={[
-          { trigger: 'PO status → Ordered',           object: 'Bill (ACCPAY)',        status: 'DRAFT',        notes: 'One bill per PO; line items per SKU + optional freight line' },
-          { trigger: 'PO status → Partially Received', object: '(no action)',           status: '—',            notes: 'Bill remains in DRAFT; Xero is updated only on full receive' },
+          { trigger: 'PO status → Ordered',           object: 'Bill (ACCPAY)',        status: 'DRAFT',        notes: 'One bill per PO; line items per SKU + optional freight line. Bill is updated automatically if you edit the PO before receiving.' },
+          { trigger: 'PO status → Partially Received', object: 'Bill (ACCPAY)',       status: 'DRAFT',        notes: 'Bill remains DRAFT and is re-synced on any edit. Approved only on full receive.' },
           { trigger: 'PO status → Received',          object: 'Bill (ACCPAY)',        status: 'AUTHORISED',   notes: 'Bill approved; if deposits exist, journal transfers In Transit → Inventory Asset' },
+          { trigger: 'PO received — edit or delete',  object: 'Bill (ACCPAY)',        status: 'Manual',       notes: '⚠️ Xero bill is AUTHORISED — changes do not auto-sync. A warning with a bookkeeper draft message is shown.' },
           { trigger: 'PO reverted or cancelled',      object: 'Bill (ACCPAY)',        status: 'VOIDED',       notes: 'Draft bill is voided automatically — safe because no payments can be on a draft bill' },
           { trigger: 'Payment added to PO',           object: 'Payment',              status: 'Applied',      notes: 'Applied to the Xero bill; bill approved if not already' },
-          { trigger: 'SO (wholesale) → Confirmed',    object: 'Invoice (ACCREC)',     status: 'AUTHORISED',   notes: 'Immediate sync; POS and online SOs are excluded from this flow' },
+          { trigger: 'SO (wholesale) → Confirmed',    object: 'Invoice (ACCREC)',     status: 'DRAFT',        notes: 'Created as DRAFT; auto-syncs on edit. Approved to AUTHORISED when SO is fulfilled.' },
+          { trigger: 'SO (wholesale) → Fulfilled',    object: 'Invoice (ACCREC)',     status: 'AUTHORISED',   notes: 'Invoice approved on fulfilment.' },
+          { trigger: 'SO fulfilled — edit or delete', object: 'Invoice (ACCREC)',     status: 'Manual',       notes: '⚠️ Xero invoice is AUTHORISED — changes do not auto-sync. A warning with a bookkeeper draft message is shown.' },
           { trigger: 'SO reverted or cancelled',      object: 'Invoice (ACCREC)',     status: 'VOIDED',       notes: 'Voided automatically if no payments applied; warning shown if payments exist (manual action required)' },
           { trigger: 'Payment added to SO',           object: 'Payment',              status: 'Applied',      notes: 'Applied to the Xero invoice' },
           { trigger: 'Daily batch (manual/scheduled)',object: 'Invoice (ACCREC)',     status: 'AUTHORISED',   notes: 'One invoice per location per day for POS; one per day for online' },
           { trigger: 'Monthly COGS (manual)',         object: 'Manual Journal',       status: 'Posted',       notes: 'DR Cost of Goods Sold / CR Inventory Asset; one journal per branch' },
         ]} />
+
+        <h3 style={h3}>PO Bill Due Date</h3>
+        <p style={p}>The <strong>Due Date</strong> on a Xero Bill is calculated as: <strong>Supplier Invoice Date + Payment Terms days</strong> (e.g. Supplier Invoice Date + 30 days for "30 days" terms). If no Supplier Invoice Date is set on the PO, the Order Date is used as the base. Set both <em>Supplier Invoice Date</em> and <em>Payment Terms</em> on the PO to get an accurate due date in Xero.</p>
 
         <h3 style={h3}>Account mappings</h3>
         <p style={p}>Five account roles must be mapped to accounts in your Xero chart of accounts. All are required for full sync functionality. If a required mapping is missing, the affected sync is skipped and logged as "skipped".</p>

@@ -331,14 +331,15 @@ interface POForSync {
 
 /** Calculate DueDate from supplier_invoice_date + payment_terms, falling back to expected_date / order_date. */
 function calcDueDate(po: POForSync): string {
-  if (po.supplier_invoice_date) {
-    const m = (po.payment_terms ?? '').match(/\d+/);
-    const days = m ? parseInt(m[0]) : 0;
-    const d = new Date(po.supplier_invoice_date);
+  const base = po.supplier_invoice_date || po.order_date;
+  const m = (po.payment_terms ?? '').match(/\d+/);
+  const days = m ? parseInt(m[0]) : 0;
+  if (days > 0) {
+    const d = new Date(base);
     d.setDate(d.getDate() + days);
     return d.toISOString().slice(0, 10);
   }
-  return po.expected_date || po.order_date;
+  return base;
 }
 
 /**
@@ -674,7 +675,7 @@ export async function syncSOAsInvoice(businessId: string, so: SOForSync): Promis
     Date: so.order_date,
     DueDate: so.expected_date || so.order_date,
     Reference: so.so_number,
-    Status: 'AUTHORISED',
+    Status: 'DRAFT',
     LineAmountTypes: 'Exclusive',
     CurrencyCode: so.currency_code || 'AUD',
     LineItems: lineItems,
@@ -690,6 +691,96 @@ export async function syncSOAsInvoice(businessId: string, so: SOForSync): Promis
     await logSync(businessId, 'so_invoice', so.id, null, 'error', err.message);
     // Status will be set to 'queued' by the hook after retry logic
     return null;
+  }
+}
+
+/**
+ * Update an existing DRAFT Invoice in Xero with the current SO data.
+ * Skips silently if the invoice is no longer DRAFT (e.g. already AUTHORISED).
+ */
+export async function updateXeroDraftInvoice(businessId: string, so: SOForSync, xeroId: string): Promise<boolean> {
+  const accounts = await getAccountMappings(businessId);
+  const trackingMappings = await getTrackingMappings(businessId);
+  const taxTypes = getTaxTypes(businessId);
+
+  if (!accounts.sales_revenue) {
+    await logSync(businessId, 'so_invoice', so.id, xeroId, 'skipped', 'No sales_revenue account mapped');
+    return false;
+  }
+
+  try {
+    const current = await xeroApiFetch(businessId, `/Invoices/${xeroId}`, { method: 'GET' });
+    const currentStatus = current.Invoices?.[0]?.Status;
+    if (currentStatus !== 'DRAFT') {
+      await logSync(businessId, 'so_invoice', so.id, xeroId, 'skipped', `Invoice is ${currentStatus ?? 'unknown'}, cannot update`);
+      return false;
+    }
+  } catch (err: any) {
+    await logSync(businessId, 'so_invoice', so.id, xeroId, 'error', `Failed to fetch invoice status: ${err.message}`);
+    return false;
+  }
+
+  const tracking = getTrackingForLocation(trackingMappings, so.location_id, 'wholesale');
+  const lineItems = (so.items ?? []).map(item => ({
+    Description: `${item.code || ''} ${item.name || ''}`.trim() || 'Sale',
+    Quantity: item.qty_ordered,
+    UnitAmount: item.unit_price,
+    DiscountRate: item.discount_pct || 0,
+    AccountCode: accounts.sales_revenue,
+    ...((item.tax_rate > 0 ? taxTypes.sales : taxTypes.exempt) ? { TaxType: item.tax_rate > 0 ? taxTypes.sales : taxTypes.exempt } : {}),
+    Tracking: tracking,
+  }));
+
+  if (so.freight && so.freight > 0) {
+    lineItems.push({
+      Description: 'Freight / Shipping',
+      Quantity: 1,
+      UnitAmount: so.freight,
+      DiscountRate: 0,
+      AccountCode: accounts.freight || accounts.sales_revenue,
+      ...(taxTypes.exempt ? { TaxType: taxTypes.exempt } : {}),
+      Tracking: tracking,
+    });
+  }
+
+  const invoice: any = {
+    InvoiceID: xeroId,
+    Type: 'ACCREC',
+    Contact: { Name: so.customer_name || `Customer #${so.customer_id}` },
+    Date: so.order_date,
+    DueDate: so.expected_date || so.order_date,
+    Reference: so.so_number,
+    Status: 'DRAFT',
+    LineAmountTypes: 'Exclusive',
+    CurrencyCode: so.currency_code || 'AUD',
+    LineItems: lineItems,
+  };
+
+  try {
+    await xeroApiFetch(businessId, `/Invoices/${xeroId}`, { method: 'POST', body: { Invoices: [invoice] } });
+    await logSync(businessId, 'so_invoice', so.id, xeroId, 'success', `Draft Invoice updated: ${so.so_number}`);
+    await markSoXeroStatus(so.id, 'synced', xeroId);
+    return true;
+  } catch (err: any) {
+    await logSync(businessId, 'so_invoice', so.id, xeroId, 'error', `Update failed: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * Approve a Xero ACCREC Invoice (set Status: AUTHORISED) — called when SO is fulfilled.
+ */
+export async function approveInvoice(businessId: string, xeroInvoiceId: string, soId: number): Promise<boolean> {
+  try {
+    await xeroApiFetch(businessId, `/Invoices/${xeroInvoiceId}`, {
+      method: 'POST',
+      body: { Invoices: [{ InvoiceID: xeroInvoiceId, Status: 'AUTHORISED' }] },
+    });
+    await logSync(businessId, 'so_invoice', soId, xeroInvoiceId, 'success', 'Invoice approved');
+    return true;
+  } catch (err: any) {
+    await logSync(businessId, 'so_invoice', soId, xeroInvoiceId, 'error', `Approve failed: ${err.message}`);
+    return false;
   }
 }
 

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { ImsSORepo } from '@/lib/ims/ImsRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
-import { triggerSOXeroSync, triggerSOXeroVoid } from '@/lib/ims/xeroHooks';
+import { triggerSOXeroSync, triggerSOXeroVoid, triggerSOXeroUpdate } from '@/lib/ims/xeroHooks';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -48,6 +48,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       // Await void for revert/cancel so warning can be returned; fire-and-forget for other transitions
       if (status === 'draft' || status === 'cancelled') {
         xeroWarning = await triggerSOXeroVoid(businessId, Number(params.id)).catch(() => null);
+      } else if (status === 'fulfilled') {
+        await triggerSOXeroSync(businessId, Number(params.id), 'fulfilled').catch(err => console.error('[Xero] SO invoice approve failed:', err));
       } else {
         triggerSOXeroSync(businessId, Number(params.id), status).catch(() => {});
       }
@@ -64,6 +66,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
           refreshVariantCache(vids).catch(err => console.error('Failed inline cache refresh for SO:', err));
         }
       }
+
+      // Sync edits to Xero if a Draft Invoice already exists
+      triggerSOXeroUpdate(businessId, Number(params.id)).catch(() => {});
     }
     return NextResponse.json({ success: true, ...(xeroWarning ? { xeroWarning } : {}) });
   } catch (e: any) {

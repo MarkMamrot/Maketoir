@@ -144,3 +144,41 @@ Always read this file when starting a new session or implementing a feature to u
 * `partially_received → received`: processes only remaining items (qty_ordered − qty_received) with full landed cost + avg cost calculation.
 * `partially_received → approved`: reverses received stock, restores incoming, resets qty_received = 0.
 * `partially_received → cancelled`: reverses received stock + remaining incoming qty, resets qty_received = 0.
+* `received → ordered`: reverses all received stock (qty_on_hand −= qty_received, qty_incoming += qty_received), inserts `po_unapproved` movements, resets qty_received = 0, clears received_date. Used for PO revert from received state.
+
+### PO Xero Sync Flow (as-built 2026-06-24)
+| Status | Xero Bill | Edit behaviour |
+|--------|-----------|----------------|
+| draft | — | No Xero |
+| ordered | DRAFT Bill | Auto-syncs DRAFT on edit (triggerPOXeroUpdate) |
+| partially_received | DRAFT Bill | Auto-syncs DRAFT on edit |
+| received | AUTHORISED | ⚠️ xeroWarnModal shown for edit/delete (bookkeeper message) |
+| cancelled | VOIDED | Edit/Delete allowed (no Xero) |
+
+* **PO Due Date in Xero**: `supplier_invoice_date + payment_terms_days`; falls back to `order_date + payment_terms_days`; then `order_date`. Set via `calcDueDate()` in XeroSyncService.ts.
+* **PO received edit/delete**: shows warning modal with draft bookkeeper message; Xero NOT auto-synced (AUTHORISED bills can't be updated via API).
+* `triggerPOXeroUpdate` — updates DRAFT bill on PO edit; silently skips if AUTHORISED.
+* `triggerPOXeroVoid` — voids bill on revert/cancel; for `received → ordered` revert: voids AUTHORISED bill then creates new DRAFT.
+
+### SO Xero Sync Flow (as-built 2026-06-24)
+| Status | Xero Invoice | Edit behaviour |
+|--------|-------------|----------------|
+| draft | — | No Xero |
+| confirmed | DRAFT Invoice | Auto-syncs DRAFT on edit (triggerSOXeroUpdate) |
+| fulfilled | AUTHORISED | ⚠️ xeroWarnModal shown for edit/delete (bookkeeper message) |
+| cancelled | VOIDED (if no payments) | Warning if payments exist |
+
+* `triggerSOXeroSync('confirmed')` — creates DRAFT ACCREC Invoice (NOT AUTHORISED — changed from original).
+* `triggerSOXeroSync('fulfilled')` — approves the invoice to AUTHORISED; awaited in route (ensures approval before response).
+* `triggerSOXeroUpdate` — updates DRAFT invoice on SO edit; silently skips if AUTHORISED.
+* `approveInvoice()` in XeroSyncService.ts — mirrors `approveBill` for ACCREC type; logs as `so_invoice`.
+* `updateXeroDraftInvoice()` in XeroSyncService.ts — mirrors `updateXeroDraftBill` for ACCREC; checks DRAFT status first.
+* **Backward compat**: Old confirmed SOs with AUTHORISED invoices — `updateXeroDraftInvoice` skips; `approveInvoice` on already-AUTHORISED is a no-op in Xero.
+* **GET /api/ims/xero/invoice-details?soId=X** — returns `{invoiceNumber, total, subTotal, taxTotal, status}` from Xero; mirrors bill-details endpoint.
+* `SoAccountingSection` shows live invoice # + Xero total; mismatch warning if IMS ≠ Xero total.
+* SO fulfilled edit/delete: `editSoWithWarn`/`deleteSoWithWarn` helpers (same pattern as PO's `editPoWithWarn`/`deletePoWithWarn`).
+
+### Modal z-index fix (2026-06-24)
+* Warning modals (xeroWarnModal, soXeroWarnModal) must render when viewModal is CLOSED, not open.
+* Fix: `beforeAction?.()` (which closes viewModal) is called BEFORE `showXeroWarnForReceived` / `showSoXeroWarnForFulfilled`, not inside the onConfirm callback.
+* This ensures the warning modal renders on top of everything.

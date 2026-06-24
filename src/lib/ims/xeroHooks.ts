@@ -8,7 +8,7 @@
 
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { ImsPORepo, ImsSORepo } from '@/lib/ims/ImsRepository';
-import { syncPOAsDraftBill, updateXeroDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOAsInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice } from '@/services/XeroSyncService';
+import { syncPOAsDraftBill, updateXeroDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOAsInvoice, updateXeroDraftInvoice, approveInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice } from '@/services/XeroSyncService';
 import { imsQuery } from '@/services/IMSMySQLService';
 
 /**
@@ -139,16 +139,47 @@ export async function triggerPOPaymentXeroSync(businessId: string, poId: number,
 export async function triggerSOXeroSync(businessId: string, soId: number, newStatus: string): Promise<void> {
   if (!await isXeroConnected(businessId)) return;
 
-  // Only sync on confirmed (invoice creation point)
-  if (newStatus !== 'confirmed') return;
+  if (newStatus === 'confirmed') {
+    const so = await ImsSORepo.get(soId);
+    if (!so) return;
+    await withRetry(
+      () => syncSOAsInvoice(businessId, so as any),
+      () => markSoXeroStatus(Number(soId), 'queued'),
+    );
+  } else if (newStatus === 'fulfilled') {
+    const so = await ImsSORepo.get(soId);
+    if (!so) return;
+    const storedXeroId = (so as any).xero_invoice_id ?? null;
+    if (storedXeroId) {
+      await approveInvoice(businessId, storedXeroId, Number(soId));
+    } else {
+      // No invoice yet — create then approve
+      const xeroId = await withRetry(
+        () => syncSOAsInvoice(businessId, so as any),
+        () => markSoXeroStatus(Number(soId), 'queued'),
+      );
+      if (xeroId) await approveInvoice(businessId, xeroId, Number(soId));
+    }
+  }
+}
+
+/**
+ * Triggered when a SO's fields/items are edited without a status change.
+ * Updates the existing Xero Draft Invoice if one exists.
+ * Silently skips if no invoice exists, Xero is not connected, or invoice is no longer DRAFT.
+ */
+export async function triggerSOXeroUpdate(businessId: string, soId: number): Promise<void> {
+  if (!await isXeroConnected(businessId)) return;
 
   const so = await ImsSORepo.get(soId);
   if (!so) return;
 
-  await withRetry(
-    () => syncSOAsInvoice(businessId, so as any),
-    () => markSoXeroStatus(Number(soId), 'queued'),
-  );
+  const xeroId = (so as any).xero_invoice_id ?? null;
+  if (!xeroId) return;
+
+  try {
+    await updateXeroDraftInvoice(businessId, so as any, xeroId);
+  } catch { /* non-critical */ }
 }
 
 /**
