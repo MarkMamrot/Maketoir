@@ -2913,6 +2913,10 @@ function PurchaseOrdersView() {
   const [landedCosts, setLandedCosts] = useState<{ label: string; reference: string; amount: string }[]>([]);
   const [lcForm, setLcForm] = useState<{ label: string; reference: string; amount: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [receiveQtys, setReceiveQtys] = useState<Record<string, number>>({});
+  const [receiveSaving, setReceiveSaving] = useState(false);
+  const [receiveMsg, setReceiveMsg] = useState<string | null>(null);
+  const [allReceived, setAllReceived] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [filterSupplier, setFilterSupplier] = useState('');
   const [sortCol, setSortCol] = useState<string>('order_date');
@@ -3004,6 +3008,7 @@ function PurchaseOrdersView() {
 
   const lineTotal = (item: any) => Number(item.qty_ordered || 0) * Number(item.unit_cost || 0) * (1 - Number(item.discount_pct || 0) / 100);
   const taxTreatment = (form.tax_treatment ?? 'ex_tax') as 'ex_tax' | 'inc_tax' | 'no_tax';
+  const isReceiving = !!modal.edit && (modal.edit.status === 'ordered' || modal.edit.status === 'partially_received');
   const poSubtotal = taxTreatment === 'inc_tax'
     ? lineItems.reduce((s, i) => {
         const tot = lineTotal(i);
@@ -3045,6 +3050,11 @@ function PurchaseOrdersView() {
       : '';
     setForm({ supplier_id: d.data.supplier_id ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), expected_date: d.data.expected_date?.slice(0, 10) ?? '', notes: d.data.notes ?? '', supplier_invoice_number: d.data.supplier_invoice_number ?? '', payment_terms: d.data.payment_terms ?? '', freight: d.data.freight ?? '', discount: d.data.discount ?? '', tax_treatment: d.data.tax_treatment ?? 'ex_tax', tax_code: d.data.tax_code ?? '', currency_code: cur, exchange_rate: derivedRate ? String(derivedRate.toFixed(6)) : String(d.data.exchange_rate ?? 1), _rateHint: rateHint });
     setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_cost: i.unit_cost, discount_pct: i.discount_pct ?? 0, tax_rate: i.tax_rate, notes: i.notes ?? '' })));
+    const initQtys: Record<string, number> = {};
+    (d.data.items || []).forEach((i: any) => { if (i.variant_id) initQtys[i.variant_id] = Number(i.qty_received || 0); });
+    setReceiveQtys(initQtys);
+    setReceiveMsg(null);
+    setAllReceived(false);
     setLandedCosts((d.data.landed_costs || []).map((c: any) => ({ label: c.label, reference: c.reference ?? '', amount: String(c.amount) })));
     setLcForm(null);
     setModal({ open: true, edit: d.data });
@@ -3086,6 +3096,42 @@ function PurchaseOrdersView() {
       await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}/payments/${paymentId}`, { method: 'DELETE' });
       await refreshPoView(viewModal.po.id);
     } catch (e: any) { alert(e.message); }
+  };
+
+  const handleSaveReceiving = async () => {
+    if (!modal.edit) return;
+    const editData = modal.edit;
+    // Build delta list: only items where user entered more than currently stored
+    const received_items = lineItems
+      .filter(item => item.variant_id)
+      .map(item => {
+        const stored = Number(editData.items?.find((i: any) => i.variant_id === item.variant_id)?.qty_received ?? 0);
+        const entered = Number(receiveQtys[item.variant_id] ?? stored);
+        return { variant_id: item.variant_id, qty_received: Math.max(0, entered - stored) };
+      })
+      .filter(item => item.qty_received > 0);
+
+    if (received_items.length === 0) { setReceiveMsg('No new quantities to receive.'); return; }
+
+    setReceiveSaving(true); setReceiveMsg(null);
+    try {
+      await apiFetch('/api/ims/receive/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ po_id: editData.id, location_id: editData.location_id, received_items, mark_po_received: false }),
+      });
+      // Re-fetch to get updated qty_received values + new PO status
+      const d = await apiFetch(`/api/ims/purchase-orders/${editData.id}`);
+      setModal(m => ({ ...m, edit: d.data }));
+      const newQtys: Record<string, number> = {};
+      (d.data.items || []).forEach((i: any) => { if (i.variant_id) newQtys[i.variant_id] = Number(i.qty_received || 0); });
+      setReceiveQtys(newQtys);
+      const allDone = (d.data.items || []).length > 0 && (d.data.items || []).every((i: any) => Number(i.qty_received || 0) >= Number(i.qty_ordered || 0));
+      setAllReceived(allDone);
+      setReceiveMsg(allDone ? null : '✓ Receiving saved.');
+      load(); // Refresh PO list
+    } catch (e: any) { setReceiveMsg('Error: ' + e.message); }
+    setReceiveSaving(false);
   };
 
   const handleSubmit = async (e: React.FormEvent, andOrder = false) => {
@@ -3297,7 +3343,7 @@ function PurchaseOrdersView() {
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: 'var(--sv-bg-1)' }}>
-                      {['Variant','Qty',`Unit Cost${(form.currency_code ?? 'AUD') !== 'AUD' ? ` (${form.currency_code})` : ''}`,'Disc %',...(taxTreatment !== 'no_tax' ? ['Tax %'] : []),'Line Total',''].map(h => (
+                      {['Variant','Qty',`Unit Cost${(form.currency_code ?? 'AUD') !== 'AUD' ? ` (${form.currency_code})` : ''}`,'Disc %',...(taxTreatment !== 'no_tax' ? ['Tax %'] : []),'Line Total',...(isReceiving ? ['Received','Awaiting'] : []),''].map(h => (
                         <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600 }}>{h}</th>
                       ))}
                     </tr>
@@ -3327,6 +3373,18 @@ function PurchaseOrdersView() {
                         </td>
                         )}
                         <td style={{ padding: '4px 8px', width: 100, color: 'var(--sv-text-main)', fontSize: 13 }}>{fmtCurrency(lineTotal(item))}</td>
+                        {isReceiving && (() => {
+                          const received = Number(receiveQtys[item.variant_id] ?? 0);
+                          const awaiting = Math.max(0, Number(item.qty_ordered || 0) - received);
+                          return (<>
+                            <td style={{ padding: 4, width: 80 }}>
+                              <input type="number" min="0" max={Number(item.qty_ordered)} step="any" value={received} onChange={e => setReceiveQtys(q => ({ ...q, [item.variant_id]: Math.min(Number(e.target.value), Number(item.qty_ordered)) }))} style={{ ...inputStyle, fontSize: 12 }} />
+                            </td>
+                            <td style={{ padding: '4px 8px', width: 70, fontSize: 12, fontVariantNumeric: 'tabular-nums', color: awaiting > 0 ? '#fbbf24' : '#34d399', fontWeight: awaiting > 0 ? 600 : 400 }}>
+                              {awaiting}
+                            </td>
+                          </>);
+                        })()}
                         <td style={{ padding: 4, width: 30 }}>
                           <button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16 }}>×</button>
                         </td>
@@ -3441,6 +3499,36 @@ function PurchaseOrdersView() {
                 </div>
               </div>
             </div>
+
+            {/* Receiving section — only visible for ordered/partially_received POs */}
+            {isReceiving && (
+              <div style={{ marginBottom: 14, padding: '10px 12px', background: 'var(--sv-bg-1)', borderRadius: 6, border: '1px dashed var(--sv-etch)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', letterSpacing: 0.8 }}>RECORD RECEIVING</span>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button type="button" onClick={() => {
+                      const all: Record<string, number> = {};
+                      lineItems.forEach(item => { if (item.variant_id) all[item.variant_id] = Number(item.qty_ordered || 0); });
+                      setReceiveQtys(all);
+                    }} style={btnStyle('ghost', 'xs')}>Receive All</button>
+                    <button type="button" disabled={receiveSaving} onClick={handleSaveReceiving} style={btnStyle('action', 'xs')}>{receiveSaving ? 'Saving…' : 'Save Receiving'}</button>
+                  </div>
+                </div>
+                {receiveMsg && <p style={{ fontSize: 11, margin: '0 0 6px', color: receiveMsg.startsWith('Error') ? '#f87171' : 'var(--sv-text-dim)' }}>{receiveMsg}</p>}
+                {allReceived && (
+                  <div style={{ background: 'rgba(16,185,129,.1)', border: '1px solid rgba(16,185,129,.4)', borderRadius: 4, padding: '7px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11 }}>
+                    <span style={{ color: '#34d399', fontWeight: 700 }}>✓ All items received</span>
+                    <button type="button" style={btnStyle('mint', 'xs')} onClick={() => {
+                      if (!modal.edit) return;
+                      apiFetch(`/api/ims/purchase-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'received' }) })
+                        .then(() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); load(); })
+                        .catch((e: any) => setReceiveMsg('Error: ' + e.message));
+                    }}>Mark PO as Fully Received →</button>
+                  </div>
+                )}
+              </div>
+            )}
+
             <FormActions onCancel={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} saving={saving} isEdit={!!modal.edit}
               extraActions={!modal.edit ? [{ label: saving ? 'Creating…' : 'Create & Order', onClick: (e: React.MouseEvent) => handleSubmit(e as any, true) }] : []} />
           </form>
