@@ -4541,7 +4541,7 @@ function SalesOrdersView() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [variants, setVariants] = useState<any[]>([]);
-  const [form, setForm] = useState<any>({ customer_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', payment_terms: '', freight: '', discount: '' });
+  const [form, setForm] = useState<any>({ customer_id: '', customer_po_number: '', location_id: '', order_date: today(), notes: '', payment_terms: '', freight: '', discount: '' });
   const [lineItems, setLineItems] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -4603,7 +4603,7 @@ function SalesOrdersView() {
   const grandTotal = soSubtotal + soTax + Number(form.freight || 0) - Number(form.discount || 0);
 
   const openNew = () => {
-    setForm({ customer_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', payment_terms: '', freight: '', discount: '', tax_code: settings?.sales_tax_code ?? '' });
+    setForm({ customer_id: '', customer_po_number: '', location_id: '', order_date: today(), notes: '', payment_terms: '', freight: '', discount: '', tax_code: settings?.sales_tax_code ?? '' });
     const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
     const defaultTaxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
     setLineItems([{ variant_id: '', qty_ordered: 1, unit_price: 0, discount_pct: 0, tax_rate: defaultTaxRate }]);
@@ -4612,7 +4612,7 @@ function SalesOrdersView() {
 
   const openEdit = async (so: any) => {
     const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);
-    setForm({ customer_id: d.data.customer_id ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), expected_date: d.data.expected_date?.slice(0, 10) ?? '', notes: d.data.notes ?? '', payment_terms: d.data.payment_terms ?? '', freight: d.data.freight ?? '', discount: d.data.discount ?? '', tax_code: d.data.tax_code ?? settings?.sales_tax_code ?? '' });
+    setForm({ customer_id: d.data.customer_id ?? '', customer_po_number: d.data.customer_po_number ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), notes: d.data.notes ?? '', payment_terms: d.data.payment_terms ?? '', freight: d.data.freight ?? '', discount: d.data.discount ?? '', tax_code: d.data.tax_code ?? settings?.sales_tax_code ?? '' });
     setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_price: i.unit_price, discount_pct: i.discount_pct, tax_rate: i.tax_rate })));
     setModal({ open: true, edit: d.data });
   };
@@ -4844,7 +4844,7 @@ function SalesOrdersView() {
               <Field label="Order Date *"><input required type="date" value={form.order_date} onChange={sf('order_date')} style={inputStyle} /></Field>
             </Row3>
             <Row2>
-              <Field label="Expected Date"><input type="date" value={form.expected_date} onChange={sf('expected_date')} style={inputStyle} /></Field>
+              <Field label="Customer PO #"><input value={form.customer_po_number} onChange={sf('customer_po_number')} style={inputStyle} placeholder="Customer's PO reference" /></Field>
               <Field label="Notes"><input value={form.notes} onChange={sf('notes')} style={inputStyle} /></Field>
             </Row2>
             <Row2>
@@ -5035,7 +5035,7 @@ function SalesOrdersView() {
             <div><div style={labelStyle}>Location</div><div>{viewModal.so.location_name}</div></div>
             <div><div style={labelStyle}>Status</div><StatusBadge status={viewModal.so.status} /></div>
             <div><div style={labelStyle}>Order Date</div><div>{viewModal.so.order_date?.slice(0, 10)}</div></div>
-            <div><div style={labelStyle}>Expected</div><div>{viewModal.so.expected_date?.slice(0, 10) || '—'}</div></div>
+            <div><div style={labelStyle}>Cust PO #</div><div>{viewModal.so.customer_po_number || '—'}</div></div>
             <div><div style={labelStyle}>Fulfilled</div><div>{viewModal.so.fulfilled_date?.slice(0, 10) || '—'}</div></div>
             <div><div style={labelStyle}>Payment Terms</div><div>{viewModal.so.payment_terms || '—'}</div></div>
             <div><div style={labelStyle}>Due Date</div><div>{calcDueDate(viewModal.so.order_date, viewModal.so.payment_terms)}</div></div>

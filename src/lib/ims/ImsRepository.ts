@@ -101,7 +101,7 @@ export interface ImsPOItem {
 }
 
 export interface ImsSO {
-  id: number; so_number: string; customer_id?: number; location_id: number;
+  id: number; so_number: string; customer_id?: number; customer_po_number?: string; location_id: number;
   status: SOStatus; order_date: string; expected_date?: string;
   fulfilled_date?: string; notes?: string; subtotal: number;
   tax_amount: number; freight?: number; discount?: number; total_amount: number; is_historical?: number;
@@ -1480,10 +1480,10 @@ export const ImsSORepo = {
 
     const res = await imsExecute(
       `INSERT INTO ims_sales_orders
-         (business_id,so_number,customer_id,location_id,status,order_date,expected_date,notes,
+         (business_id,so_number,customer_id,customer_po_number,location_id,status,order_date,expected_date,notes,
           payment_terms,tax_code,freight,discount,subtotal,tax_amount,total_amount,shopify_order_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [businessId ?? '', so_number, data.customer_id ?? null, data.location_id, 'draft',
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [businessId ?? '', so_number, data.customer_id ?? null, data.customer_po_number ?? null, data.location_id, 'draft',
        data.order_date, data.expected_date ?? null, data.notes ?? null,
        data.payment_terms ?? null, data.tax_code ?? null, soFreight, soDiscount,
        subtotal, tax_amount, subtotal + tax_amount + soFreight - soDiscount, data.shopify_order_id ?? null]
@@ -1505,10 +1505,10 @@ export const ImsSORepo = {
 
   async update(
     id: number,
-    data: Partial<Pick<ImsSO, 'customer_id' | 'location_id' | 'order_date' | 'expected_date' | 'notes' | 'payment_terms' | 'tax_code' | 'freight' | 'discount'>>,
+    data: Partial<Pick<ImsSO, 'customer_id' | 'customer_po_number' | 'location_id' | 'order_date' | 'expected_date' | 'notes' | 'payment_terms' | 'tax_code' | 'freight' | 'discount'>>,
     items?: Omit<ImsSOItem, 'id' | 'so_id' | 'qty_fulfilled' | 'unit_cost' | 'sku' | 'product_name' | 'variant_label'>[],
   ): Promise<void> {
-    const fields = ['customer_id','location_id','order_date','expected_date','notes','payment_terms','tax_code','freight','discount'];
+    const fields = ['customer_id','customer_po_number','location_id','order_date','expected_date','notes','payment_terms','tax_code','freight','discount'];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of fields) {
