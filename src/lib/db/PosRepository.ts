@@ -688,6 +688,15 @@ export const PosRegisterSessionRepo = {
     return rows[0] ? parseSession(rows[0]) : null;
   },
 
+  /** Get a session by its id (any status, null if not found). */
+  async getById(sessionId: number): Promise<PosRegisterSessionRow | null> {
+    const rows = await imsQuery<any>(
+      'SELECT * FROM pos_register_sessions WHERE id = ? LIMIT 1',
+      [sessionId],
+    );
+    return rows[0] ? parseSession(rows[0]) : null;
+  },
+
   async open(data: {
     register_id:      number;
     location_id:      number;
