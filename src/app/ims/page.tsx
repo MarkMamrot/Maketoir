@@ -11047,6 +11047,45 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <p style={p}>POS users are PIN-based terminal operators — they are separate from IMS web users. POS users are managed in Settings → Point of Sale. IMS web users (with email login) are managed in Settings → Users.</p>
         <h3 style={h3}>Product display settings</h3>
         <p style={p}>The POS product browser can be configured to show specific product subsets per location. This is managed in Settings → Point of Sale → Product Display.</p>
+
+        <h3 style={h3}>Register sessions</h3>
+        <p style={p}>A <strong>register session</strong> is one continuous period that a till is open — from the moment a cashier opens the register (entering the opening cash float) to the moment it is closed at end of day. Every sale is stamped with the session it was rung up in, not just the calendar date. This is the backbone of accurate cash reconciliation.</p>
+        <ul style={ul}>
+          <li><strong>Opening</strong> — On first login of the day the operator opens the register and counts the starting float (cash drawer denominations). This establishes the session.</li>
+          <li><strong>During the shift</strong> — Each completed sale is attached to the open session. Cash, card and other tenders are tracked per session.</li>
+          <li><strong>Closing</strong> — At end of day the operator counts the drawer and the system reconciles expected vs counted takings, then marks the session closed.</li>
+        </ul>
+
+        <h3 style={h3}>Reconciling by session window (not calendar date)</h3>
+        <p style={p}>End-of-day reconciliation sums takings over the <strong>session window</strong> — every sale belonging to that specific open→close session — rather than simply "all sales dated today". This matters in two common situations:</p>
+        <ul style={ul}>
+          <li><strong>Trading past midnight</strong> — If a session opens in the evening and a sale rings through after midnight, that sale still belongs to the session it was made in. Reconciliation keeps it with the right day's takings instead of splitting the shift across two calendar dates.</li>
+          <li><strong>A register left open overnight</strong> — Yesterday's still-open session won't silently absorb today's sales. The system detects the stale session at login (see below) so each day's cash is counted against its own float.</li>
+        </ul>
+        <p style={p}>The end-of-day screen shows <strong>expected</strong> (calculated from the session's sales, grouped by payment method) against <strong>counted</strong> (what the operator physically tallies), with the variance highlighted. The reconciliation date recorded is the session's open date, so the daily Xero batch lines up correctly.</p>
+
+        <h3 style={h3}>Register left open / prior-day sessions</h3>
+        <p style={p}>If a register was opened on a previous day and never closed, the next operator to log in sees a <strong>"Register Left Open"</strong> prompt. When the open session is from an earlier day this is flagged in red, because continuing it would book today's sales against yesterday's float. Two choices are offered:</p>
+        <ul style={ul}>
+          <li><strong>Close Register &amp; Open New</strong> (recommended for a prior day) — closes the stale session and starts a fresh one for today with a new float count.</li>
+          <li><strong>Continue Session</strong> — keeps recording against the original session. Only use this if you genuinely intend to keep the prior day's session running.</li>
+        </ul>
+
+        <h3 style={h3}>Offline mode &amp; the sale queue</h3>
+        <p style={p}>The POS keeps working when the internet drops. A local product cache lets operators keep ringing up sales, and completed sales are written to an on-device queue that uploads automatically once the connection returns.</p>
+        <ul style={ul}>
+          <li><strong>Queued</strong> (amber badge in the header) — sales waiting to upload. They drain automatically when back online.</li>
+          <li><strong>Failed</strong> (red badge) — a sale that repeatedly failed to upload is moved to a "dead-letter" store rather than being discarded. <strong>Sales are never silently dropped.</strong> Tap the red badge to retry uploading them.</li>
+          <li>Each sale carries a unique local ID, so even if a queued sale is sent twice it can only ever be recorded once — there are no duplicate sales from retries.</li>
+        </ul>
+        <p style={p}>Because offline sales live on the device until they sync, <strong>logging out while sales are still pending shows a warning</strong>. Don't clear browser data or switch devices until the queue is empty.</p>
+
+        <h3 style={h3}>Stock deduction is tied to the sale</h3>
+        <p style={p}>When a sale completes, the stock movement that reduces on-hand inventory is part of the same database transaction as the sale itself. If the stock update can't be written, the whole sale is rolled back and re-queued rather than recording a sale with no matching stock movement. This keeps POS sales and IMS stock levels consistent.</p>
+
+        <h3 style={h3}>PIN security</h3>
+        <p style={p}>POS operators sign in with a short numeric PIN. PINs are stored hashed (never in plain text). To deter guessing, repeated failed PIN attempts trigger a temporary lockout on that operator before they can try again. A separate <strong>supervisor PIN</strong> (set during device setup) is used to authorise overrides such as discounts or voids.</p>
+        <p style={p}>Each device is bound to a single location and register at setup. If that register is later removed or deactivated in IMS, the device prompts for re-setup at next login rather than attaching sales to a register that no longer exists.</p>
       </div>
     );
 
