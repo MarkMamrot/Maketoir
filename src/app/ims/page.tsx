@@ -2914,6 +2914,9 @@ function PurchaseOrdersView() {
   const [lcForm, setLcForm] = useState<{ label: string; reference: string; amount: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [receiveQtys, setReceiveQtys] = useState<Record<string, number>>({});
+  const [xeroWarnModal, setXeroWarnModal] = useState<{ action: 'edit' | 'delete'; po: any; onConfirm: () => void } | null>(null);
+  const [xeroWarnBillNum, setXeroWarnBillNum] = useState<string | null>(null);
+  const [xeroWarnFetching, setXeroWarnFetching] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [filterSupplier, setFilterSupplier] = useState('');
   const [sortCol, setSortCol] = useState<string>('order_date');
@@ -3149,6 +3152,40 @@ function PurchaseOrdersView() {
     catch (e: any) { alert(e.message); }
   };
 
+  const showXeroWarnForReceived = (action: 'edit' | 'delete', po: any, onConfirm: () => void) => {
+    setXeroWarnModal({ action, po, onConfirm });
+    setXeroWarnBillNum(null);
+    if (po.xero_bill_id) {
+      setXeroWarnFetching(true);
+      fetch(`/api/ims/xero/bill-details?poId=${po.id}`)
+        .then(r => r.json())
+        .then(d => setXeroWarnBillNum(d.invoiceNumber ?? null))
+        .catch(() => {})
+        .finally(() => setXeroWarnFetching(false));
+    }
+  };
+
+  const editPoWithWarn = (po: any, beforeAction?: () => void) => {
+    if (po.status === 'received') {
+      showXeroWarnForReceived('edit', po, () => { beforeAction?.(); openEdit(po); });
+    } else {
+      beforeAction?.();
+      openEdit(po);
+    }
+  };
+
+  const deletePoWithWarn = (po: any, beforeAction?: () => void) => {
+    if (po.status === 'received') {
+      showXeroWarnForReceived('delete', po, () => {
+        beforeAction?.();
+        apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'DELETE' }).then(() => load()).catch((e: any) => alert(e.message));
+      });
+    } else {
+      beforeAction?.();
+      handleDelete(po);
+    }
+  };
+
   const supplierOptions = [...new Set(pos.map((p: any) => p.supplier_name).filter(Boolean))].sort() as string[];
   const filteredPOs = pos.filter((p: any) => {
     if (statusFilter && p.status !== statusFilter) return false;
@@ -3233,7 +3270,7 @@ function PurchaseOrdersView() {
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{po.order_date?.slice(0, 10)}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(po.total_amount)}</td>
                   <td style={{ padding: '10px 12px' }}><StatusBadge status={po.status} /></td>
-                  <td style={{ padding: '10px 12px' }}><POActions po={po} onEdit={() => openEdit(po)} onDelete={() => handleDelete(po)} onStatus={changeStatus} /></td>
+                  <td style={{ padding: '10px 12px' }}><POActions po={po} onEdit={() => editPoWithWarn(po)} onDelete={() => deletePoWithWarn(po)} onStatus={changeStatus} /></td>
                 </tr>
               ))}
             </tbody>
@@ -3499,11 +3536,53 @@ function PurchaseOrdersView() {
         />
       )}
 
+      {/* Xero warning modal for received PO edit/delete */}
+      {xeroWarnModal && (
+        <Modal title="⚠️ Xero Manual Update Required" onClose={() => setXeroWarnModal(null)}>
+          <div style={{ padding: '4px 0 8px', lineHeight: 1.6 }}>
+            {xeroWarnModal.action === 'edit' ? (
+              <p>This PO (<strong>{xeroWarnModal.po.po_number}</strong>) is fully received. The Xero bill is <strong>AUTHORISED</strong> and cannot be automatically updated. Any edits saved in IMS <strong>will not sync to Xero</strong> — Xero will need to be updated manually.</p>
+            ) : (
+              <p>Deleting <strong>{xeroWarnModal.po.po_number}</strong> will only remove it from IMS. The corresponding Xero bill will remain in Xero and may need to be manually voided.</p>
+            )}
+            <div style={{ background: 'color-mix(in srgb, var(--sv-amber) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sv-amber) 40%, var(--sv-border,#444))', borderRadius: 6, padding: '10px 14px', margin: '14px 0 6px' }}>
+              <div style={{ fontWeight: 600, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8, color: 'var(--sv-amber)' }}>Draft message for bookkeeper</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                {xeroWarnFetching
+                  ? 'Loading Xero bill details…'
+                  : xeroWarnModal.action === 'edit'
+                    ? `Hi, just a heads up — ${xeroWarnModal.po.po_number} in IMS has been updated. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} will need to be manually updated to reflect the changes.`
+                    : `Hi, just a heads up — ${xeroWarnModal.po.po_number} in IMS has been deleted. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} may need to be manually voided in Xero.`
+                }
+              </div>
+              {!xeroWarnFetching && (
+                <button
+                  onClick={() => {
+                    const msg = xeroWarnModal.action === 'edit'
+                      ? `Hi, just a heads up — ${xeroWarnModal.po.po_number} in IMS has been updated. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} will need to be manually updated to reflect the changes.`
+                      : `Hi, just a heads up — ${xeroWarnModal.po.po_number} in IMS has been deleted. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} may need to be manually voided in Xero.`;
+                    navigator.clipboard.writeText(msg).catch(() => {});
+                  }}
+                  style={{ ...btnStyle('ghost', 'xs'), marginTop: 8 }}
+                >Copy message</button>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+              <button onClick={() => setXeroWarnModal(null)} style={btnStyle('ghost', 'sm')}>Cancel</button>
+              <button
+                onClick={() => { const fn = xeroWarnModal.onConfirm; setXeroWarnModal(null); fn(); }}
+                style={btnStyle(xeroWarnModal.action === 'delete' ? 'danger' : 'action', 'sm')}
+              >{xeroWarnModal.action === 'delete' ? 'Delete Anyway' : 'Proceed to Edit'}</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {/* View PO detail modal */}
       {viewModal.open && viewModal.po && (
         <Modal title={`${viewModal.po.po_number} — ${viewModal.po.status}`} onClose={() => { setViewModal({ open: false, po: null }); setPoPayForm(null); }} wide>
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <POActions po={viewModal.po} onEdit={() => { setViewModal({ open: false, po: null }); openEdit(viewModal.po); }} onDelete={() => { setViewModal({ open: false, po: null }); handleDelete(viewModal.po); }} onStatus={changeStatus} context="view" />
+            <POActions po={viewModal.po} onEdit={() => editPoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onDelete={() => deletePoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onStatus={changeStatus} context="view" />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <button
                 onClick={() => { window.open(`/api/ims/purchase-orders/${viewModal.po.id}/pdf`, '_blank'); }}
@@ -3838,8 +3917,8 @@ function POActions({ po, onEdit, onDelete, onStatus, context = 'list' }: { po: a
   if (po.status === 'partially_received') { btns.push(<button key="prr" onClick={() => onStatus(po, 'received')} style={btnStyle('mint', 'xs')}>Mark Received</button>); }
   if (po.status === 'partially_received' && context !== 'list') { btns.push(<button key="prb" onClick={() => onStatus(po, 'ordered')} style={btnStyle('ghost', 'xs')}>Revert to Ordered</button>); }
   if (po.status === 'received') {
-    if (context !== 'list') { btns.push(<button key="rev" onClick={() => onStatus(po, 'ordered')} style={btnStyle('ghost', 'xs')}>Revert to Ordered</button>); }
     btns.push(<button key="e" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>);
+    btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>);
   }
   if (po.status !== 'received' && po.status !== 'cancelled') {
     btns.push(<button key="e" onClick={onEdit}  style={btnStyle('ghost', 'xs')}>Edit</button>);
