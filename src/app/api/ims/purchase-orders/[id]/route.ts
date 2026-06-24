@@ -56,12 +56,19 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         }
       }
 
-      // Await void for revert/cancel so warning can be returned; fire-and-forget for other transitions
-      if (status === 'draft' || status === 'cancelled') {
+      // Await void for revert/cancel; fire Xero sync on received/partially_received; no action on approved (bill already exists)
+      if (status === 'cancelled') {
         xeroWarning = await triggerPOXeroVoid(businessId, Number(params.id)).catch(() => null);
-      } else {
+      } else if (status === 'draft' || status === 'approved') {
+        // 'draft' → void existing bill; 'approved' → no Xero action (prevents creating a duplicate bill on revert-from-partial)
+        if (status === 'draft') {
+          xeroWarning = await triggerPOXeroVoid(businessId, Number(params.id)).catch(() => null);
+        }
+      } else if (status === 'received') {
+        // Only fire sync on full receive via IMS list (batch API fires its own sync)
         triggerPOXeroSync(businessId, Number(params.id), status).catch(() => {});
       }
+      // 'partially_received' → no Xero action (not fully received yet)
 
     } else {
       const existing = await ImsPORepo.get(Number(params.id), businessId);

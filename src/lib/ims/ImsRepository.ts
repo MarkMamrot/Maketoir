@@ -6,7 +6,7 @@ import { getIMSPool, imsQuery, imsExecute } from '@/services/IMSMySQLService';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ContactType = 'supplier' | 'customer' | 'both';
-export type POStatus    = 'draft' | 'approved' | 'received' | 'cancelled';
+export type POStatus    = 'draft' | 'approved' | 'partially_received' | 'received' | 'cancelled';
 export type SOStatus    = 'draft' | 'confirmed' | 'fulfilled' | 'cancelled';
 
 export interface ImsContact {
@@ -1111,6 +1111,119 @@ export const ImsPORepo = {
         );
       }
 
+      // ── partially_received → received (force-close a partially received PO from IMS) ───────────
+      if (from === 'partially_received' && to === 'received') {
+        const poSubtotal = items.reduce((s, i) => s + Number(i.qty_ordered) * Number(i.unit_cost), 0);
+        const totalLanded = landedCostRows.reduce((s, c) => s + Number(c.amount), 0);
+        const effectiveTotalLanded = totalLanded + (freightTreatment === 'capitalise' ? Number(po.freight ?? 0) : 0);
+
+        const landedPerUnit = new Map<number, number>();
+        for (const item of items) {
+          const itemValue = Number(item.qty_ordered) * Number(item.unit_cost);
+          let lcpu = 0;
+          if (effectiveTotalLanded > 0) {
+            if (poSubtotal > 0) {
+              lcpu = (effectiveTotalLanded * (itemValue / poSubtotal)) / Number(item.qty_ordered);
+            } else {
+              const totalQty = items.reduce((s, i) => s + Number(i.qty_ordered), 0);
+              lcpu = totalQty > 0 ? effectiveTotalLanded / totalQty : 0;
+            }
+          }
+          landedPerUnit.set(item.id, lcpu);
+          if (totalLanded > 0) {
+            await conn.execute(
+              `UPDATE ims_purchase_order_items SET landed_cost_per_unit = ? WHERE id = ?`,
+              [lcpu, item.id]
+            );
+          }
+        }
+
+        for (const item of items) {
+          const remaining = Number(item.qty_ordered) - Number(item.qty_received ?? 0);
+          if (remaining <= 0) continue; // already fully received via device
+
+          await conn.execute(
+            `INSERT IGNORE INTO ims_stock (variant_id, location_id) VALUES (?, ?)`,
+            [item.variant_id, po.location_id]
+          );
+          const [[s]] = await conn.execute<any[]>(
+            `SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id=? AND location_id=?`,
+            [item.variant_id, po.location_id]
+          );
+
+          let effective_rate = Number(po.exchange_rate ?? 1);
+          try {
+            const [[pymtAgg]] = await conn.execute<any[]>(
+              `SELECT SUM(amount) AS tot_foreign, SUM(amount_local) AS tot_local
+               FROM ims_purchase_order_payments WHERE po_id = ?`, [id]
+            );
+            const totForeign = Number(pymtAgg?.tot_foreign ?? 0);
+            const totLocal   = Number(pymtAgg?.tot_local ?? 0);
+            if (totForeign > 0) effective_rate = totLocal / totForeign;
+          } catch {}
+
+          const old_soh       = Number(s?.qty_on_hand ?? 0);
+          const old_avg       = Number(s?.avg_cost ?? item.unit_cost);
+          const lcpu          = landedPerUnit.get(item.id) ?? 0;
+          const true_cost_aud = Number(item.unit_cost) * effective_rate + lcpu;
+          const new_avg       = old_soh <= 0
+            ? true_cost_aud
+            : (old_avg * old_soh + true_cost_aud * remaining) / (old_soh + remaining);
+          const new_soh       = old_soh + remaining;
+
+          await conn.execute(
+            `UPDATE ims_stock
+             SET qty_on_hand  = ?,
+                 qty_incoming = GREATEST(0, qty_incoming - ?),
+                 avg_cost     = ?
+             WHERE variant_id=? AND location_id=?`,
+            [new_soh, remaining, new_avg, item.variant_id, po.location_id]
+          );
+          await conn.execute(
+            `UPDATE ims_purchase_order_items SET qty_received = qty_ordered WHERE id = ?`,
+            [item.id]
+          );
+          await conn.execute(
+            `INSERT INTO ims_stock_movements
+               (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
+             VALUES (?,?,'po_received','purchase_order',?,?,?,?)`,
+            [item.variant_id, po.location_id, id, remaining, new_soh, true_cost_aud]
+          );
+        }
+        await conn.execute(
+          `UPDATE ims_purchase_orders SET received_date = CURDATE() WHERE id = ?`, [id]
+        );
+      }
+
+      // ── partially_received → approved (revert a partial receive) ──────────────
+      if (from === 'partially_received' && to === 'approved') {
+        for (const item of items) {
+          const alreadyReceived = Number(item.qty_received ?? 0);
+          if (alreadyReceived <= 0) continue;
+          await conn.execute(
+            `UPDATE ims_stock
+             SET qty_on_hand  = GREATEST(0, qty_on_hand - ?),
+                 qty_incoming = qty_incoming + ?
+             WHERE variant_id=? AND location_id=?`,
+            [alreadyReceived, alreadyReceived, item.variant_id, po.location_id]
+          );
+          const [[s]] = await conn.execute<any[]>(
+            `SELECT qty_on_hand FROM ims_stock WHERE variant_id=? AND location_id=?`,
+            [item.variant_id, po.location_id]
+          );
+          await conn.execute(
+            `INSERT INTO ims_stock_movements
+               (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh)
+             VALUES (?,?,'po_unapproved','purchase_order',?,?,?)`,
+            [item.variant_id, po.location_id, id, -alreadyReceived, s?.qty_on_hand ?? 0]
+          );
+          await conn.execute(
+            `UPDATE ims_purchase_order_items SET qty_received = 0 WHERE id = ?`,
+            [item.id]
+          );
+        }
+      }
+
       // ── any → cancelled ──────────────────────────────────────
       if (to === 'cancelled' && from === 'approved') {
         for (const item of items) {
@@ -1128,6 +1241,42 @@ export const ImsPORepo = {
                (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh)
              VALUES (?,?,'po_unapproved','purchase_order',?,?,?)`,
             [item.variant_id, po.location_id, id, -item.qty_ordered, s?.qty_on_hand ?? 0]
+          );
+        }
+      }
+
+      // ── partially_received → cancelled ───────────────────────────────────────
+      if (to === 'cancelled' && from === 'partially_received') {
+        for (const item of items) {
+          const alreadyReceived = Number(item.qty_received ?? 0);
+          const remainingIncoming = Math.max(0, Number(item.qty_ordered) - alreadyReceived);
+          if (alreadyReceived > 0) {
+            await conn.execute(
+              `UPDATE ims_stock SET qty_on_hand = GREATEST(0, qty_on_hand - ?)
+               WHERE variant_id=? AND location_id=?`,
+              [alreadyReceived, item.variant_id, po.location_id]
+            );
+          }
+          if (remainingIncoming > 0) {
+            await conn.execute(
+              `UPDATE ims_stock SET qty_incoming = GREATEST(0, qty_incoming - ?)
+               WHERE variant_id=? AND location_id=?`,
+              [remainingIncoming, item.variant_id, po.location_id]
+            );
+          }
+          const [[s]] = await conn.execute<any[]>(
+            `SELECT qty_on_hand FROM ims_stock WHERE variant_id=? AND location_id=?`,
+            [item.variant_id, po.location_id]
+          );
+          await conn.execute(
+            `INSERT INTO ims_stock_movements
+               (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh)
+             VALUES (?,?,'po_unapproved','purchase_order',?,?,?)`,
+            [item.variant_id, po.location_id, id, -(alreadyReceived + remainingIncoming), s?.qty_on_hand ?? 0]
+          );
+          await conn.execute(
+            `UPDATE ims_purchase_order_items SET qty_received = 0 WHERE id = ?`,
+            [item.id]
           );
         }
       }

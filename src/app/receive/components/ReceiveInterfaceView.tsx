@@ -76,17 +76,15 @@ export default function ReceiveInterfaceView({
   const [poLocationId, setPoLocationId] = useState<number>(1);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [shortfallDialog, setShortfallDialog] = useState<{ items: any[]; creatingBackorder: boolean } | null>(null);
   const qtyInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const loadPoItems = async () => {
+  const loadPoItems = async () => {
       setPoItemsLoading(true);
       setPoItemsError(null);
       try {
         const res = await fetch(`/api/ims/purchase-orders/${po.id}`);
-        if (!res.ok) {
-          throw new Error('Failed to load purchase order items');
-        }
+        if (!res.ok) throw new Error('Failed to load purchase order items');
         const data = await res.json();
         const fullPo = data?.data;
         setPoItems(fullPo?.items || []);
@@ -98,8 +96,7 @@ export default function ReceiveInterfaceView({
       }
     };
 
-    loadPoItems();
-  }, [po.id]);
+  useEffect(() => { loadPoItems(); }, [po.id]);
 
   const getCartQtyForVariant = (variantId: string) =>
     cart.find((i) => i.variant_id === variantId)?.qty_received || 0;
@@ -202,9 +199,9 @@ export default function ReceiveInterfaceView({
     }
   };
 
-  const handleReceiveAll = async () => {
+  const handleSubmit = async (markReceived: boolean, createBackorderPo = false) => {
     if (cart.length === 0) {
-      alert('Cart is empty');
+      alert('Cart is empty — scan or select items first');
       return;
     }
 
@@ -218,13 +215,14 @@ export default function ReceiveInterfaceView({
           qty_received: item.qty_received,
           barcode_new: item.barcode,
         })),
-        product_updates: [], // Can be expanded later
+        product_updates: [],
         stock_updates: cart.map((item) => ({
           variant_id: item.variant_id,
           min_qty: item.min_qty,
           reorder_qty: item.reorder_qty,
         })),
-        mark_po_received: true,
+        mark_po_received: markReceived,
+        create_backorder_po: createBackorderPo,
       };
 
       const res = await fetch('/api/ims/receive/batch', {
@@ -233,21 +231,42 @@ export default function ReceiveInterfaceView({
         body: JSON.stringify(payload),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        alert(`Success! Received ${data.items_received} items for PO ${po.po_number}`);
-        onBack();
-      } else {
-        const error = await res.json();
-        alert('Error: ' + (error.error || 'Unknown error'));
+      const data = await res.json();
+      if (!res.ok) {
+        alert('Error: ' + (data.error || 'Unknown error'));
+        return;
       }
+
+      if (!markReceived) {
+        // Saved as progress — stay on page and reload items
+        cart.forEach((item) => onRemoveFromCart(item.variant_id));
+        await loadPoItems();
+        alert(`Progress saved — ${data.shortfallItems?.length ?? 0} items still outstanding.`);
+        return;
+      }
+
+      // Fully marked as received — check for shortfall
+      if (data.shortfallItems && data.shortfallItems.length > 0 && !createBackorderPo) {
+        setShortfallDialog({ items: data.shortfallItems, creatingBackorder: false });
+        return;
+      }
+
+      // Success
+      if (data.backorderPoNumber) {
+        alert(`PO received.\n\nBackorder PO ${data.backorderPoNumber} created for ${data.shortfallItems?.length} short item(s).`);
+      } else {
+        alert(`Success! All items received for PO ${po.po_number}.`);
+      }
+      onBack();
     } catch (err) {
-      console.error('Error saving:', err);
       alert('Error: ' + (err as Error).message);
     } finally {
       setSaving(false);
+      setShortfallDialog(null);
     }
   };
+
+  const handleReceiveAll = () => handleSubmit(true);
 
   const handleClearCart = () => {
     if (window.confirm('Clear all items from cart?')) {
@@ -674,11 +693,11 @@ export default function ReceiveInterfaceView({
           onClick={handleClearCart}
           disabled={cart.length === 0 || saving}
           style={{
-            flex: 1,
             height: '44px',
+            padding: '0 14px',
             border: '1px solid #ddd',
             backgroundColor: '#fff',
-            fontSize: '16px',
+            fontSize: '14px',
             cursor: 'pointer',
             borderRadius: '6px',
             fontWeight: 'bold',
@@ -688,7 +707,25 @@ export default function ReceiveInterfaceView({
           Clear
         </button>
         <button
-          onClick={handleReceiveAll}
+          onClick={() => handleSubmit(false)}
+          disabled={cart.length === 0 || saving}
+          style={{
+            flex: 1,
+            height: '44px',
+            backgroundColor: '#0066cc',
+            color: '#fff',
+            border: 'none',
+            fontSize: '15px',
+            cursor: 'pointer',
+            borderRadius: '6px',
+            fontWeight: 'bold',
+            opacity: cart.length === 0 || saving ? 0.6 : 1,
+          }}
+        >
+          {saving ? 'Saving…' : 'Save Progress'}
+        </button>
+        <button
+          onClick={() => handleSubmit(true)}
           disabled={cart.length === 0 || saving}
           style={{
             flex: 1,
@@ -696,16 +733,80 @@ export default function ReceiveInterfaceView({
             backgroundColor: '#4CAF50',
             color: '#fff',
             border: 'none',
-            fontSize: '16px',
+            fontSize: '15px',
             cursor: 'pointer',
             borderRadius: '6px',
             fontWeight: 'bold',
             opacity: cart.length === 0 || saving ? 0.6 : 1,
           }}
         >
-          {saving ? 'Saving...' : 'Receive All'}
+          {saving ? 'Saving…' : 'Mark as Received'}
         </button>
       </div>
+
+      {/* Shortfall Dialog */}
+      {shortfallDialog && (
+        <div style={{
+          position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 2000, padding: '20px',
+        }}>
+          <div style={{
+            backgroundColor: '#fff', borderRadius: '12px', padding: '24px',
+            maxWidth: '420px', width: '100%', maxHeight: '80vh', overflowY: 'auto',
+          }}>
+            <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '8px' }}>
+              ⚠ Items Not Fully Received
+            </div>
+            <p style={{ fontSize: '14px', color: '#555', marginBottom: '16px' }}>
+              The following items have a shortfall. Would you like to create a backorder PO for the missing stock?
+            </p>
+            <div style={{ marginBottom: '16px', border: '1px solid #eee', borderRadius: '8px', overflow: 'hidden' }}>
+              {shortfallDialog.items.map((item: any) => (
+                <div key={item.variant_id} style={{
+                  padding: '10px 12px', borderBottom: '1px solid #f0f0f0',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                }}>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 600 }}>{item.product_name}</div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>{item.sku}</div>
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#c33', fontWeight: 700 }}>
+                    -{item.shortfall} units
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => { setShortfallDialog(null); onBack(); }}
+                style={{
+                  flex: 1, height: '44px', border: '1px solid #ddd',
+                  backgroundColor: '#f5f5f5', borderRadius: '8px',
+                  fontSize: '14px', cursor: 'pointer', fontWeight: 600,
+                }}
+              >
+                No thanks
+              </button>
+              <button
+                disabled={shortfallDialog.creatingBackorder}
+                onClick={async () => {
+                  setShortfallDialog(prev => prev ? { ...prev, creatingBackorder: true } : null);
+                  await handleSubmit(true, true);
+                }}
+                style={{
+                  flex: 1, height: '44px', border: 'none',
+                  backgroundColor: '#0066cc', color: '#fff', borderRadius: '8px',
+                  fontSize: '14px', cursor: 'pointer', fontWeight: 600,
+                  opacity: shortfallDialog.creatingBackorder ? 0.6 : 1,
+                }}
+              >
+                {shortfallDialog.creatingBackorder ? 'Creating…' : 'Create Backorder PO'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Product Matcher Modal */}
       {showProductMatcher && (

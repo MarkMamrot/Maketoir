@@ -209,16 +209,17 @@ function useImsSettings() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const STATUS_COLORS: Record<string, string> = {
-  draft:       'background:rgba(100,116,139,.18);color:#94a3b8',
-  approved:    'background:rgba(37,99,235,.18);color:#60a5fa',
-  received:    'background:rgba(16,185,129,.18);color:#34d399',
-  confirmed:   'background:rgba(251,191,36,.15);color:#fbbf24',
-  fulfilled:   'background:rgba(16,185,129,.18);color:#34d399',
-  sent:        'background:rgba(139,92,246,.18);color:#a78bfa',
-  cancelled:   'background:rgba(248,113,113,.15);color:#f87171',
-  in_progress: 'background:rgba(251,191,36,.15);color:#fbbf24',
-  completed:   'background:rgba(16,185,129,.18);color:#34d399',
-  reverted:    'background:rgba(139,92,246,.18);color:#a78bfa',
+  draft:              'background:rgba(100,116,139,.18);color:#94a3b8',
+  approved:           'background:rgba(37,99,235,.18);color:#60a5fa',
+  partially_received: 'background:rgba(251,146,60,.18);color:#f97316',
+  received:           'background:rgba(16,185,129,.18);color:#34d399',
+  confirmed:          'background:rgba(251,191,36,.15);color:#fbbf24',
+  fulfilled:          'background:rgba(16,185,129,.18);color:#34d399',
+  sent:               'background:rgba(139,92,246,.18);color:#a78bfa',
+  cancelled:          'background:rgba(248,113,113,.15);color:#f87171',
+  in_progress:        'background:rgba(251,191,36,.15);color:#fbbf24',
+  completed:          'background:rgba(16,185,129,.18);color:#34d399',
+  reverted:           'background:rgba(139,92,246,.18);color:#a78bfa',
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -3086,7 +3087,7 @@ function PurchaseOrdersView() {
   };
 
   const changeStatus = async (po: any, status: string) => {
-    const labels: Record<string, string> = { approved: 'approve', received: 'mark as received', draft: 'revert to draft', cancelled: 'cancel' };
+    const labels: Record<string, string> = { approved: 'approve', received: 'mark as received', draft: 'revert to draft', cancelled: 'cancel', partially_received: 'mark as partially received' };
     if (!confirm(`${labels[status] || status} PO ${po.po_number}?`)) return;
     try {
       const res = await apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
@@ -3136,7 +3137,7 @@ function PurchaseOrdersView() {
         <button onClick={openNew} style={btnStyle('action')}>+ New PO</button>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-        {['','draft','approved','received','cancelled'].map(s => (
+        {['','draft','approved','partially_received','received','cancelled'].map(s => (
           <button key={s} onClick={() => { setStatusFilter(s); setPage(1); }} style={btnStyle(statusFilter === s ? 'action' : 'ghost', 'sm')}>
             {s || 'All'}
           </button>
@@ -3536,7 +3537,7 @@ function PurchaseOrdersView() {
           {/* ── Landed Costs (view/edit) — not on invoice; allocated to avg. cost on receive ── */}
           {(() => {
             const lcs: any[] = viewModal.po.landed_costs || [];
-            const canEdit = viewModal.po.status === 'draft' || viewModal.po.status === 'approved';
+            const canEdit = viewModal.po.status === 'draft' || viewModal.po.status === 'approved' || viewModal.po.status === 'partially_received';
             return (
               <div style={{ marginTop: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -3767,9 +3768,13 @@ function POActions({ po, onEdit, onDelete, onStatus, context = 'list' }: { po: a
   if (po.status === 'approved') { btns.push(<a key="p" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 {context === 'view' ? 'Smart Device Receive' : 'Receive'}</a>); }
   if (po.status === 'approved' && context === 'view') { btns.push(<button key="r" onClick={() => onStatus(po, 'received')}  style={btnStyle('mint', 'xs')}>Mark Received</button>); }
   if (po.status === 'approved' && context !== 'list') { btns.push(<button key="b" onClick={() => onStatus(po, 'draft')}     style={btnStyle('ghost', 'xs')}>Revert</button>); }
+  if (po.status === 'partially_received') { btns.push(<a key="pr" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 {context === 'view' ? 'Continue Receiving' : 'Continue'}</a>); }
+  if (po.status === 'partially_received') { btns.push(<button key="prr" onClick={() => onStatus(po, 'received')} style={btnStyle('mint', 'xs')}>Mark Received</button>); }
+  if (po.status === 'partially_received' && context !== 'list') { btns.push(<button key="prb" onClick={() => onStatus(po, 'approved')} style={btnStyle('ghost', 'xs')}>Revert to Approved</button>); }
   if (po.status !== 'received' && po.status !== 'cancelled') {
     btns.push(<button key="e" onClick={onEdit}  style={btnStyle('ghost', 'xs')}>Edit</button>);
-    if (context !== 'list') { btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>); }
+    if (context !== 'list' && po.status !== 'partially_received') { btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>); }
+    if (context !== 'list' && po.status === 'partially_received') { btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>); }
   }
   if (po.status === 'cancelled' || po.status === 'draft') {
     btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>);
