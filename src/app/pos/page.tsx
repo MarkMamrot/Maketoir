@@ -10,6 +10,7 @@ import {
   loadFailedQueue, retryFailedQueue,
   saveLocalSession, loadLocalSession, clearLocalSession,
   newLocalId,
+  isProductsCacheStale, PRODUCTS_CACHE_TTL_MS,
 } from './_store';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
@@ -495,6 +496,39 @@ function MainPos({
     };
   }, []);
 
+  // Keep the product cache fresh (TTL). On a long-lived terminal the initial
+  // load may be hours old, so re-pull prices/stock in the background when the
+  // tab regains focus or on a periodic check. When offline and the cache is
+  // stale we can't refresh — surface a warning banner instead.
+  const [cacheStale, setCacheStale] = useState(false);
+  const onSyncRef = useRef(onSync);
+  useEffect(() => { onSyncRef.current = onSync; }, [onSync]);
+  useEffect(() => {
+    let cancelled = false;
+    async function checkFreshness() {
+      if (cancelled) return;
+      const stale = isProductsCacheStale();
+      if (stale && (typeof navigator === 'undefined' || navigator.onLine)) {
+        // Online + stale → refresh silently; onSync re-stamps the cache.
+        try { await onSyncRef.current(); } catch {/* keep stale cache */}
+        if (!cancelled) setCacheStale(isProductsCacheStale());
+      } else {
+        setCacheStale(stale);
+      }
+    }
+    checkFreshness();
+    const onVisible = () => { if (document.visibilityState === 'visible') checkFreshness(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', checkFreshness);
+    const interval = setInterval(checkFreshness, 15 * 60 * 1000); // re-check every 15 min
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', checkFreshness);
+      clearInterval(interval);
+    };
+  }, []);
+
   const totals = useMemo(() => calcTotals(cart), [cart]);
 
   function addToCart(product: CachedProduct) {
@@ -728,6 +762,16 @@ function MainPos({
         >{cartLeft ? '⬅ Cart' : 'Cart ➡'}</button>
         <button onClick={onLogout} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-red)', border: '1px solid var(--sv-red-border)' }}>Log Out</button>
       </div>
+
+      {/* Stale-cache banner — prices/stock may be out of date and can't be refreshed while offline */}
+      {cacheStale && (
+        <div style={{ background: 'rgba(248,113,113,.1)', borderBottom: '1px solid rgba(248,113,113,.25)', padding: '.3rem 1rem', fontSize: '.78rem', color: '#f87171', display: 'flex', alignItems: 'center', gap: '.5rem', flexShrink: 0 }}>
+          <span style={{ fontWeight: 700 }}>Product prices may be out of date</span>
+          <span style={{ color: 'var(--sv-text-dim)' }}>
+            This terminal hasn&apos;t refreshed its catalogue in over {Math.round(PRODUCTS_CACHE_TTL_MS / 3600000)} hours. Verify prices before charging; sync once back online to update.
+          </span>
+        </div>
+      )}
 
       {/* Offline-mode banner (loaded from cache, no server contact) */}
       {offlineMode && (

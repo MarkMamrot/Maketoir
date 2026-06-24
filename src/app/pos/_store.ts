@@ -47,15 +47,49 @@ export function clearLocalSession(): void {
 
 // ── Products Cache ───────────────────────────────────────────
 
-export function loadProductsCache(): CachedProduct[] {
+// How long the cached product list is considered "fresh" (Time To Live).
+// After this, the POS refreshes it in the background when online and warns
+// when offline. 6 hours comfortably covers a normal trading day.
+export const PRODUCTS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+
+interface ProductsCacheEnvelope {
+  cached_at: number;
+  products:  CachedProduct[];
+}
+
+function readProductsEnvelope(): ProductsCacheEnvelope | null {
   try {
     const raw = localStorage.getItem(KEYS.products);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Backward compatibility: older builds stored a bare array with no timestamp.
+    if (Array.isArray(parsed)) return { cached_at: 0, products: parsed };
+    if (parsed && Array.isArray(parsed.products)) return parsed as ProductsCacheEnvelope;
+    return null;
+  } catch { return null; }
+}
+
+export function loadProductsCache(): CachedProduct[] {
+  return readProductsEnvelope()?.products ?? [];
 }
 
 export function saveProductsCache(products: CachedProduct[]): void {
-  localStorage.setItem(KEYS.products, JSON.stringify(products));
+  const envelope: ProductsCacheEnvelope = { cached_at: Date.now(), products };
+  localStorage.setItem(KEYS.products, JSON.stringify(envelope));
+}
+
+/** Milliseconds since the product cache was last written, or null if no cache. */
+export function getProductsCacheAgeMs(): number | null {
+  const env = readProductsEnvelope();
+  if (!env) return null;
+  if (!env.cached_at) return Infinity; // legacy cache with no timestamp → treat as stale
+  return Date.now() - env.cached_at;
+}
+
+/** True when the product cache is older than the TTL (or has no timestamp). */
+export function isProductsCacheStale(): boolean {
+  const age = getProductsCacheAgeMs();
+  return age != null && age > PRODUCTS_CACHE_TTL_MS;
 }
 
 // ── Current Cart ─────────────────────────────────────────────
