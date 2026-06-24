@@ -11257,6 +11257,15 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         </ul>
         <p style={p}>The sync log (accessible from the Xero tab) shows every attempt with status, timestamp, and error detail for diagnosis.</p>
 
+        <h3 style={h3}>Reversals &amp; cancellations</h3>
+        <p style={p}>When a PO or SO is reverted to Draft or Cancelled, IMS automatically attempts to void the corresponding Xero document:</p>
+        <ul style={ul}>
+          <li><strong>PO revert / cancel</strong> — The Xero Draft Bill is voided. This is always safe: Draft Bills cannot have payments applied, so voiding never disrupts reconciliation.</li>
+          <li><strong>SO revert / cancel (no payments)</strong> — The Xero Invoice is voided automatically if no payments have been applied yet.</li>
+          <li><strong>SO revert / cancel (with payments)</strong> — The invoice cannot be auto-voided. IMS will show a warning: <em>"Xero invoice has payments applied — please void or raise a credit note manually in Xero."</em> You must resolve this in Xero before your accounts will reconcile correctly.</li>
+        </ul>
+        <p style={p}>Both operations are <strong>non-blocking</strong>. If a void fails (e.g. Xero outage), the IMS revert still completes successfully. The failed void is logged to the Xero sync log and a warning is shown — follow up manually in Xero when connectivity is restored.</p>
+
         <h3 style={h3}>Tax types</h3>
         <p style={p}>Xero tax type codes are configurable in IMS Settings. Defaults that work for most Australian Xero organisations:</p>
         <ul style={ul}>
