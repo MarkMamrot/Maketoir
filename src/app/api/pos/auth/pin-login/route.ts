@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { query } from '@/services/MySQLService';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { checkRateLimit, registerFailure, clearRateLimit } from '@/lib/posRateLimit';
 import bcrypt from 'bcryptjs';
 
 // POST /api/pos/auth/pin-login
@@ -18,19 +19,48 @@ export async function POST(req: Request) {
       );
     }
 
+    // Rate limit by user + location to slow PIN brute-forcing.
+    const rlKey = `${location_id}:${user_id}`;
+    const rl = checkRateLimit(rlKey);
+    if (rl.locked) {
+      return NextResponse.json(
+        { error: `Too many incorrect attempts. Try again in ${Math.ceil(rl.retryAfterSec / 60)} minute(s).` },
+        { status: 429 },
+      );
+    }
+
+    // Resolve the location's business so we can confirm the user belongs to it.
+    const locInfo = await imsQuery<{ name: string; business_id: string | null }>(
+      'SELECT name, business_id FROM ims_locations WHERE id = ? AND is_active = 1 LIMIT 1',
+      [Number(location_id)],
+    );
+    if (!locInfo[0]) {
+      return NextResponse.json({ error: 'Location not found.' }, { status: 404 });
+    }
+    const locationBusinessId = locInfo[0].business_id;
+    const locationName = locInfo[0].name ?? `Location ${location_id}`;
+
     const users = await query<{
       id: number;
       name: string | null;
       username: string | null;
       email: string;
+      business_id: string | null;
       pos_pin_hash: string | null;
     }>(
-      'SELECT id, name, username, email, pos_pin_hash FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1',
+      'SELECT id, name, username, email, business_id, pos_pin_hash FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1',
       [Number(user_id)],
     );
     const user = users[0];
     if (!user) {
       return NextResponse.json({ error: 'User not found.' }, { status: 404 });
+    }
+    // Authorisation: the user must belong to the same business as the location.
+    if (locationBusinessId && user.business_id && user.business_id !== locationBusinessId) {
+      return NextResponse.json(
+        { error: 'This user is not authorised for this location.' },
+        { status: 403 },
+      );
     }
     if (!user.pos_pin_hash) {
       return NextResponse.json(
@@ -41,15 +71,14 @@ export async function POST(req: Request) {
 
     const valid = await bcrypt.compare(String(pin), user.pos_pin_hash);
     if (!valid) {
-      return NextResponse.json({ error: 'Incorrect PIN.' }, { status: 403 });
+      const after = registerFailure(rlKey);
+      const msg = after.locked
+        ? `Too many incorrect attempts. Try again in ${Math.ceil(after.retryAfterSec / 60)} minute(s).`
+        : 'Incorrect PIN.';
+      return NextResponse.json({ error: msg }, { status: after.locked ? 429 : 403 });
     }
 
-    // Fetch location name
-    const locRows = await imsQuery<{ name: string }>(
-      'SELECT name FROM ims_locations WHERE id = ? AND is_active = 1 LIMIT 1',
-      [Number(location_id)],
-    );
-    const locationName = locRows[0]?.name ?? `Location ${location_id}`;
+    clearRateLimit(rlKey);
 
     const sessionData = {
       pos_user_id:   user.id,

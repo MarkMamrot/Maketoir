@@ -22,19 +22,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'register_id and location_id required.' }, { status: 400 });
   }
 
-  // Block double-open: if a session is already open, return 409
-  const existing = await PosRegisterSessionRepo.getCurrent(registerId);
-  if (existing) {
-    return NextResponse.json(
-      { success: false, error: 'This register is already open.', session: existing },
-      { status: 409 },
-    );
-  }
-
+  // Block double-open atomically: lock the register's open rows and re-check
+  // inside a transaction so two simultaneous opens can't both insert.
   const now = new Date().toLocaleString('sv-SE', { timeZone: process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney' }).replace('T', ' ');
   const sessionDate = body.session_date ?? now.slice(0, 10);
 
-  const sessionId = await PosRegisterSessionRepo.open({
+  const opened = await PosRegisterSessionRepo.openAtomic({
     register_id:      registerId,
     location_id:      locationId,
     session_date:     sessionDate,
@@ -44,5 +37,12 @@ export async function POST(req: NextRequest) {
     denomination_data: body.denomination_data ?? null,
   });
 
-  return NextResponse.json({ success: true, session_id: sessionId });
+  if (!opened.created) {
+    return NextResponse.json(
+      { success: false, error: 'This register is already open.', session: opened.existing },
+      { status: 409 },
+    );
+  }
+
+  return NextResponse.json({ success: true, session_id: opened.session_id });
 }

@@ -279,6 +279,7 @@ export const PosSalesRepo = {
   async complete(data: {
     local_id:          string | null;
     register_id:       number | null;
+    register_session_id?: number | null;
     location_id:       number;
     cashier_id:        number | null;
     cashier_name:      string | null;
@@ -323,13 +324,14 @@ export const PosSalesRepo = {
       // 1. Insert sale
       const [saleResult]: any = await conn.execute(
         `INSERT INTO pos_sales
-           (local_id, register_id, location_id, cashier_id, cashier_name, sale_type, status,
+           (local_id, register_id, register_session_id, location_id, cashier_id, cashier_name, sale_type, status,
             customer_name, customer_phone, subtotal, discount_total,
             tax_total, total, notes, parked_label, return_of_sale_id, completed_at, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           data.local_id ?? null,
           data.register_id ?? null,
+          data.register_session_id ?? null,
           data.location_id,
           data.cashier_id,
           data.cashier_name ?? null,
@@ -383,42 +385,41 @@ export const PosSalesRepo = {
         );
       }
 
-      // 4. Deduct IMS stock for completed/layby_complete sales
+      // 4. Deduct IMS stock for completed/layby_complete sales.
+      //    Stock movement is part of the sale transaction: if it fails, the whole
+      //    sale is rolled back so we never record a sale without its stock movement.
+      //    (The client re-queues the sale offline and retries — idempotent via local_id.)
       if (data.status === 'completed' || data.status === 'layby_complete') {
         for (const item of data.items) {
           if (!item.variant_id) continue;
           // For returns, qty is negative — this ADDS back to stock
           const qtyChange = data.sale_type === 'return' ? item.qty : -item.qty;
-          try {
-            const [stockRows]: any = await conn.execute(
-              `SELECT qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ? LIMIT 1`,
-              [item.variant_id, data.location_id],
-            );
-            const currentSoh = stockRows[0] ? Number(stockRows[0].qty_on_hand) : 0;
-            const newSoh = currentSoh + qtyChange;
+          const [stockRows]: any = await conn.execute(
+            `SELECT qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ? LIMIT 1`,
+            [item.variant_id, data.location_id],
+          );
+          const currentSoh = stockRows[0] ? Number(stockRows[0].qty_on_hand) : 0;
+          const newSoh = currentSoh + qtyChange;
 
-            if (stockRows[0]) {
-              await conn.execute(
-                `UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id = ? AND location_id = ?`,
-                [newSoh, item.variant_id, data.location_id],
-              );
-            } else {
-              await conn.execute(
-                `INSERT INTO ims_stock (variant_id, location_id, qty_on_hand) VALUES (?, ?, ?)`,
-                [item.variant_id, data.location_id, newSoh],
-              );
-            }
-
+          if (stockRows[0]) {
             await conn.execute(
-              `INSERT INTO ims_stock_movements
-                 (variant_id, location_id, movement_type, reference_type, reference_id,
-                  qty_change, qty_after_soh)
-               VALUES (?, ?, ?, ?, ?, ?, ?)`,
-              [item.variant_id, data.location_id, 'pos_sale', 'pos_sale', saleId, qtyChange, newSoh],
+              `UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id = ? AND location_id = ?`,
+              [newSoh, item.variant_id, data.location_id],
             );
-          } catch {
-            // Non-fatal — stock deduction failure doesn't block the sale
+          } else {
+            await conn.execute(
+              `INSERT INTO ims_stock (variant_id, location_id, qty_on_hand) VALUES (?, ?, ?)`,
+              [item.variant_id, data.location_id, newSoh],
+            );
           }
+
+          await conn.execute(
+            `INSERT INTO ims_stock_movements
+               (variant_id, location_id, movement_type, reference_type, reference_id,
+                qty_change, qty_after_soh)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [item.variant_id, data.location_id, 'pos_sale', 'pos_sale', saleId, qtyChange, newSoh],
+          );
         }
       }
 
@@ -502,9 +503,52 @@ export const PosEodRepo = {
     return result;
   },
 
+  /**
+   * Expected takings for a single register SESSION (open → close window),
+   * keyed by payment method. Correctly handles shifts that cross midnight or
+   * registers left open across days, because it sums by the session the sale
+   * was rung up under rather than by calendar date.
+   */
+  async getExpectedBySession(registerSessionId: number): Promise<Record<string, number>> {
+    const rows = await imsQuery<any>(
+      `SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total
+         FROM pos_payments p
+         JOIN pos_sales s ON s.id = p.sale_id
+        WHERE s.register_session_id = ?
+          AND s.status IN ('completed','layby_complete')
+        GROUP BY p.payment_method`,
+      [registerSessionId],
+    );
+    const result: Record<string, number> = {};
+    for (const row of rows) result[row.payment_method] = toNum(row.total);
+    return result;
+  },
+
+  /** Sales totals (incl/excl tax, count) for a single register session. */
+  async getDayTotalsBySession(registerSessionId: number): Promise<{ total_inc_tax: number; tax_total: number; total_exc_tax: number; sale_count: number }> {
+    const rows = await imsQuery<any>(
+      `SELECT COALESCE(SUM(total), 0)              AS total_inc_tax,
+              COALESCE(SUM(tax_total), 0)          AS tax_total,
+              COALESCE(SUM(total - tax_total), 0)  AS total_exc_tax,
+              COUNT(*)                             AS sale_count
+         FROM pos_sales
+        WHERE register_session_id = ?
+          AND status IN ('completed','layby_complete')`,
+      [registerSessionId],
+    );
+    const r = rows[0] ?? {};
+    return {
+      total_inc_tax: toNum(r.total_inc_tax),
+      tax_total:     toNum(r.tax_total),
+      total_exc_tax: toNum(r.total_exc_tax),
+      sale_count:    Number(r.sale_count) || 0,
+    };
+  },
+
   async save(data: {
     location_id:      number;
     register_id:      number | null;
+    register_session_id?: number | null;
     cashier_id:       number | null;
     cashier_name:     string | null;
     recon_date:       string;
@@ -517,10 +561,11 @@ export const PosEodRepo = {
   }): Promise<void> {
     await imsExecute(
       `INSERT INTO pos_eod_reconciliations
-         (location_id, register_id, cashier_id, cashier_name, recon_date, payment_method,
+         (location_id, register_id, register_session_id, cashier_id, cashier_name, recon_date, payment_method,
           expected_amount, counted_amount, opening_float, denomination_data, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
+         register_session_id = VALUES(register_session_id),
          cashier_id        = VALUES(cashier_id),
          cashier_name      = VALUES(cashier_name),
          expected_amount   = VALUES(expected_amount),
@@ -531,6 +576,7 @@ export const PosEodRepo = {
       [
         data.location_id,
         data.register_id ?? null,
+        data.register_session_id ?? null,
         data.cashier_id ?? null,
         data.cashier_name ?? null,
         data.recon_date,
@@ -666,6 +712,57 @@ export const PosRegisterSessionRepo = {
       ],
     );
     return result.insertId;
+  },
+
+  /**
+   * Atomically open a register session, guarding against a race where two
+   * devices open the same register simultaneously. Locks existing open rows
+   * for the register inside a transaction; if one already exists, returns it
+   * instead of inserting a duplicate.
+   */
+  async openAtomic(data: {
+    register_id:      number;
+    location_id:      number;
+    session_date:     string;
+    opened_at:        string;
+    opened_by:        string | null;
+    opening_float:    number | null;
+    denomination_data?: Record<string, number> | null;
+  }): Promise<{ created: boolean; session_id: number; existing?: PosRegisterSessionRow }> {
+    const pool = getIMSPool();
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [openRows]: any = await conn.execute(
+        "SELECT * FROM pos_register_sessions WHERE register_id = ? AND status = 'open' ORDER BY opened_at DESC LIMIT 1 FOR UPDATE",
+        [data.register_id],
+      );
+      if (openRows[0]) {
+        await conn.commit();
+        return { created: false, session_id: openRows[0].id, existing: parseSession(openRows[0]) };
+      }
+      const [ins]: any = await conn.execute(
+        `INSERT INTO pos_register_sessions
+           (register_id, location_id, session_date, opened_at, opened_by, opening_float, denomination_data, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'open')`,
+        [
+          data.register_id,
+          data.location_id,
+          data.session_date,
+          data.opened_at,
+          data.opened_by ?? null,
+          data.opening_float ?? null,
+          data.denomination_data ? JSON.stringify(data.denomination_data) : null,
+        ],
+      );
+      await conn.commit();
+      return { created: true, session_id: ins.insertId };
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
   },
 
   async close(sessionId: number, closedAt: string, closedBy: string | null): Promise<void> {

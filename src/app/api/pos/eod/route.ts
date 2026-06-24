@@ -26,6 +26,7 @@ export async function GET(req: Request) {
 
   const date = searchParams.get('date') ?? new Date().toLocaleDateString('sv-SE');
   const registerId = searchParams.get('register_id') ? Number(searchParams.get('register_id')) : (session.register_id ?? null);
+  const registerSessionId = searchParams.get('register_session_id') ? Number(searchParams.get('register_session_id')) : null;
 
   const adminRaw    = cookies().get('marketoir_session')?.value;
   const adminSession = adminRaw ? (() => { try { return JSON.parse(adminRaw); } catch { return null; } })() : null;
@@ -39,6 +40,17 @@ export async function GET(req: Request) {
   } else {
     const floatRaw = await ConfigRepository.get(bizId, 'POS_DefaultFloat').catch(() => null);
     if (floatRaw !== null) default_float = parseFloat(floatRaw) || 200;
+  }
+
+  // When a register session is supplied, reconcile by SESSION (open→close window),
+  // which correctly handles shifts crossing midnight / registers left open overnight.
+  if (registerSessionId) {
+    const [existing, expected, dayTotals] = await Promise.all([
+      PosEodRepo.get(locationId, date, registerId),
+      PosEodRepo.getExpectedBySession(registerSessionId),
+      PosEodRepo.getDayTotalsBySession(registerSessionId),
+    ]);
+    return NextResponse.json({ reconciliations: existing, expected, default_float, day_totals: dayTotals });
   }
 
   const [existing, expected, dayTotalsRows] = await Promise.all([
@@ -96,13 +108,18 @@ export async function POST(req: Request) {
 
     const resolvedDate = date ?? new Date().toLocaleDateString('sv-SE');
     const register_id = body.register_id ?? session.register_id ?? null;
+    const register_session_id = body.register_session_id ?? null;
 
-    const expected = await PosEodRepo.getExpected(resolvedLocationId, resolvedDate, register_id);
+    // Expected takings: by session when supplied (handles midnight rollover), else by date.
+    const expected = register_session_id
+      ? await PosEodRepo.getExpectedBySession(Number(register_session_id))
+      : await PosEodRepo.getExpected(resolvedLocationId, resolvedDate, register_id);
 
     for (const entry of entries) {
       await PosEodRepo.save({
         location_id:       resolvedLocationId,
         register_id:       register_id,
+        register_session_id: register_session_id,
         cashier_id:        session.pos_user_id || null,
         cashier_name:      session.full_name || session.username || null,
         recon_date:        resolvedDate,

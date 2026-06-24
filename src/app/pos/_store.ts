@@ -5,6 +5,7 @@ const KEYS = {
   deviceConfig:  'pos_device_config',
   products:      'pos_products_cache',
   offlineQueue:  'pos_offline_queue',
+  failedQueue:   'pos_failed_queue',
   parkedSales:   'pos_parked_sales',
   currentCart:   'pos_current_cart',
   sessionLocal:  'pos_session_local',
@@ -89,6 +90,7 @@ export interface OfflineQueueEntry {
   payload:     unknown;
   queued_at:   string;
   attempts:    number;
+  last_error?: string;
 }
 
 export function loadOfflineQueue(): OfflineQueueEntry[] {
@@ -108,6 +110,31 @@ export function saveOfflineQueue(queue: OfflineQueueEntry[]): void {
   localStorage.setItem(KEYS.offlineQueue, JSON.stringify(queue));
 }
 
+// ── Failed (dead-letter) queue ────────────────────────────────
+// Sales that repeatedly failed to sync are moved here so they are NEVER lost.
+// They are surfaced to the operator for manual retry rather than silently dropped.
+
+export function loadFailedQueue(): OfflineQueueEntry[] {
+  try {
+    const raw = localStorage.getItem(KEYS.failedQueue);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+export function saveFailedQueue(queue: OfflineQueueEntry[]): void {
+  localStorage.setItem(KEYS.failedQueue, JSON.stringify(queue));
+}
+
+/** Move every dead-lettered sale back into the live queue for another attempt. */
+export function retryFailedQueue(): void {
+  const failed = loadFailedQueue();
+  if (!failed.length) return;
+  const queue = loadOfflineQueue();
+  for (const entry of failed) queue.push({ ...entry, attempts: 0 });
+  saveOfflineQueue(queue);
+  saveFailedQueue([]);
+}
+
 // ── UUID generator ────────────────────────────────────────────
 
 export function newLocalId(): string {
@@ -116,12 +143,20 @@ export function newLocalId(): string {
 }
 
 // ── Drain offline queue ───────────────────────────────────────
+// Sends each queued sale to the server. Entries that keep failing are moved to a
+// dead-letter queue (loadFailedQueue) after MAX_LIVE_ATTEMPTS — they are NEVER
+// silently discarded, so no sale can disappear. A 4xx (other than network/5xx)
+// for a malformed payload is also dead-lettered rather than retried forever.
+
+const MAX_LIVE_ATTEMPTS = 5;
 
 export async function drainOfflineQueue(): Promise<void> {
   const queue = loadOfflineQueue();
   if (!queue.length) return;
 
   const remaining: OfflineQueueEntry[] = [];
+  const failed = loadFailedQueue();
+
   for (const entry of queue) {
     try {
       const res = await fetch('/api/pos/sales', {
@@ -129,14 +164,20 @@ export async function drainOfflineQueue(): Promise<void> {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(entry.payload),
       });
-      if (!res.ok) {
-        entry.attempts++;
-        if (entry.attempts < 5) remaining.push(entry);
-      }
-    } catch {
+      if (res.ok) continue; // synced — drop from queue
+
       entry.attempts++;
-      if (entry.attempts < 5) remaining.push(entry);
+      entry.last_error = `HTTP ${res.status}`;
+      if (entry.attempts < MAX_LIVE_ATTEMPTS) remaining.push(entry);
+      else failed.push(entry); // dead-letter — kept for manual retry, never lost
+    } catch (e: any) {
+      entry.attempts++;
+      entry.last_error = e?.message || 'Network error';
+      // Network errors keep retrying in the live queue (don't dead-letter on offline)
+      remaining.push(entry);
     }
   }
+
   saveOfflineQueue(remaining);
+  saveFailedQueue(failed);
 }

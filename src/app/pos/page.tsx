@@ -7,6 +7,7 @@ import {
   loadCurrentCart, saveCurrentCart,
   loadParkedSales, saveParkedSales,
   addToOfflineQueue, drainOfflineQueue, loadOfflineQueue,
+  loadFailedQueue, retryFailedQueue,
   saveLocalSession, loadLocalSession, clearLocalSession,
   newLocalId,
 } from './_store';
@@ -175,6 +176,9 @@ function RegisterGate({ session, deviceConfig, staleSession, onContinue, onClose
     ? new Date(staleSession.opened_at).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })
     : 'unknown time';
   const openedDate = staleSession?.session_date ?? '';
+  // Today in the business timezone (session_date is stored as a local date string).
+  const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+  const isPriorDay = !!openedDate && String(openedDate).slice(0, 10) !== todayStr;
 
   async function handleCloseAndReopen() {
     setLoading(true);
@@ -197,12 +201,18 @@ function RegisterGate({ session, deviceConfig, staleSession, onContinue, onClose
         <p style={{ color: 'var(--sv-text-main)', marginBottom: '.5rem', textAlign: 'center', lineHeight: 1.5 }}>
           <strong>{deviceConfig.register_name}</strong> was opened on <strong>{openedDate}</strong> at <strong>{openedAt}</strong> and was not closed.
         </p>
-        <p style={{ color: 'var(--sv-text-dim)', marginBottom: '1.5rem', textAlign: 'center', fontSize: '.88rem' }}>
-          Continue that session or close it and start a new one.
-        </p>
+        {isPriorDay ? (
+          <p style={{ color: 'var(--sv-red)', marginBottom: '1.5rem', textAlign: 'center', fontSize: '.88rem', lineHeight: 1.5 }}>
+            This session is from a <strong>previous day</strong>. To keep your end-of-day takings accurate, close it and open a fresh session for today. Only continue if you intend to keep recording against {openedDate}.
+          </p>
+        ) : (
+          <p style={{ color: 'var(--sv-text-dim)', marginBottom: '1.5rem', textAlign: 'center', fontSize: '.88rem' }}>
+            Continue that session or close it and start a new one.
+          </p>
+        )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
-          <button onClick={onContinue} style={{ ...primaryBtn, width: '100%' }}>Continue Session</button>
-          <button onClick={handleCloseAndReopen} disabled={loading} style={{ ...primaryBtn, width: '100%', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)' }}>
+          <button onClick={onContinue} style={{ ...primaryBtn, width: '100%', ...(isPriorDay ? { background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)' } : {}) }}>Continue Session</button>
+          <button onClick={handleCloseAndReopen} disabled={loading} style={{ ...primaryBtn, width: '100%', ...(isPriorDay ? {} : { background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)' }) }}>
             {loading ? 'Closing…' : 'Close Register & Open New'}
           </button>
         </div>
@@ -441,9 +451,17 @@ function MainPos({
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [queueCount, setQueueCount] = useState(() => loadOfflineQueue().length);
+  const [failedCount, setFailedCount] = useState(() => loadFailedQueue().length);
   const [cartLeft, setCartLeft] = useState(() => { try { return localStorage.getItem('pos_cart_left') === '1'; } catch { return false; } });
+  const submittingRef = useRef(false);
 
-  function refreshQueueCount() { setQueueCount(loadOfflineQueue().length); }
+  function refreshQueueCount() { setQueueCount(loadOfflineQueue().length); setFailedCount(loadFailedQueue().length); }
+
+  function retryFailedSales() {
+    retryFailedQueue();
+    refreshQueueCount();
+    drainOfflineQueue().then(refreshQueueCount);
+  }
 
   async function handleSync() {
     setSyncing(true);
@@ -575,60 +593,69 @@ function MainPos({
   }
 
   async function completeSale(payments: PaymentEntry[]) {
-    const localId = newLocalId();
-    const now = new Date().toISOString();
-    const { subtotal, discount_total, tax_total, total } = totals;
-
-    const payload = {
-      local_id:       localId,
-      location_id:    session.location_id,
-      cashier_id:     session.pos_user_id,
-      sale_type:      isLayby ? 'layby' : isReturn ? 'return' : 'sale',
-      status:         isLayby ? 'layby_active' : 'completed',
-      customer_name:  customerName || null,
-      customer_phone: customerPhone || null,
-      subtotal, discount_total, tax_total, total,
-      items:    cart.map(i => ({ variant_id: i.variant_id, code: i.code, name: i.name, qty: i.qty, unit_price: i.unit_price, original_price: i.original_price, discount_type: i.discount_type, discount_value: i.discount_value, discount_amount: i.discount_amount, tax_rate: i.tax_rate, line_total: i.line_total })),
-      payments: payments.map(p => ({ payment_method: p.method, amount: p.amount, reference: p.reference || null })),
-    };
-
-    let serverId: number | null = null;
+    // Re-entrancy guard — prevents a double-fired handler (double-click / key event)
+    // from creating two sales. Each completeSale generates a fresh local_id, so the
+    // DB UNIQUE(local_id) constraint would NOT catch a double-invocation.
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     try {
-      if (navigator.onLine) {
-        const res = await fetch('/api/pos/sales', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        const data = await res.json();
-        if (res.ok) serverId = data.id;
-        else addToOfflineQueue(payload);
-      } else {
+      const localId = newLocalId();
+      const now = new Date().toISOString();
+      const { subtotal, discount_total, tax_total, total } = totals;
+
+      const payload = {
+        local_id:       localId,
+        location_id:    session.location_id,
+        cashier_id:     session.pos_user_id,
+        sale_type:      isLayby ? 'layby' : isReturn ? 'return' : 'sale',
+        status:         isLayby ? 'layby_active' : 'completed',
+        customer_name:  customerName || null,
+        customer_phone: customerPhone || null,
+        subtotal, discount_total, tax_total, total,
+        items:    cart.map(i => ({ variant_id: i.variant_id, code: i.code, name: i.name, qty: i.qty, unit_price: i.unit_price, original_price: i.original_price, discount_type: i.discount_type, discount_value: i.discount_value, discount_amount: i.discount_amount, tax_rate: i.tax_rate, line_total: i.line_total })),
+        payments: payments.map(p => ({ payment_method: p.method, amount: p.amount, reference: p.reference || null })),
+      };
+
+      let serverId: number | null = null;
+      try {
+        if (navigator.onLine) {
+          const res = await fetch('/api/pos/sales', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (res.ok) serverId = data.id;
+          else addToOfflineQueue(payload);
+        } else {
+          addToOfflineQueue(payload);
+        }
+      } catch {
         addToOfflineQueue(payload);
       }
-    } catch {
-      addToOfflineQueue(payload);
+      refreshQueueCount();
+
+      const completedSale: CompletedSale = {
+        id:            serverId,
+        local_id:      localId,
+        location_name: session.location_name,
+        cashier_name:  session.full_name,
+        sale_type:     isLayby ? 'layby' : isReturn ? 'return' : 'sale',
+        status:        isLayby ? 'layby_active' : 'completed',
+        items:         cart,
+        payments,
+        subtotal, discount_total, tax_total, total,
+        customer_name:  customerName || null,
+        customer_phone: customerPhone || null,
+        created_at:    now,
+      };
+
+      clearCart();
+      setShowPayment(false);
+      onReceipt(completedSale);
+    } finally {
+      submittingRef.current = false;
     }
-    refreshQueueCount();
-
-    const completedSale: CompletedSale = {
-      id:            serverId,
-      local_id:      localId,
-      location_name: session.location_name,
-      cashier_name:  session.full_name,
-      sale_type:     isLayby ? 'layby' : isReturn ? 'return' : 'sale',
-      status:        isLayby ? 'layby_active' : 'completed',
-      items:         cart,
-      payments,
-      subtotal, discount_total, tax_total, total,
-      customer_name:  customerName || null,
-      customer_phone: customerPhone || null,
-      created_at:    now,
-    };
-
-    clearCart();
-    setShowPayment(false);
-    onReceipt(completedSale);
   }
 
   if (screen === 'eod') return <EodScreen session={session} onBack={() => setScreen('pos')} />;
@@ -664,6 +691,16 @@ function MainPos({
           <span style={{ padding: '.15rem .5rem', borderRadius: 99, background: 'rgba(251,191,36,.12)', border: '1px solid rgba(251,191,36,.3)', fontSize: '.73rem', fontWeight: 600, color: '#fbbf24', flexShrink: 0 }}>
             ⏳ {queueCount} queued
           </span>
+        )}
+        {/* Failed-sync badge — sales that repeatedly failed to sync (never lost) */}
+        {failedCount > 0 && (
+          <button
+            onClick={retryFailedSales}
+            title="These sales repeatedly failed to sync and are saved on this device. Click to retry now."
+            style={{ padding: '.15rem .5rem', borderRadius: 99, background: 'rgba(248,113,113,.14)', border: '1px solid rgba(248,113,113,.4)', fontSize: '.73rem', fontWeight: 700, color: '#f87171', flexShrink: 0, cursor: 'pointer' }}
+          >
+            ⚠ {failedCount} failed — retry
+          </button>
         )}
         <button
           onClick={handleSync}
@@ -1542,7 +1579,8 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
   useEffect(() => {
     if (!methods.length) return;
     setLoading(true);
-    fetch(`/api/pos/eod?location_id=${session.location_id}&date=${date}`)
+    const sessionParam = regSession?.id ? `&register_session_id=${regSession.id}` : '';
+    fetch(`/api/pos/eod?location_id=${session.location_id}&date=${date}${sessionParam}`)
       .then(r => r.json())
       .then(d => {
         setExpected(d.expected ?? {});
@@ -1568,7 +1606,7 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
         setXeroInvoiceIds(ids);
       })
       .finally(() => setLoading(false));
-  }, [date, methods, session.location_id]);
+  }, [date, methods, session.location_id, regSession?.id]);
 
   function updateEntry(method: string, key: keyof EodEntryState, value: string | boolean | Record<string, string>) {
     setEntries(prev => {
@@ -1650,14 +1688,19 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
       await fetch('/api/pos/eod', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ location_id: session.location_id, date, entries: entriesArr }),
+        body: JSON.stringify({
+          location_id: session.location_id,
+          date: regSession?.session_date ?? date,
+          register_session_id: regSession?.id ?? null,
+          entries: entriesArr,
+        }),
       });
       // Close the register session when EOD is saved
-      if (session.register_id && regSession?.status === 'open') {
+      if (session.register_id && regSession?.status === 'open' && regSession?.id) {
         await fetch('/api/pos/register/close', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ register_id: session.register_id }),
+          body: JSON.stringify({ session_id: regSession.id }),
         });
         await loadRegSession();
       }
@@ -2229,13 +2272,30 @@ export default function PosPage() {
 
   function checkRegisterGate(sess: PosSession, cfg: DeviceConfig, thenGoPos: () => void) {
     if (!cfg.register_id) { thenGoPos(); return; }
-    fetch(`/api/pos/register/session?register_id=${cfg.register_id}`)
+    // Validate the configured register still exists and is active. If it was
+    // deleted/deactivated in IMS, force device re-setup rather than attaching
+    // sales to a dangling register_id.
+    fetch(`/api/pos/registers?location_id=${cfg.location_id}`)
       .then(r => r.json())
       .then(rd => {
-        if (rd.session) { setOpenRegSession(rd.session); setScreen('register_gate'); }
-        else thenGoPos();
+        const reg = (rd.registers ?? []).find((x: any) => x.id === cfg.register_id);
+        if (!reg || !reg.is_active) {
+          alert('This register is no longer available (it may have been removed or deactivated). Please set the device up again.');
+          clearDeviceConfig();
+          setDeviceConfig(null);
+          setScreen('setup');
+          return;
+        }
+        // Register is valid — check for an open (possibly stale) session.
+        fetch(`/api/pos/register/session?register_id=${cfg.register_id}`)
+          .then(r => r.json())
+          .then(rd2 => {
+            if (rd2.session) { setOpenRegSession(rd2.session); setScreen('register_gate'); }
+            else thenGoPos();
+          })
+          .catch(() => thenGoPos());
       })
-      .catch(() => thenGoPos());
+      .catch(() => thenGoPos()); // offline — don't block; proceed with cached config
   }
 
   // Background stock sync every 5 minutes while POS is active
@@ -2391,6 +2451,17 @@ export default function PosPage() {
       offlineMode={offlineMode}
       onSync={handleSync}
       onLogout={async () => {
+        // Try to flush any queued sales before logging out — never silently abandon them.
+        try { await drainOfflineQueue(); } catch {}
+        const pending = loadOfflineQueue().length + loadFailedQueue().length;
+        if (pending > 0) {
+          const proceed = confirm(
+            `${pending} sale${pending !== 1 ? 's have' : ' has'} not yet synced to the server. ` +
+            `They are saved on this device and will sync once it reconnects — they will NOT be lost. ` +
+            `Log out anyway?`,
+          );
+          if (!proceed) return;
+        }
         await fetch('/api/pos/auth/logout', { method: 'POST' });
         clearLocalSession();
         setSession(null);

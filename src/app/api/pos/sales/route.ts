@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { PosSalesRepo } from '@/lib/db/PosRepository';
+import { PosSalesRepo, PosRegisterSessionRepo } from '@/lib/db/PosRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 
 function getPosSession() {
@@ -44,9 +44,20 @@ export async function POST(req: Request) {
       }
     }
 
+    // Resolve which register SESSION this sale belongs to, so end-of-day
+    // reconciliation sums by session (handles shifts that cross midnight or a
+    // register left open across days) rather than by calendar date.
+    const registerId = body.register_id ?? session.register_id ?? null;
+    let registerSessionId: number | null = body.register_session_id ?? null;
+    if (registerSessionId == null && registerId) {
+      const openSession = await PosRegisterSessionRepo.getCurrent(Number(registerId)).catch(() => null);
+      registerSessionId = openSession?.id ?? null;
+    }
+
     const saleId = await PosSalesRepo.complete({
       local_id:          body.local_id ?? null,
-      register_id:       body.register_id ?? session.register_id ?? null,
+      register_id:       registerId,
+      register_session_id: registerSessionId,
       location_id:       body.location_id ?? session.location_id,
       cashier_id:        (body.cashier_id || session.pos_user_id) || null,
       cashier_name:      session.full_name || session.username || null,
