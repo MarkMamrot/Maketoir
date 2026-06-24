@@ -10201,8 +10201,105 @@ function StockMinsImportCard() {
   );
 }
 
+function DataResetCard() {
+  const TARGETS = [
+    { key: 'stocktakes',      label: 'Stocktakes',             note: 'All stocktake records and their counted items' },
+    { key: 'purchase_orders', label: 'Purchase Orders',        note: 'All POs, items, payments and file records' },
+    { key: 'sales_orders',    label: 'Sales Orders & Online Orders', note: 'All wholesale SOs and Shopify/online orders, items and payments' },
+    { key: 'pos_sales',       label: 'POS Sales',              note: 'All POS sales, items, payments, EOD reconciliations and register sessions' },
+  ] as const;
+  type TargetKey = typeof TARGETS[number]['key'];
+
+  const [selected, setSelected] = React.useState<Set<TargetKey>>(new Set());
+  const [confirm, setConfirm] = React.useState('');
+  const [running, setRunning] = React.useState(false);
+  const [result, setResult] = React.useState<null | { deleted: Record<string, number> }>(null);
+  const [error, setError] = React.useState<string | null>(null);
+
+  function toggle(k: TargetKey) { setSelected(s => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n; }); }
+
+  async function run() {
+    setRunning(true); setError(null); setResult(null);
+    try {
+      const res = await fetch('/api/ims/data-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm, targets: [...selected] }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error ?? 'Unknown error');
+      setResult(data);
+      setConfirm('');
+      setSelected(new Set());
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  const ready = selected.size > 0 && confirm === 'DELETE';
+
+  return (
+    <div style={{ background: '#1a0a0a', border: '1px solid rgba(248,113,113,.35)', borderRadius: 8, padding: 14, marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <span style={{ fontSize: 16 }}>🗑</span>
+        <strong style={{ color: '#f87171', fontSize: 13 }}>Start Over — Delete Transactional Data</strong>
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: '0 0 12px', lineHeight: 1.55 }}>
+        Permanently deletes selected transactional data for this business. Use this to clean up test data before going live.{' '}
+        <strong style={{ color: '#f87171' }}>This cannot be undone.</strong>{' '}
+        Products, variants, stock levels, contacts, locations, settings and users are never affected.
+      </p>
+
+      {/* Checkboxes */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
+        {TARGETS.map(t => (
+          <label key={t.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={selected.has(t.key)}
+              onChange={() => toggle(t.key)}
+              style={{ marginTop: 2, accentColor: '#f87171' }}
+            />
+            <span style={{ fontSize: 12 }}>
+              <span style={{ color: 'var(--sv-text-strong)', fontWeight: 600 }}>{t.label}</span>
+              <span style={{ color: 'var(--sv-text-dim)', marginLeft: 6 }}>— {t.note}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+
+      {/* Confirmation input */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <input
+          value={confirm}
+          onChange={e => setConfirm(e.target.value)}
+          placeholder='Type DELETE to confirm'
+          style={{ ...inputStyle, width: 200, borderColor: confirm === 'DELETE' ? 'rgba(248,113,113,.6)' : undefined, marginBottom: 0 }}
+        />
+        <button
+          disabled={!ready || running}
+          onClick={run}
+          style={{ ...btnStyle('danger', 'sm'), opacity: ready ? 1 : 0.45 }}
+        >
+          {running ? 'Deleting…' : 'Delete Selected Data'}
+        </button>
+      </div>
+
+      {error && <p style={{ color: '#f87171', fontSize: 12, margin: '4px 0 0' }}>{error}</p>}
+
+      {result && (
+        <div style={{ background: 'rgba(74,222,128,.08)', border: '1px solid rgba(74,222,128,.25)', borderRadius: 6, padding: '8px 12px', fontSize: 12, color: '#4ade80' }}>
+          Done. Records deleted:{' '}
+          {Object.entries(result.deleted).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(' · ')}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SetupImportCard({ section }: { section: SetupSection }) {
-  const { run, running, messages, done } = useImportRunner(section.endpoint);
   const logRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [messages]);
   return (
@@ -10556,6 +10653,9 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
                 {/* ── Stock Min / Reorder Qty CSV Import ── */}
                 <StockMinsImportCard />
+
+                {/* ── Start Over / Data Reset ── */}
+                <DataResetCard />
               </div>
             )}
           </div>
