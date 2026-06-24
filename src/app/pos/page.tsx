@@ -165,14 +165,13 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
 
 // ─── Register Gate ─ shown when a stale open session is detected on login ─────
 
-function RegisterGate({ session, deviceConfig, staleSession, onContinue, onCloseAndReopen }: {
-  session:          PosSession;
-  deviceConfig:     DeviceConfig;
-  staleSession:     any;
-  onContinue:       () => void;
-  onCloseAndReopen: () => void;
+function RegisterGate({ session, deviceConfig, staleSession, onContinue, onGoToEod }: {
+  session:      PosSession;
+  deviceConfig: DeviceConfig;
+  staleSession: any;
+  onContinue:   () => void;
+  onGoToEod:    () => void;
 }) {
-  const [loading, setLoading] = useState(false);
   const openedAt   = staleSession?.opened_at
     ? new Date(staleSession.opened_at).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })
     : 'unknown time';
@@ -180,19 +179,6 @@ function RegisterGate({ session, deviceConfig, staleSession, onContinue, onClose
   // Today in the business timezone (session_date is stored as a local date string).
   const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
   const isPriorDay = !!openedDate && String(openedDate).slice(0, 10) !== todayStr;
-
-  async function handleCloseAndReopen() {
-    setLoading(true);
-    try {
-      await fetch('/api/pos/register/close', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: staleSession.id }),
-      });
-    } catch {}
-    setLoading(false);
-    onCloseAndReopen();
-  }
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui,sans-serif' }}>
@@ -208,16 +194,27 @@ function RegisterGate({ session, deviceConfig, staleSession, onContinue, onClose
           </p>
         ) : (
           <p style={{ color: 'var(--sv-text-dim)', marginBottom: '1.5rem', textAlign: 'center', fontSize: '.88rem' }}>
-            Continue that session or close it and start a new one.
+            Continue that session or close it first.
           </p>
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
-          <button onClick={onContinue} style={{ ...primaryBtn, width: '100%', ...(isPriorDay ? { background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)' } : {}) }}>Continue Session</button>
-          <button onClick={handleCloseAndReopen} disabled={loading} style={{ ...primaryBtn, width: '100%', ...(isPriorDay ? {} : { background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)' }) }}>
-            {loading ? 'Closing…' : 'Close Register & Open New'}
+          <button
+            onClick={onGoToEod}
+            style={{ ...primaryBtn, width: '100%', ...(isPriorDay ? {} : { background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)' }) }}
+          >
+            Close Register (Enter Counts)
+          </button>
+          <button
+            onClick={onContinue}
+            style={{ ...primaryBtn, width: '100%', ...(isPriorDay ? { background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)' } : {}) }}
+          >
+            Continue Session
           </button>
         </div>
-        <p style={{ color: 'var(--sv-text-dim)', fontSize: '.78rem', marginTop: '1rem', textAlign: 'center' }}>{session.full_name} · {deviceConfig.location_name}</p>
+        <p style={{ color: 'var(--sv-text-dim)', fontSize: '.78rem', marginTop: '1rem', textAlign: 'center' }}>
+          Closing will take you to the End-of-Day screen so you can enter your counts before the session is finalised.
+        </p>
+        <p style={{ color: 'var(--sv-text-dim)', fontSize: '.78rem', marginTop: '.5rem', textAlign: 'center' }}>{session.full_name} · {deviceConfig.location_name}</p>
       </div>
     </div>
   );
@@ -428,17 +425,19 @@ type MainScreen = 'pos' | 'eod' | 'reports' | 'parked';
 
 function MainPos({
   deviceConfig, session, products, paymentMethods, defaultView,
-  offlineMode, onLogout, onReceipt, onSync,
+  offlineMode, openEodOnMount, onEodMounted, onLogout, onReceipt, onSync,
 }: {
-  deviceConfig:   DeviceConfig;
-  session:        PosSession;
-  products:       CachedProduct[];
-  paymentMethods: string[];
-  defaultView:    string | null;
-  offlineMode:    boolean;
-  onLogout:       () => void;
-  onReceipt:      (sale: CompletedSale) => void;
-  onSync:         () => Promise<void>;
+  deviceConfig:    DeviceConfig;
+  session:         PosSession;
+  products:        CachedProduct[];
+  paymentMethods:  string[];
+  defaultView:     string | null;
+  offlineMode:     boolean;
+  openEodOnMount?: boolean;
+  onEodMounted?:   () => void;
+  onLogout:        () => void;
+  onReceipt:       (sale: CompletedSale) => void;
+  onSync:          () => Promise<void>;
 }) {
   const [screen, setScreen] = useState<MainScreen>('pos');
   const [cart, setCart] = useState<CartItem[]>(() => loadCurrentCart());
@@ -454,7 +453,34 @@ function MainPos({
   const [queueCount, setQueueCount] = useState(() => loadOfflineQueue().length);
   const [failedCount, setFailedCount] = useState(() => loadFailedQueue().length);
   const [cartLeft, setCartLeft] = useState(() => { try { return localStorage.getItem('pos_cart_left') === '1'; } catch { return false; } });
+  // undefined = still fetching, null = no open session, object = session is open
+  const [regSession, setRegSession] = useState<any>(session.register_id ? undefined : null);
   const submittingRef = useRef(false);
+  // Tracks whether we entered the EOD screen from the RegisterGate "Close Properly" path.
+  const eodFromGateRef = useRef(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+
+  useEffect(() => {
+    if (!session.register_id) { setRegSession(null); return; }
+    fetch(`/api/pos/register/session?register_id=${session.register_id}`)
+      .then(r => r.json())
+      .then(d => setRegSession(d.session ?? null))
+      .catch(() => setRegSession(null)); // don't block on network error
+  }, [session.register_id]);
+
+  // If the outer PosPage signalled "go straight to EOD" (from register gate close path),
+  // navigate the inner screen immediately and acknowledge so the flag is cleared.
+  useEffect(() => {
+    if (openEodOnMount) {
+      eodFromGateRef.current = true;
+      setScreen('eod');
+      onEodMounted?.();
+    }
+  }, [openEodOnMount]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // True only when we have confirmed (fetch done) that no register session is open.
+  // undefined = still loading — we don't block yet to avoid flash-of-disabled state.
+  const mustOpenRegister = !!session.register_id && regSession === null;
 
   function refreshQueueCount() { setQueueCount(loadOfflineQueue().length); setFailedCount(loadFailedQueue().length); }
 
@@ -692,7 +718,18 @@ function MainPos({
     }
   }
 
-  if (screen === 'eod') return <EodScreen session={session} onBack={() => setScreen('pos')} />;
+  if (screen === 'eod') return <EodScreen session={session} onBack={() => {
+    // Always re-fetch register session when returning from EOD so mustOpenRegister
+    // reflects the latest state (closed or newly opened).
+    if (session.register_id) {
+      fetch(`/api/pos/register/session?register_id=${session.register_id}`)
+        .then(r => r.json())
+        .then(d => setRegSession(d.session ?? null))
+        .catch(() => {});
+    }
+    eodFromGateRef.current = false;
+    setScreen('pos');
+  }} />;
   if (screen === 'reports') return <ReportsScreen session={session} onBack={() => setScreen('pos')} />;
   if (screen === 'parked') return (
     <ParkedScreen
@@ -760,6 +797,13 @@ function MainPos({
           title={cartLeft ? 'Cart on left — click to move right' : 'Cart on right — click to move left'}
           style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-dim)', border: '1px solid rgba(255,255,255,.18)' }}
         >{cartLeft ? '⬅ Cart' : 'Cart ➡'}</button>
+        <button
+          onClick={() => setHelpOpen(true)}
+          title="Help"
+          style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-dim)', border: '1px solid rgba(255,255,255,.18)', padding: '5px 8px' }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17" strokeLinecap="round" strokeWidth="2.5"/></svg>
+        </button>
         <button onClick={onLogout} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-red)', border: '1px solid var(--sv-red-border)' }}>Log Out</button>
       </div>
 
@@ -785,7 +829,7 @@ function MainPos({
       <div style={{ flex: 1, display: 'flex', flexDirection: cartLeft ? 'row-reverse' : 'row', overflow: 'hidden' }}>
         {/* Product Panel — only render once defaultView is known to avoid flash */}
         {defaultView !== null ? (
-          <ProductPanel products={products} onAdd={addToCart} isReturn={isReturn} defaultView={defaultView} onChargeEnter={() => { if (cart.length && !showPayment) setShowPayment(true); }} />
+          <ProductPanel products={products} onAdd={addToCart} isReturn={isReturn} defaultView={defaultView} onChargeEnter={() => { if (cart.length && !showPayment && !mustOpenRegister) setShowPayment(true); }} />
         ) : (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontSize: '.9rem' }}>Loading products…</div>
         )}
@@ -822,12 +866,24 @@ function MainPos({
             <TotalRow label='GST (incl.)' value={totals.tax_total} muted />
             <TotalRow label='TOTAL' value={totals.total} large />
 
+            {mustOpenRegister && (
+              <div style={{ marginTop: '.75rem', padding: '.6rem .75rem', background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.35)', borderRadius: 8, fontSize: '.8rem', color: '#f87171', lineHeight: 1.5, textAlign: 'center' }}>
+                <strong>Register not open.</strong> Go to{' '}
+                <button
+                  onClick={() => setScreen('eod')}
+                  style={{ background: 'none', border: 'none', color: '#fb923c', textDecoration: 'underline', cursor: 'pointer', padding: 0, fontSize: 'inherit', fontWeight: 700 }}
+                >
+                  End of Day
+                </button>
+                {' '}and open the register before taking sales.
+              </div>
+            )}
             <div style={{ display: 'flex', gap: '.5rem', marginTop: '.75rem', flexDirection: 'column' }}>
               <button onClick={clearCart} style={{ ...smallBtn, width: '100%', padding: '.55rem', fontSize: '.85rem' }} disabled={!cart.length}>Clear Cart</button>
               <button
-                onClick={() => setShowPayment(true)}
-                disabled={!cart.length}
-                style={{ width: '100%', padding: '1rem .5rem', background: cart.length ? 'var(--sv-action)' : 'var(--sv-bg-2)', border: `2px solid ${cart.length ? 'var(--sv-action)' : 'var(--sv-etch)'}`, borderRadius: 10, color: cart.length ? '#fff' : 'var(--sv-text-muted)', cursor: cart.length ? 'pointer' : 'not-allowed', fontWeight: 900, lineHeight: 1.15, transition: 'opacity .15s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.1rem' }}
+                onClick={() => { if (!mustOpenRegister) setShowPayment(true); }}
+                disabled={!cart.length || mustOpenRegister}
+                style={{ width: '100%', padding: '1rem .5rem', background: cart.length && !mustOpenRegister ? 'var(--sv-action)' : 'var(--sv-bg-2)', border: `2px solid ${cart.length && !mustOpenRegister ? 'var(--sv-action)' : 'var(--sv-etch)'}`, borderRadius: 10, color: cart.length && !mustOpenRegister ? '#fff' : 'var(--sv-text-muted)', cursor: cart.length && !mustOpenRegister ? 'pointer' : 'not-allowed', fontWeight: 900, lineHeight: 1.15, transition: 'opacity .15s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.1rem' }}
               >
                 <span style={{ fontSize: '1rem', letterSpacing: .5, textTransform: 'uppercase' }}>{isLayby ? 'Layby' : 'Charge'}</span>
                 <span style={{ fontSize: '2.6rem', letterSpacing: -1, fontWeight: 900 }}>${fmt(totals.total)}</span>
@@ -846,6 +902,7 @@ function MainPos({
           onCancel={() => setShowPayment(false)}
         />
       )}
+      <PosHelpModal isOpen={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
 }
@@ -2300,6 +2357,140 @@ const tdStyle: React.CSSProperties = {
   color: 'var(--sv-text-main)',
 };
 
+// ─── POS Help Modal ─────────────────────────────────────────────────────────
+
+type PosHelpSection = 'overview' | 'register' | 'offline' | 'pin';
+
+function PosHelpModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const [active, setActive] = useState<PosHelpSection>('overview');
+  useEffect(() => { if (isOpen) setActive('overview'); }, [isOpen]);
+  if (!isOpen) return null;
+
+  const NAV_ITEMS: { id: PosHelpSection; label: string; icon: string }[] = [
+    { id: 'overview', label: 'Overview',          icon: '🛒' },
+    { id: 'register', label: 'Register Sessions', icon: '🗂' },
+    { id: 'offline',  label: 'Offline & Queue',   icon: '📶' },
+    { id: 'pin',      label: 'PIN Security',      icon: '🔒' },
+  ];
+
+  const h2: React.CSSProperties   = { margin: '0 0 6px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' };
+  const h3: React.CSSProperties   = { margin: '24px 0 6px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', borderBottom: '1px solid var(--sv-etch)', paddingBottom: 6 };
+  const p: React.CSSProperties    = { margin: '6px 0 10px', fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.65 };
+  const ul: React.CSSProperties   = { margin: '6px 0 10px', paddingLeft: 20, fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.75 };
+
+  const Content = () => {
+    if (active === 'overview') return (
+      <div style={{ padding: 32, maxWidth: 760 }}>
+        <h2 style={h2}>Point of Sale</h2>
+        <p style={{ ...p, marginBottom: 16 }}>The Marketoir POS lets you ring up sales, process returns, manage layby, and reconcile your daily cash takings.</p>
+        <h3 style={h3}>Getting started</h3>
+        <ul style={ul}>
+          <li><strong>Device setup</strong> — Each device is tied to a specific location and register. Setup is done once; the device remembers its configuration.</li>
+          <li><strong>Staff login</strong> — Operators log in with a short numeric PIN. An admin fallback (email + password) is also available.</li>
+          <li><strong>Product panel</strong> — Products are loaded at login and cached on-device. Use the search bar or browse the grid. Barcode scanners work automatically.</li>
+          <li><strong>Cart</strong> — Add products, adjust quantities, apply line-level discounts or price overrides, then charge to complete the sale.</li>
+          <li><strong>Payment types</strong> — Cash, card, or any method configured in IMS Settings → Point of Sale. Split payments across multiple methods are supported.</li>
+        </ul>
+        <h3 style={h3}>Sale types</h3>
+        <ul style={ul}>
+          <li><strong>Sale</strong> — Standard completed transaction. Stock is deducted immediately.</li>
+          <li><strong>Return / Refund</strong> — Toggle "Return Mode" in the header. Negative quantities reverse stock and post a negative POS sale.</li>
+          <li><strong>Layby</strong> — Toggle "Layby" in the header. Recorded as a pending sale; no stock movement until fulfilled.</li>
+          <li><strong>Park Sale</strong> — Save a cart with a label to resume later (same device only). Parked sales do not commit stock and are lost if the browser is cleared.</li>
+        </ul>
+        <h3 style={h3}>Daily Xero batch</h3>
+        <p style={p}>POS sales are not individually synced to Xero. Instead, a single summary invoice is created per location per day from the <strong>Register → EOD</strong> screen.</p>
+      </div>
+    );
+    if (active === 'register') return (
+      <div style={{ padding: 32, maxWidth: 760 }}>
+        <h2 style={h2}>Register Sessions</h2>
+        <p style={p}>A <strong>register session</strong> is one continuous period that a till is open — from the moment a cashier opens the register (entering the opening float) to the moment it is closed at end of day. Every sale is stamped with the session it was rung up in, not just the calendar date.</p>
+        <h3 style={h3}>Opening a session</h3>
+        <p style={p}>On first login of the day go to <strong>Register</strong> and open the register, counting the starting float by denomination. This establishes the session.</p>
+        <h3 style={h3}>Closing a session (EOD)</h3>
+        <p style={p}>At end of day go to <strong>Register → EOD</strong>. Count the drawer and the system reconciles <em>expected</em> vs <em>counted</em> takings per payment method, then marks the session closed. The Xero batch button also lives here.</p>
+        <h3 style={h3}>Reconciling by session window</h3>
+        <p style={p}>Takings are summed over the <strong>session window</strong> (all sales in the open→close session), not just "all sales dated today". This handles two common situations:</p>
+        <ul style={ul}>
+          <li><strong>Trading past midnight</strong> — A sale rung after midnight stays with its session&apos;s date, not the next calendar day.</li>
+          <li><strong>Register left open overnight</strong> — Yesterday&apos;s session won&apos;t silently absorb today&apos;s sales (see below).</li>
+        </ul>
+        <h3 style={h3}>Register left open / prior-day sessions</h3>
+        <p style={p}>If a register was opened on a previous day and never closed, the next operator sees a <strong>&ldquo;Register Left Open&rdquo;</strong> prompt at login. Prior-day sessions are flagged in red. Two choices:</p>
+        <ul style={ul}>
+          <li><strong>Close Register &amp; Open New</strong> (recommended) — closes the stale session and starts a fresh one with a new float count.</li>
+          <li><strong>Continue Session</strong> — keeps recording against the original session. Only use this if intentional.</li>
+        </ul>
+      </div>
+    );
+    if (active === 'offline') return (
+      <div style={{ padding: 32, maxWidth: 760 }}>
+        <h2 style={h2}>Offline Mode &amp; Sale Queue</h2>
+        <p style={p}>The POS keeps working when the internet drops. A local product cache lets operators keep ringing up sales; completed sales are written to an on-device queue and upload automatically when the connection returns.</p>
+        <h3 style={h3}>Status badges in the header</h3>
+        <ul style={ul}>
+          <li><strong style={{ color: '#4ade80' }}>Online / Offline</strong> — current connectivity.</li>
+          <li><strong style={{ color: '#fbbf24' }}>Queued (amber)</strong> — sales waiting to upload. Drain automatically when back online, or hit <strong>⟳ Sync</strong> manually.</li>
+          <li><strong style={{ color: '#f87171' }}>Failed (red)</strong> — a sale that repeatedly failed to upload. Saved on-device — <em>never discarded</em>. Tap the badge to retry.</li>
+        </ul>
+        <h3 style={h3}>Duplicate protection</h3>
+        <p style={p}>Each sale carries a unique local ID. Even if a queued sale is sent twice it can only ever be recorded once — no duplicate sales from retries.</p>
+        <h3 style={h3}>Before logging out</h3>
+        <p style={p}>Logging out while sales are pending shows a warning. <strong>Don&apos;t clear browser data or switch devices until the queue is empty</strong> — offline sales live on this device until they sync.</p>
+        <h3 style={h3}>Stale product cache</h3>
+        <p style={p}>Product prices and stock are cached at login and refreshed automatically every 15 minutes and when the tab regains focus. If the cache is older than 4 hours and you&apos;re offline, a warning banner appears — hit <strong>⟳ Sync</strong> once back online.</p>
+      </div>
+    );
+    if (active === 'pin') return (
+      <div style={{ padding: 32, maxWidth: 760 }}>
+        <h2 style={h2}>PIN Security</h2>
+        <p style={p}>POS operators sign in with a short numeric PIN. PINs are stored hashed — never in plain text.</p>
+        <h3 style={h3}>Lockout policy</h3>
+        <p style={p}>Repeated failed PIN attempts trigger a temporary lockout on that operator before they can try again. This deters guessing without locking out the terminal entirely.</p>
+        <h3 style={h3}>Supervisor PIN</h3>
+        <p style={p}>A separate <strong>supervisor PIN</strong> is set during device setup. It authorises overrides (discounts, voids) that require manager approval.</p>
+        <h3 style={h3}>Device binding</h3>
+        <p style={p}>Each device is bound to a single location and register at setup. If that register is later removed or deactivated in IMS, the device prompts for re-setup at next login rather than attaching sales to a register that no longer exists.</p>
+        <h3 style={h3}>Admin fallback</h3>
+        <p style={p}>If a staff member has no PIN set, any IMS admin can log in using their full email and password via the &ldquo;Admin login&rdquo; link on the staff picker screen.</p>
+        <h3 style={h3}>Managing POS users</h3>
+        <p style={p}>POS users are separate from IMS web users. Manage them in <strong>IMS → Settings → Point of Sale → Users</strong>.</p>
+      </div>
+    );
+    return null;
+  };
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', zIndex: 2000, display: 'flex' }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      {/* Left nav */}
+      <div style={{ width: 210, background: 'var(--sv-bg-0)', borderRight: '1px solid var(--sv-etch)', display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 16px 14px' }}>
+          <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--sv-text-strong)' }}>POS Help</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 22, lineHeight: 1, padding: 0 }}>×</button>
+        </div>
+        <div style={{ height: 1, background: 'var(--sv-etch)', margin: '0 0 8px' }} />
+        {NAV_ITEMS.map(item => {
+          const isActive = active === item.id;
+          return (
+            <button key={item.id} onClick={() => setActive(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '9px 16px', background: isActive ? 'rgba(96,165,250,.12)' : 'transparent', border: 'none', cursor: 'pointer', color: isActive ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontWeight: isActive ? 600 : 400, fontSize: 13, textAlign: 'left', borderLeft: isActive ? '3px solid #60a5fa' : '3px solid transparent', transition: 'background .12s' }}>
+              <span style={{ width: 16, textAlign: 'center', flexShrink: 0 }}>{item.icon}</span>
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
+      {/* Right content */}
+      <div style={{ flex: 1, background: 'var(--sv-bg-1)', overflow: 'auto', minWidth: 0 }}>
+        <Content />
+      </div>
+    </div>
+  );
+}
+
 // ─── Root Page ────────────────────────────────────────────────────────────────
 
 export default function PosPage() {
@@ -2313,6 +2504,7 @@ export default function PosPage() {
   const [printSettings, setPrintSettings] = useState<ReceiptPrintSettings>({ business_name: '', business_address: '', business_abn: '', pos_receipt_footer: '' });
   const [offlineMode, setOfflineMode]   = useState(false);
   const [openRegSession, setOpenRegSession] = useState<any>(null);
+  const [openEodOnMount, setOpenEodOnMount] = useState(false);
 
   function checkRegisterGate(sess: PosSession, cfg: DeviceConfig, thenGoPos: () => void) {
     if (!cfg.register_id) { thenGoPos(); return; }
@@ -2456,7 +2648,7 @@ export default function PosPage() {
         deviceConfig={deviceConfig}
         staleSession={openRegSession}
         onContinue={() => { setOpenRegSession(null); setScreen('pos'); }}
-        onCloseAndReopen={() => { setOpenRegSession(null); setScreen('pos'); }}
+        onGoToEod={() => { setOpenRegSession(null); setOpenEodOnMount(true); setScreen('pos'); }}
       />
     );
   }
@@ -2493,6 +2685,8 @@ export default function PosPage() {
       paymentMethods={methods}
       defaultView={defaultView}
       offlineMode={offlineMode}
+      openEodOnMount={openEodOnMount}
+      onEodMounted={() => setOpenEodOnMount(false)}
       onSync={handleSync}
       onLogout={async () => {
         // Try to flush any queued sales before logging out — never silently abandon them.
