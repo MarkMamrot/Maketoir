@@ -212,8 +212,15 @@ export async function drainOfflineQueue(): Promise<void> {
       });
       if (res.ok) continue; // synced — drop from queue
 
+      // Read the actual error body for a useful diagnostic message
+      let errMsg = `HTTP ${res.status}`;
+      try {
+        const body = await res.clone().json();
+        if (body?.error) errMsg = `${res.status}: ${body.error}`;
+      } catch { /* ignore parse failures */ }
+
       entry.attempts++;
-      entry.last_error = `HTTP ${res.status}`;
+      entry.last_error = errMsg;
       if (entry.attempts < MAX_LIVE_ATTEMPTS) remaining.push(entry);
       else failed.push(entry); // dead-letter — kept for manual retry, never lost
     } catch (e: any) {
