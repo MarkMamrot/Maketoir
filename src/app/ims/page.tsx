@@ -94,7 +94,9 @@ function VariantSearch({ value, variants, onChange, style }: {
 }) {
   const [query, setQuery] = React.useState('');
   const [open, setOpen] = React.useState(false);
+  const [dropPos, setDropPos] = React.useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 320 });
   const ref = React.useRef<HTMLDivElement>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
 
   const selected = variants.find(v => v.variant_id === value);
   const displayLabel = selected
@@ -118,21 +120,39 @@ function VariantSearch({ value, variants, onChange, style }: {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  function openDropdown() {
+    if (inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect();
+      setDropPos({ top: rect.bottom + window.scrollY, left: rect.left + window.scrollX, width: Math.max(rect.width, 320) });
+    }
+    setQuery('');
+    setOpen(true);
+  }
+
   return (
     <div ref={ref} style={{ position: 'relative', ...style }}>
       <input
+        ref={inputRef}
         type="text"
         value={open ? query : displayLabel}
         placeholder="Search variant…"
-        onFocus={() => { setQuery(''); setOpen(true); }}
+        onFocus={openDropdown}
         onChange={e => { setQuery(e.target.value); setOpen(true); }}
         style={{ ...inputStyle, fontSize: 12, width: '100%' }}
       />
       {open && (
         <div style={{
-          position: 'absolute', top: '100%', left: 0, zIndex: 9999,
-          background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)',
-          borderRadius: 6, minWidth: 320, maxWidth: 480, maxHeight: 260, overflowY: 'auto',
+          position: 'fixed',
+          top: dropPos.top,
+          left: dropPos.left,
+          zIndex: 99999,
+          width: dropPos.width,
+          maxWidth: 480,
+          maxHeight: 260,
+          overflowY: 'auto',
+          background: 'var(--sv-bg-2)',
+          border: '1px solid var(--sv-etch)',
+          borderRadius: 6,
           boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
         }}>
           {filtered.length === 0 && (
