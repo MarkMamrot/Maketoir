@@ -8,7 +8,7 @@
 
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { ImsPORepo, ImsSORepo } from '@/lib/ims/ImsRepository';
-import { syncPOAsDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOAsInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice } from '@/services/XeroSyncService';
+import { syncPOAsDraftBill, updateXeroDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOAsInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice } from '@/services/XeroSyncService';
 import { imsQuery } from '@/services/IMSMySQLService';
 
 /**
@@ -75,6 +75,25 @@ export async function triggerPOXeroSync(businessId: string, poId: number, newSta
       if (xeroId) await approveBill(businessId, xeroId, poId);
     }
   }
+}
+
+/**
+ * Triggered when a PO's fields/items are edited without a status change.
+ * Updates the existing Xero Draft Bill if one exists.
+ * Silently skips if no bill exists, Xero is not connected, or bill is no longer DRAFT.
+ */
+export async function triggerPOXeroUpdate(businessId: string, poId: number): Promise<void> {
+  if (!await isXeroConnected(businessId)) return;
+
+  const po = await ImsPORepo.get(poId);
+  if (!po) return;
+
+  const xeroId = (po as any).xero_bill_id ?? null;
+  if (!xeroId) return; // No Xero bill exists yet — nothing to update
+
+  try {
+    await updateXeroDraftBill(businessId, po as any, xeroId);
+  } catch { /* non-critical */ }
 }
 
 /**

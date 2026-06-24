@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { ImsPORepo } from '@/lib/ims/ImsRepository';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
-import { triggerPOXeroSync, triggerPOXeroVoid } from '@/lib/ims/xeroHooks';
+import { triggerPOXeroSync, triggerPOXeroVoid, triggerPOXeroUpdate } from '@/lib/ims/xeroHooks';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -87,6 +87,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
           refreshVariantCache(vids).catch(err => console.error('Failed inline cache refresh for PO:', err));
         }
       }
+
+      // Sync edits to Xero if a Draft Bill already exists
+      triggerPOXeroUpdate(businessId, Number(params.id)).catch(() => {});
     }
     return NextResponse.json({ success: true, ...(xeroWarning ? { xeroWarning } : {}) });
   } catch (e: any) {

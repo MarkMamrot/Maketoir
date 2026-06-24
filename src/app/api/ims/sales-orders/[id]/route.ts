@@ -78,6 +78,10 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
   try {
     const existing = await ImsSORepo.get(Number(params.id), businessId);
     if (!existing) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
+
+    // Void the Xero invoice before deleting (if one exists)
+    const xeroWarning = await triggerSOXeroVoid(businessId, Number(params.id)).catch(() => null);
+
     await ImsSORepo.delete(Number(params.id));
 
     // EVENT-DRIVEN CACHE UPDATE (Deletion reverses committed stock & sales)
@@ -88,7 +92,7 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
       }
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, ...(xeroWarning ? { xeroWarning } : {}) });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

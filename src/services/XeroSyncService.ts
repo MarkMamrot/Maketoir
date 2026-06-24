@@ -275,7 +275,11 @@ export async function syncStocktakeJournal(
   }
 }
 
-/** Write Xero sync status back to the SO row. Silent — never throws. */
+/** Write Xero sync status back to the SO row. Silent — never throws.
+ * xeroId === undefined → don't touch xero_invoice_id
+ * xeroId === null     → explicitly clear xero_invoice_id to NULL (e.g. after void)
+ * xeroId === string   → set xero_invoice_id to that value
+ */
 export async function markSoXeroStatus(
   soId: number,
   status: 'synced' | 'queued' | 'error',
@@ -285,9 +289,9 @@ export async function markSoXeroStatus(
     await imsExecute(
       `UPDATE ims_sales_orders
          SET xero_sync_status = ?, xero_synced_at = NOW()
-             ${xeroId != null ? ', xero_invoice_id = ?' : ''}
+             ${xeroId !== undefined ? ', xero_invoice_id = ?' : ''}
          WHERE id = ?`,
-      xeroId != null ? [status, xeroId, soId] : [status, soId],
+      xeroId !== undefined ? [status, xeroId, soId] : [status, soId],
     );
   } catch { /* non-critical */ }
 }
@@ -401,6 +405,95 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
     await logSync(businessId, 'po_bill', po.id, null, 'error', err.message);
     // Status will be set to 'queued' by the hook after retry logic
     return null;
+  }
+}
+
+/**
+ * Update an existing DRAFT Bill in Xero with the current PO data.
+ * Called when a PO is edited (items, supplier, dates, freight) without a status change.
+ * Skips silently if the bill is no longer DRAFT (e.g. already AUTHORISED).
+ */
+export async function updateXeroDraftBill(businessId: string, po: POForSync, xeroId: string): Promise<boolean> {
+  const accounts = await getAccountMappings(businessId);
+  const trackingMappings = await getTrackingMappings(businessId);
+  const taxTypes = getTaxTypes(businessId);
+
+  if (!accounts.inventory_asset) {
+    await logSync(businessId, 'po_bill', po.id, xeroId, 'skipped', 'No inventory_asset account mapped');
+    return false;
+  }
+
+  // Only DRAFT bills can be updated via the Xero API — check current status first
+  try {
+    const current = await xeroApiFetch(businessId, `/Invoices/${xeroId}`, { method: 'GET' });
+    const currentStatus = current.Invoices?.[0]?.Status;
+    if (currentStatus !== 'DRAFT') {
+      await logSync(businessId, 'po_bill', po.id, xeroId, 'skipped', `Bill is ${currentStatus ?? 'unknown'}, cannot update`);
+      return false;
+    }
+  } catch (err: any) {
+    await logSync(businessId, 'po_bill', po.id, xeroId, 'error', `Failed to fetch bill status: ${err.message}`);
+    return false;
+  }
+
+  const hasDeposits = (po.payments?.length ?? 0) > 0;
+  const lineAccountCode = hasDeposits
+    ? (accounts.inventory_in_transit || accounts.inventory_asset)
+    : accounts.inventory_asset;
+
+  const tracking = getTrackingForLocation(trackingMappings, po.location_id);
+  const taxTreatment = po.tax_treatment ?? 'ex_tax';
+  const lineTaxType = taxTreatment === 'no_tax' ? taxTypes.exempt : taxTypes.purchases;
+
+  const lineItems = (po.items ?? []).map(item => ({
+    Description: `${item.sku || ''} ${item.product_name || ''}`.trim() || 'Inventory',
+    Quantity: item.qty_ordered,
+    UnitAmount: item.unit_cost,
+    AccountCode: lineAccountCode,
+    ...(lineTaxType ? { TaxType: lineTaxType } : {}),
+    Tracking: tracking,
+  }));
+
+  if (po.freight && po.freight > 0) {
+    const freightTreatment = await getFreightTreatment(businessId);
+    const freightAccount = freightTreatment === 'capitalise'
+      ? lineAccountCode
+      : (accounts.freight || lineAccountCode);
+    lineItems.push({
+      Description: freightTreatment === 'capitalise' ? 'Freight / Shipping (capitalised to stock)' : 'Freight / Shipping',
+      Quantity: 1,
+      UnitAmount: po.freight,
+      AccountCode: freightAccount,
+      ...(taxTypes.exempt ? { TaxType: taxTypes.exempt } : {}),
+      Tracking: tracking,
+    });
+  }
+
+  const bill: any = {
+    InvoiceID: xeroId,
+    Type: 'ACCPAY',
+    Contact: { Name: po.supplier_name || `Supplier #${po.supplier_id}` },
+    Date: po.order_date,
+    DueDate: po.expected_date || po.order_date,
+    Reference: po.po_number,
+    Status: 'DRAFT',
+    LineAmountTypes: taxTreatment === 'inc_tax' ? 'Inclusive' : 'Exclusive',
+    CurrencyCode: po.currency_code || 'AUD',
+    LineItems: lineItems,
+  };
+
+  if (po.supplier_invoice_number) {
+    bill.InvoiceNumber = po.supplier_invoice_number;
+  }
+
+  try {
+    await xeroApiFetch(businessId, `/Invoices/${xeroId}`, { method: 'POST', body: { Invoices: [bill] } });
+    await logSync(businessId, 'po_bill', po.id, xeroId, 'success', `Draft Bill updated: ${po.po_number}`);
+    await markPoXeroStatus(po.id, 'synced', xeroId);
+    return true;
+  } catch (err: any) {
+    await logSync(businessId, 'po_bill', po.id, xeroId, 'error', `Update failed: ${err.message}`);
+    return false;
   }
 }
 
@@ -545,7 +638,6 @@ export async function syncSOAsInvoice(businessId: string, so: SOForSync): Promis
     UnitAmount: item.unit_price,
     DiscountRate: item.discount_pct || 0,
     AccountCode: accounts.sales_revenue,
-    TaxAmount: item.qty_ordered * item.unit_price * (1 - (item.discount_pct || 0) / 100) * (item.tax_rate / 100),
     ...((item.tax_rate > 0 ? taxTypes.sales : taxTypes.exempt) ? { TaxType: item.tax_rate > 0 ? taxTypes.sales : taxTypes.exempt } : {}),
     Tracking: tracking,
   }));
@@ -557,7 +649,6 @@ export async function syncSOAsInvoice(businessId: string, so: SOForSync): Promis
       UnitAmount: so.freight,
       DiscountRate: 0,
       AccountCode: accounts.freight || accounts.sales_revenue,
-      TaxAmount: 0,
       ...(taxTypes.exempt ? { TaxType: taxTypes.exempt } : {}),
       Tracking: tracking,
     });
