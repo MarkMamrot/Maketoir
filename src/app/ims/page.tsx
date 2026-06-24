@@ -3088,7 +3088,7 @@ function PurchaseOrdersView() {
     } catch (e: any) { alert(e.message); }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent, andOrder = false) => {
     e.preventDefault();
     if (!form.location_id) { alert('Location is required.'); return; }
     if (lineItems.length === 0 || lineItems.some(i => !i.variant_id)) { alert('Add at least one line item with a variant selected.'); return; }
@@ -3099,7 +3099,10 @@ function PurchaseOrdersView() {
       if (modal.edit) {
         await apiFetch(`/api/ims/purchase-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items, landed_costs }) });
       } else {
-        await apiFetch('/api/ims/purchase-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items, landed_costs }) });
+        const res = await apiFetch('/api/ims/purchase-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items, landed_costs }) });
+        if (andOrder && res?.id) {
+          await apiFetch(`/api/ims/purchase-orders/${res.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'ordered' }) });
+        }
       }
       load(); setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null);
     } catch (e: any) { alert(e.message); }
@@ -3438,7 +3441,8 @@ function PurchaseOrdersView() {
                 </div>
               </div>
             </div>
-            <FormActions onCancel={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} saving={saving} isEdit={!!modal.edit} />
+            <FormActions onCancel={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} saving={saving} isEdit={!!modal.edit}
+              extraActions={!modal.edit ? [{ label: saving ? 'Creating…' : 'Create & Order', onClick: (e: React.MouseEvent) => handleSubmit(e as any, true) }] : []} />
           </form>
         </Modal>
       )}
@@ -3848,12 +3852,12 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
     xeroStatus === 'synced' || xeroVoidResult === 'voided'
       ? <div style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 10px', background: xeroVoidResult === 'voided' ? 'rgba(251,191,36,.1)' : 'rgba(16,185,129,.1)', borderRadius:6, fontSize:11, marginBottom:6, flexWrap:'wrap' }}>
           {xeroVoidResult === 'voided'
-            ? <span style={{ color:'#fbbf24', fontWeight:700 }}>✕ Voided in Xero</span>
+            ? <span style={{ color:'#fbbf24', fontWeight:700 }}>✕ Removed from Xero</span>
             : <span style={{ color:'#34d399', fontWeight:700 }}>✓ Synced to Xero</span>}
           {xeroAt && <span style={{ color:'var(--sv-text-dim)' }}>{xeroAt}</span>}
           {xeroId && <span style={{ color:'var(--sv-text-dim)', fontFamily:'monospace', fontSize:10 }}>{xeroId.slice(0,8)}…</span>}
           {xeroId && <a href={`https://go.xero.com/AccountsPayable/View.aspx?InvoiceID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color:'var(--sv-mint)' }}>View Bill ↗</a>}
-          {xeroId && xeroVoidResult !== 'voided' && <button onClick={doXeroVoid} disabled={xeroVoiding} style={{ background:'none', border:'1px solid #f87171', borderRadius:4, cursor:'pointer', padding:'2px 8px', fontSize:11, color:'#f87171' }}>{xeroVoiding ? 'Voiding…' : 'Void in Xero'}</button>}
+          {xeroId && xeroVoidResult !== 'voided' && <button onClick={doXeroVoid} disabled={xeroVoiding} style={{ background:'none', border:'1px solid #f87171', borderRadius:4, cursor:'pointer', padding:'2px 8px', fontSize:11, color:'#f87171' }}>{xeroVoiding ? 'Removing…' : po.status === 'received' ? 'Void in Xero' : 'Delete from Xero'}</button>}
           {xeroVoidResult === 'failed' && <span style={{ color:'#f87171' }}>{xeroVoidMsg}</span>}
         </div>
       : xeroStatus === 'queued' || xeroStatus === 'error'
@@ -5007,10 +5011,13 @@ function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
   );
 }
 
-function FormActions({ onCancel, saving, isEdit }: { onCancel: () => void; saving: boolean; isEdit: boolean }) {
+function FormActions({ onCancel, saving, isEdit, extraActions }: { onCancel: () => void; saving: boolean; isEdit: boolean; extraActions?: { label: string; onClick: (e: React.MouseEvent) => void }[] }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
       <button type="button" onClick={onCancel} style={btnStyle('ghost')}>Cancel</button>
+      {extraActions?.map((a, i) => (
+        <button key={i} type="button" disabled={saving} onClick={a.onClick} style={btnStyle('ghost')}>{a.label}</button>
+      ))}
       <button type="submit" disabled={saving} style={btnStyle('action')}>{saving ? 'Saving…' : isEdit ? 'Update' : 'Create'}</button>
     </div>
   );
