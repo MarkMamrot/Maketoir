@@ -7133,6 +7133,16 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
     setRetrying(r => ({ ...r, [key]: false }));
   };
 
+  const dismiss = async (type: 'po' | 'so', id: number, reference: string, key: string) => {
+    if (!confirm(`Remove "${reference}" from the Xero sync queue?\n\nThis will not sync it — it will be marked as dismissed. You can retry manually from the sync history if needed.`)) return;
+    setRetrying(r => ({ ...r, [key]: true }));
+    try {
+      await fetch('/api/ims/xero/dismiss', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, id }) });
+      await loadData();
+    } catch {}
+    setRetrying(r => ({ ...r, [key]: false }));
+  };
+
   const pushAllQueued = async () => {
     setPushAll(true);
     for (const item of queued) {
@@ -7184,9 +7194,14 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                     <td style={td}>{item.total_amount != null ? fmtMoney(item.total_amount) : '—'}</td>
                     <td style={{ ...td, color: 'var(--sv-text-dim)', fontSize: 12 }}>{item.xero_synced_at ? fmtDate(item.xero_synced_at) : '—'}</td>
                     <td style={{ ...td, textAlign: 'right' }}>
-                      <button onClick={() => retry(item.type, item.id, key)} disabled={retrying[key]} style={{ background: 'rgba(251,191,36,.15)', border: '1px solid rgba(251,191,36,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 10px', fontSize: 12, color: '#fbbf24' }}>
-                        {retrying[key] ? 'Pushing…' : 'Push Now'}
-                      </button>
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                        <button onClick={() => retry(item.type, item.id, key)} disabled={retrying[key]} style={{ background: 'rgba(251,191,36,.15)', border: '1px solid rgba(251,191,36,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 10px', fontSize: 12, color: '#fbbf24' }}>
+                          {retrying[key] ? 'Pushing…' : 'Push Now'}
+                        </button>
+                        <button onClick={() => dismiss(item.type, item.id, item.reference, key)} disabled={retrying[key]} title="Remove from queue without syncing" style={{ background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.25)', borderRadius: 5, cursor: 'pointer', padding: '3px 8px', fontSize: 12, color: '#f87171' }}>
+                          ✕
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

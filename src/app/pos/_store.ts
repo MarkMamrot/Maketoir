@@ -144,6 +144,12 @@ export function saveOfflineQueue(queue: OfflineQueueEntry[]): void {
   localStorage.setItem(KEYS.offlineQueue, JSON.stringify(queue));
 }
 
+/** Remove a single offline queue entry by its payload's local_id. */
+export function removeFromOfflineQueue(localId: string): void {
+  const queue = loadOfflineQueue().filter(e => (e.payload as any)?.local_id !== localId);
+  saveOfflineQueue(queue);
+}
+
 // ── Failed (dead-letter) queue ────────────────────────────────
 // Sales that repeatedly failed to sync are moved here so they are NEVER lost.
 // They are surfaced to the operator for manual retry rather than silently dropped.
@@ -157,6 +163,12 @@ export function loadFailedQueue(): OfflineQueueEntry[] {
 
 export function saveFailedQueue(queue: OfflineQueueEntry[]): void {
   localStorage.setItem(KEYS.failedQueue, JSON.stringify(queue));
+}
+
+/** Remove a single failed queue entry by its payload's local_id. */
+export function removeFromFailedQueue(localId: string): void {
+  const queue = loadFailedQueue().filter(e => (e.payload as any)?.local_id !== localId);
+  saveFailedQueue(queue);
 }
 
 /** Move every dead-lettered sale back into the live queue for another attempt. */

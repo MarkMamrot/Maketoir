@@ -6,8 +6,8 @@ import {
   loadProductsCache, saveProductsCache,
   loadCurrentCart, saveCurrentCart,
   loadParkedSales, saveParkedSales,
-  addToOfflineQueue, drainOfflineQueue, loadOfflineQueue,
-  loadFailedQueue, retryFailedQueue,
+  addToOfflineQueue, drainOfflineQueue, loadOfflineQueue, removeFromOfflineQueue,
+  loadFailedQueue, retryFailedQueue, removeFromFailedQueue,
   saveLocalSession, loadLocalSession, clearLocalSession,
   newLocalId,
   isProductsCacheStale, PRODUCTS_CACHE_TTL_MS,
@@ -452,6 +452,7 @@ function MainPos({
   const [isOnline, setIsOnline] = useState(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [queueCount, setQueueCount] = useState(() => loadOfflineQueue().length);
   const [failedCount, setFailedCount] = useState(() => loadFailedQueue().length);
+  const [queueInspectOpen, setQueueInspectOpen] = useState(false);
   const [cartLeft, setCartLeft] = useState(() => { try { return localStorage.getItem('pos_cart_left') === '1'; } catch { return false; } });
   // undefined = still fetching, null = no open session, object = session is open
   const [regSession, setRegSession] = useState<any>(session.register_id ? undefined : null);
@@ -483,6 +484,13 @@ function MainPos({
   const mustOpenRegister = !!session.register_id && regSession === null;
 
   function refreshQueueCount() { setQueueCount(loadOfflineQueue().length); setFailedCount(loadFailedQueue().length); }
+
+  function discardQueueEntry(localId: string, fromFailed: boolean) {
+    if (!confirm('Discard this queued sale?\n\nOnly do this if the sale never happened or was already recorded another way. This cannot be undone.')) return;
+    if (fromFailed) removeFromFailedQueue(localId);
+    else removeFromOfflineQueue(localId);
+    refreshQueueCount();
+  }
 
   function retryFailedSales() {
     retryFailedQueue();
@@ -757,11 +765,48 @@ function MainPos({
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: isOnline ? '#4ade80' : '#f87171', flexShrink: 0 }} />
           {isOnline ? 'Online' : 'Offline'}
         </span>
-        {/* Queued sales badge */}
+        {/* Queued sales badge — clickable to inspect entries */}
         {queueCount > 0 && (
-          <span style={{ padding: '.15rem .5rem', borderRadius: 99, background: 'rgba(251,191,36,.12)', border: '1px solid rgba(251,191,36,.3)', fontSize: '.73rem', fontWeight: 600, color: '#fbbf24', flexShrink: 0 }}>
+          <button
+            onClick={() => setQueueInspectOpen(v => !v)}
+            title="Click to inspect queued sales"
+            style={{ padding: '.15rem .5rem', borderRadius: 99, background: 'rgba(251,191,36,.12)', border: '1px solid rgba(251,191,36,.3)', fontSize: '.73rem', fontWeight: 600, color: '#fbbf24', flexShrink: 0, cursor: 'pointer' }}>
             ⏳ {queueCount} queued
-          </span>
+          </button>
+        )}
+        {/* Queue inspect panel */}
+        {queueInspectOpen && (
+          <div style={{ position: 'absolute', top: '3.2rem', left: 0, right: 0, zIndex: 200, background: 'var(--sv-bg-1, #1a1a2e)', border: '1px solid rgba(251,191,36,.35)', borderRadius: 8, padding: '1rem', maxHeight: '70vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,.5)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24' }}>Queued Sales ({queueCount + failedCount} total)</span>
+              <button onClick={() => setQueueInspectOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 16 }}>✕</button>
+            </div>
+            {[...loadOfflineQueue().map(e => ({ ...e, fromFailed: false })), ...loadFailedQueue().map(e => ({ ...e, fromFailed: true }))].map((entry, i) => {
+              const p = entry.payload as any;
+              const lid = p?.local_id ?? `entry-${i}`;
+              return (
+                <div key={lid} style={{ background: 'var(--sv-bg-2, #111)', borderRadius: 6, padding: '10px 12px', marginBottom: 8, border: `1px solid ${entry.fromFailed ? 'rgba(248,113,113,.3)' : 'rgba(251,191,36,.2)'}` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                    <div style={{ fontSize: 12, lineHeight: 1.6 }}>
+                      <span style={{ padding: '1px 6px', borderRadius: 99, fontSize: 11, fontWeight: 700, background: entry.fromFailed ? 'rgba(248,113,113,.15)' : 'rgba(251,191,36,.13)', color: entry.fromFailed ? '#f87171' : '#fbbf24', marginRight: 6 }}>{entry.fromFailed ? 'FAILED' : 'QUEUED'}</span>
+                      <span style={{ color: 'var(--sv-text-dim)' }}>{new Date(entry.queued_at).toLocaleString('en-AU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                      {p?.total != null && <span style={{ marginLeft: 10, fontWeight: 600 }}>${Number(p.total).toFixed(2)}</span>}
+                      {p?.items?.length > 0 && <span style={{ marginLeft: 8, color: 'var(--sv-text-dim)' }}>{p.items.length} item{p.items.length !== 1 ? 's' : ''}</span>}
+                      {entry.attempts > 0 && <span style={{ marginLeft: 8, color: '#f87171' }}>{entry.attempts} attempt{entry.attempts !== 1 ? 's' : ''}{entry.last_error ? ` — ${entry.last_error}` : ''}</span>}
+                    </div>
+                    <button
+                      onClick={() => discardQueueEntry(lid, entry.fromFailed)}
+                      title="Discard this queued sale"
+                      style={{ background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 4, cursor: 'pointer', padding: '2px 8px', fontSize: 11, color: '#f87171', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      Discard
+                    </button>
+                  </div>
+                  {p?.local_id && <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginTop: 2, fontFamily: 'monospace' }}>ID: {p.local_id}</div>}
+                </div>
+              );
+            })}
+            {(queueCount + failedCount === 0) && <div style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>No queued entries.</div>}
+          </div>
         )}
         {/* Failed-sync badge — sales that repeatedly failed to sync (never lost) */}
         {failedCount > 0 && (
