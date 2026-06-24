@@ -601,16 +601,21 @@ export async function voidXeroBill(
   poId: number,
 ): Promise<string | null> {
   try {
+    // Xero rules: DRAFT bills must be DELETED; AUTHORISED bills must be VOIDED.
+    const current = await xeroApiFetch(businessId, `/Invoices/${xeroInvoiceId}`);
+    const currentStatus = current?.Invoices?.[0]?.Status ?? 'DRAFT';
+    const targetStatus = currentStatus === 'AUTHORISED' ? 'VOIDED' : 'DELETED';
+
     const res = await xeroApiFetch(businessId, `/Invoices/${xeroInvoiceId}`, {
       method: 'POST',
-      body: { Invoices: [{ InvoiceID: xeroInvoiceId, Status: 'VOIDED' }] },
+      body: { Invoices: [{ InvoiceID: xeroInvoiceId, Status: targetStatus }] },
     });
-    const voided = res?.Invoices?.[0];
-    if (voided?.Status === 'VOIDED') {
-      await logSync(businessId, 'po_bill_void', poId, xeroInvoiceId, 'success', 'Bill voided');
+    const result = res?.Invoices?.[0];
+    if (result?.Status === targetStatus) {
+      await logSync(businessId, 'po_bill_void', poId, xeroInvoiceId, 'success', `Bill ${targetStatus.toLowerCase()}`);
       return xeroInvoiceId;
     }
-    await logSync(businessId, 'po_bill_void', poId, xeroInvoiceId, 'error', 'Void returned unexpected status');
+    await logSync(businessId, 'po_bill_void', poId, xeroInvoiceId, 'error', `Expected ${targetStatus}, got ${result?.Status}`);
     return null;
   } catch (e: any) {
     await logSync(businessId, 'po_bill_void', poId, xeroInvoiceId, 'error', e.message);
