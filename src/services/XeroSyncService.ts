@@ -127,7 +127,11 @@ async function logSync(
   }
 }
 
-/** Write Xero sync status back to the PO row. Silent — never throws. */
+/** Write Xero sync status back to the PO row. Silent — never throws.
+ * xeroId === undefined → don't touch xero_bill_id
+ * xeroId === null     → explicitly clear xero_bill_id to NULL (e.g. after void)
+ * xeroId === string   → set xero_bill_id to that value
+ */
 export async function markPoXeroStatus(
   poId: number,
   status: 'synced' | 'queued' | 'error',
@@ -137,9 +141,9 @@ export async function markPoXeroStatus(
     await imsExecute(
       `UPDATE ims_purchase_orders
          SET xero_sync_status = ?, xero_synced_at = NOW()
-             ${xeroId != null ? ', xero_bill_id = ?' : ''}
+             ${xeroId !== undefined ? ', xero_bill_id = ?' : ''}
          WHERE id = ?`,
-      xeroId != null ? [status, xeroId, poId] : [status, poId],
+      xeroId !== undefined ? [status, xeroId, poId] : [status, poId],
     );
   } catch { /* non-critical */ }
 }
