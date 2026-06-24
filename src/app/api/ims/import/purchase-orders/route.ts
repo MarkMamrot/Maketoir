@@ -4,13 +4,13 @@ import { getImportSession, makeSSEStream } from '../_helpers';
 
 const MONTHS_BACK = 36;
 
-function mapStatus(status: string, stage: string): 'draft' | 'approved' | 'received' | 'cancelled' {
+function mapStatus(status: string, stage: string): 'draft' | 'ordered' | 'received' | 'cancelled' {
   const s = (status ?? '').toUpperCase();
   const g = (stage  ?? '').toLowerCase();
   if (s === 'CANCELLED') return 'cancelled';
   if (g.includes('fully received')) return 'received';
   if (s === 'DRAFT') return 'draft';
-  return 'approved';
+  return 'ordered';
 }
 
 function safeDate(val: any): string | null {

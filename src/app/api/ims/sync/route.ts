@@ -105,7 +105,7 @@ async function runMigrations(): Promise<void> {
 }
 
 type SOStatus = 'draft' | 'confirmed' | 'fulfilled' | 'cancelled';
-type POStatus = 'draft' | 'approved' | 'received' | 'cancelled';
+type POStatus = 'draft' | 'ordered' | 'received' | 'cancelled';
 
 function cinSoStageToIms(stage: string, cin7Status?: string): { status: SOStatus; isHistorical: number } {
   const apiStatus = (cin7Status ?? '').toUpperCase();
@@ -122,7 +122,7 @@ function cinPoStageToIms(stage: string): { status: POStatus; isHistorical: numbe
   if (/^draft/.test(s)) return { status: 'draft', isHistorical: 0 };
   if (/void|cancel/.test(s)) return { status: 'cancelled', isHistorical: 1 };
   if (/\breceived\b|\bcomplete\b/.test(s)) return { status: 'received', isHistorical: 1 };
-  return { status: 'approved', isHistorical: 0 };
+  return { status: 'ordered', isHistorical: 0 };
 }
 
 async function getOrCreateUnknownLoc(): Promise<number> {

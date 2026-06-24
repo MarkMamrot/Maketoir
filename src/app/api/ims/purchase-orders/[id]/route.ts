@@ -56,17 +56,17 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         }
       }
 
-      // Await void for revert/cancel; fire Xero sync on approved/received; skip if bill already exists
+      // Await void for revert/cancel; fire Xero sync on ordered/received; skip if bill already exists
       if (status === 'cancelled') {
         xeroWarning = await triggerPOXeroVoid(businessId, Number(params.id)).catch(() => null);
       } else if (status === 'draft') {
         // Revert to draft → void existing Xero bill (triggerPOXeroVoid also clears xero_bill_id)
         xeroWarning = await triggerPOXeroVoid(businessId, Number(params.id)).catch(() => null);
-      } else if (status === 'approved') {
-        // Create Draft Bill if none exists yet (xero_bill_id cleared by void on revert, so re-approval is safe)
+      } else if (status === 'ordered') {
+        // Create Draft Bill if none exists yet (xero_bill_id cleared by void on revert, so re-order is safe)
         const hasExistingBill = !!(poDataFull as any)?.xero_bill_id;
         if (!hasExistingBill) {
-          triggerPOXeroSync(businessId, Number(params.id), 'approved').catch(() => {});
+          triggerPOXeroSync(businessId, Number(params.id), 'ordered').catch(() => {});
         }
       } else if (status === 'received') {
         // Only fire sync on full receive via IMS list (batch API fires its own sync)

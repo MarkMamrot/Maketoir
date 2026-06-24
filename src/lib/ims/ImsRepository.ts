@@ -6,7 +6,7 @@ import { getIMSPool, imsQuery, imsExecute } from '@/services/IMSMySQLService';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ContactType = 'supplier' | 'customer' | 'both';
-export type POStatus    = 'draft' | 'approved' | 'partially_received' | 'received' | 'cancelled';
+export type POStatus    = 'draft' | 'ordered' | 'partially_received' | 'received' | 'cancelled';
 export type SOStatus    = 'draft' | 'confirmed' | 'fulfilled' | 'cancelled';
 
 export interface ImsContact {
@@ -980,8 +980,8 @@ export const ImsPORepo = {
 
       if (from === to) return; // no-op
 
-      // ── draft → approved ────────────────────────────────────
-      if (from === 'draft' && to === 'approved') {
+      // ── draft → ordered ─────────────────────────────────────
+      if (from === 'draft' && to === 'ordered') {
         for (const item of items) {
           await conn.execute(
             `INSERT INTO ims_stock (variant_id, location_id, qty_incoming)
@@ -1002,8 +1002,8 @@ export const ImsPORepo = {
         }
       }
 
-      // ── approved → draft (undo approval) ────────────────────
-      if (from === 'approved' && to === 'draft') {
+      // ── ordered → draft (undo order) ──────────────────────
+      if (from === 'ordered' && to === 'draft') {
         for (const item of items) {
           await conn.execute(
             `UPDATE ims_stock SET qty_incoming = GREATEST(0, qty_incoming - ?)
@@ -1023,8 +1023,8 @@ export const ImsPORepo = {
         }
       }
 
-      // ── approved → received ──────────────────────────────────
-      if (from === 'approved' && to === 'received') {
+      // ── ordered → received ───────────────────────────────────
+      if (from === 'ordered' && to === 'received') {
         // Distribute landed costs (and optionally freight) proportionally by item value
         const poSubtotal = items.reduce((s, i) => s + Number(i.qty_ordered) * Number(i.unit_cost), 0);
         const totalLanded = landedCostRows.reduce((s, c) => s + Number(c.amount), 0);
@@ -1195,8 +1195,8 @@ export const ImsPORepo = {
         );
       }
 
-      // ── partially_received → approved (revert a partial receive) ──────────────
-      if (from === 'partially_received' && to === 'approved') {
+      // ── partially_received → ordered (revert a partial receive) ───────────────
+      if (from === 'partially_received' && to === 'ordered') {
         for (const item of items) {
           const alreadyReceived = Number(item.qty_received ?? 0);
           if (alreadyReceived <= 0) continue;
@@ -1225,7 +1225,7 @@ export const ImsPORepo = {
       }
 
       // ── any → cancelled ──────────────────────────────────────
-      if (to === 'cancelled' && from === 'approved') {
+      if (to === 'cancelled' && from === 'ordered') {
         for (const item of items) {
           await conn.execute(
             `UPDATE ims_stock SET qty_incoming = GREATEST(0, qty_incoming - ?)
@@ -1678,7 +1678,7 @@ export const ImsDashboardRepo = {
       `SELECT COUNT(*) AS cnt FROM ims_locations WHERE is_active = 1 ${businessId ? 'AND business_id = ?' : ''}`, p
     );
     const [openPOs] = await imsQuery<{ cnt: number }>(
-      `SELECT COUNT(*) AS cnt FROM ims_purchase_orders WHERE status IN ('draft','approved') ${businessId ? 'AND business_id = ?' : ''}`, p
+      `SELECT COUNT(*) AS cnt FROM ims_purchase_orders WHERE status IN ('draft','ordered') ${businessId ? 'AND business_id = ?' : ''}`, p
     );
     const [openSOs] = await imsQuery<{ cnt: number }>(
       `SELECT COUNT(*) AS cnt FROM ims_sales_orders WHERE status IN ('draft','confirmed') ${businessId ? 'AND business_id = ?' : ''}`, p

@@ -45,7 +45,7 @@ export async function triggerPOXeroSync(businessId: string, poId: number, newSta
   const po = await ImsPORepo.get(poId);
   if (!po) return;
 
-  if (newStatus === 'approved') {
+  if (newStatus === 'ordered') {
     // Create Draft Bill — retry once on failure, then mark as queued
     await withRetry(
       () => syncPOAsDraftBill(businessId, po as any),

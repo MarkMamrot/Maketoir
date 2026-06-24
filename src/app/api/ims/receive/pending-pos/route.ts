@@ -18,10 +18,10 @@ export async function GET() {
   }
 
   try {
-    // Fetch pending POs with draft or approved status
+    // Fetch pending POs with draft or ordered status
     const allPos = await Promise.all([
       ImsPORepo.list('draft'),
-      ImsPORepo.list('approved'),
+      ImsPORepo.list('ordered'),
     ]);
     const pos = [...allPos[0], ...allPos[1]];
 

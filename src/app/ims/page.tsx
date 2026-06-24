@@ -230,7 +230,7 @@ function useImsSettings() {
 
 const STATUS_COLORS: Record<string, string> = {
   draft:              'background:rgba(100,116,139,.18);color:#94a3b8',
-  approved:           'background:rgba(37,99,235,.18);color:#60a5fa',
+  ordered:            'background:rgba(37,99,235,.18);color:#60a5fa',
   partially_received: 'background:rgba(251,146,60,.18);color:#f97316',
   received:           'background:rgba(16,185,129,.18);color:#34d399',
   confirmed:          'background:rgba(251,191,36,.15);color:#fbbf24',
@@ -3107,7 +3107,7 @@ function PurchaseOrdersView() {
   };
 
   const changeStatus = async (po: any, status: string) => {
-    const labels: Record<string, string> = { approved: 'approve', received: 'mark as received', draft: 'revert to draft', cancelled: 'cancel', partially_received: 'mark as partially received' };
+    const labels: Record<string, string> = { ordered: 'order', received: 'mark as received', draft: 'revert to draft', cancelled: 'cancel', partially_received: 'mark as partially received' };
     if (!confirm(`${labels[status] || status} PO ${po.po_number}?`)) return;
     try {
       const res = await apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
@@ -3157,7 +3157,7 @@ function PurchaseOrdersView() {
         <button onClick={openNew} style={btnStyle('action')}>+ New PO</button>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-        {['','draft','approved','partially_received','received','cancelled'].map(s => (
+        {['','draft','ordered','partially_received','received','cancelled'].map(s => (
           <button key={s} onClick={() => { setStatusFilter(s); setPage(1); }} style={btnStyle(statusFilter === s ? 'action' : 'ghost', 'sm')}>
             {s || 'All'}
           </button>
@@ -3557,7 +3557,7 @@ function PurchaseOrdersView() {
           {/* ── Landed Costs (view/edit) — not on invoice; allocated to avg. cost on receive ── */}
           {(() => {
             const lcs: any[] = viewModal.po.landed_costs || [];
-            const canEdit = viewModal.po.status === 'draft' || viewModal.po.status === 'approved' || viewModal.po.status === 'partially_received';
+            const canEdit = viewModal.po.status === 'draft' || viewModal.po.status === 'ordered' || viewModal.po.status === 'partially_received';
             return (
               <div style={{ marginTop: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -3784,13 +3784,13 @@ function POActions({ po, onEdit, onDelete, onStatus, context = 'list' }: { po: a
     return <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>Historical (Cin7)</span>;
   }
   const btns = [];
-  if (po.status === 'draft')    { btns.push(<button key="a" onClick={() => onStatus(po, 'approved')}  style={btnStyle('mint', 'xs')}>Approve</button>); }
-  if (po.status === 'approved') { btns.push(<a key="p" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 {context === 'view' ? 'Smart Device Receive' : 'Receive'}</a>); }
-  if (po.status === 'approved' && context === 'view') { btns.push(<button key="r" onClick={() => onStatus(po, 'received')}  style={btnStyle('mint', 'xs')}>Mark Received</button>); }
-  if (po.status === 'approved' && context !== 'list') { btns.push(<button key="b" onClick={() => onStatus(po, 'draft')}     style={btnStyle('ghost', 'xs')}>Revert</button>); }
+  if (po.status === 'draft')    { btns.push(<button key="a" onClick={() => onStatus(po, 'ordered')}  style={btnStyle('mint', 'xs')}>Order</button>); }
+  if (po.status === 'ordered') { btns.push(<a key="p" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 {context === 'view' ? 'Smart Device Receive' : 'Receive'}</a>); }
+  if (po.status === 'ordered' && context === 'view') { btns.push(<button key="r" onClick={() => onStatus(po, 'received')}  style={btnStyle('mint', 'xs')}>Mark Received</button>); }
+  if (po.status === 'ordered' && context !== 'list') { btns.push(<button key="b" onClick={() => onStatus(po, 'draft')}     style={btnStyle('ghost', 'xs')}>Revert</button>); }
   if (po.status === 'partially_received') { btns.push(<a key="pr" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 {context === 'view' ? 'Continue Receiving' : 'Continue'}</a>); }
   if (po.status === 'partially_received') { btns.push(<button key="prr" onClick={() => onStatus(po, 'received')} style={btnStyle('mint', 'xs')}>Mark Received</button>); }
-  if (po.status === 'partially_received' && context !== 'list') { btns.push(<button key="prb" onClick={() => onStatus(po, 'approved')} style={btnStyle('ghost', 'xs')}>Revert to Approved</button>); }
+  if (po.status === 'partially_received' && context !== 'list') { btns.push(<button key="prb" onClick={() => onStatus(po, 'ordered')} style={btnStyle('ghost', 'xs')}>Revert to Ordered</button>); }
   if (po.status !== 'received' && po.status !== 'cancelled') {
     btns.push(<button key="e" onClick={onEdit}  style={btnStyle('ghost', 'xs')}>Edit</button>);
     if (context !== 'list' && po.status !== 'partially_received') { btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>); }
@@ -11232,7 +11232,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <h3 style={h3}>Status lifecycle</h3>
         <ul style={ul}>
           <li><strong>Draft</strong> — Created, not yet sent to supplier. No stock impact. No Xero action.</li>
-          <li><strong>Approved</strong> — PO approved for ordering. Increments <em>qty_incoming</em> in stock. Triggers a <em>Draft Bill</em> in Xero (ACCPAY).</li>
+          <li><strong>Ordered</strong> — PO placed with supplier. Increments <em>qty_incoming</em> in stock. Triggers a <em>Draft Bill</em> in Xero (ACCPAY).</li>
           <li><strong>Partially Received</strong> — Some items have been scanned in via the smart device receive page but the PO is not yet complete. Stock levels are updated per item as each receive session is saved. The Xero bill stays in <em>Draft</em> until fully received.</li>
           <li><strong>Received</strong> — All goods received into stock. Xero bill moves to <em>Authorised</em>; if deposits were recorded, a journal transfers cost from <em>Inventory In Transit</em> to <em>Inventory Asset</em>.</li>
           <li><strong>Cancelled</strong> — PO cancelled. Stock impacts are fully reversed. If a Xero bill exists, it is voided automatically.</li>
@@ -11248,7 +11248,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         </ul>
 
         <h3 style={h3}>Reverting a partially received PO</h3>
-        <p style={p}>From the PO view modal, <strong>Revert to Approved</strong> fully undoes all partial stock updates — <em>qty_on_hand</em> is decremented and <em>qty_incoming</em> is restored for each item received so far. No Xero action is taken (the original draft bill remains).</p>
+        <p style={p}>From the PO view modal, <strong>Revert to Ordered</strong> fully undoes all partial stock updates — <em>qty_on_hand</em> is decremented and <em>qty_incoming</em> is restored for each item received so far. No Xero action is taken (the original draft bill remains).</p>
 
         <h3 style={h3}>Freight treatment</h3>
         <p style={p}>Configurable in Settings → Purchase Orders:</p>
@@ -11358,7 +11358,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
 
         <h3 style={h3}>What gets synced — trigger table</h3>
         <TriggerTable rows={[
-          { trigger: 'PO status → Approved',          object: 'Bill (ACCPAY)',        status: 'DRAFT',        notes: 'One bill per PO; line items per SKU + optional freight line' },
+          { trigger: 'PO status → Ordered',           object: 'Bill (ACCPAY)',        status: 'DRAFT',        notes: 'One bill per PO; line items per SKU + optional freight line' },
           { trigger: 'PO status → Partially Received', object: '(no action)',           status: '—',            notes: 'Bill remains in DRAFT; Xero is updated only on full receive' },
           { trigger: 'PO status → Received',          object: 'Bill (ACCPAY)',        status: 'AUTHORISED',   notes: 'Bill approved; if deposits exist, journal transfers In Transit → Inventory Asset' },
           { trigger: 'PO reverted or cancelled',      object: 'Bill (ACCPAY)',        status: 'VOIDED',       notes: 'Draft bill is voided automatically — safe because no payments can be on a draft bill' },
