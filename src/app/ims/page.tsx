@@ -972,7 +972,7 @@ interface VariantRow {
 }
 interface OptionSet { name: string; values: string; }
 
-const BLANK_PRODUCT = { name: '', description: '', product_type: '', brand: '', tags: '', is_active: 1 };
+const BLANK_PRODUCT = { name: '', description: '', product_type: '', brand: '', tags: '', is_active: 1, base_sku: '' };
 
 const blankRow = (): VariantRow => ({
   _tempId: Math.random().toString(36).slice(2, 10),
@@ -1763,7 +1763,20 @@ function ProductsView() {
   };
 
   const openEdit = (p: any) => {
-    setForm({ ...BLANK_PRODUCT, ...p });
+    // Derive base_sku from the common prefix of variant SKUs
+    const skus = ((p.variants || []) as any[]).map((v: any) => v.sku).filter(Boolean) as string[];
+    let base_sku = '';
+    if (skus.length > 0) {
+      const splitSkus = skus.map(s => s.split('-'));
+      const minLen = Math.min(...splitSkus.map(p => p.length)) - 1;
+      let commonLen = 0;
+      for (let i = 0; i < minLen; i++) {
+        if (splitSkus.every(p => p[i] === splitSkus[0][i])) commonLen = i + 1;
+        else break;
+      }
+      base_sku = commonLen > 0 ? splitSkus[0].slice(0, commonLen).join('-') : '';
+    }
+    setForm({ ...BLANK_PRODUCT, ...p, base_sku });
     const variants: any[] = p.variants || [];
     const sets: OptionSet[] = [1, 2, 3].map(i => {
       const nameKey = `option${i}_name`;
@@ -1814,6 +1827,11 @@ function ProductsView() {
   };
 
   const handleGenerate = () => {
+    if (!form.base_sku?.trim()) {
+      alert('Please enter a Product SKU first. Variant SKUs will be generated from it (e.g. "MT-PROD" → "MT-PROD-L", "MT-PROD-M").');
+      return;
+    }
+    const baseSku = form.base_sku.trim();
     const active = optionSets.filter(s => s.name.trim() && s.values.trim());
     const combos = cartesian(optionSets);
     setVariantRows(prev => {
@@ -1822,7 +1840,9 @@ function ProductsView() {
       const base = active.length > 0 ? prev.filter(r => !isDefault(r)) : prev;
       const newRows = combos.map(([v1, v2, v3]) => {
         const existing = base.find(r => r.option1_value === v1 && r.option2_value === v2 && r.option3_value === v3 && !r._delete);
-        return existing ?? { ...blankRow(), option1_value: v1, option2_value: v2, option3_value: v3 };
+        if (existing) return existing;
+        const suffix = [v1, v2, v3].filter(Boolean).join('-').replace(/\s+/g, '');
+        return { ...blankRow(), option1_value: v1, option2_value: v2, option3_value: v3, sku: suffix ? `${baseSku}-${suffix}` : baseSku };
       });
       return newRows;
     });
@@ -2235,7 +2255,13 @@ function ProductsView() {
         <Modal title={modal.edit ? `Edit: ${form.name || 'Product'}` : 'New Product'} onClose={() => setModal({ open: false, edit: null })} wider>
           {/* ── Product Details ── */}
           <div style={{ marginBottom: 20 }}>
+            {modal.edit?.product_id && (
+              <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 10 }}>
+                Product ID: <span style={{ fontFamily: 'monospace', userSelect: 'all' }}>{modal.edit.product_id}</span>
+              </div>
+            )}
             <Field label="Name *"><input required value={form.name} onChange={sf('name')} style={inputStyle} /></Field>
+            <Field label="Product SKU *"><input required value={form.base_sku ?? ''} onChange={sf('base_sku')} style={inputStyle} placeholder="e.g. MT-PROD (used to generate variant SKUs)" /></Field>
             <Row2>
               <Field label="Product Type"><input value={form.product_type} onChange={sf('product_type')} style={inputStyle} /></Field>
               <Field label="Brand">
@@ -2357,7 +2383,7 @@ function ProductsView() {
                         <td style={{ padding: '4px 8px', whiteSpace: 'nowrap', color: 'var(--sv-text-dim)', fontWeight: 500, minWidth: 80 }}>{label}</td>
                         <td style={{ padding: '2px 4px', minWidth: 80 }}><input value={row.sku} onChange={e => updateRow(row._tempId, 'sku', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 90 }}><input value={row.barcode} onChange={e => updateRow(row._tempId, 'barcode', e.target.value)} style={cellInput} /></td>
-                        <td style={{ padding: '2px 4px', minWidth: 72 }}><input type="number" step="0.0001" min="0" value={row.cost_aud} onChange={e => updateRow(row._tempId, 'cost', e.target.value)} style={cellInput} /></td>
+                        <td style={{ padding: '2px 4px', minWidth: 72 }}><input type="number" step="0.0001" min="0" value={row.cost_aud} onChange={e => updateRow(row._tempId, 'cost_aud', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 60 }}><input type="number" step="0.001" min="0" value={row.weight_kg} onChange={e => updateRow(row._tempId, 'weight_kg', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 70 }}><input value={row.bin} onChange={e => updateRow(row._tempId, 'bin', e.target.value)} style={cellInput} placeholder="—" /></td>
                         <td style={{ padding: '2px 4px', minWidth: 70 }}><input value={row.zone} onChange={e => updateRow(row._tempId, 'zone', e.target.value)} style={cellInput} placeholder="—" /></td>
@@ -9935,6 +9961,7 @@ function StocktakesView() {
   const [locations, setLocations] = useState<any[]>([]);
   const [brands, setBrands]     = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [productTypes, setProductTypes] = useState<string[]>([]);
   const [filterLocation, setFilterLocation] = useState('');
   const [filterText, setFilterText]         = useState('');
   const [sortCol, setSortCol]   = useState<string>('created_at');
@@ -9975,6 +10002,7 @@ function StocktakesView() {
     fetch('/api/ims/locations').then(r => r.json()).then(d => { if (d.success) setLocations(d.data); });
     fetch('/api/ims/brands').then(r => r.json()).then(d => { if (d.success) setBrands(d.data); });
     fetch('/api/ims/contacts?type=supplier&active=1').then(r => r.json()).then(d => { if (d.success) setSuppliers(d.data); });
+    fetch('/api/ims/product-types').then(r => r.json()).then(d => { if (d.success) setProductTypes(d.data); });
   }, []);
 
   // Default reference when opening create modal
@@ -10035,7 +10063,18 @@ function StocktakesView() {
   const openDetail = async (st: any) => {
     const res = await fetch(`/api/ims/stocktakes/${st.id}`);
     const d   = await res.json();
-    setDetailModal({ open: true, st: d });
+    // Auto-start: silently move draft → in_progress so counting can begin immediately
+    let stocktakeData = d;
+    if (d.status === 'draft') {
+      await fetch(`/api/ims/stocktakes/${st.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'change_status', status: 'in_progress' }),
+      });
+      stocktakeData = { ...d, status: 'in_progress' };
+      load();
+    }
+    setDetailModal({ open: true, st: stocktakeData });
     setDetailItems((d.items || []).map((i: any) => ({ ...i, counted_input: i.counted_qty !== null ? String(i.counted_qty) : '' })));
     setDetailTab('manual');
     setBarcodeText('');
@@ -10366,7 +10405,10 @@ function StocktakesView() {
                     </select>
                   </Field>
                   <Field label="Product Type">
-                    <input value={createForm.product_type} onChange={cf('product_type')} style={inputStyle} placeholder="e.g. T-Shirt" />
+                    <select value={createForm.product_type} onChange={cf('product_type')} style={inputStyle}>
+                      <option value="">All Types</option>
+                      {productTypes.map(pt => <option key={pt} value={pt}>{pt}</option>)}
+                    </select>
                   </Field>
                 </Row3>
                 {createForm.location_id && (
@@ -10390,7 +10432,7 @@ function StocktakesView() {
             </Field>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button type="button" onClick={() => setCreateModal(false)} style={btnStyle('secondary')}>Cancel</button>
-              <button type="submit" disabled={saving} style={btnStyle('action')}>{saving ? 'Creating…' : 'Create Stocktake'}</button>
+              <button type="submit" disabled={saving} style={btnStyle('action')}>{saving ? 'Creating…' : 'Next → Start Stocktake'}</button>
             </div>
           </form>
         </Modal>
@@ -10404,7 +10446,6 @@ function StocktakesView() {
             <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>{detailModal.st.location_name}</span>
             {detailModal.st.notes && <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>— {detailModal.st.notes}</span>}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-              {detailModal.st.status === 'draft'       && <button onClick={() => changeStatus(detailModal.st.id, 'in_progress')} style={btnStyle('action', 'sm')}>Start Count</button>}
               {detailModal.st.status === 'in_progress' && <button onClick={() => handleComplete(detailModal.st.id)} disabled={applying} style={btnStyle('action', 'sm')}>Mark Complete</button>}
               {detailModal.st.status === 'completed'   && <button onClick={() => handleRevert(detailModal.st.id)} disabled={applying} style={btnStyle('secondary', 'sm')}>Revert</button>}
               {(detailModal.st.status === 'draft' || detailModal.st.status === 'in_progress') && <button onClick={() => changeStatus(detailModal.st.id, 'cancelled')} style={btnStyle('secondary', 'sm')}>Cancel</button>}
