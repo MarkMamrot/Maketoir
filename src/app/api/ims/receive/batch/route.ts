@@ -166,8 +166,7 @@ export async function POST(req: Request) {
       // ─── 4. Determine final PO status ────────────────────────────────────
       // Re-read current qty_received for all items to check for shortfall
       const allItems = await conn.execute<any[]>(
-        `SELECT variant_id, sku_raw AS sku, name_raw AS product_name,
-                qty_ordered, qty_received
+        `SELECT variant_id, qty_ordered, qty_received
          FROM ims_purchase_order_items WHERE po_id = ?`,
         [po_id]
       );
@@ -267,9 +266,8 @@ export async function POST(req: Request) {
             bkTax += lineTax;
             await conn.execute(
               `INSERT INTO ims_purchase_order_items
-                 (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, notes,
-                  name_raw, sku_raw)
-               VALUES (?,?,?,0,?,?,?,?,?,?,?)`,
+                 (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, notes)
+               VALUES (?,?,?,0,?,?,?,?,?)`,
               [
                 backorderPoId,
                 sf.variant_id,
@@ -279,8 +277,6 @@ export async function POST(req: Request) {
                 origItem.tax_rate ?? 0,
                 lineTotal,
                 origItem.notes ?? null,
-                sf.product_name ?? origItem.name_raw ?? null,
-                sf.sku ?? origItem.sku_raw ?? null,
               ]
             );
           }

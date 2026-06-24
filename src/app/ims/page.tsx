@@ -2914,9 +2914,6 @@ function PurchaseOrdersView() {
   const [lcForm, setLcForm] = useState<{ label: string; reference: string; amount: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [receiveQtys, setReceiveQtys] = useState<Record<string, number>>({});
-  const [receiveSaving, setReceiveSaving] = useState(false);
-  const [receiveMsg, setReceiveMsg] = useState<string | null>(null);
-  const [allReceived, setAllReceived] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [filterSupplier, setFilterSupplier] = useState('');
   const [sortCol, setSortCol] = useState<string>('order_date');
@@ -3053,8 +3050,6 @@ function PurchaseOrdersView() {
     const initQtys: Record<string, number> = {};
     (d.data.items || []).forEach((i: any) => { if (i.variant_id) initQtys[i.variant_id] = Number(i.qty_received || 0); });
     setReceiveQtys(initQtys);
-    setReceiveMsg(null);
-    setAllReceived(false);
     setLandedCosts((d.data.landed_costs || []).map((c: any) => ({ label: c.label, reference: c.reference ?? '', amount: String(c.amount) })));
     setLcForm(null);
     setModal({ open: true, edit: d.data });
@@ -3098,43 +3093,7 @@ function PurchaseOrdersView() {
     } catch (e: any) { alert(e.message); }
   };
 
-  const handleSaveReceiving = async () => {
-    if (!modal.edit) return;
-    const editData = modal.edit;
-    // Build delta list: only items where user entered more than currently stored
-    const received_items = lineItems
-      .filter(item => item.variant_id)
-      .map(item => {
-        const stored = Number(editData.items?.find((i: any) => i.variant_id === item.variant_id)?.qty_received ?? 0);
-        const entered = Number(receiveQtys[item.variant_id] ?? stored);
-        return { variant_id: item.variant_id, qty_received: Math.max(0, entered - stored) };
-      })
-      .filter(item => item.qty_received > 0);
-
-    if (received_items.length === 0) { setReceiveMsg('No new quantities to receive.'); return; }
-
-    setReceiveSaving(true); setReceiveMsg(null);
-    try {
-      await apiFetch('/api/ims/receive/batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ po_id: editData.id, location_id: editData.location_id, received_items, mark_po_received: false }),
-      });
-      // Re-fetch to get updated qty_received values + new PO status
-      const d = await apiFetch(`/api/ims/purchase-orders/${editData.id}`);
-      setModal(m => ({ ...m, edit: d.data }));
-      const newQtys: Record<string, number> = {};
-      (d.data.items || []).forEach((i: any) => { if (i.variant_id) newQtys[i.variant_id] = Number(i.qty_received || 0); });
-      setReceiveQtys(newQtys);
-      const allDone = (d.data.items || []).length > 0 && (d.data.items || []).every((i: any) => Number(i.qty_received || 0) >= Number(i.qty_ordered || 0));
-      setAllReceived(allDone);
-      setReceiveMsg(allDone ? null : '✓ Receiving saved.');
-      load(); // Refresh PO list
-    } catch (e: any) { setReceiveMsg('Error: ' + e.message); }
-    setReceiveSaving(false);
-  };
-
-  const handleSubmit = async (e: React.FormEvent, andOrder = false) => {
+  const handleSubmit = async (e: React.FormEvent, andOrder = false, receiveQtysOverride?: Record<string, number>) => {
     e.preventDefault();
     if (!form.location_id) { alert('Location is required.'); return; }
     if (lineItems.length === 0 || lineItems.some(i => !i.variant_id)) { alert('Add at least one line item with a variant selected.'); return; }
@@ -3144,6 +3103,21 @@ function PurchaseOrdersView() {
       const landed_costs = landedCosts.filter(c => c.label && Number(c.amount) > 0).map(c => ({ label: c.label, reference: c.reference || null, amount: Number(c.amount) }));
       if (modal.edit) {
         await apiFetch(`/api/ims/purchase-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items, landed_costs }) });
+        // Also record any receiving deltas
+        if (isReceiving) {
+          const effectiveQtys = receiveQtysOverride ?? receiveQtys;
+          const received_items = lineItems
+            .filter(item => item.variant_id)
+            .map(item => {
+              const stored = Number(modal.edit!.items?.find((i: any) => i.variant_id === item.variant_id)?.qty_received ?? 0);
+              const entered = Number(effectiveQtys[item.variant_id] ?? stored);
+              return { variant_id: item.variant_id, qty_received: Math.max(0, entered - stored) };
+            })
+            .filter(item => item.qty_received > 0);
+          if (received_items.length > 0) {
+            await apiFetch('/api/ims/receive/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ po_id: modal.edit.id, location_id: modal.edit.location_id, received_items, mark_po_received: false }) });
+          }
+        }
       } else {
         const res = await apiFetch('/api/ims/purchase-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items, landed_costs }) });
         if (andOrder && res?.id) {
@@ -3337,6 +3311,14 @@ function PurchaseOrdersView() {
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button type="button" onClick={() => setImportOpen(true)} style={btnStyle('secondary', 'xs')}>⬆ Import</button>
                   <button type="button" onClick={addLine} style={btnStyle('ghost', 'xs')}>+ Add Line</button>
+                  {isReceiving && (
+                    <button type="button" disabled={saving} onClick={async (e) => {
+                      const all: Record<string, number> = {};
+                      lineItems.forEach(item => { if (item.variant_id) all[item.variant_id] = Number(item.qty_ordered || 0); });
+                      setReceiveQtys(all);
+                      await handleSubmit(e as any, false, all);
+                    }} style={btnStyle('mint', 'xs')}>{saving ? 'Saving…' : 'Receive All & Update'}</button>
+                  )}
                 </div>
               </div>
               <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
@@ -3499,35 +3481,6 @@ function PurchaseOrdersView() {
                 </div>
               </div>
             </div>
-
-            {/* Receiving section — only visible for ordered/partially_received POs */}
-            {isReceiving && (
-              <div style={{ marginBottom: 14, padding: '10px 12px', background: 'var(--sv-bg-1)', borderRadius: 6, border: '1px dashed var(--sv-etch)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', letterSpacing: 0.8 }}>RECORD RECEIVING</span>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button type="button" onClick={() => {
-                      const all: Record<string, number> = {};
-                      lineItems.forEach(item => { if (item.variant_id) all[item.variant_id] = Number(item.qty_ordered || 0); });
-                      setReceiveQtys(all);
-                    }} style={btnStyle('ghost', 'xs')}>Receive All</button>
-                    <button type="button" disabled={receiveSaving} onClick={handleSaveReceiving} style={btnStyle('action', 'xs')}>{receiveSaving ? 'Saving…' : 'Save Receiving'}</button>
-                  </div>
-                </div>
-                {receiveMsg && <p style={{ fontSize: 11, margin: '0 0 6px', color: receiveMsg.startsWith('Error') ? '#f87171' : 'var(--sv-text-dim)' }}>{receiveMsg}</p>}
-                {allReceived && (
-                  <div style={{ background: 'rgba(16,185,129,.1)', border: '1px solid rgba(16,185,129,.4)', borderRadius: 4, padding: '7px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11 }}>
-                    <span style={{ color: '#34d399', fontWeight: 700 }}>✓ All items received</span>
-                    <button type="button" style={btnStyle('mint', 'xs')} onClick={() => {
-                      if (!modal.edit) return;
-                      apiFetch(`/api/ims/purchase-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'received' }) })
-                        .then(() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); load(); })
-                        .catch((e: any) => setReceiveMsg('Error: ' + e.message));
-                    }}>Mark PO as Fully Received →</button>
-                  </div>
-                )}
-              </div>
-            )}
 
             <FormActions onCancel={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} saving={saving} isEdit={!!modal.edit}
               extraActions={!modal.edit ? [{ label: saving ? 'Creating…' : 'Create & Order', onClick: (e: React.MouseEvent) => handleSubmit(e as any, true) }] : []} />
