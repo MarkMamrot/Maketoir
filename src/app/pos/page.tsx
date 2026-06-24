@@ -426,6 +426,7 @@ type MainScreen = 'pos' | 'eod' | 'reports' | 'parked';
 function MainPos({
   deviceConfig, session, products, paymentMethods, defaultView,
   offlineMode, openEodOnMount, onEodMounted, onLogout, onReceipt, onSync,
+  lastSale, onSaleCompleted,
 }: {
   deviceConfig:    DeviceConfig;
   session:         PosSession;
@@ -438,6 +439,8 @@ function MainPos({
   onLogout:        () => void;
   onReceipt:       (sale: CompletedSale) => void;
   onSync:          () => Promise<void>;
+  lastSale:        CompletedSale | null;
+  onSaleCompleted: (sale: CompletedSale) => void;
 }) {
   const [screen, setScreen] = useState<MainScreen>('pos');
   const [cart, setCart] = useState<CartItem[]>(() => loadCurrentCart());
@@ -447,7 +450,6 @@ function MainPos({
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [saleNotes, setSaleNotes] = useState('');
-  const [lastSale, setLastSale] = useState<CompletedSale | null>(null);
   const [isLayby, setIsLayby] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
@@ -722,7 +724,8 @@ function MainPos({
         created_at:    now,
       };
 
-      setLastSale(completedSale);
+      // lastSale is lifted to PosPage — notify parent instead
+      onSaleCompleted(completedSale);
       clearCart();
       setShowPayment(false);
       onReceipt(completedSale);
@@ -2623,6 +2626,7 @@ export default function PosPage() {
   const [methods,  setMethods]          = useState<string[]>(['Cash', 'Card', 'EFT']);
   const [defaultView, setDefaultView]   = useState<string | null>(null);
   const [completedSale, setCompletedSale] = useState<CompletedSale | null>(null);
+  const [lastSale, setLastSale]           = useState<CompletedSale | null>(null);
   const [printSettings, setPrintSettings] = useState<ReceiptPrintSettings>({ business_name: '', business_address: '', business_abn: '', pos_receipt_footer: '' });
   const [offlineMode, setOfflineMode]   = useState(false);
   const [openRegSession, setOpenRegSession] = useState<any>(null);
@@ -2810,6 +2814,8 @@ export default function PosPage() {
       openEodOnMount={openEodOnMount}
       onEodMounted={() => setOpenEodOnMount(false)}
       onSync={handleSync}
+      lastSale={lastSale}
+      onSaleCompleted={(sale) => setLastSale(sale)}
       onLogout={async () => {
         // Try to flush any queued sales before logging out — never silently abandon them.
         try { await drainOfflineQueue(); } catch {}
@@ -2852,6 +2858,7 @@ export default function PosPage() {
           });
         }
         setCompletedSale(sale);
+        setLastSale(sale);
         setScreen('receipt');
       }}
     />
