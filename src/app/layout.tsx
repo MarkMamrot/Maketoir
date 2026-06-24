@@ -12,17 +12,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" data-skin="dark" suppressHydrationWarning>
+    <html lang="en" data-skin="default" suppressHydrationWarning>
       <body>
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function () {
                 try {
-                  var skin = localStorage.getItem('solvantis_ui_skin') || 'dark';
-                  document.documentElement.setAttribute('data-skin', skin === 'default' ? 'default' : 'dark');
+                  var skin = localStorage.getItem('solvantis_ui_skin') || 'default';
+                  document.documentElement.setAttribute('data-skin', skin === 'dark' ? 'dark' : 'default');
                 } catch (e) {
-                  document.documentElement.setAttribute('data-skin', 'dark');
+                  document.documentElement.setAttribute('data-skin', 'default');
                 }
               })();
             `,

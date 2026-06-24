@@ -9,6 +9,15 @@ import { cookies } from 'next/headers';
 import { exchangeCodeForTokens, getConnectedTenants, saveXeroTokens } from '@/services/XeroService';
 
 export async function GET(req: Request) {
+  // Use the public app URL as the redirect base so Railway's internal proxy
+  // hostname (localhost:8080) doesn't leak into the redirect target.
+  const appBase = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '')
+    ?? new URL(req.url).origin;
+
+  function redirect(path: string) {
+    return NextResponse.redirect(`${appBase}${path}`);
+  }
+
   const { searchParams } = new URL(req.url);
   const code  = searchParams.get('code');
   const state = searchParams.get('state');
@@ -16,30 +25,28 @@ export async function GET(req: Request) {
 
   // Handle user-denied / Xero error
   if (error) {
-    return NextResponse.redirect(
-      new URL(`/ims?xero=error&reason=${encodeURIComponent(error)}`, req.url),
-    );
+    return redirect(`/ims?xero=error&reason=${encodeURIComponent(error)}`);
   }
 
   if (!code || !state) {
-    return NextResponse.redirect(new URL('/ims?xero=error&reason=missing_params', req.url));
+    return redirect('/ims?xero=error&reason=missing_params');
   }
 
   // Retrieve and validate OAuth cookie
   const rawCookie = cookies().get('xero_oauth')?.value;
   if (!rawCookie) {
-    return NextResponse.redirect(new URL('/ims?xero=error&reason=session_expired', req.url));
+    return redirect('/ims?xero=error&reason=session_expired');
   }
 
   let cookieData: { state: string; codeVerifier: string; databaseId: string };
   try {
     cookieData = JSON.parse(rawCookie);
   } catch {
-    return NextResponse.redirect(new URL('/ims?xero=error&reason=bad_cookie', req.url));
+    return redirect('/ims?xero=error&reason=bad_cookie');
   }
 
   if (cookieData.state !== state) {
-    return NextResponse.redirect(new URL('/ims?xero=error&reason=state_mismatch', req.url));
+    return redirect('/ims?xero=error&reason=state_mismatch');
   }
 
   // Clear the OAuth cookie
@@ -53,7 +60,7 @@ export async function GET(req: Request) {
     tokens = await exchangeCodeForTokens(code, codeVerifier);
   } catch (err: any) {
     console.error('[xero/callback] Token exchange failed:', err.message);
-    return NextResponse.redirect(new URL('/ims?xero=error&reason=token_exchange', req.url));
+    return redirect('/ims?xero=error&reason=token_exchange');
   }
 
   // Fetch tenant (organisation) list
@@ -62,12 +69,12 @@ export async function GET(req: Request) {
     tenants = await getConnectedTenants(tokens.access_token);
   } catch (err: any) {
     console.error('[xero/callback] Tenant fetch failed:', err.message);
-    return NextResponse.redirect(new URL('/ims?xero=error&reason=tenant_fetch', req.url));
+    return redirect('/ims?xero=error&reason=tenant_fetch');
   }
 
   const tenant = tenants[0]; // Use first connected tenant
   if (!tenant) {
-    return NextResponse.redirect(new URL('/ims?xero=error&reason=no_tenant', req.url));
+    return redirect('/ims?xero=error&reason=no_tenant');
   }
 
   // Persist to DB (tokens encrypted at rest)
@@ -75,12 +82,9 @@ export async function GET(req: Request) {
     await saveXeroTokens(databaseId, tokens, tenant.tenantId, tenant.tenantName);
   } catch (err: any) {
     console.error('[xero/callback] saveXeroTokens failed:', err.message);
-    return NextResponse.redirect(
-      new URL('/ims?xero=error&reason=save_tokens', req.url),
-    );
+    return redirect('/ims?xero=error&reason=save_tokens');
   }
 
-  return NextResponse.redirect(
-    new URL('/ims?xero=connected', req.url),
-  );
+  return redirect('/ims?xero=connected');
+}
 }
