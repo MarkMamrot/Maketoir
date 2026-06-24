@@ -6,7 +6,7 @@ import { getIMSPool, imsQuery, imsExecute } from '@/services/IMSMySQLService';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ContactType = 'supplier' | 'customer' | 'both';
-export type POStatus    = 'draft' | 'ordered' | 'partially_received' | 'received' | 'cancelled';
+export type POStatus    = 'draft' | 'confirmed' | 'partially_received' | 'received' | 'cancelled';
 export type SOStatus    = 'draft' | 'confirmed' | 'fulfilled' | 'cancelled';
 
 export interface ImsContact {
@@ -79,6 +79,7 @@ export interface ImsPaymentMethod {
   id: number;
   business_id: string;
   name: string;
+  type: 'po' | 'so';
   xero_account_code: string;
   sort_order?: number;
   is_active: boolean;
@@ -992,8 +993,8 @@ export const ImsPORepo = {
 
       if (from === to) return; // no-op
 
-      // ── draft → ordered ─────────────────────────────────────
-      if (from === 'draft' && to === 'ordered') {
+      // ── draft → confirmed ─────────────────────────────────────
+      if (from === 'draft' && to === 'confirmed') {
         for (const item of items) {
           await conn.execute(
             `INSERT INTO ims_stock (variant_id, location_id, qty_incoming)
@@ -1014,8 +1015,8 @@ export const ImsPORepo = {
         }
       }
 
-      // ── ordered → draft (undo order) ──────────────────────
-      if (from === 'ordered' && to === 'draft') {
+      // ── confirmed → draft (undo confirm) ──────────────────────
+      if (from === 'confirmed' && to === 'draft') {
         for (const item of items) {
           await conn.execute(
             `UPDATE ims_stock SET qty_incoming = GREATEST(0, qty_incoming - ?)
@@ -1035,8 +1036,8 @@ export const ImsPORepo = {
         }
       }
 
-      // ── ordered → received ───────────────────────────────────
-      if (from === 'ordered' && to === 'received') {
+      // ── confirmed → received ───────────────────────────────────
+      if (from === 'confirmed' && to === 'received') {
         // Distribute landed costs (and optionally freight) proportionally by item value
         const poSubtotal = items.reduce((s, i) => s + Number(i.qty_ordered) * Number(i.unit_cost), 0);
         const totalLanded = landedCostRows.reduce((s, c) => s + Number(c.amount), 0);
@@ -1207,8 +1208,8 @@ export const ImsPORepo = {
         );
       }
 
-      // ── partially_received → ordered (revert a partial receive) ───────────────
-      if (from === 'partially_received' && to === 'ordered') {
+      // ── partially_received → confirmed (revert a partial receive) ───────────────
+      if (from === 'partially_received' && to === 'confirmed') {
         for (const item of items) {
           const alreadyReceived = Number(item.qty_received ?? 0);
           if (alreadyReceived <= 0) continue;
@@ -1236,8 +1237,8 @@ export const ImsPORepo = {
         }
       }
 
-      // ── received → ordered (revert a fully received PO) ─────────────────────
-      if (from === 'received' && to === 'ordered') {
+      // ── received → confirmed (revert a fully received PO) ─────────────────────
+      if (from === 'received' && to === 'confirmed') {
         for (const item of items) {
           const alreadyReceived = Number(item.qty_received ?? 0);
           if (alreadyReceived <= 0) continue;
@@ -1269,7 +1270,7 @@ export const ImsPORepo = {
       }
 
       // ── any → cancelled ──────────────────────────────────────
-      if (to === 'cancelled' && from === 'ordered') {
+      if (to === 'cancelled' && from === 'confirmed') {
         for (const item of items) {
           await conn.execute(
             `UPDATE ims_stock SET qty_incoming = GREATEST(0, qty_incoming - ?)
@@ -2616,24 +2617,36 @@ export const ImsPoFilesRepo = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const ImsPaymentMethodsRepo = {
-  async list(businessId: string): Promise<ImsPaymentMethod[]> {
+  async list(businessId: string, type?: 'po' | 'so'): Promise<ImsPaymentMethod[]> {
+    if (type) {
+      return imsQuery<ImsPaymentMethod>(
+        'SELECT * FROM ims_payment_methods WHERE business_id = ? AND type = ? ORDER BY sort_order ASC, name ASC',
+        [businessId, type],
+      );
+    }
     return imsQuery<ImsPaymentMethod>(
       'SELECT * FROM ims_payment_methods WHERE business_id = ? ORDER BY sort_order ASC, name ASC',
       [businessId],
     );
   },
 
-  async listActive(businessId: string): Promise<ImsPaymentMethod[]> {
+  async listActive(businessId: string, type?: 'po' | 'so'): Promise<ImsPaymentMethod[]> {
+    if (type) {
+      return imsQuery<ImsPaymentMethod>(
+        'SELECT * FROM ims_payment_methods WHERE business_id = ? AND type = ? AND is_active = 1 ORDER BY sort_order ASC, name ASC',
+        [businessId, type],
+      );
+    }
     return imsQuery<ImsPaymentMethod>(
       'SELECT * FROM ims_payment_methods WHERE business_id = ? AND is_active = 1 ORDER BY sort_order ASC, name ASC',
       [businessId],
     );
   },
 
-  async create(businessId: string, data: { name: string; xero_account_code?: string; sort_order?: number }): Promise<ImsPaymentMethod> {
+  async create(businessId: string, data: { name: string; type: 'po' | 'so'; xero_account_code?: string; sort_order?: number }): Promise<ImsPaymentMethod> {
     const res = await imsExecute(
-      'INSERT INTO ims_payment_methods (business_id, name, xero_account_code, sort_order, is_active) VALUES (?, ?, ?, ?, 1)',
-      [businessId, data.name, data.xero_account_code ?? '', data.sort_order ?? 0],
+      'INSERT INTO ims_payment_methods (business_id, name, type, xero_account_code, sort_order, is_active) VALUES (?, ?, ?, ?, ?, 1)',
+      [businessId, data.name, data.type, data.xero_account_code ?? '', data.sort_order ?? 0],
     );
     const rows = await imsQuery<ImsPaymentMethod>('SELECT * FROM ims_payment_methods WHERE id = ?', [(res as any).insertId]);
     return rows[0];

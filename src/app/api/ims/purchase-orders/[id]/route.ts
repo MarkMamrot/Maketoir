@@ -59,23 +59,23 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         }
       }
 
-      // Await void for revert/cancel; fire Xero sync on ordered/received; skip if bill already exists
+      // Await void for revert/cancel; fire Xero sync on confirmed/received; skip if bill already exists
       if (status === 'cancelled') {
         xeroWarning = await triggerPOXeroVoid(businessId, Number(params.id)).catch(() => null);
       } else if (status === 'draft') {
         // Revert to draft → void existing Xero bill (triggerPOXeroVoid also clears xero_bill_id)
         xeroWarning = await triggerPOXeroVoid(businessId, Number(params.id)).catch(() => null);
-      } else if (status === 'ordered') {
+      } else if (status === 'confirmed') {
         if (priorPo?.status === 'received') {
           // Reverting from received: void the AUTHORISED Xero bill, then create a new Draft
           xeroWarning = await triggerPOXeroVoid(businessId, Number(params.id)).catch(() => null);
           // xero_bill_id is now cleared — create a fresh Draft Bill
-          triggerPOXeroSync(businessId, Number(params.id), 'ordered').catch(() => {});
+          triggerPOXeroSync(businessId, Number(params.id), 'confirmed').catch(() => {});
         } else {
-          // Normal ordered: create Draft Bill if none exists yet
+          // Normal confirmed: create Draft Bill if none exists yet
           const hasExistingBill = !!(poDataFull as any)?.xero_bill_id;
           if (!hasExistingBill) {
-            triggerPOXeroSync(businessId, Number(params.id), 'ordered').catch(() => {});
+            triggerPOXeroSync(businessId, Number(params.id), 'confirmed').catch(() => {});
           }
         }
       } else if (status === 'received') {

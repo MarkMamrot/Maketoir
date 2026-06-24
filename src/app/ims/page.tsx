@@ -230,10 +230,9 @@ function useImsSettings() {
 
 const STATUS_COLORS: Record<string, string> = {
   draft:              'background:rgba(100,116,139,.18);color:#94a3b8',
-  ordered:            'background:rgba(37,99,235,.18);color:#60a5fa',
+  confirmed:          'background:rgba(37,99,235,.18);color:#60a5fa',
   partially_received: 'background:rgba(251,146,60,.18);color:#f97316',
   received:           'background:rgba(16,185,129,.18);color:#34d399',
-  confirmed:          'background:rgba(251,191,36,.15);color:#fbbf24',
   fulfilled:          'background:rgba(16,185,129,.18);color:#34d399',
   sent:               'background:rgba(139,92,246,.18);color:#a78bfa',
   cancelled:          'background:rgba(248,113,113,.15);color:#f87171',
@@ -3036,7 +3035,7 @@ function PurchaseOrdersView() {
 
   const lineTotal = (item: any) => Number(item.qty_ordered || 0) * Number(item.unit_cost || 0) * (1 - Number(item.discount_pct || 0) / 100);
   const taxTreatment = (form.tax_treatment ?? 'ex_tax') as 'ex_tax' | 'inc_tax' | 'no_tax';
-  const isReceiving = !!modal.edit && (modal.edit.status === 'ordered' || modal.edit.status === 'partially_received');
+  const isReceiving = !!modal.edit && (modal.edit.status === 'confirmed' || modal.edit.status === 'partially_received');
   const poSubtotal = taxTreatment === 'inc_tax'
     ? lineItems.reduce((s, i) => {
         const tot = lineTotal(i);
@@ -3152,7 +3151,7 @@ function PurchaseOrdersView() {
       } else {
         const res = await apiFetch('/api/ims/purchase-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items, landed_costs }) });
         if (andOrder && res?.id) {
-          await apiFetch(`/api/ims/purchase-orders/${res.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'ordered' }) });
+          await apiFetch(`/api/ims/purchase-orders/${res.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'confirmed' }) });
         }
       }
       load(); setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null);
@@ -3161,7 +3160,7 @@ function PurchaseOrdersView() {
   };
 
   const changeStatus = async (po: any, status: string) => {
-    const labels: Record<string, string> = { ordered: 'order', received: 'mark as received', draft: 'revert to draft', cancelled: 'cancel', partially_received: 'mark as partially received' };
+    const labels: Record<string, string> = { confirmed: 'confirm', received: 'mark as received', draft: 'revert to draft', cancelled: 'cancel', partially_received: 'mark as partially received' };
     if (!confirm(`${labels[status] || status} PO ${po.po_number}?`)) return;
     try {
       const res = await apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
@@ -3246,7 +3245,7 @@ function PurchaseOrdersView() {
         <button onClick={openNew} style={btnStyle('action')}>+ New PO</button>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-        {['','draft','ordered','partially_received','received','cancelled'].map(s => (
+        {['','draft','confirmed','partially_received','received','cancelled'].map(s => (
           <button key={s} onClick={() => { setStatusFilter(s); setPage(1); }} style={btnStyle(statusFilter === s ? 'action' : 'ghost', 'sm')}>
             {s || 'All'}
           </button>
@@ -3550,7 +3549,7 @@ function PurchaseOrdersView() {
             </div>
 
             <FormActions onCancel={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} saving={saving} isEdit={!!modal.edit}
-              extraActions={!modal.edit ? [{ label: saving ? 'Creating…' : 'Create & Order', onClick: (e: React.MouseEvent) => handleSubmit(e as any, true) }] : []} />
+              extraActions={!modal.edit ? [{ label: saving ? 'Creating…' : 'Create & Confirm', onClick: (e: React.MouseEvent) => handleSubmit(e as any, true) }] : []} />
           </form>
         </Modal>
       )}
@@ -3711,7 +3710,7 @@ function PurchaseOrdersView() {
           {/* ── Landed Costs (view/edit) — not on invoice; allocated to avg. cost on receive ── */}
           {(() => {
             const lcs: any[] = viewModal.po.landed_costs || [];
-            const canEdit = viewModal.po.status === 'draft' || viewModal.po.status === 'ordered' || viewModal.po.status === 'partially_received';
+            const canEdit = viewModal.po.status === 'draft' || viewModal.po.status === 'confirmed' || viewModal.po.status === 'partially_received';
             return (
               <div style={{ marginTop: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -3945,13 +3944,13 @@ function POActions({ po, onEdit, onDelete, onStatus, context = 'list' }: { po: a
     return <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>Historical (Cin7)</span>;
   }
   const btns = [];
-  if (po.status === 'draft')    { btns.push(<button key="a" onClick={() => onStatus(po, 'ordered')}  style={btnStyle('mint', 'xs')}>Order</button>); }
-  if (po.status === 'ordered') { btns.push(<a key="p" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 {context === 'view' ? 'Smart Device Receive' : 'Receive'}</a>); }
-  if (po.status === 'ordered' && context === 'view') { btns.push(<button key="r" onClick={() => onStatus(po, 'received')}  style={btnStyle('mint', 'xs')}>Mark Received</button>); }
-  if (po.status === 'ordered' && context !== 'list') { btns.push(<button key="b" onClick={() => onStatus(po, 'draft')}     style={btnStyle('ghost', 'xs')}>Revert</button>); }
+  if (po.status === 'draft')    { btns.push(<button key="a" onClick={() => onStatus(po, 'confirmed')}  style={btnStyle('mint', 'xs')}>Confirm</button>); }
+  if (po.status === 'confirmed') { btns.push(<a key="p" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 {context === 'view' ? 'Smart Device Receive' : 'Receive'}</a>); }
+  if (po.status === 'confirmed' && context === 'view') { btns.push(<button key="r" onClick={() => onStatus(po, 'received')}  style={btnStyle('mint', 'xs')}>Mark Received</button>); }
+  if (po.status === 'confirmed' && context !== 'list') { btns.push(<button key="b" onClick={() => onStatus(po, 'draft')}     style={btnStyle('ghost', 'xs')}>Revert</button>); }
   if (po.status === 'partially_received') { btns.push(<a key="pr" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 {context === 'view' ? 'Continue Receiving' : 'Continue'}</a>); }
   if (po.status === 'partially_received') { btns.push(<button key="prr" onClick={() => onStatus(po, 'received')} style={btnStyle('mint', 'xs')}>Mark Received</button>); }
-  if (po.status === 'partially_received' && context !== 'list') { btns.push(<button key="prb" onClick={() => onStatus(po, 'ordered')} style={btnStyle('ghost', 'xs')}>Revert to Ordered</button>); }
+  if (po.status === 'partially_received' && context !== 'list') { btns.push(<button key="prb" onClick={() => onStatus(po, 'confirmed')} style={btnStyle('ghost', 'xs')}>Revert to Confirmed</button>); }
   if (po.status === 'received') {
     btns.push(<button key="e" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>);
     btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>);
@@ -5321,10 +5320,10 @@ function FormActions({ onCancel, saving, isEdit, extraActions }: { onCancel: () 
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
       <button type="button" onClick={onCancel} style={btnStyle('ghost')}>Cancel</button>
+      <button type="submit" disabled={saving} style={btnStyle(extraActions?.length ? 'ghost' : 'action')}>{saving ? 'Saving…' : isEdit ? 'Update' : 'Create Draft'}</button>
       {extraActions?.map((a, i) => (
-        <button key={i} type="button" disabled={saving} onClick={a.onClick} style={btnStyle('ghost')}>{a.label}</button>
+        <button key={i} type="button" disabled={saving} onClick={a.onClick} style={btnStyle('action')}>{a.label}</button>
       ))}
-      <button type="submit" disabled={saving} style={btnStyle('action')}>{saving ? 'Saving…' : isEdit ? 'Update' : 'Create'}</button>
     </div>
   );
 }
@@ -7407,31 +7406,30 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
   );
 }
 
-function PaymentMethodsSection({ getBusinessId }: { getBusinessId: () => string }) {
+// ── Payment Methods name management (PO or SO settings) ──────────────────────
+function PaymentMethodsManageSection({ type }: { type: 'po' | 'so' }) {
   const [methods, setMethods] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newForm, setNewForm] = useState<{ name: string; xero_account_code: string } | null>(null);
-  const [editForm, setEditForm] = useState<{ id: number; name: string; xero_account_code: string } | null>(null);
+  const [newName, setNewName] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<{ id: number; name: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/ims/payment-methods').then(r => r.json());
+      const res = await fetch(`/api/ims/payment-methods?type=${type}`).then(r => r.json());
       if (res.success) setMethods(res.data);
     } catch {}
     setLoading(false);
   };
-
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [type]);
 
   const handleCreate = async () => {
-    if (!newForm?.name?.trim()) return;
+    if (!newName?.trim()) return;
     setSaving(true);
     try {
-      await fetch('/api/ims/payment-methods', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newForm) });
-      setNewForm(null);
-      await load();
+      await fetch('/api/ims/payment-methods', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName.trim(), type }) });
+      setNewName(null); await load();
     } catch {}
     setSaving(false);
   };
@@ -7440,9 +7438,8 @@ function PaymentMethodsSection({ getBusinessId }: { getBusinessId: () => string 
     if (!editForm) return;
     setSaving(true);
     try {
-      await fetch('/api/ims/payment-methods', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editForm) });
-      setEditForm(null);
-      await load();
+      await fetch('/api/ims/payment-methods', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editForm.id, name: editForm.name }) });
+      setEditForm(null); await load();
     } catch {}
     setSaving(false);
   };
@@ -7456,10 +7453,7 @@ function PaymentMethodsSection({ getBusinessId }: { getBusinessId: () => string 
 
   const handleDelete = async (id: number) => {
     if (!confirm('Delete this payment method?')) return;
-    try {
-      await fetch(`/api/ims/payment-methods?id=${id}`, { method: 'DELETE' });
-      await load();
-    } catch {}
+    try { await fetch(`/api/ims/payment-methods?id=${id}`, { method: 'DELETE' }); await load(); } catch {}
   };
 
   const inputSt = { padding: '6px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 13 };
@@ -7468,29 +7462,24 @@ function PaymentMethodsSection({ getBusinessId }: { getBusinessId: () => string 
     <div style={{ marginTop: 16, padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
         <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Payment Methods</h3>
-        {!newForm && <button onClick={() => setNewForm({ name: '', xero_account_code: '' })} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 5, background: 'var(--sv-mint,#0c9)', color: '#fff', border: 'none', cursor: 'pointer' }}>+ Add</button>}
+        {newName === null && <button onClick={() => setNewName('')} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 5, background: 'var(--sv-mint,#0c9)', color: '#fff', border: 'none', cursor: 'pointer' }}>+ Add</button>}
       </div>
       <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-        Map payment methods to Xero bank/clearing account codes. When a payment is recorded with a method, it is synced to Xero using that account. Payments with no method selected are saved locally only.
+        Payment options available when recording a {type === 'po' ? 'purchase' : 'sales'} order payment. Map each to a Xero bank account under Settings → Xero → Payment Methods.
       </p>
       {loading ? <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading…</div> : (
         <>
           {methods.length > 0 && (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 12 }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-                  {['Name', 'Xero Account Code', 'Active', ''].map(h => (
-                    <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
+              <thead><tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                {['Name', 'Active', ''].map(h => <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>)}
+              </tr></thead>
               <tbody>
                 {methods.map(m => (
                   <tr key={m.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
                     {editForm?.id === m.id ? (
                       <>
-                        <td style={{ padding: '6px 8px' }}><input value={editForm.name} onChange={e => setEditForm(f => f ? { ...f, name: e.target.value } : f)} style={{ ...inputSt, width: 140 }} /></td>
-                        <td style={{ padding: '6px 8px' }}><input value={editForm.xero_account_code} onChange={e => setEditForm(f => f ? { ...f, xero_account_code: e.target.value } : f)} style={{ ...inputSt, width: 120 }} placeholder="e.g. 090" /></td>
+                        <td style={{ padding: '6px 8px' }}><input value={editForm.name} onChange={e => setEditForm(f => f ? { ...f, name: e.target.value } : f)} style={{ ...inputSt, width: 200 }} autoFocus /></td>
                         <td />
                         <td style={{ padding: '6px 8px', whiteSpace: 'nowrap' }}>
                           <button onClick={handleUpdate} disabled={saving} style={{ marginRight: 6, fontSize: 12, padding: '3px 8px', borderRadius: 4, background: 'var(--sv-mint,#0c9)', color: '#fff', border: 'none', cursor: 'pointer' }}>Save</button>
@@ -7500,12 +7489,11 @@ function PaymentMethodsSection({ getBusinessId }: { getBusinessId: () => string 
                     ) : (
                       <>
                         <td style={{ padding: '6px 8px', color: m.is_active ? 'var(--sv-text-main)' : 'var(--sv-text-dim)' }}>{m.name}</td>
-                        <td style={{ padding: '6px 8px' }}><code style={{ fontSize: 12, color: 'var(--sv-mint)' }}>{m.xero_account_code || '—'}</code></td>
                         <td style={{ padding: '6px 8px' }}>
                           <button onClick={() => handleToggleActive(m)} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, border: 'none', cursor: 'pointer', background: m.is_active ? 'rgba(16,185,129,.15)' : 'rgba(156,163,175,.15)', color: m.is_active ? '#34d399' : '#9ca3af' }}>{m.is_active ? 'Active' : 'Inactive'}</button>
                         </td>
                         <td style={{ padding: '6px 8px', whiteSpace: 'nowrap' }}>
-                          <button onClick={() => setEditForm({ id: m.id, name: m.name, xero_account_code: m.xero_account_code })} style={{ marginRight: 6, fontSize: 12, padding: '3px 8px', borderRadius: 4, background: 'transparent', color: 'var(--sv-text-dim)', border: '1px solid var(--sv-etch)', cursor: 'pointer' }}>Edit</button>
+                          <button onClick={() => setEditForm({ id: m.id, name: m.name })} style={{ marginRight: 6, fontSize: 12, padding: '3px 8px', borderRadius: 4, background: 'transparent', color: 'var(--sv-text-dim)', border: '1px solid var(--sv-etch)', cursor: 'pointer' }}>Edit</button>
                           <button onClick={() => handleDelete(m.id)} style={{ fontSize: 12, padding: '3px 8px', borderRadius: 4, background: 'transparent', color: '#f87171', border: '1px solid rgba(248,113,113,.3)', cursor: 'pointer' }}>Delete</button>
                         </td>
                       </>
@@ -7515,22 +7503,91 @@ function PaymentMethodsSection({ getBusinessId }: { getBusinessId: () => string 
               </tbody>
             </table>
           )}
-          {newForm && (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', padding: '10px 12px', background: 'var(--sv-bg-1)', borderRadius: 6, border: '1px solid var(--sv-etch)' }}>
+          {newName !== null && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', padding: '10px 12px', background: 'var(--sv-bg-1)', borderRadius: 6, border: '1px solid var(--sv-etch)' }}>
               <div>
                 <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Name</div>
-                <input value={newForm.name} onChange={e => setNewForm(f => f ? { ...f, name: e.target.value } : f)} style={{ ...inputSt, width: 150 }} placeholder="e.g. Bank Transfer" autoFocus />
+                <input value={newName} onChange={e => setNewName(e.target.value)} style={{ ...inputSt, width: 200 }} placeholder="e.g. Bank Transfer" autoFocus />
               </div>
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Xero Account Code</div>
-                <input value={newForm.xero_account_code} onChange={e => setNewForm(f => f ? { ...f, xero_account_code: e.target.value } : f)} style={{ ...inputSt, width: 130 }} placeholder="e.g. 090" />
-              </div>
-              <button onClick={handleCreate} disabled={saving || !newForm.name.trim()} style={{ padding: '6px 14px', borderRadius: 5, background: 'var(--sv-mint,#0c9)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13 }}>Add</button>
-              <button onClick={() => setNewForm(null)} style={{ padding: '6px 10px', borderRadius: 5, background: 'transparent', color: 'var(--sv-text-dim)', border: '1px solid var(--sv-etch)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+              <button onClick={handleCreate} disabled={saving || !newName.trim()} style={{ padding: '6px 14px', borderRadius: 5, background: 'var(--sv-mint,#0c9)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13 }}>Add</button>
+              <button onClick={() => setNewName(null)} style={{ padding: '6px 10px', borderRadius: 5, background: 'transparent', color: 'var(--sv-text-dim)', border: '1px solid var(--sv-etch)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
             </div>
           )}
-          {methods.length === 0 && !newForm && <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: 0 }}>No payment methods yet. Add one to enable Xero payment sync.</p>}
+          {methods.length === 0 && newName === null && <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: 0 }}>No payment methods yet. Click + Add to create one.</p>}
         </>
+      )}
+    </div>
+  );
+}
+
+// ── Xero payment method → bank account mapping (in Xero settings) ────────────
+function XeroPaymentMappingSection({ type, label, accounts }: { type: 'po' | 'so'; label: string; accounts: { accountId: string; code: string; name: string; type: string }[] }) {
+  const [methods, setMethods] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<number | null>(null);
+
+  const bankAccounts = accounts.filter(a => a.type === 'BANK');
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/ims/payment-methods?type=${type}`).then(r => r.json());
+      if (res.success) setMethods(res.data);
+    } catch {}
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, [type]);
+
+  const handleMapAccount = async (methodId: number, accountCode: string) => {
+    setSaving(methodId);
+    try {
+      await fetch('/api/ims/payment-methods', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: methodId, xero_account_code: accountCode }) });
+      setMethods(prev => prev.map(m => m.id === methodId ? { ...m, xero_account_code: accountCode } : m));
+    } catch {}
+    setSaving(null);
+  };
+
+  return (
+    <div style={{ marginTop: 16, padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
+      <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{label}</h3>
+      <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
+        Map each payment method to a Xero bank account. Payments recorded with a mapped method are automatically synced to Xero. Methods with no mapping are saved locally only.
+      </p>
+      {loading ? <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading…</div> : methods.length === 0 ? (
+        <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: 0 }}>No payment methods defined. Add them under Settings → {type === 'po' ? 'Purchase Orders' : 'Sales Orders'} → Payment Methods.</p>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead><tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+            {['Method', 'Xero Bank Account'].map(h => <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {methods.map(m => (
+              <tr key={m.id} style={{ borderBottom: '1px solid var(--sv-etch)', opacity: m.is_active ? 1 : 0.5 }}>
+                <td style={{ padding: '8px 8px', color: 'var(--sv-text-main)' }}>
+                  {m.name}
+                  {!m.is_active && <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginLeft: 6 }}>inactive</span>}
+                </td>
+                <td style={{ padding: '4px 8px' }}>
+                  {bankAccounts.length === 0 ? (
+                    <span style={{ fontSize: 12, color: '#f87171' }}>No Xero bank accounts found — connect Xero first.</span>
+                  ) : (
+                    <select
+                      value={m.xero_account_code || ''}
+                      onChange={e => handleMapAccount(m.id, e.target.value)}
+                      disabled={saving === m.id}
+                      style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: m.xero_account_code ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontSize: 13, minWidth: 240 }}
+                    >
+                      <option value="">— not mapped (local only) —</option>
+                      {bankAccounts.map(a => (
+                        <option key={a.accountId} value={a.code}>{a.name} ({a.code})</option>
+                      ))}
+                    </select>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );
@@ -7714,7 +7771,8 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
       </div>
 
       {/* Payment Methods */}
-      <PaymentMethodsSection getBusinessId={getBusinessId} />
+      <XeroPaymentMappingSection type="po" label="PO Payment Methods — Xero Bank Accounts" accounts={accounts} />
+      <XeroPaymentMappingSection type="so" label="SO Payment Methods — Xero Bank Accounts" accounts={accounts} />
     </div>
   );
 }
@@ -11267,6 +11325,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
               </div>
             </div>
             <button onClick={async () => { setPoSaving(true); await saveSettings(poDraft); setPoSaving(false); }} disabled={poSaving} style={btnStyle('action', 'sm')}>{poSaving ? 'Saving…' : 'Save'}</button>
+            <PaymentMethodsManageSection type="po" />
           </div>
         )}
 
@@ -11285,6 +11344,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
               <div><label style={labelStyle}>Terms &amp; Conditions (printed at the bottom of the Tax Invoice PDF)</label><textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' as const }} value={soDraft['so_terms'] || ''} onChange={e => setSoDraft(p => ({ ...p, so_terms: e.target.value }))} placeholder="e.g. Payment due 14 days from invoice date." /></div>
             </div>
             <button onClick={async () => { setSoSaving(true); await saveSettings(soDraft); setSoSaving(false); }} disabled={soSaving} style={btnStyle('action', 'sm')}>{soSaving ? 'Saving…' : 'Save'}</button>
+            <PaymentMethodsManageSection type="so" />
           </div>
         )}
 
@@ -11835,7 +11895,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <h3 style={h3}>Status lifecycle</h3>
         <ul style={ul}>
           <li><strong>Draft</strong> — Created, not yet sent to supplier. No stock impact. No Xero action.</li>
-          <li><strong>Ordered</strong> — PO placed with supplier. Increments <em>qty_incoming</em> in stock. Triggers a <em>Draft Bill</em> in Xero (ACCPAY).</li>
+          <li><strong>Confirmed</strong> — PO placed with supplier. Increments <em>qty_incoming</em> in stock. Triggers a <em>Draft Bill</em> in Xero (ACCPAY).</li>
           <li><strong>Partially Received</strong> — Some items have been scanned in via the smart device receive page but the PO is not yet complete. Stock levels are updated per item as each receive session is saved. The Xero bill stays in <em>Draft</em> until fully received.</li>
           <li><strong>Received</strong> — All goods received into stock. Xero bill moves to <em>Authorised</em>; if deposits were recorded, a journal transfers cost from <em>Inventory In Transit</em> to <em>Inventory Asset</em>.</li>
           <li><strong>Cancelled</strong> — PO cancelled. Stock impacts are fully reversed. If a Xero bill exists, it is voided automatically.</li>
@@ -11851,7 +11911,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         </ul>
 
         <h3 style={h3}>Reverting a partially received PO</h3>
-        <p style={p}>From the PO view modal, <strong>Revert to Ordered</strong> fully undoes all partial stock updates — <em>qty_on_hand</em> is decremented and <em>qty_incoming</em> is restored for each item received so far. No Xero action is taken (the original draft bill remains).</p>
+        <p style={p}>From the PO view modal, <strong>Revert to Confirmed</strong> fully undoes all partial stock updates — <em>qty_on_hand</em> is decremented and <em>qty_incoming</em> is restored for each item received so far. No Xero action is taken (the original draft bill remains).</p>
 
         <h3 style={h3}>Freight treatment</h3>
         <p style={p}>Configurable in Settings → Purchase Orders:</p>

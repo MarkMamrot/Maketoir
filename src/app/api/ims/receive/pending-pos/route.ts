@@ -21,7 +21,7 @@ export async function GET() {
     // Fetch pending POs with draft or ordered status
     const allPos = await Promise.all([
       ImsPORepo.list('draft'),
-      ImsPORepo.list('ordered'),
+      ImsPORepo.list('confirmed'),
     ]);
     const pos = [...allPos[0], ...allPos[1]];
 
