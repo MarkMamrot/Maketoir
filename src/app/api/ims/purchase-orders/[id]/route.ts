@@ -45,6 +45,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         if (rows[0]?.value === 'capitalise') freightTreatment = 'capitalise';
       } catch {}
 
+      // Capture prior status before changeStatus to detect received → ordered revert
+      const priorPo = await ImsPORepo.get(Number(params.id), businessId);
+
       await ImsPORepo.changeStatus(Number(params.id), status, freightTreatment);
 
       // EVENT-DRIVEN CACHE UPDATE: update global_incoming and stock fields on PO changes
@@ -63,10 +66,17 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         // Revert to draft → void existing Xero bill (triggerPOXeroVoid also clears xero_bill_id)
         xeroWarning = await triggerPOXeroVoid(businessId, Number(params.id)).catch(() => null);
       } else if (status === 'ordered') {
-        // Create Draft Bill if none exists yet (xero_bill_id cleared by void on revert, so re-order is safe)
-        const hasExistingBill = !!(poDataFull as any)?.xero_bill_id;
-        if (!hasExistingBill) {
+        if (priorPo?.status === 'received') {
+          // Reverting from received: void the AUTHORISED Xero bill, then create a new Draft
+          xeroWarning = await triggerPOXeroVoid(businessId, Number(params.id)).catch(() => null);
+          // xero_bill_id is now cleared — create a fresh Draft Bill
           triggerPOXeroSync(businessId, Number(params.id), 'ordered').catch(() => {});
+        } else {
+          // Normal ordered: create Draft Bill if none exists yet
+          const hasExistingBill = !!(poDataFull as any)?.xero_bill_id;
+          if (!hasExistingBill) {
+            triggerPOXeroSync(businessId, Number(params.id), 'ordered').catch(() => {});
+          }
         }
       } else if (status === 'received') {
         // Only fire sync on full receive via IMS list (batch API fires its own sync)

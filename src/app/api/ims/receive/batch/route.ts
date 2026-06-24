@@ -299,9 +299,9 @@ export async function POST(req: Request) {
         refreshVariantCache(receivedVariantIds).catch(() => {});
       }
 
-      // Trigger Xero approve-bill when PO is fully received
+      // Trigger Xero approve-bill when PO is fully received (awaited to ensure bill is approved before response)
       if (newStatus === 'received') {
-        triggerPOXeroSync(businessId, po_id, 'received').catch(() => {});
+        await triggerPOXeroSync(businessId, po_id, 'received').catch(err => console.error('[Xero] PO bill approve failed:', err));
       }
 
       return NextResponse.json({

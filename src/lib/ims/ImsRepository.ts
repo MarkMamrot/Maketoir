@@ -1224,6 +1224,38 @@ export const ImsPORepo = {
         }
       }
 
+      // ── received → ordered (revert a fully received PO) ─────────────────────
+      if (from === 'received' && to === 'ordered') {
+        for (const item of items) {
+          const alreadyReceived = Number(item.qty_received ?? 0);
+          if (alreadyReceived <= 0) continue;
+          await conn.execute(
+            `UPDATE ims_stock
+             SET qty_on_hand  = GREATEST(0, qty_on_hand - ?),
+                 qty_incoming = qty_incoming + ?
+             WHERE variant_id=? AND location_id=?`,
+            [alreadyReceived, alreadyReceived, item.variant_id, po.location_id]
+          );
+          const [[s]] = await conn.execute<any[]>(
+            `SELECT qty_on_hand FROM ims_stock WHERE variant_id=? AND location_id=?`,
+            [item.variant_id, po.location_id]
+          );
+          await conn.execute(
+            `INSERT INTO ims_stock_movements
+               (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh)
+             VALUES (?,?,'po_unapproved','purchase_order',?,?,?)`,
+            [item.variant_id, po.location_id, id, -alreadyReceived, s?.qty_on_hand ?? 0]
+          );
+          await conn.execute(
+            `UPDATE ims_purchase_order_items SET qty_received = 0 WHERE id = ?`,
+            [item.id]
+          );
+        }
+        await conn.execute(
+          `UPDATE ims_purchase_orders SET received_date = NULL WHERE id = ?`, [id]
+        );
+      }
+
       // ── any → cancelled ──────────────────────────────────────
       if (to === 'cancelled' && from === 'ordered') {
         for (const item of items) {

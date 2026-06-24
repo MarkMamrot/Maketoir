@@ -315,6 +315,8 @@ interface POForSync {
   currency_code?: string;
   tax_treatment?: 'ex_tax' | 'inc_tax' | 'no_tax';
   supplier_invoice_number?: string;
+  supplier_invoice_date?: string;
+  payment_terms?: string;
   items?: {
     variant_id: string;
     sku?: string;
@@ -325,6 +327,18 @@ interface POForSync {
     line_total: number;
   }[];
   payments?: { amount: number; payment_date: string }[];
+}
+
+/** Calculate DueDate from supplier_invoice_date + payment_terms, falling back to expected_date / order_date. */
+function calcDueDate(po: POForSync): string {
+  if (po.supplier_invoice_date) {
+    const m = (po.payment_terms ?? '').match(/\d+/);
+    const days = m ? parseInt(m[0]) : 0;
+    const d = new Date(po.supplier_invoice_date);
+    d.setDate(d.getDate() + days);
+    return d.toISOString().slice(0, 10);
+  }
+  return po.expected_date || po.order_date;
 }
 
 /**
@@ -383,7 +397,7 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
     Type: 'ACCPAY',
     Contact: { Name: po.supplier_name || `Supplier #${po.supplier_id}` },
     Date: po.order_date,
-    DueDate: po.expected_date || po.order_date,
+    DueDate: calcDueDate(po),
     Reference: po.po_number,
     Status: 'DRAFT',
     LineAmountTypes: taxTreatment === 'inc_tax' ? 'Inclusive' : 'Exclusive',
@@ -474,7 +488,7 @@ export async function updateXeroDraftBill(businessId: string, po: POForSync, xer
     Type: 'ACCPAY',
     Contact: { Name: po.supplier_name || `Supplier #${po.supplier_id}` },
     Date: po.order_date,
-    DueDate: po.expected_date || po.order_date,
+    DueDate: calcDueDate(po),
     Reference: po.po_number,
     Status: 'DRAFT',
     LineAmountTypes: taxTreatment === 'inc_tax' ? 'Inclusive' : 'Exclusive',

@@ -2908,7 +2908,7 @@ function PurchaseOrdersView() {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [variants, setVariants] = useState<any[]>([]);
-  const [form, setForm] = useState<any>({ supplier_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', supplier_invoice_number: '', payment_terms: '', freight: '', discount: '', tax_treatment: 'ex_tax', currency_code: 'AUD', exchange_rate: '1', _rateHint: '' });
+  const [form, setForm] = useState<any>({ supplier_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', supplier_invoice_number: '', supplier_invoice_date: '', payment_terms: '', freight: '', discount: '', tax_treatment: 'ex_tax', currency_code: 'AUD', exchange_rate: '1', _rateHint: '' });
   const [lineItems, setLineItems] = useState<any[]>([]);
   const [landedCosts, setLandedCosts] = useState<{ label: string; reference: string; amount: string }[]>([]);
   const [lcForm, setLcForm] = useState<{ label: string; reference: string; amount: string } | null>(null);
@@ -3027,7 +3027,7 @@ function PurchaseOrdersView() {
   const grandTotal = poSubtotal + poTax + Number(form.freight || 0) - Number(form.discount || 0);
 
   const openNew = () => {
-    setForm({ supplier_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', supplier_invoice_number: '', payment_terms: '', freight: '', discount: '', tax_treatment: 'ex_tax', tax_code: settings?.purchase_tax_code ?? '', currency_code: 'AUD', exchange_rate: '1', _rateHint: '' });
+    setForm({ supplier_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', supplier_invoice_number: '', supplier_invoice_date: '', payment_terms: '', freight: '', discount: '', tax_treatment: 'ex_tax', tax_code: settings?.purchase_tax_code ?? '', currency_code: 'AUD', exchange_rate: '1', _rateHint: '' });
     const defaultTaxRate = Number(settings?.purchase_tax_rate ?? settings?.sales_tax_rate ?? 0);
     setLineItems([{ variant_id: '', qty_ordered: 1, unit_cost: 0, tax_rate: defaultTaxRate }]);
     setLandedCosts([]);
@@ -3045,7 +3045,7 @@ function PurchaseOrdersView() {
     const rateHint = derivedRate
       ? `Avg of ${payments.length} payment${payments.length !== 1 ? 's' : ''} (${derivedRate.toFixed(4)} AUD per ${cur})`
       : '';
-    setForm({ supplier_id: d.data.supplier_id ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), expected_date: d.data.expected_date?.slice(0, 10) ?? '', notes: d.data.notes ?? '', supplier_invoice_number: d.data.supplier_invoice_number ?? '', payment_terms: d.data.payment_terms ?? '', freight: d.data.freight ?? '', discount: d.data.discount ?? '', tax_treatment: d.data.tax_treatment ?? 'ex_tax', tax_code: d.data.tax_code ?? '', currency_code: cur, exchange_rate: derivedRate ? String(derivedRate.toFixed(6)) : String(d.data.exchange_rate ?? 1), _rateHint: rateHint });
+    setForm({ supplier_id: d.data.supplier_id ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), expected_date: d.data.expected_date?.slice(0, 10) ?? '', notes: d.data.notes ?? '', supplier_invoice_number: d.data.supplier_invoice_number ?? '', supplier_invoice_date: d.data.supplier_invoice_date?.slice(0, 10) ?? '', payment_terms: d.data.payment_terms ?? '', freight: d.data.freight ?? '', discount: d.data.discount ?? '', tax_treatment: d.data.tax_treatment ?? 'ex_tax', tax_code: d.data.tax_code ?? '', currency_code: cur, exchange_rate: derivedRate ? String(derivedRate.toFixed(6)) : String(d.data.exchange_rate ?? 1), _rateHint: rateHint });
     setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_cost: i.unit_cost, discount_pct: i.discount_pct ?? 0, tax_rate: i.tax_rate, notes: i.notes ?? '' })));
     const initQtys: Record<string, number> = {};
     (d.data.items || []).forEach((i: any) => { if (i.variant_id) initQtys[i.variant_id] = Number(i.qty_received || 0); });
@@ -3273,14 +3273,15 @@ function PurchaseOrdersView() {
               <Field label="Expected Date"><input type="date" value={form.expected_date} onChange={sf('expected_date')} style={inputStyle} /></Field>
               <Field label="Notes"><input value={form.notes} onChange={sf('notes')} style={inputStyle} /></Field>
             </Row2>
-            <Row2>
+            <Row3>
               <Field label="Supplier Invoice #"><input value={form.supplier_invoice_number} onChange={sf('supplier_invoice_number')} style={inputStyle} placeholder="e.g. INV-00123" /></Field>
+              <Field label="Supplier Invoice Date"><input type="date" value={form.supplier_invoice_date ?? ''} onChange={sf('supplier_invoice_date')} style={inputStyle} /></Field>
               <Field label="Payment Terms">
                 <select value={form.payment_terms} onChange={sf('payment_terms')} style={inputStyle}>
                   {PAYMENT_TERMS.map(t => <option key={t} value={t}>{t || '— None —'}</option>)}
                 </select>
               </Field>
-            </Row2>
+            </Row3>
             <Row2>
               <Field label="Supplier costs are…">
                 <select value={form.tax_treatment ?? 'ex_tax'} onChange={sf('tax_treatment')} style={inputStyle}>
@@ -3836,6 +3837,10 @@ function POActions({ po, onEdit, onDelete, onStatus, context = 'list' }: { po: a
   if (po.status === 'partially_received') { btns.push(<a key="pr" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 {context === 'view' ? 'Continue Receiving' : 'Continue'}</a>); }
   if (po.status === 'partially_received') { btns.push(<button key="prr" onClick={() => onStatus(po, 'received')} style={btnStyle('mint', 'xs')}>Mark Received</button>); }
   if (po.status === 'partially_received' && context !== 'list') { btns.push(<button key="prb" onClick={() => onStatus(po, 'ordered')} style={btnStyle('ghost', 'xs')}>Revert to Ordered</button>); }
+  if (po.status === 'received') {
+    if (context !== 'list') { btns.push(<button key="rev" onClick={() => onStatus(po, 'ordered')} style={btnStyle('ghost', 'xs')}>Revert to Ordered</button>); }
+    btns.push(<button key="e" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>);
+  }
   if (po.status !== 'received' && po.status !== 'cancelled') {
     btns.push(<button key="e" onClick={onEdit}  style={btnStyle('ghost', 'xs')}>Edit</button>);
     if (context !== 'list' && po.status !== 'partially_received') { btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>); }
