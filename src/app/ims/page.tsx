@@ -3717,7 +3717,7 @@ function PurchaseOrdersView() {
               </div>
             );
           })()}
-          <PoAccountingSection po={viewModal.po} settings={settings} />
+          <PoAccountingSection po={viewModal.po} settings={settings} onVoided={async () => { try { const d = await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}`); setViewModal(v => ({ ...v, po: d.data })); } catch {} }} />
 
           {/* ── Supplier Invoices / Attachments ── */}
           <div style={{ marginTop: 20 }}>
@@ -3815,10 +3815,13 @@ function POActions({ po, onEdit, onDelete, onStatus, context = 'list' }: { po: a
 // Accounting Debug Sections (PO & SO)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function PoAccountingSection({ po, settings }: { po: any; settings: Record<string, string> }) {
+function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Record<string, string>; onVoided?: () => void }) {
   const [open, setOpen] = useState(false);
   const [xeroRetrying, setXeroRetrying] = useState(false);
   const [xeroRetried, setXeroRetried] = useState<boolean | null>(null);
+  const [xeroVoiding, setXeroVoiding] = useState(false);
+  const [xeroVoidResult, setXeroVoidResult] = useState<'voided' | 'failed' | null>(null);
+  const [xeroVoidMsg, setXeroVoidMsg] = useState<string | null>(null);
   const doXeroRetry = async () => {
     setXeroRetrying(true); setXeroRetried(null);
     try {
@@ -3827,15 +3830,31 @@ function PoAccountingSection({ po, settings }: { po: any; settings: Record<strin
     } catch { setXeroRetried(false); }
     setXeroRetrying(false);
   };
+  const doXeroVoid = async () => {
+    if (!confirm('Void this bill in Xero? This cannot be undone.')) return;
+    setXeroVoiding(true); setXeroVoidResult(null); setXeroVoidMsg(null);
+    try {
+      const r = await fetch('/api/ims/xero/void', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'po', id: po.id }) });
+      const data = await r.json();
+      if (r.ok && data.success) { setXeroVoidResult('voided'); onVoided?.(); }
+      else { setXeroVoidResult('failed'); setXeroVoidMsg(data.xeroWarning || data.error || 'Void failed'); }
+    } catch { setXeroVoidResult('failed'); setXeroVoidMsg('Network error'); }
+    setXeroVoiding(false);
+  };
   const xeroStatus = (xeroRetried === true ? 'synced' : po.xero_sync_status) as string | null;
   const xeroId = po.xero_bill_id as string | null;
   const xeroAt = po.xero_synced_at ? new Date(po.xero_synced_at).toLocaleString() : null;
   const XeroBadge = () => (
-    xeroStatus === 'synced'
-      ? <div style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 10px', background:'rgba(16,185,129,.1)', borderRadius:6, fontSize:11, marginBottom:6 }}>
-          <span style={{ color:'#34d399', fontWeight:700 }}>✓ Synced to Xero</span>
+    xeroStatus === 'synced' || xeroVoidResult === 'voided'
+      ? <div style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 10px', background: xeroVoidResult === 'voided' ? 'rgba(251,191,36,.1)' : 'rgba(16,185,129,.1)', borderRadius:6, fontSize:11, marginBottom:6, flexWrap:'wrap' }}>
+          {xeroVoidResult === 'voided'
+            ? <span style={{ color:'#fbbf24', fontWeight:700 }}>✕ Voided in Xero</span>
+            : <span style={{ color:'#34d399', fontWeight:700 }}>✓ Synced to Xero</span>}
           {xeroAt && <span style={{ color:'var(--sv-text-dim)' }}>{xeroAt}</span>}
+          {xeroId && <span style={{ color:'var(--sv-text-dim)', fontFamily:'monospace', fontSize:10 }}>{xeroId.slice(0,8)}…</span>}
           {xeroId && <a href={`https://go.xero.com/AccountsPayable/View.aspx?InvoiceID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color:'var(--sv-mint)' }}>View Bill ↗</a>}
+          {xeroId && xeroVoidResult !== 'voided' && <button onClick={doXeroVoid} disabled={xeroVoiding} style={{ background:'none', border:'1px solid #f87171', borderRadius:4, cursor:'pointer', padding:'2px 8px', fontSize:11, color:'#f87171' }}>{xeroVoiding ? 'Voiding…' : 'Void in Xero'}</button>}
+          {xeroVoidResult === 'failed' && <span style={{ color:'#f87171' }}>{xeroVoidMsg}</span>}
         </div>
       : xeroStatus === 'queued' || xeroStatus === 'error'
         ? <div style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 10px', background:'rgba(251,191,36,.1)', borderRadius:6, fontSize:11, marginBottom:6 }}>
@@ -4059,10 +4078,13 @@ function PoAccountingSection({ po, settings }: { po: any; settings: Record<strin
   );
 }
 
-function SoAccountingSection({ so, settings }: { so: any; settings: Record<string, string> }) {
+function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Record<string, string>; onVoided?: () => void }) {
   const [open, setOpen] = useState(false);
   const [xeroRetrying, setXeroRetrying] = useState(false);
   const [xeroRetried, setXeroRetried] = useState<boolean | null>(null);
+  const [xeroVoiding, setXeroVoiding] = useState(false);
+  const [xeroVoidResult, setXeroVoidResult] = useState<'voided' | 'failed' | null>(null);
+  const [xeroVoidMsg, setXeroVoidMsg] = useState<string | null>(null);
   const doXeroRetry = async () => {
     setXeroRetrying(true); setXeroRetried(null);
     try {
@@ -4071,15 +4093,31 @@ function SoAccountingSection({ so, settings }: { so: any; settings: Record<strin
     } catch { setXeroRetried(false); }
     setXeroRetrying(false);
   };
+  const doXeroVoid = async () => {
+    if (!confirm('Void this invoice in Xero? This cannot be undone if payments have been applied.')) return;
+    setXeroVoiding(true); setXeroVoidResult(null); setXeroVoidMsg(null);
+    try {
+      const r = await fetch('/api/ims/xero/void', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'so', id: so.id }) });
+      const data = await r.json();
+      if (r.ok && data.success) { setXeroVoidResult('voided'); onVoided?.(); }
+      else { setXeroVoidResult('failed'); setXeroVoidMsg(data.xeroWarning || data.error || 'Void failed'); }
+    } catch { setXeroVoidResult('failed'); setXeroVoidMsg('Network error'); }
+    setXeroVoiding(false);
+  };
   const xeroStatus = (xeroRetried === true ? 'synced' : so.xero_sync_status) as string | null;
   const xeroId = so.xero_invoice_id as string | null;
   const xeroAt = so.xero_synced_at ? new Date(so.xero_synced_at).toLocaleString() : null;
   const XeroBadge = () => (
-    xeroStatus === 'synced'
-      ? <div style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 10px', background:'rgba(16,185,129,.1)', borderRadius:6, fontSize:11, marginBottom:6 }}>
-          <span style={{ color:'#34d399', fontWeight:700 }}>✓ Synced to Xero</span>
+    xeroStatus === 'synced' || xeroVoidResult === 'voided'
+      ? <div style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 10px', background: xeroVoidResult === 'voided' ? 'rgba(251,191,36,.1)' : 'rgba(16,185,129,.1)', borderRadius:6, fontSize:11, marginBottom:6, flexWrap:'wrap' }}>
+          {xeroVoidResult === 'voided'
+            ? <span style={{ color:'#fbbf24', fontWeight:700 }}>✕ Voided in Xero</span>
+            : <span style={{ color:'#34d399', fontWeight:700 }}>✓ Synced to Xero</span>}
           {xeroAt && <span style={{ color:'var(--sv-text-dim)' }}>{xeroAt}</span>}
+          {xeroId && <span style={{ color:'var(--sv-text-dim)', fontFamily:'monospace', fontSize:10 }}>{xeroId.slice(0,8)}…</span>}
           {xeroId && <a href={`https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color:'var(--sv-mint)' }}>View Invoice ↗</a>}
+          {xeroId && xeroVoidResult !== 'voided' && <button onClick={doXeroVoid} disabled={xeroVoiding} style={{ background:'none', border:'1px solid #f87171', borderRadius:4, cursor:'pointer', padding:'2px 8px', fontSize:11, color:'#f87171' }}>{xeroVoiding ? 'Voiding…' : 'Void in Xero'}</button>}
+          {xeroVoidResult === 'failed' && <span style={{ color:'#f87171' }}>{xeroVoidMsg}</span>}
         </div>
       : xeroStatus === 'queued' || xeroStatus === 'error'
         ? <div style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 10px', background:'rgba(251,191,36,.1)', borderRadius:6, fontSize:11, marginBottom:6 }}>
@@ -4879,7 +4917,7 @@ function SalesOrdersView() {
               </div>
             );
           })()}
-          <SoAccountingSection so={viewModal.so} settings={settings} />
+          <SoAccountingSection so={viewModal.so} settings={settings} onVoided={async () => { try { const d = await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}`); setViewModal(v => ({ ...v, so: d.data })); } catch {} }} />
         </Modal>
       )}
     </div>

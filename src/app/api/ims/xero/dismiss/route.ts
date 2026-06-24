@@ -9,7 +9,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { markPoXeroStatus, markSoXeroStatus } from '@/services/XeroSyncService';
-import { execute } from '@/services/MySQLService';
+import { imsExecute } from '@/services/IMSMySQLService';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     }
 
     // Log the dismissal for audit trail
-    await execute(
+    await imsExecute(
       `INSERT INTO xero_sync_log (business_id, sync_type, reference_id, xero_id, status, detail)
        VALUES (?, ?, ?, NULL, 'skipped', 'Manually dismissed from sync queue')`,
       [businessId, syncType, id],
