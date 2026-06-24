@@ -105,61 +105,67 @@ export async function GET(req: Request) {
     const onlineBatchKeys = onlineBatches.map((b: any) => batchDateStr(b.batch_date));
     const allBatchKeys = [...posBatchKeys, ...onlineBatchKeys];
 
-    // ── 6. Sync log lookups (main DB) ─────────────────────────────────────
+    // ── 6. Sync log lookups (main DB) — graceful if table not yet created ──
     let poLogs: any[] = [];
     let paymentLogs: any[] = [];
     let soLogs: any[] = [];
     let batchLogs: any[] = [];
 
-    if (poIds.length > 0) {
-      poLogs = await query<any>(
-        `SELECT reference_id, xero_id, status, detail, created_at AS synced_at
-           FROM xero_sync_log
-          WHERE business_id = ? AND sync_type = 'po_bill'
-            AND reference_id IN (${poIds.map(() => '?').join(',')})
-            AND id IN (
-              SELECT MAX(id) FROM xero_sync_log
-               WHERE business_id = ? AND sync_type = 'po_bill'
-               GROUP BY reference_id
-            )`,
-        [databaseId, ...poIds, databaseId],
-      );
-      paymentLogs = await query<any>(
-        `SELECT reference_id AS po_id, xero_id, status, detail, created_at AS synced_at
-           FROM xero_sync_log
-          WHERE business_id = ? AND sync_type = 'po_payment'
-            AND reference_id IN (${poIds.map(() => '?').join(',')})
-          ORDER BY created_at DESC`,
-        [databaseId, ...poIds],
-      );
-    }
-    if (soIds.length > 0) {
-      soLogs = await query<any>(
-        `SELECT reference_id, xero_id, status, detail, created_at AS synced_at
-           FROM xero_sync_log
-          WHERE business_id = ? AND sync_type = 'so_invoice'
-            AND reference_id IN (${soIds.map(() => '?').join(',')})
-            AND id IN (
-              SELECT MAX(id) FROM xero_sync_log
-               WHERE business_id = ? AND sync_type = 'so_invoice'
-               GROUP BY reference_id
-            )`,
-        [databaseId, ...soIds, databaseId],
-      );
-    }
-    if (allBatchKeys.length > 0) {
-      batchLogs = await query<any>(
-        `SELECT detail AS batch_key, sync_type, xero_id, status, created_at AS synced_at
-           FROM xero_sync_log
-          WHERE business_id = ? AND sync_type IN ('pos_batch','online_batch')
-            AND detail IN (${allBatchKeys.map(() => '?').join(',')})
-            AND id IN (
-              SELECT MAX(id) FROM xero_sync_log
-               WHERE business_id = ? AND sync_type IN ('pos_batch','online_batch')
-               GROUP BY detail
-            )`,
-        [databaseId, ...allBatchKeys, databaseId],
-      );
+    try {
+      if (poIds.length > 0) {
+        poLogs = await query<any>(
+          `SELECT reference_id, xero_id, status, detail, created_at AS synced_at
+             FROM xero_sync_log
+            WHERE business_id = ? AND sync_type = 'po_bill'
+              AND reference_id IN (${poIds.map(() => '?').join(',')})
+              AND id IN (
+                SELECT MAX(id) FROM xero_sync_log
+                 WHERE business_id = ? AND sync_type = 'po_bill'
+                 GROUP BY reference_id
+              )`,
+          [databaseId, ...poIds, databaseId],
+        );
+        paymentLogs = await query<any>(
+          `SELECT reference_id AS po_id, xero_id, status, detail, created_at AS synced_at
+             FROM xero_sync_log
+            WHERE business_id = ? AND sync_type = 'po_payment'
+              AND reference_id IN (${poIds.map(() => '?').join(',')})
+            ORDER BY created_at DESC`,
+          [databaseId, ...poIds],
+        );
+      }
+      if (soIds.length > 0) {
+        soLogs = await query<any>(
+          `SELECT reference_id, xero_id, status, detail, created_at AS synced_at
+             FROM xero_sync_log
+            WHERE business_id = ? AND sync_type = 'so_invoice'
+              AND reference_id IN (${soIds.map(() => '?').join(',')})
+              AND id IN (
+                SELECT MAX(id) FROM xero_sync_log
+                 WHERE business_id = ? AND sync_type = 'so_invoice'
+                 GROUP BY reference_id
+              )`,
+          [databaseId, ...soIds, databaseId],
+        );
+      }
+      if (allBatchKeys.length > 0) {
+        batchLogs = await query<any>(
+          `SELECT detail AS batch_key, sync_type, xero_id, status, created_at AS synced_at
+             FROM xero_sync_log
+            WHERE business_id = ? AND sync_type IN ('pos_batch','online_batch')
+              AND detail IN (${allBatchKeys.map(() => '?').join(',')})
+              AND id IN (
+                SELECT MAX(id) FROM xero_sync_log
+                 WHERE business_id = ? AND sync_type IN ('pos_batch','online_batch')
+                 GROUP BY detail
+              )`,
+          [databaseId, ...allBatchKeys, databaseId],
+        );
+      }
+    } catch (logErr: any) {
+      // xero_sync_log table may not yet exist — return PO/SO list with null sync status
+      // rather than failing the whole request.
+      console.warn('[xero/sync-log] xero_sync_log unavailable (table may not exist yet):', logErr?.message);
     }
 
     // ── 7. Index logs ─────────────────────────────────────────────────────

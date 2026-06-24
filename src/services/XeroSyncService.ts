@@ -86,6 +86,27 @@ function getTrackingForLocation(mappings: TrackingMapping[], locationId: number 
   return undefined;
 }
 
+/** Ensures the xero_sync_log table exists — called lazily before first insert. */
+let _syncLogTableReady = false;
+async function ensureSyncLogTable(): Promise<void> {
+  if (_syncLogTableReady) return;
+  await execute(`
+    CREATE TABLE IF NOT EXISTS xero_sync_log (
+      id           BIGINT       AUTO_INCREMENT PRIMARY KEY,
+      business_id  VARCHAR(255) NOT NULL,
+      sync_type    VARCHAR(30)  NOT NULL,
+      reference_id INT          DEFAULT NULL,
+      xero_id      VARCHAR(100) DEFAULT NULL,
+      status       VARCHAR(20)  NOT NULL DEFAULT 'success',
+      detail       TEXT         DEFAULT NULL,
+      created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_business_type    (business_id, sync_type),
+      INDEX idx_business_created (business_id, created_at DESC)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `, []);
+  _syncLogTableReady = true;
+}
+
 async function logSync(
   businessId: string,
   syncType: string,
@@ -94,10 +115,16 @@ async function logSync(
   status: 'success' | 'error' | 'skipped',
   detail?: string,
 ) {
-  await execute(
-    `INSERT INTO xero_sync_log (business_id, sync_type, reference_id, xero_id, status, detail) VALUES (?, ?, ?, ?, ?, ?)`,
-    [businessId, syncType, referenceId, xeroId, status, detail ?? null],
-  );
+  try {
+    await ensureSyncLogTable();
+    await execute(
+      `INSERT INTO xero_sync_log (business_id, sync_type, reference_id, xero_id, status, detail) VALUES (?, ?, ?, ?, ?, ?)`,
+      [businessId, syncType, referenceId, xeroId, status, detail ?? null],
+    );
+  } catch (err: any) {
+    // Logging must never break a sync — swallow and warn instead
+    console.warn('[XeroSyncService] logSync failed (sync still proceeded):', err?.message ?? err);
+  }
 }
 
 /** Write Xero sync status back to the PO row. Silent — never throws. */
