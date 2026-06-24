@@ -940,7 +940,7 @@ function MainPos({
               </div>
             )}
             <div style={{ display: 'flex', gap: '.5rem', marginTop: '.75rem', flexDirection: 'column' }}>
-              <button onClick={clearCart} style={{ ...smallBtn, width: '100%', padding: '.55rem', fontSize: '.85rem', background: 'transparent', border: '1px solid rgba(248,113,113,.5)', color: '#ef4444', opacity: !cart.length ? 0.4 : 1 }} disabled={!cart.length}>Clear Cart</button>
+              <button onClick={clearCart} style={{ ...smallBtn, width: '100%', padding: '.55rem', fontSize: '.85rem', background: 'transparent', border: '1px solid rgba(248,113,113,.5)', color: '#ef4444', opacity: !cart.length ? 0.65 : 1 }} disabled={!cart.length}>Clear Cart</button>
               <button
                 onClick={() => { if (!mustOpenRegister) setShowPayment(true); }}
                 disabled={!cart.length || mustOpenRegister}
@@ -1460,8 +1460,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: 12 }}>
           <div style={{ background: '#1a0000', border: '3px solid #ef4444', borderRadius: 16, padding: '2.5rem 3rem', textAlign: 'center', boxShadow: '0 0 60px rgba(239,68,68,.5)', maxWidth: 360, width: '90vw' }}>
             <div style={{ fontSize: '1rem', fontWeight: 700, color: '#ef4444', letterSpacing: 3, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Change Due</div>
-            <div style={{ fontSize: '5rem', fontWeight: 900, color: '#ef4444', lineHeight: 1, marginBottom: '0.25rem', letterSpacing: -2 }}>${fmt(changeDue.amount)}</div>
-            <div style={{ fontSize: '1rem', color: '#fca5a5', marginBottom: '2rem' }}>Give this amount back to the customer</div>
+            <div style={{ fontSize: '5rem', fontWeight: 900, color: '#ef4444', lineHeight: 1, marginBottom: '2rem', letterSpacing: -2 }}>${fmt(changeDue.amount)}</div>
             <button
               ref={changeDueOkRef}
               onClick={() => { setChangeDue(null); onComplete(changeDue.pendingPayments); }}
