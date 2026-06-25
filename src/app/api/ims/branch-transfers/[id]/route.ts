@@ -24,7 +24,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
     const body = await req.json();
-    const { items, status, receivedItems, action, item_id, ...btData } = body;
+    const { items, status, receivedItems, ...btData } = body;
     if (status) {
       await ImsBTRepo.changeStatus(Number(params.id), status, receivedItems);
       
@@ -38,8 +38,6 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         }
       }
 
-    } else if (action === 'remove_item' && item_id) {
-      await ImsBTRepo.removeItem(Number(params.id), Number(item_id));
     } else {
       await ImsBTRepo.update(Number(params.id), btData, items);
 

@@ -234,15 +234,10 @@ const STATUS_COLORS: Record<string, string> = {
   draft:              'background:rgba(100,116,139,.18);color:#94a3b8',
   confirmed:          'background:rgba(37,99,235,.18);color:#60a5fa',
   partially_received: 'background:rgba(251,146,60,.18);color:#f97316',
-  partial:            'background:rgba(251,146,60,.18);color:#f97316',
   received:           'background:rgba(16,185,129,.18);color:#34d399',
   fulfilled:          'background:rgba(16,185,129,.18);color:#34d399',
   sent:               'background:rgba(139,92,246,.18);color:#a78bfa',
   cancelled:          'background:rgba(248,113,113,.15);color:#f87171',
-  in_progress:        'background:rgba(37,99,235,.18);color:#60a5fa',
-  completed:          'background:rgba(16,185,129,.18);color:#34d399',
-  reverted:           'background:rgba(248,113,113,.15);color:#f87171',
-};
   in_progress:        'background:rgba(251,191,36,.15);color:#fbbf24',
   completed:          'background:rgba(16,185,129,.18);color:#34d399',
   reverted:           'background:rgba(139,92,246,.18);color:#a78bfa',
@@ -9285,8 +9280,6 @@ function BranchTransfersView() {
 
   // Receive confirmation modal
   const [activeBtForReceive, setActiveBtForReceive] = useState<any | null>(null);
-  // Partial-receipt edit modal
-  const [activeBtForPartialEdit, setActiveBtForPartialEdit] = useState<any | null>(null);
 
   // ── Replenish Wizard ──────────────────────────────────────────────────────
   type ReplenishItem = {
@@ -9524,11 +9517,6 @@ function BranchTransfersView() {
     setActiveBtForReceive(d.data);
   };
 
-  const openPartialEdit = async (bt: any) => {
-    const d = await apiFetch(`/api/ims/branch-transfers/${bt.id}`);
-    setActiveBtForPartialEdit(d.data);
-  };
-
   const handleDelete = async (bt: any) => {
     if (!confirm(`Delete transfer ${bt.transfer_number}? This cannot be undone.`)) return;
     try {
@@ -9640,7 +9628,7 @@ function BranchTransfersView() {
                   <td style={{ padding: '10px 12px' }}><StatusBadge status={bt.status} /></td>
                   <td style={{ padding: '10px 12px', fontSize: 13 }}>{fmtCurrency(bt.total_value)}</td>
                   <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
-                    <BTActions bt={bt} onEdit={() => openEdit(bt)} onDelete={() => handleDelete(bt)} onStatus={changeStatus} onReceive={() => openReceive(bt)} onPartialEdit={() => openPartialEdit(bt)} onPrint={() => setBtPrintId(bt.id)} />
+                    <BTActions bt={bt} onEdit={() => openEdit(bt)} onDelete={() => handleDelete(bt)} onStatus={changeStatus} onReceive={() => openReceive(bt)} onPrint={() => setBtPrintId(bt.id)} />
                   </td>
                 </tr>
               ))}
@@ -9758,7 +9746,6 @@ function BranchTransfersView() {
               onDelete={() => { setViewModal({ open: false, bt: null }); handleDelete(viewModal.bt); }}
               onStatus={changeStatus}
               onReceive={() => { setViewModal({ open: false, bt: null }); openReceive(viewModal.bt); }}
-              onPartialEdit={() => { setViewModal({ open: false, bt: null }); openPartialEdit(viewModal.bt); }}
               onPrint={() => setBtPrintId(viewModal.bt.id)}
             />
           </div>
@@ -9818,21 +9805,6 @@ function BranchTransfersView() {
           onDone={() => {
             const btId = activeBtForReceive.id;
             setActiveBtForReceive(null);
-            load();
-            if (viewModal.open && viewModal.bt?.id === btId) {
-              apiFetch(`/api/ims/branch-transfers/${btId}`).then(d => setViewModal({ open: true, bt: d.data })).catch(() => {});
-            }
-          }}
-        />
-      )}
-
-      {activeBtForPartialEdit && (
-        <PartialEditModal
-          bt={activeBtForPartialEdit}
-          onClose={() => setActiveBtForPartialEdit(null)}
-          onDone={() => {
-            const btId = activeBtForPartialEdit.id;
-            setActiveBtForPartialEdit(null);
             load();
             if (viewModal.open && viewModal.bt?.id === btId) {
               apiFetch(`/api/ims/branch-transfers/${btId}`).then(d => setViewModal({ open: true, bt: d.data })).catch(() => {});
@@ -10077,132 +10049,9 @@ function BranchTransfersView() {
   );
 }
 
-/** Modal for partially-received transfers: delete unreceived items, then mark fully received */
-function PartialEditModal({ bt: initialBt, onClose, onDone }: { bt: any; onClose: () => void; onDone: () => void }) {
-  const [bt, setBt]         = useState<any>(initialBt);
-  const [saving, setSaving] = useState(false);
-
-  const reload = async () => {
-    const d = await apiFetch(`/api/ims/branch-transfers/${bt.id}`);
-    setBt(d.data);
-  };
-
-  const handleRemoveItem = async (itemId: number) => {
-    if (!confirm('Remove this item from the transfer record? The stock was not moved for this item, so no stock change will occur.')) return;
-    try {
-      await apiFetch(`/api/ims/branch-transfers/${bt.id}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'remove_item', item_id: itemId }),
-      });
-      await reload();
-    } catch (e: any) { alert(e.message); }
-  };
-
-  const handleMarkReceived = async () => {
-    const unreceived = (bt.items ?? []).filter((i: any) => !i.qty_received || Number(i.qty_received) === 0);
-    if (unreceived.length > 0) {
-      if (!confirm(`${unreceived.length} item${unreceived.length !== 1 ? 's' : ''} still show 0 qty received. Delete them first, or click OK to mark as received anyway.`)) return;
-    }
-    setSaving(true);
-    try {
-      await apiFetch(`/api/ims/branch-transfers/${bt.id}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'received' }),
-      });
-      onDone();
-    } catch (e: any) { alert(e.message); }
-    finally { setSaving(false); }
-  };
-
-  const items: any[] = bt.items ?? [];
-  const receivedItems  = items.filter(i => Number(i.qty_received ?? 0) > 0);
-  const unreceivedItems = items.filter(i => !i.qty_received || Number(i.qty_received) === 0);
-
-  return (
-    <Modal title={`⚠ Partial Receipt — ${bt.transfer_number}`} onClose={onClose} wide>
-      <div style={{ marginBottom: 14, padding: '10px 14px', background: 'rgba(251,146,60,.08)', border: '1px solid rgba(251,146,60,.35)', borderRadius: 8, fontSize: 13 }}>
-        <strong style={{ color: '#f97316' }}>Partially received</strong> — some items were not received.
-        Delete the rows that were not received, then click <strong>Mark as Fully Received</strong>.
-        Stock for the deleted rows remains at <strong>{bt.from_location_name}</strong>.
-      </div>
-
-      {unreceivedItems.length > 0 && (
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#f97316', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.04em' }}>
-            ⚠ Not Received ({unreceivedItems.length} item{unreceivedItems.length !== 1 ? 's' : ''}) — delete to remove from record
-          </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid rgba(251,146,60,.35)', borderRadius: 6, overflow: 'hidden' }}>
-            <thead>
-              <tr style={{ background: 'rgba(251,146,60,.07)' }}>
-                {['SKU', 'Product / Variant', 'Qty Sent', 'Qty Received', ''].map(h => (
-                  <th key={h} style={{ padding: '7px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {unreceivedItems.map((item: any) => (
-                <tr key={item.id} style={{ borderTop: '1px solid rgba(251,146,60,.2)' }}>
-                  <td style={{ padding: '8px 10px' }}><code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{item.sku || '—'}</code></td>
-                  <td style={{ padding: '8px 10px', fontSize: 13 }}>
-                    <div>{item.product_name}</div>
-                    {item.variant_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{item.variant_label}</div>}
-                  </td>
-                  <td style={{ padding: '8px 10px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{fmtQty(item.qty_sent)}</td>
-                  <td style={{ padding: '8px 10px', fontSize: 13, color: '#f87171', fontWeight: 600 }}>0 — not moved</td>
-                  <td style={{ padding: '8px 10px' }}>
-                    <button onClick={() => handleRemoveItem(item.id)} style={btnStyle('danger', 'xs')}>Delete row</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {receivedItems.length > 0 && (
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#34d399', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.04em' }}>
-            ✓ Received ({receivedItems.length} item{receivedItems.length !== 1 ? 's' : ''}) — stock already moved
-          </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid rgba(52,211,153,.2)', borderRadius: 6, overflow: 'hidden' }}>
-            <thead>
-              <tr style={{ background: 'rgba(52,211,153,.06)' }}>
-                {['SKU', 'Product / Variant', 'Qty Sent', 'Qty Received'].map(h => (
-                  <th key={h} style={{ padding: '7px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {receivedItems.map((item: any) => (
-                <tr key={item.id} style={{ borderTop: '1px solid rgba(52,211,153,.15)' }}>
-                  <td style={{ padding: '8px 10px' }}><code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{item.sku || '—'}</code></td>
-                  <td style={{ padding: '8px 10px', fontSize: 13 }}>
-                    <div>{item.product_name}</div>
-                    {item.variant_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{item.variant_label}</div>}
-                  </td>
-                  <td style={{ padding: '8px 10px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{fmtQty(item.qty_sent)}</td>
-                  <td style={{ padding: '8px 10px', fontSize: 13, color: '#34d399', fontWeight: 600 }}>{fmtQty(item.qty_received)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        <button onClick={onClose} style={btnStyle('ghost')}>Close</button>
-        <button onClick={handleMarkReceived} disabled={saving} style={btnStyle('mint')}>
-          {saving ? 'Saving…' : '✓ Mark as Fully Received'}
-        </button>
-      </div>
-    </Modal>
-  );
-}
-
-function BTActions({ bt, onEdit, onDelete, onStatus, onReceive, onPartialEdit, onPrint }: {
+function BTActions({ bt, onEdit, onDelete, onStatus, onReceive, onPrint }: {
   bt: any; onEdit: () => void; onDelete: () => void;
-  onStatus: (bt: any, s: string) => void; onReceive: () => void;
-  onPartialEdit: () => void; onPrint: () => void;
+  onStatus: (bt: any, s: string) => void; onReceive: () => void; onPrint: () => void;
 }) {
   const btns: React.ReactNode[] = [];
   btns.push(<button key="p" onClick={onPrint} style={btnStyle('secondary', 'xs')}>🖨 Print</button>);
@@ -10214,9 +10063,6 @@ function BTActions({ bt, onEdit, onDelete, onStatus, onReceive, onPartialEdit, o
   if (bt.status === 'sent') {
     btns.push(<button key="r" onClick={onReceive} style={btnStyle('mint', 'xs')}>Receive</button>);
     btns.push(<button key="x" onClick={() => onStatus(bt, 'cancelled')} style={btnStyle('ghost', 'xs')}>Cancel</button>);
-  }
-  if (bt.status === 'partial') {
-    btns.push(<button key="pe" onClick={onPartialEdit} style={{ ...btnStyle('action', 'xs'), background: 'rgba(251,146,60,.18)', color: '#f97316', border: '1px solid rgba(251,146,60,.4)' }}>⚠ Edit / Complete Receipt</button>);
   }
   if (bt.status === 'draft') {
     btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>);

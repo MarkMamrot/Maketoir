@@ -2096,7 +2096,7 @@ export const ImsStocktakeRepo = {
 // Branch Transfers
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type BTStatus = 'draft' | 'sent' | 'partial' | 'received' | 'cancelled';
+export type BTStatus = 'draft' | 'sent' | 'received' | 'cancelled';
 
 export interface ImsBT {
   id: number; transfer_number: string;
@@ -2262,20 +2262,16 @@ export const ImsBTRepo = {
 
       // Allowed transitions
       const allowed: Record<string, string[]> = {
-        draft:   ['sent', 'cancelled'],
-        sent:    ['received', 'cancelled'],
-        partial: ['received', 'cancelled'],
+        draft: ['sent', 'cancelled'],
+        sent:  ['received', 'cancelled'],
       };
       if (!allowed[from]?.includes(to)) throw new Error(`Cannot transition from ${from} to ${to}`);
 
-      // sent → received/partial: apply stock movements, then auto-detect status
-      let effectiveTo: BTStatus = to;
+      // sent → received: apply stock movements
       if (from === 'sent' && to === 'received') {
-        let fullyReceived = true;
         for (const item of items) {
           const found = receivedItems?.find(r => r.item_id === item.id);
           const qty_rcvd = found != null ? Number(found.qty_received) : Number(item.qty_sent);
-          if (qty_rcvd < Number(item.qty_sent)) fullyReceived = false;
 
           await conn.execute(
             `UPDATE ims_branch_transfer_items SET qty_received = ? WHERE id = ?`,
@@ -2331,21 +2327,12 @@ export const ImsBTRepo = {
           );
         }
         await conn.execute(`UPDATE ims_branch_transfers SET received_date = CURDATE() WHERE id = ?`, [id]);
-        effectiveTo = fullyReceived ? 'received' : 'partial';
       }
 
-      await conn.execute(`UPDATE ims_branch_transfers SET status = ? WHERE id = ?`, [effectiveTo, id]);
+      await conn.execute(`UPDATE ims_branch_transfers SET status = ? WHERE id = ?`, [to, id]);
       await conn.commit();
     } catch (err) { await conn.rollback(); throw err; }
     finally { conn.release(); }
-  },
-
-  async removeItem(transferId: number, itemId: number): Promise<void> {
-    await imsExecute(`DELETE FROM ims_branch_transfer_items WHERE id = ? AND transfer_id = ?`, [itemId, transferId]);
-    const rows = await imsQuery<{ total: number }>(
-      `SELECT COALESCE(SUM(line_value), 0) AS total FROM ims_branch_transfer_items WHERE transfer_id = ?`, [transferId]
-    );
-    await imsExecute(`UPDATE ims_branch_transfers SET total_value = ? WHERE id = ?`, [rows[0].total, transferId]);
   },
 
   async delete(id: number): Promise<void> {
