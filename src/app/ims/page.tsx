@@ -4646,7 +4646,7 @@ function SalesOrdersView() {
         unit_price = Number(v.price_wholesale); // already ex-tax
       } else {
         const rrp = effectiveRRP(v, today());
-        unit_price = taxOn && taxRate > 0 ? rrp / (1 + taxRate) : rrp;
+        unit_price = taxOn && taxRate > 0 ? Math.round((rrp / (1 + taxRate)) * 10000) / 10000 : rrp;
       }
     }
     setLineItems(p => p.map((item, j) => j === i ? { ...item, variant_id, unit_price, tax_rate: taxRate } : item));
@@ -4946,7 +4946,7 @@ function SalesOrdersView() {
                           />
                         </td>
                         <td style={{ padding: 4, width: 70 }}><input type="number" min="0.0001" step="any" value={item.qty_ordered} onChange={e => updateLine(i, 'qty_ordered', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} /></td>
-                        <td style={{ padding: 4, width: 90 }}><input type="number" min="0" step="0.01" value={item.unit_price} onChange={e => updateLine(i, 'unit_price', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} /></td>
+                        <td style={{ padding: 4, width: 90 }}><input type="number" min="0" step="0.0001" value={item.unit_price} onChange={e => updateLine(i, 'unit_price', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} /></td>
                         <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="1" step="0.01" value={item.discount_pct} onChange={e => updateLine(i, 'discount_pct', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0.1" /></td>
                         <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="1" step="0.01" value={item.tax_rate} onChange={e => updateLine(i, 'tax_rate', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0.1" /></td>
                         <td style={{ padding: '4px 8px', width: 100, color: 'var(--sv-text-main)', fontSize: 13 }}>{fmtCurrency(lineTotal(item))}</td>
@@ -5260,9 +5260,12 @@ function SOActions({ so, onEdit, onDelete, onStatus }: { so: any; onEdit: () => 
     btns.push(<button key="e" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>);
     btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>);
   }
-  if (so.status !== 'fulfilled' && so.status !== 'cancelled') {
+  if (so.status !== 'fulfilled' && so.status !== 'cancelled' && so.status !== 'draft') {
     btns.push(<button key="e" onClick={onEdit}  style={btnStyle('ghost', 'xs')}>Edit</button>);
     btns.push(<button key="x" onClick={() => onStatus(so, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
+  }
+  if (so.status === 'draft') {
+    btns.push(<button key="e" onClick={onEdit}  style={btnStyle('ghost', 'xs')}>Edit</button>);
   }
   if (so.status === 'cancelled' || so.status === 'draft') {
     btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>);
