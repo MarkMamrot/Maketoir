@@ -1026,7 +1026,8 @@ export async function syncEodEntry(
   }
 
   const tracking = getTrackingForLocation(trackingMappings, entry.locationId);
-  const regSuffix = entry.registerId ? `-R${entry.registerId}` : '';
+  const regSuffix  = entry.registerId ? `-R${entry.registerId}` : '';
+  const sessSuffix = entry.sessionId  ? `-S${entry.sessionId}`  : '';
   const regLabel  = entry.registerName ? ` — ${entry.registerName}` : '';
   const sessLabel = entry.sessionId ? ` (Session #${entry.sessionId})` : '';
 
@@ -1035,7 +1036,7 @@ export async function syncEodEntry(
     Contact:         { Name: 'POS Reconciliation (Summary)' },
     Date:            entry.date,
     DueDate:         entry.date,
-    Reference:       `EOD-L${entry.locationId}${regSuffix}-${entry.date.replace(/-/g, '')}-${entry.method.replace(/\s+/g, '')}`,
+    Reference:       `EOD-L${entry.locationId}${regSuffix}${sessSuffix}-${entry.date.replace(/-/g, '')}-${entry.method.replace(/\s+/g, '')}`,
     Status:          'AUTHORISED',
     LineAmountTypes: 'Inclusive',
     CurrencyCode:    'AUD',

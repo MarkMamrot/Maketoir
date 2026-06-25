@@ -1805,7 +1805,7 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
         // When a closed session is returned (e.g. closed at midnight, reviewed
         // next morning), snap the date picker to the session's trading date so
         // the EOD query and save target the correct recon_date.
-        if (sess?.session_date && sess.session_date !== today) {
+        if (sess?.session_date && typeof sess.session_date === 'string' && sess.session_date !== today) {
           setDate(sess.session_date);
         }
       })
@@ -2307,7 +2307,7 @@ function EodAccountingSection({
           <div style={{ fontSize: '.75rem', color: 'var(--sv-text-dim)', marginBottom: '1rem', lineHeight: 1.7 }}>
             <strong>What is sent to Xero:</strong> One ACCREC invoice (AUTHORISED) per payment method
             &nbsp;· Contact: <em>POS Reconciliation (Summary)</em>
-            &nbsp;· Reference: EOD-L{session.location_id}-{date}-{'{Method}'}<br />
+            &nbsp;· Reference: EOD-L{session.location_id}-S{'{SessionID}'}-{date}-{'{Method}'}<br />
             Amount sent = Tax-Inc Total (Inclusive tax treatment) — Xero extracts the GST automatically<br />
             Cash Sales = Counted − Opening Float &nbsp;· Other methods = Counted amount
             &nbsp;· Auto-synced on EOD save when admin session is active
