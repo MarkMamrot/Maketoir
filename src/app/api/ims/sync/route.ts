@@ -93,8 +93,8 @@ async function runMigrations(): Promise<void> {
       INDEX idx_sop_so (so_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
     // Extend ENUMs for POS stock movements
-    `ALTER TABLE ims_stock_movements MODIFY COLUMN movement_type ENUM('po_approved','po_unapproved','po_received','so_confirmed','so_unconfirmed','so_fulfilled','adjustment','transfer_in','transfer_out','pos_sale') NOT NULL`,
-    `ALTER TABLE ims_stock_movements MODIFY COLUMN reference_type ENUM('purchase_order','sales_order','manual','pos_sale') NOT NULL`,
+    `ALTER TABLE ims_stock_movements MODIFY COLUMN movement_type ENUM('po_approved','po_unapproved','po_received','so_confirmed','so_unconfirmed','so_fulfilled','adjustment','transfer_in','transfer_out','pos_sale','pos_return','stocktake') NOT NULL`,
+    `ALTER TABLE ims_stock_movements MODIFY COLUMN reference_type ENUM('purchase_order','sales_order','manual','pos_sale','stocktake','branch_transfer') NOT NULL`,
     // Store raw Cin7 contact IDs for reliable re-linking after contacts sync
     'ALTER TABLE ims_sales_orders ADD COLUMN IF NOT EXISTS cin7_member_id INT NULL',
     'ALTER TABLE ims_purchase_orders ADD COLUMN IF NOT EXISTS cin7_contact_id INT NULL',

@@ -215,9 +215,9 @@ CREATE TABLE IF NOT EXISTS ims_stock_movements (
     'po_approved','po_unapproved','po_received',
     'so_confirmed','so_unconfirmed','so_fulfilled',
     'adjustment','transfer_in','transfer_out',
-    'pos_sale'
+    'pos_sale','pos_return','stocktake'
   ) NOT NULL,
-  reference_type ENUM('purchase_order','sales_order','manual','pos_sale') NOT NULL,
+  reference_type ENUM('purchase_order','sales_order','manual','pos_sale','stocktake','branch_transfer') NOT NULL,
   reference_id   INT,
   qty_change     DECIMAL(12,4) NOT NULL,
   qty_after_soh  DECIMAL(12,4) NOT NULL,
