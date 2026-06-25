@@ -44,14 +44,22 @@ export async function GET(req: Request) {
 
   // When a register session is supplied, reconcile by SESSION (open→close window),
   // which correctly handles shifts crossing midnight / registers left open overnight.
+  // If the URL didn't carry register_id, pull it from the session record itself.
   if (registerSessionId) {
-    const fallback = registerId != null ? { locationId, date, registerId } : undefined;
+    let effectiveRegisterId = registerId;
+    if (effectiveRegisterId == null) {
+      const sess = await imsQuery<any>(
+        'SELECT register_id FROM pos_register_sessions WHERE id = ? LIMIT 1',
+        [registerSessionId],
+      ).catch(() => []);
+      effectiveRegisterId = sess[0]?.register_id ?? null;
+    }
+    const fallback = { locationId, date, registerId: effectiveRegisterId };
+    const sessionFallback = effectiveRegisterId != null ? fallback : undefined;
     const [existing, expected, dayTotals] = await Promise.all([
-      registerId != null
-        ? PosEodRepo.getBySession(registerSessionId, { locationId, date, registerId })
-        : PosEodRepo.get(locationId, date, registerId),
-      PosEodRepo.getExpectedBySession(registerSessionId, fallback),
-      PosEodRepo.getDayTotalsBySession(registerSessionId, fallback),
+      PosEodRepo.getBySession(registerSessionId, fallback),
+      PosEodRepo.getExpectedBySession(registerSessionId, sessionFallback),
+      PosEodRepo.getDayTotalsBySession(registerSessionId, sessionFallback),
     ]);
     return NextResponse.json({ reconciliations: existing, expected, default_float, day_totals: dayTotals });
   }

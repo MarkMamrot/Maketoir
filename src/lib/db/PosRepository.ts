@@ -488,13 +488,24 @@ export const PosEodRepo = {
     registerSessionId: number,
     fallback: { locationId: number; date: string; registerId: number | null },
   ): Promise<PosEodRow[]> {
+    // register_id may legitimately be null in the DB (pre-register-id era rows);
+    // using `= null` in a prepared statement never matches — we must use IS NULL.
+    const hasReg = fallback.registerId != null;
     const rows = await imsQuery<any>(
-      `SELECT * FROM pos_eod_reconciliations
-        WHERE register_session_id = ?
-           OR (register_session_id IS NULL AND counted_amount IS NULL
-               AND location_id = ? AND register_id = ? AND recon_date = ?)
-        ORDER BY payment_method`,
-      [registerSessionId, fallback.locationId, fallback.registerId, fallback.date],
+      hasReg
+        ? `SELECT * FROM pos_eod_reconciliations
+            WHERE register_session_id = ?
+               OR (register_session_id IS NULL AND counted_amount IS NULL
+                   AND location_id = ? AND register_id = ? AND recon_date = ?)
+            ORDER BY payment_method`
+        : `SELECT * FROM pos_eod_reconciliations
+            WHERE register_session_id = ?
+               OR (register_session_id IS NULL AND counted_amount IS NULL
+                   AND location_id = ? AND register_id IS NULL AND recon_date = ?)
+            ORDER BY payment_method`,
+      hasReg
+        ? [registerSessionId, fallback.locationId, fallback.registerId, fallback.date]
+        : [registerSessionId, fallback.locationId, fallback.date],
     );
     return rows.map(this._mapRow);
   },

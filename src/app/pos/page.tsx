@@ -1808,8 +1808,9 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
     if (!methods.length) return;
     if (regSessionLoading) return; // wait until session state is definitively known
     setLoading(true);
-    const sessionParam = regSession?.id ? `&register_session_id=${regSession.id}` : '';
-    fetch(`/api/pos/eod?location_id=${session.location_id}&date=${date}${sessionParam}`)
+    const sessionParam   = regSession?.id          ? `&register_session_id=${regSession.id}` : '';
+    const registerParam   = regSession?.register_id  ? `&register_id=${regSession.register_id}`  : '';
+    fetch(`/api/pos/eod?location_id=${session.location_id}&date=${date}${sessionParam}${registerParam}`)
       .then(r => r.json())
       .then(d => {
         setExpected(d.expected ?? {});
@@ -1918,10 +1919,11 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          location_id: session.location_id,
-          date: regSession?.session_date ?? date,
+          location_id:         session.location_id,
+          date:                regSession?.session_date ?? date,
+          register_id:         regSession?.register_id ?? session.register_id ?? null,
           register_session_id: regSession?.id ?? null,
-          entries: entriesArr,
+          entries:             entriesArr,
         }),
       });
       // Close the register session when EOD is saved
