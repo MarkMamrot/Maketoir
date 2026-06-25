@@ -1774,6 +1774,8 @@ function calcCash(denoms: Record<string, string>): number {
 function EodScreen({ session, onBack }: { session: PosSession; onBack: () => void }) {
   const today = new Date().toLocaleDateString('sv-SE');
   const [mode, setMode]                   = useState<'open' | 'eod'>(() => new Date().getHours() < 12 ? 'open' : 'eod');
+  // Default date to today; will be corrected to session_date once the register
+  // session loads (handles sessions closed at midnight, reviewed next morning).
   const [date, setDate]                   = useState(today);
   const [expected, setExpected]           = useState<Record<string, number>>({});
   const [defaultFloat, setDefaultFloat]   = useState(200);
@@ -1797,7 +1799,16 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
     setRegSessionLoading(true);
     fetch(`/api/pos/register/session?register_id=${session.register_id}`)
       .then(r => r.json())
-      .then(d => setRegSession(d.session ?? null))
+      .then(d => {
+        const sess = d.session ?? null;
+        setRegSession(sess);
+        // When a closed session is returned (e.g. closed at midnight, reviewed
+        // next morning), snap the date picker to the session's trading date so
+        // the EOD query and save target the correct recon_date.
+        if (sess?.session_date && sess.session_date !== today) {
+          setDate(sess.session_date);
+        }
+      })
       .catch(() => {})
       .finally(() => setRegSessionLoading(false));
   };

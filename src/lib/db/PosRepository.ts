@@ -572,22 +572,37 @@ export const PosEodRepo = {
     const openedAt = sess[0]?.opened_at ?? null;
     const closedAt = sess[0]?.closed_at ?? null;
     if (openedAt) {
-      // Time-window fallback: opened_at → closed_at (or NOW() while still open).
+      // Time-window fallback: opened_at → closed_at.
+      // For open sessions (closed_at IS NULL) we intentionally omit the upper
+      // bound — using COALESCE(closed_at, NOW()) fails because the DB server
+      // clock can lag behind the application server, causing completed_at values
+      // to appear "in the future" relative to DB NOW().
+      // register_id is intentionally omitted — sales in this codebase currently
+      // have register_id = null, so filtering by it would exclude every row.
+      if (closedAt) {
+        return {
+          clause:
+            `(${prefix}register_session_id = ? ` +
+            `OR (${prefix}register_session_id IS NULL AND ${prefix}location_id = ? ` +
+            `AND ${prefix}completed_at >= ? AND ${prefix}completed_at <= ?))`,
+          params: [registerSessionId, fallback.locationId, openedAt, closedAt],
+        };
+      }
       return {
         clause:
           `(${prefix}register_session_id = ? ` +
-          `OR (${prefix}register_session_id IS NULL AND ${prefix}register_id = ? AND ${prefix}location_id = ? ` +
-          `AND ${prefix}completed_at >= ? AND ${prefix}completed_at <= COALESCE(?, NOW())))`,
-        params: [registerSessionId, fallback.registerId, fallback.locationId, openedAt, closedAt],
+          `OR (${prefix}register_session_id IS NULL AND ${prefix}location_id = ? ` +
+          `AND ${prefix}completed_at >= ?))`,
+        params: [registerSessionId, fallback.locationId, openedAt],
       };
     }
     // No session row found — fall back to the single-date match (legacy behaviour).
     return {
       clause:
         `(${prefix}register_session_id = ? ` +
-        `OR (${prefix}register_session_id IS NULL AND ${prefix}register_id = ? AND ${prefix}location_id = ? ` +
+        `OR (${prefix}register_session_id IS NULL AND ${prefix}location_id = ? ` +
         `AND DATE(${prefix}completed_at) = ?))`,
-      params: [registerSessionId, fallback.registerId, fallback.locationId, fallback.date],
+      params: [registerSessionId, fallback.locationId, fallback.date],
     };
   },
 
@@ -769,8 +784,11 @@ function parseSession(r: any): PosRegisterSessionRow {
 export const PosRegisterSessionRepo = {
   /** Get the currently open session for a register (null if none). */
   async getCurrent(registerId: number): Promise<PosRegisterSessionRow | null> {
+    // Return the most recent session for this register — open or recently closed.
+    // This allows EOD to be completed even after the session has been closed at
+    // midnight, without requiring staff to re-open the register first.
     const rows = await imsQuery<any>(
-      "SELECT * FROM pos_register_sessions WHERE register_id = ? AND status = 'open' ORDER BY opened_at DESC LIMIT 1",
+      'SELECT * FROM pos_register_sessions WHERE register_id = ? ORDER BY opened_at DESC LIMIT 1',
       [registerId],
     );
     return rows[0] ? parseSession(rows[0]) : null;
