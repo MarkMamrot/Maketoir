@@ -68,21 +68,20 @@ export interface PosPaymentRow {
 }
 
 export interface PosEodRow {
-  id:                   number;
-  location_id:          number;
-  register_id:          number | null;
-  register_session_id?: number | null;
-  cashier_id:           number;
-  recon_date:           string;
-  payment_method:       string;
-  expected_amount:      number | null;
-  counted_amount:       number | null;
-  opening_float:        number | null;
-  denomination_data:    Record<string, number> | null;
-  notes:                string | null;
-  xero_invoice_id?:     string | null;
-  xero_synced_at?:      string | null;
-  created_at:           string;
+  id:                number;
+  location_id:       number;
+  register_id:       number | null;
+  cashier_id:        number;
+  recon_date:        string;
+  payment_method:    string;
+  expected_amount:   number | null;
+  counted_amount:    number | null;
+  opening_float:     number | null;
+  denomination_data: Record<string, number> | null;
+  notes:             string | null;
+  xero_invoice_id?:  string | null;
+  xero_synced_at?:   string | null;
+  created_at:        string;
 }
 
 export interface PosRegisterRow {
@@ -570,7 +569,6 @@ export const PosEodRepo = {
     const params = fallback?.registerId != null
       ? [registerSessionId, fallback.registerId, fallback.locationId, fallback.date]
       : [registerSessionId];
-    const rows = await imsQuery<any>(sql, params);
     const r = rows[0] ?? {};
     return {
       total_inc_tax: toNum(r.total_inc_tax),

@@ -1011,7 +1011,6 @@ export async function syncEodEntry(
     locationName: string;
     registerId?: number | null;
     registerName?: string | null;
-    sessionId?: number | null;
     method: string;
     salesAmount: number; // cash: counted − float; others: counted
   },
@@ -1025,10 +1024,9 @@ export async function syncEodEntry(
     return null;
   }
 
-  const tracking    = getTrackingForLocation(trackingMappings, entry.locationId);
-  const regSuffix   = entry.registerId ? `-R${entry.registerId}` : '';
-  const regLabel    = entry.registerName ? ` — ${entry.registerName}` : '';
-  const sessionLabel = entry.sessionId ? ` — Session #${entry.sessionId}` : '';
+  const tracking = getTrackingForLocation(trackingMappings, entry.locationId);
+  const regSuffix = entry.registerId ? `-R${entry.registerId}` : '';
+  const regLabel  = entry.registerName ? ` — ${entry.registerName}` : '';
 
   const invoice: any = {
     Type:            'ACCREC',
@@ -1040,7 +1038,7 @@ export async function syncEodEntry(
     LineAmountTypes: 'Inclusive',
     CurrencyCode:    'AUD',
     LineItems: [{
-      Description: `${entry.method} Sales — ${entry.locationName}${regLabel}${sessionLabel} — ${entry.date}`,
+      Description: `${entry.method} Sales — ${entry.locationName}${regLabel} — ${entry.date}`,
       Quantity:    1,
       UnitAmount:  entry.salesAmount,
       AccountCode: accounts.sales_revenue,
@@ -1083,7 +1081,6 @@ export async function triggerEodXeroSync(
   registerId: number | null,
   setXeroInvoice: (locationId: number, date: string, method: string, invoiceId: string, registerId?: number | null) => Promise<void>,
   registerName?: string | null,
-  registerSessionId?: number | null,
 ): Promise<{ method: string; xeroId: string; invoiceNumber: string }[]> {
   const results: { method: string; xeroId: string; invoiceNumber: string }[] = [];
   for (const row of rows) {
@@ -1095,9 +1092,8 @@ export async function triggerEodXeroSync(
     if (salesAmount <= 0) continue;
     const result = await syncEodEntry(businessId, {
       date, locationId, locationName,
-      registerId:  registerId ?? undefined,
+      registerId: registerId ?? undefined,
       registerName: registerName ?? undefined,
-      sessionId:   registerSessionId ?? undefined,
       method: row.payment_method,
       salesAmount,
     });

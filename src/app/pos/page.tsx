@@ -13,7 +13,7 @@ import {
   isProductsCacheStale, PRODUCTS_CACHE_TTL_MS,
 } from './_store';
 
-// ΓöÇΓöÇΓöÇ Utilities ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// â”€â”€â”€ Utilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function fmt(n: number) { return n.toFixed(2); }
 function calcLineTotal(item: CartItem): number {
@@ -28,7 +28,7 @@ function calcTotals(items: CartItem[]) {
   return { subtotal, discount_total, total, tax_total };
 }
 
-// ΓöÇΓöÇΓöÇ DeviceSetup Screen ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// â”€â”€â”€ DeviceSetup Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
   const [locations, setLocations]   = useState<{ id: number; name: string }[]>([]);
@@ -48,7 +48,7 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
     setLocLoading(true); setLocError('');
     fetch('/api/pos/locations')
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(d => { setLocations(d.locations ?? []); if (!d.locations?.length) setLocError('No active locations found. Add one in IMS ΓåÆ Locations.'); })
+      .then(d => { setLocations(d.locations ?? []); if (!d.locations?.length) setLocError('No active locations found. Add one in IMS â†’ Locations.'); })
       .catch(e => setLocError(e.message || 'Failed to load locations.'))
       .finally(() => setLocLoading(false));
   };
@@ -109,14 +109,14 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui,sans-serif' }}>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', padding: '2.5rem 2rem', borderRadius: 12, width: 380, boxShadow: '0 8px 40px rgba(0,0,0,.4)' }}>
-        <h1 style={{ margin: '0 0 .5rem', fontSize: '1.4rem', color: 'var(--sv-text-strong)' }}>POS ΓÇö Device Setup</h1>
+        <h1 style={{ margin: '0 0 .5rem', fontSize: '1.4rem', color: 'var(--sv-text-strong)' }}>POS â€” Device Setup</h1>
         <p style={{ color: 'var(--sv-text-dim)', marginBottom: '1.5rem', fontSize: '.9rem' }}>Configure this device once. Contact your manager for the Location PIN.</p>
 
         {step === 'location' ? (
           <>
             <label style={labelStyle}>Branch / Location</label>
             {locLoading ? (
-              <p style={{ color: 'var(--sv-text-dim)', fontSize: '.82rem', padding: '.5rem', border: '1px solid var(--sv-etch)', borderRadius: 6 }}>Loading locationsΓÇª</p>
+              <p style={{ color: 'var(--sv-text-dim)', fontSize: '.82rem', padding: '.5rem', border: '1px solid var(--sv-etch)', borderRadius: 6 }}>Loading locationsâ€¦</p>
             ) : locError ? (
               <div>
                 <p style={{ color: 'var(--sv-red)', fontSize: '.82rem', marginBottom: '.4rem' }}>{locError}</p>
@@ -124,7 +124,7 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
               </div>
             ) : (
               <select value={locationId} onChange={e => { setLocationId(e.target.value); setError(''); }} style={inputStyle}>
-                <option value=''>ΓÇö select location ΓÇö</option>
+                <option value=''>â€” select location â€”</option>
                 {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
             )}
@@ -132,7 +132,7 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
             <input type='password' maxLength={20} placeholder='PIN set in IMS Locations (blank if none)' value={pin} onChange={e => setPin(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleVerifyLocation()} style={inputStyle} />
             {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', marginBottom: '1rem' }}>{error}</p>}
             <button onClick={handleVerifyLocation} disabled={loading || !locationId || locLoading} style={primaryBtn}>
-              {loading ? 'VerifyingΓÇª' : 'Next ΓåÆ'}
+              {loading ? 'Verifyingâ€¦' : 'Next â†’'}
             </button>
           </>
         ) : (
@@ -141,7 +141,7 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
             <label style={labelStyle}>Register / Till</label>
             {registers.length > 0 ? (
               <select value={registerId} onChange={e => { setRegisterId(e.target.value); setError(''); }} style={inputStyle}>
-                <option value=''>ΓÇö select register ΓÇö</option>
+                <option value=''>â€” select register â€”</option>
                 {registers.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>
             ) : (
@@ -151,9 +151,9 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
             <input type='password' maxLength={8} placeholder='4-8 digit PIN for supervisor overrides' value={supPin} onChange={e => setSupPin(e.target.value)} style={inputStyle} />
             {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', marginBottom: '1rem' }}>{error}</p>}
             <div style={{ display: 'flex', gap: '.5rem' }}>
-              <button onClick={() => { setStep('location'); setError(''); }} style={{ ...primaryBtn, flex: '0 0 auto', background: 'var(--sv-bg-2)' }}>ΓåÉ Back</button>
+              <button onClick={() => { setStep('location'); setError(''); }} style={{ ...primaryBtn, flex: '0 0 auto', background: 'var(--sv-bg-2)' }}>â† Back</button>
               <button onClick={handleSetup} disabled={loading || !registerId} style={{ ...primaryBtn, flex: 1 }}>
-                {loading ? 'SavingΓÇª' : 'Set Up Device'}
+                {loading ? 'Savingâ€¦' : 'Set Up Device'}
               </button>
             </div>
           </>
@@ -163,7 +163,7 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
   );
 }
 
-// ΓöÇΓöÇΓöÇ Register Gate ΓöÇ shown when a stale open session is detected on login ΓöÇΓöÇΓöÇΓöÇΓöÇ
+// â”€â”€â”€ Register Gate â”€ shown when a stale open session is detected on login â”€â”€â”€â”€â”€
 
 function RegisterGate({ session, deviceConfig, staleSession, onContinue, onGoToEod }: {
   session:      PosSession;
@@ -183,7 +183,7 @@ function RegisterGate({ session, deviceConfig, staleSession, onContinue, onGoToE
   return (
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui,sans-serif' }}>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid rgba(251,191,36,.35)', padding: '2rem', borderRadius: 12, width: 400, boxShadow: '0 8px 40px rgba(0,0,0,.4)' }}>
-        <div style={{ fontSize: '2rem', marginBottom: '.5rem', textAlign: 'center' }}>ΓÜá∩╕Å</div>
+        <div style={{ fontSize: '2rem', marginBottom: '.5rem', textAlign: 'center' }}>âš ï¸</div>
         <h2 style={{ margin: '0 0 .75rem', textAlign: 'center', color: 'var(--sv-text-strong)' }}>Register Left Open</h2>
         <p style={{ color: 'var(--sv-text-main)', marginBottom: '.5rem', textAlign: 'center', lineHeight: 1.5 }}>
           <strong>{deviceConfig.register_name}</strong> was opened on <strong>{openedDate}</strong> at <strong>{openedAt}</strong> and was not closed.
@@ -214,13 +214,13 @@ function RegisterGate({ session, deviceConfig, staleSession, onContinue, onGoToE
         <p style={{ color: 'var(--sv-text-dim)', fontSize: '.78rem', marginTop: '1rem', textAlign: 'center' }}>
           Closing will take you to the End-of-Day screen so you can enter your counts before the session is finalised.
         </p>
-        <p style={{ color: 'var(--sv-text-dim)', fontSize: '.78rem', marginTop: '.5rem', textAlign: 'center' }}>{session.full_name} ┬╖ {deviceConfig.location_name}</p>
+        <p style={{ color: 'var(--sv-text-dim)', fontSize: '.78rem', marginTop: '.5rem', textAlign: 'center' }}>{session.full_name} Â· {deviceConfig.location_name}</p>
       </div>
     </div>
   );
 }
 
-// ΓöÇΓöÇΓöÇ Login Screen ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// â”€â”€â”€ Login Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
   deviceConfig:  DeviceConfig;
@@ -234,7 +234,7 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
   const [pin,          setPin]          = useState('');
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState('');
-  // Admin fallback ΓÇö email + password
+  // Admin fallback â€” email + password
   const [adminMode,    setAdminMode]    = useState(false);
   const [email,        setEmail]        = useState('');
   const [password,     setPassword]     = useState('');
@@ -316,7 +316,7 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
 
   const header = (
     <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-      <div style={{ fontSize: '2rem', marginBottom: '.25rem' }}>≡ƒ¢Æ</div>
+      <div style={{ fontSize: '2rem', marginBottom: '.25rem' }}>ðŸ›’</div>
       <h1 style={{ margin: 0, fontSize: '1.4rem', color: 'var(--sv-text-strong)' }}>POS Login</h1>
       <p style={{ margin: '.25rem 0 0', color: 'var(--sv-action)', fontSize: '.95rem', fontWeight: 600 }}>{deviceConfig.location_name}</p>
       {deviceConfig.register_name && <p style={{ margin: '.1rem 0 0', color: 'var(--sv-text-dim)', fontSize: '.82rem' }}>{deviceConfig.register_name}</p>}
@@ -325,7 +325,7 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
 
   const footer = (
     <div style={{ marginTop: '1.5rem', paddingTop: '.75rem', borderTop: '1px solid var(--sv-etch)', textAlign: 'center', fontSize: '.73rem', color: 'var(--sv-text-dim)' }}>
-      Device: {deviceConfig.location_name}{deviceConfig.register_name ? ` ΓÇö ${deviceConfig.register_name}` : ''}
+      Device: {deviceConfig.location_name}{deviceConfig.register_name ? ` â€” ${deviceConfig.register_name}` : ''}
       <button onClick={onDeviceSetup} style={{ marginLeft: '.5rem', background: 'none', border: 'none', color: 'var(--sv-action)', cursor: 'pointer', fontSize: '.73rem', padding: 0 }}>Change</button>
     </div>
   );
@@ -338,7 +338,7 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
     </div>
   );
 
-  // ΓöÇΓöÇ PIN entry ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // â”€â”€ PIN entry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (selected && !adminMode) {
     return wrap(
       <>
@@ -358,17 +358,17 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
               style={inputStyle} placeholder='Enter PIN' />
             {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', margin: '-.5rem 0 .75rem' }}>{error}</p>}
             <button onClick={handlePinLogin} disabled={loading || !pin} style={{ ...primaryBtn, width: '100%' }}>
-              {loading ? 'Signing inΓÇª' : 'Sign In'}
+              {loading ? 'Signing inâ€¦' : 'Sign In'}
             </button>
           </>
         )}
-        <button onClick={() => { setSelected(null); setPin(''); setError(''); }} style={{ width: '100%', marginTop: '.75rem', padding: '.6rem', background: 'transparent', border: '1px solid var(--sv-etch)', borderRadius: 8, color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.85rem' }}>ΓåÉ Back</button>
+        <button onClick={() => { setSelected(null); setPin(''); setError(''); }} style={{ width: '100%', marginTop: '.75rem', padding: '.6rem', background: 'transparent', border: '1px solid var(--sv-etch)', borderRadius: 8, color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.85rem' }}>â† Back</button>
         {footer}
       </>
     );
   }
 
-  // ΓöÇΓöÇ Admin email+password fallback ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // â”€â”€ Admin email+password fallback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (adminMode) {
     return wrap(
       <>
@@ -383,21 +383,21 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
           style={inputStyle} placeholder='password' />
         {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', margin: '-.5rem 0 .75rem' }}>{error}</p>}
         <button onClick={handleAdminLogin} disabled={loading} style={{ ...primaryBtn, width: '100%' }}>
-          {loading ? 'Signing inΓÇª' : 'Sign In'}
+          {loading ? 'Signing inâ€¦' : 'Sign In'}
         </button>
-        <button onClick={() => { setAdminMode(false); setError(''); }} style={{ width: '100%', marginTop: '.75rem', padding: '.6rem', background: 'transparent', border: '1px solid var(--sv-etch)', borderRadius: 8, color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.85rem' }}>ΓåÉ Back</button>
+        <button onClick={() => { setAdminMode(false); setError(''); }} style={{ width: '100%', marginTop: '.75rem', padding: '.6rem', background: 'transparent', border: '1px solid var(--sv-etch)', borderRadius: 8, color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.85rem' }}>â† Back</button>
         {footer}
       </>
     );
   }
 
-  // ΓöÇΓöÇ Staff picker ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // â”€â”€ Staff picker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   return wrap(
     <>
       {header}
       <p style={{ margin: '0 0 1rem', fontSize: '.88rem', color: 'var(--sv-text-dim)', textAlign: 'center' }}>Who are you?</p>
       {staffLoading ? (
-        <p style={{ textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: '.85rem' }}>LoadingΓÇª</p>
+        <p style={{ textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: '.85rem' }}>Loadingâ€¦</p>
       ) : (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center', marginBottom: '1rem' }}>
           {staff.map(u => (
@@ -419,7 +419,7 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
   );
 }
 
-// ΓöÇΓöÇΓöÇ Main POS Layout ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// â”€â”€â”€ Main POS Layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type MainScreen = 'pos' | 'eod' | 'reports' | 'parked' | 'receive-transfers';
 
@@ -484,7 +484,7 @@ function MainPos({
   }, [openEodOnMount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // True only when we have confirmed (fetch done) that no register session is open.
-  // undefined = still loading ΓÇö we don't block yet to avoid flash-of-disabled state.
+  // undefined = still loading â€” we don't block yet to avoid flash-of-disabled state.
   const mustOpenRegister = !!session.register_id && regSession === null;
 
   function refreshQueueCount() { setQueueCount(loadOfflineQueue().length); setFailedCount(loadFailedQueue().length); }
@@ -509,7 +509,7 @@ function MainPos({
       await drainOfflineQueue();
       refreshQueueCount();
       await onSync();
-      setSyncMsg('Γ£ô Synced');
+      setSyncMsg('âœ“ Synced');
     } catch {
       setSyncMsg('Sync failed');
     } finally {
@@ -537,7 +537,7 @@ function MainPos({
   // Keep the product cache fresh (TTL). On a long-lived terminal the initial
   // load may be hours old, so re-pull prices/stock in the background when the
   // tab regains focus or on a periodic check. When offline and the cache is
-  // stale we can't refresh ΓÇö surface a warning banner instead.
+  // stale we can't refresh â€” surface a warning banner instead.
   const [cacheStale, setCacheStale] = useState(false);
   const onSyncRef = useRef(onSync);
   useEffect(() => { onSyncRef.current = onSync; }, [onSync]);
@@ -547,7 +547,7 @@ function MainPos({
       if (cancelled) return;
       const stale = isProductsCacheStale();
       if (stale && (typeof navigator === 'undefined' || navigator.onLine)) {
-        // Online + stale ΓåÆ refresh silently; onSync re-stamps the cache.
+        // Online + stale â†’ refresh silently; onSync re-stamps the cache.
         try { await onSyncRef.current(); } catch {/* keep stale cache */}
         if (!cancelled) setCacheStale(isProductsCacheStale());
       } else {
@@ -666,7 +666,7 @@ function MainPos({
   }
 
   async function completeSale(payments: PaymentEntry[]) {
-    // Re-entrancy guard ΓÇö prevents a double-fired handler (double-click / key event)
+    // Re-entrancy guard â€” prevents a double-fired handler (double-click / key event)
     // from creating two sales. Each completeSale generates a fresh local_id, so the
     // DB UNIQUE(local_id) constraint would NOT catch a double-invocation.
     if (submittingRef.current) return;
@@ -724,7 +724,7 @@ function MainPos({
         created_at:    now,
       };
 
-      // lastSale is lifted to PosPage ΓÇö notify parent instead
+      // lastSale is lifted to PosPage â€” notify parent instead
       onSaleCompleted(completedSale);
       clearCart();
       setShowPayment(false);
@@ -765,8 +765,8 @@ function MainPos({
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', padding: '.6rem 1rem', borderBottom: '1px solid var(--sv-etch)', gap: '.5rem', flexShrink: 0 }}>
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', marginRight: '.25rem' }}>
-          <span style={{ fontWeight: 700, color: 'var(--sv-action)', fontSize: '1rem', letterSpacing: -.2, lineHeight: 1.35 }}>≡ƒ¢Æ POS {session.location_name}</span>
-          <span style={{ color: 'var(--sv-text-dim)', fontSize: '.73rem', lineHeight: 1.3 }}>{session.register_name ? `${session.register_name} ┬╖ ` : ''}{session.full_name}</span>
+          <span style={{ fontWeight: 700, color: 'var(--sv-action)', fontSize: '1rem', letterSpacing: -.2, lineHeight: 1.35 }}>ðŸ›’ POS {session.location_name}</span>
+          <span style={{ color: 'var(--sv-text-dim)', fontSize: '.73rem', lineHeight: 1.3 }}>{session.register_name ? `${session.register_name} Â· ` : ''}{session.full_name}</span>
         </div>
         <div style={{ flex: 1 }} />
         {/* Online / Offline badge */}
@@ -774,13 +774,13 @@ function MainPos({
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: isOnline ? '#4ade80' : '#f87171', flexShrink: 0 }} />
           {isOnline ? 'Online' : 'Offline'}
         </span>
-        {/* Queued sales badge ΓÇö clickable to inspect entries */}
+        {/* Queued sales badge â€” clickable to inspect entries */}
         {queueCount > 0 && (
           <button
             onClick={() => setQueueInspectOpen(v => !v)}
             title="Click to inspect queued sales"
             style={{ padding: '.15rem .5rem', borderRadius: 99, background: 'rgba(251,191,36,.12)', border: '1px solid rgba(251,191,36,.3)', fontSize: '.73rem', fontWeight: 600, color: '#fbbf24', flexShrink: 0, cursor: 'pointer' }}>
-            ΓÅ│ {queueCount} queued
+            â³ {queueCount} queued
           </button>
         )}
         {/* Queue inspect panel */}
@@ -788,7 +788,7 @@ function MainPos({
           <div style={{ position: 'absolute', top: '3.2rem', left: 0, right: 0, zIndex: 200, background: 'var(--sv-bg-1, #1a1a2e)', border: '1px solid rgba(251,191,36,.35)', borderRadius: 8, padding: '1rem', maxHeight: '70vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,.5)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24' }}>Queued Sales ({queueCount + failedCount} total)</span>
-              <button onClick={() => setQueueInspectOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 16 }}>Γ£ò</button>
+              <button onClick={() => setQueueInspectOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 16 }}>âœ•</button>
             </div>
             {[...loadOfflineQueue().map(e => ({ ...e, fromFailed: false })), ...loadFailedQueue().map(e => ({ ...e, fromFailed: true }))].map((entry, i) => {
               const p = entry.payload as any;
@@ -801,7 +801,7 @@ function MainPos({
                       <span style={{ color: 'var(--sv-text-dim)' }}>{new Date(entry.queued_at).toLocaleString('en-AU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
                       {p?.total != null && <span style={{ marginLeft: 10, fontWeight: 600 }}>${Number(p.total).toFixed(2)}</span>}
                       {p?.items?.length > 0 && <span style={{ marginLeft: 8, color: 'var(--sv-text-dim)' }}>{p.items.length} item{p.items.length !== 1 ? 's' : ''}</span>}
-                      {entry.attempts > 0 && <span style={{ marginLeft: 8, color: '#f87171' }}>{entry.attempts} attempt{entry.attempts !== 1 ? 's' : ''}{entry.last_error ? ` ΓÇö ${entry.last_error}` : ''}</span>}
+                      {entry.attempts > 0 && <span style={{ marginLeft: 8, color: '#f87171' }}>{entry.attempts} attempt{entry.attempts !== 1 ? 's' : ''}{entry.last_error ? ` â€” ${entry.last_error}` : ''}</span>}
                     </div>
                     <button
                       onClick={() => discardQueueEntry(lid, entry.fromFailed)}
@@ -817,28 +817,28 @@ function MainPos({
             {(queueCount + failedCount === 0) && <div style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>No queued entries.</div>}
           </div>
         )}
-        {/* Failed-sync badge ΓÇö sales that repeatedly failed to sync (never lost) */}
+        {/* Failed-sync badge â€” sales that repeatedly failed to sync (never lost) */}
         {failedCount > 0 && (
           <button
             onClick={retryFailedSales}
             title="These sales repeatedly failed to sync and are saved on this device. Click to retry now."
             style={{ padding: '.15rem .5rem', borderRadius: 99, background: 'rgba(248,113,113,.14)', border: '1px solid rgba(248,113,113,.4)', fontSize: '.73rem', fontWeight: 700, color: '#f87171', flexShrink: 0, cursor: 'pointer' }}
           >
-            ΓÜá {failedCount} failed ΓÇö retry
+            âš  {failedCount} failed â€” retry
           </button>
         )}
         <button
           onClick={handleSync}
           disabled={syncing}
-          style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: syncMsg === 'Γ£ô Synced' ? 'var(--sv-green, #4ade80)' : syncMsg ? 'var(--sv-red)' : 'var(--sv-text-strong)', border: `1px solid ${syncMsg === 'Γ£ô Synced' ? 'rgba(74,222,128,.35)' : syncMsg ? 'var(--sv-red-border)' : 'rgba(255,255,255,.18)'}`, opacity: syncing ? .7 : 1 }}
+          style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: syncMsg === 'âœ“ Synced' ? 'var(--sv-green, #4ade80)' : syncMsg ? 'var(--sv-red)' : 'var(--sv-text-strong)', border: `1px solid ${syncMsg === 'âœ“ Synced' ? 'rgba(74,222,128,.35)' : syncMsg ? 'var(--sv-red-border)' : 'rgba(255,255,255,.18)'}`, opacity: syncing ? .7 : 1 }}
         >
-          {syncing ? 'Γƒ│ SyncingΓÇª' : syncMsg ?? 'Γƒ│ Sync'}
+          {syncing ? 'âŸ³ Syncingâ€¦' : syncMsg ?? 'âŸ³ Sync'}
         </button>
         <button onClick={() => setIsReturn(!isReturn)} style={{ ...smallBtn, background: isReturn ? 'var(--sv-red-tint)' : 'rgba(255,255,255,.1)', color: isReturn ? 'var(--sv-red)' : 'var(--sv-text-strong)', border: `1px solid ${isReturn ? 'var(--sv-red-border)' : 'rgba(255,255,255,.18)'}` }}>
-          {isReturn ? 'Γå⌐ Return Mode ON' : 'Return / Refund'}
+          {isReturn ? 'â†© Return Mode ON' : 'Return / Refund'}
         </button>
         <button onClick={() => setIsLayby(!isLayby)} style={{ ...smallBtn, background: isLayby ? 'var(--sv-amber-tint)' : 'rgba(255,255,255,.1)', color: isLayby ? 'var(--sv-amber)' : 'var(--sv-text-strong)', border: `1px solid ${isLayby ? 'var(--sv-amber-border)' : 'rgba(255,255,255,.18)'}` }}>
-          {isLayby ? '≡ƒôï Layby ON' : 'Layby'}
+          {isLayby ? 'ðŸ“‹ Layby ON' : 'Layby'}
         </button>
         <button onClick={parkSale} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }} disabled={!cart.length}>Park Sale</button>
         <button onClick={() => setScreen('parked')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>
@@ -849,15 +849,15 @@ function MainPos({
           disabled={!lastSale}
           title={lastSale ? 'Reprint last receipt' : 'No recent sale to reprint'}
           style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: lastSale ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', border: '1px solid rgba(255,255,255,.18)', opacity: lastSale ? 1 : .45 }}
-        >≡ƒöü Reprint</button>
+        >ðŸ” Reprint</button>
         <button onClick={() => setScreen('eod')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>Register</button>
         <button onClick={() => setScreen('reports')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>Reports</button>
-        <button onClick={() => setScreen('receive-transfers')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>≡ƒôª Receive Transfers</button>
+        <button onClick={() => setScreen('receive-transfers')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>ðŸ“¦ Receive Transfers</button>
         <button
           onClick={() => setCartLeft(v => { const next = !v; try { localStorage.setItem('pos_cart_left', next ? '1' : '0'); } catch {} return next; })}
-          title={cartLeft ? 'Cart on left ΓÇö click to move right' : 'Cart on right ΓÇö click to move left'}
+          title={cartLeft ? 'Cart on left â€” click to move right' : 'Cart on right â€” click to move left'}
           style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-dim)', border: '1px solid rgba(255,255,255,.18)' }}
-        >{cartLeft ? 'Γ¼à Cart' : 'Cart Γ₧í'}</button>
+        >{cartLeft ? 'â¬… Cart' : 'Cart âž¡'}</button>
         <button
           onClick={() => setHelpOpen(true)}
           title="Help"
@@ -868,7 +868,7 @@ function MainPos({
         <button onClick={onLogout} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-red)', border: '1px solid var(--sv-red-border)' }}>Log Out</button>
       </div>
 
-      {/* Stale-cache banner ΓÇö prices/stock may be out of date and can't be refreshed while offline */}
+      {/* Stale-cache banner â€” prices/stock may be out of date and can't be refreshed while offline */}
       {cacheStale && (
         <div style={{ background: 'rgba(248,113,113,.1)', borderBottom: '1px solid rgba(248,113,113,.25)', padding: '.3rem 1rem', fontSize: '.78rem', color: '#f87171', display: 'flex', alignItems: 'center', gap: '.5rem', flexShrink: 0 }}>
           <span style={{ fontWeight: 700 }}>Product prices may be out of date</span>
@@ -881,18 +881,18 @@ function MainPos({
       {/* Offline-mode banner (loaded from cache, no server contact) */}
       {offlineMode && (
         <div style={{ background: 'rgba(251,191,36,.12)', borderBottom: '1px solid rgba(251,191,36,.25)', padding: '.3rem 1rem', fontSize: '.78rem', color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '.5rem', flexShrink: 0 }}>
-          <span style={{ fontWeight: 700 }}>ΓÜá∩╕Å Offline mode</span>
-          <span style={{ color: 'var(--sv-text-dim)' }}>Running from cached data. Sales are queued locally and will sync when connection is restored. Press Γƒ│┬áSync once back online.</span>
+          <span style={{ fontWeight: 700 }}>âš ï¸ Offline mode</span>
+          <span style={{ color: 'var(--sv-text-dim)' }}>Running from cached data. Sales are queued locally and will sync when connection is restored. Press âŸ³Â Sync once back online.</span>
         </div>
       )}
 
       {/* Body */}
       <div style={{ flex: 1, display: 'flex', flexDirection: cartLeft ? 'row-reverse' : 'row', overflow: 'hidden' }}>
-        {/* Product Panel ΓÇö only render once defaultView is known to avoid flash */}
+        {/* Product Panel â€” only render once defaultView is known to avoid flash */}
         {defaultView !== null ? (
           <ProductPanel products={products} onAdd={addToCart} isReturn={isReturn} defaultView={defaultView} onChargeEnter={() => { if (cart.length && !showPayment && !mustOpenRegister) setShowPayment(true); }} />
         ) : (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontSize: '.9rem' }}>Loading productsΓÇª</div>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontSize: '.9rem' }}>Loading productsâ€¦</div>
         )}
 
         {/* Cart Panel */}
@@ -973,7 +973,7 @@ function MainPos({
   );
 }
 
-// ΓöÇΓöÇΓöÇ Recent product helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// â”€â”€â”€ Recent product helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function loadRecentIds(): string[] {
   try { return JSON.parse(localStorage.getItem('pos_recent_vids') ?? '[]'); } catch { return []; }
@@ -982,7 +982,7 @@ function saveRecentIds(ids: string[]): void {
   try { localStorage.setItem('pos_recent_vids', JSON.stringify(ids)); } catch {}
 }
 
-// ΓöÇΓöÇΓöÇ POS Stock Modal ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// â”€â”€â”€ POS Stock Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function PosStockModal({ variantId, productName, onClose }: { variantId: string; productName: string; onClose: () => void }) {
   const [rows, setRows]       = useState<{ location_name: string; qty_on_hand: number }[]>([]);
@@ -1013,9 +1013,9 @@ function PosStockModal({ variantId, productName, onClose }: { variantId: string;
             <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8, marginBottom: 2 }}>Stock by Location</div>
             <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--sv-text-strong)', lineHeight: 1.3 }}>{productName}</div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 22, lineHeight: 1, padding: 0, flexShrink: 0 }}>├ù</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 22, lineHeight: 1, padding: 0, flexShrink: 0 }}>Ã—</button>
         </div>
-        {loading && <div style={{ textAlign: 'center', color: 'var(--sv-text-dim)', padding: '1.5rem 0' }}>LoadingΓÇª</div>}
+        {loading && <div style={{ textAlign: 'center', color: 'var(--sv-text-dim)', padding: '1.5rem 0' }}>Loadingâ€¦</div>}
         {error  && <div style={{ color: 'var(--sv-red)', fontSize: '.85rem' }}>{error}</div>}
         {!loading && !error && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px,1fr))', gap: 8 }}>
@@ -1039,7 +1039,7 @@ function PosStockModal({ variantId, productName, onClose }: { variantId: string;
   );
 }
 
-// ΓöÇΓöÇΓöÇ Product Panel ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// â”€â”€â”€ Product Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 'all' }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; isReturn: boolean; onChargeEnter?: () => void; defaultView?: string }) {
   const [search, setSearch]             = useState('');
@@ -1124,7 +1124,7 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
   }, [sortedProducts, brand, search]);
 
   // Main grid products: browse = smart-sorted full list; search = filtered
-  // Uses deferredSearch/deferredMode so the grid update is low-priority ΓÇö keystrokes stay instant
+  // Uses deferredSearch/deferredMode so the grid update is low-priority â€” keystrokes stay instant
   const filtered = useMemo(() => {
     let list = inStockOnly ? sortedProducts.filter(p => p.soh > 0) : sortedProducts;
     if (brand) list = list.filter(p => p.brand === brand);
@@ -1166,7 +1166,7 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
           setDropdownOpen(false);
           setHighlightIdx(-1);
         } else {
-          // Empty search + Enter ΓåÆ open payment / charge
+          // Empty search + Enter â†’ open payment / charge
           onChargeEnter?.();
         }
       } else if (e.key === 'ArrowDown') {
@@ -1209,7 +1209,7 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
             }}
             onFocus={() => { if (search.length >= 2) setDropdownOpen(true); }}
             onBlur={() => { blurTimer.current = setTimeout(() => setDropdownOpen(false), 150); }}
-            placeholder='Search by name, brand or scan barcodeΓÇª'
+            placeholder='Search by name, brand or scan barcodeâ€¦'
             style={{ ...inputStyle, width: '100%', marginBottom: 0, background: 'var(--sv-bg-0)', border: '1px solid var(--sv-text-dim)' }}
           />
           {/* Autocomplete dropdown */}
@@ -1224,12 +1224,12 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '.85rem', fontWeight: 600, color: 'var(--sv-text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-                    <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[p.brand, p.code].filter(Boolean).join(' ┬╖ ')}</div>
+                    <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[p.brand, p.code].filter(Boolean).join(' Â· ')}</div>
                   </div>
                   <span style={{ fontWeight: 700, color: 'var(--sv-action)', fontSize: '.85rem', flexShrink: 0 }}>${fmt(p.price)}</span>
-                  <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '2px 6px', borderRadius: 5, background: p.soh > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: p.soh > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', flexShrink: 0, border: 'none', cursor: 'pointer', fontWeight: 700 }} title="Stock at this store ΓÇö click for breakdown">{p.soh > 0 ? p.soh : 'OOS'}</button>
+                  <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '2px 6px', borderRadius: 5, background: p.soh > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: p.soh > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', flexShrink: 0, border: 'none', cursor: 'pointer', fontWeight: 700 }} title="Stock at this store â€” click for breakdown">{p.soh > 0 ? p.soh : 'OOS'}</button>
                   {p.soh_all !== undefined && p.soh_all !== p.soh && (
-                    <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '2px 5px', borderRadius: 5, background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', flexShrink: 0, border: '1px solid var(--sv-etch)', cursor: 'pointer' }} title="Total across all locations ΓÇö click for breakdown">all:{p.soh_all}</button>
+                    <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '2px 5px', borderRadius: 5, background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', flexShrink: 0, border: '1px solid var(--sv-etch)', cursor: 'pointer' }} title="Total across all locations â€” click for breakdown">all:{p.soh_all}</button>
                   )}
                 </div>
               ))}
@@ -1239,7 +1239,7 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
         {/* In-stock only toggle */}
         <button
           onClick={() => setInStockOnly(v => !v)}
-          title={inStockOnly ? 'Showing in-stock only ΓÇö click to show all' : 'Show in-stock only'}
+          title={inStockOnly ? 'Showing in-stock only â€” click to show all' : 'Show in-stock only'}
           style={{ flexShrink: 0, padding: '5px 9px', borderRadius: 6, border: `1px solid ${inStockOnly ? 'var(--sv-mint)' : 'var(--sv-etch)'}`, background: inStockOnly ? 'var(--sv-mint-tint)' : 'transparent', color: inStockOnly ? 'var(--sv-mint)' : 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 12, fontWeight: 600, lineHeight: 1, whiteSpace: 'nowrap' }}
         >In Stock</button>
         {/* Search button: commits to full grid results mode */}
@@ -1248,18 +1248,18 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
           disabled={!search.trim()}
           title="Show all matching products"
           style={{ flexShrink: 0, padding: '6px 11px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: search.trim() ? 'var(--sv-bg-2)' : 'transparent', color: search.trim() ? 'var(--sv-action)' : 'var(--sv-text-muted)', cursor: search.trim() ? 'pointer' : 'default', fontSize: 15, lineHeight: 1 }}
-        >≡ƒöì</button>
+        >ðŸ”</button>
       </div>
 
       {/* Search results banner */}
       {mode === 'search' && (
         <div style={{ padding: '4px 12px 6px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <span style={{ fontSize: 12, color: 'var(--sv-action)' }}>≡ƒöì Results for <strong>"{search}"</strong> ΓÇö {filtered.length} product{filtered.length !== 1 ? 's' : ''}</span>
+          <span style={{ fontSize: 12, color: 'var(--sv-action)' }}>ðŸ” Results for <strong>"{search}"</strong> â€” {filtered.length} product{filtered.length !== 1 ? 's' : ''}</span>
           <div style={{ flex: 1 }} />
           <button
             onClick={() => { setMode('browse'); setSearch(''); setDropdownOpen(false); inputRef.current?.focus(); }}
             style={{ fontSize: 12, padding: '2px 10px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer' }}
-          >├ù Clear</button>
+          >Ã— Clear</button>
         </div>
       )}
 
@@ -1285,16 +1285,16 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
               onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--sv-action)')}
               onMouseLeave={e => (e.currentTarget.style.borderColor = isRecent ? 'rgba(37,99,235,.35)' : 'var(--sv-etch)')}
             >
-              <div style={{ fontSize: '.75rem', color: 'var(--sv-text-dim)', marginBottom: '.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.brand ?? p.code ?? 'ΓÇö'}</div>
+              <div style={{ fontSize: '.75rem', color: 'var(--sv-text-dim)', marginBottom: '.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.brand ?? p.code ?? 'â€”'}</div>
               <div style={{ fontSize: '.9rem', fontWeight: 700, lineHeight: 1.3, color: 'var(--sv-text-strong)', maxHeight: '2.6em', overflow: 'hidden', marginBottom: '.4rem' }}>{p.name}</div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontWeight: 800, color: 'var(--sv-action)', fontSize: '1rem' }}>${fmt(p.price)}</span>
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                  <button onClick={e => { e.stopPropagation(); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.75rem', padding: '.15rem .5rem', borderRadius: 5, background: p.soh > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: p.soh > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 700, border: 'none', cursor: 'pointer' }} title="Stock at this store ΓÇö click for breakdown">
+                  <button onClick={e => { e.stopPropagation(); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.75rem', padding: '.15rem .5rem', borderRadius: 5, background: p.soh > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: p.soh > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 700, border: 'none', cursor: 'pointer' }} title="Stock at this store â€” click for breakdown">
                     {p.soh > 0 ? p.soh : 'OOS'}
                   </button>
                   {p.soh_all !== undefined && p.soh_all !== p.soh && (
-                    <button onClick={e => { e.stopPropagation(); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '.1rem .4rem', borderRadius: 5, background: 'var(--sv-bg-0)', color: 'var(--sv-text-dim)', border: '1px solid var(--sv-etch)', cursor: 'pointer' }} title="Total across all locations ΓÇö click for breakdown">all:{p.soh_all}</button>
+                    <button onClick={e => { e.stopPropagation(); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '.1rem .4rem', borderRadius: 5, background: 'var(--sv-bg-0)', color: 'var(--sv-text-dim)', border: '1px solid var(--sv-etch)', cursor: 'pointer' }} title="Total across all locations â€” click for breakdown">all:{p.soh_all}</button>
                   )}
                 </div>
               </div>
@@ -1318,7 +1318,7 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
   );
 }
 
-// ΓöÇΓöÇΓöÇ Cart Row ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// â”€â”€â”€ Cart Row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function CartRow({ item, onQty, onRemove, onDiscount, onPrice }: {
   item: CartItem;
@@ -1340,11 +1340,11 @@ function CartRow({ item, onQty, onRemove, onDiscount, onPrice }: {
           <div style={{ fontWeight: 600, color: 'var(--sv-text-strong)' }}>{item.name}</div>
           {item.code && <div style={{ color: 'var(--sv-text-dim)', fontSize: '.75rem' }}>{item.code}</div>}
         </div>
-        <button onClick={onRemove} style={{ background: 'transparent', border: 'none', color: 'var(--sv-red)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: '0 .25rem' }}>├ù</button>
+        <button onClick={onRemove} style={{ background: 'transparent', border: 'none', color: 'var(--sv-red)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: '0 .25rem' }}>Ã—</button>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginTop: '.3rem' }}>
         {/* Qty controls */}
-        <button onClick={() => onQty(-1)} style={qtyBtn}>ΓêÆ</button>
+        <button onClick={() => onQty(-1)} style={qtyBtn}>âˆ’</button>
         <span style={{ minWidth: 24, textAlign: 'center', fontSize: '.9rem', fontWeight: 600 }}>{item.qty}</span>
         <button onClick={() => onQty(1)} style={qtyBtn}>+</button>
 
@@ -1388,7 +1388,7 @@ function CartRow({ item, onQty, onRemove, onDiscount, onPrice }: {
         ) : (
           <button onClick={() => setEditDisc(true)} style={{ background: item.discount_amount > 0 ? 'rgba(251,191,36,.15)' : 'transparent', border: item.discount_amount > 0 ? '1px solid rgba(251,191,36,.4)' : '1px solid transparent', borderRadius: 4, color: item.discount_amount > 0 ? 'var(--sv-amber)' : 'var(--sv-text-muted)', cursor: 'pointer', fontSize: '.75rem', padding: '.15rem .35rem', fontWeight: item.discount_amount > 0 ? 600 : 400, lineHeight: 1.2, whiteSpace: 'nowrap' }}>
             {item.discount_amount > 0
-              ? `${item.discount_type === 'percent' ? `${item.discount_value}%` : `$${fmt(item.discount_value)} off`} ┬╖ ΓêÆ$${fmt(item.discount_amount)}`
+              ? `${item.discount_type === 'percent' ? `${item.discount_value}%` : `$${fmt(item.discount_value)} off`} Â· âˆ’$${fmt(item.discount_amount)}`
               : '+ Disc.'}
           </button>
         )}
@@ -1399,7 +1399,7 @@ function CartRow({ item, onQty, onRemove, onDiscount, onPrice }: {
   );
 }
 
-// ΓöÇΓöÇΓöÇ Total Row ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// â”€â”€â”€ Total Row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function TotalRow({ label, value, large, muted, color }: { label: string; value: number; large?: boolean; muted?: boolean; color?: string }) {
   return (
@@ -1410,7 +1410,7 @@ function TotalRow({ label, value, large, muted, color }: { label: string; value:
   );
 }
 
-// ΓöÇΓöÇΓöÇ Payment Modal ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// â”€â”€â”€ Payment Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
   total:      number;
@@ -1460,7 +1460,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      {/* Change Due overlay ΓÇö shown on top of payment modal */}
+      {/* Change Due overlay â€” shown on top of payment modal */}
       {changeDue && (
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: 12 }}>
           <div style={{ background: '#1a0000', border: '3px solid #ef4444', borderRadius: 16, padding: '2.5rem 3rem', textAlign: 'center', boxShadow: '0 0 60px rgba(239,68,68,.5)', maxWidth: 360, width: '90vw' }}>
@@ -1471,7 +1471,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
               onClick={() => { setChangeDue(null); onComplete(changeDue.pendingPayments); }}
               style={{ width: '100%', padding: '1rem', background: '#ef4444', border: 'none', borderRadius: 10, color: '#fff', fontSize: '1.2rem', fontWeight: 800, cursor: 'pointer', letterSpacing: .5 }}
             >
-              OK ΓÇö Change Given Γ£ô
+              OK â€” Change Given âœ“
             </button>
           </div>
         </div>
@@ -1529,7 +1529,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
                 <span style={{ color: 'var(--sv-text-main)' }}>{p.method} {p.reference && <span style={{ color: 'var(--sv-text-dim)', fontSize: '.8rem' }}>({p.reference})</span>}</span>
                 <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
                   <span style={{ color: 'var(--sv-action)', fontWeight: 600 }}>${fmt(p.amount)}</span>
-                  <button onClick={() => removePayment(p.localId)} style={{ background: 'transparent', border: 'none', color: 'var(--sv-red)', cursor: 'pointer' }}>├ù</button>
+                  <button onClick={() => removePayment(p.localId)} style={{ background: 'transparent', border: 'none', color: 'var(--sv-red)', cursor: 'pointer' }}>Ã—</button>
                 </div>
               </div>
             ))}
@@ -1561,7 +1561,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
             disabled={remaining > 0.001}
             style={{ flex: 2, padding: '.75rem', background: remaining <= 0.001 ? 'var(--sv-mint)' : 'var(--sv-bg-2)', border: 'none', borderRadius: 8, color: remaining <= 0.001 ? '#fff' : 'var(--sv-text-muted)', cursor: remaining <= 0.001 ? 'pointer' : 'not-allowed', fontWeight: 700, fontSize: '1rem' }}
           >
-            {isLayby ? `Save Layby` : `Complete Sale`} Γ£ô
+            {isLayby ? `Save Layby` : `Complete Sale`} âœ“
           </button>
         </div>
       </div>
@@ -1569,7 +1569,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
   );
 }
 
-// ΓöÇΓöÇΓöÇ Parked Sales Screen ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// â”€â”€â”€ Parked Sales Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ParkedScreen({ sales, onRetrieve, onDelete, onBack }: {
   sales:      ParkedSale[];
@@ -1581,7 +1581,7 @@ function ParkedScreen({ sales, onRetrieve, onDelete, onBack }: {
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', padding: '1.5rem', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)' }}>
       <div style={{ maxWidth: 700, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-          <button onClick={onBack} style={smallBtn}>ΓåÉ Back to POS</button>
+          <button onClick={onBack} style={smallBtn}>â† Back to POS</button>
           <h1 style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: '1.3rem' }}>Parked Sales</h1>
         </div>
         {sales.length === 0 && <p style={{ color: 'var(--sv-text-muted)' }}>No parked sales.</p>}
@@ -1590,7 +1590,7 @@ function ParkedScreen({ sales, onRetrieve, onDelete, onBack }: {
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 600, color: 'var(--sv-text-strong)' }}>{s.label}</div>
               {s.customer_name && <div style={{ fontSize: '.85rem', color: 'var(--sv-text-dim)' }}>{s.customer_name}</div>}
-              <div style={{ fontSize: '.8rem', color: 'var(--sv-text-muted)' }}>{new Date(s.created_at).toLocaleString()} ΓÇö {s.items.length} item(s)</div>
+              <div style={{ fontSize: '.8rem', color: 'var(--sv-text-muted)' }}>{new Date(s.created_at).toLocaleString()} â€” {s.items.length} item(s)</div>
             </div>
             <span style={{ fontWeight: 700, color: 'var(--sv-action)', fontSize: '1.1rem' }}>${fmt(s.total)}</span>
             <button onClick={() => onRetrieve(s)} style={{ ...primaryBtn, padding: '.4rem .9rem' }}>Retrieve</button>
@@ -1602,7 +1602,7 @@ function ParkedScreen({ sales, onRetrieve, onDelete, onBack }: {
   );
 }
 
-// ΓöÇΓöÇΓöÇ Receipt Screen ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// â”€â”€â”€ Receipt Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface ReceiptPrintSettings {
   business_name: string;
@@ -1662,7 +1662,7 @@ function ReceiptScreen({ sale, onClose, printSettings }: { sale: CompletedSale; 
               <div style={{ fontSize: '.8rem', color: '#555' }}>Served by: {sale.cashier_name}</div>
               {sale.customer_name && <div style={{ fontSize: '.85rem', fontWeight: 600, marginTop: '.25rem' }}>{sale.customer_name}</div>}
               <div style={{ borderTop: '1px dashed #ccc', marginTop: '.5rem', paddingTop: '.5rem', fontSize: '.75rem', color: '#888' }}>
-                {sale.id ? `#${sale.id}` : `local:${sale.local_id.slice(-8)}`} ΓÇö {sale.sale_type.toUpperCase()}
+                {sale.id ? `#${sale.id}` : `local:${sale.local_id.slice(-8)}`} â€” {sale.sale_type.toUpperCase()}
               </div>
             </div>
             {/* Items */}
@@ -1711,7 +1711,7 @@ function ReceiptScreen({ sale, onClose, printSettings }: { sale: CompletedSale; 
             </div>
           </div>
           <div className='no-print' style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
-            <button onClick={handlePrint} style={{ ...primaryBtn, padding: '.6rem 1.5rem' }}>≡ƒû¿ Print Receipt</button>
+            <button onClick={handlePrint} style={{ ...primaryBtn, padding: '.6rem 1.5rem' }}>ðŸ–¨ Print Receipt</button>
           </div>
         </div>
 
@@ -1724,16 +1724,16 @@ function ReceiptScreen({ sale, onClose, printSettings }: { sale: CompletedSale; 
               {(printSettings?.business_address || sale.location_name) && (
                 <div style={{ fontSize: '.8rem', color: '#555' }}>{printSettings?.business_address || sale.location_name}</div>
               )}
-              <div style={{ marginTop: '.5rem', fontSize: '.95rem', fontWeight: 700 }}>≡ƒÄü Gift Receipt</div>
+              <div style={{ marginTop: '.5rem', fontSize: '.95rem', fontWeight: 700 }}>ðŸŽ Gift Receipt</div>
               <div style={{ fontSize: '.8rem', color: '#555' }}>
                 {new Date(sale.created_at).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' })}
               </div>
             </div>
-            {/* Items ΓÇö no prices */}
+            {/* Items â€” no prices */}
             <div style={{ fontSize: '.85rem', borderTop: '1px dashed #ccc', paddingTop: '.75rem', marginBottom: '.75rem' }}>
               {sale.items.map(i => (
                 <div key={i.localId} style={{ marginBottom: '.35rem' }}>
-                  {Math.abs(i.qty)}├ù {i.name}
+                  {Math.abs(i.qty)}Ã— {i.name}
                 </div>
               ))}
             </div>
@@ -1742,7 +1742,7 @@ function ReceiptScreen({ sale, onClose, printSettings }: { sale: CompletedSale; 
             </div>
           </div>
           <div className='no-print' style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
-            <button onClick={handleGiftPrint} style={{ ...smallBtn, padding: '.6rem 1.5rem' }}>≡ƒÄü Print Gift Receipt</button>
+            <button onClick={handleGiftPrint} style={{ ...smallBtn, padding: '.6rem 1.5rem' }}>ðŸŽ Print Gift Receipt</button>
           </div>
         </div>
       </div>
@@ -1754,15 +1754,15 @@ function ReceiptScreen({ sale, onClose, printSettings }: { sale: CompletedSale; 
   );
 }
 
-// ΓöÇΓöÇΓöÇ EOD Screen ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// â”€â”€â”€ EOD Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const AUD_DENOMS = [
   { label: '$100', value: 100 }, { label: '$50', value: 50 },
   { label: '$20', value: 20 },  { label: '$10', value: 10 },
   { label: '$5', value: 5 },    { label: '$2', value: 2 },
-  { label: '$1', value: 1 },    { label: '50┬ó', value: 0.5 },
-  { label: '20┬ó', value: 0.2 }, { label: '10┬ó', value: 0.1 },
-  { label: '5┬ó', value: 0.05 },
+  { label: '$1', value: 1 },    { label: '50Â¢', value: 0.5 },
+  { label: '20Â¢', value: 0.2 }, { label: '10Â¢', value: 0.1 },
+  { label: '5Â¢', value: 0.05 },
 ];
 
 type EodEntryState = { counted: string; openingFloat: string; denominations: Record<string, string>; notes: string; showDenom: boolean };
@@ -1944,9 +1944,9 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', padding: '1.5rem', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)' }}>
       <div style={{ maxWidth: 860, margin: '0 auto' }}>
 
-        {/* ΓöÇΓöÇ Header ΓöÇΓöÇ */}
+        {/* â”€â”€ Header â”€â”€ */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-          <button onClick={onBack} style={smallBtn}>ΓåÉ Back to POS</button>
+          <button onClick={onBack} style={smallBtn}>â† Back to POS</button>
           <h1 style={{ margin: 0, color: 'var(--sv-text-strong)', flex: 1, fontSize: '1.3rem' }}>
             {mode === 'open' ? 'Open Register' : 'End of Day Reconciliation'}
           </h1>
@@ -1960,15 +1960,15 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
           )}
         </div>
 
-        {loading && <p style={{ color: 'var(--sv-text-dim)' }}>LoadingΓÇª</p>}
+        {loading && <p style={{ color: 'var(--sv-text-dim)' }}>Loadingâ€¦</p>}
 
-        {/* ΓöÇΓöÇ OPEN REGISTER ΓöÇΓöÇ */}
+        {/* â”€â”€ OPEN REGISTER â”€â”€ */}
         {mode === 'open' && !loading && (
           <div>
             {regSessionLoading ? (
-              <p style={{ color: 'var(--sv-text-dim)' }}>Checking register statusΓÇª</p>
+              <p style={{ color: 'var(--sv-text-dim)' }}>Checking register statusâ€¦</p>
             ) : regSession?.status === 'open' ? (
-              /* ΓöÇΓöÇ Register is already open ΓöÇΓöÇ */
+              /* â”€â”€ Register is already open â”€â”€ */
               <div style={{ background: 'rgba(99,179,117,.08)', border: '1px solid var(--sv-mint)', borderRadius: 10, padding: '1.5rem', maxWidth: 500 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '1rem' }}>
                   <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--sv-mint)', display: 'inline-block', boxShadow: '0 0 6px var(--sv-mint)' }} />
@@ -1983,11 +1983,11 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
                   To close this register and record end-of-day totals, use the <strong>End of Day</strong> tab.
                 </p>
                 <button onClick={() => setMode('eod')} style={{ ...primaryBtn, padding: '.5rem 1.25rem' }}>
-                  Go to End of Day ΓåÆ
+                  Go to End of Day â†’
                 </button>
               </div>
             ) : (
-              /* ΓöÇΓöÇ Register is closed ΓÇö show open form ΓöÇΓöÇ */
+              /* â”€â”€ Register is closed â€” show open form â”€â”€ */
               <>
                 {regSession?.status === 'closed' && (
                   <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '.75rem 1rem', marginBottom: '1.25rem', fontSize: '.82rem', color: 'var(--sv-text-dim)' }}>
@@ -2021,7 +2021,7 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
                       return (
                         <label key={d.value} style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
                           <span style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', fontWeight: 600 }}>
-                            {d.label}{count > 0 ? ` ┬╖ $${fmt(count * d.value)}` : ''}
+                            {d.label}{count > 0 ? ` Â· $${fmt(count * d.value)}` : ''}
                           </span>
                           <input
                             type='number' min='0' step='1'
@@ -2037,16 +2037,16 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
 
                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                   <button onClick={saveOpenRegister} disabled={loading} style={{ ...primaryBtn, padding: '.65rem 2rem' }}>
-                    {loading ? 'SavingΓÇª' : 'Open Register'}
+                    {loading ? 'Savingâ€¦' : 'Open Register'}
                   </button>
-                  {saved && <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>Γ£ô Register opened ΓÇö float recorded</span>}
+                  {saved && <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>âœ“ Register opened â€” float recorded</span>}
                 </div>
               </>
             )}
           </div>
         )}
 
-        {/* ΓöÇΓöÇ END OF DAY ΓöÇΓöÇ */}
+        {/* â”€â”€ END OF DAY â”€â”€ */}
         {mode === 'eod' && !loading && (
           <div>
             <div style={{ overflowX: 'auto' }}>
@@ -2087,7 +2087,7 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
                               <input type='number' value={e.openingFloat} onChange={ev => updateEntry(m, 'openingFloat', ev.target.value)}
                                 placeholder={String(defaultFloat)} style={{ ...inputStyle, width: 80, marginBottom: 0, padding: '.25rem .4rem', fontSize: '.85rem' }} />
                             ) : (
-                              <span style={{ color: 'var(--sv-text-muted)' }}>ΓÇö</span>
+                              <span style={{ color: 'var(--sv-text-muted)' }}>â€”</span>
                             )}
                           </td>
                           <td style={tdStyle}>
@@ -2095,7 +2095,7 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
                               placeholder='0.00' style={{ ...inputStyle, width: 90, marginBottom: 0, padding: '.25rem .4rem', fontSize: '.85rem' }} />
                           </td>
                           <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--sv-text-strong)' }}>
-                            {cashSales !== null ? `$${fmt(cashSales)}` : <span style={{ color: 'var(--sv-text-muted)' }}>ΓÇö</span>}
+                            {cashSales !== null ? `$${fmt(cashSales)}` : <span style={{ color: 'var(--sv-text-muted)' }}>â€”</span>}
                           </td>
                           <td style={{ ...tdStyle, color: variance >= 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 600 }}>
                             {variance >= 0 ? '+' : ''}{fmt(variance)}
@@ -2136,9 +2136,9 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
 
             <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
               <button onClick={saveEod} disabled={loading} style={{ ...primaryBtn, padding: '.65rem 2rem' }}>
-                {loading ? 'SavingΓÇª' : 'Save EOD Reconciliation'}
+                {loading ? 'Savingâ€¦' : 'Save EOD Reconciliation'}
               </button>
-              {saved && <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>Γ£ô Saved</span>}
+              {saved && <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>âœ“ Saved</span>}
             </div>
 
             <EodAccountingSection
@@ -2161,7 +2161,7 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
   );
 }
 
-// ΓöÇΓöÇΓöÇ EOD Accounting Section ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ─── EOD Accounting Section ───────────────────────────────────────────────────────────────────────────
 
 function EodAccountingSection({
   session, methods, expected, entries, defaultFloat, date, xeroInvoiceIds, dayTotals, onSynced,
@@ -2180,7 +2180,6 @@ function EodAccountingSection({
   const [syncing, setSyncing]     = useState(false);
   const [syncError, setSyncError] = useState('');
 
-  // Standard tax rate from actual sales data (e.g. 0.10 for 10% GST), fallback to 10%
   const effectiveTaxRate = dayTotals && dayTotals.total_exc_tax > 0
     ? dayTotals.tax_total / dayTotals.total_exc_tax
     : 0.10;
@@ -2203,12 +2202,6 @@ function EodAccountingSection({
   const allSynced = rows.length > 0 && rows.every(r => r.synced);
   const anySynced = rows.some(r => r.synced);
 
-  function fmtDate(iso?: string) {
-    if (!iso) return '';
-    try { return new Date(iso).toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
-    catch { return iso.slice(0, 16).replace('T', ' '); }
-  }
-
   async function syncToXero() {
     setSyncing(true);
     setSyncError('');
@@ -2228,6 +2221,12 @@ function EodAccountingSection({
     }
   }
 
+  function fmtDate(iso?: string) {
+    if (!iso) return '';
+    try { return new Date(iso).toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+    catch { return iso.slice(0, 16).replace('T', ' '); }
+  }
+
   const thA: React.CSSProperties = { textAlign: 'left',  padding: '4px 8px', fontSize: '.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .6, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' };
   const tdA: React.CSSProperties = { padding: '7px 8px', fontSize: '.85rem', borderBottom: '1px solid var(--sv-etch)' };
 
@@ -2235,7 +2234,7 @@ function EodAccountingSection({
     <div style={{ marginTop: '1.5rem', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
       <div onClick={() => setOpen(o => !o)}
         style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', cursor: 'pointer', background: 'var(--sv-bg-2)', userSelect: 'none' }}>
-        <span style={{ fontSize: '.88rem', fontWeight: 700, color: 'var(--sv-text-strong)' }}>🏦 Accounting</span>
+        <span style={{ fontSize: '.88rem', fontWeight: 700, color: 'var(--sv-text-strong)' }}>🧮 Accounting</span>
         <div style={{ flex: 1 }} />
         {allSynced && <span style={{ fontSize: '.75rem', color: 'var(--sv-mint)', fontWeight: 600 }}>✓ Synced to Xero</span>}
         {anySynced && !allSynced && <span style={{ fontSize: '.75rem', color: 'var(--sv-amber)', fontWeight: 600 }}>⚠ Partially synced</span>}
@@ -2244,6 +2243,7 @@ function EodAccountingSection({
 
       {open && (
         <div style={{ padding: '1rem 1.25rem', background: 'var(--sv-bg-1)' }}>
+
           {/* Summary table */}
           <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '1.25rem' }}>
             <thead>
@@ -2300,6 +2300,7 @@ function EodAccountingSection({
                   background: r.synced ? 'rgba(16,185,129,.04)' : 'var(--sv-bg-0)',
                 }}>
                   <span style={{ minWidth: 64, fontWeight: 700, fontSize: '.88rem' }}>{r.method}</span>
+
                   {r.synced ? (
                     <>
                       <span style={{ fontSize: '.75rem', fontWeight: 700, color: '#34d399', background: 'rgba(16,185,129,.13)', borderRadius: 99, padding: '2px 9px', whiteSpace: 'nowrap' }}>
@@ -2351,7 +2352,7 @@ function EodAccountingSection({
                         </span>
                         <span>
                           <span style={{ color: 'var(--sv-text-dim)' }}>Would send: </span>
-                          <strong>${fmt(r.taxInc)}</strong>
+                          <strong style={{ color: 'var(--sv-text-dim)' }}>${fmt(r.taxInc)}</strong>
                         </span>
                       </div>
                     </>
@@ -2359,6 +2360,15 @@ function EodAccountingSection({
                 </div>
               ))}
             </div>
+          </div>
+
+          <div style={{ fontSize: '.75rem', color: 'var(--sv-text-dim)', marginBottom: '1rem', lineHeight: 1.7 }}>
+            <strong>What is sent to Xero:</strong> One ACCREC invoice (AUTHORISED) per payment method
+            &nbsp;· Contact: <em>POS Reconciliation (Summary)</em>
+            &nbsp;· Reference: EOD-L{session.location_id}-{date}-{'{Method}'}<br />
+            Amount sent = Tax-Inc Total (Inclusive tax treatment) — Xero extracts the GST automatically<br />
+            Cash = Counted − Opening Float &nbsp;· Other methods = Counted amount
+            &nbsp;· Auto-synced on EOD save when admin session is active
           </div>
 
           {syncError && <div style={{ color: 'var(--sv-red)', fontSize: '.8rem', marginBottom: '.75rem' }}>{syncError}</div>}
@@ -2373,7 +2383,6 @@ function EodAccountingSection({
   );
 }
 
-// ΓöÇΓöÇΓöÇ Reports Screen ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 // ΓöÇΓöÇΓöÇ Receive Transfers Screen ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 

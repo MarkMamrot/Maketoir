@@ -33,9 +33,6 @@ export async function POST(req: Request) {
 
     const rows = await PosEodRepo.get(locationId, date, registerId ?? null);
 
-    // Extract session ID from the stored reconciliation rows (set at save time)
-    const registerSessionId = (rows as any[]).find(r => r.register_session_id != null)?.register_session_id ?? null;
-
     const results = await triggerEodXeroSync(
       user.businessId,
       locationId,
@@ -45,7 +42,6 @@ export async function POST(req: Request) {
       registerId ?? null,
       PosEodRepo.setXeroInvoice.bind(PosEodRepo),
       registerName,
-      registerSessionId,
     );
 
     return NextResponse.json({ success: true, results });
