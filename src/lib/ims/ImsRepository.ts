@@ -2296,7 +2296,7 @@ export const ImsBTRepo = {
           await conn.execute(
             `INSERT INTO ims_stock_movements
                (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
-             VALUES (?,?,'bt_out','branch_transfer',?,?,?,?)`,
+             VALUES (?,?,'transfer_out','branch_transfer',?,?,?,?)`,
             [item.variant_id, bt.from_location_id, id, -qty_rcvd, src_new_soh, item.unit_cost]
           );
 
@@ -2322,7 +2322,7 @@ export const ImsBTRepo = {
           await conn.execute(
             `INSERT INTO ims_stock_movements
                (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
-             VALUES (?,?,'bt_in','branch_transfer',?,?,?,?)`,
+             VALUES (?,?,'transfer_in','branch_transfer',?,?,?,?)`,
             [item.variant_id, bt.to_location_id, id, qty_rcvd, new_dst_soh, new_dst_avg]
           );
         }

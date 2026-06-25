@@ -9034,7 +9034,7 @@ export default function ImsPage() {
           {view === 'brands'           && <BrandsView />}
           {view === 'pos-sales'        && <PosSalesView />}
           {view === 'online-sales'     && <OnlineSalesView />}
-          {view === 'stocktakes'        && <StocktakesView />}
+          {view === 'stocktakes'        && <StocktakesView businessId={user?.businessId ?? ''} />}
           {view === 'reports'           && <ReportsView onNav={setView} />}
           {view === 'report-sales-by-branch' && <SalesByBranchView onBack={() => setView('reports')} />}
           {view === 'report-inventory-valuation' && <InventoryValuationView onBack={() => setView('reports')} />}
@@ -9105,6 +9105,31 @@ function ReceiveBranchTransferModal({ bt, onClose, onDone }: { bt: any; onClose:
   };
 
   const handleSubmit = async () => {
+    // Warn about items not being received
+    const items: any[] = bt.items ?? [];
+    const notReceived = items.filter(i => (receiveQtys[i.id] ?? 0) === 0);
+    const partialReceived = items.filter(i => {
+      const rcvd = receiveQtys[i.id] ?? 0;
+      return rcvd > 0 && rcvd < Number(i.qty_sent);
+    });
+    if (notReceived.length > 0 || partialReceived.length > 0) {
+      const lines: string[] = [];
+      if (notReceived.length > 0) {
+        lines.push(`Not received (0 qty — stock stays at ${bt.from_location_name}):`);
+        notReceived.forEach(i => lines.push(`  • ${i.sku || i.product_name}${i.variant_label ? ` — ${i.variant_label}` : ''} (sent: ${Number(i.qty_sent)})`));
+      }
+      if (partialReceived.length > 0) {
+        lines.push('');
+        lines.push('Partially received (remainder stays at source):');
+        partialReceived.forEach(i => {
+          const rcvd = receiveQtys[i.id] ?? 0;
+          lines.push(`  • ${i.sku || i.product_name}${i.variant_label ? ` — ${i.variant_label}` : ''} (sent: ${Number(i.qty_sent)}, receiving: ${rcvd})`);
+        });
+      }
+      lines.push('');
+      lines.push('Proceed? Only the quantities above will be moved to ' + bt.to_location_name + '.');
+      if (!confirm(lines.join('\n'))) return;
+    }
     setReceiving(true);
     try {
       await apiFetch(`/api/ims/branch-transfers/${bt.id}`, {
@@ -10259,7 +10284,111 @@ function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
 // Stocktakes
 // ─────────────────────────────────────────────────────────────────────────────
 
-function StocktakesView() {
+/** Inline dropdown variant search for adding items to a stocktake — same UX as VariantSearch */
+function StocktakeVariantSearch({ stocktakeId, locationId, onAdd }: {
+  stocktakeId: number;
+  locationId: number;
+  onAdd: (item: any) => void;
+}) {
+  const [query, setQuery]   = React.useState('');
+  const [open, setOpen]     = React.useState(false);
+  const [matches, setMatches] = React.useState<any[]>([]);
+  const [searching, setSearching] = React.useState(false);
+  const [dropPos, setDropPos] = React.useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 320 });
+  const ref    = React.useRef<HTMLDivElement>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  function updatePos() {
+    if (inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect();
+      setDropPos({ top: rect.bottom + window.scrollY, left: rect.left + window.scrollX, width: Math.max(rect.width, 360) });
+    }
+  }
+
+  const search = React.useCallback((q: string) => {
+    if (!q.trim()) { setMatches([]); setOpen(false); return; }
+    setSearching(true);
+    fetch(`/api/ims/stocktakes/${stocktakeId}/items?q=${encodeURIComponent(q)}&location_id=${locationId}`)
+      .then(r => r.json())
+      .then(d => { setMatches(d.matches ?? []); setOpen(true); })
+      .catch(() => setMatches([]))
+      .finally(() => setSearching(false));
+  }, [stocktakeId, locationId]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setQuery(val);
+    updatePos();
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => search(val), 300);
+  };
+
+  const handleAdd = async (m: any) => {
+    setOpen(false); setQuery(''); setMatches([]);
+    const res = await fetch(`/api/ims/stocktakes/${stocktakeId}/items`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ variant_id: m.variant_id, location_id: locationId }),
+    });
+    const j = await res.json();
+    if (!res.ok) { alert(j.error || 'Failed to add'); return; }
+    onAdd({ ...j.item, counted_input: '' });
+  };
+
+  return (
+    <div ref={ref} style={{ position: 'relative', flex: '1 1 220px' }}>
+      <input
+        ref={inputRef}
+        type="text"
+        value={query}
+        placeholder="Search variant…"
+        onFocus={() => { updatePos(); if (matches.length) setOpen(true); }}
+        onChange={handleChange}
+        style={{ ...inputStyle, fontSize: 12, width: '100%', marginBottom: 0 }}
+      />
+      {searching && (
+        <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--sv-text-dim)', pointerEvents: 'none' }}>…</span>
+      )}
+      {open && (
+        <div style={{
+          position: 'fixed', top: dropPos.top, left: dropPos.left, zIndex: 99999,
+          width: dropPos.width, maxWidth: 520, maxHeight: 280, overflowY: 'auto',
+          background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)',
+          borderRadius: 6, boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+        }}>
+          {matches.length === 0 && !searching ? (
+            <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{query.trim() ? 'No matches' : ''}</div>
+          ) : matches.map((m: any) => (
+            <div
+              key={m.variant_id}
+              onMouseDown={() => handleAdd(m)}
+              style={{ padding: '7px 12px', cursor: 'pointer', fontSize: 12, borderBottom: '1px solid var(--sv-etch)', display: 'flex', alignItems: 'center', gap: 8 }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--sv-bg-1)')}
+              onMouseLeave={e => (e.currentTarget.style.background = '')}
+            >
+              <span style={{ flex: 1 }}>
+                <span style={{ fontWeight: 600 }}>{m.product_name}</span>
+                {m.sku && <span style={{ color: 'var(--sv-text-dim)', marginLeft: 6 }}>{m.sku}</span>}
+                {m.variant_label && <span style={{ color: 'var(--sv-text-dim)', marginLeft: 6 }}>{m.variant_label}</span>}
+              </span>
+              <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>SOH: {Math.round(Number(m.qty_on_hand ?? 0))}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StocktakesView({ businessId }: { businessId: string }) {
   const [list, setList]         = useState<any[]>([]);
   const [loading, setLoading]   = useState(true);
   const [locations, setLocations] = useState<any[]>([]);
@@ -10287,11 +10416,7 @@ function StocktakesView() {
   const [barcodeResults, setBarcodeResults] = useState<any[] | null>(null);
   const [applying, setApplying]         = useState(false);
   const [xeroSyncing, setXeroSyncing]   = useState(false);
-  // Add-product search
-  const [addQuery, setAddQuery]         = useState('');
-  const [addMatches, setAddMatches]     = useState<any[]>([]);
-  const [addSearching, setAddSearching] = useState(false);
-  const [addError, setAddError]         = useState('');
+  // (add-item search state is now handled inside StocktakeVariantSearch)
 
   const load = useCallback(() => {
     setLoading(true);
@@ -10383,7 +10508,7 @@ function StocktakesView() {
     setDetailTab('manual');
     setBarcodeText('');
     setBarcodeResults(null);
-    setAddQuery(''); setAddMatches([]); setAddError('');
+    // (add-item search reset handled by StocktakeVariantSearch)
   };
 
   const saveItemCount = async (item: any, value: string) => {
@@ -10454,7 +10579,7 @@ function StocktakesView() {
         setXeroSyncing(true);
         const xeroRes = await fetch('/api/xero/sync/stocktake-journal', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ stocktakeId: id }),
+          body: JSON.stringify({ databaseId: businessId, stocktakeId: id }),
         });
         const xd = await xeroRes.json();
         if (!xeroRes.ok) xeroMsg = `\n\n⚠ Xero sync failed: ${xd.error || 'Unknown'}. Retry from the accounting panel.`;
@@ -10784,54 +10909,13 @@ function StocktakesView() {
             <div>
               {/* Add product bar — shown when editable */}
               {(detailModal.st.status === 'draft' || detailModal.st.status === 'in_progress') && (
-                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12, padding: '10px 12px', background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)', flexWrap: 'wrap' }}>
-                  <input
-                    value={addQuery}
-                    onChange={e => { setAddQuery(e.target.value); setAddMatches([]); setAddError(''); }}
-                    onKeyDown={async e => {
-                      if (e.key === 'Enter' && addQuery.trim()) {
-                        setAddSearching(true); setAddError('');
-                        const r = await fetch(`/api/ims/stocktakes/${detailModal.st.id}/items?q=${encodeURIComponent(addQuery)}&location_id=${detailModal.st.location_id}`).then(x => x.json()).catch(() => ({}));
-                        setAddMatches(r.matches ?? []); setAddSearching(false);
-                        if (!r.matches?.length) setAddError('No matches found.');
-                      }
-                    }}
-                    placeholder="Search SKU / barcode / name — press Enter"
-                    style={{ ...inputStyle, flex: '1 1 220px', marginBottom: 0, fontSize: 13 }}
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, padding: '8px 12px', background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
+                  <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Add item:</span>
+                  <StocktakeVariantSearch
+                    stocktakeId={detailModal.st.id}
+                    locationId={detailModal.st.location_id}
+                    onAdd={item => setDetailItems(p => [...p, item])}
                   />
-                  <button type="button" disabled={addSearching || !addQuery.trim()} style={btnStyle('action', 'sm')}
-                    onClick={async () => {
-                      setAddSearching(true); setAddError('');
-                      const r = await fetch(`/api/ims/stocktakes/${detailModal.st.id}/items?q=${encodeURIComponent(addQuery)}&location_id=${detailModal.st.location_id}`).then(x => x.json()).catch(() => ({}));
-                      setAddMatches(r.matches ?? []); setAddSearching(false);
-                      if (!r.matches?.length) setAddError('No matches found.');
-                    }}>{addSearching ? '…' : 'Search'}</button>
-                  {(addMatches.length > 0 || addError) && (
-                    <button type="button" onClick={() => { setAddMatches([]); setAddError(''); setAddQuery(''); }} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '2px 6px', alignSelf: 'center' }} title="Dismiss">×</button>
-                  )}
-                  {addError && <span style={{ fontSize: 12, color: 'var(--sv-red)', alignSelf: 'center' }}>{addError}</span>}
-                  {addMatches.length > 0 && (
-                    <div style={{ width: '100%', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-2)', overflow: 'hidden' }}>
-                      {addMatches.map((m: any) => (
-                        <div key={m.variant_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', borderBottom: '1px solid var(--sv-etch)', fontSize: 13 }}>
-                          <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 80 }}>{m.sku || '—'}</span>
-                          <span style={{ flex: 1 }}>{m.product_name}{m.variant_label ? ` — ${m.variant_label}` : ''}</span>
-                          <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>SOH: {m.qty_on_hand}</span>
-                          <button type="button" style={btnStyle('action', 'xs')} onClick={async () => {
-                            const res = await fetch(`/api/ims/stocktakes/${detailModal.st.id}/items`, {
-                              method: 'POST', headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ variant_id: m.variant_id, location_id: detailModal.st.location_id }),
-                            });
-                            const j = await res.json();
-                            if (!res.ok) { setAddError(j.error || 'Failed to add'); return; }
-                            setDetailItems(p => [...p, { ...j.item, counted_input: '' }]);
-                            setAddMatches(prev => prev.filter(x => x.variant_id !== m.variant_id));
-                            setAddQuery('');
-                          }}>+ Add</button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
               )}
               <div style={{ maxHeight: 400, overflowY: 'auto' }}>
@@ -10962,7 +11046,7 @@ function StocktakesView() {
                       try {
                         const res = await fetch('/api/xero/sync/stocktake-journal', {
                           method: 'POST', headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ stocktakeId: detailModal.st.id }),
+                          body: JSON.stringify({ databaseId: businessId, stocktakeId: detailModal.st.id }),
                         });
                         const j = await res.json();
                         if (!res.ok) throw new Error(j.error || 'Sync failed');

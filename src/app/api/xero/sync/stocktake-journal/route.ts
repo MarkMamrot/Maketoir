@@ -1,17 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getImportSession } from '@/app/api/ims/import/_helpers';
+import { NextResponse } from 'next/server';
+import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 import { syncStocktakeJournal } from '@/services/XeroSyncService';
-import { query } from '@/services/MySQLService';
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
+  const { user, response } = requireAdminSession();
+  if (response) return response;
+
   try {
-    const session = getImportSession();
-    if (!session?.business_id) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-
-    const { stocktakeId } = await req.json();
+    const { databaseId, stocktakeId } = await req.json();
     if (!stocktakeId) return NextResponse.json({ error: 'stocktakeId required' }, { status: 400 });
+    if (!databaseId)  return NextResponse.json({ error: 'databaseId required' },  { status: 400 });
 
-    const result = await syncStocktakeJournal(session.business_id, Number(stocktakeId));
+    const denied = assertBusinessAccess(user, databaseId);
+    if (denied) return denied;
+
+    const result = await syncStocktakeJournal(databaseId, Number(stocktakeId));
     return NextResponse.json({ ok: true, ...result });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 400 });

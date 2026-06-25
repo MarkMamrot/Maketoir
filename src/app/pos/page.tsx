@@ -2434,6 +2434,27 @@ function ReceiveBtInline({ bt, onBack, onDone }: { bt: any; onBack: () => void; 
   };
 
   const handleSubmit = async () => {
+    const items: any[] = bt.items ?? [];
+    const notReceived     = items.filter((i: any) => (receiveQtys[i.id] ?? 0) === 0);
+    const partialReceived = items.filter((i: any) => { const r = receiveQtys[i.id] ?? 0; return r > 0 && r < Number(i.qty_sent); });
+    if (notReceived.length > 0 || partialReceived.length > 0) {
+      const lines: string[] = [];
+      if (notReceived.length > 0) {
+        lines.push(`Not received (stock stays at ${bt.from_location_name}):`);
+        notReceived.forEach((i: any) => lines.push(`  • ${i.sku || i.product_name}${i.variant_label ? ` — ${i.variant_label}` : ''} (sent: ${Number(i.qty_sent)})`));
+      }
+      if (partialReceived.length > 0) {
+        lines.push('');
+        lines.push('Partially received (remainder stays at source):');
+        partialReceived.forEach((i: any) => {
+          const r = receiveQtys[i.id] ?? 0;
+          lines.push(`  • ${i.sku || i.product_name}${i.variant_label ? ` — ${i.variant_label}` : ''} (sent: ${Number(i.qty_sent)}, receiving: ${r})`);
+        });
+      }
+      lines.push('');
+      lines.push(`Proceed? Only received quantities will be moved to ${bt.to_location_name}.`);
+      if (!confirm(lines.join('\n'))) return;
+    }
     setSubmitting(true);
     try {
       const res = await fetch(`/api/ims/branch-transfers/${bt.id}`, {
