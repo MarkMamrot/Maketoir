@@ -939,9 +939,9 @@ function MainPos({
                   onClick={() => setScreen('eod')}
                   style={{ background: 'none', border: 'none', color: '#fb923c', textDecoration: 'underline', cursor: 'pointer', padding: 0, fontSize: 'inherit', fontWeight: 700 }}
                 >
-                  Register → Open Register
+                  End of Day
                 </button>
-                {' '}before taking sales.
+                {' '}and open the register before taking sales.
               </div>
             )}
             <div style={{ display: 'flex', gap: '.5rem', marginTop: '.75rem', flexDirection: 'column' }}>
@@ -1428,7 +1428,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
   const changeDueOkRef  = useRef<HTMLButtonElement>(null);
 
   const paid      = payments.reduce((s, p) => s + p.amount, 0);
-  const remaining = Math.round((total - paid) * 100) / 100;
+  const remaining = total - paid;
   const change    = Math.max(0, paid - total);
 
   useEffect(() => { amountRef.current?.focus(); }, [activeMethod]);
