@@ -243,10 +243,6 @@ const STATUS_COLORS: Record<string, string> = {
   completed:          'background:rgba(16,185,129,.18);color:#34d399',
   reverted:           'background:rgba(248,113,113,.15);color:#f87171',
 };
-  in_progress:        'background:rgba(251,191,36,.15);color:#fbbf24',
-  completed:          'background:rgba(16,185,129,.18);color:#34d399',
-  reverted:           'background:rgba(139,92,246,.18);color:#a78bfa',
-};
 
 function StatusBadge({ status }: { status: string }) {
   const style = STATUS_COLORS[status] ?? STATUS_COLORS.draft;
