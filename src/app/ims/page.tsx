@@ -3043,6 +3043,10 @@ function PurchaseOrdersView() {
         return s + (rate > 0 ? tot / (1 + rate) : tot);
       }, 0)
     : lineItems.reduce((s, i) => s + lineTotal(i), 0);
+  // Per-line rounding matches Xero's behaviour; freight is also taxed (ex_tax mode)
+  const freightTaxRate = taxTreatment === 'ex_tax'
+    ? Number(lineItems.find(i => i.tax_rate)?.tax_rate ?? 0) : 0;
+  const freightTax = taxTreatment === 'ex_tax' ? Number(form.freight || 0) * freightTaxRate : 0;
   const poTax = taxTreatment === 'no_tax'
     ? 0
     : taxTreatment === 'inc_tax'
@@ -3050,9 +3054,9 @@ function PurchaseOrdersView() {
           const tot = lineTotal(i);
           const rate = Number(i.tax_rate || 0);
           const exTax = rate > 0 ? tot / (1 + rate) : tot;
-          return s + (tot - exTax);
+          return s + Math.round((tot - exTax) * 100) / 100;
         }, 0)
-      : lineItems.reduce((s, i) => s + lineTotal(i) * Number(i.tax_rate || 0), 0);
+      : lineItems.reduce((s, i) => s + Math.round(lineTotal(i) * Number(i.tax_rate || 0) * 100) / 100, 0) + freightTax;
   const poLanded   = landedCosts.reduce((s, c) => s + Number(c.amount || 0), 0);
   const grandTotal = poSubtotal + poTax + Number(form.freight || 0) - Number(form.discount || 0);
 
@@ -3444,7 +3448,7 @@ function PurchaseOrdersView() {
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
                 <div style={{ minWidth: 380 }}>
                   {[
-                    ['Subtotal' + (taxTreatment === 'inc_tax' ? ' (ex-tax)' : ''), fmtCurrency(poSubtotal)],
+                    ['Products Total' + (taxTreatment === 'inc_tax' ? ' (ex-tax)' : ''), fmtCurrency(poSubtotal)],
                   ].map(([l, v]) => (
                     <div key={l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
                       <span>{l}</span><span>{v}</span>
@@ -3678,7 +3682,7 @@ function PurchaseOrdersView() {
             <tfoot>
               {(Number(viewModal.po.tax_amount) > 0 || Number(viewModal.po.discount) > 0 || Number(viewModal.po.freight) > 0) && (
                 <tr style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                  <td colSpan={7} style={{ padding: '6px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Subtotal</td>
+                  <td colSpan={7} style={{ padding: '6px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Products Total</td>
                   <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtCurrency(viewModal.po.subtotal)}</td>
                 </tr>
               )}

@@ -793,6 +793,9 @@ export const ImsPORepo = {
           return s + (rate > 0 ? tot / (1 + rate) : tot);
         }, 0)
       : items.reduce((s, i) => s + Number(i.line_total), 0);
+    // Per-line rounding (matches Xero) + freight tax
+    const freightTaxRate = taxTreatment === 'ex_tax'
+      ? Number(items.find(i => Number(i.tax_rate) > 0)?.tax_rate ?? 0) : 0;
     const tax_amount = taxTreatment === 'no_tax'
       ? 0
       : taxTreatment === 'inc_tax'
@@ -800,9 +803,10 @@ export const ImsPORepo = {
             const tot = Number(i.line_total);
             const rate = Number(i.tax_rate ?? 0);
             const exTax = rate > 0 ? tot / (1 + rate) : tot;
-            return s + (tot - exTax);
+            return s + Math.round((tot - exTax) * 100) / 100;
           }, 0)
-        : items.reduce((s, i) => s + Number(i.line_total) * Number(i.tax_rate), 0);
+        : items.reduce((s, i) => s + Math.round(Number(i.line_total) * Number(i.tax_rate) * 100) / 100, 0)
+          + Math.round(Number(data.freight ?? 0) * freightTaxRate * 100) / 100;
     const freight = Number(data.freight ?? 0);
     const discount = Number(data.discount ?? 0);
     const total_amount = subtotal + tax_amount + freight - discount;
@@ -892,7 +896,7 @@ export const ImsPORepo = {
             item_tax      = 0;
           } else {
             item_subtotal = line_total;
-            item_tax      = line_total * rate;
+            item_tax      = Math.round(line_total * rate * 100) / 100; // per-line rounding matches Xero
           }
           subtotal   += item_subtotal;
           tax_amount += item_tax;
@@ -922,6 +926,11 @@ export const ImsPORepo = {
         const [[existingPo]] = await conn.execute<any[]>(`SELECT freight, discount FROM ims_purchase_orders WHERE id=?`, [id]);
         const useDi = (typeof data.discount !== 'undefined') ? Number(data.discount) : Number(existingPo?.discount ?? 0);
         const useFreight = (typeof data.freight !== 'undefined') ? Number(data.freight) : Number(existingPo?.freight ?? 0);
+        // Add freight tax (ex_tax mode only): use first non-zero item tax rate
+        if (taxTreatment === 'ex_tax') {
+          const freightTaxRate = Number(items.find((i: any) => Number(i.tax_rate) > 0)?.tax_rate ?? 0);
+          tax_amount += Math.round(useFreight * freightTaxRate * 100) / 100;
+        }
         await conn.execute(
           `UPDATE ims_purchase_orders SET subtotal=?, tax_amount=?, total_amount=? WHERE id=?`,
           [subtotal, tax_amount, subtotal + tax_amount + useFreight - useDi, id]
@@ -946,13 +955,23 @@ export const ImsPORepo = {
           [Number(poRow?.subtotal ?? 0) + Number(poRow?.tax_amount ?? 0) + useFreight - useDi, id]
         );
       } else if (data.freight !== undefined || data.discount !== undefined) {
-        // Freight or discount changed with no items/landed-costs — recalculate total from stored subtotal+tax
-        const [[poRow]] = await conn.execute<any[]>(`SELECT subtotal, tax_amount, freight, discount FROM ims_purchase_orders WHERE id=?`, [id]);
+        // Freight or discount changed with no items — recalculate tax_amount and total
+        const [[poRow]] = await conn.execute<any[]>(`SELECT subtotal, tax_amount, tax_treatment, freight, discount FROM ims_purchase_orders WHERE id=?`, [id]);
         const useDi = (typeof data.discount !== 'undefined') ? Number(data.discount) : Number(poRow?.discount ?? 0);
         const useFreight = (typeof data.freight !== 'undefined') ? Number(data.freight) : Number(poRow?.freight ?? 0);
+        const poTaxTreatment = poRow?.tax_treatment ?? 'ex_tax';
+        let newTaxAmount = Number(poRow?.tax_amount ?? 0);
+        if (poTaxTreatment === 'ex_tax' && typeof data.freight !== 'undefined') {
+          // Recalculate freight tax component using the first item's tax rate
+          const [ftrRows] = await conn.execute<any[]>(`SELECT tax_rate FROM ims_purchase_order_items WHERE po_id = ? AND tax_rate > 0 LIMIT 1`, [id]);
+          const freightTaxRate = Number((ftrRows as any[])[0]?.tax_rate ?? 0);
+          const oldFreightTax = Math.round(Number(poRow?.freight ?? 0) * freightTaxRate * 100) / 100;
+          const newFreightTax = Math.round(useFreight * freightTaxRate * 100) / 100;
+          newTaxAmount = newTaxAmount - oldFreightTax + newFreightTax;
+        }
         await conn.execute(
-          `UPDATE ims_purchase_orders SET total_amount=? WHERE id=?`,
-          [Number(poRow?.subtotal ?? 0) + Number(poRow?.tax_amount ?? 0) + useFreight - useDi, id]
+          `UPDATE ims_purchase_orders SET tax_amount=?, total_amount=? WHERE id=?`,
+          [newTaxAmount, Number(poRow?.subtotal ?? 0) + newTaxAmount + useFreight - useDi, id]
         );
       }
       await conn.commit();
