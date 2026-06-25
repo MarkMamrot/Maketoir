@@ -30,6 +30,11 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       await ImsBTRepo.removeItem(Number(params.id), Number(item_id));
       return NextResponse.json({ success: true });
     }
+    if (action === 'writeoff_item') {
+      if (!item_id) return NextResponse.json({ success: false, error: 'item_id required' }, { status: 400 });
+      await ImsBTRepo.writeoffItem(Number(params.id), Number(item_id));
+      return NextResponse.json({ success: true });
+    }
     if (status) {
       await ImsBTRepo.changeStatus(Number(params.id), status, receivedItems);
       

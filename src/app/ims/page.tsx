@@ -10075,9 +10075,10 @@ function BranchTransfersView() {
   );
 }
 
-function BTActions({ bt, onEdit, onDelete, onStatus, onReceive, onPrint }: {
+function BTActions({ bt, onEdit, onDelete, onStatus, onReceive, onPrint, onManage }: {
   bt: any; onEdit: () => void; onDelete: () => void;
   onStatus: (bt: any, s: string) => void; onReceive: () => void; onPrint: () => void;
+  onManage?: () => void;
 }) {
   const btns: React.ReactNode[] = [];
   btns.push(<button key="p" onClick={onPrint} style={btnStyle('secondary', 'xs')}>🖨 Print</button>);
@@ -10089,6 +10090,9 @@ function BTActions({ bt, onEdit, onDelete, onStatus, onReceive, onPrint }: {
   if (bt.status === 'sent') {
     btns.push(<button key="r" onClick={onReceive} style={btnStyle('mint', 'xs')}>Receive</button>);
     btns.push(<button key="x" onClick={() => onStatus(bt, 'cancelled')} style={btnStyle('ghost', 'xs')}>Cancel</button>);
+  }
+  if (bt.status === 'partial' && onManage) {
+    btns.push(<button key="m" onClick={onManage} style={btnStyle('mint', 'xs')}>Manage</button>);
   }
   if (bt.status === 'draft') {
     btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>);
@@ -10102,108 +10106,180 @@ function BTActions({ bt, onEdit, onDelete, onStatus, onReceive, onPrint }: {
 
 function PartialBTManageModal({ bt: initialBt, onClose, onDone }: { bt: any; onClose: () => void; onDone: () => void }) {
   const [items, setItems]   = useState<any[]>(initialBt.items ?? []);
+  const [receiveNow, setReceiveNow] = useState<Record<number, number>>({});
   const [saving, setSaving] = useState(false);
+  const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError]   = useState<string | null>(null);
 
-  const received    = items.filter((i: any) => Number(i.qty_received ?? 0) > 0);
-  const outstanding = items.filter((i: any) => Number(i.qty_received ?? 0) === 0);
+  const remainingOf = (i: any) => Math.max(0, Number(i.qty_sent) - Number(i.qty_received ?? 0));
+  const settled     = items.filter((i: any) => remainingOf(i) === 0);
+  const outstanding = items.filter((i: any) => remainingOf(i) > 0);
 
+  // Remove a fully-unreceived line entirely.
   const removeItem = async (itemId: number) => {
-    setError(null);
+    setError(null); setBusyId(itemId);
     try {
       await apiFetch(`/api/ims/branch-transfers/${initialBt.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'remove_item', item_id: itemId }),
       });
       setItems(prev => prev.filter((i: any) => i.id !== itemId));
+      setReceiveNow(prev => { const n = { ...prev }; delete n[itemId]; return n; });
     } catch (e: any) { setError(e.message); }
+    finally { setBusyId(null); }
   };
 
+  // Write off the un-received remainder of a partial line (qty_sent → qty_received).
+  const writeOff = async (itemId: number) => {
+    setError(null); setBusyId(itemId);
+    try {
+      await apiFetch(`/api/ims/branch-transfers/${initialBt.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'writeoff_item', item_id: itemId }),
+      });
+      setItems(prev => prev.map((i: any) => i.id === itemId ? { ...i, qty_sent: Number(i.qty_received ?? 0) } : i));
+      setReceiveNow(prev => { const n = { ...prev }; delete n[itemId]; return n; });
+    } catch (e: any) { setError(e.message); }
+    finally { setBusyId(null); }
+  };
+
+  const setQty = (itemId: number, remaining: number, val: number) =>
+    setReceiveNow(prev => ({ ...prev, [itemId]: Math.max(0, Math.min(remaining, val)) }));
+
+  const totalReceivingNow = outstanding.reduce((s, i) => s + (receiveNow[i.id] ?? 0), 0);
+
   const markReceived = async () => {
-    if (outstanding.length > 0) {
+    const stillOutstanding = outstanding.filter(i => remainingOf(i) - (receiveNow[i.id] ?? 0) > 0);
+    if (stillOutstanding.length > 0) {
       if (!confirm(
-        `${outstanding.length} item${outstanding.length !== 1 ? 's' : ''} are still outstanding and have not been deleted.\n\n` +
-        `Marking as received will close this transfer. Outstanding items will remain on record but no stock will be moved for them.\n\nProceed?`
+        `${stillOutstanding.length} line${stillOutstanding.length !== 1 ? 's' : ''} still have un-received units that you haven't received or written off.\n\n` +
+        `Marking as received will close this transfer. Those units stay on record but no stock will be moved for them.\n\nProceed?`
       )) return;
+    } else if (totalReceivingNow > 0) {
+      if (!confirm(`Receive ${fmtQty(totalReceivingNow)} remaining unit${totalReceivingNow !== 1 ? 's' : ''} and mark this transfer fully received?`)) return;
     } else {
       if (!confirm('Mark this transfer as fully received?')) return;
     }
     setSaving(true); setError(null);
     try {
+      // Items being topped up: send the FINAL qty_received (current + receiving now).
+      const receivedItems = outstanding
+        .filter(i => (receiveNow[i.id] ?? 0) > 0)
+        .map(i => ({ item_id: i.id, qty_received: Number(i.qty_received ?? 0) + (receiveNow[i.id] ?? 0) }));
       await apiFetch(`/api/ims/branch-transfers/${initialBt.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'received' }),
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'received', receivedItems }),
       });
       onDone();
     } catch (e: any) { setError(e.message); }
     finally { setSaving(false); }
   };
 
-  const ItemRow = ({ item, showDelete }: { item: any; showDelete: boolean }) => (
-    <tr style={{ borderTop: '1px solid var(--sv-etch)', background: showDelete ? 'rgba(248,113,113,.04)' : 'transparent' }}>
-      <td style={{ padding: '8px 10px' }}><code style={{ fontSize: 12, color: 'var(--sv-mint)' }}>{item.sku || '—'}</code></td>
-      <td style={{ padding: '8px 10px', fontSize: 13 }}>
-        <div>{item.product_name}</div>
-        {item.variant_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{item.variant_label}</div>}
-      </td>
-      <td style={{ padding: '8px 10px', fontSize: 13, color: 'var(--sv-text-dim)', textAlign: 'right' }}>{fmtQty(item.qty_sent)}</td>
-      <td style={{ padding: '8px 10px', fontSize: 13, textAlign: 'right', fontWeight: 600, color: showDelete ? '#f87171' : '#34d399' }}>
-        {showDelete ? <span style={{ color: '#f87171' }}>0 — not received</span> : fmtQty(item.qty_received)}
-      </td>
-      <td style={{ padding: '8px 10px' }}>
-        {showDelete && (
-          <button type="button" onClick={() => removeItem(item.id)} style={btnStyle('danger', 'xs')} title="Remove from transfer">Delete</button>
-        )}
-      </td>
-    </tr>
-  );
-
   return (
     <Modal title={`Manage Partial Transfer — ${initialBt.transfer_number}`} onClose={onClose} wide>
       <div style={{ marginBottom: 14, padding: '10px 14px', background: 'rgba(251,146,60,.08)', border: '1px solid rgba(251,146,60,.3)', borderRadius: 8, fontSize: 13 }}>
         <strong style={{ color: '#f97316' }}>Partially Received</strong> — {initialBt.from_location_name} → {initialBt.to_location_name}.<br />
-        <span style={{ color: 'var(--sv-text-dim)' }}>Some items were not received. Delete items that won't arrive, then mark as fully received.</span>
+        <span style={{ color: 'var(--sv-text-dim)' }}>
+          For each outstanding line you can <strong>receive the rest</strong> (moves the remaining stock), <strong>write off</strong> the shortfall,
+          or <strong>delete</strong> a line nothing arrived for — then mark the transfer fully received.
+        </span>
       </div>
       {error && (
         <div style={{ marginBottom: 12, padding: '8px 12px', background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.4)', borderRadius: 6, fontSize: 13, color: '#f87171' }}>{error}</div>
       )}
-      {received.length > 0 && (
-        <>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6 }}>✓ Received ({received.length})</div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', marginBottom: 16 }}>
-            <thead><tr style={{ background: 'var(--sv-bg-1)' }}>
-              {['SKU', 'Product', 'Qty Sent', 'Qty Received', ''].map(h => (
-                <th key={h} style={{ padding: '7px 10px', textAlign: h.startsWith('Qty') ? 'right' : 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
-              ))}
-            </tr></thead>
-            <tbody>{received.map((i: any) => <ItemRow key={i.id} item={i} showDelete={false} />)}</tbody>
-          </table>
-        </>
-      )}
+
       {outstanding.length > 0 && (
         <>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#f97316', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6 }}>⚠ Outstanding — Not Received ({outstanding.length})</div>
-          <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 8 }}>Delete items that won't arrive. Stock at {initialBt.from_location_name} is unaffected.</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#f97316', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6 }}>⚠ Outstanding ({outstanding.length})</div>
           <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', marginBottom: 16 }}>
             <thead><tr style={{ background: 'var(--sv-bg-1)' }}>
-              {['SKU', 'Product', 'Qty Sent', 'Status', ''].map(h => (
-                <th key={h} style={{ padding: '7px 10px', textAlign: h === 'Qty Sent' ? 'right' : 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
+              {['SKU', 'Product', 'Sent', 'Received', 'Remaining', 'Receive Now', 'Actions'].map(h => (
+                <th key={h} style={{ padding: '7px 10px', textAlign: ['Sent', 'Received', 'Remaining'].includes(h) ? 'right' : 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
               ))}
             </tr></thead>
-            <tbody>{outstanding.map((i: any) => <ItemRow key={i.id} item={i} showDelete={true} />)}</tbody>
+            <tbody>
+              {outstanding.map((item: any) => {
+                const rcvd = Number(item.qty_received ?? 0);
+                const remaining = remainingOf(item);
+                const now = receiveNow[item.id] ?? 0;
+                const isBusy = busyId === item.id;
+                return (
+                  <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)', background: 'rgba(251,146,60,.04)' }}>
+                    <td style={{ padding: '8px 10px' }}><code style={{ fontSize: 12, color: 'var(--sv-mint)' }}>{item.sku || '—'}</code></td>
+                    <td style={{ padding: '8px 10px', fontSize: 13 }}>
+                      <div>{item.product_name}</div>
+                      {item.variant_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{item.variant_label}</div>}
+                    </td>
+                    <td style={{ padding: '8px 10px', fontSize: 13, color: 'var(--sv-text-dim)', textAlign: 'right' }}>{fmtQty(item.qty_sent)}</td>
+                    <td style={{ padding: '8px 10px', fontSize: 13, textAlign: 'right', color: rcvd > 0 ? '#34d399' : 'var(--sv-text-dim)' }}>{rcvd > 0 ? fmtQty(rcvd) : '0'}</td>
+                    <td style={{ padding: '8px 10px', fontSize: 13, textAlign: 'right', fontWeight: 600, color: '#fbbf24' }}>{fmtQty(remaining)}</td>
+                    <td style={{ padding: '8px 10px', width: 150 }}>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <input
+                          type="number" min="0" max={remaining} step="any"
+                          value={now}
+                          onChange={e => setQty(item.id, remaining, Number(e.target.value))}
+                          style={{ ...inputStyle, fontSize: 13, width: 70 }}
+                        />
+                        <button type="button" onClick={() => setQty(item.id, remaining, remaining)} style={btnStyle('ghost', 'xs')} title="Fill remaining">All</button>
+                      </div>
+                    </td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {rcvd > 0 ? (
+                          <button type="button" disabled={isBusy} onClick={() => writeOff(item.id)} style={btnStyle('danger', 'xs')} title="Write off the un-received units (shrink Qty Sent to Qty Received)">Write off</button>
+                        ) : (
+                          <button type="button" disabled={isBusy} onClick={() => removeItem(item.id)} style={btnStyle('danger', 'xs')} title="Remove this line from the transfer">Delete</button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
           </table>
         </>
       )}
-      {items.length === 0 && (
-        <div style={{ padding: '20px', textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>All outstanding items have been removed.</div>
+
+      {settled.length > 0 && (
+        <>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6 }}>✓ Settled ({settled.length})</div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', marginBottom: 16 }}>
+            <thead><tr style={{ background: 'var(--sv-bg-1)' }}>
+              {['SKU', 'Product', 'Sent', 'Received'].map(h => (
+                <th key={h} style={{ padding: '7px 10px', textAlign: ['Sent', 'Received'].includes(h) ? 'right' : 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {settled.map((item: any) => (
+                <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                  <td style={{ padding: '8px 10px' }}><code style={{ fontSize: 12, color: 'var(--sv-mint)' }}>{item.sku || '—'}</code></td>
+                  <td style={{ padding: '8px 10px', fontSize: 13 }}>
+                    <div>{item.product_name}</div>
+                    {item.variant_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{item.variant_label}</div>}
+                  </td>
+                  <td style={{ padding: '8px 10px', fontSize: 13, color: 'var(--sv-text-dim)', textAlign: 'right' }}>{fmtQty(item.qty_sent)}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13, textAlign: 'right', fontWeight: 600, color: '#34d399' }}>{fmtQty(item.qty_received)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       )}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
-        <button type="button" onClick={onClose} style={btnStyle('ghost')}>Close</button>
-        <button type="button" onClick={markReceived} disabled={saving} style={btnStyle('mint')}>
-          {saving ? 'Processing…' : '✓ Mark as Fully Received'}
-        </button>
+
+      {items.length === 0 && (
+        <div style={{ padding: '20px', textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>All lines have been removed.</div>
+      )}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 4 }}>
+        <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>
+          {totalReceivingNow > 0 ? `Receiving ${fmtQty(totalReceivingNow)} more unit${totalReceivingNow !== 1 ? 's' : ''} on confirm.` : ''}
+        </span>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" onClick={onClose} style={btnStyle('ghost')}>Close</button>
+          <button type="button" onClick={markReceived} disabled={saving} style={btnStyle('mint')}>
+            {saving ? 'Processing…' : '✓ Mark as Fully Received'}
+          </button>
+        </div>
       </div>
     </Modal>
   );
