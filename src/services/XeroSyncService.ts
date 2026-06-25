@@ -1011,6 +1011,7 @@ export async function syncEodEntry(
     locationName: string;
     registerId?: number | null;
     registerName?: string | null;
+    sessionId?: number | null;
     method: string;
     salesAmount: number; // cash: counted − float; others: counted
   },
@@ -1027,6 +1028,7 @@ export async function syncEodEntry(
   const tracking = getTrackingForLocation(trackingMappings, entry.locationId);
   const regSuffix = entry.registerId ? `-R${entry.registerId}` : '';
   const regLabel  = entry.registerName ? ` — ${entry.registerName}` : '';
+  const sessLabel = entry.sessionId ? ` (Session #${entry.sessionId})` : '';
 
   const invoice: any = {
     Type:            'ACCREC',
@@ -1038,7 +1040,7 @@ export async function syncEodEntry(
     LineAmountTypes: 'Inclusive',
     CurrencyCode:    'AUD',
     LineItems: [{
-      Description: `${entry.method} Sales — ${entry.locationName}${regLabel} — ${entry.date}`,
+      Description: `${entry.method} Sales — ${entry.locationName}${regLabel}${sessLabel} — ${entry.date}`,
       Quantity:    1,
       UnitAmount:  entry.salesAmount,
       AccountCode: accounts.sales_revenue,
@@ -1075,6 +1077,7 @@ export async function triggerEodXeroSync(
     payment_method: string;
     counted_amount: number | null;
     opening_float:  number | null;
+    register_session_id?: number | null;
     xero_invoice_id?: string | null;
   }>,
   locationName: string,
@@ -1094,6 +1097,7 @@ export async function triggerEodXeroSync(
       date, locationId, locationName,
       registerId: registerId ?? undefined,
       registerName: registerName ?? undefined,
+      sessionId: row.register_session_id ?? undefined,
       method: row.payment_method,
       salesAmount,
     });

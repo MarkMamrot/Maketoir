@@ -13,7 +13,10 @@ export async function GET(req: Request) {
   if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
     const { searchParams } = new URL(req.url);
-    const status = searchParams.get('status') as any ?? undefined;
+    const statusParam = searchParams.get('status');
+    const status = statusParam
+      ? (statusParam.includes(',') ? statusParam.split(',') as any[] : statusParam as any)
+      : undefined;
     const data = await ImsBTRepo.list(status);
     return NextResponse.json({ success: true, data });
   } catch (e: any) {

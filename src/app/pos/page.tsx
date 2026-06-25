@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useState, useEffect, useRef, useCallback, useMemo, useDeferredValue } from 'react';
 import type { DeviceConfig, PosSession, CachedProduct, CartItem, PaymentEntry, ParkedSale, CompletedSale } from './_types';
 import {
@@ -13,7 +13,7 @@ import {
   isProductsCacheStale, PRODUCTS_CACHE_TTL_MS,
 } from './_store';
 
-// ─── Utilities ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Utilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function fmt(n: number) { return n.toFixed(2); }
 function calcLineTotal(item: CartItem): number {
@@ -28,7 +28,7 @@ function calcTotals(items: CartItem[]) {
   return { subtotal, discount_total, total, tax_total };
 }
 
-// ─── DeviceSetup Screen ───────────────────────────────────────────────────────
+// â”€â”€â”€ DeviceSetup Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
   const [locations, setLocations]   = useState<{ id: number; name: string }[]>([]);
@@ -48,7 +48,7 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
     setLocLoading(true); setLocError('');
     fetch('/api/pos/locations')
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(d => { setLocations(d.locations ?? []); if (!d.locations?.length) setLocError('No active locations found. Add one in IMS → Locations.'); })
+      .then(d => { setLocations(d.locations ?? []); if (!d.locations?.length) setLocError('No active locations found. Add one in IMS â†’ Locations.'); })
       .catch(e => setLocError(e.message || 'Failed to load locations.'))
       .finally(() => setLocLoading(false));
   };
@@ -109,14 +109,14 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui,sans-serif' }}>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', padding: '2.5rem 2rem', borderRadius: 12, width: 380, boxShadow: '0 8px 40px rgba(0,0,0,.4)' }}>
-        <h1 style={{ margin: '0 0 .5rem', fontSize: '1.4rem', color: 'var(--sv-text-strong)' }}>POS — Device Setup</h1>
+        <h1 style={{ margin: '0 0 .5rem', fontSize: '1.4rem', color: 'var(--sv-text-strong)' }}>POS â€” Device Setup</h1>
         <p style={{ color: 'var(--sv-text-dim)', marginBottom: '1.5rem', fontSize: '.9rem' }}>Configure this device once. Contact your manager for the Location PIN.</p>
 
         {step === 'location' ? (
           <>
             <label style={labelStyle}>Branch / Location</label>
             {locLoading ? (
-              <p style={{ color: 'var(--sv-text-dim)', fontSize: '.82rem', padding: '.5rem', border: '1px solid var(--sv-etch)', borderRadius: 6 }}>Loading locations…</p>
+              <p style={{ color: 'var(--sv-text-dim)', fontSize: '.82rem', padding: '.5rem', border: '1px solid var(--sv-etch)', borderRadius: 6 }}>Loading locationsâ€¦</p>
             ) : locError ? (
               <div>
                 <p style={{ color: 'var(--sv-red)', fontSize: '.82rem', marginBottom: '.4rem' }}>{locError}</p>
@@ -124,7 +124,7 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
               </div>
             ) : (
               <select value={locationId} onChange={e => { setLocationId(e.target.value); setError(''); }} style={inputStyle}>
-                <option value=''>— select location —</option>
+                <option value=''>â€” select location â€”</option>
                 {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
             )}
@@ -132,7 +132,7 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
             <input type='password' maxLength={20} placeholder='PIN set in IMS Locations (blank if none)' value={pin} onChange={e => setPin(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleVerifyLocation()} style={inputStyle} />
             {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', marginBottom: '1rem' }}>{error}</p>}
             <button onClick={handleVerifyLocation} disabled={loading || !locationId || locLoading} style={primaryBtn}>
-              {loading ? 'Verifying…' : 'Next →'}
+              {loading ? 'Verifyingâ€¦' : 'Next â†’'}
             </button>
           </>
         ) : (
@@ -141,7 +141,7 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
             <label style={labelStyle}>Register / Till</label>
             {registers.length > 0 ? (
               <select value={registerId} onChange={e => { setRegisterId(e.target.value); setError(''); }} style={inputStyle}>
-                <option value=''>— select register —</option>
+                <option value=''>â€” select register â€”</option>
                 {registers.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>
             ) : (
@@ -151,9 +151,9 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
             <input type='password' maxLength={8} placeholder='4-8 digit PIN for supervisor overrides' value={supPin} onChange={e => setSupPin(e.target.value)} style={inputStyle} />
             {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', marginBottom: '1rem' }}>{error}</p>}
             <div style={{ display: 'flex', gap: '.5rem' }}>
-              <button onClick={() => { setStep('location'); setError(''); }} style={{ ...primaryBtn, flex: '0 0 auto', background: 'var(--sv-bg-2)' }}>← Back</button>
+              <button onClick={() => { setStep('location'); setError(''); }} style={{ ...primaryBtn, flex: '0 0 auto', background: 'var(--sv-bg-2)' }}>â† Back</button>
               <button onClick={handleSetup} disabled={loading || !registerId} style={{ ...primaryBtn, flex: 1 }}>
-                {loading ? 'Saving…' : 'Set Up Device'}
+                {loading ? 'Savingâ€¦' : 'Set Up Device'}
               </button>
             </div>
           </>
@@ -163,7 +163,7 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
   );
 }
 
-// ─── Register Gate ─ shown when a stale open session is detected on login ─────
+// â”€â”€â”€ Register Gate â”€ shown when a stale open session is detected on login â”€â”€â”€â”€â”€
 
 function RegisterGate({ session, deviceConfig, staleSession, onContinue, onGoToEod }: {
   session:      PosSession;
@@ -183,7 +183,7 @@ function RegisterGate({ session, deviceConfig, staleSession, onContinue, onGoToE
   return (
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui,sans-serif' }}>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid rgba(251,191,36,.35)', padding: '2rem', borderRadius: 12, width: 400, boxShadow: '0 8px 40px rgba(0,0,0,.4)' }}>
-        <div style={{ fontSize: '2rem', marginBottom: '.5rem', textAlign: 'center' }}>⚠️</div>
+        <div style={{ fontSize: '2rem', marginBottom: '.5rem', textAlign: 'center' }}>âš ï¸</div>
         <h2 style={{ margin: '0 0 .75rem', textAlign: 'center', color: 'var(--sv-text-strong)' }}>Register Left Open</h2>
         <p style={{ color: 'var(--sv-text-main)', marginBottom: '.5rem', textAlign: 'center', lineHeight: 1.5 }}>
           <strong>{deviceConfig.register_name}</strong> was opened on <strong>{openedDate}</strong> at <strong>{openedAt}</strong> and was not closed.
@@ -214,13 +214,13 @@ function RegisterGate({ session, deviceConfig, staleSession, onContinue, onGoToE
         <p style={{ color: 'var(--sv-text-dim)', fontSize: '.78rem', marginTop: '1rem', textAlign: 'center' }}>
           Closing will take you to the End-of-Day screen so you can enter your counts before the session is finalised.
         </p>
-        <p style={{ color: 'var(--sv-text-dim)', fontSize: '.78rem', marginTop: '.5rem', textAlign: 'center' }}>{session.full_name} · {deviceConfig.location_name}</p>
+        <p style={{ color: 'var(--sv-text-dim)', fontSize: '.78rem', marginTop: '.5rem', textAlign: 'center' }}>{session.full_name} Â· {deviceConfig.location_name}</p>
       </div>
     </div>
   );
 }
 
-// ─── Login Screen ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Login Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
   deviceConfig:  DeviceConfig;
@@ -234,7 +234,7 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
   const [pin,          setPin]          = useState('');
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState('');
-  // Admin fallback — email + password
+  // Admin fallback â€” email + password
   const [adminMode,    setAdminMode]    = useState(false);
   const [email,        setEmail]        = useState('');
   const [password,     setPassword]     = useState('');
@@ -316,7 +316,7 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
 
   const header = (
     <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-      <div style={{ fontSize: '2rem', marginBottom: '.25rem' }}>🛒</div>
+      <div style={{ fontSize: '2rem', marginBottom: '.25rem' }}>ðŸ›’</div>
       <h1 style={{ margin: 0, fontSize: '1.4rem', color: 'var(--sv-text-strong)' }}>POS Login</h1>
       <p style={{ margin: '.25rem 0 0', color: 'var(--sv-action)', fontSize: '.95rem', fontWeight: 600 }}>{deviceConfig.location_name}</p>
       {deviceConfig.register_name && <p style={{ margin: '.1rem 0 0', color: 'var(--sv-text-dim)', fontSize: '.82rem' }}>{deviceConfig.register_name}</p>}
@@ -325,7 +325,7 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
 
   const footer = (
     <div style={{ marginTop: '1.5rem', paddingTop: '.75rem', borderTop: '1px solid var(--sv-etch)', textAlign: 'center', fontSize: '.73rem', color: 'var(--sv-text-dim)' }}>
-      Device: {deviceConfig.location_name}{deviceConfig.register_name ? ` — ${deviceConfig.register_name}` : ''}
+      Device: {deviceConfig.location_name}{deviceConfig.register_name ? ` â€” ${deviceConfig.register_name}` : ''}
       <button onClick={onDeviceSetup} style={{ marginLeft: '.5rem', background: 'none', border: 'none', color: 'var(--sv-action)', cursor: 'pointer', fontSize: '.73rem', padding: 0 }}>Change</button>
     </div>
   );
@@ -338,7 +338,7 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
     </div>
   );
 
-  // ── PIN entry ─────────────────────────────────────────────────────────────
+  // â”€â”€ PIN entry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (selected && !adminMode) {
     return wrap(
       <>
@@ -358,17 +358,17 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
               style={inputStyle} placeholder='Enter PIN' />
             {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', margin: '-.5rem 0 .75rem' }}>{error}</p>}
             <button onClick={handlePinLogin} disabled={loading || !pin} style={{ ...primaryBtn, width: '100%' }}>
-              {loading ? 'Signing in…' : 'Sign In'}
+              {loading ? 'Signing inâ€¦' : 'Sign In'}
             </button>
           </>
         )}
-        <button onClick={() => { setSelected(null); setPin(''); setError(''); }} style={{ width: '100%', marginTop: '.75rem', padding: '.6rem', background: 'transparent', border: '1px solid var(--sv-etch)', borderRadius: 8, color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.85rem' }}>← Back</button>
+        <button onClick={() => { setSelected(null); setPin(''); setError(''); }} style={{ width: '100%', marginTop: '.75rem', padding: '.6rem', background: 'transparent', border: '1px solid var(--sv-etch)', borderRadius: 8, color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.85rem' }}>â† Back</button>
         {footer}
       </>
     );
   }
 
-  // ── Admin email+password fallback ─────────────────────────────────────────
+  // â”€â”€ Admin email+password fallback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (adminMode) {
     return wrap(
       <>
@@ -383,21 +383,21 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
           style={inputStyle} placeholder='password' />
         {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', margin: '-.5rem 0 .75rem' }}>{error}</p>}
         <button onClick={handleAdminLogin} disabled={loading} style={{ ...primaryBtn, width: '100%' }}>
-          {loading ? 'Signing in…' : 'Sign In'}
+          {loading ? 'Signing inâ€¦' : 'Sign In'}
         </button>
-        <button onClick={() => { setAdminMode(false); setError(''); }} style={{ width: '100%', marginTop: '.75rem', padding: '.6rem', background: 'transparent', border: '1px solid var(--sv-etch)', borderRadius: 8, color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.85rem' }}>← Back</button>
+        <button onClick={() => { setAdminMode(false); setError(''); }} style={{ width: '100%', marginTop: '.75rem', padding: '.6rem', background: 'transparent', border: '1px solid var(--sv-etch)', borderRadius: 8, color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.85rem' }}>â† Back</button>
         {footer}
       </>
     );
   }
 
-  // ── Staff picker ──────────────────────────────────────────────────────────
+  // â”€â”€ Staff picker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   return wrap(
     <>
       {header}
       <p style={{ margin: '0 0 1rem', fontSize: '.88rem', color: 'var(--sv-text-dim)', textAlign: 'center' }}>Who are you?</p>
       {staffLoading ? (
-        <p style={{ textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: '.85rem' }}>Loading…</p>
+        <p style={{ textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: '.85rem' }}>Loadingâ€¦</p>
       ) : (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center', marginBottom: '1rem' }}>
           {staff.map(u => (
@@ -419,7 +419,7 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
   );
 }
 
-// ─── Main POS Layout ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Main POS Layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type MainScreen = 'pos' | 'eod' | 'reports' | 'parked' | 'receive-transfers';
 
@@ -484,7 +484,7 @@ function MainPos({
   }, [openEodOnMount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // True only when we have confirmed (fetch done) that no register session is open.
-  // undefined = still loading — we don't block yet to avoid flash-of-disabled state.
+  // undefined = still loading â€” we don't block yet to avoid flash-of-disabled state.
   const mustOpenRegister = !!session.register_id && regSession === null;
 
   function refreshQueueCount() { setQueueCount(loadOfflineQueue().length); setFailedCount(loadFailedQueue().length); }
@@ -509,7 +509,7 @@ function MainPos({
       await drainOfflineQueue();
       refreshQueueCount();
       await onSync();
-      setSyncMsg('✓ Synced');
+      setSyncMsg('âœ“ Synced');
     } catch {
       setSyncMsg('Sync failed');
     } finally {
@@ -537,7 +537,7 @@ function MainPos({
   // Keep the product cache fresh (TTL). On a long-lived terminal the initial
   // load may be hours old, so re-pull prices/stock in the background when the
   // tab regains focus or on a periodic check. When offline and the cache is
-  // stale we can't refresh — surface a warning banner instead.
+  // stale we can't refresh â€” surface a warning banner instead.
   const [cacheStale, setCacheStale] = useState(false);
   const onSyncRef = useRef(onSync);
   useEffect(() => { onSyncRef.current = onSync; }, [onSync]);
@@ -547,7 +547,7 @@ function MainPos({
       if (cancelled) return;
       const stale = isProductsCacheStale();
       if (stale && (typeof navigator === 'undefined' || navigator.onLine)) {
-        // Online + stale → refresh silently; onSync re-stamps the cache.
+        // Online + stale â†’ refresh silently; onSync re-stamps the cache.
         try { await onSyncRef.current(); } catch {/* keep stale cache */}
         if (!cancelled) setCacheStale(isProductsCacheStale());
       } else {
@@ -666,7 +666,7 @@ function MainPos({
   }
 
   async function completeSale(payments: PaymentEntry[]) {
-    // Re-entrancy guard — prevents a double-fired handler (double-click / key event)
+    // Re-entrancy guard â€” prevents a double-fired handler (double-click / key event)
     // from creating two sales. Each completeSale generates a fresh local_id, so the
     // DB UNIQUE(local_id) constraint would NOT catch a double-invocation.
     if (submittingRef.current) return;
@@ -724,7 +724,7 @@ function MainPos({
         created_at:    now,
       };
 
-      // lastSale is lifted to PosPage — notify parent instead
+      // lastSale is lifted to PosPage â€” notify parent instead
       onSaleCompleted(completedSale);
       clearCart();
       setShowPayment(false);
@@ -765,8 +765,8 @@ function MainPos({
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', padding: '.6rem 1rem', borderBottom: '1px solid var(--sv-etch)', gap: '.5rem', flexShrink: 0 }}>
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', marginRight: '.25rem' }}>
-          <span style={{ fontWeight: 700, color: 'var(--sv-action)', fontSize: '1rem', letterSpacing: -.2, lineHeight: 1.35 }}>🛒 POS {session.location_name}</span>
-          <span style={{ color: 'var(--sv-text-dim)', fontSize: '.73rem', lineHeight: 1.3 }}>{session.register_name ? `${session.register_name} · ` : ''}{session.full_name}</span>
+          <span style={{ fontWeight: 700, color: 'var(--sv-action)', fontSize: '1rem', letterSpacing: -.2, lineHeight: 1.35 }}>ðŸ›’ POS {session.location_name}</span>
+          <span style={{ color: 'var(--sv-text-dim)', fontSize: '.73rem', lineHeight: 1.3 }}>{session.register_name ? `${session.register_name} Â· ` : ''}{session.full_name}</span>
         </div>
         <div style={{ flex: 1 }} />
         {/* Online / Offline badge */}
@@ -774,13 +774,13 @@ function MainPos({
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: isOnline ? '#4ade80' : '#f87171', flexShrink: 0 }} />
           {isOnline ? 'Online' : 'Offline'}
         </span>
-        {/* Queued sales badge — clickable to inspect entries */}
+        {/* Queued sales badge â€” clickable to inspect entries */}
         {queueCount > 0 && (
           <button
             onClick={() => setQueueInspectOpen(v => !v)}
             title="Click to inspect queued sales"
             style={{ padding: '.15rem .5rem', borderRadius: 99, background: 'rgba(251,191,36,.12)', border: '1px solid rgba(251,191,36,.3)', fontSize: '.73rem', fontWeight: 600, color: '#fbbf24', flexShrink: 0, cursor: 'pointer' }}>
-            ⏳ {queueCount} queued
+            â³ {queueCount} queued
           </button>
         )}
         {/* Queue inspect panel */}
@@ -788,7 +788,7 @@ function MainPos({
           <div style={{ position: 'absolute', top: '3.2rem', left: 0, right: 0, zIndex: 200, background: 'var(--sv-bg-1, #1a1a2e)', border: '1px solid rgba(251,191,36,.35)', borderRadius: 8, padding: '1rem', maxHeight: '70vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,.5)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24' }}>Queued Sales ({queueCount + failedCount} total)</span>
-              <button onClick={() => setQueueInspectOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 16 }}>✕</button>
+              <button onClick={() => setQueueInspectOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 16 }}>âœ•</button>
             </div>
             {[...loadOfflineQueue().map(e => ({ ...e, fromFailed: false })), ...loadFailedQueue().map(e => ({ ...e, fromFailed: true }))].map((entry, i) => {
               const p = entry.payload as any;
@@ -801,7 +801,7 @@ function MainPos({
                       <span style={{ color: 'var(--sv-text-dim)' }}>{new Date(entry.queued_at).toLocaleString('en-AU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
                       {p?.total != null && <span style={{ marginLeft: 10, fontWeight: 600 }}>${Number(p.total).toFixed(2)}</span>}
                       {p?.items?.length > 0 && <span style={{ marginLeft: 8, color: 'var(--sv-text-dim)' }}>{p.items.length} item{p.items.length !== 1 ? 's' : ''}</span>}
-                      {entry.attempts > 0 && <span style={{ marginLeft: 8, color: '#f87171' }}>{entry.attempts} attempt{entry.attempts !== 1 ? 's' : ''}{entry.last_error ? ` — ${entry.last_error}` : ''}</span>}
+                      {entry.attempts > 0 && <span style={{ marginLeft: 8, color: '#f87171' }}>{entry.attempts} attempt{entry.attempts !== 1 ? 's' : ''}{entry.last_error ? ` â€” ${entry.last_error}` : ''}</span>}
                     </div>
                     <button
                       onClick={() => discardQueueEntry(lid, entry.fromFailed)}
@@ -817,28 +817,28 @@ function MainPos({
             {(queueCount + failedCount === 0) && <div style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>No queued entries.</div>}
           </div>
         )}
-        {/* Failed-sync badge — sales that repeatedly failed to sync (never lost) */}
+        {/* Failed-sync badge â€” sales that repeatedly failed to sync (never lost) */}
         {failedCount > 0 && (
           <button
             onClick={retryFailedSales}
             title="These sales repeatedly failed to sync and are saved on this device. Click to retry now."
             style={{ padding: '.15rem .5rem', borderRadius: 99, background: 'rgba(248,113,113,.14)', border: '1px solid rgba(248,113,113,.4)', fontSize: '.73rem', fontWeight: 700, color: '#f87171', flexShrink: 0, cursor: 'pointer' }}
           >
-            ⚠ {failedCount} failed — retry
+            âš  {failedCount} failed â€” retry
           </button>
         )}
         <button
           onClick={handleSync}
           disabled={syncing}
-          style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: syncMsg === '✓ Synced' ? 'var(--sv-green, #4ade80)' : syncMsg ? 'var(--sv-red)' : 'var(--sv-text-strong)', border: `1px solid ${syncMsg === '✓ Synced' ? 'rgba(74,222,128,.35)' : syncMsg ? 'var(--sv-red-border)' : 'rgba(255,255,255,.18)'}`, opacity: syncing ? .7 : 1 }}
+          style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: syncMsg === 'âœ“ Synced' ? 'var(--sv-green, #4ade80)' : syncMsg ? 'var(--sv-red)' : 'var(--sv-text-strong)', border: `1px solid ${syncMsg === 'âœ“ Synced' ? 'rgba(74,222,128,.35)' : syncMsg ? 'var(--sv-red-border)' : 'rgba(255,255,255,.18)'}`, opacity: syncing ? .7 : 1 }}
         >
-          {syncing ? '⟳ Syncing…' : syncMsg ?? '⟳ Sync'}
+          {syncing ? 'âŸ³ Syncingâ€¦' : syncMsg ?? 'âŸ³ Sync'}
         </button>
         <button onClick={() => setIsReturn(!isReturn)} style={{ ...smallBtn, background: isReturn ? 'var(--sv-red-tint)' : 'rgba(255,255,255,.1)', color: isReturn ? 'var(--sv-red)' : 'var(--sv-text-strong)', border: `1px solid ${isReturn ? 'var(--sv-red-border)' : 'rgba(255,255,255,.18)'}` }}>
-          {isReturn ? '↩ Return Mode ON' : 'Return / Refund'}
+          {isReturn ? 'â†© Return Mode ON' : 'Return / Refund'}
         </button>
         <button onClick={() => setIsLayby(!isLayby)} style={{ ...smallBtn, background: isLayby ? 'var(--sv-amber-tint)' : 'rgba(255,255,255,.1)', color: isLayby ? 'var(--sv-amber)' : 'var(--sv-text-strong)', border: `1px solid ${isLayby ? 'var(--sv-amber-border)' : 'rgba(255,255,255,.18)'}` }}>
-          {isLayby ? '📋 Layby ON' : 'Layby'}
+          {isLayby ? 'ðŸ“‹ Layby ON' : 'Layby'}
         </button>
         <button onClick={parkSale} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }} disabled={!cart.length}>Park Sale</button>
         <button onClick={() => setScreen('parked')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>
@@ -849,15 +849,15 @@ function MainPos({
           disabled={!lastSale}
           title={lastSale ? 'Reprint last receipt' : 'No recent sale to reprint'}
           style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: lastSale ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', border: '1px solid rgba(255,255,255,.18)', opacity: lastSale ? 1 : .45 }}
-        >🔁 Reprint</button>
+        >ðŸ” Reprint</button>
         <button onClick={() => setScreen('eod')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>Register</button>
         <button onClick={() => setScreen('reports')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>Reports</button>
-        <button onClick={() => setScreen('receive-transfers')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>📦 Receive Transfers</button>
+        <button onClick={() => setScreen('receive-transfers')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>ðŸ“¦ Receive Transfers</button>
         <button
           onClick={() => setCartLeft(v => { const next = !v; try { localStorage.setItem('pos_cart_left', next ? '1' : '0'); } catch {} return next; })}
-          title={cartLeft ? 'Cart on left — click to move right' : 'Cart on right — click to move left'}
+          title={cartLeft ? 'Cart on left â€” click to move right' : 'Cart on right â€” click to move left'}
           style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-dim)', border: '1px solid rgba(255,255,255,.18)' }}
-        >{cartLeft ? '⬅ Cart' : 'Cart ➡'}</button>
+        >{cartLeft ? 'â¬… Cart' : 'Cart âž¡'}</button>
         <button
           onClick={() => setHelpOpen(true)}
           title="Help"
@@ -868,7 +868,7 @@ function MainPos({
         <button onClick={onLogout} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-red)', border: '1px solid var(--sv-red-border)' }}>Log Out</button>
       </div>
 
-      {/* Stale-cache banner — prices/stock may be out of date and can't be refreshed while offline */}
+      {/* Stale-cache banner â€” prices/stock may be out of date and can't be refreshed while offline */}
       {cacheStale && (
         <div style={{ background: 'rgba(248,113,113,.1)', borderBottom: '1px solid rgba(248,113,113,.25)', padding: '.3rem 1rem', fontSize: '.78rem', color: '#f87171', display: 'flex', alignItems: 'center', gap: '.5rem', flexShrink: 0 }}>
           <span style={{ fontWeight: 700 }}>Product prices may be out of date</span>
@@ -881,18 +881,18 @@ function MainPos({
       {/* Offline-mode banner (loaded from cache, no server contact) */}
       {offlineMode && (
         <div style={{ background: 'rgba(251,191,36,.12)', borderBottom: '1px solid rgba(251,191,36,.25)', padding: '.3rem 1rem', fontSize: '.78rem', color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '.5rem', flexShrink: 0 }}>
-          <span style={{ fontWeight: 700 }}>⚠️ Offline mode</span>
-          <span style={{ color: 'var(--sv-text-dim)' }}>Running from cached data. Sales are queued locally and will sync when connection is restored. Press ⟳ Sync once back online.</span>
+          <span style={{ fontWeight: 700 }}>âš ï¸ Offline mode</span>
+          <span style={{ color: 'var(--sv-text-dim)' }}>Running from cached data. Sales are queued locally and will sync when connection is restored. Press âŸ³Â Sync once back online.</span>
         </div>
       )}
 
       {/* Body */}
       <div style={{ flex: 1, display: 'flex', flexDirection: cartLeft ? 'row-reverse' : 'row', overflow: 'hidden' }}>
-        {/* Product Panel — only render once defaultView is known to avoid flash */}
+        {/* Product Panel â€” only render once defaultView is known to avoid flash */}
         {defaultView !== null ? (
           <ProductPanel products={products} onAdd={addToCart} isReturn={isReturn} defaultView={defaultView} onChargeEnter={() => { if (cart.length && !showPayment && !mustOpenRegister) setShowPayment(true); }} />
         ) : (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontSize: '.9rem' }}>Loading products…</div>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontSize: '.9rem' }}>Loading productsâ€¦</div>
         )}
 
         {/* Cart Panel */}
@@ -939,9 +939,9 @@ function MainPos({
                   onClick={() => setScreen('eod')}
                   style={{ background: 'none', border: 'none', color: '#fb923c', textDecoration: 'underline', cursor: 'pointer', padding: 0, fontSize: 'inherit', fontWeight: 700 }}
                 >
-                  End of Day
+                  Register â†’ Open Register
                 </button>
-                {' '}and open the register before taking sales.
+                {' '}before taking sales.
               </div>
             )}
             <div style={{ display: 'flex', gap: '.5rem', marginTop: '.75rem', flexDirection: 'column' }}>
@@ -973,7 +973,7 @@ function MainPos({
   );
 }
 
-// ─── Recent product helpers ───────────────────────────────────────────────────
+// â”€â”€â”€ Recent product helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function loadRecentIds(): string[] {
   try { return JSON.parse(localStorage.getItem('pos_recent_vids') ?? '[]'); } catch { return []; }
@@ -982,7 +982,7 @@ function saveRecentIds(ids: string[]): void {
   try { localStorage.setItem('pos_recent_vids', JSON.stringify(ids)); } catch {}
 }
 
-// ─── POS Stock Modal ──────────────────────────────────────────────────────────
+// â”€â”€â”€ POS Stock Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function PosStockModal({ variantId, productName, onClose }: { variantId: string; productName: string; onClose: () => void }) {
   const [rows, setRows]       = useState<{ location_name: string; qty_on_hand: number }[]>([]);
@@ -1013,9 +1013,9 @@ function PosStockModal({ variantId, productName, onClose }: { variantId: string;
             <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8, marginBottom: 2 }}>Stock by Location</div>
             <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--sv-text-strong)', lineHeight: 1.3 }}>{productName}</div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 22, lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 22, lineHeight: 1, padding: 0, flexShrink: 0 }}>Ã—</button>
         </div>
-        {loading && <div style={{ textAlign: 'center', color: 'var(--sv-text-dim)', padding: '1.5rem 0' }}>Loading…</div>}
+        {loading && <div style={{ textAlign: 'center', color: 'var(--sv-text-dim)', padding: '1.5rem 0' }}>Loadingâ€¦</div>}
         {error  && <div style={{ color: 'var(--sv-red)', fontSize: '.85rem' }}>{error}</div>}
         {!loading && !error && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px,1fr))', gap: 8 }}>
@@ -1039,7 +1039,7 @@ function PosStockModal({ variantId, productName, onClose }: { variantId: string;
   );
 }
 
-// ─── Product Panel ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Product Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 'all' }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; isReturn: boolean; onChargeEnter?: () => void; defaultView?: string }) {
   const [search, setSearch]             = useState('');
@@ -1124,7 +1124,7 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
   }, [sortedProducts, brand, search]);
 
   // Main grid products: browse = smart-sorted full list; search = filtered
-  // Uses deferredSearch/deferredMode so the grid update is low-priority — keystrokes stay instant
+  // Uses deferredSearch/deferredMode so the grid update is low-priority â€” keystrokes stay instant
   const filtered = useMemo(() => {
     let list = inStockOnly ? sortedProducts.filter(p => p.soh > 0) : sortedProducts;
     if (brand) list = list.filter(p => p.brand === brand);
@@ -1166,7 +1166,7 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
           setDropdownOpen(false);
           setHighlightIdx(-1);
         } else {
-          // Empty search + Enter → open payment / charge
+          // Empty search + Enter â†’ open payment / charge
           onChargeEnter?.();
         }
       } else if (e.key === 'ArrowDown') {
@@ -1209,7 +1209,7 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
             }}
             onFocus={() => { if (search.length >= 2) setDropdownOpen(true); }}
             onBlur={() => { blurTimer.current = setTimeout(() => setDropdownOpen(false), 150); }}
-            placeholder='Search by name, brand or scan barcode…'
+            placeholder='Search by name, brand or scan barcodeâ€¦'
             style={{ ...inputStyle, width: '100%', marginBottom: 0, background: 'var(--sv-bg-0)', border: '1px solid var(--sv-text-dim)' }}
           />
           {/* Autocomplete dropdown */}
@@ -1224,12 +1224,12 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '.85rem', fontWeight: 600, color: 'var(--sv-text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-                    <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[p.brand, p.code].filter(Boolean).join(' · ')}</div>
+                    <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[p.brand, p.code].filter(Boolean).join(' Â· ')}</div>
                   </div>
                   <span style={{ fontWeight: 700, color: 'var(--sv-action)', fontSize: '.85rem', flexShrink: 0 }}>${fmt(p.price)}</span>
-                  <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '2px 6px', borderRadius: 5, background: p.soh > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: p.soh > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', flexShrink: 0, border: 'none', cursor: 'pointer', fontWeight: 700 }} title="Stock at this store — click for breakdown">{p.soh > 0 ? p.soh : 'OOS'}</button>
+                  <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '2px 6px', borderRadius: 5, background: p.soh > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: p.soh > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', flexShrink: 0, border: 'none', cursor: 'pointer', fontWeight: 700 }} title="Stock at this store â€” click for breakdown">{p.soh > 0 ? p.soh : 'OOS'}</button>
                   {p.soh_all !== undefined && p.soh_all !== p.soh && (
-                    <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '2px 5px', borderRadius: 5, background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', flexShrink: 0, border: '1px solid var(--sv-etch)', cursor: 'pointer' }} title="Total across all locations — click for breakdown">all:{p.soh_all}</button>
+                    <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '2px 5px', borderRadius: 5, background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', flexShrink: 0, border: '1px solid var(--sv-etch)', cursor: 'pointer' }} title="Total across all locations â€” click for breakdown">all:{p.soh_all}</button>
                   )}
                 </div>
               ))}
@@ -1239,7 +1239,7 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
         {/* In-stock only toggle */}
         <button
           onClick={() => setInStockOnly(v => !v)}
-          title={inStockOnly ? 'Showing in-stock only — click to show all' : 'Show in-stock only'}
+          title={inStockOnly ? 'Showing in-stock only â€” click to show all' : 'Show in-stock only'}
           style={{ flexShrink: 0, padding: '5px 9px', borderRadius: 6, border: `1px solid ${inStockOnly ? 'var(--sv-mint)' : 'var(--sv-etch)'}`, background: inStockOnly ? 'var(--sv-mint-tint)' : 'transparent', color: inStockOnly ? 'var(--sv-mint)' : 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 12, fontWeight: 600, lineHeight: 1, whiteSpace: 'nowrap' }}
         >In Stock</button>
         {/* Search button: commits to full grid results mode */}
@@ -1248,18 +1248,18 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
           disabled={!search.trim()}
           title="Show all matching products"
           style={{ flexShrink: 0, padding: '6px 11px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: search.trim() ? 'var(--sv-bg-2)' : 'transparent', color: search.trim() ? 'var(--sv-action)' : 'var(--sv-text-muted)', cursor: search.trim() ? 'pointer' : 'default', fontSize: 15, lineHeight: 1 }}
-        >🔍</button>
+        >ðŸ”</button>
       </div>
 
       {/* Search results banner */}
       {mode === 'search' && (
         <div style={{ padding: '4px 12px 6px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <span style={{ fontSize: 12, color: 'var(--sv-action)' }}>🔍 Results for <strong>"{search}"</strong> — {filtered.length} product{filtered.length !== 1 ? 's' : ''}</span>
+          <span style={{ fontSize: 12, color: 'var(--sv-action)' }}>ðŸ” Results for <strong>"{search}"</strong> â€” {filtered.length} product{filtered.length !== 1 ? 's' : ''}</span>
           <div style={{ flex: 1 }} />
           <button
             onClick={() => { setMode('browse'); setSearch(''); setDropdownOpen(false); inputRef.current?.focus(); }}
             style={{ fontSize: 12, padding: '2px 10px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer' }}
-          >× Clear</button>
+          >Ã— Clear</button>
         </div>
       )}
 
@@ -1285,16 +1285,16 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
               onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--sv-action)')}
               onMouseLeave={e => (e.currentTarget.style.borderColor = isRecent ? 'rgba(37,99,235,.35)' : 'var(--sv-etch)')}
             >
-              <div style={{ fontSize: '.75rem', color: 'var(--sv-text-dim)', marginBottom: '.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.brand ?? p.code ?? '—'}</div>
+              <div style={{ fontSize: '.75rem', color: 'var(--sv-text-dim)', marginBottom: '.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.brand ?? p.code ?? 'â€”'}</div>
               <div style={{ fontSize: '.9rem', fontWeight: 700, lineHeight: 1.3, color: 'var(--sv-text-strong)', maxHeight: '2.6em', overflow: 'hidden', marginBottom: '.4rem' }}>{p.name}</div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontWeight: 800, color: 'var(--sv-action)', fontSize: '1rem' }}>${fmt(p.price)}</span>
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                  <button onClick={e => { e.stopPropagation(); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.75rem', padding: '.15rem .5rem', borderRadius: 5, background: p.soh > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: p.soh > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 700, border: 'none', cursor: 'pointer' }} title="Stock at this store — click for breakdown">
+                  <button onClick={e => { e.stopPropagation(); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.75rem', padding: '.15rem .5rem', borderRadius: 5, background: p.soh > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: p.soh > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 700, border: 'none', cursor: 'pointer' }} title="Stock at this store â€” click for breakdown">
                     {p.soh > 0 ? p.soh : 'OOS'}
                   </button>
                   {p.soh_all !== undefined && p.soh_all !== p.soh && (
-                    <button onClick={e => { e.stopPropagation(); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '.1rem .4rem', borderRadius: 5, background: 'var(--sv-bg-0)', color: 'var(--sv-text-dim)', border: '1px solid var(--sv-etch)', cursor: 'pointer' }} title="Total across all locations — click for breakdown">all:{p.soh_all}</button>
+                    <button onClick={e => { e.stopPropagation(); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '.1rem .4rem', borderRadius: 5, background: 'var(--sv-bg-0)', color: 'var(--sv-text-dim)', border: '1px solid var(--sv-etch)', cursor: 'pointer' }} title="Total across all locations â€” click for breakdown">all:{p.soh_all}</button>
                   )}
                 </div>
               </div>
@@ -1318,7 +1318,7 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
   );
 }
 
-// ─── Cart Row ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Cart Row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function CartRow({ item, onQty, onRemove, onDiscount, onPrice }: {
   item: CartItem;
@@ -1340,11 +1340,11 @@ function CartRow({ item, onQty, onRemove, onDiscount, onPrice }: {
           <div style={{ fontWeight: 600, color: 'var(--sv-text-strong)' }}>{item.name}</div>
           {item.code && <div style={{ color: 'var(--sv-text-dim)', fontSize: '.75rem' }}>{item.code}</div>}
         </div>
-        <button onClick={onRemove} style={{ background: 'transparent', border: 'none', color: 'var(--sv-red)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: '0 .25rem' }}>×</button>
+        <button onClick={onRemove} style={{ background: 'transparent', border: 'none', color: 'var(--sv-red)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: '0 .25rem' }}>Ã—</button>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginTop: '.3rem' }}>
         {/* Qty controls */}
-        <button onClick={() => onQty(-1)} style={qtyBtn}>−</button>
+        <button onClick={() => onQty(-1)} style={qtyBtn}>âˆ’</button>
         <span style={{ minWidth: 24, textAlign: 'center', fontSize: '.9rem', fontWeight: 600 }}>{item.qty}</span>
         <button onClick={() => onQty(1)} style={qtyBtn}>+</button>
 
@@ -1388,7 +1388,7 @@ function CartRow({ item, onQty, onRemove, onDiscount, onPrice }: {
         ) : (
           <button onClick={() => setEditDisc(true)} style={{ background: item.discount_amount > 0 ? 'rgba(251,191,36,.15)' : 'transparent', border: item.discount_amount > 0 ? '1px solid rgba(251,191,36,.4)' : '1px solid transparent', borderRadius: 4, color: item.discount_amount > 0 ? 'var(--sv-amber)' : 'var(--sv-text-muted)', cursor: 'pointer', fontSize: '.75rem', padding: '.15rem .35rem', fontWeight: item.discount_amount > 0 ? 600 : 400, lineHeight: 1.2, whiteSpace: 'nowrap' }}>
             {item.discount_amount > 0
-              ? `${item.discount_type === 'percent' ? `${item.discount_value}%` : `$${fmt(item.discount_value)} off`} · −$${fmt(item.discount_amount)}`
+              ? `${item.discount_type === 'percent' ? `${item.discount_value}%` : `$${fmt(item.discount_value)} off`} Â· âˆ’$${fmt(item.discount_amount)}`
               : '+ Disc.'}
           </button>
         )}
@@ -1399,7 +1399,7 @@ function CartRow({ item, onQty, onRemove, onDiscount, onPrice }: {
   );
 }
 
-// ─── Total Row ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Total Row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function TotalRow({ label, value, large, muted, color }: { label: string; value: number; large?: boolean; muted?: boolean; color?: string }) {
   return (
@@ -1410,7 +1410,7 @@ function TotalRow({ label, value, large, muted, color }: { label: string; value:
   );
 }
 
-// ─── Payment Modal ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Payment Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
   total:      number;
@@ -1428,7 +1428,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
   const changeDueOkRef  = useRef<HTMLButtonElement>(null);
 
   const paid      = payments.reduce((s, p) => s + p.amount, 0);
-  const remaining = total - paid;
+  const remaining = Math.round((total - paid) * 100) / 100;
   const change    = Math.max(0, paid - total);
 
   useEffect(() => { amountRef.current?.focus(); }, [activeMethod]);
@@ -1460,7 +1460,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      {/* Change Due overlay — shown on top of payment modal */}
+      {/* Change Due overlay â€” shown on top of payment modal */}
       {changeDue && (
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: 12 }}>
           <div style={{ background: '#1a0000', border: '3px solid #ef4444', borderRadius: 16, padding: '2.5rem 3rem', textAlign: 'center', boxShadow: '0 0 60px rgba(239,68,68,.5)', maxWidth: 360, width: '90vw' }}>
@@ -1471,7 +1471,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
               onClick={() => { setChangeDue(null); onComplete(changeDue.pendingPayments); }}
               style={{ width: '100%', padding: '1rem', background: '#ef4444', border: 'none', borderRadius: 10, color: '#fff', fontSize: '1.2rem', fontWeight: 800, cursor: 'pointer', letterSpacing: .5 }}
             >
-              OK — Change Given ✓
+              OK â€” Change Given âœ“
             </button>
           </div>
         </div>
@@ -1529,7 +1529,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
                 <span style={{ color: 'var(--sv-text-main)' }}>{p.method} {p.reference && <span style={{ color: 'var(--sv-text-dim)', fontSize: '.8rem' }}>({p.reference})</span>}</span>
                 <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
                   <span style={{ color: 'var(--sv-action)', fontWeight: 600 }}>${fmt(p.amount)}</span>
-                  <button onClick={() => removePayment(p.localId)} style={{ background: 'transparent', border: 'none', color: 'var(--sv-red)', cursor: 'pointer' }}>×</button>
+                  <button onClick={() => removePayment(p.localId)} style={{ background: 'transparent', border: 'none', color: 'var(--sv-red)', cursor: 'pointer' }}>Ã—</button>
                 </div>
               </div>
             ))}
@@ -1561,7 +1561,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
             disabled={remaining > 0.001}
             style={{ flex: 2, padding: '.75rem', background: remaining <= 0.001 ? 'var(--sv-mint)' : 'var(--sv-bg-2)', border: 'none', borderRadius: 8, color: remaining <= 0.001 ? '#fff' : 'var(--sv-text-muted)', cursor: remaining <= 0.001 ? 'pointer' : 'not-allowed', fontWeight: 700, fontSize: '1rem' }}
           >
-            {isLayby ? `Save Layby` : `Complete Sale`} ✓
+            {isLayby ? `Save Layby` : `Complete Sale`} âœ“
           </button>
         </div>
       </div>
@@ -1569,7 +1569,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
   );
 }
 
-// ─── Parked Sales Screen ──────────────────────────────────────────────────────
+// â”€â”€â”€ Parked Sales Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ParkedScreen({ sales, onRetrieve, onDelete, onBack }: {
   sales:      ParkedSale[];
@@ -1581,7 +1581,7 @@ function ParkedScreen({ sales, onRetrieve, onDelete, onBack }: {
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', padding: '1.5rem', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)' }}>
       <div style={{ maxWidth: 700, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-          <button onClick={onBack} style={smallBtn}>← Back to POS</button>
+          <button onClick={onBack} style={smallBtn}>â† Back to POS</button>
           <h1 style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: '1.3rem' }}>Parked Sales</h1>
         </div>
         {sales.length === 0 && <p style={{ color: 'var(--sv-text-muted)' }}>No parked sales.</p>}
@@ -1590,7 +1590,7 @@ function ParkedScreen({ sales, onRetrieve, onDelete, onBack }: {
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 600, color: 'var(--sv-text-strong)' }}>{s.label}</div>
               {s.customer_name && <div style={{ fontSize: '.85rem', color: 'var(--sv-text-dim)' }}>{s.customer_name}</div>}
-              <div style={{ fontSize: '.8rem', color: 'var(--sv-text-muted)' }}>{new Date(s.created_at).toLocaleString()} — {s.items.length} item(s)</div>
+              <div style={{ fontSize: '.8rem', color: 'var(--sv-text-muted)' }}>{new Date(s.created_at).toLocaleString()} â€” {s.items.length} item(s)</div>
             </div>
             <span style={{ fontWeight: 700, color: 'var(--sv-action)', fontSize: '1.1rem' }}>${fmt(s.total)}</span>
             <button onClick={() => onRetrieve(s)} style={{ ...primaryBtn, padding: '.4rem .9rem' }}>Retrieve</button>
@@ -1602,7 +1602,7 @@ function ParkedScreen({ sales, onRetrieve, onDelete, onBack }: {
   );
 }
 
-// ─── Receipt Screen ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Receipt Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface ReceiptPrintSettings {
   business_name: string;
@@ -1662,7 +1662,7 @@ function ReceiptScreen({ sale, onClose, printSettings }: { sale: CompletedSale; 
               <div style={{ fontSize: '.8rem', color: '#555' }}>Served by: {sale.cashier_name}</div>
               {sale.customer_name && <div style={{ fontSize: '.85rem', fontWeight: 600, marginTop: '.25rem' }}>{sale.customer_name}</div>}
               <div style={{ borderTop: '1px dashed #ccc', marginTop: '.5rem', paddingTop: '.5rem', fontSize: '.75rem', color: '#888' }}>
-                {sale.id ? `#${sale.id}` : `local:${sale.local_id.slice(-8)}`} — {sale.sale_type.toUpperCase()}
+                {sale.id ? `#${sale.id}` : `local:${sale.local_id.slice(-8)}`} â€” {sale.sale_type.toUpperCase()}
               </div>
             </div>
             {/* Items */}
@@ -1711,7 +1711,7 @@ function ReceiptScreen({ sale, onClose, printSettings }: { sale: CompletedSale; 
             </div>
           </div>
           <div className='no-print' style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
-            <button onClick={handlePrint} style={{ ...primaryBtn, padding: '.6rem 1.5rem' }}>🖨 Print Receipt</button>
+            <button onClick={handlePrint} style={{ ...primaryBtn, padding: '.6rem 1.5rem' }}>ðŸ–¨ Print Receipt</button>
           </div>
         </div>
 
@@ -1724,16 +1724,16 @@ function ReceiptScreen({ sale, onClose, printSettings }: { sale: CompletedSale; 
               {(printSettings?.business_address || sale.location_name) && (
                 <div style={{ fontSize: '.8rem', color: '#555' }}>{printSettings?.business_address || sale.location_name}</div>
               )}
-              <div style={{ marginTop: '.5rem', fontSize: '.95rem', fontWeight: 700 }}>🎁 Gift Receipt</div>
+              <div style={{ marginTop: '.5rem', fontSize: '.95rem', fontWeight: 700 }}>ðŸŽ Gift Receipt</div>
               <div style={{ fontSize: '.8rem', color: '#555' }}>
                 {new Date(sale.created_at).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' })}
               </div>
             </div>
-            {/* Items — no prices */}
+            {/* Items â€” no prices */}
             <div style={{ fontSize: '.85rem', borderTop: '1px dashed #ccc', paddingTop: '.75rem', marginBottom: '.75rem' }}>
               {sale.items.map(i => (
                 <div key={i.localId} style={{ marginBottom: '.35rem' }}>
-                  {Math.abs(i.qty)}× {i.name}
+                  {Math.abs(i.qty)}Ã— {i.name}
                 </div>
               ))}
             </div>
@@ -1742,7 +1742,7 @@ function ReceiptScreen({ sale, onClose, printSettings }: { sale: CompletedSale; 
             </div>
           </div>
           <div className='no-print' style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
-            <button onClick={handleGiftPrint} style={{ ...smallBtn, padding: '.6rem 1.5rem' }}>🎁 Print Gift Receipt</button>
+            <button onClick={handleGiftPrint} style={{ ...smallBtn, padding: '.6rem 1.5rem' }}>ðŸŽ Print Gift Receipt</button>
           </div>
         </div>
       </div>
@@ -1754,15 +1754,15 @@ function ReceiptScreen({ sale, onClose, printSettings }: { sale: CompletedSale; 
   );
 }
 
-// ─── EOD Screen ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ EOD Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const AUD_DENOMS = [
   { label: '$100', value: 100 }, { label: '$50', value: 50 },
   { label: '$20', value: 20 },  { label: '$10', value: 10 },
   { label: '$5', value: 5 },    { label: '$2', value: 2 },
-  { label: '$1', value: 1 },    { label: '50¢', value: 0.5 },
-  { label: '20¢', value: 0.2 }, { label: '10¢', value: 0.1 },
-  { label: '5¢', value: 0.05 },
+  { label: '$1', value: 1 },    { label: '50Â¢', value: 0.5 },
+  { label: '20Â¢', value: 0.2 }, { label: '10Â¢', value: 0.1 },
+  { label: '5Â¢', value: 0.05 },
 ];
 
 type EodEntryState = { counted: string; openingFloat: string; denominations: Record<string, string>; notes: string; showDenom: boolean };
@@ -1782,7 +1782,7 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
   const [loading, setLoading]             = useState(false);
   const [saved, setSaved]                 = useState(false);
   const [methods, setMethods]             = useState<string[]>([]);
-  const [xeroInvoiceIds, setXeroInvoiceIds] = useState<Record<string, { id: string; number: string }>>({});
+  const [xeroInvoiceIds, setXeroInvoiceIds] = useState<Record<string, { id: string; number: string; syncedAt?: string }>>({});
   const [regSession, setRegSession]       = useState<any>(null);
   const [regSessionLoading, setRegSessionLoading] = useState(!!session.register_id);
   const [dayTotals, setDayTotals]         = useState<{ total_inc_tax: number; tax_total: number; total_exc_tax: number; sale_count: number } | null>(null);
@@ -1806,6 +1806,7 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
 
   useEffect(() => {
     if (!methods.length) return;
+    if (regSessionLoading) return; // wait until session state is definitively known
     setLoading(true);
     const sessionParam = regSession?.id ? `&register_session_id=${regSession.id}` : '';
     fetch(`/api/pos/eod?location_id=${session.location_id}&date=${date}${sessionParam}`)
@@ -1827,14 +1828,14 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
         }
         setEntries(init);
         // Restore xero sync state from DB
-        const ids: Record<string, { id: string; number: string }> = {};
+        const ids: Record<string, { id: string; number: string; syncedAt?: string }> = {};
         for (const rec of d.reconciliations ?? []) {
-          if (rec.xero_invoice_id) ids[rec.payment_method] = { id: rec.xero_invoice_id, number: '' };
+          if (rec.xero_invoice_id) ids[rec.payment_method] = { id: rec.xero_invoice_id, number: '', syncedAt: rec.xero_synced_at ?? undefined };
         }
         setXeroInvoiceIds(ids);
       })
       .finally(() => setLoading(false));
-  }, [date, methods, session.location_id, regSession?.id]);
+  }, [date, methods, session.location_id, regSession?.id, regSessionLoading]);
 
   function updateEntry(method: string, key: keyof EodEntryState, value: string | boolean | Record<string, string>) {
     setEntries(prev => {
@@ -1943,9 +1944,9 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', padding: '1.5rem', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)' }}>
       <div style={{ maxWidth: 860, margin: '0 auto' }}>
 
-        {/* ── Header ── */}
+        {/* â”€â”€ Header â”€â”€ */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-          <button onClick={onBack} style={smallBtn}>← Back to POS</button>
+          <button onClick={onBack} style={smallBtn}>â† Back to POS</button>
           <h1 style={{ margin: 0, color: 'var(--sv-text-strong)', flex: 1, fontSize: '1.3rem' }}>
             {mode === 'open' ? 'Open Register' : 'End of Day Reconciliation'}
           </h1>
@@ -1959,15 +1960,15 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
           )}
         </div>
 
-        {loading && <p style={{ color: 'var(--sv-text-dim)' }}>Loading…</p>}
+        {loading && <p style={{ color: 'var(--sv-text-dim)' }}>Loadingâ€¦</p>}
 
-        {/* ── OPEN REGISTER ── */}
+        {/* â”€â”€ OPEN REGISTER â”€â”€ */}
         {mode === 'open' && !loading && (
           <div>
             {regSessionLoading ? (
-              <p style={{ color: 'var(--sv-text-dim)' }}>Checking register status…</p>
+              <p style={{ color: 'var(--sv-text-dim)' }}>Checking register statusâ€¦</p>
             ) : regSession?.status === 'open' ? (
-              /* ── Register is already open ── */
+              /* â”€â”€ Register is already open â”€â”€ */
               <div style={{ background: 'rgba(99,179,117,.08)', border: '1px solid var(--sv-mint)', borderRadius: 10, padding: '1.5rem', maxWidth: 500 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '1rem' }}>
                   <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--sv-mint)', display: 'inline-block', boxShadow: '0 0 6px var(--sv-mint)' }} />
@@ -1982,11 +1983,11 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
                   To close this register and record end-of-day totals, use the <strong>End of Day</strong> tab.
                 </p>
                 <button onClick={() => setMode('eod')} style={{ ...primaryBtn, padding: '.5rem 1.25rem' }}>
-                  Go to End of Day →
+                  Go to End of Day â†’
                 </button>
               </div>
             ) : (
-              /* ── Register is closed — show open form ── */
+              /* â”€â”€ Register is closed â€” show open form â”€â”€ */
               <>
                 {regSession?.status === 'closed' && (
                   <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '.75rem 1rem', marginBottom: '1.25rem', fontSize: '.82rem', color: 'var(--sv-text-dim)' }}>
@@ -2020,7 +2021,7 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
                       return (
                         <label key={d.value} style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
                           <span style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', fontWeight: 600 }}>
-                            {d.label}{count > 0 ? ` · $${fmt(count * d.value)}` : ''}
+                            {d.label}{count > 0 ? ` Â· $${fmt(count * d.value)}` : ''}
                           </span>
                           <input
                             type='number' min='0' step='1'
@@ -2036,16 +2037,16 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
 
                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                   <button onClick={saveOpenRegister} disabled={loading} style={{ ...primaryBtn, padding: '.65rem 2rem' }}>
-                    {loading ? 'Saving…' : 'Open Register'}
+                    {loading ? 'Savingâ€¦' : 'Open Register'}
                   </button>
-                  {saved && <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>✓ Register opened — float recorded</span>}
+                  {saved && <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>âœ“ Register opened â€” float recorded</span>}
                 </div>
               </>
             )}
           </div>
         )}
 
-        {/* ── END OF DAY ── */}
+        {/* â”€â”€ END OF DAY â”€â”€ */}
         {mode === 'eod' && !loading && (
           <div>
             <div style={{ overflowX: 'auto' }}>
@@ -2086,7 +2087,7 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
                               <input type='number' value={e.openingFloat} onChange={ev => updateEntry(m, 'openingFloat', ev.target.value)}
                                 placeholder={String(defaultFloat)} style={{ ...inputStyle, width: 80, marginBottom: 0, padding: '.25rem .4rem', fontSize: '.85rem' }} />
                             ) : (
-                              <span style={{ color: 'var(--sv-text-muted)' }}>—</span>
+                              <span style={{ color: 'var(--sv-text-muted)' }}>â€”</span>
                             )}
                           </td>
                           <td style={tdStyle}>
@@ -2094,7 +2095,7 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
                               placeholder='0.00' style={{ ...inputStyle, width: 90, marginBottom: 0, padding: '.25rem .4rem', fontSize: '.85rem' }} />
                           </td>
                           <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--sv-text-strong)' }}>
-                            {cashSales !== null ? `$${fmt(cashSales)}` : <span style={{ color: 'var(--sv-text-muted)' }}>—</span>}
+                            {cashSales !== null ? `$${fmt(cashSales)}` : <span style={{ color: 'var(--sv-text-muted)' }}>â€”</span>}
                           </td>
                           <td style={{ ...tdStyle, color: variance >= 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 600 }}>
                             {variance >= 0 ? '+' : ''}{fmt(variance)}
@@ -2135,9 +2136,9 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
 
             <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
               <button onClick={saveEod} disabled={loading} style={{ ...primaryBtn, padding: '.65rem 2rem' }}>
-                {loading ? 'Saving…' : 'Save EOD Reconciliation'}
+                {loading ? 'Savingâ€¦' : 'Save EOD Reconciliation'}
               </button>
-              {saved && <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>✓ Saved</span>}
+              {saved && <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>âœ“ Saved</span>}
             </div>
 
             <EodAccountingSection
@@ -2147,7 +2148,8 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
               dayTotals={dayTotals}
               onSynced={results => setXeroInvoiceIds(prev => {
                 const next = { ...prev };
-                for (const r of results) next[r.method] = { id: r.xeroId, number: r.invoiceNumber };
+                const now = new Date().toISOString();
+                for (const r of results) next[r.method] = { id: r.xeroId, number: r.invoiceNumber, syncedAt: now };
                 return next;
               })}
             />
@@ -2159,7 +2161,7 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
   );
 }
 
-// ─── EOD Accounting Section ───────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ EOD Accounting Section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function EodAccountingSection({
   session, methods, expected, entries, defaultFloat, date, xeroInvoiceIds, dayTotals, onSynced,
@@ -2170,7 +2172,7 @@ function EodAccountingSection({
   entries:        Record<string, EodEntryState>;
   defaultFloat:   number;
   date:           string;
-  xeroInvoiceIds: Record<string, { id: string; number: string }>;
+  xeroInvoiceIds: Record<string, { id: string; number: string; syncedAt?: string }>;
   dayTotals:      { total_inc_tax: number; tax_total: number; total_exc_tax: number; sale_count: number } | null;
   onSynced:       (results: { method: string; xeroId: string; invoiceNumber: string }[]) => void;
 }) {
@@ -2191,7 +2193,7 @@ function EodAccountingSection({
     const exp       = expected[m] ?? 0;
     const variance  = salesAmt - exp;
     const synced    = xeroInvoiceIds[m] ?? null;
-    // Prices are stored tax-inclusive — extract GST from the inclusive amount
+    // Prices are stored tax-inclusive â€” extract GST from the inclusive amount
     const taxExc    = salesAmt / (1 + effectiveTaxRate);
     const gst       = salesAmt - taxExc;
     const taxInc    = salesAmt;
@@ -2228,11 +2230,11 @@ function EodAccountingSection({
     <div style={{ marginTop: '1.5rem', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
       <div onClick={() => setOpen(o => !o)}
         style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', cursor: 'pointer', background: 'var(--sv-bg-2)', userSelect: 'none' }}>
-        <span style={{ fontSize: '.88rem', fontWeight: 700, color: 'var(--sv-text-strong)' }}>🧮 Accounting</span>
+        <span style={{ fontSize: '.88rem', fontWeight: 700, color: 'var(--sv-text-strong)' }}>ðŸ§® Accounting</span>
         <div style={{ flex: 1 }} />
-        {allSynced && <span style={{ fontSize: '.75rem', color: 'var(--sv-mint)', fontWeight: 600 }}>✓ Synced to Xero</span>}
-        {anySynced && !allSynced && <span style={{ fontSize: '.75rem', color: 'var(--sv-amber)', fontWeight: 600 }}>⚠ Partially synced</span>}
-        <span style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>{open ? '▲' : '▼'}</span>
+        {allSynced && <span style={{ fontSize: '.75rem', color: 'var(--sv-mint)', fontWeight: 600 }}>âœ“ Synced to Xero</span>}
+        {anySynced && !allSynced && <span style={{ fontSize: '.75rem', color: 'var(--sv-amber)', fontWeight: 600 }}>âš  Partially synced</span>}
+        <span style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>{open ? 'â–²' : 'â–¼'}</span>
       </div>
 
       {open && (
@@ -2243,7 +2245,7 @@ function EodAccountingSection({
                 <th style={thA}>Method</th>
                 <th style={{ ...thA, textAlign: 'right' }}>Ex-Tax</th>
                 <th style={{ ...thA, textAlign: 'right' }}>GST</th>
-                <th style={{ ...thA, textAlign: 'right' }}>Total (inc) → Xero</th>
+                <th style={{ ...thA, textAlign: 'right' }}>Total (inc) â†’ Xero</th>
                 <th style={{ ...thA, textAlign: 'right' }}>Expected</th>
                 <th style={{ ...thA, textAlign: 'right' }}>Variance</th>
                 <th style={thA}>Xero</th>
@@ -2265,10 +2267,10 @@ function EodAccountingSection({
                       <a href={`https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${r.synced.id}`}
                         target='_blank' rel='noopener noreferrer'
                         style={{ color: 'var(--sv-mint)', fontSize: '.8rem', textDecoration: 'none', fontWeight: 600 }}>
-                        ✓ {r.synced.number || 'View'} ↗
+                        âœ“ {r.synced.number || 'View'} â†—
                       </a>
                     ) : (
-                      <span style={{ color: 'var(--sv-text-muted)', fontSize: '.78rem' }}>—</span>
+                      <span style={{ color: 'var(--sv-text-muted)', fontSize: '.78rem' }}>â€”</span>
                     )}
                   </td>
                 </tr>
@@ -2291,18 +2293,61 @@ function EodAccountingSection({
 
           <div style={{ fontSize: '.75rem', color: 'var(--sv-text-dim)', marginBottom: '1rem', lineHeight: 1.7 }}>
             <strong>What is sent to Xero:</strong> One ACCREC invoice (AUTHORISED) per payment method
-            &nbsp;· Contact: <em>POS Reconciliation (Summary)</em>
-            &nbsp;· Reference: EOD-L{session.location_id}-{date}-{'{Method}'}<br />
-            Amount sent = Tax-Inc Total (Inclusive tax treatment) — Xero extracts the GST automatically<br />
-            Cash Sales = Counted − Opening Float &nbsp;· Other methods = Counted amount
-            &nbsp;· Auto-synced on EOD save when admin session is active
+            &nbsp;Â· Contact: <em>POS Reconciliation (Summary)</em>
+            &nbsp;Â· Reference: EOD-L{session.location_id}-{date}-{'{Method}'}<br />
+            Amount sent = Tax-Inc Total (Inclusive tax treatment) â€” Xero extracts the GST automatically<br />
+            Cash Sales = Counted âˆ’ Opening Float &nbsp;Â· Other methods = Counted amount
+            &nbsp;Â· Auto-synced on EOD save when admin session is active
+          </div>
+
+          {/* â”€â”€ Xero Entries panel â”€â”€ */}
+          <div style={{ marginBottom: '1rem' }}>
+            <div style={{ fontWeight: 700, fontSize: '.8rem', color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .6, marginBottom: '.5rem' }}>Xero Entries</div>
+            {rows.map(r => {
+              const synced = r.synced;
+              const mismatch = synced && Math.abs(r.taxInc - r.exp) > 0.005;
+              return (
+                <div key={r.method} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '.5rem .75rem', marginBottom: '.35rem', background: 'var(--sv-bg-0)', borderRadius: 8, border: `1px solid ${synced ? 'rgba(16,185,129,.25)' : 'var(--sv-etch)'}`, flexWrap: 'wrap' }}>
+                  <div style={{ fontWeight: 600, fontSize: '.85rem', minWidth: 60 }}>{r.method}</div>
+                  {synced ? (
+                    <>
+                      <span style={{ background: 'rgba(16,185,129,.12)', color: 'var(--sv-mint)', fontSize: '.72rem', padding: '2px 7px', borderRadius: 99, fontWeight: 700 }}>âœ“ Synced to Xero</span>
+                      {synced.number && (
+                        <a href={`https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${synced.id}`}
+                          target='_blank' rel='noopener noreferrer'
+                          style={{ fontSize: '.8rem', color: 'var(--sv-mint)', textDecoration: 'none', fontWeight: 600 }}>
+                          {synced.number} â†—
+                        </a>
+                      )}
+                      {synced.syncedAt && (
+                        <span style={{ fontSize: '.75rem', color: 'var(--sv-text-muted)' }}>
+                          {new Date(synced.syncedAt).toLocaleString()}
+                        </span>
+                      )}
+                      <span style={{ marginLeft: 'auto', fontSize: '.78rem', color: 'var(--sv-text-dim)' }}>
+                        POS: <strong style={{ color: 'var(--sv-text-main)' }}>${fmt(r.exp)}</strong>
+                        &nbsp;Â· Sent to Xero: <strong style={{ color: mismatch ? 'var(--sv-amber)' : 'var(--sv-text-main)' }}>${fmt(r.taxInc)}</strong>
+                        {mismatch && <span style={{ color: 'var(--sv-amber)', marginLeft: 6 }}>âš  Mismatch â€” contact your bookkeeper</span>}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ background: 'var(--sv-bg-2)', color: 'var(--sv-text-muted)', fontSize: '.72rem', padding: '2px 7px', borderRadius: 99, fontWeight: 600 }}>â—‹ Not synced</span>
+                      <span style={{ marginLeft: 'auto', fontSize: '.78rem', color: 'var(--sv-text-dim)' }}>
+                        POS Expected: <strong>${fmt(r.exp)}</strong> Â· Would send: <strong>${fmt(r.taxInc)}</strong>
+                      </span>
+                    </>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {syncError && <div style={{ color: 'var(--sv-red)', fontSize: '.8rem', marginBottom: '.75rem' }}>{syncError}</div>}
 
           <button onClick={syncToXero} disabled={syncing}
             style={{ ...primaryBtn, padding: '.5rem 1.5rem', fontSize: '.85rem' }}>
-            {syncing ? 'Syncing…' : allSynced ? 'Re-sync to Xero' : 'Sync to Xero'}
+            {syncing ? 'Syncingâ€¦' : allSynced ? 'Re-sync to Xero' : 'Sync to Xero'}
           </button>
         </div>
       )}
@@ -2310,9 +2355,9 @@ function EodAccountingSection({
   );
 }
 
-// ─── Reports Screen ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Reports Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// ─── Receive Transfers Screen ─────────────────────────────────────────────────
+// â”€â”€â”€ Receive Transfers Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ReceiveTransfersScreen({ session, onBack }: { session: PosSession; onBack: () => void }) {
   const [transfers, setTransfers] = useState<any[]>([]);
@@ -2348,13 +2393,13 @@ function ReceiveTransfersScreen({ session, onBack }: { session: PosSession; onBa
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', padding: '1.5rem', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)' }}>
       <div style={{ maxWidth: 860, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-          <button onClick={onBack} style={smallBtn}>← Back to POS</button>
-          <h1 style={{ margin: 0, color: 'var(--sv-text-strong)', flex: 1, fontSize: '1.3rem' }}>📦 Receive Branch Transfers — {session.location_name}</h1>
-          <button onClick={load} style={smallBtn}>↻ Refresh</button>
+          <button onClick={onBack} style={smallBtn}>â† Back to POS</button>
+          <h1 style={{ margin: 0, color: 'var(--sv-text-strong)', flex: 1, fontSize: '1.3rem' }}>ðŸ“¦ Receive Branch Transfers â€” {session.location_name}</h1>
+          <button onClick={load} style={smallBtn}>â†» Refresh</button>
         </div>
 
         {loading ? (
-          <p style={{ color: 'var(--sv-text-dim)' }}>Loading…</p>
+          <p style={{ color: 'var(--sv-text-dim)' }}>Loadingâ€¦</p>
         ) : transfers.length === 0 ? (
           <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--sv-text-dim)', background: 'var(--sv-bg-1)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
             No transfers currently awaiting receipt at {session.location_name}.
@@ -2365,7 +2410,7 @@ function ReceiveTransfersScreen({ session, onBack }: { session: PosSession; onBa
               <div key={bt.id} style={{ background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--sv-text-strong)', marginBottom: 2 }}>{bt.transfer_number}</div>
-                  <div style={{ fontSize: '.85rem', color: 'var(--sv-text-dim)' }}>From: <strong style={{ color: 'var(--sv-text-main)' }}>{bt.from_location_name}</strong> · Date: {bt.transfer_date?.slice(0,10)} · Value: ${Number(bt.total_value).toFixed(2)}</div>
+                  <div style={{ fontSize: '.85rem', color: 'var(--sv-text-dim)' }}>From: <strong style={{ color: 'var(--sv-text-main)' }}>{bt.from_location_name}</strong> Â· Date: {bt.transfer_date?.slice(0,10)} Â· Value: ${Number(bt.total_value).toFixed(2)}</div>
                 </div>
                 <button
                   onClick={() => openReceive(bt)}
@@ -2441,14 +2486,14 @@ function ReceiveBtInline({ bt, onBack, onDone }: { bt: any; onBack: () => void; 
       const lines: string[] = [];
       if (notReceived.length > 0) {
         lines.push(`Not received (stock stays at ${bt.from_location_name}):`);
-        notReceived.forEach((i: any) => lines.push(`  • ${i.sku || i.product_name}${i.variant_label ? ` — ${i.variant_label}` : ''} (sent: ${Number(i.qty_sent)})`));
+        notReceived.forEach((i: any) => lines.push(`  â€¢ ${i.sku || i.product_name}${i.variant_label ? ` â€” ${i.variant_label}` : ''} (sent: ${Number(i.qty_sent)})`));
       }
       if (partialReceived.length > 0) {
         lines.push('');
         lines.push('Partially received (remainder stays at source):');
         partialReceived.forEach((i: any) => {
           const r = receiveQtys[i.id] ?? 0;
-          lines.push(`  • ${i.sku || i.product_name}${i.variant_label ? ` — ${i.variant_label}` : ''} (sent: ${Number(i.qty_sent)}, receiving: ${r})`);
+          lines.push(`  â€¢ ${i.sku || i.product_name}${i.variant_label ? ` â€” ${i.variant_label}` : ''} (sent: ${Number(i.qty_sent)}, receiving: ${r})`);
         });
       }
       lines.push('');
@@ -2476,24 +2521,24 @@ function ReceiveBtInline({ bt, onBack, onDone }: { bt: any; onBack: () => void; 
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.25rem' }}>
-          <button onClick={onBack} style={smallBtn}>← Back</button>
+          <button onClick={onBack} style={smallBtn}>â† Back</button>
           <h1 style={{ margin: 0, color: 'var(--sv-text-strong)', flex: 1, fontSize: '1.2rem' }}>
-            📦 {bt.transfer_number} — from {bt.from_location_name}
+            ðŸ“¦ {bt.transfer_number} â€” from {bt.from_location_name}
           </h1>
           <button onClick={handleReceiveAll} style={{ ...smallBtn, color: 'var(--sv-text-main)' }}>Receive All</button>
           <button onClick={handleSubmit} disabled={submitting} style={{ padding: '.55rem 1.4rem', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--sv-mint,#0c9)', color: '#fff', fontWeight: 700, fontSize: '.9rem', opacity: submitting ? .6 : 1 }}>
-            {submitting ? 'Processing…' : 'Confirm Receipt & Move Stock'}
+            {submitting ? 'Processingâ€¦' : 'Confirm Receipt & Move Stock'}
           </button>
         </div>
 
         {/* Scan section */}
         <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '1rem 1.25rem', marginBottom: '1.25rem' }}>
-          <div style={{ fontWeight: 700, fontSize: '.95rem', marginBottom: '.7rem', color: 'var(--sv-text-strong)' }}>📷 Receive by Scanning Items</div>
+          <div style={{ fontWeight: 700, fontSize: '.95rem', marginBottom: '.7rem', color: 'var(--sv-text-strong)' }}>ðŸ“· Receive by Scanning Items</div>
           <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.6rem' }}>
             <input
               ref={scanRef}
               type="text"
-              placeholder="Scan barcode or type SKU, press Enter…"
+              placeholder="Scan barcode or type SKU, press Enterâ€¦"
               value={scanInput}
               onChange={e => setScanInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleScan(scanInput); } }}
@@ -2503,16 +2548,16 @@ function ReceiveBtInline({ bt, onBack, onDone }: { bt: any; onBack: () => void; 
             <button onClick={() => handleScan(scanInput)} style={{ padding: '.5rem 1.1rem', borderRadius: 7, border: 'none', cursor: 'pointer', background: 'var(--sv-action)', color: '#fff', fontWeight: 600 }}>Scan</button>
           </div>
           {scanError && (
-            <div style={{ padding: '.55rem .9rem', background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.4)', borderRadius: 7, fontSize: '.87rem', color: '#f87171', marginBottom: '.6rem' }}>⚠ {scanError}</div>
+            <div style={{ padding: '.55rem .9rem', background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.4)', borderRadius: 7, fontSize: '.87rem', color: '#f87171', marginBottom: '.6rem' }}>âš  {scanError}</div>
           )}
           {lastScanned ? (
             <div style={{ padding: '.75rem 1rem', background: 'rgba(16,185,129,.08)', border: '1px solid rgba(16,185,129,.3)', borderRadius: 8 }}>
               <div style={{ fontSize: '.75rem', color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 3 }}>Last Scanned</div>
               <div style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--sv-text-strong)', marginBottom: 5 }}>
-                {lastScanned.product_name}{lastScanned.variant_label ? ` — ${lastScanned.variant_label}` : ''}
+                {lastScanned.product_name}{lastScanned.variant_label ? ` â€” ${lastScanned.variant_label}` : ''}
               </div>
               <div style={{ display: 'flex', gap: '1.5rem', fontSize: '.9rem', flexWrap: 'wrap' }}>
-                <span><span style={{ color: 'var(--sv-text-dim)' }}>RRP: </span><strong style={{ color: '#34d399', fontSize: '1rem' }}>{lastScanned.price_rrp ? `$${Number(lastScanned.price_rrp).toFixed(2)}` : '—'}</strong></span>
+                <span><span style={{ color: 'var(--sv-text-dim)' }}>RRP: </span><strong style={{ color: '#34d399', fontSize: '1rem' }}>{lastScanned.price_rrp ? `$${Number(lastScanned.price_rrp).toFixed(2)}` : 'â€”'}</strong></span>
                 <span><span style={{ color: 'var(--sv-text-dim)' }}>Sent: </span><strong>{Number(lastScanned.qty_sent)}</strong></span>
                 <span><span style={{ color: 'var(--sv-text-dim)' }}>Received: </span><strong style={{ color: '#34d399' }}>{receiveQtys[lastScanned.id] ?? 0}</strong></span>
                 <span><span style={{ color: 'var(--sv-text-dim)' }}>Awaiting: </span>
@@ -2543,12 +2588,12 @@ function ReceiveBtInline({ bt, onBack, onDone }: { bt: any; onBack: () => void; 
               const isLast = lastScanned?.id === item.id;
               return (
                 <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)', background: isLast ? 'rgba(16,185,129,.07)' : 'transparent' }}>
-                  <td style={{ padding: '.6rem .9rem', fontFamily: 'monospace', fontSize: '.82rem', color: 'var(--sv-mint,#0c9)' }}>{item.sku || '—'}</td>
+                  <td style={{ padding: '.6rem .9rem', fontFamily: 'monospace', fontSize: '.82rem', color: 'var(--sv-mint,#0c9)' }}>{item.sku || 'â€”'}</td>
                   <td style={{ padding: '.6rem .9rem' }}>
                     <div style={{ fontSize: '.9rem' }}>{item.product_name}</div>
                     {item.variant_label && <div style={{ fontSize: '.78rem', color: 'var(--sv-text-dim)' }}>{item.variant_label}</div>}
                   </td>
-                  <td style={{ padding: '.6rem .9rem', fontSize: '.9rem', color: 'var(--sv-text-dim)' }}>{item.price_rrp ? `$${Number(item.price_rrp).toFixed(2)}` : '—'}</td>
+                  <td style={{ padding: '.6rem .9rem', fontSize: '.9rem', color: 'var(--sv-text-dim)' }}>{item.price_rrp ? `$${Number(item.price_rrp).toFixed(2)}` : 'â€”'}</td>
                   <td style={{ padding: '.6rem .9rem', fontSize: '.9rem', color: 'var(--sv-text-dim)' }}>{Number(item.qty_sent)}</td>
                   <td style={{ padding: '.4rem .9rem', width: 100 }}>
                     <input
@@ -2559,7 +2604,7 @@ function ReceiveBtInline({ bt, onBack, onDone }: { bt: any; onBack: () => void; 
                     />
                   </td>
                   <td style={{ padding: '.6rem .9rem', fontSize: '.9rem', fontWeight: 600, color: awaiting > 0 ? '#fbbf24' : '#34d399' }}>
-                    {awaiting > 0 ? awaiting : '✓'}
+                    {awaiting > 0 ? awaiting : 'âœ“'}
                   </td>
                 </tr>
               );
@@ -2571,7 +2616,7 @@ function ReceiveBtInline({ bt, onBack, onDone }: { bt: any; onBack: () => void; 
   );
 }
 
-// ─── Reports Screen ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Reports Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ReportsScreen({ session, onBack }: { session: PosSession; onBack: () => void }) {
   const today = new Date().toLocaleDateString('sv-SE');
@@ -2598,7 +2643,7 @@ function ReportsScreen({ session, onBack }: { session: PosSession; onBack: () =>
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', padding: '1.5rem', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)' }}>
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-          <button onClick={onBack} style={smallBtn}>← Back to POS</button>
+          <button onClick={onBack} style={smallBtn}>â† Back to POS</button>
           <h1 style={{ margin: 0, color: 'var(--sv-text-strong)', flex: 1, fontSize: '1.3rem' }}>Reports</h1>
           <input type='date' value={date} onChange={e => setDate(e.target.value)} style={{ ...inputStyle, width: 160, marginBottom: 0 }} />
         </div>
@@ -2606,7 +2651,7 @@ function ReportsScreen({ session, onBack }: { session: PosSession; onBack: () =>
         {/* 30-day bar chart */}
         {graphData.length > 0 && (
           <div style={{ background: 'var(--sv-bg-2)', borderRadius: 8, padding: '1rem', marginBottom: '1.5rem', border: '1px solid var(--sv-etch)' }}>
-            <h3 style={{ margin: '0 0 1rem', color: 'var(--sv-text-strong)', fontSize: '.95rem' }}>Daily Revenue — Last 30 Days</h3>
+            <h3 style={{ margin: '0 0 1rem', color: 'var(--sv-text-strong)', fontSize: '.95rem' }}>Daily Revenue â€” Last 30 Days</h3>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 80, overflowX: 'auto' }}>
               {graphData.map(d => (
                 <div key={d.date} title={`${d.date}: $${fmt(d.total)} (${d.count} sale${d.count !== 1 ? 's' : ''})`}
@@ -2616,7 +2661,7 @@ function ReportsScreen({ session, onBack }: { session: PosSession; onBack: () =>
           </div>
         )}
 
-        {loading && <p style={{ color: 'var(--sv-text-dim)' }}>Loading…</p>}
+        {loading && <p style={{ color: 'var(--sv-text-dim)' }}>Loadingâ€¦</p>}
 
         {data && (
           <>
@@ -2638,17 +2683,17 @@ function ReportsScreen({ session, onBack }: { session: PosSession; onBack: () =>
                   style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '.75rem 1rem', cursor: 'pointer' }}
                 >
                   <span style={{ color: 'var(--sv-text-dim)', fontSize: '.85rem' }}>{new Date(t.sale.created_at).toLocaleTimeString('en-AU', { timeStyle: 'short' })}</span>
-                  <span style={{ flex: 1, fontSize: '.9rem', color: 'var(--sv-text-main)' }}>{t.sale.customer_name ?? '—'} <span style={{ color: 'var(--sv-text-dim)', fontSize: '.8rem' }}>({t.items.length} item{t.items.length !== 1 ? 's' : ''})</span></span>
+                  <span style={{ flex: 1, fontSize: '.9rem', color: 'var(--sv-text-main)' }}>{t.sale.customer_name ?? 'â€”'} <span style={{ color: 'var(--sv-text-dim)', fontSize: '.8rem' }}>({t.items.length} item{t.items.length !== 1 ? 's' : ''})</span></span>
                   <span style={{ color: t.sale.sale_type === 'return' ? 'var(--sv-red)' : 'var(--sv-mint)', fontWeight: 700 }}>
                     {t.sale.sale_type === 'return' ? '-' : ''}${fmt(t.sale.total)}
                   </span>
-                  <span style={{ fontSize: '.8rem', color: 'var(--sv-text-muted)' }}>{expanded === idx ? '▲' : '▼'}</span>
+                  <span style={{ fontSize: '.8rem', color: 'var(--sv-text-muted)' }}>{expanded === idx ? 'â–²' : 'â–¼'}</span>
                 </div>
                 {expanded === idx && (
                   <div style={{ borderTop: '1px solid var(--sv-etch)', padding: '.75rem 1rem', fontSize: '.85rem' }}>
                     {t.items.map((item: any) => (
                       <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '.2rem 0', borderBottom: '1px solid var(--sv-etch)' }}>
-                        <span style={{ color: 'var(--sv-text-main)' }}>{item.qty}× {item.name}</span>
+                        <span style={{ color: 'var(--sv-text-main)' }}>{item.qty}Ã— {item.name}</span>
                         <span style={{ color: 'var(--sv-action)', fontWeight: 600 }}>${fmt(item.line_total)}</span>
                       </div>
                     ))}
@@ -2677,7 +2722,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-// ─── Shared styles ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Shared styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -2745,7 +2790,7 @@ const tdStyle: React.CSSProperties = {
   color: 'var(--sv-text-main)',
 };
 
-// ─── POS Help Modal ─────────────────────────────────────────────────────────
+// â”€â”€â”€ POS Help Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type PosHelpSection = 'overview' | 'register' | 'offline' | 'pin';
 
@@ -2755,10 +2800,10 @@ function PosHelpModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
   if (!isOpen) return null;
 
   const NAV_ITEMS: { id: PosHelpSection; label: string; icon: string }[] = [
-    { id: 'overview', label: 'Overview',          icon: '🛒' },
-    { id: 'register', label: 'Register Sessions', icon: '🗂' },
-    { id: 'offline',  label: 'Offline & Queue',   icon: '📶' },
-    { id: 'pin',      label: 'PIN Security',      icon: '🔒' },
+    { id: 'overview', label: 'Overview',          icon: 'ðŸ›’' },
+    { id: 'register', label: 'Register Sessions', icon: 'ðŸ—‚' },
+    { id: 'offline',  label: 'Offline & Queue',   icon: 'ðŸ“¶' },
+    { id: 'pin',      label: 'PIN Security',      icon: 'ðŸ”’' },
   ];
 
   const h2: React.CSSProperties   = { margin: '0 0 6px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' };
@@ -2773,42 +2818,42 @@ function PosHelpModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
         <p style={{ ...p, marginBottom: 16 }}>The Marketoir POS lets you ring up sales, process returns, manage layby, and reconcile your daily cash takings.</p>
         <h3 style={h3}>Getting started</h3>
         <ul style={ul}>
-          <li><strong>Device setup</strong> — Each device is tied to a specific location and register. Setup is done once; the device remembers its configuration.</li>
-          <li><strong>Staff login</strong> — Operators log in with a short numeric PIN. An admin fallback (email + password) is also available.</li>
-          <li><strong>Product panel</strong> — Products are loaded at login and cached on-device. Use the search bar or browse the grid. Barcode scanners work automatically.</li>
-          <li><strong>Cart</strong> — Add products, adjust quantities, apply line-level discounts or price overrides, then charge to complete the sale.</li>
-          <li><strong>Payment types</strong> — Cash, card, or any method configured in IMS Settings → Point of Sale. Split payments across multiple methods are supported.</li>
+          <li><strong>Device setup</strong> â€” Each device is tied to a specific location and register. Setup is done once; the device remembers its configuration.</li>
+          <li><strong>Staff login</strong> â€” Operators log in with a short numeric PIN. An admin fallback (email + password) is also available.</li>
+          <li><strong>Product panel</strong> â€” Products are loaded at login and cached on-device. Use the search bar or browse the grid. Barcode scanners work automatically.</li>
+          <li><strong>Cart</strong> â€” Add products, adjust quantities, apply line-level discounts or price overrides, then charge to complete the sale.</li>
+          <li><strong>Payment types</strong> â€” Cash, card, or any method configured in IMS Settings â†’ Point of Sale. Split payments across multiple methods are supported.</li>
         </ul>
         <h3 style={h3}>Sale types</h3>
         <ul style={ul}>
-          <li><strong>Sale</strong> — Standard completed transaction. Stock is deducted immediately.</li>
-          <li><strong>Return / Refund</strong> — Toggle "Return Mode" in the header. Negative quantities reverse stock and post a negative POS sale.</li>
-          <li><strong>Layby</strong> — Toggle "Layby" in the header. Recorded as a pending sale; no stock movement until fulfilled.</li>
-          <li><strong>Park Sale</strong> — Save a cart with a label to resume later (same device only). Parked sales do not commit stock and are lost if the browser is cleared.</li>
+          <li><strong>Sale</strong> â€” Standard completed transaction. Stock is deducted immediately.</li>
+          <li><strong>Return / Refund</strong> â€” Toggle "Return Mode" in the header. Negative quantities reverse stock and post a negative POS sale.</li>
+          <li><strong>Layby</strong> â€” Toggle "Layby" in the header. Recorded as a pending sale; no stock movement until fulfilled.</li>
+          <li><strong>Park Sale</strong> â€” Save a cart with a label to resume later (same device only). Parked sales do not commit stock and are lost if the browser is cleared.</li>
         </ul>
         <h3 style={h3}>Daily Xero batch</h3>
-        <p style={p}>POS sales are not individually synced to Xero. Instead, a single summary invoice is created per location per day from the <strong>Register → EOD</strong> screen.</p>
+        <p style={p}>POS sales are not individually synced to Xero. Instead, a single summary invoice is created per location per day from the <strong>Register â†’ EOD</strong> screen.</p>
       </div>
     );
     if (active === 'register') return (
       <div style={{ padding: 32, maxWidth: 760 }}>
         <h2 style={h2}>Register Sessions</h2>
-        <p style={p}>A <strong>register session</strong> is one continuous period that a till is open — from the moment a cashier opens the register (entering the opening float) to the moment it is closed at end of day. Every sale is stamped with the session it was rung up in, not just the calendar date.</p>
+        <p style={p}>A <strong>register session</strong> is one continuous period that a till is open â€” from the moment a cashier opens the register (entering the opening float) to the moment it is closed at end of day. Every sale is stamped with the session it was rung up in, not just the calendar date.</p>
         <h3 style={h3}>Opening a session</h3>
         <p style={p}>On first login of the day go to <strong>Register</strong> and open the register, counting the starting float by denomination. This establishes the session.</p>
         <h3 style={h3}>Closing a session (EOD)</h3>
-        <p style={p}>At end of day go to <strong>Register → EOD</strong>. Count the drawer and the system reconciles <em>expected</em> vs <em>counted</em> takings per payment method, then marks the session closed. The Xero batch button also lives here.</p>
+        <p style={p}>At end of day go to <strong>Register â†’ EOD</strong>. Count the drawer and the system reconciles <em>expected</em> vs <em>counted</em> takings per payment method, then marks the session closed. The Xero batch button also lives here.</p>
         <h3 style={h3}>Reconciling by session window</h3>
-        <p style={p}>Takings are summed over the <strong>session window</strong> (all sales in the open→close session), not just "all sales dated today". This handles two common situations:</p>
+        <p style={p}>Takings are summed over the <strong>session window</strong> (all sales in the openâ†’close session), not just "all sales dated today". This handles two common situations:</p>
         <ul style={ul}>
-          <li><strong>Trading past midnight</strong> — A sale rung after midnight stays with its session&apos;s date, not the next calendar day.</li>
-          <li><strong>Register left open overnight</strong> — Yesterday&apos;s session won&apos;t silently absorb today&apos;s sales (see below).</li>
+          <li><strong>Trading past midnight</strong> â€” A sale rung after midnight stays with its session&apos;s date, not the next calendar day.</li>
+          <li><strong>Register left open overnight</strong> â€” Yesterday&apos;s session won&apos;t silently absorb today&apos;s sales (see below).</li>
         </ul>
         <h3 style={h3}>Register left open / prior-day sessions</h3>
         <p style={p}>If a register was opened on a previous day and never closed, the next operator sees a <strong>&ldquo;Register Left Open&rdquo;</strong> prompt at login. Prior-day sessions are flagged in red. Two choices:</p>
         <ul style={ul}>
-          <li><strong>Close Register &amp; Open New</strong> (recommended) — closes the stale session and starts a fresh one with a new float count.</li>
-          <li><strong>Continue Session</strong> — keeps recording against the original session. Only use this if intentional.</li>
+          <li><strong>Close Register &amp; Open New</strong> (recommended) â€” closes the stale session and starts a fresh one with a new float count.</li>
+          <li><strong>Continue Session</strong> â€” keeps recording against the original session. Only use this if intentional.</li>
         </ul>
       </div>
     );
@@ -2818,22 +2863,22 @@ function PosHelpModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
         <p style={p}>The POS keeps working when the internet drops. A local product cache lets operators keep ringing up sales; completed sales are written to an on-device queue and upload automatically when the connection returns.</p>
         <h3 style={h3}>Status badges in the header</h3>
         <ul style={ul}>
-          <li><strong style={{ color: '#4ade80' }}>Online / Offline</strong> — current connectivity.</li>
-          <li><strong style={{ color: '#fbbf24' }}>Queued (amber)</strong> — sales waiting to upload. Drain automatically when back online, or hit <strong>⟳ Sync</strong> manually.</li>
-          <li><strong style={{ color: '#f87171' }}>Failed (red)</strong> — a sale that repeatedly failed to upload. Saved on-device — <em>never discarded</em>. Tap the badge to retry.</li>
+          <li><strong style={{ color: '#4ade80' }}>Online / Offline</strong> â€” current connectivity.</li>
+          <li><strong style={{ color: '#fbbf24' }}>Queued (amber)</strong> â€” sales waiting to upload. Drain automatically when back online, or hit <strong>âŸ³ Sync</strong> manually.</li>
+          <li><strong style={{ color: '#f87171' }}>Failed (red)</strong> â€” a sale that repeatedly failed to upload. Saved on-device â€” <em>never discarded</em>. Tap the badge to retry.</li>
         </ul>
         <h3 style={h3}>Duplicate protection</h3>
-        <p style={p}>Each sale carries a unique local ID. Even if a queued sale is sent twice it can only ever be recorded once — no duplicate sales from retries.</p>
+        <p style={p}>Each sale carries a unique local ID. Even if a queued sale is sent twice it can only ever be recorded once â€” no duplicate sales from retries.</p>
         <h3 style={h3}>Before logging out</h3>
-        <p style={p}>Logging out while sales are pending shows a warning. <strong>Don&apos;t clear browser data or switch devices until the queue is empty</strong> — offline sales live on this device until they sync.</p>
+        <p style={p}>Logging out while sales are pending shows a warning. <strong>Don&apos;t clear browser data or switch devices until the queue is empty</strong> â€” offline sales live on this device until they sync.</p>
         <h3 style={h3}>Stale product cache</h3>
-        <p style={p}>Product prices and stock are cached at login and refreshed automatically every 15 minutes and when the tab regains focus. If the cache is older than 4 hours and you&apos;re offline, a warning banner appears — hit <strong>⟳ Sync</strong> once back online.</p>
+        <p style={p}>Product prices and stock are cached at login and refreshed automatically every 15 minutes and when the tab regains focus. If the cache is older than 4 hours and you&apos;re offline, a warning banner appears â€” hit <strong>âŸ³ Sync</strong> once back online.</p>
       </div>
     );
     if (active === 'pin') return (
       <div style={{ padding: 32, maxWidth: 760 }}>
         <h2 style={h2}>PIN Security</h2>
-        <p style={p}>POS operators sign in with a short numeric PIN. PINs are stored hashed — never in plain text.</p>
+        <p style={p}>POS operators sign in with a short numeric PIN. PINs are stored hashed â€” never in plain text.</p>
         <h3 style={h3}>Lockout policy</h3>
         <p style={p}>Repeated failed PIN attempts trigger a temporary lockout on that operator before they can try again. This deters guessing without locking out the terminal entirely.</p>
         <h3 style={h3}>Supervisor PIN</h3>
@@ -2843,7 +2888,7 @@ function PosHelpModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
         <h3 style={h3}>Admin fallback</h3>
         <p style={p}>If a staff member has no PIN set, any IMS admin can log in using their full email and password via the &ldquo;Admin login&rdquo; link on the staff picker screen.</p>
         <h3 style={h3}>Managing POS users</h3>
-        <p style={p}>POS users are separate from IMS web users. Manage them in <strong>IMS → Settings → Point of Sale → Users</strong>.</p>
+        <p style={p}>POS users are separate from IMS web users. Manage them in <strong>IMS â†’ Settings â†’ Point of Sale â†’ Users</strong>.</p>
       </div>
     );
     return null;
@@ -2858,7 +2903,7 @@ function PosHelpModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
       <div style={{ width: 210, background: 'var(--sv-bg-0)', borderRight: '1px solid var(--sv-etch)', display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 16px 14px' }}>
           <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--sv-text-strong)' }}>POS Help</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 22, lineHeight: 1, padding: 0 }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 22, lineHeight: 1, padding: 0 }}>Ã—</button>
         </div>
         <div style={{ height: 1, background: 'var(--sv-etch)', margin: '0 0 8px' }} />
         {NAV_ITEMS.map(item => {
@@ -2879,7 +2924,7 @@ function PosHelpModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
   );
 }
 
-// ─── Root Page ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Root Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function PosPage() {
   const [screen, setScreen] = useState<'loading' | 'setup' | 'login' | 'register_gate' | 'pos' | 'receipt'>('loading');
@@ -2911,7 +2956,7 @@ export default function PosPage() {
           setScreen('setup');
           return;
         }
-        // Register is valid — check for an open (possibly stale) session.
+        // Register is valid â€” check for an open (possibly stale) session.
         fetch(`/api/pos/register/session?register_id=${cfg.register_id}`)
           .then(r => r.json())
           .then(rd2 => {
@@ -2920,7 +2965,7 @@ export default function PosPage() {
           })
           .catch(() => thenGoPos());
       })
-      .catch(() => thenGoPos()); // offline — don't block; proceed with cached config
+      .catch(() => thenGoPos()); // offline â€” don't block; proceed with cached config
   }
 
   // Background stock sync every 5 minutes while POS is active
@@ -2947,7 +2992,7 @@ export default function PosPage() {
     const cfg = loadDeviceConfig();
     if (cfg) {
       setDeviceConfig(cfg);
-      // Check if still logged in — pass location_id so admin sessions can auto-create a POS session
+      // Check if still logged in â€” pass location_id so admin sessions can auto-create a POS session
       fetch(`/api/pos/auth/me?location_id=${cfg.location_id}`).then(r => r.json()).then(d => {
         if (d.session) {
           const sess: PosSession = {
@@ -2980,13 +3025,13 @@ export default function PosPage() {
             }
             if (viewData.defaultView) setDefaultView(viewData.defaultView);
             else setDefaultView(prev => prev ?? 'all');
-          }).catch(() => {/* offline — keep cached */});
+          }).catch(() => {/* offline â€” keep cached */});
         } else {
           clearLocalSession();
           setScreen('login');
         }
       }).catch(() => {
-        // Network error — try offline recovery from local cache
+        // Network error â€” try offline recovery from local cache
         const cachedSession = loadLocalSession() as PosSession | null;
         const cachedProducts = loadProductsCache();
         if (cachedSession && cachedProducts.length) {
@@ -3006,7 +3051,7 @@ export default function PosPage() {
   if (screen === 'loading') {
     return (
       <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontFamily: 'system-ui,sans-serif' }}>
-        Loading POS…
+        Loading POSâ€¦
       </div>
     );
   }
@@ -3080,13 +3125,13 @@ export default function PosPage() {
       lastSale={lastSale}
       onSaleCompleted={(sale) => setLastSale(sale)}
       onLogout={async () => {
-        // Try to flush any queued sales before logging out — never silently abandon them.
+        // Try to flush any queued sales before logging out â€” never silently abandon them.
         try { await drainOfflineQueue(); } catch {}
         const pending = loadOfflineQueue().length + loadFailedQueue().length;
         if (pending > 0) {
           const proceed = confirm(
             `${pending} sale${pending !== 1 ? 's have' : ' has'} not yet synced to the server. ` +
-            `They are saved on this device and will sync once it reconnects — they will NOT be lost. ` +
+            `They are saved on this device and will sync once it reconnects â€” they will NOT be lost. ` +
             `Log out anyway?`,
           );
           if (!proceed) return;
@@ -3109,7 +3154,7 @@ export default function PosPage() {
             return updated;
           });
         } else {
-          // Return — add stock back
+          // Return â€” add stock back
           setProducts(prev => {
             const updated = prev.map(p => {
               const item = sale.items.find(i => i.variant_id === p.variant_id);

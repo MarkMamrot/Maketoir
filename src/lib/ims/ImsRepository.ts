@@ -2096,7 +2096,7 @@ export const ImsStocktakeRepo = {
 // Branch Transfers
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type BTStatus = 'draft' | 'sent' | 'received' | 'cancelled';
+export type BTStatus = 'draft' | 'sent' | 'partial' | 'received' | 'cancelled';
 
 export interface ImsBT {
   id: number; transfer_number: string;
@@ -2126,9 +2126,14 @@ async function nextBTNumber(): Promise<string> {
 }
 
 export const ImsBTRepo = {
-  async list(status?: BTStatus): Promise<ImsBT[]> {
-    const where = status ? 'WHERE bt.status = ?' : '';
-    const params: any[] = status ? [status] : [];
+  async list(status?: BTStatus | BTStatus[]): Promise<ImsBT[]> {
+    let where = '';
+    let params: any[] = [];
+    if (status) {
+      const statuses = Array.isArray(status) ? status : [status];
+      where = `WHERE bt.status IN (${statuses.map(() => '?').join(',')})`;
+      params = statuses;
+    }
     return imsQuery<ImsBT>(
       `SELECT bt.*,
               fl.name AS from_location_name,
@@ -2257,21 +2262,24 @@ export const ImsBTRepo = {
       );
 
       const from = bt.status as BTStatus;
-      const to   = newStatus;
-      if (from === to) { await conn.commit(); return; }
+      let finalStatus: BTStatus = newStatus;
+      if (from === finalStatus) { await conn.commit(); return; }
 
       // Allowed transitions
       const allowed: Record<string, string[]> = {
-        draft: ['sent', 'cancelled'],
-        sent:  ['received', 'cancelled'],
+        draft:   ['sent', 'cancelled'],
+        sent:    ['received', 'cancelled'],
+        partial: ['received', 'cancelled'],
       };
-      if (!allowed[from]?.includes(to)) throw new Error(`Cannot transition from ${from} to ${to}`);
+      if (!allowed[from]?.includes(finalStatus)) throw new Error(`Cannot transition from ${from} to ${finalStatus}`);
 
-      // sent → received: apply stock movements
-      if (from === 'sent' && to === 'received') {
+      // sent → received/partial: apply stock movements and auto-detect partial
+      if (from === 'sent' && finalStatus === 'received') {
+        let anyNotReceived = false;
         for (const item of items) {
           const found = receivedItems?.find(r => r.item_id === item.id);
           const qty_rcvd = found != null ? Number(found.qty_received) : Number(item.qty_sent);
+          if (qty_rcvd <= 0) anyNotReceived = true;
 
           await conn.execute(
             `UPDATE ims_branch_transfer_items SET qty_received = ? WHERE id = ?`,
@@ -2326,10 +2334,42 @@ export const ImsBTRepo = {
             [item.variant_id, bt.to_location_id, id, qty_rcvd, new_dst_soh, new_dst_avg]
           );
         }
+        // Auto-determine final status based on whether all items were received
+        if (anyNotReceived) finalStatus = 'partial';
         await conn.execute(`UPDATE ims_branch_transfers SET received_date = CURDATE() WHERE id = ?`, [id]);
       }
 
-      await conn.execute(`UPDATE ims_branch_transfers SET status = ? WHERE id = ?`, [to, id]);
+      // partial → received: set received_date if not already set
+      if (from === 'partial' && finalStatus === 'received') {
+        await conn.execute(`UPDATE ims_branch_transfers SET received_date = CURDATE() WHERE id = ?`, [id]);
+      }
+
+      await conn.execute(`UPDATE ims_branch_transfers SET status = ? WHERE id = ?`, [finalStatus, id]);
+      await conn.commit();
+    } catch (err) { await conn.rollback(); throw err; }
+    finally { conn.release(); }
+  },
+
+  async removeItem(transferId: number, itemId: number): Promise<void> {
+    const pool = getIMSPool();
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      // Verify the item belongs to this transfer and hasn't been received
+      const [[item]] = await conn.execute<any[]>(
+        `SELECT id, qty_received, qty_sent, unit_cost FROM ims_branch_transfer_items WHERE id = ? AND transfer_id = ?`,
+        [itemId, transferId]
+      );
+      if (!item) throw new Error('Item not found on this transfer');
+      if (Number(item.qty_received ?? 0) > 0) throw new Error('Cannot remove an item that has already been received');
+      await conn.execute(`DELETE FROM ims_branch_transfer_items WHERE id = ?`, [itemId]);
+      // Recalculate total_value
+      await conn.execute(
+        `UPDATE ims_branch_transfers
+           SET total_value = (SELECT COALESCE(SUM(line_value),0) FROM ims_branch_transfer_items WHERE transfer_id = ?)
+         WHERE id = ?`,
+        [transferId, transferId]
+      );
       await conn.commit();
     } catch (err) { await conn.rollback(); throw err; }
     finally { conn.release(); }

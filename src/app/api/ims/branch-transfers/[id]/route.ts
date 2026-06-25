@@ -24,7 +24,12 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
     const body = await req.json();
-    const { items, status, receivedItems, ...btData } = body;
+    const { items, status, receivedItems, action, item_id, ...btData } = body;
+    if (action === 'remove_item') {
+      if (!item_id) return NextResponse.json({ success: false, error: 'item_id required' }, { status: 400 });
+      await ImsBTRepo.removeItem(Number(params.id), Number(item_id));
+      return NextResponse.json({ success: true });
+    }
     if (status) {
       await ImsBTRepo.changeStatus(Number(params.id), status, receivedItems);
       

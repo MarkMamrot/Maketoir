@@ -237,6 +237,7 @@ const STATUS_COLORS: Record<string, string> = {
   received:           'background:rgba(16,185,129,.18);color:#34d399',
   fulfilled:          'background:rgba(16,185,129,.18);color:#34d399',
   sent:               'background:rgba(139,92,246,.18);color:#a78bfa',
+  partial:            'background:rgba(251,146,60,.18);color:#f97316',
   cancelled:          'background:rgba(248,113,113,.15);color:#f87171',
   in_progress:        'background:rgba(251,191,36,.15);color:#fbbf24',
   completed:          'background:rgba(16,185,129,.18);color:#34d399',
@@ -7655,7 +7656,9 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
         setMappings(mapObj);
         setTrackingCategories(Array.isArray(trackRes.categories) ? trackRes.categories : []);
         setTrackingMappings(Array.isArray(trackRes.mappings) ? trackRes.mappings : []);
-        const locs = Array.isArray(locRes?.locations) ? locRes.locations : Array.isArray(locRes) ? locRes : [];
+        const locs = Array.isArray(locRes?.data) ? locRes.data
+          : Array.isArray(locRes?.locations) ? locRes.locations
+          : Array.isArray(locRes) ? locRes : [];
         setLocations(locs);
       } catch {}
       setLoading(false);
@@ -9280,6 +9283,8 @@ function BranchTransfersView() {
 
   // Receive confirmation modal
   const [activeBtForReceive, setActiveBtForReceive] = useState<any | null>(null);
+  // Partial BT management modal
+  const [activeBtForManage, setActiveBtForManage]   = useState<any | null>(null);
 
   // ── Replenish Wizard ──────────────────────────────────────────────────────
   type ReplenishItem = {
@@ -9517,6 +9522,11 @@ function BranchTransfersView() {
     setActiveBtForReceive(d.data);
   };
 
+  const openManage = async (bt: any) => {
+    const d = await apiFetch(`/api/ims/branch-transfers/${bt.id}`);
+    setActiveBtForManage(d.data);
+  };
+
   const handleDelete = async (bt: any) => {
     if (!confirm(`Delete transfer ${bt.transfer_number}? This cannot be undone.`)) return;
     try {
@@ -9628,7 +9638,7 @@ function BranchTransfersView() {
                   <td style={{ padding: '10px 12px' }}><StatusBadge status={bt.status} /></td>
                   <td style={{ padding: '10px 12px', fontSize: 13 }}>{fmtCurrency(bt.total_value)}</td>
                   <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
-                    <BTActions bt={bt} onEdit={() => openEdit(bt)} onDelete={() => handleDelete(bt)} onStatus={changeStatus} onReceive={() => openReceive(bt)} onPrint={() => setBtPrintId(bt.id)} />
+                    <BTActions bt={bt} onEdit={() => openEdit(bt)} onDelete={() => handleDelete(bt)} onStatus={changeStatus} onReceive={() => openReceive(bt)} onPrint={() => setBtPrintId(bt.id)} onManage={() => openManage(bt)} />
                   </td>
                 </tr>
               ))}
@@ -9746,6 +9756,7 @@ function BranchTransfersView() {
               onDelete={() => { setViewModal({ open: false, bt: null }); handleDelete(viewModal.bt); }}
               onStatus={changeStatus}
               onReceive={() => { setViewModal({ open: false, bt: null }); openReceive(viewModal.bt); }}
+              onManage={() => { setViewModal({ open: false, bt: null }); openManage(viewModal.bt); }}
               onPrint={() => setBtPrintId(viewModal.bt.id)}
             />
           </div>
@@ -9805,6 +9816,21 @@ function BranchTransfersView() {
           onDone={() => {
             const btId = activeBtForReceive.id;
             setActiveBtForReceive(null);
+            load();
+            if (viewModal.open && viewModal.bt?.id === btId) {
+              apiFetch(`/api/ims/branch-transfers/${btId}`).then(d => setViewModal({ open: true, bt: d.data })).catch(() => {});
+            }
+          }}
+        />
+      )}
+
+      {activeBtForManage && (
+        <PartialBTManageModal
+          bt={activeBtForManage}
+          onClose={() => setActiveBtForManage(null)}
+          onDone={() => {
+            const btId = activeBtForManage.id;
+            setActiveBtForManage(null);
             load();
             if (viewModal.open && viewModal.bt?.id === btId) {
               apiFetch(`/api/ims/branch-transfers/${btId}`).then(d => setViewModal({ open: true, bt: d.data })).catch(() => {});
@@ -10071,6 +10097,119 @@ function BTActions({ bt, onEdit, onDelete, onStatus, onReceive, onPrint }: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Partial BT Manage Modal
+// ─────────────────────────────────────────────────────────────────────────────
+
+function PartialBTManageModal({ bt: initialBt, onClose, onDone }: { bt: any; onClose: () => void; onDone: () => void }) {
+  const [items, setItems]   = useState<any[]>(initialBt.items ?? []);
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState<string | null>(null);
+
+  const received    = items.filter((i: any) => Number(i.qty_received ?? 0) > 0);
+  const outstanding = items.filter((i: any) => Number(i.qty_received ?? 0) === 0);
+
+  const removeItem = async (itemId: number) => {
+    setError(null);
+    try {
+      await apiFetch(`/api/ims/branch-transfers/${initialBt.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'remove_item', item_id: itemId }),
+      });
+      setItems(prev => prev.filter((i: any) => i.id !== itemId));
+    } catch (e: any) { setError(e.message); }
+  };
+
+  const markReceived = async () => {
+    if (outstanding.length > 0) {
+      if (!confirm(
+        `${outstanding.length} item${outstanding.length !== 1 ? 's' : ''} are still outstanding and have not been deleted.\n\n` +
+        `Marking as received will close this transfer. Outstanding items will remain on record but no stock will be moved for them.\n\nProceed?`
+      )) return;
+    } else {
+      if (!confirm('Mark this transfer as fully received?')) return;
+    }
+    setSaving(true); setError(null);
+    try {
+      await apiFetch(`/api/ims/branch-transfers/${initialBt.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'received' }),
+      });
+      onDone();
+    } catch (e: any) { setError(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const ItemRow = ({ item, showDelete }: { item: any; showDelete: boolean }) => (
+    <tr style={{ borderTop: '1px solid var(--sv-etch)', background: showDelete ? 'rgba(248,113,113,.04)' : 'transparent' }}>
+      <td style={{ padding: '8px 10px' }}><code style={{ fontSize: 12, color: 'var(--sv-mint)' }}>{item.sku || '—'}</code></td>
+      <td style={{ padding: '8px 10px', fontSize: 13 }}>
+        <div>{item.product_name}</div>
+        {item.variant_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{item.variant_label}</div>}
+      </td>
+      <td style={{ padding: '8px 10px', fontSize: 13, color: 'var(--sv-text-dim)', textAlign: 'right' }}>{fmtQty(item.qty_sent)}</td>
+      <td style={{ padding: '8px 10px', fontSize: 13, textAlign: 'right', fontWeight: 600, color: showDelete ? '#f87171' : '#34d399' }}>
+        {showDelete ? <span style={{ color: '#f87171' }}>0 — not received</span> : fmtQty(item.qty_received)}
+      </td>
+      <td style={{ padding: '8px 10px' }}>
+        {showDelete && (
+          <button type="button" onClick={() => removeItem(item.id)} style={btnStyle('danger', 'xs')} title="Remove from transfer">Delete</button>
+        )}
+      </td>
+    </tr>
+  );
+
+  return (
+    <Modal title={`Manage Partial Transfer — ${initialBt.transfer_number}`} onClose={onClose} wide>
+      <div style={{ marginBottom: 14, padding: '10px 14px', background: 'rgba(251,146,60,.08)', border: '1px solid rgba(251,146,60,.3)', borderRadius: 8, fontSize: 13 }}>
+        <strong style={{ color: '#f97316' }}>Partially Received</strong> — {initialBt.from_location_name} → {initialBt.to_location_name}.<br />
+        <span style={{ color: 'var(--sv-text-dim)' }}>Some items were not received. Delete items that won't arrive, then mark as fully received.</span>
+      </div>
+      {error && (
+        <div style={{ marginBottom: 12, padding: '8px 12px', background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.4)', borderRadius: 6, fontSize: 13, color: '#f87171' }}>{error}</div>
+      )}
+      {received.length > 0 && (
+        <>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6 }}>✓ Received ({received.length})</div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', marginBottom: 16 }}>
+            <thead><tr style={{ background: 'var(--sv-bg-1)' }}>
+              {['SKU', 'Product', 'Qty Sent', 'Qty Received', ''].map(h => (
+                <th key={h} style={{ padding: '7px 10px', textAlign: h.startsWith('Qty') ? 'right' : 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>{received.map((i: any) => <ItemRow key={i.id} item={i} showDelete={false} />)}</tbody>
+          </table>
+        </>
+      )}
+      {outstanding.length > 0 && (
+        <>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#f97316', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6 }}>⚠ Outstanding — Not Received ({outstanding.length})</div>
+          <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 8 }}>Delete items that won't arrive. Stock at {initialBt.from_location_name} is unaffected.</div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', marginBottom: 16 }}>
+            <thead><tr style={{ background: 'var(--sv-bg-1)' }}>
+              {['SKU', 'Product', 'Qty Sent', 'Status', ''].map(h => (
+                <th key={h} style={{ padding: '7px 10px', textAlign: h === 'Qty Sent' ? 'right' : 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>{outstanding.map((i: any) => <ItemRow key={i.id} item={i} showDelete={true} />)}</tbody>
+          </table>
+        </>
+      )}
+      {items.length === 0 && (
+        <div style={{ padding: '20px', textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>All outstanding items have been removed.</div>
+      )}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+        <button type="button" onClick={onClose} style={btnStyle('ghost')}>Close</button>
+        <button type="button" onClick={markReceived} disabled={saving} style={btnStyle('mint')}>
+          {saving ? 'Processing…' : '✓ Mark as Fully Received'}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Receive Transfers View  (POS-friendly — shows "sent" transfers awaiting receipt)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -10080,12 +10219,13 @@ function ReceiveTransfersView() {
   const [locationFilter, setLocationFilter] = useState<number | ''>('');
   const [loading, setLoading]         = useState(true);
   const [activeBt, setActiveBt]       = useState<any | null>(null);
+  const [activeBtManage, setActiveBtManage] = useState<any | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const [bts, locs] = await Promise.all([
-        apiFetch('/api/ims/branch-transfers?status=sent'),
+        apiFetch('/api/ims/branch-transfers?status=sent,partial'),
         apiFetch('/api/ims/locations'),
       ]);
       setTransfers(bts.data ?? []);
@@ -10101,6 +10241,11 @@ function ReceiveTransfersView() {
     setActiveBt(d.data);
   };
 
+  const openManage = async (bt: any) => {
+    const d = await apiFetch(`/api/ims/branch-transfers/${bt.id}`);
+    setActiveBtManage(d.data);
+  };
+
   const filtered = locationFilter
     ? transfers.filter((bt: any) => Number(bt.to_location_id) === locationFilter)
     : transfers;
@@ -10111,7 +10256,7 @@ function ReceiveTransfersView() {
         <div>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>📦 Receive Branch Transfers</h1>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--sv-text-dim)' }}>
-            Transfers with status <strong>Sent</strong> awaiting receipt. Select a branch to filter by destination.
+            Transfers with status <strong>Sent</strong> or <strong>Partially Received</strong> awaiting receipt. Select a branch to filter by destination.
           </p>
         </div>
         <button onClick={load} style={btnStyle('ghost')}>↻ Refresh</button>
@@ -10139,7 +10284,7 @@ function ReceiveTransfersView() {
         <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
           <thead>
             <tr style={{ background: 'var(--sv-bg-1)' }}>
-              {['Transfer #', 'From', 'To', 'Date', 'Value', ''].map(h => (
+              {['Transfer #', 'From', 'To', 'Date', 'Status', 'Value', ''].map(h => (
                 <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
               ))}
             </tr>
@@ -10151,9 +10296,13 @@ function ReceiveTransfersView() {
                 <td style={{ padding: '12px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{bt.from_location_name}</td>
                 <td style={{ padding: '12px 12px', fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{bt.to_location_name}</td>
                 <td style={{ padding: '12px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{bt.transfer_date?.slice(0, 10)}</td>
+                <td style={{ padding: '12px 12px' }}><StatusBadge status={bt.status} /></td>
                 <td style={{ padding: '12px 12px', fontSize: 13 }}>{fmtCurrency(bt.total_value)}</td>
                 <td style={{ padding: '12px 12px' }}>
-                  <button onClick={() => openReceive(bt)} style={btnStyle('mint', 'sm')}>Receive</button>
+                  {bt.status === 'partial'
+                    ? <button onClick={() => openManage(bt)} style={btnStyle('action', 'sm')}>Manage Partial</button>
+                    : <button onClick={() => openReceive(bt)} style={btnStyle('mint', 'sm')}>Receive</button>
+                  }
                 </td>
               </tr>
             ))}
@@ -10166,6 +10315,14 @@ function ReceiveTransfersView() {
           bt={activeBt}
           onClose={() => setActiveBt(null)}
           onDone={() => { setActiveBt(null); load(); }}
+        />
+      )}
+
+      {activeBtManage && (
+        <PartialBTManageModal
+          bt={activeBtManage}
+          onClose={() => setActiveBtManage(null)}
+          onDone={() => { setActiveBtManage(null); load(); }}
         />
       )}
     </div>

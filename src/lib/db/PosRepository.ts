@@ -71,6 +71,7 @@ export interface PosEodRow {
   id:                number;
   location_id:       number;
   register_id:       number | null;
+  register_session_id?: number | null;
   cashier_id:        number;
   recon_date:        string;
   payment_method:    string;
@@ -506,36 +507,68 @@ export const PosEodRepo = {
   /**
    * Expected takings for a single register SESSION (open → close window),
    * keyed by payment method. Correctly handles shifts that cross midnight or
-   * registers left open across days, because it sums by the session the sale
-   * was rung up under rather than by calendar date.
+   * registers left open across days.
+   *
+   * fallback: also catches sales whose register_session_id was not stored
+   * (e.g. if the POS cookie lacked register_id at sale time) by matching on
+   * register_id + location_id + date as well.
    */
-  async getExpectedBySession(registerSessionId: number): Promise<Record<string, number>> {
-    const rows = await imsQuery<any>(
-      `SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total
-         FROM pos_payments p
-         JOIN pos_sales s ON s.id = p.sale_id
-        WHERE s.register_session_id = ?
-          AND s.status IN ('completed','layby_complete')
-        GROUP BY p.payment_method`,
-      [registerSessionId],
-    );
+  async getExpectedBySession(
+    registerSessionId: number,
+    fallback?: { locationId: number; date: string; registerId: number | null },
+  ): Promise<Record<string, number>> {
+    const sql = fallback?.registerId != null
+      ? `SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total
+           FROM pos_payments p
+           JOIN pos_sales s ON s.id = p.sale_id
+          WHERE s.status IN ('completed','layby_complete')
+            AND (
+              s.register_session_id = ?
+              OR (s.register_id = ? AND s.location_id = ? AND DATE(s.completed_at) = ?)
+            )
+          GROUP BY p.payment_method`
+      : `SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total
+           FROM pos_payments p
+           JOIN pos_sales s ON s.id = p.sale_id
+          WHERE s.register_session_id = ?
+            AND s.status IN ('completed','layby_complete')
+          GROUP BY p.payment_method`;
+    const params = fallback?.registerId != null
+      ? [registerSessionId, fallback.registerId, fallback.locationId, fallback.date]
+      : [registerSessionId];
+    const rows = await imsQuery<any>(sql, params);
     const result: Record<string, number> = {};
     for (const row of rows) result[row.payment_method] = toNum(row.total);
     return result;
   },
 
-  /** Sales totals (incl/excl tax, count) for a single register session. */
-  async getDayTotalsBySession(registerSessionId: number): Promise<{ total_inc_tax: number; tax_total: number; total_exc_tax: number; sale_count: number }> {
-    const rows = await imsQuery<any>(
-      `SELECT COALESCE(SUM(total), 0)              AS total_inc_tax,
-              COALESCE(SUM(tax_total), 0)          AS tax_total,
-              COALESCE(SUM(total - tax_total), 0)  AS total_exc_tax,
-              COUNT(*)                             AS sale_count
-         FROM pos_sales
-        WHERE register_session_id = ?
-          AND status IN ('completed','layby_complete')`,
-      [registerSessionId],
-    );
+  /** Sales totals (incl/excl tax, count) for a single register session. Accepts same fallback as getExpectedBySession. */
+  async getDayTotalsBySession(
+    registerSessionId: number,
+    fallback?: { locationId: number; date: string; registerId: number | null },
+  ): Promise<{ total_inc_tax: number; tax_total: number; total_exc_tax: number; sale_count: number }> {
+    const sql = fallback?.registerId != null
+      ? `SELECT COALESCE(SUM(total), 0) AS total_inc_tax,
+                COALESCE(SUM(tax_total), 0) AS tax_total,
+                COALESCE(SUM(total - tax_total), 0) AS total_exc_tax,
+                COUNT(*) AS sale_count
+           FROM pos_sales
+          WHERE status IN ('completed','layby_complete')
+            AND (
+              register_session_id = ?
+              OR (register_id = ? AND location_id = ? AND DATE(completed_at) = ?)
+            )`
+      : `SELECT COALESCE(SUM(total), 0) AS total_inc_tax,
+                COALESCE(SUM(tax_total), 0) AS tax_total,
+                COALESCE(SUM(total - tax_total), 0) AS total_exc_tax,
+                COUNT(*) AS sale_count
+           FROM pos_sales
+          WHERE register_session_id = ?
+            AND status IN ('completed','layby_complete')`;
+    const params = fallback?.registerId != null
+      ? [registerSessionId, fallback.registerId, fallback.locationId, fallback.date]
+      : [registerSessionId];
+    const rows = await imsQuery<any>(sql, params);
     const r = rows[0] ?? {};
     return {
       total_inc_tax: toNum(r.total_inc_tax),
