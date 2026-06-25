@@ -1436,16 +1436,19 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
   useEffect(() => { if (changeDue) { const t = setTimeout(() => changeDueOkRef.current?.focus(), 120); return () => clearTimeout(t); } }, [changeDue]);
 
   function addPayment() {
-    const amt = parseFloat(amount) || remaining;
-    if (amt <= 0) return;
-    const newPayment = { localId: newLocalId(), method: activeMethod, amount: amt, reference };
+    const tendered = parseFloat(amount) || remaining;
+    if (tendered <= 0) return;
+    // Cap at the remaining balance so pos_payments.amount reflects the actual
+    // sale contribution, not the tendered amount. Change = tendered − contribution.
+    const contribution = Math.round(Math.min(tendered, remaining) * 100) / 100;
+    const newPayment = { localId: newLocalId(), method: activeMethod, amount: contribution, reference };
     const newPayments = [...payments, newPayment];
     const newPaid = newPayments.reduce((s, p) => s + p.amount, 0);
     setPayments(newPayments);
     setAmount('');
     setReference('');
     if (newPaid >= total - 0.001) {
-      const changeAmt = Math.round((newPaid - total) * 100) / 100;
+      const changeAmt = Math.round((tendered - contribution) * 100) / 100;
       if (changeAmt > 0.004) {
         setChangeDue({ amount: changeAmt, pendingPayments: newPayments });
       } else {
