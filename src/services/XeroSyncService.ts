@@ -389,7 +389,7 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
       Quantity: 1,
       UnitAmount: po.freight,
       AccountCode: freightAccount,
-      ...(taxTypes.exempt ? { TaxType: taxTypes.exempt } : {}),
+      ...(lineTaxType ? { TaxType: lineTaxType } : {}),
       Tracking: tracking,
     });
   }
@@ -479,7 +479,7 @@ export async function updateXeroDraftBill(businessId: string, po: POForSync, xer
       Quantity: 1,
       UnitAmount: po.freight,
       AccountCode: freightAccount,
-      ...(taxTypes.exempt ? { TaxType: taxTypes.exempt } : {}),
+      ...(lineTaxType ? { TaxType: lineTaxType } : {}),
       Tracking: tracking,
     });
   }

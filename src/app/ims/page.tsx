@@ -11096,6 +11096,7 @@ function DataResetCard() {
 }
 
 function SetupImportCard({ section }: { section: SetupSection }) {
+  const { run, running, messages, done } = useImportRunner(section.endpoint);
   const logRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [messages]);
   return (
