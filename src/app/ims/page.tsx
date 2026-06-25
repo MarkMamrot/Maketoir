@@ -3120,10 +3120,24 @@ function PurchaseOrdersView() {
     } catch (e: any) { alert(e.message); }
   };
 
-  const handleDeletePoPayment = async (paymentId: number) => {
+  const handleDeletePoPayment = async (payment: any) => {
     if (!viewModal.po) return;
+    const dateStr = payment.payment_date?.slice(0, 10) ?? '';
+    const amtStr  = fmtFx(payment.amount, (viewModal.po.currency_code || 'AUD').toUpperCase());
+    const confirmed = confirm(
+      `⚠️ Delete this payment?\n\n` +
+      `Date: ${dateStr}\n` +
+      `Amount: ${amtStr}\n` +
+      (payment.notes ? `Notes: ${payment.notes}\n` : '') +
+      `\n──────────────────────────────\n` +
+      `IMPORTANT: This payment is NOT automatically removed from Xero.\n` +
+      `Please notify your bookkeeper to delete the matching payment from the Xero bill manually.\n` +
+      `──────────────────────────────\n\n` +
+      `Click OK to delete the payment from IMS only.`
+    );
+    if (!confirmed) return;
     try {
-      await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}/payments/${paymentId}`, { method: 'DELETE' });
+      await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}/payments/${payment.id}`, { method: 'DELETE' });
       await refreshPoView(viewModal.po.id);
     } catch (e: any) { alert(e.message); }
   };
@@ -3828,7 +3842,7 @@ function PurchaseOrdersView() {
                           {isFx && <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{fmtCurrency(p.amount_local)}</td>}
                           <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.notes || '—'}</td>
                           <td style={{ padding: '5px 10px', textAlign: 'right' }}>
-                            <button onClick={() => handleDeletePoPayment(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>✕</button>
+                            <button onClick={() => handleDeletePoPayment(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>✕</button>
                           </td>
                         </tr>
                       ))}
