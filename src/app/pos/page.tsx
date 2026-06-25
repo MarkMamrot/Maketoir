@@ -2218,7 +2218,11 @@ function EodAccountingSection({
   });
 
   const totals = rows.reduce((acc, r) => ({ sales: acc.sales + r.salesAmt, exp: acc.exp + r.exp }), { sales: 0, exp: 0 });
-  const allSynced = rows.length > 0 && rows.every(r => r.synced);
+  // A method only needs a Xero invoice when it has a positive sales amount —
+  // $0 methods (e.g. an unused Gift Card line) are never synced, so they must
+  // not count against "fully synced".
+  const syncable  = rows.filter(r => r.salesAmt > 0.004);
+  const allSynced = syncable.length > 0 && syncable.every(r => r.synced);
   const anySynced = rows.some(r => r.synced);
 
   async function syncToXero() {

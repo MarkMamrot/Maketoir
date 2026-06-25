@@ -35,7 +35,10 @@ export async function GET(req: Request) {
   const denied = assertBusinessAccess(user, databaseId);
   if (denied) return denied;
 
-  const limit = Math.min(Number(searchParams.get('limit') || 200), 200);
+  // NOTE: limit is inlined into SQL below (not a placeholder) because mysql2
+  // prepared statements (pool.execute) reject `LIMIT ?`. It is clamped to a
+  // safe integer 1..200 so inlining is injection-safe.
+  const limit = Math.max(1, Math.min(Math.floor(Number(searchParams.get('limit')) || 200), 200));
 
   try {
     // ── 1. Recent POs from IMS DB ─────────────────────────────────────────
@@ -47,8 +50,7 @@ export async function GET(req: Request) {
          LEFT JOIN ims_contacts c ON c.id = po.supplier_id
         WHERE po.status NOT IN ('cancelled','draft')
         ORDER BY po.order_date DESC, po.id DESC
-        LIMIT ?`,
-      [limit],
+        LIMIT ${limit}`,
     );
 
     // ── 2. Wholesale/B2B SOs only — exclude POS and Online types ──────────
@@ -61,8 +63,7 @@ export async function GET(req: Request) {
         WHERE (so.so_type IS NULL OR so.so_type NOT IN ('online', 'pos'))
           AND so.status NOT IN ('cancelled','draft')
         ORDER BY so.order_date DESC, so.id DESC
-        LIMIT ?`,
-      [limit],
+        LIMIT ${limit}`,
     );
 
     // ── 3. POS daily batches from pos_sales (grouped by date + location) ──
@@ -77,8 +78,7 @@ export async function GET(req: Request) {
         WHERE ps.status = 'completed' AND ps.sale_type = 'sale'
         GROUP BY DATE(ps.completed_at), ps.location_id
         ORDER BY batch_date DESC, ps.location_id ASC
-        LIMIT ?`,
-      [limit],
+        LIMIT ${limit}`,
     );
 
     // ── 4. Online daily batches from ims_sales_orders WHERE so_type='online' ──
@@ -91,8 +91,7 @@ export async function GET(req: Request) {
           AND so.status NOT IN ('cancelled','draft')
         GROUP BY DATE(so.order_date)
         ORDER BY batch_date DESC
-        LIMIT ?`,
-      [limit],
+        LIMIT ${limit}`,
     );
 
     // ── 5. Build IDs / keys for sync log lookups ──────────────────────────
@@ -110,6 +109,7 @@ export async function GET(req: Request) {
     let paymentLogs: any[] = [];
     let soLogs: any[] = [];
     let batchLogs: any[] = [];
+    let eventLogs: any[] = [];
 
     try {
       if (poIds.length > 0) {
@@ -162,6 +162,18 @@ export async function GET(req: Request) {
           [databaseId, ...allBatchKeys, databaseId],
         );
       }
+      // Standalone sync events with no still-existing source document of their own
+      // (POS end-of-day reconciliations, stocktake journals). These are the actual
+      // Xero pushes — surface them directly so their status / amount / Xero ID show.
+      eventLogs = await query<any>(
+        `SELECT id, sync_type, xero_id, status, detail, created_at AS synced_at
+           FROM xero_sync_log
+          WHERE business_id = ?
+            AND sync_type IN ('eod_reconciliation','stocktake_journal')
+          ORDER BY created_at DESC
+          LIMIT ${limit}`,
+        [databaseId],
+      );
     } catch (logErr: any) {
       // xero_sync_log table may not yet exist — return PO/SO list with null sync status
       // rather than failing the whole request.
@@ -267,8 +279,34 @@ export async function GET(req: Request) {
       };
     });
 
+    // ── Standalone Xero sync events (EOD reconciliations, stocktake journals) ──
+    const parseAmt = (detail: string | null): number | null => {
+      if (!detail) return null;
+      const m = /\$\s*([\d,]+(?:\.\d+)?)/.exec(detail);
+      return m ? Number(m[1].replace(/,/g, '')) : null;
+    };
+    const eventEntries = eventLogs.map((e: any) => ({
+      sync_type: e.sync_type,
+      reference_id: null,
+      reference:
+        e.sync_type === 'eod_reconciliation'
+          ? (e.detail ? String(e.detail).split(' — ')[0] : 'EOD Reconciliation')
+          : 'Stocktake Journal',
+      contact_name: e.detail ?? null,
+      amount: parseAmt(e.detail),
+      item_date: e.synced_at,
+      is_historical: 0,
+      xero_sync_status: null,
+      log_id: e.id,
+      xero_id: e.xero_id ?? null,
+      last_sync_status: e.status ?? null,
+      last_sync_detail: e.detail ?? null,
+      last_sync_at: e.synced_at ?? null,
+      payments: [],
+    }));
+
     // Merge + sort by item_date DESC, then slice to limit
-    const entries = [...poEntries, ...soEntries, ...posBatchEntries, ...onlineBatchEntries]
+    const entries = [...poEntries, ...soEntries, ...posBatchEntries, ...onlineBatchEntries, ...eventEntries]
       .sort((a, b) => {
         const da = a.item_date ? new Date(a.item_date).getTime() : 0;
         const db2 = b.item_date ? new Date(b.item_date).getTime() : 0;

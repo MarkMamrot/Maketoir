@@ -7873,9 +7873,9 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
 
   const toggleExpand = (id: number) => setExpanded(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
-  const typeLabel = (t: string) => ({ po_bill: 'Purchase Order', so_invoice: 'Wholesale SO', pos_batch: 'POS Sales (Batch)', online_batch: 'Online Sales (Batch)', cogs_journal: 'COGS Journal' }[t] ?? t);
-  const typeColor = (t: string) => ({ po_bill: '#818cf8', so_invoice: '#34d399', pos_batch: '#fb923c', online_batch: '#38bdf8', cogs_journal: '#a78bfa' }[t] ?? '#9ca3af');
-  const typeBg = (t: string) => ({ po_bill: 'rgba(99,102,241,.13)', so_invoice: 'rgba(16,185,129,.13)', pos_batch: 'rgba(251,146,60,.13)', online_batch: 'rgba(56,189,248,.13)', cogs_journal: 'rgba(167,139,250,.13)' }[t] ?? 'rgba(156,163,175,.13)');
+  const typeLabel = (t: string) => ({ po_bill: 'Purchase Order', so_invoice: 'Wholesale SO', pos_batch: 'POS Sales (Batch)', online_batch: 'Online Sales (Batch)', cogs_journal: 'COGS Journal', eod_reconciliation: 'POS End-of-Day', stocktake_journal: 'Stocktake Journal' }[t] ?? t);
+  const typeColor = (t: string) => ({ po_bill: '#818cf8', so_invoice: '#34d399', pos_batch: '#fb923c', online_batch: '#38bdf8', cogs_journal: '#a78bfa', eod_reconciliation: '#fb923c', stocktake_journal: '#a78bfa' }[t] ?? '#9ca3af');
+  const typeBg = (t: string) => ({ po_bill: 'rgba(99,102,241,.13)', so_invoice: 'rgba(16,185,129,.13)', pos_batch: 'rgba(251,146,60,.13)', online_batch: 'rgba(56,189,248,.13)', cogs_journal: 'rgba(167,139,250,.13)', eod_reconciliation: 'rgba(251,146,60,.13)', stocktake_journal: 'rgba(167,139,250,.13)' }[t] ?? 'rgba(156,163,175,.13)');
 
   const fmtDate  = (d: string) => { try { return new Date(d).toLocaleString('en-AU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return d; } };
   const fmtDay   = (d: string | null | undefined) => { if (!d) return '—'; try { const s = String(d); return new Date(s.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }); } catch { return String(d).slice(0, 10); } };
@@ -7984,6 +7984,17 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                       <td style={{ ...td, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{entry.reference}</td>
                       <td style={{ ...td, color: 'var(--sv-text-dim)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {entry.contact_name ?? '—'}
+                        {entry.xero_id && (
+                          <a
+                            href={`https://go.xero.com/app/invoicing/view/${entry.xero_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={`Open in Xero (${entry.xero_id})`}
+                            style={{ display: 'block', fontSize: 11, color: '#38bdf8', textDecoration: 'none', fontFamily: 'monospace' }}
+                          >
+                            ↗ {String(entry.xero_id).slice(0, 8)}…
+                          </a>
+                        )}
                       </td>
                       <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtMoney(entry.amount)}</td>
                       <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{entry.last_sync_at ? fmtDate(entry.last_sync_at) : '—'}</td>
