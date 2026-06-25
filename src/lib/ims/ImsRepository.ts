@@ -2125,6 +2125,57 @@ async function nextBTNumber(): Promise<string> {
   return `BT-${year}-${seq}`;
 }
 
+/**
+ * Move stock between the two branches of a transfer and record the matching
+ * stock movements. `qty` is SIGNED relative to the transfer direction:
+ *   qty > 0 → source → destination (a receipt / top-up)
+ *   qty < 0 → destination → source (reverse an over-receipt or a deletion)
+ * The gaining location's avg_cost is recomputed; the losing location's is left
+ * unchanged (consistent with how stock leaves on a normal transfer out).
+ * Must be called inside an open transaction (`conn`).
+ */
+async function _btMove(
+  conn: any,
+  bt: { from_location_id: number; to_location_id: number },
+  refId: number,
+  item: { variant_id: string; unit_cost: number },
+  qty: number,
+): Promise<void> {
+  if (!qty) return;
+  const variantId = item.variant_id;
+  const unitCost  = Number(item.unit_cost);
+  const loseLoc   = qty > 0 ? bt.from_location_id : bt.to_location_id;
+  const gainLoc   = qty > 0 ? bt.to_location_id   : bt.from_location_id;
+  const mag       = Math.abs(qty);
+
+  // ── Losing location (stock leaves) ──
+  await conn.execute(`INSERT IGNORE INTO ims_stock (variant_id, location_id, qty_on_hand) VALUES (?, ?, 0)`, [variantId, loseLoc]);
+  const [[lose]] = await conn.execute(`SELECT qty_on_hand FROM ims_stock WHERE variant_id=? AND location_id=?`, [variantId, loseLoc]);
+  const loseNew = Number(lose?.qty_on_hand ?? 0) - mag;
+  await conn.execute(`UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id=? AND location_id=?`, [loseNew, variantId, loseLoc]);
+  await conn.execute(
+    `INSERT INTO ims_stock_movements
+       (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
+     VALUES (?,?,'transfer_out','branch_transfer',?,?,?,?)`,
+    [variantId, loseLoc, refId, -mag, loseNew, unitCost]
+  );
+
+  // ── Gaining location (stock arrives) ──
+  await conn.execute(`INSERT IGNORE INTO ims_stock (variant_id, location_id, qty_on_hand) VALUES (?, ?, 0)`, [variantId, gainLoc]);
+  const [[gain]] = await conn.execute(`SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id=? AND location_id=?`, [variantId, gainLoc]);
+  const gainSoh = Number(gain?.qty_on_hand ?? 0);
+  const gainAvg = Number(gain?.avg_cost ?? unitCost);
+  const newAvg  = gainSoh <= 0 ? unitCost : (gainAvg * gainSoh + unitCost * mag) / (gainSoh + mag);
+  const gainNew = gainSoh + mag;
+  await conn.execute(`UPDATE ims_stock SET qty_on_hand = ?, avg_cost = ? WHERE variant_id=? AND location_id=?`, [gainNew, newAvg, variantId, gainLoc]);
+  await conn.execute(
+    `INSERT INTO ims_stock_movements
+       (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
+     VALUES (?,?,'transfer_in','branch_transfer',?,?,?,?)`,
+    [variantId, gainLoc, refId, mag, gainNew, newAvg]
+  );
+}
+
 export const ImsBTRepo = {
   async list(status?: BTStatus | BTStatus[]): Promise<ImsBT[]> {
     let where = '';
@@ -2273,95 +2324,54 @@ export const ImsBTRepo = {
       };
       if (!allowed[from]?.includes(finalStatus)) throw new Error(`Cannot transition from ${from} to ${finalStatus}`);
 
-      // Move `qty` units of one item from source → destination, recording both
-      // stock movements and updating SOH / avg_cost. Used for full receipts
-      // (sent → received) and incremental top-ups (partial → received).
-      const moveStock = async (item: ImsBTItem, qty: number) => {
-        if (qty <= 0) return;
-        // Deduct from source
-        await conn.execute(
-          `INSERT IGNORE INTO ims_stock (variant_id, location_id, qty_on_hand) VALUES (?, ?, 0)`,
-          [item.variant_id, bt.from_location_id]
-        );
-        const [[src]] = await conn.execute<any[]>(
-          `SELECT qty_on_hand FROM ims_stock WHERE variant_id=? AND location_id=?`,
-          [item.variant_id, bt.from_location_id]
-        );
-        const src_new_soh = Number(src?.qty_on_hand ?? 0) - qty;
-        await conn.execute(
-          `UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id=? AND location_id=?`,
-          [src_new_soh, item.variant_id, bt.from_location_id]
-        );
-        await conn.execute(
-          `INSERT INTO ims_stock_movements
-             (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
-           VALUES (?,?,'transfer_out','branch_transfer',?,?,?,?)`,
-          [item.variant_id, bt.from_location_id, id, -qty, src_new_soh, item.unit_cost]
-        );
-
-        // Add to destination
-        await conn.execute(
-          `INSERT IGNORE INTO ims_stock (variant_id, location_id, qty_on_hand) VALUES (?, ?, 0)`,
-          [item.variant_id, bt.to_location_id]
-        );
-        const [[dst]] = await conn.execute<any[]>(
-          `SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id=? AND location_id=?`,
-          [item.variant_id, bt.to_location_id]
-        );
-        const old_dst_soh = Number(dst?.qty_on_hand ?? 0);
-        const old_dst_avg = Number(dst?.avg_cost ?? item.unit_cost);
-        const new_dst_avg = old_dst_soh <= 0
-          ? Number(item.unit_cost)
-          : (old_dst_avg * old_dst_soh + Number(item.unit_cost) * qty) / (old_dst_soh + qty);
-        const new_dst_soh = old_dst_soh + qty;
-        await conn.execute(
-          `UPDATE ims_stock SET qty_on_hand = ?, avg_cost = ? WHERE variant_id=? AND location_id=?`,
-          [new_dst_soh, new_dst_avg, item.variant_id, bt.to_location_id]
-        );
-        await conn.execute(
-          `INSERT INTO ims_stock_movements
-             (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
-           VALUES (?,?,'transfer_in','branch_transfer',?,?,?,?)`,
-          [item.variant_id, bt.to_location_id, id, qty, new_dst_soh, new_dst_avg]
-        );
-      };
-
-      // sent → received/partial: apply stock movements and auto-detect partial
+      // sent → received/partial: move stock, record ACTUAL line values
+      // (qty_received × unit_cost), and auto-detect a shortfall.
       if (from === 'sent' && finalStatus === 'received') {
         let anyShortfall = false;
         for (const item of items) {
           const found = receivedItems?.find(r => r.item_id === item.id);
-          const qty_rcvd = found != null ? Number(found.qty_received) : Number(item.qty_sent);
+          const qty_rcvd = found != null
+            ? Math.min(Math.max(0, Number(found.qty_received)), Number(item.qty_sent))
+            : Number(item.qty_sent);
           if (qty_rcvd < Number(item.qty_sent)) anyShortfall = true;
 
           await conn.execute(
-            `UPDATE ims_branch_transfer_items SET qty_received = ? WHERE id = ?`,
-            [qty_rcvd, item.id]
+            `UPDATE ims_branch_transfer_items SET qty_received = ?, line_value = ? * unit_cost WHERE id = ?`,
+            [qty_rcvd, qty_rcvd, item.id]
           );
-          await moveStock(item, qty_rcvd);
+          await _btMove(conn, bt, id, item, qty_rcvd);
         }
         // Any item received short of qty_sent leaves the transfer 'partial'.
         if (anyShortfall) finalStatus = 'partial';
         await conn.execute(`UPDATE ims_branch_transfers SET received_date = CURDATE() WHERE id = ?`, [id]);
       }
 
-      // partial → received: top up any outstanding quantities that are now
-      // being received ("receive the rest"), moving only the delta, then close.
+      // partial → received: apply qty_received corrections as SIGNED deltas
+      // (receive more, or reverse an over-receipt), refresh line values, close.
       if (from === 'partial' && finalStatus === 'received') {
         for (const item of items) {
           const found = receivedItems?.find(r => r.item_id === item.id);
           if (found == null) continue;
-          const current = Number(item.qty_received ?? 0);
-          const finalQty = Math.min(Number(found.qty_received), Number(item.qty_sent));
-          const delta = finalQty - current;
-          if (delta <= 0) continue;
+          const current  = Number(item.qty_received ?? 0);
+          const finalQty = Math.min(Math.max(0, Number(found.qty_received)), Number(item.qty_sent));
+          const delta    = finalQty - current;
+          if (delta !== 0) await _btMove(conn, bt, id, item, delta);
           await conn.execute(
-            `UPDATE ims_branch_transfer_items SET qty_received = ? WHERE id = ?`,
-            [finalQty, item.id]
+            `UPDATE ims_branch_transfer_items SET qty_received = ?, line_value = ? * unit_cost WHERE id = ?`,
+            [finalQty, finalQty, item.id]
           );
-          await moveStock(item, delta);
         }
         await conn.execute(`UPDATE ims_branch_transfers SET received_date = CURDATE() WHERE id = ?`, [id]);
+      }
+
+      // Keep total_value in step with the (now actual) line values.
+      if (finalStatus === 'received' || finalStatus === 'partial') {
+        await conn.execute(
+          `UPDATE ims_branch_transfers
+             SET total_value = (SELECT COALESCE(SUM(line_value),0) FROM ims_branch_transfer_items WHERE transfer_id = ?)
+           WHERE id = ?`,
+          [id, id]
+        );
       }
 
       await conn.execute(`UPDATE ims_branch_transfers SET status = ? WHERE id = ?`, [finalStatus, id]);
@@ -2371,25 +2381,33 @@ export const ImsBTRepo = {
   },
 
   /**
-   * Write off the un-received remainder of a partially-received line: shrink
-   * qty_sent down to qty_received so the line reconciles to zero outstanding.
-   * Stock at the source branch is unaffected (nothing was ever moved for the
-   * shortfall). Used when staff decide the missing units won't arrive.
+   * Correct the qty_received on a transfer line (the actual quantity that
+   * transferred). Moves the SIGNED delta of stock between branches — receiving
+   * more sends additional units source → destination; lowering the figure
+   * returns the difference destination → source. Clamped to 0..qty_sent.
+   * Refreshes line_value (qty_received × unit_cost) and the transfer total.
    */
-  async writeoffItem(transferId: number, itemId: number): Promise<void> {
+  async setItemReceived(transferId: number, itemId: number, newReceived: number): Promise<void> {
+    const target = Number(newReceived);
+    if (!Number.isFinite(target) || target < 0) throw new Error('Qty received must be zero or more');
     const pool = getIMSPool();
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
+      const [[bt]] = await conn.execute<any[]>(`SELECT * FROM ims_branch_transfers WHERE id = ?`, [transferId]);
+      if (!bt) throw new Error('Branch transfer not found');
       const [[item]] = await conn.execute<any[]>(
-        `SELECT id, qty_received, qty_sent FROM ims_branch_transfer_items WHERE id = ? AND transfer_id = ?`,
+        `SELECT * FROM ims_branch_transfer_items WHERE id = ? AND transfer_id = ?`,
         [itemId, transferId]
       );
       if (!item) throw new Error('Item not found on this transfer');
-      const rcvd = Number(item.qty_received ?? 0);
+      const finalQty = Math.min(target, Number(item.qty_sent));
+      const current  = Number(item.qty_received ?? 0);
+      const delta    = finalQty - current;
+      if (delta !== 0) await _btMove(conn, bt, transferId, item, delta);
       await conn.execute(
-        `UPDATE ims_branch_transfer_items SET qty_sent = ?, line_value = ? * unit_cost WHERE id = ?`,
-        [rcvd, rcvd, itemId]
+        `UPDATE ims_branch_transfer_items SET qty_received = ?, line_value = ? * unit_cost WHERE id = ?`,
+        [finalQty, finalQty, itemId]
       );
       await conn.execute(
         `UPDATE ims_branch_transfers
@@ -2403,53 +2421,26 @@ export const ImsBTRepo = {
   },
 
   /**
-   * Correct the qty_sent on a transfer line (e.g. the dispatching branch keyed
-   * the wrong amount). Recomputes line_value and the transfer total. Cannot be
-   * set below the quantity already received, since that stock has already moved.
+   * Remove a line from a transfer. If any stock was already received for it,
+   * those movements are reversed (units returned to the source branch) before
+   * the line is deleted. Recomputes the transfer total.
    */
-  async setItemQtySent(transferId: number, itemId: number, qtySent: number): Promise<void> {
-    const newSent = Number(qtySent);
-    if (!Number.isFinite(newSent) || newSent < 0) throw new Error('Qty sent must be zero or more');
-    const pool = getIMSPool();
-    const conn = await pool.getConnection();
-    try {
-      await conn.beginTransaction();
-      const [[item]] = await conn.execute<any[]>(
-        `SELECT id, qty_received FROM ims_branch_transfer_items WHERE id = ? AND transfer_id = ?`,
-        [itemId, transferId]
-      );
-      if (!item) throw new Error('Item not found on this transfer');
-      const rcvd = Number(item.qty_received ?? 0);
-      if (newSent < rcvd) throw new Error(`Qty sent cannot be less than qty already received (${rcvd})`);
-      await conn.execute(
-        `UPDATE ims_branch_transfer_items SET qty_sent = ?, line_value = ? * unit_cost WHERE id = ?`,
-        [newSent, newSent, itemId]
-      );
-      await conn.execute(
-        `UPDATE ims_branch_transfers
-           SET total_value = (SELECT COALESCE(SUM(line_value),0) FROM ims_branch_transfer_items WHERE transfer_id = ?)
-         WHERE id = ?`,
-        [transferId, transferId]
-      );
-      await conn.commit();
-    } catch (err) { await conn.rollback(); throw err; }
-    finally { conn.release(); }
-  },
-
   async removeItem(transferId: number, itemId: number): Promise<void> {
     const pool = getIMSPool();
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
-      // Verify the item belongs to this transfer and hasn't been received
+      const [[bt]] = await conn.execute<any[]>(`SELECT * FROM ims_branch_transfers WHERE id = ?`, [transferId]);
+      if (!bt) throw new Error('Branch transfer not found');
       const [[item]] = await conn.execute<any[]>(
-        `SELECT id, qty_received, qty_sent, unit_cost FROM ims_branch_transfer_items WHERE id = ? AND transfer_id = ?`,
+        `SELECT * FROM ims_branch_transfer_items WHERE id = ? AND transfer_id = ?`,
         [itemId, transferId]
       );
       if (!item) throw new Error('Item not found on this transfer');
-      if (Number(item.qty_received ?? 0) > 0) throw new Error('Cannot remove an item that has already been received');
+      const rcvd = Number(item.qty_received ?? 0);
+      // Return any already-received units to the source branch.
+      if (rcvd > 0) await _btMove(conn, bt, transferId, item, -rcvd);
       await conn.execute(`DELETE FROM ims_branch_transfer_items WHERE id = ?`, [itemId]);
-      // Recalculate total_value
       await conn.execute(
         `UPDATE ims_branch_transfers
            SET total_value = (SELECT COALESCE(SUM(line_value),0) FROM ims_branch_transfer_items WHERE transfer_id = ?)

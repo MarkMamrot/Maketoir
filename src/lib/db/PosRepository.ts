@@ -491,7 +491,8 @@ export const PosEodRepo = {
     const rows = await imsQuery<any>(
       `SELECT * FROM pos_eod_reconciliations
         WHERE register_session_id = ?
-           OR (register_session_id IS NULL AND location_id = ? AND register_id = ? AND recon_date = ?)
+           OR (register_session_id IS NULL AND counted_amount IS NULL
+               AND location_id = ? AND register_id = ? AND recon_date = ?)
         ORDER BY payment_method`,
       [registerSessionId, fallback.locationId, fallback.registerId, fallback.date],
     );

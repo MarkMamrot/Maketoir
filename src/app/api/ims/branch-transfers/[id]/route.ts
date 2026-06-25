@@ -27,17 +27,20 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     const { items, status, receivedItems, action, item_id, ...btData } = body;
     if (action === 'remove_item') {
       if (!item_id) return NextResponse.json({ success: false, error: 'item_id required' }, { status: 400 });
+      const existing = await ImsBTRepo.get(Number(params.id));
       await ImsBTRepo.removeItem(Number(params.id), Number(item_id));
+      // Deleting a received line returns stock to source → refresh cache.
+      const vids = (existing?.items ?? []).map(i => i.variant_id).filter(Boolean) as string[];
+      if (vids.length > 0) refreshVariantCache(vids).catch(err => console.error('Failed inline cache refresh for BT:', err));
       return NextResponse.json({ success: true });
     }
-    if (action === 'writeoff_item') {
+    if (action === 'set_item_received') {
       if (!item_id) return NextResponse.json({ success: false, error: 'item_id required' }, { status: 400 });
-      await ImsBTRepo.writeoffItem(Number(params.id), Number(item_id));
-      return NextResponse.json({ success: true });
-    }
-    if (action === 'set_item_qty') {
-      if (!item_id) return NextResponse.json({ success: false, error: 'item_id required' }, { status: 400 });
-      await ImsBTRepo.setItemQtySent(Number(params.id), Number(item_id), Number(body.qty_sent));
+      await ImsBTRepo.setItemReceived(Number(params.id), Number(item_id), Number(body.qty_received));
+      // Adjusting qty_received moves stock between branches → refresh cache.
+      const btDataFull = await ImsBTRepo.get(Number(params.id));
+      const vids = (btDataFull?.items ?? []).map(i => i.variant_id).filter(Boolean) as string[];
+      if (vids.length > 0) refreshVariantCache(vids).catch(err => console.error('Failed inline cache refresh for BT:', err));
       return NextResponse.json({ success: true });
     }
     if (status) {
