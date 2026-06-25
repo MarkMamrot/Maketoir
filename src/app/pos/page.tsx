@@ -421,7 +421,7 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
 
 // ─── Main POS Layout ──────────────────────────────────────────────────────────
 
-type MainScreen = 'pos' | 'eod' | 'reports' | 'parked';
+type MainScreen = 'pos' | 'eod' | 'reports' | 'parked' | 'receive-transfers';
 
 function MainPos({
   deviceConfig, session, products, paymentMethods, defaultView,
@@ -734,6 +734,7 @@ function MainPos({
     }
   }
 
+  if (screen === 'receive-transfers') return <ReceiveTransfersScreen session={session} onBack={() => setScreen('pos')} />;
   if (screen === 'eod') return <EodScreen session={session} onBack={() => {
     // Always re-fetch register session when returning from EOD so mustOpenRegister
     // reflects the latest state (closed or newly opened).
@@ -851,6 +852,7 @@ function MainPos({
         >🔁 Reprint</button>
         <button onClick={() => setScreen('eod')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>Register</button>
         <button onClick={() => setScreen('reports')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>Reports</button>
+        <button onClick={() => setScreen('receive-transfers')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>📦 Receive Transfers</button>
         <button
           onClick={() => setCartLeft(v => { const next = !v; try { localStorage.setItem('pos_cart_left', next ? '1' : '0'); } catch {} return next; })}
           title={cartLeft ? 'Cart on left — click to move right' : 'Cart on right — click to move left'}
@@ -2304,6 +2306,246 @@ function EodAccountingSection({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Reports Screen ───────────────────────────────────────────────────────────
+
+// ─── Receive Transfers Screen ─────────────────────────────────────────────────
+
+function ReceiveTransfersScreen({ session, onBack }: { session: PosSession; onBack: () => void }) {
+  const [transfers, setTransfers] = useState<any[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [activeBt, setActiveBt]   = useState<any | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/ims/branch-transfers?status=sent`).then(r => r.json());
+      const all: any[] = res.data ?? [];
+      setTransfers(all.filter((bt: any) => Number(bt.to_location_id) === session.location_id));
+    } catch {}
+    setLoading(false);
+  }, [session.location_id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const openReceive = async (bt: any) => {
+    const res = await fetch(`/api/ims/branch-transfers/${bt.id}`).then(r => r.json());
+    setActiveBt(res.data);
+  };
+
+  if (activeBt) return (
+    <ReceiveBtInline
+      bt={activeBt}
+      onBack={() => setActiveBt(null)}
+      onDone={() => { setActiveBt(null); load(); }}
+    />
+  );
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', padding: '1.5rem', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)' }}>
+      <div style={{ maxWidth: 860, margin: '0 auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+          <button onClick={onBack} style={smallBtn}>← Back to POS</button>
+          <h1 style={{ margin: 0, color: 'var(--sv-text-strong)', flex: 1, fontSize: '1.3rem' }}>📦 Receive Branch Transfers — {session.location_name}</h1>
+          <button onClick={load} style={smallBtn}>↻ Refresh</button>
+        </div>
+
+        {loading ? (
+          <p style={{ color: 'var(--sv-text-dim)' }}>Loading…</p>
+        ) : transfers.length === 0 ? (
+          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--sv-text-dim)', background: 'var(--sv-bg-1)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
+            No transfers currently awaiting receipt at {session.location_name}.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
+            {transfers.map((bt: any) => (
+              <div key={bt.id} style={{ background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--sv-text-strong)', marginBottom: 2 }}>{bt.transfer_number}</div>
+                  <div style={{ fontSize: '.85rem', color: 'var(--sv-text-dim)' }}>From: <strong style={{ color: 'var(--sv-text-main)' }}>{bt.from_location_name}</strong> · Date: {bt.transfer_date?.slice(0,10)} · Value: ${Number(bt.total_value).toFixed(2)}</div>
+                </div>
+                <button
+                  onClick={() => openReceive(bt)}
+                  style={{ padding: '.55rem 1.2rem', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--sv-mint,#0c9)', color: '#fff', fontWeight: 700, fontSize: '.9rem', whiteSpace: 'nowrap' }}
+                >
+                  Receive
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ReceiveBtInline({ bt, onBack, onDone }: { bt: any; onBack: () => void; onDone: () => void }) {
+  const [receiveQtys, setReceiveQtys] = useState<Record<number, number>>(() => {
+    const init: Record<number, number> = {};
+    for (const item of bt.items ?? []) init[item.id] = 0;
+    return init;
+  });
+  const [scanInput, setScanInput]     = useState('');
+  const [lastScanned, setLastScanned] = useState<any | null>(null);
+  const [scanError, setScanError]     = useState<string | null>(null);
+  const [submitting, setSubmitting]   = useState(false);
+  const scanRef = useRef<HTMLInputElement>(null);
+
+  const playError = () => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = ctx.createOscillator(); const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'square'; osc.frequency.value = 200;
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+      osc.start(); osc.stop(ctx.currentTime + 0.45);
+    } catch {}
+  };
+
+  const handleScan = (value: string) => {
+    const trimmed = value.trim();
+    setScanInput('');
+    if (!trimmed) return;
+    const match = (bt.items ?? []).find((i: any) =>
+      (i.barcode && i.barcode === trimmed) || (i.sku && i.sku === trimmed)
+    );
+    if (!match) {
+      playError();
+      setScanError(`No item matched "${trimmed}"`);
+      setLastScanned(null);
+      setTimeout(() => setScanError(null), 5000);
+      scanRef.current?.focus();
+      return;
+    }
+    setScanError(null);
+    setReceiveQtys(prev => ({ ...prev, [match.id]: (prev[match.id] ?? 0) + 1 }));
+    setLastScanned(match);
+    scanRef.current?.focus();
+  };
+
+  const handleReceiveAll = () => {
+    const all: Record<number, number> = {};
+    for (const item of bt.items ?? []) all[item.id] = Number(item.qty_sent);
+    setReceiveQtys(all);
+  };
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/ims/branch-transfers/${bt.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'received',
+          receivedItems: Object.entries(receiveQtys).map(([id, qty]) => ({ item_id: Number(id), qty_received: qty })),
+        }),
+      });
+      if (!res.ok) { const d = await res.json(); alert(d.error ?? 'Failed'); return; }
+      onDone();
+    } catch (e: any) { alert(e.message); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', padding: '1.5rem', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)' }}>
+      <div style={{ maxWidth: 900, margin: '0 auto' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.25rem' }}>
+          <button onClick={onBack} style={smallBtn}>← Back</button>
+          <h1 style={{ margin: 0, color: 'var(--sv-text-strong)', flex: 1, fontSize: '1.2rem' }}>
+            📦 {bt.transfer_number} — from {bt.from_location_name}
+          </h1>
+          <button onClick={handleReceiveAll} style={{ ...smallBtn, color: 'var(--sv-text-main)' }}>Receive All</button>
+          <button onClick={handleSubmit} disabled={submitting} style={{ padding: '.55rem 1.4rem', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--sv-mint,#0c9)', color: '#fff', fontWeight: 700, fontSize: '.9rem', opacity: submitting ? .6 : 1 }}>
+            {submitting ? 'Processing…' : 'Confirm Receipt & Move Stock'}
+          </button>
+        </div>
+
+        {/* Scan section */}
+        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '1rem 1.25rem', marginBottom: '1.25rem' }}>
+          <div style={{ fontWeight: 700, fontSize: '.95rem', marginBottom: '.7rem', color: 'var(--sv-text-strong)' }}>📷 Receive by Scanning Items</div>
+          <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.6rem' }}>
+            <input
+              ref={scanRef}
+              type="text"
+              placeholder="Scan barcode or type SKU, press Enter…"
+              value={scanInput}
+              onChange={e => setScanInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleScan(scanInput); } }}
+              autoFocus
+              style={{ ...inputStyle, flex: 1, fontFamily: 'monospace', fontSize: '1rem', marginBottom: 0 }}
+            />
+            <button onClick={() => handleScan(scanInput)} style={{ padding: '.5rem 1.1rem', borderRadius: 7, border: 'none', cursor: 'pointer', background: 'var(--sv-action)', color: '#fff', fontWeight: 600 }}>Scan</button>
+          </div>
+          {scanError && (
+            <div style={{ padding: '.55rem .9rem', background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.4)', borderRadius: 7, fontSize: '.87rem', color: '#f87171', marginBottom: '.6rem' }}>⚠ {scanError}</div>
+          )}
+          {lastScanned ? (
+            <div style={{ padding: '.75rem 1rem', background: 'rgba(16,185,129,.08)', border: '1px solid rgba(16,185,129,.3)', borderRadius: 8 }}>
+              <div style={{ fontSize: '.75rem', color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 3 }}>Last Scanned</div>
+              <div style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--sv-text-strong)', marginBottom: 5 }}>
+                {lastScanned.product_name}{lastScanned.variant_label ? ` — ${lastScanned.variant_label}` : ''}
+              </div>
+              <div style={{ display: 'flex', gap: '1.5rem', fontSize: '.9rem', flexWrap: 'wrap' }}>
+                <span><span style={{ color: 'var(--sv-text-dim)' }}>RRP: </span><strong style={{ color: '#34d399', fontSize: '1rem' }}>{lastScanned.price_rrp ? `$${Number(lastScanned.price_rrp).toFixed(2)}` : '—'}</strong></span>
+                <span><span style={{ color: 'var(--sv-text-dim)' }}>Sent: </span><strong>{Number(lastScanned.qty_sent)}</strong></span>
+                <span><span style={{ color: 'var(--sv-text-dim)' }}>Received: </span><strong style={{ color: '#34d399' }}>{receiveQtys[lastScanned.id] ?? 0}</strong></span>
+                <span><span style={{ color: 'var(--sv-text-dim)' }}>Awaiting: </span>
+                  <strong style={{ color: Math.max(0, Number(lastScanned.qty_sent) - (receiveQtys[lastScanned.id] ?? 0)) > 0 ? '#fbbf24' : '#34d399' }}>
+                    {Math.max(0, Number(lastScanned.qty_sent) - (receiveQtys[lastScanned.id] ?? 0))}
+                  </strong>
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontSize: '.83rem', color: 'var(--sv-text-dim)' }}>Scan an item to see its details here.</div>
+          )}
+        </div>
+
+        {/* Items table */}
+        <table style={{ width: '100%', borderCollapse: 'collapse', background: 'var(--sv-bg-1)', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--sv-etch)' }}>
+          <thead>
+            <tr style={{ background: 'var(--sv-bg-2)' }}>
+              {['SKU', 'Product / Variant', 'RRP', 'Qty Sent', 'Qty Received', 'Awaiting'].map(h => (
+                <th key={h} style={{ padding: '.6rem .9rem', textAlign: 'left', fontSize: '.75rem', color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {(bt.items ?? []).map((item: any) => {
+              const rcvd = receiveQtys[item.id] ?? 0;
+              const awaiting = Math.max(0, Number(item.qty_sent) - rcvd);
+              const isLast = lastScanned?.id === item.id;
+              return (
+                <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)', background: isLast ? 'rgba(16,185,129,.07)' : 'transparent' }}>
+                  <td style={{ padding: '.6rem .9rem', fontFamily: 'monospace', fontSize: '.82rem', color: 'var(--sv-mint,#0c9)' }}>{item.sku || '—'}</td>
+                  <td style={{ padding: '.6rem .9rem' }}>
+                    <div style={{ fontSize: '.9rem' }}>{item.product_name}</div>
+                    {item.variant_label && <div style={{ fontSize: '.78rem', color: 'var(--sv-text-dim)' }}>{item.variant_label}</div>}
+                  </td>
+                  <td style={{ padding: '.6rem .9rem', fontSize: '.9rem', color: 'var(--sv-text-dim)' }}>{item.price_rrp ? `$${Number(item.price_rrp).toFixed(2)}` : '—'}</td>
+                  <td style={{ padding: '.6rem .9rem', fontSize: '.9rem', color: 'var(--sv-text-dim)' }}>{Number(item.qty_sent)}</td>
+                  <td style={{ padding: '.4rem .9rem', width: 100 }}>
+                    <input
+                      type="number" min="0" step="1"
+                      value={rcvd}
+                      onChange={e => setReceiveQtys(p => ({ ...p, [item.id]: Number(e.target.value) }))}
+                      style={{ ...inputStyle, marginBottom: 0, fontSize: '.9rem', borderColor: isLast ? '#34d399' : rcvd !== Number(item.qty_sent) && rcvd > 0 ? '#f87171' : undefined }}
+                    />
+                  </td>
+                  <td style={{ padding: '.6rem .9rem', fontSize: '.9rem', fontWeight: 600, color: awaiting > 0 ? '#fbbf24' : '#34d399' }}>
+                    {awaiting > 0 ? awaiting : '✓'}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

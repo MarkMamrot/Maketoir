@@ -14,6 +14,7 @@ type ImsView =
   | 'dashboard' | 'products' | 'stock' | 'brands' | 'bulk-edit'
   | 'contacts' | 'locations'
   | 'purchase-orders' | 'sales-orders' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
+  | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
   | 'reports' | 'report-sales-by-branch' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes'
   | 'xero' | 'shopify';
