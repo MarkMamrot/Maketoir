@@ -2112,7 +2112,7 @@ export interface ImsBTItem {
   id: number; transfer_id: number; variant_id: string;
   qty_sent: number; qty_received: number | null;
   unit_cost: number; line_value: number; notes?: string;
-  sku?: string; product_name?: string; variant_label?: string;
+  sku?: string; barcode?: string; product_name?: string; variant_label?: string; price_rrp?: string;
 }
 
 async function nextBTNumber(): Promise<string> {
@@ -2156,7 +2156,7 @@ export const ImsBTRepo = {
     if (!rows.length) return null;
     const items = await imsQuery<ImsBTItem>(
       `SELECT bti.*,
-              v.sku,
+              v.sku, v.barcode, v.price_rrp,
               p.name AS product_name,
               CONCAT_WS(' / ',
                 NULLIF(v.option1_value,''), NULLIF(v.option2_value,''),

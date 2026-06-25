@@ -44,6 +44,7 @@ const NAV = [
   { id: '__locations',     label: 'Locations',        section: 'locations', children: [
     { id: 'locations',      label: 'Locations' },
     { id: 'branch-transfers', label: 'Branch Transfers' },
+    { id: 'receive-transfers', label: '📦 Receive Transfers' },
   ]},
   { id: 'stocktakes',       label: '📋 Stocktakes',     section: null },
   { id: 'reports',          label: '📊 Reports',         section: null },
@@ -9011,6 +9012,7 @@ export default function ImsPage() {
           {view === 'purchase-orders'  && <PurchaseOrdersView />}
           {view === 'sales-orders'     && <SalesOrdersView />}
           {view === 'branch-transfers' && <BranchTransfersView />}
+          {view === 'receive-transfers' && <ReceiveTransfersView />}
           {view === 'brands'           && <BrandsView />}
           {view === 'pos-sales'        && <PosSalesView />}
           {view === 'online-sales'     && <OnlineSalesView />}
@@ -9026,6 +9028,184 @@ export default function ImsPage() {
         </main>
       </div>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Receive Branch Transfer Modal (shared between IMS and Receive Transfers view)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ReceiveBranchTransferModal({ bt, onClose, onDone }: { bt: any; onClose: () => void; onDone: () => void }) {
+  const [receiveQtys, setReceiveQtys] = useState<Record<number, number>>(() => {
+    const init: Record<number, number> = {};
+    for (const item of bt.items ?? []) init[item.id] = 0;
+    return init;
+  });
+  const [scanInput, setScanInput]   = useState('');
+  const [lastScanned, setLastScanned] = useState<any | null>(null);
+  const [scanError, setScanError]   = useState<string | null>(null);
+  const [receiving, setReceiving]   = useState(false);
+  const scanRef = useRef<HTMLInputElement>(null);
+
+  const playErrorBeep = () => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'square'; osc.frequency.value = 200;
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+      osc.start(); osc.stop(ctx.currentTime + 0.45);
+    } catch {}
+  };
+
+  const handleScan = (value: string) => {
+    const trimmed = value.trim();
+    setScanInput('');
+    if (!trimmed) return;
+    const items: any[] = bt.items ?? [];
+    const match = items.find(i => (i.barcode && i.barcode === trimmed) || (i.sku && i.sku === trimmed));
+    if (!match) {
+      playErrorBeep();
+      setScanError(`No item found matching "${trimmed}" — check barcode/SKU`);
+      setLastScanned(null);
+      setTimeout(() => setScanError(null), 5000);
+      scanRef.current?.focus();
+      return;
+    }
+    setScanError(null);
+    setReceiveQtys(prev => ({ ...prev, [match.id]: (prev[match.id] ?? 0) + 1 }));
+    setLastScanned({ ...match, _scanQty: (receiveQtys[match.id] ?? 0) + 1 });
+    scanRef.current?.focus();
+  };
+
+  const handleReceiveAll = () => {
+    const all: Record<number, number> = {};
+    for (const item of bt.items ?? []) all[item.id] = Number(item.qty_sent);
+    setReceiveQtys(all);
+  };
+
+  const handleSubmit = async () => {
+    setReceiving(true);
+    try {
+      await apiFetch(`/api/ims/branch-transfers/${bt.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'received',
+          receivedItems: Object.entries(receiveQtys).map(([id, qty]) => ({ item_id: Number(id), qty_received: qty })),
+        }),
+      });
+      onDone();
+    } catch (e: any) { alert(e.message); }
+    finally { setReceiving(false); }
+  };
+
+  return (
+    <Modal title={`Confirm Receipt — ${bt.transfer_number}`} onClose={onClose} wide>
+      {/* Info banner */}
+      <div style={{ marginBottom: 16, padding: '10px 14px', background: 'rgba(139,92,246,.08)', border: '1px solid rgba(139,92,246,.25)', borderRadius: 8, fontSize: 13, color: 'var(--sv-text-dim)' }}>
+        <strong>{bt.from_location_name}</strong> → <strong>{bt.to_location_name}</strong>.&ensp;
+        Qty received defaults to <strong>0</strong>. Scan items or adjust manually, then confirm to move stock.
+      </div>
+
+      {/* Items table */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', marginBottom: 16 }}>
+        <thead>
+          <tr style={{ background: 'var(--sv-bg-1)' }}>
+            {['SKU', 'Product / Variant', 'RRP', 'Qty Sent', 'Qty Received', 'Qty Awaiting'].map(h => (
+              <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {(bt.items ?? []).map((item: any) => {
+            const rcvd = receiveQtys[item.id] ?? 0;
+            const awaiting = Math.max(0, Number(item.qty_sent) - rcvd);
+            const isLast = lastScanned?.id === item.id;
+            const diff = rcvd !== Number(item.qty_sent);
+            return (
+              <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)', background: isLast ? 'rgba(16,185,129,.07)' : diff ? 'rgba(248,113,113,.04)' : 'transparent' }}>
+                <td style={{ padding: '8px 10px' }}><code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{item.sku || '—'}</code></td>
+                <td style={{ padding: '8px 10px', fontSize: 13 }}>
+                  <div>{item.product_name}</div>
+                  {item.variant_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{item.variant_label}</div>}
+                </td>
+                <td style={{ padding: '8px 10px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{item.price_rrp ? fmtCurrency(Number(item.price_rrp)) : '—'}</td>
+                <td style={{ padding: '8px 10px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{fmtQty(item.qty_sent)}</td>
+                <td style={{ padding: '8px 10px', width: 110 }}>
+                  <input
+                    type="number" min="0" step="any"
+                    value={rcvd}
+                    onChange={e => setReceiveQtys(p => ({ ...p, [item.id]: Number(e.target.value) }))}
+                    style={{ ...inputStyle, fontSize: 13, borderColor: isLast ? '#34d399' : diff && rcvd > 0 ? '#f87171' : undefined }}
+                  />
+                </td>
+                <td style={{ padding: '8px 10px', fontSize: 13, fontWeight: 600, color: awaiting > 0 ? '#fbbf24' : '#34d399' }}>
+                  {awaiting > 0 ? fmtQty(awaiting) : '✓'}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      {/* Receive by Scanning Items */}
+      <div style={{ padding: 16, background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--sv-text-strong)', marginBottom: 10 }}>📷 Receive by Scanning Items</div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          <input
+            ref={scanRef}
+            type="text"
+            placeholder="Scan barcode or type SKU, then press Enter…"
+            value={scanInput}
+            onChange={e => setScanInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleScan(scanInput); } }}
+            autoFocus
+            style={{ ...inputStyle, flex: 1, fontSize: 14, fontFamily: 'monospace' }}
+          />
+          <button type="button" onClick={() => handleScan(scanInput)} style={btnStyle('action')}>Scan</button>
+        </div>
+
+        {scanError && (
+          <div style={{ marginBottom: 10, padding: '8px 12px', background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.4)', borderRadius: 6, fontSize: 13, color: '#f87171' }}>
+            ⚠ {scanError}
+          </div>
+        )}
+
+        {lastScanned ? (
+          <div style={{ padding: '12px 14px', background: 'rgba(16,185,129,.08)', border: '1px solid rgba(16,185,129,.3)', borderRadius: 8 }}>
+            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Last Scanned</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--sv-text-strong)', marginBottom: 6 }}>
+              {lastScanned.product_name}{lastScanned.variant_label ? ` — ${lastScanned.variant_label}` : ''}
+            </div>
+            <div style={{ display: 'flex', gap: 24, fontSize: 13, flexWrap: 'wrap' }}>
+              <span><span style={{ color: 'var(--sv-text-dim)' }}>RRP: </span><strong style={{ color: '#34d399', fontSize: 15 }}>{lastScanned.price_rrp ? fmtCurrency(Number(lastScanned.price_rrp)) : '—'}</strong></span>
+              <span><span style={{ color: 'var(--sv-text-dim)' }}>Qty Sent: </span><strong>{fmtQty(lastScanned.qty_sent)}</strong></span>
+              <span><span style={{ color: 'var(--sv-text-dim)' }}>Qty Received: </span><strong style={{ color: '#34d399' }}>{receiveQtys[lastScanned.id] ?? 0}</strong></span>
+              <span><span style={{ color: 'var(--sv-text-dim)' }}>Qty Awaiting: </span>
+                <strong style={{ color: Math.max(0, Number(lastScanned.qty_sent) - (receiveQtys[lastScanned.id] ?? 0)) > 0 ? '#fbbf24' : '#34d399' }}>
+                  {Math.max(0, Number(lastScanned.qty_sent) - (receiveQtys[lastScanned.id] ?? 0))}
+                </strong>
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', padding: '8px 0' }}>Scan an item to see its details here.</div>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <button type="button" onClick={handleReceiveAll} style={btnStyle('ghost')}>Receive All (Fill Qty Sent)</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" onClick={onClose} style={btnStyle('ghost')}>Cancel</button>
+          <button type="button" onClick={handleSubmit} disabled={receiving} style={btnStyle('mint')}>
+            {receiving ? 'Processing…' : 'Confirm Receipt & Move Stock'}
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -9056,9 +9236,7 @@ function BranchTransfersView() {
   const [viewModal, setViewModal] = useState<{ open: boolean; bt: any | null }>({ open: false, bt: null });
 
   // Receive confirmation modal
-  const [receiveModal, setReceiveModal] = useState<{ open: boolean; bt: any | null }>({ open: false, bt: null });
-  const [receiveQtys, setReceiveQtys]   = useState<Record<number, string>>({});
-  const [receiving, setReceiving]       = useState(false);
+  const [activeBtForReceive, setActiveBtForReceive] = useState<any | null>(null);
 
   // ── Replenish Wizard ──────────────────────────────────────────────────────
   type ReplenishItem = {
@@ -9293,31 +9471,7 @@ function BranchTransfersView() {
 
   const openReceive = async (bt: any) => {
     const d = await apiFetch(`/api/ims/branch-transfers/${bt.id}`);
-    const qtys: Record<number, string> = {};
-    for (const item of d.data.items || []) qtys[item.id] = String(item.qty_sent);
-    setReceiveQtys(qtys);
-    setReceiveModal({ open: true, bt: d.data });
-  };
-
-  const handleReceive = async () => {
-    if (!receiveModal.bt) return;
-    const receivedItems = Object.entries(receiveQtys).map(([item_id, qty_received]) => ({
-      item_id: Number(item_id), qty_received: Number(qty_received),
-    }));
-    setReceiving(true);
-    try {
-      await apiFetch(`/api/ims/branch-transfers/${receiveModal.bt.id}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'received', receivedItems }),
-      });
-      load();
-      setReceiveModal({ open: false, bt: null });
-      if (viewModal.open && viewModal.bt?.id === receiveModal.bt.id) {
-        const d = await apiFetch(`/api/ims/branch-transfers/${receiveModal.bt.id}`);
-        setViewModal({ open: true, bt: d.data });
-      }
-    } catch (e: any) { alert(e.message); }
-    finally { setReceiving(false); }
+    setActiveBtForReceive(d.data);
   };
 
   const handleDelete = async (bt: any) => {
@@ -9601,51 +9755,19 @@ function BranchTransfersView() {
         </Modal>
       )}
 
-      {/* Receive Confirmation Modal */}
-      {receiveModal.open && receiveModal.bt && (
-        <Modal title={`Confirm Receipt — ${receiveModal.bt.transfer_number}`} onClose={() => setReceiveModal({ open: false, bt: null })} wide>
-          <div style={{ marginBottom: 16, padding: '10px 14px', background: 'rgba(139,92,246,.08)', border: '1px solid rgba(139,92,246,.25)', borderRadius: 8, fontSize: 13, color: 'var(--sv-text-dim)' }}>
-            Enter the quantity actually received for each item. Any discrepancy from the sent quantity will be recorded, and <strong>stock will move based on the received quantities</strong>.
-          </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', marginBottom: 20 }}>
-            <thead>
-              <tr style={{ background: 'var(--sv-bg-1)' }}>
-                {['SKU', 'Product', 'Variant', 'Qty Sent', 'Qty Received'].map(h => (
-                  <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {(receiveModal.bt.items || []).map((item: any) => {
-                const rcvd = receiveQtys[item.id] ?? String(item.qty_sent);
-                const diff = Number(rcvd) !== Number(item.qty_sent);
-                return (
-                  <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)', background: diff ? 'rgba(248,113,113,.05)' : 'transparent' }}>
-                    <td style={{ padding: '8px 10px' }}><code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{item.sku || '—'}</code></td>
-                    <td style={{ padding: '8px 10px', fontSize: 13 }}>{item.product_name}</td>
-                    <td style={{ padding: '8px 10px', fontSize: 13 }}>{item.variant_label || 'Default'}</td>
-                    <td style={{ padding: '8px 10px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{fmtQty(item.qty_sent)}</td>
-                    <td style={{ padding: '8px 10px', width: 120 }}>
-                      <input
-                        type="number" min="0" step="any"
-                        value={rcvd}
-                        onChange={e => setReceiveQtys(p => ({ ...p, [item.id]: e.target.value }))}
-                        style={{ ...inputStyle, fontSize: 13, borderColor: diff ? '#f87171' : undefined }}
-                      />
-                      {diff && <div style={{ fontSize: 11, color: '#f87171', marginTop: 2 }}>Discrepancy: sent {fmtQty(item.qty_sent)}</div>}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <button type="button" onClick={() => setReceiveModal({ open: false, bt: null })} style={btnStyle('ghost')}>Cancel</button>
-            <button type="button" onClick={handleReceive} disabled={receiving} style={btnStyle('mint')}>
-              {receiving ? 'Processing…' : 'Confirm Receipt & Move Stock'}
-            </button>
-          </div>
-        </Modal>
+      {activeBtForReceive && (
+        <ReceiveBranchTransferModal
+          bt={activeBtForReceive}
+          onClose={() => setActiveBtForReceive(null)}
+          onDone={() => {
+            const btId = activeBtForReceive.id;
+            setActiveBtForReceive(null);
+            load();
+            if (viewModal.open && viewModal.bt?.id === btId) {
+              apiFetch(`/api/ims/branch-transfers/${btId}`).then(d => setViewModal({ open: true, bt: d.data })).catch(() => {});
+            }
+          }}
+        />
       )}
 
       {btPrintId && <BTPrintModal id={btPrintId} onClose={() => setBtPrintId(null)} />}
@@ -9903,6 +10025,108 @@ function BTActions({ bt, onEdit, onDelete, onStatus, onReceive, onPrint }: {
     btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>);
   }
   return <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{btns}</div>;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Receive Transfers View  (POS-friendly — shows "sent" transfers awaiting receipt)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ReceiveTransfersView() {
+  const [transfers, setTransfers]     = useState<any[]>([]);
+  const [locations, setLocations]     = useState<any[]>([]);
+  const [locationFilter, setLocationFilter] = useState<number | ''>('');
+  const [loading, setLoading]         = useState(true);
+  const [activeBt, setActiveBt]       = useState<any | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [bts, locs] = await Promise.all([
+        apiFetch('/api/ims/branch-transfers?status=sent'),
+        apiFetch('/api/ims/locations'),
+      ]);
+      setTransfers(bts.data ?? []);
+      setLocations(locs.data ?? []);
+    } catch {}
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const openReceive = async (bt: any) => {
+    const d = await apiFetch(`/api/ims/branch-transfers/${bt.id}`);
+    setActiveBt(d.data);
+  };
+
+  const filtered = locationFilter
+    ? transfers.filter((bt: any) => Number(bt.to_location_id) === locationFilter)
+    : transfers;
+
+  return (
+    <div style={{ padding: '24px 28px', maxWidth: 960 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>📦 Receive Branch Transfers</h1>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--sv-text-dim)' }}>
+            Transfers with status <strong>Sent</strong> awaiting receipt. Select a branch to filter by destination.
+          </p>
+        </div>
+        <button onClick={load} style={btnStyle('ghost')}>↻ Refresh</button>
+      </div>
+
+      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <label style={{ ...labelStyle, marginBottom: 0 }}>Destination Branch:</label>
+        <select
+          value={locationFilter}
+          onChange={e => setLocationFilter(e.target.value ? Number(e.target.value) : '')}
+          style={{ ...inputStyle, width: 220 }}
+        >
+          <option value="">— All branches —</option>
+          {locations.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
+        </select>
+      </div>
+
+      {loading ? (
+        <div style={{ color: 'var(--sv-text-dim)', padding: 20 }}>Loading…</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--sv-text-dim)', background: 'var(--sv-bg-1)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
+          No sent transfers awaiting receipt{locationFilter ? ' for the selected branch' : ''}.
+        </div>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+          <thead>
+            <tr style={{ background: 'var(--sv-bg-1)' }}>
+              {['Transfer #', 'From', 'To', 'Date', 'Value', ''].map(h => (
+                <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((bt: any) => (
+              <tr key={bt.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                <td style={{ padding: '12px 12px', fontWeight: 600, fontSize: 13 }}>{bt.transfer_number}</td>
+                <td style={{ padding: '12px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{bt.from_location_name}</td>
+                <td style={{ padding: '12px 12px', fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{bt.to_location_name}</td>
+                <td style={{ padding: '12px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{bt.transfer_date?.slice(0, 10)}</td>
+                <td style={{ padding: '12px 12px', fontSize: 13 }}>{fmtCurrency(bt.total_value)}</td>
+                <td style={{ padding: '12px 12px' }}>
+                  <button onClick={() => openReceive(bt)} style={btnStyle('mint', 'sm')}>Receive</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {activeBt && (
+        <ReceiveBranchTransferModal
+          bt={activeBt}
+          onClose={() => setActiveBt(null)}
+          onDone={() => { setActiveBt(null); load(); }}
+        />
+      )}
+    </div>
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
