@@ -140,9 +140,15 @@ export async function POST(req: Request) {
       // Only sync entries that have a counted_amount (actual EOD close, not just opening float)
       const hasCount = entries.some((e: any) => e.counted_amount != null);
       if (hasCount) {
+        const sessionId = register_session_id ? Number(register_session_id) : null;
         imsQuery<{ name: string }>('SELECT name FROM ims_locations WHERE id = ? LIMIT 1', [resolvedLocationId])
-          .then(locs => {
+          .then(async locs => {
             const locationName = locs[0]?.name ?? `Location ${resolvedLocationId}`;
+            let registerName: string | null = null;
+            if (register_id) {
+              const regs = await imsQuery<{ name: string }>('SELECT name FROM pos_registers WHERE id = ? LIMIT 1', [register_id]);
+              registerName = regs[0]?.name ?? null;
+            }
             return PosEodRepo.get(resolvedLocationId, resolvedDate, register_id).then(rows =>
               triggerEodXeroSync(
                 adminSession.businessId,
@@ -152,6 +158,8 @@ export async function POST(req: Request) {
                 locationName,
                 register_id,
                 PosEodRepo.setXeroInvoice.bind(PosEodRepo),
+                registerName,
+                sessionId,
               )
             );
           })

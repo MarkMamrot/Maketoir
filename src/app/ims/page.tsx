@@ -7656,7 +7656,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
         setMappings(mapObj);
         setTrackingCategories(Array.isArray(trackRes.categories) ? trackRes.categories : []);
         setTrackingMappings(Array.isArray(trackRes.mappings) ? trackRes.mappings : []);
-        const locs = Array.isArray(locRes?.locations) ? locRes.locations : Array.isArray(locRes) ? locRes : [];
+        const locs = Array.isArray(locRes?.data) ? locRes.data : Array.isArray(locRes?.locations) ? locRes.locations : Array.isArray(locRes) ? locRes : [];
         setLocations(locs);
       } catch {}
       setLoading(false);
