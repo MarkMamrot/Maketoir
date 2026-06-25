@@ -47,7 +47,9 @@ export async function GET(req: Request) {
   if (registerSessionId) {
     const fallback = registerId != null ? { locationId, date, registerId } : undefined;
     const [existing, expected, dayTotals] = await Promise.all([
-      PosEodRepo.get(locationId, date, registerId),
+      registerId != null
+        ? PosEodRepo.getBySession(registerSessionId, { locationId, date, registerId })
+        : PosEodRepo.get(locationId, date, registerId),
       PosEodRepo.getExpectedBySession(registerSessionId, fallback),
       PosEodRepo.getDayTotalsBySession(registerSessionId, fallback),
     ]);

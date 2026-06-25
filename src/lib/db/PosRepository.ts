@@ -469,7 +469,37 @@ export const PosEodRepo = {
         : 'SELECT * FROM pos_eod_reconciliations WHERE location_id = ? AND recon_date = ? ORDER BY payment_method',
       registerId != null ? [locationId, date, registerId] : [locationId, date],
     );
-    return rows.map((r: any) => ({
+    return rows.map(this._mapRow);
+  },
+
+  /**
+   * Load saved reconciliation rows scoped to a single register SESSION.
+   *
+   * The `uq_eod` unique key is (location_id, register_id, recon_date,
+   * payment_method) — it does NOT include register_session_id — so a fresh
+   * session opened on the same register/date would otherwise inherit the
+   * PREVIOUS session's saved counted amounts. This returns only:
+   *   • rows already stamped with THIS session's id, and
+   *   • the as-yet-unclaimed opening-float row (register_session_id IS NULL)
+   *     for this register/date, written when the register was opened.
+   * A new session therefore starts with empty counted fields until it saves.
+   */
+  async getBySession(
+    registerSessionId: number,
+    fallback: { locationId: number; date: string; registerId: number | null },
+  ): Promise<PosEodRow[]> {
+    const rows = await imsQuery<any>(
+      `SELECT * FROM pos_eod_reconciliations
+        WHERE register_session_id = ?
+           OR (register_session_id IS NULL AND location_id = ? AND register_id = ? AND recon_date = ?)
+        ORDER BY payment_method`,
+      [registerSessionId, fallback.locationId, fallback.registerId, fallback.date],
+    );
+    return rows.map(this._mapRow);
+  },
+
+  _mapRow(r: any): PosEodRow {
+    return {
       ...r,
       expected_amount: r.expected_amount != null ? toNum(r.expected_amount) : null,
       counted_amount:  r.counted_amount  != null ? toNum(r.counted_amount)  : null,
@@ -477,7 +507,7 @@ export const PosEodRepo = {
       denomination_data: r.denomination_data
         ? (typeof r.denomination_data === 'string' ? JSON.parse(r.denomination_data) : r.denomination_data)
         : null,
-    }));
+    };
   },
 
   async getExpected(locationId: number, date: string, registerId?: number | null): Promise<Record<string, number>> {
@@ -505,38 +535,69 @@ export const PosEodRepo = {
   },
 
   /**
+   * Build a WHERE condition matching every sale that belongs to one register
+   * session. When a fallback (register/location) is supplied it ALSO catches
+   * sales whose register_session_id was never stored — e.g. an offline-first
+   * sale that synced after the session was closed — by matching the session's
+   * actual opened_at → closed_at (or NOW(), if still open) time window rather
+   * than a single calendar date. The `register_session_id IS NULL` guard means
+   * sales already attributed to a different session are never double-counted.
+   *
+   * @param prefix column alias prefix for the query ('s.' or '').
+   */
+  async _sessionMatchClause(
+    registerSessionId: number,
+    prefix: string,
+    fallback?: { locationId: number; date: string; registerId: number | null },
+  ): Promise<{ clause: string; params: any[] }> {
+    if (fallback?.registerId == null) {
+      return { clause: `${prefix}register_session_id = ?`, params: [registerSessionId] };
+    }
+    const sess = await imsQuery<any>(
+      'SELECT opened_at, closed_at FROM pos_register_sessions WHERE id = ? LIMIT 1',
+      [registerSessionId],
+    );
+    const openedAt = sess[0]?.opened_at ?? null;
+    const closedAt = sess[0]?.closed_at ?? null;
+    if (openedAt) {
+      // Time-window fallback: opened_at → closed_at (or NOW() while still open).
+      return {
+        clause:
+          `(${prefix}register_session_id = ? ` +
+          `OR (${prefix}register_session_id IS NULL AND ${prefix}register_id = ? AND ${prefix}location_id = ? ` +
+          `AND ${prefix}completed_at >= ? AND ${prefix}completed_at <= COALESCE(?, NOW())))`,
+        params: [registerSessionId, fallback.registerId, fallback.locationId, openedAt, closedAt],
+      };
+    }
+    // No session row found — fall back to the single-date match (legacy behaviour).
+    return {
+      clause:
+        `(${prefix}register_session_id = ? ` +
+        `OR (${prefix}register_session_id IS NULL AND ${prefix}register_id = ? AND ${prefix}location_id = ? ` +
+        `AND DATE(${prefix}completed_at) = ?))`,
+      params: [registerSessionId, fallback.registerId, fallback.locationId, fallback.date],
+    };
+  },
+
+  /**
    * Expected takings for a single register SESSION (open → close window),
    * keyed by payment method. Correctly handles shifts that cross midnight or
-   * registers left open across days.
-   *
-   * fallback: also catches sales whose register_session_id was not stored
-   * (e.g. if the POS cookie lacked register_id at sale time) by matching on
-   * register_id + location_id + date as well.
+   * registers left open across days. See _sessionMatchClause for the fallback.
    */
   async getExpectedBySession(
     registerSessionId: number,
     fallback?: { locationId: number; date: string; registerId: number | null },
   ): Promise<Record<string, number>> {
-    const sql = fallback?.registerId != null
-      ? `SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total
-           FROM pos_payments p
-           JOIN pos_sales s ON s.id = p.sale_id
-          WHERE s.status IN ('completed','layby_complete')
-            AND (
-              s.register_session_id = ?
-              OR (s.register_id = ? AND s.location_id = ? AND DATE(s.completed_at) = ?)
-            )
-          GROUP BY p.payment_method`
-      : `SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total
-           FROM pos_payments p
-           JOIN pos_sales s ON s.id = p.sale_id
-          WHERE s.register_session_id = ?
-            AND s.status IN ('completed','layby_complete')
-          GROUP BY p.payment_method`;
-    const params = fallback?.registerId != null
-      ? [registerSessionId, fallback.registerId, fallback.locationId, fallback.date]
-      : [registerSessionId];
-    const rows = await imsQuery<any>(sql, params);
+    const { clause, params } = await this._sessionMatchClause(registerSessionId, 's.', fallback);
+    const rows = await imsQuery<any>(
+      `SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total
+         FROM pos_payments p
+         JOIN pos_sales s ON s.id = p.sale_id
+        WHERE s.status IN ('completed','layby_complete')
+          AND ${clause}
+        GROUP BY p.payment_method`,
+      params,
+    );
     const result: Record<string, number> = {};
     for (const row of rows) result[row.payment_method] = toNum(row.total);
     return result;
@@ -547,28 +608,17 @@ export const PosEodRepo = {
     registerSessionId: number,
     fallback?: { locationId: number; date: string; registerId: number | null },
   ): Promise<{ total_inc_tax: number; tax_total: number; total_exc_tax: number; sale_count: number }> {
-    const sql = fallback?.registerId != null
-      ? `SELECT COALESCE(SUM(total), 0) AS total_inc_tax,
-                COALESCE(SUM(tax_total), 0) AS tax_total,
-                COALESCE(SUM(total - tax_total), 0) AS total_exc_tax,
-                COUNT(*) AS sale_count
-           FROM pos_sales
-          WHERE status IN ('completed','layby_complete')
-            AND (
-              register_session_id = ?
-              OR (register_id = ? AND location_id = ? AND DATE(completed_at) = ?)
-            )`
-      : `SELECT COALESCE(SUM(total), 0) AS total_inc_tax,
-                COALESCE(SUM(tax_total), 0) AS tax_total,
-                COALESCE(SUM(total - tax_total), 0) AS total_exc_tax,
-                COUNT(*) AS sale_count
-           FROM pos_sales
-          WHERE register_session_id = ?
-            AND status IN ('completed','layby_complete')`;
-    const params = fallback?.registerId != null
-      ? [registerSessionId, fallback.registerId, fallback.locationId, fallback.date]
-      : [registerSessionId];
-    const rows = await imsQuery<any>(sql, params);
+    const { clause, params } = await this._sessionMatchClause(registerSessionId, '', fallback);
+    const rows = await imsQuery<any>(
+      `SELECT COALESCE(SUM(total), 0) AS total_inc_tax,
+              COALESCE(SUM(tax_total), 0) AS tax_total,
+              COALESCE(SUM(total - tax_total), 0) AS total_exc_tax,
+              COUNT(*) AS sale_count
+         FROM pos_sales
+        WHERE status IN ('completed','layby_complete')
+          AND ${clause}`,
+      params,
+    );
     const r = rows[0] ?? {};
     return {
       total_inc_tax: toNum(r.total_inc_tax),
@@ -598,6 +648,8 @@ export const PosEodRepo = {
           expected_amount, counted_amount, opening_float, denomination_data, notes)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
+         xero_invoice_id   = IF(register_session_id <=> VALUES(register_session_id), xero_invoice_id, NULL),
+         xero_synced_at    = IF(register_session_id <=> VALUES(register_session_id), xero_synced_at,  NULL),
          register_session_id = VALUES(register_session_id),
          cashier_id        = VALUES(cashier_id),
          cashier_name      = VALUES(cashier_name),

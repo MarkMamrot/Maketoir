@@ -2211,7 +2211,7 @@ function EodAccountingSection({
       const res  = await fetch('/api/pos/xero/sync-eod', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ locationId: session.location_id, date }),
+        body:    JSON.stringify({ locationId: session.location_id, date, registerId: session.register_id ?? null }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error ?? 'Sync failed.');
