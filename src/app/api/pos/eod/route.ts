@@ -45,11 +45,10 @@ export async function GET(req: Request) {
   // When a register session is supplied, reconcile by SESSION (open→close window),
   // which correctly handles shifts crossing midnight / registers left open overnight.
   if (registerSessionId) {
-    const fallback = registerId != null ? { locationId, date, registerId } : undefined;
     const [existing, expected, dayTotals] = await Promise.all([
       PosEodRepo.get(locationId, date, registerId),
-      PosEodRepo.getExpectedBySession(registerSessionId, fallback),
-      PosEodRepo.getDayTotalsBySession(registerSessionId, fallback),
+      PosEodRepo.getExpectedBySession(registerSessionId),
+      PosEodRepo.getDayTotalsBySession(registerSessionId),
     ]);
     return NextResponse.json({ reconciliations: existing, expected, default_float, day_totals: dayTotals });
   }

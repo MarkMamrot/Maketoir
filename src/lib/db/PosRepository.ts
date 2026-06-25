@@ -508,67 +508,34 @@ export const PosEodRepo = {
    * keyed by payment method. Correctly handles shifts that cross midnight or
    * registers left open across days, because it sums by the session the sale
    * was rung up under rather than by calendar date.
-   *
-   * Also catches sales whose register_session_id was not set (e.g. if the
-   * pos_session cookie lacked register_id at sale time) by additionally
-   * matching on register_id + location_id + date.
    */
-  async getExpectedBySession(
-    registerSessionId: number,
-    fallback?: { locationId: number; date: string; registerId: number | null },
-  ): Promise<Record<string, number>> {
-    const sql = fallback?.registerId != null
-      ? `SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total
-           FROM pos_payments p
-           JOIN pos_sales s ON s.id = p.sale_id
-          WHERE s.status IN ('completed','layby_complete')
-            AND (
-              s.register_session_id = ?
-              OR (s.register_id = ? AND s.location_id = ? AND DATE(s.completed_at) = ?)
-            )
-          GROUP BY p.payment_method`
-      : `SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total
-           FROM pos_payments p
-           JOIN pos_sales s ON s.id = p.sale_id
-          WHERE s.register_session_id = ?
-            AND s.status IN ('completed','layby_complete')
-          GROUP BY p.payment_method`;
-    const params = fallback?.registerId != null
-      ? [registerSessionId, fallback.registerId, fallback.locationId, fallback.date]
-      : [registerSessionId];
-    const rows = await imsQuery<any>(sql, params);
+  async getExpectedBySession(registerSessionId: number): Promise<Record<string, number>> {
+    const rows = await imsQuery<any>(
+      `SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total
+         FROM pos_payments p
+         JOIN pos_sales s ON s.id = p.sale_id
+        WHERE s.register_session_id = ?
+          AND s.status IN ('completed','layby_complete')
+        GROUP BY p.payment_method`,
+      [registerSessionId],
+    );
     const result: Record<string, number> = {};
     for (const row of rows) result[row.payment_method] = toNum(row.total);
     return result;
   },
 
-  /** Sales totals (incl/excl tax, count) for a single register session.
-   *  Same fallback logic as getExpectedBySession. */
-  async getDayTotalsBySession(
-    registerSessionId: number,
-    fallback?: { locationId: number; date: string; registerId: number | null },
-  ): Promise<{ total_inc_tax: number; tax_total: number; total_exc_tax: number; sale_count: number }> {
-    const sql = fallback?.registerId != null
-      ? `SELECT COALESCE(SUM(total), 0)             AS total_inc_tax,
-                COALESCE(SUM(tax_total), 0)         AS tax_total,
-                COALESCE(SUM(total - tax_total), 0) AS total_exc_tax,
-                COUNT(*)                            AS sale_count
-           FROM pos_sales
-          WHERE status IN ('completed','layby_complete')
-            AND (
-              register_session_id = ?
-              OR (register_id = ? AND location_id = ? AND DATE(completed_at) = ?)
-            )`
-      : `SELECT COALESCE(SUM(total), 0)             AS total_inc_tax,
-                COALESCE(SUM(tax_total), 0)         AS tax_total,
-                COALESCE(SUM(total - tax_total), 0) AS total_exc_tax,
-                COUNT(*)                            AS sale_count
-           FROM pos_sales
-          WHERE register_session_id = ?
-            AND status IN ('completed','layby_complete')`;
-    const params = fallback?.registerId != null
-      ? [registerSessionId, fallback.registerId, fallback.locationId, fallback.date]
-      : [registerSessionId];
+  /** Sales totals (incl/excl tax, count) for a single register session. */
+  async getDayTotalsBySession(registerSessionId: number): Promise<{ total_inc_tax: number; tax_total: number; total_exc_tax: number; sale_count: number }> {
+    const rows = await imsQuery<any>(
+      `SELECT COALESCE(SUM(total), 0)              AS total_inc_tax,
+              COALESCE(SUM(tax_total), 0)          AS tax_total,
+              COALESCE(SUM(total - tax_total), 0)  AS total_exc_tax,
+              COUNT(*)                             AS sale_count
+         FROM pos_sales
+        WHERE register_session_id = ?
+          AND status IN ('completed','layby_complete')`,
+      [registerSessionId],
+    );
     const r = rows[0] ?? {};
     return {
       total_inc_tax: toNum(r.total_inc_tax),
