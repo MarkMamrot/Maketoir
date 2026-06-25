@@ -1806,6 +1806,7 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
 
   useEffect(() => {
     if (!methods.length) return;
+    if (regSessionLoading) return;  // wait until we know whether a session exists
     setLoading(true);
     const sessionParam = regSession?.id ? `&register_session_id=${regSession.id}` : '';
     fetch(`/api/pos/eod?location_id=${session.location_id}&date=${date}${sessionParam}`)
@@ -1834,7 +1835,7 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
         setXeroInvoiceIds(ids);
       })
       .finally(() => setLoading(false));
-  }, [date, methods, session.location_id, regSession?.id]);
+  }, [date, methods, session.location_id, regSession?.id, regSessionLoading]);
 
   function updateEntry(method: string, key: keyof EodEntryState, value: string | boolean | Record<string, string>) {
     setEntries(prev => {
