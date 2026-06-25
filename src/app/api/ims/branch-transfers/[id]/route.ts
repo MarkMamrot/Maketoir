@@ -35,6 +35,11 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       await ImsBTRepo.writeoffItem(Number(params.id), Number(item_id));
       return NextResponse.json({ success: true });
     }
+    if (action === 'set_item_qty') {
+      if (!item_id) return NextResponse.json({ success: false, error: 'item_id required' }, { status: 400 });
+      await ImsBTRepo.setItemQtySent(Number(params.id), Number(item_id), Number(body.qty_sent));
+      return NextResponse.json({ success: true });
+    }
     if (status) {
       await ImsBTRepo.changeStatus(Number(params.id), status, receivedItems);
       

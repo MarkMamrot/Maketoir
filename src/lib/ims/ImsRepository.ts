@@ -2402,6 +2402,40 @@ export const ImsBTRepo = {
     finally { conn.release(); }
   },
 
+  /**
+   * Correct the qty_sent on a transfer line (e.g. the dispatching branch keyed
+   * the wrong amount). Recomputes line_value and the transfer total. Cannot be
+   * set below the quantity already received, since that stock has already moved.
+   */
+  async setItemQtySent(transferId: number, itemId: number, qtySent: number): Promise<void> {
+    const newSent = Number(qtySent);
+    if (!Number.isFinite(newSent) || newSent < 0) throw new Error('Qty sent must be zero or more');
+    const pool = getIMSPool();
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [[item]] = await conn.execute<any[]>(
+        `SELECT id, qty_received FROM ims_branch_transfer_items WHERE id = ? AND transfer_id = ?`,
+        [itemId, transferId]
+      );
+      if (!item) throw new Error('Item not found on this transfer');
+      const rcvd = Number(item.qty_received ?? 0);
+      if (newSent < rcvd) throw new Error(`Qty sent cannot be less than qty already received (${rcvd})`);
+      await conn.execute(
+        `UPDATE ims_branch_transfer_items SET qty_sent = ?, line_value = ? * unit_cost WHERE id = ?`,
+        [newSent, newSent, itemId]
+      );
+      await conn.execute(
+        `UPDATE ims_branch_transfers
+           SET total_value = (SELECT COALESCE(SUM(line_value),0) FROM ims_branch_transfer_items WHERE transfer_id = ?)
+         WHERE id = ?`,
+        [transferId, transferId]
+      );
+      await conn.commit();
+    } catch (err) { await conn.rollback(); throw err; }
+    finally { conn.release(); }
+  },
+
   async removeItem(transferId: number, itemId: number): Promise<void> {
     const pool = getIMSPool();
     const conn = await pool.getConnection();

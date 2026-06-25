@@ -10146,6 +10146,31 @@ function PartialBTManageModal({ bt: initialBt, onClose, onDone }: { bt: any; onC
   const setQty = (itemId: number, remaining: number, val: number) =>
     setReceiveNow(prev => ({ ...prev, [itemId]: Math.max(0, Math.min(remaining, val)) }));
 
+  // Correct the qty_sent on a line (dispatching branch keyed the wrong amount).
+  const saveSent = async (itemId: number, rcvd: number) => {
+    const item = items.find((i: any) => i.id === itemId);
+    if (!item) return;
+    let newSent = Number(item.qty_sent);
+    if (!Number.isFinite(newSent) || newSent < 0) newSent = rcvd;
+    if (newSent < rcvd) {
+      setError(`Qty sent can't be below the ${fmtQty(rcvd)} already received — reset to ${fmtQty(rcvd)}.`);
+      newSent = rcvd;
+    } else {
+      setError(null);
+    }
+    // Reflect the (possibly clamped) value and keep Receive Now within the new remaining.
+    setItems(prev => prev.map((x: any) => x.id === itemId ? { ...x, qty_sent: newSent } : x));
+    setReceiveNow(prev => ({ ...prev, [itemId]: Math.min(prev[itemId] ?? 0, Math.max(0, newSent - rcvd)) }));
+    setBusyId(itemId);
+    try {
+      await apiFetch(`/api/ims/branch-transfers/${initialBt.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_item_qty', item_id: itemId, qty_sent: newSent }),
+      });
+    } catch (e: any) { setError(e.message); }
+    finally { setBusyId(null); }
+  };
+
   const totalReceivingNow = outstanding.reduce((s, i) => s + (receiveNow[i.id] ?? 0), 0);
 
   const markReceived = async () => {
@@ -10180,7 +10205,7 @@ function PartialBTManageModal({ bt: initialBt, onClose, onDone }: { bt: any; onC
       <div style={{ marginBottom: 14, padding: '10px 14px', background: 'rgba(251,146,60,.08)', border: '1px solid rgba(251,146,60,.3)', borderRadius: 8, fontSize: 13 }}>
         <strong style={{ color: '#f97316' }}>Partially Received</strong> — {initialBt.from_location_name} → {initialBt.to_location_name}.<br />
         <span style={{ color: 'var(--sv-text-dim)' }}>
-          For each outstanding line you can <strong>receive the rest</strong> (moves the remaining stock), <strong>write off</strong> the shortfall,
+          For each outstanding line you can <strong>receive the rest</strong> (moves the remaining stock), <strong>remove the shortfall</strong> (drop the units that never arrived),
           or <strong>delete</strong> a line nothing arrived for — then mark the transfer fully received.
         </span>
       </div>
@@ -10210,24 +10235,31 @@ function PartialBTManageModal({ bt: initialBt, onClose, onDone }: { bt: any; onC
                       <div>{item.product_name}</div>
                       {item.variant_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{item.variant_label}</div>}
                     </td>
-                    <td style={{ padding: '8px 10px', fontSize: 13, color: 'var(--sv-text-dim)', textAlign: 'right' }}>{fmtQty(item.qty_sent)}</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right' }}>
+                      <input
+                        type="number" min={rcvd} step="any"
+                        value={item.qty_sent}
+                        disabled={isBusy}
+                        onChange={e => setItems(prev => prev.map((x: any) => x.id === item.id ? { ...x, qty_sent: e.target.value } : x))}
+                        onBlur={() => saveSent(item.id, rcvd)}
+                        title="Correct the quantity actually sent"
+                        style={{ ...inputStyle, fontSize: 13, width: 70, textAlign: 'right' }}
+                      />
+                    </td>
                     <td style={{ padding: '8px 10px', fontSize: 13, textAlign: 'right', color: rcvd > 0 ? '#34d399' : 'var(--sv-text-dim)' }}>{rcvd > 0 ? fmtQty(rcvd) : '0'}</td>
                     <td style={{ padding: '8px 10px', fontSize: 13, textAlign: 'right', fontWeight: 600, color: '#fbbf24' }}>{fmtQty(remaining)}</td>
-                    <td style={{ padding: '8px 10px', width: 150 }}>
-                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <input
-                          type="number" min="0" max={remaining} step="any"
-                          value={now}
-                          onChange={e => setQty(item.id, remaining, Number(e.target.value))}
-                          style={{ ...inputStyle, fontSize: 13, width: 70 }}
-                        />
-                        <button type="button" onClick={() => setQty(item.id, remaining, remaining)} style={btnStyle('ghost', 'xs')} title="Fill remaining">All</button>
-                      </div>
+                    <td style={{ padding: '8px 10px', width: 110 }}>
+                      <input
+                        type="number" min="0" max={remaining} step="any"
+                        value={now}
+                        onChange={e => setQty(item.id, remaining, Number(e.target.value))}
+                        style={{ ...inputStyle, fontSize: 13, width: 80 }}
+                      />
                     </td>
                     <td style={{ padding: '8px 10px' }}>
                       <div style={{ display: 'flex', gap: 6 }}>
                         {rcvd > 0 ? (
-                          <button type="button" disabled={isBusy} onClick={() => writeOff(item.id)} style={btnStyle('danger', 'xs')} title="Write off the un-received units (shrink Qty Sent to Qty Received)">Write off</button>
+                          <button type="button" disabled={isBusy} onClick={() => writeOff(item.id)} style={btnStyle('danger', 'xs')} title="Drop the un-received units — sets Qty Sent to Qty Received">Remove shortfall</button>
                         ) : (
                           <button type="button" disabled={isBusy} onClick={() => removeItem(item.id)} style={btnStyle('danger', 'xs')} title="Remove this line from the transfer">Delete</button>
                         )}
