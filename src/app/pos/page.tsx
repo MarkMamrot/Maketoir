@@ -1797,7 +1797,8 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
   const loadRegSession = () => {
     if (!session.register_id) { setRegSessionLoading(false); return; }
     setRegSessionLoading(true);
-    fetch(`/api/pos/register/session?register_id=${session.register_id}`)
+    // latest=1 so EOD can still scope to a recently-closed session (e.g. closed at midnight).
+    fetch(`/api/pos/register/session?register_id=${session.register_id}&latest=1`)
       .then(r => r.json())
       .then(d => {
         const sess = d.session ?? null;

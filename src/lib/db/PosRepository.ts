@@ -784,9 +784,15 @@ function parseSession(r: any): PosRegisterSessionRow {
 export const PosRegisterSessionRepo = {
   /** Get the currently open session for a register (null if none). */
   async getCurrent(registerId: number): Promise<PosRegisterSessionRow | null> {
-    // Return the most recent session for this register — open or recently closed.
-    // This allows EOD to be completed even after the session has been closed at
-    // midnight, without requiring staff to re-open the register first.
+    const rows = await imsQuery<any>(
+      "SELECT * FROM pos_register_sessions WHERE register_id = ? AND status = 'open' ORDER BY opened_at DESC LIMIT 1",
+      [registerId],
+    );
+    return rows[0] ? parseSession(rows[0]) : null;
+  },
+
+  /** Most recent session for a register regardless of status (used by EOD). */
+  async getLatest(registerId: number): Promise<PosRegisterSessionRow | null> {
     const rows = await imsQuery<any>(
       'SELECT * FROM pos_register_sessions WHERE register_id = ? ORDER BY opened_at DESC LIMIT 1',
       [registerId],

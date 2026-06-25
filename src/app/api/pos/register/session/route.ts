@@ -9,11 +9,15 @@ function getAnySession() {
 }
 
 // GET /api/pos/register/session?register_id=X — get currently open session for a register
+// Add ?latest=1 to return the most recent session regardless of status (used by EOD).
 export async function GET(req: NextRequest) {
   if (!getAnySession()) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
   const { searchParams } = new URL(req.url);
   const registerId = parseInt(searchParams.get('register_id') ?? '', 10);
   if (!registerId) return NextResponse.json({ error: 'register_id required.' }, { status: 400 });
-  const session = await PosRegisterSessionRepo.getCurrent(registerId);
+  const latest = searchParams.get('latest') === '1';
+  const session = latest
+    ? await PosRegisterSessionRepo.getLatest(registerId)
+    : await PosRegisterSessionRepo.getCurrent(registerId);
   return NextResponse.json({ session });
 }
