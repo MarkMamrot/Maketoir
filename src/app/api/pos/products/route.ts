@@ -40,6 +40,7 @@ export async function GET(req: Request) {
     sku:           string | null;
     barcode:       string | null;
     product_name:  string;
+    description:   string | null;
     brand:         string | null;
     option1_name:  string | null;
     option1_value: string | null;
@@ -58,7 +59,8 @@ export async function GET(req: Request) {
        v.product_id,
        v.sku,
        v.barcode,
-       p.name  AS product_name,
+       p.name        AS product_name,
+       p.description AS description,
        p.brand,
        v.option1_name,
        v.option1_value,
@@ -90,6 +92,7 @@ export async function GET(req: Request) {
       code:        r.sku,
       barcode:     r.barcode,
       name:        opts ? `${r.product_name} — ${opts}` : r.product_name,
+      description: r.description ?? null,
       brand:       r.brand,
       price:       r.price != null ? Number(r.price) : 0,
       cost:        r.cost  != null ? Number(r.cost)  : null,
