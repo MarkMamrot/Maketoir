@@ -7,14 +7,21 @@
  * Requires marketoir_session for businessId.
  */
 import { NextResponse } from 'next/server';
-import { requireAdminSession } from '@/lib/sessionUtils';
+import { cookies } from 'next/headers';
 import { PosEodRepo } from '@/lib/db/PosRepository';
 import { triggerEodXeroSync } from '@/services/XeroSyncService';
 import { imsQuery } from '@/services/IMSMySQLService';
 
 export async function POST(req: Request) {
-  const { user, response } = requireAdminSession();
-  if (response) return response;
+  // Accept either marketoir_session (admin) or pos_session (POS staff).
+  // businessId is taken from the admin session or looked up from ims_locations.
+  const adminRaw = cookies().get('marketoir_session')?.value;
+  const adminSession = adminRaw ? (() => { try { return JSON.parse(adminRaw); } catch { return null; } })() : null;
+  const posRaw = cookies().get('pos_session')?.value;
+  const posSession = posRaw ? (() => { try { return JSON.parse(posRaw); } catch { return null; } })() : null;
+  if (!adminSession && !posSession) {
+    return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  }
 
   const { locationId, date, registerId } = await req.json();
   if (!locationId || !date) {
@@ -22,8 +29,15 @@ export async function POST(req: Request) {
   }
 
   try {
-    const locs = await imsQuery<{ name: string }>('SELECT name FROM ims_locations WHERE id = ? LIMIT 1', [locationId]);
+    const locs = await imsQuery<{ name: string; business_id: string | null }>(
+      'SELECT name, business_id FROM ims_locations WHERE id = ? LIMIT 1',
+      [locationId],
+    );
     const locationName = locs[0]?.name ?? `Location ${locationId}`;
+    const businessId = adminSession?.businessId ?? locs[0]?.business_id ?? null;
+    if (!businessId) {
+      return NextResponse.json({ error: 'Could not determine business for this location.' }, { status: 400 });
+    }
 
     let registerName: string | null = null;
     if (registerId) {
@@ -34,7 +48,7 @@ export async function POST(req: Request) {
     const rows = await PosEodRepo.get(locationId, date, registerId ?? null);
 
     const results = await triggerEodXeroSync(
-      user.businessId,
+      businessId,
       locationId,
       date,
       rows,

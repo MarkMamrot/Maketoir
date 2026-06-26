@@ -899,7 +899,7 @@ function MainPos({
           title={lastSale ? 'Reprint last receipt' : 'No recent sale to reprint'}
           style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: lastSale ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', border: '1px solid rgba(255,255,255,.18)', opacity: lastSale ? 1 : .45 }}
         >🔁 Reprint</button>
-        <button onClick={() => setScreen('eod')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>Register</button>
+        <button onClick={() => { setEodInitialMode(regSession?.status === 'open' ? 'eod' : 'open'); setScreen('eod'); }} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>Register</button>
         <button onClick={() => setScreen('reports')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>Reports</button>
         <button onClick={() => setScreen('receive-transfers')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>📦 Receive Transfers</button>
         <button
@@ -1897,6 +1897,8 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
   const [dayTotals, setDayTotals]         = useState<{ total_inc_tax: number; tax_total: number; total_exc_tax: number; sale_count: number } | null>(null);
   const [eodVarWarning, setEodVarWarning] = useState(false);  // variance confirm dialog
   const [eodPrintMode, setEodPrintMode]   = useState(false);  // print CSS toggle
+  const [eodComplete, setEodComplete]     = useState(false);  // true after successful EOD save
+  const autoModeApplied = useRef(!!initialMode); // prevents re-snapping mode after user manually switches tab
 
   useEffect(() => {
     fetch('/api/pos/settings/payment-methods').then(r => r.json()).then(d => setMethods(d.methods ?? []));
@@ -1924,6 +1926,13 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
   };
 
   useEffect(() => { loadRegSession(); }, [session.register_id]);
+
+  // Auto-select correct tab once register session state is known (only when no explicit initialMode given).
+  useEffect(() => {
+    if (regSessionLoading || autoModeApplied.current) return;
+    autoModeApplied.current = true;
+    setMode(regSession?.status === 'open' ? 'eod' : 'open');
+  }, [regSessionLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!methods.length) return;
@@ -2083,8 +2092,7 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
         });
         await loadRegSession();
       }
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      setEodComplete(true);
     } catch {
       if (!navigator.onLine) {
         alert('No internet connection — your end-of-day counts were not saved. The register remains open. Reconnect and complete End of Day again.');
@@ -2124,8 +2132,16 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
           </h1>
           {/* Mode tabs */}
           <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--sv-etch)' }}>
-            <button onClick={() => setMode('open')} style={{ padding: '.35rem 1rem', background: mode === 'open' ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: mode === 'open' ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer', fontSize: '.82rem', fontWeight: 700 }}>Open Register</button>
-            <button onClick={() => setMode('eod')}  style={{ padding: '.35rem 1rem', background: mode === 'eod'  ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: mode === 'eod'  ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer', fontSize: '.82rem', fontWeight: 700 }}>End of Day</button>
+            <button
+              onClick={() => setMode('open')}
+              disabled={!!(session.register_id && !regSessionLoading && regSession?.status === 'open')}
+              style={{ padding: '.35rem 1rem', background: mode === 'open' ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: mode === 'open' ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: (session.register_id && !regSessionLoading && regSession?.status === 'open') ? 'not-allowed' : 'pointer', fontSize: '.82rem', fontWeight: 700, opacity: (session.register_id && !regSessionLoading && regSession?.status === 'open') ? 0.4 : 1 }}
+            >Open Register</button>
+            <button
+              onClick={() => setMode('eod')}
+              disabled={!!(session.register_id && !regSessionLoading && regSession?.status !== 'open')}
+              style={{ padding: '.35rem 1rem', background: mode === 'eod' ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: mode === 'eod' ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: (session.register_id && !regSessionLoading && regSession?.status !== 'open') ? 'not-allowed' : 'pointer', fontSize: '.82rem', fontWeight: 700, opacity: (session.register_id && !regSessionLoading && regSession?.status !== 'open') ? 0.4 : 1 }}
+            >End of Day</button>
           </div>
           {mode === 'eod' && (
             <input type='date' value={date} onChange={e => setDate(e.target.value)} style={{ ...inputStyle, width: 160, marginBottom: 0 }} />
@@ -2307,14 +2323,14 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
             </div>
 
             <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-              <button onClick={saveEod} disabled={loading} style={{ ...primaryBtn, padding: '.65rem 2rem' }}>
-                {loading ? 'Saving…' : 'Save EOD Reconciliation'}
+              <button onClick={saveEod} disabled={loading || eodComplete} style={{ ...primaryBtn, padding: '.65rem 2rem', opacity: eodComplete ? 0.55 : 1 }}>
+                {loading ? 'Saving…' : eodComplete ? '✓ Reconciliation Saved' : 'Save EOD Reconciliation'}
               </button>
-              {saved && <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>✓ Saved</span>}
+              {eodComplete && <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>✓ Saved — print receipt below</span>}
             </div>
 
             {/* ── EOD Receipt / Print View ─────────────────────────────────── */}
-            {methods.length > 0 && (
+            {eodComplete && methods.length > 0 && (
               <div style={{ marginTop: '2rem' }}>
                 <div className='no-print' style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '.75rem' }}>
                   <span style={{ fontSize: '.8rem', fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .6 }}>EOD Receipt</span>

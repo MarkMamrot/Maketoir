@@ -143,30 +143,33 @@ export async function POST(req: Request) {
       });
     }
 
-    // Auto-trigger Xero sync on EOD close (fire-and-forget — requires admin session for businessId)
-    const adminRaw     = cookies().get('marketoir_session')?.value;
-    const adminSession = adminRaw ? (() => { try { return JSON.parse(adminRaw); } catch { return null; } })() : null;
-    if (adminSession?.businessId) {
-      // Only sync entries that have a counted_amount (actual EOD close, not just opening float)
-      const hasCount = entries.some((e: any) => e.counted_amount != null);
-      if (hasCount) {
-        imsQuery<{ name: string }>('SELECT name FROM ims_locations WHERE id = ? LIMIT 1', [resolvedLocationId])
-          .then(locs => {
-            const locationName = locs[0]?.name ?? `Location ${resolvedLocationId}`;
-            return PosEodRepo.get(resolvedLocationId, resolvedDate, register_id).then(rows =>
-              triggerEodXeroSync(
-                adminSession.businessId,
-                resolvedLocationId,
-                resolvedDate,
-                rows,
-                locationName,
-                register_id,
-                PosEodRepo.setXeroInvoice.bind(PosEodRepo),
-              )
-            );
-          })
-          .catch(e => console.error('EOD Xero auto-sync failed:', e.message));
-      }
+    // Auto-trigger Xero sync on EOD close (fire-and-forget).
+    // businessId comes from the admin session if present, otherwise from ims_locations.business_id.
+    const hasCount = entries.some((e: any) => e.counted_amount != null);
+    if (hasCount) {
+      const adminRaw2    = cookies().get('marketoir_session')?.value;
+      const adminBizId   = adminRaw2 ? (() => { try { return JSON.parse(adminRaw2)?.businessId ?? null; } catch { return null; } })() : null;
+      imsQuery<{ name: string; business_id: string | null }>(
+        'SELECT name, business_id FROM ims_locations WHERE id = ? LIMIT 1',
+        [resolvedLocationId],
+      )
+        .then(locs => {
+          const locationName = locs[0]?.name ?? `Location ${resolvedLocationId}`;
+          const bizId = adminBizId ?? locs[0]?.business_id ?? null;
+          if (!bizId) return; // Xero not configured for this location
+          return PosEodRepo.get(resolvedLocationId, resolvedDate, register_id).then(rows =>
+            triggerEodXeroSync(
+              bizId,
+              resolvedLocationId,
+              resolvedDate,
+              rows,
+              locationName,
+              register_id,
+              PosEodRepo.setXeroInvoice.bind(PosEodRepo),
+            )
+          );
+        })
+        .catch(e => console.error('EOD Xero auto-sync failed:', e.message));
     }
 
     return NextResponse.json({ success: true });
