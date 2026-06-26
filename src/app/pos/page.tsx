@@ -446,6 +446,8 @@ function MainPos({
   const [cart, setCart] = useState<CartItem[]>(() => loadCurrentCart());
   const [parkedSales, setParkedSales] = useState<ParkedSale[]>(() => loadParkedSales());
   const [showPayment, setShowPayment] = useState(false);
+  const [saleChangeDue, setSaleChangeDue] = useState<number | null>(null);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [orderDiscType, setOrderDiscType] = useState<'percent' | 'amount'>('percent');
   const [orderDiscVal,  setOrderDiscVal]  = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -721,7 +723,7 @@ function MainPos({
     setScreen('pos');
   }
 
-  async function completeSale(payments: PaymentEntry[]) {
+  async function completeSale(payments: PaymentEntry[], changeDue = 0) {
     // Re-entrancy guard — prevents a double-fired handler (double-click / key event)
     // from creating two sales. Each completeSale generates a fresh local_id, so the
     // DB UNIQUE(local_id) constraint would NOT catch a double-invocation.
@@ -787,6 +789,7 @@ function MainPos({
       clearCart();
       setShowPayment(false);
       onReceipt(completedSale);
+      if (changeDue > 0.004) setSaleChangeDue(Math.round(changeDue * 100) / 100);
     } finally {
       submittingRef.current = false;
     }
@@ -918,14 +921,60 @@ function MainPos({
           title={cartLeft ? 'Cart on left — click to move right' : 'Cart on right — click to move left'}
           style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-dim)', border: '1px solid rgba(255,255,255,.18)' }}
         >{cartLeft ? '⬅ Cart' : 'Cart ➡'}</button>
+        <a
+          href="/setup"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="POS Settings"
+          style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--sv-text-dim)', transition: 'background .15s', flexShrink: 0, textDecoration: 'none' }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.1)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        </a>
         <button
           onClick={() => setHelpOpen(true)}
           title="Help"
-          style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-dim)', border: '1px solid rgba(255,255,255,.18)', padding: '5px 8px' }}
+          style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--sv-text-dim)', transition: 'background .15s', flexShrink: 0 }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.1)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17" strokeLinecap="round" strokeWidth="2.5"/></svg>
         </button>
-        <button onClick={onLogout} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-red)', border: '1px solid var(--sv-red-border)' }}>Log Out</button>
+        {/* User menu */}
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setUserMenuOpen(p => !p)}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 8px', borderRadius: 8, background: 'none', border: 'none', cursor: 'pointer', transition: 'background .15s', flexShrink: 0 }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.1)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+          >
+            <span style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--sv-action)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+              {session.full_name ? session.full_name[0].toUpperCase() : '?'}
+            </span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{session.full_name || session.username || 'User'}</span>
+            <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>▾</span>
+          </button>
+          {userMenuOpen && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setUserMenuOpen(false)} />
+              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 8, minWidth: 170, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.25)', zIndex: 50, overflow: 'hidden' }}>
+                <div style={{ padding: '9px 14px', borderBottom: '1px solid var(--sv-etch)' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{session.location_name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 1 }}>{session.register_name || 'POS Terminal'}</div>
+                </div>
+                <button
+                  onClick={() => { setUserMenuOpen(false); onLogout(); }}
+                  style={{ width: '100%', textAlign: 'left', padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--sv-red)', fontWeight: 500 }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--sv-red-tint)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                >
+                  Log out
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Prior-day session banner — session was opened on a previous date; non-blocking reminder */}
@@ -1064,6 +1113,24 @@ function MainPos({
           onCancel={() => setShowPayment(false)}
         />
       )}
+
+      {/* Change Due overlay — shown after receipt fires (cash drawer opens first) */}
+      {saleChangeDue !== null && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: '#1a0000', border: '3px solid #ef4444', borderRadius: 16, padding: '2.5rem 3rem', textAlign: 'center', boxShadow: '0 0 60px rgba(239,68,68,.5)', maxWidth: 360, width: '90vw' }}>
+            <div style={{ fontSize: '1rem', fontWeight: 700, color: '#ef4444', letterSpacing: 3, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Change Due</div>
+            <div style={{ fontSize: '5rem', fontWeight: 900, color: '#ef4444', lineHeight: 1, marginBottom: '2rem', letterSpacing: -2 }}>${fmt(saleChangeDue)}</div>
+            <button
+              autoFocus
+              onClick={() => setSaleChangeDue(null)}
+              style={{ width: '100%', padding: '1rem', background: '#ef4444', border: 'none', borderRadius: 10, color: '#fff', fontSize: '1.2rem', fontWeight: 800, cursor: 'pointer', letterSpacing: .5 }}
+            >
+              OK — Change Given ✓
+            </button>
+          </div>
+        </div>
+      )}
+
       <PosHelpModal isOpen={helpOpen} onClose={() => setHelpOpen(false)} />
 
       {/* ── Pending drain prompt ──────────────────────────────────────────────
@@ -1429,16 +1496,16 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all' }: {
                 <span style={{ fontWeight: 800, color: 'var(--sv-action)', fontSize: '1.05rem' }}>${fmt(p.price)}</span>
                 <button
                   onClick={e => { e.stopPropagation(); setStockModal({ variantId: p.variant_id, productName: p.name, description: p.description }); }}
-                  style={{ background: 'transparent', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.95rem', lineHeight: 1, padding: '0 0 0 4px', flexShrink: 0 }}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: '0 0 0 4px', flexShrink: 0 }}
                   title="Product info & stock by location"
-                >ⓘ</button>
+                >ℹ️</button>
               </div>
               {/* Product name */}
               <div style={{ fontSize: '.88rem', fontWeight: 700, lineHeight: 1.3, color: 'var(--sv-text-strong)', maxHeight: '2.6em', overflow: 'hidden', marginBottom: '.3rem' }}>{p.name}</div>
               {/* Stock info */}
               <div style={{ fontSize: '.73rem', lineHeight: 1.6, color: 'var(--sv-text-dim)' }}>
                 <div><span style={{ color: p.soh > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 600 }}>In Store: {p.soh}</span></div>
-                {p.soh_all > p.soh && <div>Other Stores: {p.soh_all - p.soh}</div>}
+                <div>Other Stores: {p.soh_all - p.soh}</div>
               </div>
               {/* SKU */}
               {p.code && <div style={{ fontSize: '.68rem', color: 'var(--sv-text-muted)', marginTop: '.25rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.code}</div>}
@@ -1566,7 +1633,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
   total:      number;
   methods:    string[];
   isLayby:    boolean;
-  onComplete: (payments: PaymentEntry[]) => void;
+  onComplete: (payments: PaymentEntry[], changeDue?: number) => void;
   onCancel:   () => void;
 }) {
   const isRefund  = total < 0;
@@ -1575,17 +1642,13 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
   const [activeMethod, setActiveMethod] = useState(() => methods.find(m => /card/i.test(m)) ?? methods[0] ?? 'Cash');
   const [amount, setAmount] = useState(() => String(absTotal));
   const [reference, setReference] = useState('');
-  const [changeDue, setChangeDue] = useState<{ amount: number; pendingPayments: PaymentEntry[] } | null>(null);
   const amountRef      = useRef<HTMLInputElement>(null);
-  const changeDueOkRef  = useRef<HTMLButtonElement>(null);
 
   const paid      = payments.reduce((s, p) => s + p.amount, 0);
   const remaining = Math.round((absTotal - paid) * 100) / 100;
   const change    = Math.max(0, paid - absTotal);
 
   useEffect(() => { amountRef.current?.focus(); }, [activeMethod]);
-  // Delay focus so any in-flight Enter keyup can't immediately click the button
-  useEffect(() => { if (changeDue) { const t = setTimeout(() => changeDueOkRef.current?.focus(), 120); return () => clearTimeout(t); } }, [changeDue]);
 
   function addPayment() {
     const tendered = parseFloat(amount) || remaining;
@@ -1601,11 +1664,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
     setReference('');
     if (newPaid >= absTotal - 0.001) {
       const changeAmt = Math.round((tendered - contribution) * 100) / 100;
-      if (changeAmt > 0.004) {
-        setChangeDue({ amount: changeAmt, pendingPayments: newPayments });
-      } else {
-        onComplete(isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments);
-      }
+      onComplete(isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments, changeAmt > 0.004 ? changeAmt : 0);
     }
   }
 
@@ -1615,22 +1674,6 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      {/* Change Due overlay — shown on top of payment modal */}
-      {changeDue && (
-        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: 12 }}>
-          <div style={{ background: '#1a0000', border: '3px solid #ef4444', borderRadius: 16, padding: '2.5rem 3rem', textAlign: 'center', boxShadow: '0 0 60px rgba(239,68,68,.5)', maxWidth: 360, width: '90vw' }}>
-            <div style={{ fontSize: '1rem', fontWeight: 700, color: '#ef4444', letterSpacing: 3, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Change Due</div>
-            <div style={{ fontSize: '5rem', fontWeight: 900, color: '#ef4444', lineHeight: 1, marginBottom: '2rem', letterSpacing: -2 }}>${fmt(changeDue.amount)}</div>
-            <button
-              ref={changeDueOkRef}
-              onClick={() => { setChangeDue(null); onComplete(isRefund ? changeDue.pendingPayments.map(p => ({ ...p, amount: -p.amount })) : changeDue.pendingPayments); }}
-              style={{ width: '100%', padding: '1rem', background: '#ef4444', border: 'none', borderRadius: 10, color: '#fff', fontSize: '1.2rem', fontWeight: 800, cursor: 'pointer', letterSpacing: .5 }}
-            >
-              OK — Change Given ✓
-            </button>
-          </div>
-        </div>
-      )}
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: '1.5rem', width: 420, maxWidth: '95vw', boxShadow: '0 20px 60px rgba(0,0,0,.6)' }}>
         <h2 style={{ margin: '0 0 1rem', color: 'var(--sv-text-strong)', fontSize: '1.3rem' }}>
           {isLayby ? 'Layby Deposit' : isRefund ? 'Refund' : 'Payment'}

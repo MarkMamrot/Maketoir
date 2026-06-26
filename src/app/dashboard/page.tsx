@@ -165,20 +165,6 @@ function Sidebar({
 
       <nav className="solv-nav flex-1 space-y-0.5 px-2 font-nav overflow-y-auto overflow-x-hidden">
         {NAV.map(item => renderItem(item))}
-        <div className="mt-2 pt-2 border-t border-gray-200">
-          <Link
-            href="/ims"
-            title={collapsed ? 'Inventory Mgmt' : undefined}
-            className={`solv-nav-item w-full flex items-center gap-2 ${collapsed ? 'px-0 justify-center' : 'px-3 justify-between'} py-2 rounded-lg text-sm font-semibold transition-colors text-gray-700 hover:bg-gray-100`}
-            style={collapsed ? { height: 36, marginBottom: 4 } : {}}
-          >
-            <span className="flex items-center gap-2">
-              <span className={`shrink-0 opacity-60 flex items-center justify-center ${collapsed ? 'text-gray-500' : ''}`} dangerouslySetInnerHTML={{ __html: NAV_ICONS['ims'] }} />
-              {!collapsed && <span>Inventory Mgmt</span>}
-            </span>
-            {!collapsed && <span className="text-xs text-gray-400">↗</span>}
-          </Link>
-        </div>
       </nav>
     </aside>
   );
@@ -8030,16 +8016,19 @@ export default function DashboardPage() {
     <div className="h-screen overflow-hidden flex flex-col solvantis-shell">
       {/* Top bar */}
       <header className="h-14 flex items-center justify-between px-6 shrink-0 sticky top-0 z-30 backdrop-blur-md solvantis-topbar">
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-center gap-0 shrink-0">
           {/* Brand icon */}
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
+          <svg width="24" height="24" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 mr-2">
             <path d="M14 2L24 7.5V20.5L14 26L4 20.5V7.5L14 2Z" fill="#1ea8c2" fillOpacity="0.15" stroke="#1ea8c2" strokeWidth="1.5"/>
             <path d="M16.5 8H12L10.5 14H13.5L11.5 20L19 12.5H15L16.5 8Z" fill="#1ea8c2"/>
           </svg>
-          {/* Wordmark */}
-          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--sv-topbar-text, white)', letterSpacing: -.3 }}>
-            <span style={{ color: '#1ea8c2' }}>Solvantis</span> Foresight
-          </div>
+          {/* App switcher */}
+          <span style={{ color: '#1ea8c2', fontWeight: 700, fontSize: 16, letterSpacing: -.3 }}>Solvantis</span>
+          <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: -.3, color: 'var(--sv-topbar-text, white)', marginLeft: 4 }}>Foresight</span>
+          <span style={{ color: 'rgba(255,255,255,.25)', margin: '0 8px', fontSize: 13 }}>|</span>
+          <a href="/ims" style={{ fontSize: 13, color: 'rgba(255,255,255,.45)', textDecoration: 'none', fontWeight: 500, transition: 'color .15s' }} onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,.85)')} onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,.45)')}>IMS</a>
+          <span style={{ color: 'rgba(255,255,255,.25)', margin: '0 8px', fontSize: 13 }}>|</span>
+          <a href="/pos" target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: 'rgba(255,255,255,.45)', textDecoration: 'none', fontWeight: 500, transition: 'color .15s' }} onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,.85)')} onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,.45)')}>POS</a>
         </div>
         <div className="relative flex items-center gap-2">
           {businessName && (
@@ -8047,6 +8036,13 @@ export default function DashboardPage() {
               {businessName}
             </span>
           )}
+          <button
+            onClick={() => window.open('/help', '_blank')}
+            title="Help"
+            className="flex items-center justify-center w-8 h-8 rounded-lg outline-none hover:bg-white/10 transition-colors topbar-meta"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17" strokeLinecap="round" strokeWidth="2.5"/></svg>
+          </button>
           <button
             onClick={() => setSettingsOpen(true)}
             title="Settings"

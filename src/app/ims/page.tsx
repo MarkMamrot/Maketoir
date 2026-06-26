@@ -446,13 +446,6 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
       })}
 
       <div style={{ flex: 1 }} />
-      <div style={{ borderTop: '1px solid var(--sv-etch)', padding: collapsed ? '12px 0 0' : '12px 16px 0', display: 'flex', justifyContent: collapsed ? 'center' : 'flex-start' }}>
-        <a href="/dashboard" title="Back to Foresight"
-          style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--sv-text-dim)', fontSize: 13, textDecoration: 'none' }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-          {!collapsed && 'Back to Foresight'}
-        </a>
-      </div>
     </aside>
   );
 }
@@ -8860,6 +8853,7 @@ export default function ImsPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [view, setView] = useState<ImsView>('dashboard');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('general');
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpSection, setHelpSection] = useState<SettingsSection>('general');
@@ -8983,35 +8977,77 @@ export default function ImsPage() {
         </div>
       )}
       {/* Header */}
-      <header style={{ height: 52, background: 'var(--sv-bg-1)', borderBottom: '1px solid var(--sv-etch)', display: 'flex', alignItems: 'center', padding: '0 20px', gap: 12, flexShrink: 0 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--sv-text-strong)', letterSpacing: -.3 }}>
-          <span style={{ color: 'var(--sv-action)' }}>Solvantis</span> IMS
+      <header style={{ height: 52, background: 'var(--sv-bg-1)', borderBottom: '1px solid var(--sv-etch)', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 8, flexShrink: 0 }}>
+        {/* App switcher */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 0, flexShrink: 0 }}>
+          <span style={{ color: 'var(--sv-action)', fontWeight: 700, fontSize: 16, letterSpacing: -.3 }}>Solvantis</span>
+          <span style={{ fontWeight: 700, fontSize: 16, letterSpacing: -.3, color: 'var(--sv-text-strong)', marginLeft: 4 }}>IMS</span>
+          <span style={{ color: 'var(--sv-text-muted)', margin: '0 8px', fontSize: 13, opacity: .4 }}>|</span>
+          <a href="/dashboard" style={{ fontSize: 13, color: 'var(--sv-text-dim)', textDecoration: 'none', fontWeight: 500, opacity: .6, transition: 'opacity .15s' }} onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '.6')}>Foresight</a>
+          <span style={{ color: 'var(--sv-text-muted)', margin: '0 8px', fontSize: 13, opacity: .4 }}>|</span>
+          <a href="/pos" target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: 'var(--sv-text-dim)', textDecoration: 'none', fontWeight: 500, opacity: .6, transition: 'opacity .15s' }} onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '.6')}>POS</a>
         </div>
         <div style={{ flex: 1 }} />
-        <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>{user.company || user.name}</div>
-        <a
-          href="/pos"
-          target="_blank"
-          rel="noopener noreferrer"
-          title="Open POS Terminal"
-          style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', color: 'var(--sv-text-dim)', display: 'flex', alignItems: 'center', gap: 5, textDecoration: 'none', fontSize: 12, fontWeight: 600 }}
-        >
-          🖥️ POS
-        </a>
+        {(user.company || user.name) && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 12, fontWeight: 500, padding: '3px 10px', borderRadius: 99, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', flexShrink: 0 }}>
+            {user.company || user.name}
+          </span>
+        )}
         <button
           onClick={() => { setHelpSection(sectionFromView(view)); setHelpOpen(true); }}
           title="Help"
-          style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '5px 8px', cursor: 'pointer', color: 'var(--sv-text-dim)', display: 'flex', alignItems: 'center' }}
+          style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--sv-text-dim)', transition: 'background .15s' }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'var(--sv-bg-2)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17" strokeLinecap="round" strokeWidth="2.5"/></svg>
         </button>
         <button
           onClick={() => { setSettingsSection(sectionFromView(view)); setSettingsOpen(true); }}
           title="Settings"
-          style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '5px 8px', cursor: 'pointer', color: 'var(--sv-text-dim)', display: 'flex', alignItems: 'center' }}
+          style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--sv-text-dim)', transition: 'background .15s' }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'var(--sv-bg-2)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
         </button>
+        <span style={{ display: 'inline-block', height: 20, width: 1, background: 'var(--sv-etch)', flexShrink: 0 }} />
+        {/* User menu */}
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setUserMenuOpen(p => !p)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 8, background: 'none', border: 'none', cursor: 'pointer', transition: 'background .15s' }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--sv-bg-2)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+          >
+            <span style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--sv-action)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+              {user.name ? user.name[0].toUpperCase() : '?'}
+            </span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-main)' }}>{user.name || 'User'}</span>
+            <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>▾</span>
+          </button>
+          {userMenuOpen && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setUserMenuOpen(false)} />
+              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, minWidth: 170, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.12)', zIndex: 50, overflow: 'hidden' }}>
+                {(user.company || user.name) && (
+                  <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--sv-etch)' }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{user.company || user.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 1 }}>Active business</div>
+                  </div>
+                )}
+                <button
+                  onClick={async () => { setUserMenuOpen(false); await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login'; }}
+                  style={{ width: '100%', textAlign: 'left', padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--sv-red)', fontWeight: 500 }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--sv-red-tint)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                >
+                  Sign out
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </header>
 
       {/* Full Sync Confirmation Modal */}
