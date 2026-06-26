@@ -16,6 +16,7 @@ export interface PosSession {
   location_name: string;
   register_id:   number | null;
   register_name: string | null;
+  tier?:         string; // UserTier — PosUser, PosManager, StandardUser, Admin, SuperAdmin
 }
 
 export interface CachedProduct {

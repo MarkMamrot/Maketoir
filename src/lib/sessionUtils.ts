@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type UserTier = 'SuperAdmin' | 'Admin' | 'StandardUser' | 'PosUser';
+export type UserTier = 'SuperAdmin' | 'Admin' | 'StandardUser' | 'PosManager' | 'PosUser';
 
 export interface AdminSession {
   name: string;
@@ -80,13 +80,14 @@ export function assertBusinessAccess(
 
 /**
  * Check if user has required tier.
- * Tier hierarchy: SuperAdmin > Admin > StandardUser > PosUser
+ * Tier hierarchy: SuperAdmin > Admin > StandardUser > PosManager > PosUser
  */
 function hasTierAccess(userTier: UserTier, requiredTier: UserTier): boolean {
   const tierHierarchy: Record<UserTier, number> = {
-    'SuperAdmin': 4,
-    'Admin': 3,
-    'StandardUser': 2,
+    'SuperAdmin': 5,
+    'Admin': 4,
+    'StandardUser': 3,
+    'PosManager': 2,
     'PosUser': 1,
   };
   return tierHierarchy[userTier] >= tierHierarchy[requiredTier];

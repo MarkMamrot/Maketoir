@@ -8662,6 +8662,7 @@ const TIER_COLORS: Record<string, string> = {
   SuperAdmin: '#e05252',
   Admin: '#3eb8b0',
   StandardUser: '#4a9ede',
+  PosManager: '#c084fc',
   PosUser: '#6dba8a',
 };
 
@@ -8718,10 +8719,10 @@ function UsersListView() {
   };
 
   const availableTiers = myTier === 'SuperAdmin'
-    ? ['SuperAdmin', 'Admin', 'StandardUser', 'PosUser']
-    : ['Admin', 'StandardUser', 'PosUser'];
+    ? ['SuperAdmin', 'Admin', 'StandardUser', 'PosManager', 'PosUser']
+    : ['Admin', 'StandardUser', 'PosManager', 'PosUser'];
 
-  const tierLabel = (t: string) => ({ SuperAdmin: 'Super Admin', Admin: 'Admin', StandardUser: 'Standard User', PosUser: 'POS User' }[t] ?? t);
+  const tierLabel = (t: string) => ({ SuperAdmin: 'Super Admin', Admin: 'Admin', StandardUser: 'Standard User', PosManager: 'POS Manager', PosUser: 'POS User' }[t] ?? t);
 
   if (loading) return <p style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>Loading…</p>;
 

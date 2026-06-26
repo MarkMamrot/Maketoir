@@ -47,8 +47,9 @@ export async function POST(req: Request) {
       email: string;
       business_id: string | null;
       pos_pin_hash: string | null;
+      tier: string | null;
     }>(
-      'SELECT id, name, username, email, business_id, pos_pin_hash FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1',
+      'SELECT id, name, username, email, business_id, pos_pin_hash, tier FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1',
       [Number(user_id)],
     );
     const user = users[0];
@@ -86,6 +87,7 @@ export async function POST(req: Request) {
       full_name:     user.name || user.username || user.email,
       location_id:   Number(location_id),
       location_name: locationName,
+      tier:          user.tier ?? 'PosUser',
     };
 
     cookies().set('pos_session', JSON.stringify(sessionData), {

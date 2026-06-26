@@ -2,7 +2,7 @@
  * Tier-based access control utilities for frontend
  */
 
-export type UserTier = 'SuperAdmin' | 'Admin' | 'StandardUser' | 'PosUser';
+export type UserTier = 'SuperAdmin' | 'Admin' | 'StandardUser' | 'PosManager' | 'PosUser';
 
 export interface TierPermissions {
   canAccessSettings: boolean;
@@ -52,6 +52,16 @@ export function getTierPermissions(tier: UserTier | undefined): TierPermissions 
       canManageUsers: false,
       canAccessAnalytics: true,
     },
+    PosManager: {
+      canAccessSettings: false,
+      canAccessSetup: false,
+      canAccessIMS: false,
+      canAccessPOS: true,
+      canAccessDashboard: false,
+      canAccessConnections: false,
+      canManageUsers: false,
+      canAccessAnalytics: false,
+    },
     PosUser: {
       canAccessSettings: false,
       canAccessSetup: false,
@@ -74,9 +84,10 @@ export function hasTierAccess(userTier: UserTier | undefined, requiredTier: User
   if (!userTier) return false;
 
   const tierHierarchy: Record<UserTier, number> = {
-    'SuperAdmin': 4,
-    'Admin': 3,
-    'StandardUser': 2,
+    'SuperAdmin': 5,
+    'Admin': 4,
+    'StandardUser': 3,
+    'PosManager': 2,
     'PosUser': 1,
   };
 
@@ -91,6 +102,7 @@ export function getTierLabel(tier: UserTier | undefined): string {
     SuperAdmin: 'Super Admin',
     Admin: 'Admin',
     StandardUser: 'Standard User',
+    PosManager: 'POS Manager',
     PosUser: 'POS User',
   };
 
@@ -105,6 +117,7 @@ export function getTierDescription(tier: UserTier | undefined): string {
     SuperAdmin: 'Full system access including user management',
     Admin: 'Organisation-wide full access including settings',
     StandardUser: 'Access everything except settings',
+    PosManager: 'POS access with ability to change POS settings and appearance',
     PosUser: 'POS system access only',
   };
 
