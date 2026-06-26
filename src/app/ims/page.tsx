@@ -7808,8 +7808,8 @@ type XeroSyncEntry = {
   contact_name: string | null; amount: number | null; item_date: string | null;
   is_historical: number; xero_sync_status: string | null;
   log_id: number | null; xero_id: string | null;
-  last_sync_status: string | null; last_sync_detail: string | null; last_sync_at: string | null;
-  payments: { id: number; po_id: number; xero_id: string | null; status: string; detail: string | null; synced_at: string; payment_date: string | null; amount: number | null; currency_code: string | null; notes: string | null }[];
+  last_sync_status: string | null; last_xero_state: string | null; last_sync_detail: string | null; last_sync_at: string | null;
+  payments: { id: number; po_id: number; xero_id: string | null; status: string; xero_state?: string | null; detail: string | null; synced_at: string; payment_date: string | null; amount: number | null; currency_code: string | null; notes: string | null }[];
 };
 
 function XeroStatusBadge({ status, isHistorical }: { status: string | null; isHistorical?: boolean }) {
@@ -7820,6 +7820,22 @@ function XeroStatusBadge({ status, isHistorical }: { status: string | null; isHi
   return <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(248,113,113,.15)', color: '#f87171' }}>Not Synced</span>;
 }
 
+function XeroStateBadge({ state }: { state: string | null }) {
+  if (!state) return null;
+  const cfg: Record<string, { bg: string; color: string; label: string }> = {
+    DRAFT:       { bg: 'rgba(251,191,36,.15)',  color: '#fbbf24', label: 'Draft'      },
+    SUBMITTED:   { bg: 'rgba(251,191,36,.15)',  color: '#fbbf24', label: 'Submitted'  },
+    AUTHORISED:  { bg: 'rgba(16,185,129,.15)',  color: '#34d399', label: 'Authorised' },
+    PAID:        { bg: 'rgba(56,189,248,.15)',   color: '#38bdf8', label: 'Paid'       },
+    POSTED:      { bg: 'rgba(16,185,129,.15)',  color: '#34d399', label: 'Posted'     },
+    VOIDED:      { bg: 'rgba(248,113,113,.15)', color: '#f87171', label: 'Voided'     },
+    DELETED:     { bg: 'rgba(248,113,113,.15)', color: '#f87171', label: 'Deleted'    },
+  };
+  const s = cfg[state.toUpperCase()];
+  if (s) return <span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: s.bg, color: s.color }}>{s.label}</span>;
+  return <span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(156,163,175,.15)', color: '#9ca3af' }}>{state}</span>;
+}
+
 function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
   const [entries, setEntries] = useState<XeroSyncEntry[]>([]);
   const [queued, setQueued] = useState<{ id: number; reference: string; type: 'po' | 'so'; status: string; total_amount: number; xero_synced_at: string | null; contact_name: string | null }[]>([]);
@@ -7827,6 +7843,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
   const [retrying, setRetrying] = useState<Record<string, boolean>>({});
   const [pushAll, setPushAll] = useState(false);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [filterXeroState, setFilterXeroState] = useState('');
 
   const loadData = async () => {
     setLoading(true);
@@ -7884,6 +7901,15 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
   const th: React.CSSProperties = { padding: '8px 10px', color: 'var(--sv-text-dim)', fontWeight: 600, fontSize: 11, textAlign: 'left', whiteSpace: 'nowrap' };
   const td: React.CSSProperties = { padding: '9px 10px', fontSize: 13, color: 'var(--sv-text-main)', verticalAlign: 'middle' };
 
+  // Derive unique xero states from loaded entries for the filter dropdown
+  const xeroStateOptions = Array.from(
+    new Set(entries.map(e => e.last_xero_state).filter(Boolean) as string[])
+  ).sort();
+
+  const visibleEntries = filterXeroState
+    ? entries.filter(e => (e.last_xero_state ?? '') === filterXeroState)
+    : entries;
+
   if (loading) return <div style={{ padding: 20, color: 'var(--sv-text-dim)' }}>Loading…</div>;
 
   return (
@@ -7934,11 +7960,26 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
       <div style={{ background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Sync History (last 200)</span>
-          <button onClick={loadData} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: 'pointer', padding: '4px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>↻ Refresh</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {xeroStateOptions.length > 0 && (
+              <select
+                value={filterXeroState}
+                onChange={e => setFilterXeroState(e.target.value)}
+                style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 5, padding: '4px 8px', fontSize: 12, color: filterXeroState ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', cursor: 'pointer' }}
+              >
+                <option value=''>All Xero States</option>
+                {xeroStateOptions.map(s => <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>)}
+                {!filterXeroState && entries.some(e => !e.last_xero_state) && <option value='__none'>Unknown / Pre-history</option>}
+              </select>
+            )}
+            <button onClick={loadData} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: 'pointer', padding: '4px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>↻ Refresh</button>
+          </div>
         </div>
 
         {entries.length === 0 ? (
           <div style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No sync events recorded yet.</div>
+        ) : visibleEntries.length === 0 ? (
+          <div style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No entries match the selected Xero state filter.</div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
@@ -7951,11 +7992,12 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                 <th style={{ ...th, textAlign: 'right' }}>Amount</th>
                 <th style={th}>Synced</th>
                 <th style={th}>Status</th>
+                <th style={th}>Xero State</th>
                 <th style={th}></th>
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry, ei) => {
+              {visibleEntries.map((entry, ei) => {
                 const entryKey = `${entry.sync_type}-${entry.reference_id ?? ei}`;
                 const isExpanded = expanded.has(ei);
                 const hasPayments = entry.payments.length > 0;
@@ -7999,6 +8041,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                       <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtMoney(entry.amount)}</td>
                       <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{entry.last_sync_at ? fmtDate(entry.last_sync_at) : '—'}</td>
                       <td style={td}><XeroStatusBadge status={entry.last_sync_status} isHistorical={isHistorical} /></td>
+                      <td style={td}><XeroStateBadge state={entry.last_xero_state ?? null} /></td>
                       <td style={{ ...td, textAlign: 'right' }}>
                         {entry.last_sync_status === 'error' && !isHistorical && (isPo || isSo) && (
                           <button
@@ -8031,6 +8074,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                           <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{payAmt}</td>
                           <td style={{ ...td, color: 'var(--sv-text-dim)', fontSize: 12, whiteSpace: 'nowrap' }}>{fmtDate(pay.synced_at)}</td>
                           <td style={td}><XeroStatusBadge status={pay.status} /></td>
+                          <td style={td}><XeroStateBadge state={pay.xero_state ?? null} /></td>
                           <td style={{ ...td, textAlign: 'right' }}>
                             {pay.status === 'error' && (
                               <button

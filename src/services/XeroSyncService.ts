@@ -98,12 +98,17 @@ async function ensureSyncLogTable(): Promise<void> {
       reference_id INT          DEFAULT NULL,
       xero_id      VARCHAR(100) DEFAULT NULL,
       status       VARCHAR(20)  NOT NULL DEFAULT 'success',
+      xero_state   VARCHAR(20)  DEFAULT NULL,
       detail       TEXT         DEFAULT NULL,
       created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_business_type    (business_id, sync_type),
       INDEX idx_business_created (business_id, created_at DESC)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `, []);
+  // Add xero_state to existing tables that pre-date this column (MySQL 8+ IF NOT EXISTS).
+  try {
+    await execute(`ALTER TABLE xero_sync_log ADD COLUMN IF NOT EXISTS xero_state VARCHAR(20) DEFAULT NULL AFTER status`, []);
+  } catch { /* column already exists or non-8.0 — safe to ignore */ }
   _syncLogTableReady = true;
 }
 
@@ -114,12 +119,13 @@ async function logSync(
   xeroId: string | null,
   status: 'success' | 'error' | 'skipped',
   detail?: string,
+  xeroState?: string | null,
 ) {
   try {
     await ensureSyncLogTable();
     await execute(
-      `INSERT INTO xero_sync_log (business_id, sync_type, reference_id, xero_id, status, detail) VALUES (?, ?, ?, ?, ?, ?)`,
-      [businessId, syncType, referenceId, xeroId, status, detail ?? null],
+      `INSERT INTO xero_sync_log (business_id, sync_type, reference_id, xero_id, status, xero_state, detail) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [businessId, syncType, referenceId, xeroId, status, xeroState ?? null, detail ?? null],
     );
   } catch (err: any) {
     // Logging must never break a sync — swallow and warn instead
@@ -264,8 +270,10 @@ export async function syncStocktakeJournal(
       body: { ManualJournals: [journal] },
     });
     const journalId = result.ManualJournals?.[0]?.ManualJournalID ?? null;
+    const journalState = result.ManualJournals?.[0]?.Status ?? 'POSTED';
     await logSync(businessId, 'stocktake_journal', stocktakeId, journalId, 'success',
-      `Journal posted: ${journalLines.length / 2} variance lines, total $${totalValue.toFixed(2)}`);
+      `Journal posted: ${journalLines.length / 2} variance lines, total $${totalValue.toFixed(2)}`,
+      journalState);
     await markStocktakeXeroStatus(stocktakeId, 'synced', journalId);
     return { journalId, lines: journalLines.length / 2, totalValue };
   } catch (err: any) {
@@ -412,8 +420,9 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
 
   try {
     const result = await xeroApiFetch(businessId, '/Invoices', { method: 'POST', body: { Invoices: [bill] } });
-    const xeroId = result.Invoices?.[0]?.InvoiceID ?? null;
-    await logSync(businessId, 'po_bill', po.id, xeroId, 'success', `Draft Bill created: ${po.po_number}`);
+    const inv = result.Invoices?.[0];
+    const xeroId = inv?.InvoiceID ?? null;
+    await logSync(businessId, 'po_bill', po.id, xeroId, 'success', `Draft Bill created: ${po.po_number}`, inv?.Status ?? 'DRAFT');
     await markPoXeroStatus(po.id, 'synced', xeroId);
     return xeroId;
   } catch (err: any) {
@@ -443,7 +452,7 @@ export async function updateXeroDraftBill(businessId: string, po: POForSync, xer
     const current = await xeroApiFetch(businessId, `/Invoices/${xeroId}`, { method: 'GET' });
     const currentStatus = current.Invoices?.[0]?.Status;
     if (currentStatus !== 'DRAFT') {
-      await logSync(businessId, 'po_bill', po.id, xeroId, 'skipped', `Bill is ${currentStatus ?? 'unknown'}, cannot update`);
+      await logSync(businessId, 'po_bill', po.id, xeroId, 'skipped', `Bill is ${currentStatus ?? 'unknown'}, cannot update`, currentStatus ?? undefined);
       return false;
     }
   } catch (err: any) {
@@ -503,7 +512,7 @@ export async function updateXeroDraftBill(businessId: string, po: POForSync, xer
 
   try {
     await xeroApiFetch(businessId, `/Invoices/${xeroId}`, { method: 'POST', body: { Invoices: [bill] } });
-    await logSync(businessId, 'po_bill', po.id, xeroId, 'success', `Draft Bill updated: ${po.po_number}`);
+    await logSync(businessId, 'po_bill', po.id, xeroId, 'success', `Draft Bill updated: ${po.po_number}`, 'DRAFT');
     await markPoXeroStatus(po.id, 'synced', xeroId);
     return true;
   } catch (err: any) {
@@ -521,7 +530,7 @@ export async function approveBill(businessId: string, xeroInvoiceId: string, poI
       method: 'POST',
       body: { Invoices: [{ InvoiceID: xeroInvoiceId, Status: 'AUTHORISED' }] },
     });
-    await logSync(businessId, 'po_bill', poId, xeroInvoiceId, 'success', 'Bill approved');
+    await logSync(businessId, 'po_bill', poId, xeroInvoiceId, 'success', 'Bill approved', 'AUTHORISED');
     return true;
   } catch (err: any) {
     await logSync(businessId, 'po_bill', poId, xeroInvoiceId, 'error', `Approve failed: ${err.message}`);
@@ -711,8 +720,9 @@ export async function syncSOAsInvoice(businessId: string, so: SOForSync): Promis
 
   try {
     const result = await xeroApiFetch(businessId, '/Invoices', { method: 'POST', body: { Invoices: [invoice] } });
-    const xeroId = result.Invoices?.[0]?.InvoiceID ?? null;
-    await logSync(businessId, 'so_invoice', so.id, xeroId, 'success', `Invoice created: ${so.so_number}`);
+    const inv = result.Invoices?.[0];
+    const xeroId = inv?.InvoiceID ?? null;
+    await logSync(businessId, 'so_invoice', so.id, xeroId, 'success', `Invoice created: ${so.so_number}`, inv?.Status ?? 'DRAFT');
     await markSoXeroStatus(so.id, 'synced', xeroId);
     return xeroId;
   } catch (err: any) {
@@ -740,7 +750,7 @@ export async function updateXeroDraftInvoice(businessId: string, so: SOForSync, 
     const current = await xeroApiFetch(businessId, `/Invoices/${xeroId}`, { method: 'GET' });
     const currentStatus = current.Invoices?.[0]?.Status;
     if (currentStatus !== 'DRAFT') {
-      await logSync(businessId, 'so_invoice', so.id, xeroId, 'skipped', `Invoice is ${currentStatus ?? 'unknown'}, cannot update`);
+      await logSync(businessId, 'so_invoice', so.id, xeroId, 'skipped', `Invoice is ${currentStatus ?? 'unknown'}, cannot update`, currentStatus ?? undefined);
       return false;
     }
   } catch (err: any) {
@@ -786,7 +796,7 @@ export async function updateXeroDraftInvoice(businessId: string, so: SOForSync, 
 
   try {
     await xeroApiFetch(businessId, `/Invoices/${xeroId}`, { method: 'POST', body: { Invoices: [invoice] } });
-    await logSync(businessId, 'so_invoice', so.id, xeroId, 'success', `Draft Invoice updated: ${so.so_number}`);
+    await logSync(businessId, 'so_invoice', so.id, xeroId, 'success', `Draft Invoice updated: ${so.so_number}`, 'DRAFT');
     await markSoXeroStatus(so.id, 'synced', xeroId);
     return true;
   } catch (err: any) {
@@ -804,7 +814,7 @@ export async function approveInvoice(businessId: string, xeroInvoiceId: string, 
       method: 'POST',
       body: { Invoices: [{ InvoiceID: xeroInvoiceId, Status: 'AUTHORISED' }] },
     });
-    await logSync(businessId, 'so_invoice', soId, xeroInvoiceId, 'success', 'Invoice approved');
+    await logSync(businessId, 'so_invoice', soId, xeroInvoiceId, 'success', 'Invoice approved', 'AUTHORISED');
     return true;
   } catch (err: any) {
     await logSync(businessId, 'so_invoice', soId, xeroInvoiceId, 'error', `Approve failed: ${err.message}`);
@@ -836,7 +846,7 @@ export async function voidXeroBill(
     });
     const result = res?.Invoices?.[0];
     if (result?.Status === targetStatus) {
-      await logSync(businessId, 'po_bill_void', poId, xeroInvoiceId, 'success', `Bill ${targetStatus.toLowerCase()}`);
+      await logSync(businessId, 'po_bill_void', poId, xeroInvoiceId, 'success', `Bill ${targetStatus.toLowerCase()}`, targetStatus);
       return xeroInvoiceId;
     }
     await logSync(businessId, 'po_bill_void', poId, xeroInvoiceId, 'error', `Expected ${targetStatus}, got ${result?.Status}`);
@@ -886,7 +896,7 @@ export async function voidXeroInvoice(
     });
     const voided = voidRes?.Invoices?.[0];
     if (voided?.Status === targetStatus) {
-      await logSync(businessId, 'so_invoice_void', soId, xeroInvoiceId, 'success', `Invoice ${targetStatus.toLowerCase()}`);
+      await logSync(businessId, 'so_invoice_void', soId, xeroInvoiceId, 'success', `Invoice ${targetStatus.toLowerCase()}`, targetStatus);
       return { voided: true, hasPayments: false };
     }
     await logSync(businessId, 'so_invoice_void', soId, xeroInvoiceId, 'error', `Expected ${targetStatus}, got ${voided?.Status}`);
@@ -943,9 +953,10 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
 
   try {
     const result = await xeroApiFetch(businessId, '/Invoices', { method: 'POST', body: { Invoices: [invoice] } });
-    const xeroId = result.Invoices?.[0]?.InvoiceID ?? null;
+    const batchInv = result.Invoices?.[0];
+    const xeroId = batchInv?.InvoiceID ?? null;
     const syncType = batch.channel === 'pos' ? 'pos_batch' : 'online_batch';
-    await logSync(businessId, syncType, null, xeroId, 'success', `${batch.channel} batch ${batch.date}`);
+    await logSync(businessId, syncType, null, xeroId, 'success', `${batch.channel} batch ${batch.date}`, batchInv?.Status ?? 'AUTHORISED');
     return xeroId;
   } catch (err: any) {
     const syncType = batch.channel === 'pos' ? 'pos_batch' : 'online_batch';
@@ -1056,7 +1067,8 @@ export async function syncEodEntry(
     const xeroId        = inv?.InvoiceID ?? null;
     const invoiceNumber = inv?.InvoiceNumber ?? '';
     await logSync(businessId, 'eod_reconciliation', null, xeroId, 'success',
-      `EOD ${entry.date} ${entry.method} — ${entry.locationName}: $${entry.salesAmount.toFixed(2)}`);
+      `EOD ${entry.date} ${entry.method} — ${entry.locationName}: $${entry.salesAmount.toFixed(2)}`,
+      inv?.Status ?? 'AUTHORISED');
     return xeroId ? { xeroId, invoiceNumber } : null;
   } catch (err: any) {
     await logSync(businessId, 'eod_reconciliation', null, null, 'error',

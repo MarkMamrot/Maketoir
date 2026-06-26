@@ -114,7 +114,7 @@ export async function GET(req: Request) {
     try {
       if (poIds.length > 0) {
         poLogs = await query<any>(
-          `SELECT reference_id, xero_id, status, detail, created_at AS synced_at
+          `SELECT reference_id, xero_id, status, xero_state, detail, created_at AS synced_at
              FROM xero_sync_log
             WHERE business_id = ? AND sync_type = 'po_bill'
               AND reference_id IN (${poIds.map(() => '?').join(',')})
@@ -126,7 +126,7 @@ export async function GET(req: Request) {
           [databaseId, ...poIds, databaseId],
         );
         paymentLogs = await query<any>(
-          `SELECT reference_id AS po_id, xero_id, status, detail, created_at AS synced_at
+          `SELECT reference_id AS po_id, xero_id, status, xero_state, detail, created_at AS synced_at
              FROM xero_sync_log
             WHERE business_id = ? AND sync_type = 'po_payment'
               AND reference_id IN (${poIds.map(() => '?').join(',')})
@@ -136,7 +136,7 @@ export async function GET(req: Request) {
       }
       if (soIds.length > 0) {
         soLogs = await query<any>(
-          `SELECT reference_id, xero_id, status, detail, created_at AS synced_at
+          `SELECT reference_id, xero_id, status, xero_state, detail, created_at AS synced_at
              FROM xero_sync_log
             WHERE business_id = ? AND sync_type = 'so_invoice'
               AND reference_id IN (${soIds.map(() => '?').join(',')})
@@ -150,7 +150,7 @@ export async function GET(req: Request) {
       }
       if (allBatchKeys.length > 0) {
         batchLogs = await query<any>(
-          `SELECT detail AS batch_key, sync_type, xero_id, status, created_at AS synced_at
+          `SELECT detail AS batch_key, sync_type, xero_id, status, xero_state, created_at AS synced_at
              FROM xero_sync_log
             WHERE business_id = ? AND sync_type IN ('pos_batch','online_batch')
               AND detail IN (${allBatchKeys.map(() => '?').join(',')})
@@ -166,7 +166,7 @@ export async function GET(req: Request) {
       // (POS end-of-day reconciliations, stocktake journals). These are the actual
       // Xero pushes — surface them directly so their status / amount / Xero ID show.
       eventLogs = await query<any>(
-        `SELECT id, sync_type, xero_id, status, detail, created_at AS synced_at
+        `SELECT id, sync_type, xero_id, status, xero_state, detail, created_at AS synced_at
            FROM xero_sync_log
           WHERE business_id = ?
             AND sync_type IN ('eod_reconciliation','stocktake_journal')
@@ -206,10 +206,12 @@ export async function GET(req: Request) {
         log_id: null,
         xero_id: log?.xero_id ?? null,
         last_sync_status: log?.status ?? null,
+        last_xero_state: log?.xero_state ?? null,
         last_sync_detail: log?.detail ?? null,
         last_sync_at: log?.synced_at ?? null,
         payments: (paysByPo.get(po.id) ?? []).map((p: any) => ({
           id: null, po_id: po.id, xero_id: p.xero_id, status: p.status,
+          xero_state: p.xero_state ?? null,
           detail: p.detail, synced_at: p.synced_at,
           payment_date: null, amount: null, currency_code: null, notes: null,
         })),
@@ -230,6 +232,7 @@ export async function GET(req: Request) {
         log_id: null,
         xero_id: log?.xero_id ?? null,
         last_sync_status: log?.status ?? null,
+        last_xero_state: log?.xero_state ?? null,
         last_sync_detail: log?.detail ?? null,
         last_sync_at: log?.synced_at ?? null,
         payments: [],
@@ -252,6 +255,7 @@ export async function GET(req: Request) {
         log_id: null,
         xero_id: log?.xero_id ?? null,
         last_sync_status: log?.status ?? null,
+        last_xero_state: log?.xero_state ?? null,
         last_sync_detail: key,
         last_sync_at: log?.synced_at ?? null,
         payments: [],
@@ -273,6 +277,7 @@ export async function GET(req: Request) {
         log_id: null,
         xero_id: log?.xero_id ?? null,
         last_sync_status: log?.status ?? null,
+        last_xero_state: log?.xero_state ?? null,
         last_sync_detail: dateStr,
         last_sync_at: log?.synced_at ?? null,
         payments: [],
@@ -300,6 +305,7 @@ export async function GET(req: Request) {
       log_id: e.id,
       xero_id: e.xero_id ?? null,
       last_sync_status: e.status ?? null,
+      last_xero_state: e.xero_state ?? null,
       last_sync_detail: e.detail ?? null,
       last_sync_at: e.synced_at ?? null,
       payments: [],
