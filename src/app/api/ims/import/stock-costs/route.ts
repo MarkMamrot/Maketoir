@@ -146,12 +146,12 @@ export async function POST(req: Request) {
       continue;
     }
 
-    // Update the canonical cost on the variant
+    // Update canonical cost + business-wide avg_cost on the variant
     await imsExecute(
-      'UPDATE ims_product_variants SET cost_aud = ? WHERE variant_id = ?',
-      [avgCost, variantId],
+      'UPDATE ims_product_variants SET cost_aud = ?, avg_cost = ? WHERE variant_id = ?',
+      [avgCost, avgCost, variantId],
     );
-    // Update avg_cost on every stock row for this variant (all branches)
+    // Keep ims_stock.avg_cost consistent (uniform across all locations after CSV import)
     await imsExecute(
       'UPDATE ims_stock SET avg_cost = ? WHERE variant_id = ?',
       [avgCost, variantId],

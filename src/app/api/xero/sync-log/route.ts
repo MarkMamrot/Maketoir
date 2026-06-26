@@ -145,13 +145,13 @@ export async function GET(req: Request) {
     try {
       if (poIds.length > 0) {
         poLogs = await query<any>(
-          `SELECT reference_id, xero_id, status, xero_state, detail, created_at AS synced_at
+          `SELECT reference_id, sync_type, xero_id, status, xero_state, detail, created_at AS synced_at
              FROM xero_sync_log
-            WHERE business_id = ? AND sync_type = 'po_bill'
+            WHERE business_id = ? AND sync_type IN ('po_bill','po_bill_void')
               AND reference_id IN (${poIds.map(() => '?').join(',')})
               AND id IN (
                 SELECT MAX(id) FROM xero_sync_log
-                 WHERE business_id = ? AND sync_type = 'po_bill'
+                 WHERE business_id = ? AND sync_type IN ('po_bill','po_bill_void')
                  GROUP BY reference_id
               )`,
           [databaseId, ...poIds, databaseId],
@@ -167,13 +167,13 @@ export async function GET(req: Request) {
       }
       if (soIds.length > 0) {
         soLogs = await query<any>(
-          `SELECT reference_id, xero_id, status, xero_state, detail, created_at AS synced_at
+          `SELECT reference_id, sync_type, xero_id, status, xero_state, detail, created_at AS synced_at
              FROM xero_sync_log
-            WHERE business_id = ? AND sync_type = 'so_invoice'
+            WHERE business_id = ? AND sync_type IN ('so_invoice','so_invoice_void')
               AND reference_id IN (${soIds.map(() => '?').join(',')})
               AND id IN (
                 SELECT MAX(id) FROM xero_sync_log
-                 WHERE business_id = ? AND sync_type = 'so_invoice'
+                 WHERE business_id = ? AND sync_type IN ('so_invoice','so_invoice_void')
                  GROUP BY reference_id
               )`,
           [databaseId, ...soIds, databaseId],
@@ -237,7 +237,7 @@ export async function GET(req: Request) {
         log_id: null,
         xero_id: log?.xero_id ?? null,
         last_sync_status: log?.status ?? null,
-        last_xero_state: resolveXeroState('po_bill', log?.status, log?.detail, log?.xero_state),
+        last_xero_state: resolveXeroState(log?.sync_type ?? 'po_bill', log?.status, log?.detail, log?.xero_state),
         last_sync_detail: log?.detail ?? null,
         last_sync_at: log?.synced_at ?? null,
         payments: (paysByPo.get(po.id) ?? []).map((p: any) => ({
@@ -263,7 +263,7 @@ export async function GET(req: Request) {
         log_id: null,
         xero_id: log?.xero_id ?? null,
         last_sync_status: log?.status ?? null,
-        last_xero_state: resolveXeroState('so_invoice', log?.status, log?.detail, log?.xero_state),
+        last_xero_state: resolveXeroState(log?.sync_type ?? 'so_invoice', log?.status, log?.detail, log?.xero_state),
         last_sync_detail: log?.detail ?? null,
         last_sync_at: log?.synced_at ?? null,
         payments: [],

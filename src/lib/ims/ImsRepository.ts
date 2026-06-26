@@ -2,6 +2,63 @@ import { v4 as uuidv4 } from 'uuid';
 import { getIMSPool, imsQuery, imsExecute } from '@/services/IMSMySQLService';
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Migration: avg_cost at variant level (business-wide weighted average)
+// ─────────────────────────────────────────────────────────────────────────────
+let _variantAvgCostReady = false;
+/**
+ * Lazily adds avg_cost to ims_product_variants and backfills it.
+ * Runs at most once per server process (module-level flag).
+ * MySQL 9.4 does not support ALTER TABLE … ADD COLUMN IF NOT EXISTS,
+ * so we check with SHOW COLUMNS first.
+ */
+async function ensureVariantAvgCost(): Promise<void> {
+  if (_variantAvgCostReady) return;
+  try {
+    const cols = await imsQuery<any>(`SHOW COLUMNS FROM ims_product_variants LIKE 'avg_cost'`);
+    if (!cols.length) {
+      await imsExecute(`ALTER TABLE ims_product_variants ADD COLUMN avg_cost DECIMAL(15,4) DEFAULT NULL AFTER cost_aud`);
+      // Backfill: business-wide weighted avg from ims_stock, fall back to cost_aud
+      await imsExecute(`
+        UPDATE ims_product_variants pv
+        SET pv.avg_cost = COALESCE(
+          (SELECT SUM(s.qty_on_hand * s.avg_cost) / NULLIF(SUM(s.qty_on_hand), 0)
+           FROM ims_stock s WHERE s.variant_id = pv.variant_id AND s.qty_on_hand > 0),
+          pv.cost_aud
+        )
+        WHERE pv.avg_cost IS NULL
+      `);
+    }
+  } catch { /* column may already exist — safe to ignore */ }
+  _variantAvgCostReady = true;
+}
+
+/**
+ * After updating ims_stock.avg_cost for one location, recomputes the
+ * business-wide weighted average across ALL locations and writes it to
+ * ims_product_variants.avg_cost. Called inside a transaction conn.
+ * Never throws — must never block a receive operation.
+ */
+async function refreshVariantAvgCost(conn: any, variantId: string): Promise<void> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result: any = await conn.execute(
+      `SELECT SUM(qty_on_hand * avg_cost) AS total_value, SUM(qty_on_hand) AS total_qty
+       FROM ims_stock WHERE variant_id = ? AND qty_on_hand > 0`,
+      [variantId]
+    );
+    const agg = result[0][0];
+    const totalQty = Number(agg?.total_qty ?? 0);
+    if (totalQty > 0) {
+      const newAvg = Math.round((Number(agg.total_value) / totalQty) * 10000) / 10000;
+      await conn.execute(
+        `UPDATE ims_product_variants SET avg_cost = ? WHERE variant_id = ?`,
+        [newAvg, variantId]
+      );
+    }
+  } catch { /* non-critical — must never block a receive */ }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -984,6 +1041,7 @@ export const ImsPORepo = {
   },
 
   async changeStatus(id: number, newStatus: POStatus, freightTreatment: 'expense' | 'capitalise' = 'expense'): Promise<void> {
+    await ensureVariantAvgCost(); // ensures avg_cost column exists before any receive writes it
     const pool = getIMSPool();
     const conn = await pool.getConnection();
     try {
@@ -1127,6 +1185,7 @@ export const ImsPORepo = {
              WHERE variant_id=? AND location_id=?`,
             [new_soh, qty_rcvd, new_avg, item.variant_id, po.location_id]
           );
+          if (item.variant_id !== null) await refreshVariantAvgCost(conn, item.variant_id); // keep variant-level avg in sync
           await conn.execute(
             `UPDATE ims_purchase_order_items SET qty_received = qty_ordered WHERE id = ?`,
             [item.id]
@@ -1211,6 +1270,7 @@ export const ImsPORepo = {
              WHERE variant_id=? AND location_id=?`,
             [new_soh, remaining, new_avg, item.variant_id, po.location_id]
           );
+          if (item.variant_id !== null) await refreshVariantAvgCost(conn, item.variant_id); // keep variant-level avg in sync
           await conn.execute(
             `UPDATE ims_purchase_order_items SET qty_received = qty_ordered WHERE id = ?`,
             [item.id]
@@ -1455,6 +1515,7 @@ export const ImsSORepo = {
       );
     }
     if (!rows[0]) return null;
+    await ensureVariantAvgCost(); // ensure avg_cost column exists before reading it
     const items = await imsQuery<ImsSOItem>(
       `SELECT i.*,
               COALESCE(v.sku, i.code) AS sku,
@@ -1464,13 +1525,10 @@ export const ImsSORepo = {
                 NULLIF(v.option2_value,''),
                 NULLIF(v.option3_value,'')
               ) AS variant_label,
-              sk.avg_cost AS unit_cost
+              COALESCE(v.avg_cost, v.cost_aud) AS unit_cost
        FROM ims_sales_order_items i
        LEFT JOIN ims_product_variants v ON v.variant_id = i.variant_id
        LEFT JOIN ims_products p ON p.product_id = v.product_id
-       LEFT JOIN ims_stock sk
-         ON sk.variant_id = i.variant_id
-         AND sk.location_id = (SELECT location_id FROM ims_sales_orders WHERE id = i.so_id)
        WHERE i.so_id = ?`,
       [id]
     );

@@ -4502,7 +4502,7 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
       </table>
 
       {/* C – COGS & Margin */}
-      <div style={lbl}>C — COGS & Gross Margin{!hasCogs ? ' (avg cost unavailable — not yet received into stock?)' : ''}</div>
+      <div style={lbl}>C — COGS & Gross Margin{!hasCogs ? ' (cost unavailable — no standard cost set on product)' : ''}</div>
       {hasCogs ? (
         <>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
@@ -4550,10 +4550,10 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
               </tr>
             </tfoot>
           </table>
-          <div style={{ ...dim, marginTop: 3 }}>Unit cost = avg_cost from ims_stock at {so.location_name || 'this location'} — live value, not locked at fulfilment date.</div>
+          <div style={{ ...dim, marginTop: 3 }}>Unit cost = business-wide weighted avg (across all locations), falling back to standard cost (cost_aud) if not yet received into stock.</div>
         </>
       ) : (
-        <div style={{ ...dim, fontStyle: 'italic' }}>avg_cost not available — items may not have been received into this location yet.</div>
+        <div style={{ ...dim, fontStyle: 'italic' }}>Cost not available — no standard cost (cost_aud) set on these variants.</div>
       )}
 
       {/* D – Xero Invoice */}
