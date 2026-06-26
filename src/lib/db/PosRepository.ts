@@ -1,5 +1,4 @@
 import { imsQuery, imsExecute, getIMSPool } from '@/services/IMSMySQLService';
-import bcrypt from 'bcryptjs';
 
 /** Current datetime formatted as MySQL DATETIME in the business's local timezone. */
 function localNow(): string {
@@ -9,24 +8,12 @@ function localNow(): string {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface PosUserRow {
-  id:            number;
-  username:      string;
-  password_hash: string;
-  full_name:     string | null;
-  email:         string | null;
-  phone:         string | null;
-  branch_ids:    number[] | null; // parsed from JSON
-  is_active:     number;
-  created_at:    string;
-  updated_at:    string;
-}
-
 export interface PosSaleRow {
   id:                number;
   local_id:          string | null;
   location_id:       number;
   cashier_id:        number;
+  cashier_name:      string | null;
   sale_type:         'sale' | 'return' | 'layby';
   status:            'open' | 'parked' | 'completed' | 'voided' | 'layby_active' | 'layby_complete';
   customer_name:     string | null;
@@ -114,15 +101,6 @@ function toNum(v: unknown): number {
   return v == null ? 0 : Number(v);
 }
 
-function parseUser(row: any): PosUserRow {
-  return {
-    ...row,
-    branch_ids: row.branch_ids
-      ? (typeof row.branch_ids === 'string' ? JSON.parse(row.branch_ids) : row.branch_ids)
-      : null,
-  };
-}
-
 function parseSale(row: any): PosSaleRow {
   return {
     ...row,
@@ -150,9 +128,9 @@ function parsePayment(row: any): PosPaymentRow {
   return { ...row, amount: toNum(row.amount) };
 }
 
-// ─── POS Users Repository ─────────────────────────────────────────────────────
+// ─── POS Sales Repository ─────────────────────────────────────────────────────
 
-export const PosUsersRepo = {
+export const PosSalesRepo = {
   async list(): Promise<Omit<PosUserRow, 'password_hash'>[]> {
     const rows = await imsQuery<any>(
       'SELECT id, username, full_name, email, phone, branch_ids, is_active, created_at, updated_at FROM pos_users ORDER BY full_name',
