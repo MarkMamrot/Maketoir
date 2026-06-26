@@ -131,88 +131,6 @@ function parsePayment(row: any): PosPaymentRow {
 // ─── POS Sales Repository ─────────────────────────────────────────────────────
 
 export const PosSalesRepo = {
-  async list(): Promise<Omit<PosUserRow, 'password_hash'>[]> {
-    const rows = await imsQuery<any>(
-      'SELECT id, username, full_name, email, phone, branch_ids, is_active, created_at, updated_at FROM pos_users ORDER BY full_name',
-    );
-    return rows.map(parseUser);
-  },
-
-  async get(id: number): Promise<PosUserRow | null> {
-    const rows = await imsQuery<any>('SELECT * FROM pos_users WHERE id = ? LIMIT 1', [id]);
-    return rows[0] ? parseUser(rows[0]) : null;
-  },
-
-  async findByUsername(username: string): Promise<PosUserRow | null> {
-    const rows = await imsQuery<any>(
-      'SELECT * FROM pos_users WHERE username = ? LIMIT 1',
-      [username.trim().toLowerCase()],
-    );
-    return rows[0] ? parseUser(rows[0]) : null;
-  },
-
-  async create(data: {
-    username: string;
-    password: string;
-    full_name?: string;
-    email?: string;
-    phone?: string;
-    branch_ids?: number[] | null;
-  }): Promise<number> {
-    const hash = await bcrypt.hash(data.password, 12);
-    const result = await imsExecute(
-      `INSERT INTO pos_users (username, password_hash, full_name, email, phone, branch_ids)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [
-        data.username.trim().toLowerCase(),
-        hash,
-        data.full_name ?? null,
-        data.email ?? null,
-        data.phone ?? null,
-        data.branch_ids ? JSON.stringify(data.branch_ids) : null,
-      ],
-    );
-    return result.insertId;
-  },
-
-  async update(id: number, data: {
-    full_name?: string;
-    email?: string;
-    phone?: string;
-    branch_ids?: number[] | null;
-    is_active?: number;
-    password?: string;
-  }): Promise<void> {
-    const sets: string[] = [];
-    const params: unknown[] = [];
-
-    if (data.full_name !== undefined) { sets.push('full_name = ?');  params.push(data.full_name); }
-    if (data.email !== undefined)     { sets.push('email = ?');      params.push(data.email); }
-    if (data.phone !== undefined)     { sets.push('phone = ?');      params.push(data.phone); }
-    if (data.is_active !== undefined) { sets.push('is_active = ?');  params.push(data.is_active); }
-    if (data.branch_ids !== undefined) {
-      sets.push('branch_ids = ?');
-      params.push(data.branch_ids ? JSON.stringify(data.branch_ids) : null);
-    }
-    if (data.password) {
-      const hash = await bcrypt.hash(data.password, 12);
-      sets.push('password_hash = ?');
-      params.push(hash);
-    }
-
-    if (sets.length === 0) return;
-    params.push(id);
-    await imsExecute(`UPDATE pos_users SET ${sets.join(', ')} WHERE id = ?`, params);
-  },
-
-  async verifyPassword(user: PosUserRow, password: string): Promise<boolean> {
-    return bcrypt.compare(password, user.password_hash);
-  },
-};
-
-// ─── POS Sales Repository ─────────────────────────────────────────────────────
-
-export const PosSalesRepo = {
   async get(id: number): Promise<{ sale: PosSaleRow; items: PosSaleItemRow[]; payments: PosPaymentRow[] } | null> {
     const sales = await imsQuery<any>('SELECT * FROM pos_sales WHERE id = ? LIMIT 1', [id]);
     if (!sales[0]) return null;
@@ -890,9 +808,8 @@ export const PosReportsRepo = {
     payments: PosPaymentRow[];
   }[]> {
     const sales = await imsQuery<any>(
-      `SELECT s.*, COALESCE(s.cashier_name, u.full_name) AS cashier_name
+      `SELECT s.*
        FROM pos_sales s
-       LEFT JOIN pos_users u ON u.id = s.cashier_id
        WHERE s.location_id = ? AND DATE(s.created_at) = ?
          AND s.status IN ('completed','layby_complete')
        ORDER BY s.created_at`,

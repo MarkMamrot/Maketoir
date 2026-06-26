@@ -1986,40 +1986,14 @@ export function DataSourceTab({ business }: { business: Business | null }) {
 
 // --- POS Settings Tab ---
 export function PosSettingsTab() {
-  const [activeSubTab, setActiveSubTab] = useState<'users' | 'methods'>('users');
-  const [users, setUsers] = useState<any[]>([]);
   const [methods, setMethods] = useState<string[]>([]);
   const [newMethod, setNewMethod] = useState('');
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState('');
 
-  // New user form
-  const [newUser, setNewUser] = useState({ username: '', password: '', full_name: '', email: '' });
-
   useEffect(() => {
-    fetch('/api/pos/users').then(r => r.json()).then(d => setUsers(d.users ?? [])).catch(() => {});
     fetch('/api/pos/settings/payment-methods').then(r => r.json()).then(d => setMethods(d.methods ?? [])).catch(() => {});
   }, []);
-
-  async function createUser() {
-    if (!newUser.username || !newUser.password) { setMsg('Username and password required.'); return; }
-    setLoading(true); setMsg('');
-    const res = await fetch('/api/pos/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newUser) });
-    const d = await res.json();
-    if (res.ok) {
-      setMsg('User created.');
-      setNewUser({ username: '', password: '', full_name: '', email: '' });
-      fetch('/api/pos/users').then(r => r.json()).then(d => setUsers(d.users ?? []));
-    } else {
-      setMsg(d.error ?? 'Error.');
-    }
-    setLoading(false);
-  }
-
-  async function toggleUser(id: number, active: number) {
-    await fetch(`/api/pos/users/${id}`, { method: active ? 'DELETE' : 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active: active ? 0 : 1 }) });
-    fetch('/api/pos/users').then(r => r.json()).then(d => setUsers(d.users ?? []));
-  }
 
   async function saveMethods() {
     setLoading(true);
@@ -2035,81 +2009,31 @@ export function PosSettingsTab() {
         <a href="/pos" target="_blank" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">Open POS →</a>
       </div>
 
-      <div className="flex gap-4 border-b border-gray-200">
-        {(['users', 'methods'] as const).map(t => (
-          <button key={t} onClick={() => setActiveSubTab(t)} className={`py-2 px-3 text-sm font-medium border-b-2 transition-colors ${activeSubTab === t ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-            {t === 'users' ? 'POS Users' : 'Payment Methods'}
-          </button>
-        ))}
-      </div>
-
       {msg && <p className="text-sm font-medium text-blue-600">{msg}</p>}
 
-      {activeSubTab === 'users' && (
-        <div className="space-y-4">
-          {/* Existing users */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead><tr className="bg-gray-50 text-gray-500 text-xs uppercase"><th className="text-left p-3">Username</th><th className="text-left p-3">Name</th><th className="text-left p-3">Email</th><th className="p-3">Active</th><th className="p-3">Actions</th></tr></thead>
-              <tbody>
-                {users.map((u: any) => (
-                  <tr key={u.id} className="border-t border-gray-100">
-                    <td className="p-3 font-mono">{u.username}</td>
-                    <td className="p-3">{u.full_name ?? '—'}</td>
-                    <td className="p-3 text-gray-500">{u.email ?? '—'}</td>
-                    <td className="p-3 text-center">{u.is_active ? '✓' : '—'}</td>
-                    <td className="p-3 text-center">
-                      <button onClick={() => toggleUser(u.id, u.is_active)} className="text-xs text-gray-500 hover:text-red-600 underline">
-                        {u.is_active ? 'Deactivate' : 'Reactivate'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {users.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-gray-400">No POS users yet.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Create user */}
-          <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-gray-700">Create New POS User</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="text-xs text-gray-500">Username *</label><input value={newUser.username} onChange={e => setNewUser(p => ({ ...p, username: e.target.value }))} className="w-full p-2 border border-gray-300 rounded text-sm" /></div>
-              <div><label className="text-xs text-gray-500">Password *</label><input type="password" value={newUser.password} onChange={e => setNewUser(p => ({ ...p, password: e.target.value }))} className="w-full p-2 border border-gray-300 rounded text-sm" /></div>
-              <div><label className="text-xs text-gray-500">Full Name</label><input value={newUser.full_name} onChange={e => setNewUser(p => ({ ...p, full_name: e.target.value }))} className="w-full p-2 border border-gray-300 rounded text-sm" /></div>
-              <div><label className="text-xs text-gray-500">Email</label><input value={newUser.email} onChange={e => setNewUser(p => ({ ...p, email: e.target.value }))} className="w-full p-2 border border-gray-300 rounded text-sm" /></div>
+      <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+        <h3 className="text-sm font-semibold text-gray-700">Payment Methods</h3>
+        <p className="text-xs text-gray-500">These appear as payment options in the POS payment screen.</p>
+        <div className="space-y-2">
+          {methods.map((m, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input value={m} onChange={e => setMethods(prev => prev.map((v, j) => j === i ? e.target.value : v))} className="flex-1 p-2 border border-gray-300 rounded text-sm" />
+              <button onClick={() => setMethods(prev => prev.filter((_, j) => j !== i))} className="text-red-500 hover:text-red-700 text-lg leading-none">×</button>
             </div>
-            <button onClick={createUser} disabled={loading} className="px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-semibold hover:bg-gray-900 transition">
-              {loading ? 'Creating…' : 'Create User'}
-            </button>
-          </div>
+          ))}
         </div>
-      )}
-
-      {activeSubTab === 'methods' && (
-        <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
-          <h3 className="text-sm font-semibold text-gray-700">Payment Methods</h3>
-          <p className="text-xs text-gray-500">These appear as payment options in the POS payment screen.</p>
-          <div className="space-y-2">
-            {methods.map((m, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <input value={m} onChange={e => setMethods(prev => prev.map((v, j) => j === i ? e.target.value : v))} className="flex-1 p-2 border border-gray-300 rounded text-sm" />
-                <button onClick={() => setMethods(prev => prev.filter((_, j) => j !== i))} className="text-red-500 hover:text-red-700 text-lg leading-none">×</button>
-              </div>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <input value={newMethod} onChange={e => setNewMethod(e.target.value)} placeholder="Add method…" className="flex-1 p-2 border border-gray-300 rounded text-sm" onKeyDown={e => { if (e.key === 'Enter' && newMethod.trim()) { setMethods(p => [...p, newMethod.trim()]); setNewMethod(''); }}} />
-            <button onClick={() => { if (newMethod.trim()) { setMethods(p => [...p, newMethod.trim()]); setNewMethod(''); }}} className="px-3 py-2 bg-gray-800 text-white rounded text-sm">Add</button>
-          </div>
-          <button onClick={saveMethods} disabled={loading} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition">
-            {loading ? 'Saving…' : 'Save Methods'}
-          </button>
+        <div className="flex gap-2">
+          <input value={newMethod} onChange={e => setNewMethod(e.target.value)} placeholder="Add method…" className="flex-1 p-2 border border-gray-300 rounded text-sm" onKeyDown={e => { if (e.key === 'Enter' && newMethod.trim()) { setMethods(p => [...p, newMethod.trim()]); setNewMethod(''); }}} />
+          <button onClick={() => { if (newMethod.trim()) { setMethods(p => [...p, newMethod.trim()]); setNewMethod(''); }}} className="px-3 py-2 bg-gray-800 text-white rounded text-sm">Add</button>
         </div>
-      )}
+        <button onClick={saveMethods} disabled={loading} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition">
+          {loading ? 'Saving…' : 'Save Methods'}
+        </button>
+      </div>
     </div>
   );
 }
+
 
 // --- Team Tab ---
 function TeamTab({ business }: { business: { name: string; userId: string; databaseId: string } | null }) {
