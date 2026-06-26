@@ -27,9 +27,10 @@ export async function GET(req: NextRequest) {
 
   try {
     const sales = await imsQuery<any>(
-      `SELECT p.*, l.name AS location_name
+      `SELECT p.*, l.name AS location_name, r.name AS register_name
        FROM pos_sales p
        LEFT JOIN ims_locations l ON l.id = p.location_id
+       LEFT JOIN pos_registers r ON r.id = p.register_id
        WHERE DATE(p.completed_at) = ?
        ${where}
        ORDER BY p.completed_at ASC`,

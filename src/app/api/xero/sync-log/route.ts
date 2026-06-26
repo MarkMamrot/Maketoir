@@ -45,6 +45,36 @@ async function ensureXeroStateColumn(): Promise<void> {
   _xeroStateColReady = true;
 }
 
+/**
+ * Infer xero_state for rows inserted before the column was added (all pre-Jun-2026 rows are NULL).
+ * Uses the detail text first (most specific), then falls back to sync_type.
+ */
+function resolveXeroState(
+  syncType: string,
+  status: string | null | undefined,
+  detail: string | null | undefined,
+  stored: string | null | undefined,
+): string | null {
+  if (stored) return stored;
+  if (status !== 'success') return null;
+  const d = (detail ?? '').toLowerCase();
+  if (d.includes('approved')) return 'AUTHORISED';
+  if (d.includes('voided'))   return 'VOIDED';
+  if (d.includes('deleted'))  return 'DELETED';
+  switch (syncType) {
+    case 'po_bill':             return 'DRAFT';
+    case 'po_bill_void':        return 'VOIDED';
+    case 'so_invoice':          return 'DRAFT';
+    case 'so_invoice_void':     return 'VOIDED';
+    case 'eod_reconciliation':  return 'AUTHORISED';
+    case 'stocktake_journal':   return 'POSTED';
+    case 'online_batch':        return 'AUTHORISED';
+    case 'po_payment':
+    case 'so_payment':          return 'PAID';
+    default:                    return null;
+  }
+}
+
 export async function GET(req: Request) {
   const { user, response } = requireAdminSession();
   if (response) return response;
@@ -207,12 +237,12 @@ export async function GET(req: Request) {
         log_id: null,
         xero_id: log?.xero_id ?? null,
         last_sync_status: log?.status ?? null,
-        last_xero_state: log?.xero_state ?? null,
+        last_xero_state: resolveXeroState('po_bill', log?.status, log?.detail, log?.xero_state),
         last_sync_detail: log?.detail ?? null,
         last_sync_at: log?.synced_at ?? null,
         payments: (paysByPo.get(po.id) ?? []).map((p: any) => ({
           id: null, po_id: po.id, xero_id: p.xero_id, status: p.status,
-          xero_state: p.xero_state ?? null,
+          xero_state: resolveXeroState('po_payment', p.status, p.detail, p.xero_state),
           detail: p.detail, synced_at: p.synced_at,
           payment_date: null, amount: null, currency_code: null, notes: null,
         })),
@@ -233,7 +263,7 @@ export async function GET(req: Request) {
         log_id: null,
         xero_id: log?.xero_id ?? null,
         last_sync_status: log?.status ?? null,
-        last_xero_state: log?.xero_state ?? null,
+        last_xero_state: resolveXeroState('so_invoice', log?.status, log?.detail, log?.xero_state),
         last_sync_detail: log?.detail ?? null,
         last_sync_at: log?.synced_at ?? null,
         payments: [],
@@ -255,7 +285,7 @@ export async function GET(req: Request) {
         log_id: null,
         xero_id: log?.xero_id ?? null,
         last_sync_status: log?.status ?? null,
-        last_xero_state: log?.xero_state ?? null,
+        last_xero_state: resolveXeroState('online_batch', log?.status, log?.detail, log?.xero_state),
         last_sync_detail: dateStr,
         last_sync_at: log?.synced_at ?? null,
         payments: [],
@@ -283,7 +313,7 @@ export async function GET(req: Request) {
       log_id: e.id,
       xero_id: e.xero_id ?? null,
       last_sync_status: e.status ?? null,
-      last_xero_state: e.xero_state ?? null,
+      last_xero_state: resolveXeroState(e.sync_type, e.status, e.detail, e.xero_state),
       last_sync_detail: e.detail ?? null,
       last_sync_at: e.synced_at ?? null,
       payments: [],

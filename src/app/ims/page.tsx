@@ -5696,6 +5696,7 @@ function PosSalesView() {
                     <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 68 }}>{fmtTime(sale.completed_at)}</span>
                     <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, fontWeight: 600, background: isReturn ? 'rgba(239,68,68,.12)' : 'rgba(16,185,129,.1)', color: isReturn ? 'var(--sv-red)' : 'var(--sv-mint)' }}>{isReturn ? 'Return' : 'Sale'}</span>
                     {sale.location_name && !locationId && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', padding: '1px 7px', borderRadius: 99, border: '1px solid var(--sv-etch)' }}>{sale.location_name}</span>}
+                    {sale.register_name && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', padding: '1px 7px', borderRadius: 99, border: '1px solid var(--sv-etch)', fontFamily: 'inherit' }}>🖥 {sale.register_name}</span>}
                     {sale.cashier_name && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{sale.cashier_name}</span>}
                     <span style={{ flex: 1, fontSize: 13, color: 'var(--sv-text-main)' }}>{sale.customer_name || <span style={{ color: 'var(--sv-text-dim)' }}>Walk-in</span>}</span>
                     <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{sale.items.length} item{sale.items.length !== 1 ? 's' : ''}</span>
@@ -7893,6 +7894,13 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
   const typeLabel = (t: string) => ({ po_bill: 'Purchase Order', so_invoice: 'Wholesale SO', pos_batch: 'POS Sales (Batch)', online_batch: 'Online Sales (Batch)', cogs_journal: 'COGS Journal', eod_reconciliation: 'POS End-of-Day', stocktake_journal: 'Stocktake Journal' }[t] ?? t);
   const typeColor = (t: string) => ({ po_bill: '#818cf8', so_invoice: '#34d399', pos_batch: '#fb923c', online_batch: '#38bdf8', cogs_journal: '#a78bfa', eod_reconciliation: '#fb923c', stocktake_journal: '#a78bfa' }[t] ?? '#9ca3af');
   const typeBg = (t: string) => ({ po_bill: 'rgba(99,102,241,.13)', so_invoice: 'rgba(16,185,129,.13)', pos_batch: 'rgba(251,146,60,.13)', online_batch: 'rgba(56,189,248,.13)', cogs_journal: 'rgba(167,139,250,.13)', eod_reconciliation: 'rgba(251,146,60,.13)', stocktake_journal: 'rgba(167,139,250,.13)' }[t] ?? 'rgba(156,163,175,.13)');
+  const xeroLink = (syncType: string, id: string): string => {
+    if (syncType === 'po_bill' || syncType === 'po_bill_void' || syncType === 'po_payment')
+      return `https://go.xero.com/AccountsPayable/View.aspx?InvoiceID=${id}`;
+    if (syncType === 'stocktake_journal')
+      return `https://go.xero.com/ManualJournals/View.aspx?manualJournalID=${id}`;
+    return `https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${id}`;
+  };
 
   const fmtDate  = (d: string) => { try { return new Date(d).toLocaleString('en-AU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return d; } };
   const fmtDay   = (d: string | null | undefined) => { if (!d) return '—'; try { const s = String(d); return new Date(s.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }); } catch { return String(d).slice(0, 10); } };
@@ -8028,7 +8036,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                         {entry.contact_name ?? '—'}
                         {entry.xero_id && (
                           <a
-                            href={`https://go.xero.com/app/invoicing/view/${entry.xero_id}`}
+                            href={xeroLink(entry.sync_type, entry.xero_id)}
                             target="_blank"
                             rel="noopener noreferrer"
                             title={`Open in Xero (${entry.xero_id})`}
