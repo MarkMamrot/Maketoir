@@ -1093,7 +1093,7 @@ function PosStockModal({ variantId, productName, onClose }: { variantId: string;
   const [error, setError]     = useState('');
 
   useEffect(() => {
-    fetch(`/api/ims/stock?variant_id=${encodeURIComponent(variantId)}`)
+    fetch(`/api/pos/stock?variant_id=${encodeURIComponent(variantId)}`)
       .then(r => r.json())
       .then(d => {
         if (d.success) setRows((d.data ?? []).map((r: any) => ({ location_name: r.location_name ?? `Loc ${r.location_id}`, qty_on_hand: Number(r.qty_on_hand ?? 0) })));
