@@ -18,12 +18,12 @@ import {
 function fmt(n: number) { return n.toFixed(2); }
 function calcLineTotal(item: CartItem): number {
   const base = item.qty * item.unit_price;
-  return Math.max(0, base - item.discount_amount);
+  return base - item.discount_amount;
 }
 function calcTotals(items: CartItem[]) {
   const subtotal       = items.reduce((s, i) => s + i.qty * i.unit_price, 0);
   const discount_total = items.reduce((s, i) => s + i.discount_amount,    0);
-  const total          = Math.max(0, subtotal - discount_total);
+  const total          = subtotal - discount_total;
   const tax_total      = total * 0.1 / 1.1; // GST inclusive
   return { subtotal, discount_total, total, tax_total };
 }
@@ -446,7 +446,8 @@ function MainPos({
   const [cart, setCart] = useState<CartItem[]>(() => loadCurrentCart());
   const [parkedSales, setParkedSales] = useState<ParkedSale[]>(() => loadParkedSales());
   const [showPayment, setShowPayment] = useState(false);
-  const [isReturn, setIsReturn] = useState(false);
+  const [orderDiscType, setOrderDiscType] = useState<'percent' | 'amount'>('percent');
+  const [orderDiscVal,  setOrderDiscVal]  = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [saleNotes, setSaleNotes] = useState('');
@@ -610,18 +611,29 @@ function MainPos({
     };
   }, []);
 
-  const totals = useMemo(() => calcTotals(cart), [cart]);
+  const totals = useMemo(() => {
+    const base          = calcTotals(cart);
+    const afterItemDisc = base.subtotal - base.discount_total;
+    const orderDiscRaw  = orderDiscType === 'percent'
+      ? afterItemDisc * (parseFloat(orderDiscVal) || 0) / 100
+      : (parseFloat(orderDiscVal) || 0);
+    const order_disc_amount = afterItemDisc > 0 ? Math.min(Math.max(0, orderDiscRaw), afterItemDisc) : 0;
+    const total             = base.subtotal - base.discount_total - order_disc_amount;
+    const tax_total         = total * 0.1 / 1.1;
+    return { ...base, total, tax_total, order_disc_amount };
+  }, [cart, orderDiscType, orderDiscVal]);
 
   function addToCart(product: CachedProduct) {
     setCart(prev => {
       const existing = prev.find(i => i.variant_id === product.variant_id);
       if (existing) {
-        return prev.map(i => i.variant_id === product.variant_id
-          ? { ...i, qty: i.qty + 1, line_total: calcLineTotal({ ...i, qty: i.qty + 1 }) }
-          : i
-        );
+        return prev.map(i => {
+          if (i.variant_id !== product.variant_id) return i;
+          const newQty = i.qty + 1 === 0 ? 1 : i.qty + 1; // skip zero when crossing
+          return { ...i, qty: newQty, line_total: calcLineTotal({ ...i, qty: newQty }) };
+        });
       }
-      const qty = isReturn ? -1 : 1;
+      const qty = 1;
       const item: CartItem = {
         localId:        newLocalId(),
         variant_id:     product.variant_id,
@@ -634,7 +646,7 @@ function MainPos({
         discount_value: 0,
         discount_amount: 0,
         tax_rate:       10,
-        line_total:     Math.abs(qty) * product.price,
+        line_total:     qty * product.price,
       };
       return [...prev, item];
     });
@@ -643,11 +655,11 @@ function MainPos({
   function updateQty(localId: string, delta: number) {
     setCart(prev => prev.map(i => {
       if (i.localId !== localId) return i;
-      const newQty = i.qty + delta;
-      if (newQty === 0) return { ...i, qty: 0 }; // will be removed in filter
+      const raw    = i.qty + delta;
+      const newQty = raw === 0 ? delta : raw; // skip 0: 1→-1 or -1→+1
       const updated = { ...i, qty: newQty };
       return { ...updated, line_total: calcLineTotal(updated) };
-    }).filter(i => i.qty !== 0));
+    }));
   }
 
   function removeItem(localId: string) {
@@ -678,7 +690,8 @@ function MainPos({
     setCustomerPhone('');
     setSaleNotes('');
     setIsLayby(false);
-    setIsReturn(false);
+    setOrderDiscType('percent');
+    setOrderDiscVal('');
     saveCurrentCart([]);
   }
 
@@ -717,19 +730,20 @@ function MainPos({
     try {
       const localId = newLocalId();
       const now = new Date().toISOString();
-      const { subtotal, discount_total, tax_total, total } = totals;
+      const { subtotal, discount_total, tax_total, total, order_disc_amount } = totals;
+      const db_discount_total = discount_total + order_disc_amount;
 
       const payload = {
         local_id:       localId,
         register_id:    session.register_id ?? null,
         location_id:    session.location_id,
         cashier_id:     session.pos_user_id,
-        sale_type:      isLayby ? 'layby' : isReturn ? 'return' : 'sale',
+        sale_type:      isLayby ? 'layby' : cart.some(i => i.qty < 0) ? 'return' : 'sale',
         status:         isLayby ? 'layby_active' : 'completed',
         customer_name:  customerName || null,
         customer_phone: customerPhone || null,
         notes:          saleNotes || null,
-        subtotal, discount_total, tax_total, total,
+        subtotal, discount_total: db_discount_total, tax_total, total,
         items:    cart.map(i => ({ variant_id: i.variant_id, code: i.code, name: i.name, qty: i.qty, unit_price: i.unit_price, original_price: i.original_price, discount_type: i.discount_type, discount_value: i.discount_value, discount_amount: i.discount_amount, tax_rate: i.tax_rate, line_total: i.line_total })),
         payments: payments.map(p => ({ payment_method: p.method, amount: p.amount, reference: p.reference || null })),
       };
@@ -758,11 +772,11 @@ function MainPos({
         local_id:      localId,
         location_name: session.location_name,
         cashier_name:  session.full_name,
-        sale_type:     isLayby ? 'layby' : isReturn ? 'return' : 'sale',
+        sale_type:     isLayby ? 'layby' : cart.some(i => i.qty < 0) ? 'return' : 'sale',
         status:        isLayby ? 'layby_active' : 'completed',
         items:         cart,
         payments,
-        subtotal, discount_total, tax_total, total,
+        subtotal, discount_total: db_discount_total, tax_total, total,
         customer_name:  customerName || null,
         customer_phone: customerPhone || null,
         created_at:    now,
@@ -883,9 +897,6 @@ function MainPos({
         >
           {syncing ? '⟳ Syncing…' : syncMsg ?? '⟳ Sync'}
         </button>
-        <button onClick={() => setIsReturn(!isReturn)} style={{ ...smallBtn, background: isReturn ? 'var(--sv-red-tint)' : 'rgba(255,255,255,.1)', color: isReturn ? 'var(--sv-red)' : 'var(--sv-text-strong)', border: `1px solid ${isReturn ? 'var(--sv-red-border)' : 'rgba(255,255,255,.18)'}` }}>
-          {isReturn ? '↩ Return Mode ON' : 'Return / Refund'}
-        </button>
         <button onClick={() => setIsLayby(!isLayby)} style={{ ...smallBtn, background: isLayby ? 'var(--sv-amber-tint)' : 'rgba(255,255,255,.1)', color: isLayby ? 'var(--sv-amber)' : 'var(--sv-text-strong)', border: `1px solid ${isLayby ? 'var(--sv-amber-border)' : 'rgba(255,255,255,.18)'}` }}>
           {isLayby ? '📋 Layby ON' : 'Layby'}
         </button>
@@ -956,7 +967,7 @@ function MainPos({
       <div style={{ flex: 1, display: 'flex', flexDirection: cartLeft ? 'row-reverse' : 'row', overflow: 'hidden' }}>
         {/* Product Panel — only render once defaultView is known to avoid flash */}
         {defaultView !== null ? (
-          <ProductPanel products={products} onAdd={addToCart} isReturn={isReturn} defaultView={defaultView} onChargeEnter={() => { if (cart.length && !showPayment && !mustOpenRegister) setShowPayment(true); }} />
+          <ProductPanel products={products} onAdd={addToCart} defaultView={defaultView} onChargeEnter={() => { if (cart.length && !showPayment && !mustOpenRegister) setShowPayment(true); }} />
         ) : (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontSize: '.9rem' }}>Loading products…</div>
         )}
@@ -991,10 +1002,29 @@ function MainPos({
             ))}
           </div>
 
+          {/* Order discount */}
+          {cart.length > 0 && (
+            <div style={{ padding: '.25rem .75rem .35rem', display: 'flex', gap: '.5rem', alignItems: 'center', borderTop: '1px solid var(--sv-etch)' }}>
+              <span style={{ fontSize: '.78rem', color: 'var(--sv-text-dim)', flexShrink: 0 }}>Order disc.</span>
+              <select value={orderDiscType} onChange={e => setOrderDiscType(e.target.value as 'percent' | 'amount')} style={{ fontSize: '.78rem', padding: '.15rem .25rem', background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', color: 'var(--sv-text-main)', borderRadius: 4, flexShrink: 0 }}>
+                <option value='percent'>%</option>
+                <option value='amount'>$</option>
+              </select>
+              <input
+                type='number' min='0' step={orderDiscType === 'percent' ? '1' : '0.01'}
+                placeholder='0'
+                value={orderDiscVal}
+                onChange={e => setOrderDiscVal(e.target.value)}
+                style={{ ...inputStyle, flex: 1, marginBottom: 0, padding: '.2rem .35rem', fontSize: '.82rem' }}
+              />
+            </div>
+          )}
+
           {/* Totals */}
           <div style={{ padding: '.75rem' }}>
             <TotalRow label='Subtotal' value={totals.subtotal} />
-            {totals.discount_total > 0 && <TotalRow label='Discount' value={-totals.discount_total} color='var(--sv-amber)' />}
+            {totals.discount_total > 0 && <TotalRow label='Item Disc.' value={-totals.discount_total} color='var(--sv-amber)' />}
+            {totals.order_disc_amount > 0 && <TotalRow label='Order Disc.' value={-totals.order_disc_amount} color='var(--sv-amber)' />}
             <TotalRow label='GST (incl.)' value={totals.tax_total} muted />
             <TotalRow label='TOTAL' value={totals.total} large />
 
@@ -1017,8 +1047,8 @@ function MainPos({
                 disabled={!cart.length || mustOpenRegister}
                 style={{ width: '100%', padding: '1rem .5rem', background: cart.length && !mustOpenRegister ? 'var(--sv-action)' : 'var(--sv-bg-2)', border: `2px solid ${cart.length && !mustOpenRegister ? 'var(--sv-action)' : 'var(--sv-etch)'}`, borderRadius: 10, color: cart.length && !mustOpenRegister ? '#fff' : 'var(--sv-text-muted)', cursor: cart.length && !mustOpenRegister ? 'pointer' : 'not-allowed', fontWeight: 900, lineHeight: 1.15, transition: 'opacity .15s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.1rem' }}
               >
-                <span style={{ fontSize: '1rem', letterSpacing: .5, textTransform: 'uppercase' }}>{isLayby ? 'Layby' : 'Charge'}</span>
-                <span style={{ fontSize: '2.6rem', letterSpacing: -1, fontWeight: 900 }}>${fmt(totals.total)}</span>
+                <span style={{ fontSize: '1rem', letterSpacing: .5, textTransform: 'uppercase' }}>{isLayby ? 'Layby' : totals.total < 0 ? 'Refund' : 'Charge'}</span>
+                <span style={{ fontSize: '2.6rem', letterSpacing: -1, fontWeight: 900 }}>{totals.total < 0 ? '−' : ''}${fmt(Math.abs(totals.total))}</span>
               </button>
             </div>
           </div>
@@ -1144,7 +1174,7 @@ function PosStockModal({ variantId, productName, onClose }: { variantId: string;
 
 // ─── Product Panel ────────────────────────────────────────────────────────────
 
-function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 'all' }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; isReturn: boolean; onChargeEnter?: () => void; defaultView?: string }) {
+function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all' }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; onChargeEnter?: () => void; defaultView?: string }) {
   const [search, setSearch]             = useState('');
   const [brand, setBrand]               = useState(() => defaultView.startsWith('brand:') ? defaultView.slice(6) : '');
   const [inStockOnly, setInStockOnly]   = useState(() => defaultView === 'in_stock');
@@ -1375,7 +1405,7 @@ function ProductPanel({ products, onAdd, isReturn, onChargeEnter, defaultView = 
               key={p.variant_id}
               onClick={() => handleAdd(p)}
               style={{
-                background: isReturn ? 'var(--sv-red-tint)' : 'var(--sv-bg-2)',
+                background: 'var(--sv-bg-2)',
                 border: `1px solid ${isRecent ? 'rgba(37,99,235,.35)' : 'var(--sv-etch)'}`,
                 borderRadius: 8,
                 padding: '.75rem .85rem',
@@ -1440,7 +1470,10 @@ function CartRow({ item, onQty, onRemove, onDiscount, onPrice }: {
     <div style={{ borderBottom: '1px solid var(--sv-etch)', paddingBottom: '.5rem', marginBottom: '.5rem' }}>
       <div style={{ display: 'flex', gap: '.4rem', alignItems: 'flex-start' }}>
         <div style={{ flex: 1, fontSize: '.82rem', lineHeight: 1.3 }}>
-          <div style={{ fontWeight: 600, color: 'var(--sv-text-strong)' }}>{item.name}</div>
+          <div style={{ fontWeight: 600, color: item.qty < 0 ? 'var(--sv-red)' : 'var(--sv-text-strong)', fontStyle: item.qty < 0 ? 'italic' : 'normal', opacity: item.qty < 0 ? 0.85 : 1 }}>
+            {item.name}
+            {item.qty < 0 && <span style={{ marginLeft: '.35rem', fontSize: '.65rem', background: 'var(--sv-red-tint)', color: 'var(--sv-red)', borderRadius: 3, padding: '1px 4px', fontStyle: 'normal', fontWeight: 700, verticalAlign: 'middle' }}>RETURN</span>}
+          </div>
           {item.code && <div style={{ color: 'var(--sv-text-dim)', fontSize: '.75rem' }}>{item.code}</div>}
         </div>
         <button onClick={onRemove} style={{ background: 'transparent', border: 'none', color: 'var(--sv-red)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: '0 .25rem' }}>×</button>
@@ -1496,7 +1529,7 @@ function CartRow({ item, onQty, onRemove, onDiscount, onPrice }: {
           </button>
         )}
 
-        <span style={{ marginLeft: 'auto', fontWeight: 700, fontSize: '.9rem' }}>${fmt(item.line_total)}</span>
+        <span style={{ marginLeft: 'auto', fontWeight: 700, fontSize: '.9rem', color: item.qty < 0 ? 'var(--sv-red)' : undefined }}>{item.qty < 0 ? '−' : ''}${fmt(Math.abs(item.line_total))}</span>
       </div>
     </div>
   );
@@ -1508,7 +1541,7 @@ function TotalRow({ label, value, large, muted, color }: { label: string; value:
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', padding: large ? '.5rem 0' : '.2rem 0', fontSize: large ? '1.4rem' : '.9rem', fontWeight: large ? 900 : 400, color: color ?? (muted ? 'var(--sv-text-dim)' : large ? 'var(--sv-text-strong)' : 'var(--sv-text-main)'), borderTop: large ? '2px solid var(--sv-etch)' : 'none', marginTop: large ? '.3rem' : 0 }}>
       <span>{label}</span>
-      <span>${fmt(Math.abs(value))}{value < 0 ? '' : ''}</span>
+      <span>{value < 0 ? '−' : ''}${fmt(Math.abs(value))}</span>
     </div>
   );
 }
@@ -1522,17 +1555,19 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
   onComplete: (payments: PaymentEntry[]) => void;
   onCancel:   () => void;
 }) {
+  const isRefund  = total < 0;
+  const absTotal  = Math.abs(total);
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
   const [activeMethod, setActiveMethod] = useState(() => methods.find(m => /card/i.test(m)) ?? methods[0] ?? 'Cash');
-  const [amount, setAmount] = useState(() => String(total));
+  const [amount, setAmount] = useState(() => String(absTotal));
   const [reference, setReference] = useState('');
   const [changeDue, setChangeDue] = useState<{ amount: number; pendingPayments: PaymentEntry[] } | null>(null);
   const amountRef      = useRef<HTMLInputElement>(null);
   const changeDueOkRef  = useRef<HTMLButtonElement>(null);
 
   const paid      = payments.reduce((s, p) => s + p.amount, 0);
-  const remaining = Math.round((total - paid) * 100) / 100;
-  const change    = Math.max(0, paid - total);
+  const remaining = Math.round((absTotal - paid) * 100) / 100;
+  const change    = Math.max(0, paid - absTotal);
 
   useEffect(() => { amountRef.current?.focus(); }, [activeMethod]);
   // Delay focus so any in-flight Enter keyup can't immediately click the button
@@ -1550,12 +1585,12 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
     setPayments(newPayments);
     setAmount('');
     setReference('');
-    if (newPaid >= total - 0.001) {
+    if (newPaid >= absTotal - 0.001) {
       const changeAmt = Math.round((tendered - contribution) * 100) / 100;
       if (changeAmt > 0.004) {
         setChangeDue({ amount: changeAmt, pendingPayments: newPayments });
       } else {
-        onComplete(newPayments);
+        onComplete(isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments);
       }
     }
   }
@@ -1574,7 +1609,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
             <div style={{ fontSize: '5rem', fontWeight: 900, color: '#ef4444', lineHeight: 1, marginBottom: '2rem', letterSpacing: -2 }}>${fmt(changeDue.amount)}</div>
             <button
               ref={changeDueOkRef}
-              onClick={() => { setChangeDue(null); onComplete(changeDue.pendingPayments); }}
+              onClick={() => { setChangeDue(null); onComplete(isRefund ? changeDue.pendingPayments.map(p => ({ ...p, amount: -p.amount })) : changeDue.pendingPayments); }}
               style={{ width: '100%', padding: '1rem', background: '#ef4444', border: 'none', borderRadius: 10, color: '#fff', fontSize: '1.2rem', fontWeight: 800, cursor: 'pointer', letterSpacing: .5 }}
             >
               OK — Change Given ✓
@@ -1584,8 +1619,8 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
       )}
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: '1.5rem', width: 420, maxWidth: '95vw', boxShadow: '0 20px 60px rgba(0,0,0,.6)' }}>
         <h2 style={{ margin: '0 0 1rem', color: 'var(--sv-text-strong)', fontSize: '1.3rem' }}>
-          {isLayby ? 'Layby Deposit' : 'Payment'}
-          <span style={{ float: 'right', color: 'var(--sv-action)' }}>${fmt(total)}</span>
+          {isLayby ? 'Layby Deposit' : isRefund ? 'Refund' : 'Payment'}
+          <span style={{ float: 'right', color: isRefund ? 'var(--sv-red)' : 'var(--sv-action)' }}>{isRefund ? '−' : ''}${fmt(absTotal)}</span>
         </h2>
 
         {/* Method buttons */}
@@ -1616,7 +1651,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
         </div>
 
         {/* Quick amounts (Cash) */}
-        {activeMethod === 'Cash' && (
+        {activeMethod === 'Cash' && !isRefund && (
           <div style={{ display: 'flex', gap: '.4rem', marginBottom: '.75rem', flexWrap: 'wrap' }}>
             {[Math.ceil(remaining / 5) * 5, Math.ceil(remaining / 10) * 10, Math.ceil(remaining / 20) * 20, 50, 100].filter((v, i, a) => v >= remaining && a.indexOf(v) === i).slice(0, 4).map(v => (
               <button key={v} onClick={() => { setAmount(String(v)); amountRef.current?.focus(); }}
@@ -1663,11 +1698,11 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
         <div style={{ display: 'flex', gap: '.75rem' }}>
           <button onClick={onCancel} style={{ ...smallBtn, flex: 1 }}>Cancel</button>
           <button
-            onClick={() => onComplete(payments)}
+            onClick={() => onComplete(isRefund ? payments.map(p => ({ ...p, amount: -p.amount })) : payments)}
             disabled={remaining > 0.001}
             style={{ flex: 2, padding: '.75rem', background: remaining <= 0.001 ? 'var(--sv-mint)' : 'var(--sv-bg-2)', border: 'none', borderRadius: 8, color: remaining <= 0.001 ? '#fff' : 'var(--sv-text-muted)', cursor: remaining <= 0.001 ? 'pointer' : 'not-allowed', fontWeight: 700, fontSize: '1rem' }}
           >
-            {isLayby ? `Save Layby` : `Complete Sale`} ✓
+            {isLayby ? `Save Layby` : isRefund ? `Complete Refund` : `Complete Sale`} ✓
           </button>
         </div>
       </div>
