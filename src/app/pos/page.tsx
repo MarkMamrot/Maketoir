@@ -464,13 +464,19 @@ function MainPos({
   // Tracks whether we entered the EOD screen from the RegisterGate "Close Properly" path.
   const eodFromGateRef = useRef(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  // Pending drain prompt: shown on reconnect when queue has recent items but no open session.
+  const [pendingDrain, setPendingDrain] = useState<{ count: number; total: number } | null>(null);
+  // Forces EodScreen to open in a specific tab (used when navigating from the pending-drain prompt).
+  const [eodInitialMode, setEodInitialMode] = useState<'open' | 'eod' | undefined>(undefined);
+  // Tracks previous isOnline value so we can detect the offline→online transition.
+  const wasOnlineRef = useRef<boolean | null>(null);
 
   useEffect(() => {
     if (!session.register_id) { setRegSession(null); return; }
     fetch(`/api/pos/register/session?register_id=${session.register_id}`)
       .then(r => r.json())
       .then(d => setRegSession(d.session ?? null))
-      .catch(() => setRegSession(null)); // don't block on network error
+      .catch(() => { /* network error — leave regSession as undefined so Charge isn't blocked offline */ });
   }, [session.register_id]);
 
   // If the outer PosPage signalled "go straight to EOD" (from register gate close path),
@@ -483,8 +489,9 @@ function MainPos({
     }
   }, [openEodOnMount]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // True only when we have confirmed (fetch done) that no register session is open.
-  // undefined = still loading — we don't block yet to avoid flash-of-disabled state.
+  // Three states: undefined = unknown/loading (don't block), null = confirmed no open session
+  // (block Charge until register is opened), object = session is open (allow sales).
+  // A network error leaves regSession as undefined so an offline device is never incorrectly blocked.
   const mustOpenRegister = !!session.register_id && regSession === null;
 
   function refreshQueueCount() { setQueueCount(loadOfflineQueue().length); setFailedCount(loadFailedQueue().length); }
@@ -521,10 +528,12 @@ function MainPos({
   // Persist cart on change
   useEffect(() => { saveCurrentCart(cart); }, [cart]);
 
-  // Drain offline queue on mount and when online
+  // Drain offline queue on mount
+  useEffect(() => { drainOfflineQueue().then(refreshQueueCount); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Track online/offline state changes
   useEffect(() => {
-    drainOfflineQueue().then(refreshQueueCount);
-    const handleOnline  = () => { setIsOnline(true);  drainOfflineQueue().then(refreshQueueCount); };
+    const handleOnline  = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
     window.addEventListener('online',  handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -533,6 +542,40 @@ function MainPos({
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
+
+  // On offline→online transition: re-fetch session state, then drain or prompt.
+  // If there are recent queued sales (within 48 h) and no open session, ask the
+  // cashier to open the register first so the sales link to a session automatically.
+  useEffect(() => {
+    if (wasOnlineRef.current === false && isOnline) {
+      const registerId = session.register_id;
+      if (registerId) {
+        fetch(`/api/pos/register/session?register_id=${registerId}`)
+          .then(r => r.json())
+          .then(d => {
+            const fresh = d.session ?? null;
+            setRegSession(fresh);
+            const queue = loadOfflineQueue();
+            const WINDOW_MS = 48 * 60 * 60 * 1000;
+            const recent = queue.filter(e =>
+              Date.now() - new Date((e as any).queued_at ?? 0).getTime() < WINDOW_MS,
+            );
+            if (recent.length > 0 && fresh === null) {
+              // Recent queued sales exist but register has no open session — prompt.
+              const total = recent.reduce((s, e) => s + (Number((e as any).payload?.total) || 0), 0);
+              setPendingDrain({ count: recent.length, total });
+            } else {
+              // Session is open (sales will auto-link) or no recent items — drain immediately.
+              drainOfflineQueue().then(refreshQueueCount);
+            }
+          })
+          .catch(() => drainOfflineQueue().then(refreshQueueCount));
+      } else {
+        drainOfflineQueue().then(refreshQueueCount);
+      }
+    }
+    wasOnlineRef.current = isOnline;
+  }, [isOnline]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep the product cache fresh (TTL). On a long-lived terminal the initial
   // load may be hours old, so re-pull prices/stock in the background when the
@@ -678,6 +721,7 @@ function MainPos({
 
       const payload = {
         local_id:       localId,
+        register_id:    session.register_id ?? null,
         location_id:    session.location_id,
         cashier_id:     session.pos_user_id,
         sale_type:      isLayby ? 'layby' : isReturn ? 'return' : 'sale',
@@ -735,13 +779,18 @@ function MainPos({
   }
 
   if (screen === 'receive-transfers') return <ReceiveTransfersScreen session={session} onBack={() => setScreen('pos')} />;
-  if (screen === 'eod') return <EodScreen session={session} onBack={() => {
+  if (screen === 'eod') return <EodScreen session={session} initialMode={eodInitialMode} onBack={() => {
     // Always re-fetch register session when returning from EOD so mustOpenRegister
-    // reflects the latest state (closed or newly opened).
+    // reflects the latest state (closed or newly opened). Also drain the offline
+    // queue — if the cashier just opened the register, queued sales will now link.
+    setEodInitialMode(undefined);
     if (session.register_id) {
       fetch(`/api/pos/register/session?register_id=${session.register_id}`)
         .then(r => r.json())
-        .then(d => setRegSession(d.session ?? null))
+        .then(d => {
+          setRegSession(d.session ?? null);
+          drainOfflineQueue().then(refreshQueueCount);
+        })
         .catch(() => {});
     }
     eodFromGateRef.current = false;
@@ -868,6 +917,23 @@ function MainPos({
         <button onClick={onLogout} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-red)', border: '1px solid var(--sv-red-border)' }}>Log Out</button>
       </div>
 
+      {/* Prior-day session banner — session was opened on a previous date; non-blocking reminder */}
+      {regSession && typeof regSession === 'object' && regSession.session_date &&
+       String(regSession.session_date).slice(0, 10) !== new Date().toLocaleDateString('en-CA') && (
+        <div style={{ background: 'rgba(251,191,36,.12)', borderBottom: '1px solid rgba(251,191,36,.25)', padding: '.3rem 1rem', fontSize: '.78rem', color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '.5rem', flexShrink: 0 }}>
+          <span style={{ fontWeight: 700 }}>⚠️ Session from {String(regSession.session_date).slice(0, 10)}</span>
+          <span style={{ color: 'var(--sv-text-dim)' }}>This register session was opened on a previous day. Close it via Register → End of Day, then open a new session for today when ready.</span>
+        </div>
+      )}
+
+      {/* No-session-offline banner — register session state is unknown because the device is offline */}
+      {!!session.register_id && regSession === undefined && !isOnline && (
+        <div style={{ background: 'rgba(251,146,60,.1)', borderBottom: '1px solid rgba(251,146,60,.3)', padding: '.3rem 1rem', fontSize: '.78rem', color: '#fb923c', display: 'flex', alignItems: 'center', gap: '.5rem', flexShrink: 0 }}>
+          <span style={{ fontWeight: 700 }}>⚠️ No register session</span>
+          <span style={{ color: 'var(--sv-text-dim)' }}>Sales are queuing offline but are not linked to a register session. Open the register as soon as connectivity returns — EOD expected amounts will not include these sales until you do.</span>
+        </div>
+      )}
+
       {/* Stale-cache banner — prices/stock may be out of date and can't be refreshed while offline */}
       {cacheStale && (
         <div style={{ background: 'rgba(248,113,113,.1)', borderBottom: '1px solid rgba(248,113,113,.25)', padding: '.3rem 1rem', fontSize: '.78rem', color: '#f87171', display: 'flex', alignItems: 'center', gap: '.5rem', flexShrink: 0 }}>
@@ -969,6 +1035,43 @@ function MainPos({
         />
       )}
       <PosHelpModal isOpen={helpOpen} onClose={() => setHelpOpen(false)} />
+
+      {/* ── Pending drain prompt ──────────────────────────────────────────────
+          Shown on reconnect when recent queued sales exist but no register
+          session is open. Guides cashier to open the register first so the
+          sales link to a session automatically, rather than saving unlinked. */}
+      {pendingDrain && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '1rem' }}>
+          <div style={{ background: 'var(--sv-bg-1)', border: '1px solid rgba(251,146,60,.4)', borderRadius: 14, padding: '2rem', maxWidth: 460, width: '100%', boxShadow: '0 12px 48px rgba(0,0,0,.5)' }}>
+            <div style={{ fontSize: '2rem', textAlign: 'center', marginBottom: '.5rem' }}>🔄</div>
+            <h2 style={{ margin: '0 0 .5rem', textAlign: 'center', color: 'var(--sv-text-strong)', fontSize: '1.1rem' }}>Back Online — {pendingDrain.count} Sale{pendingDrain.count !== 1 ? 's' : ''} Queued</h2>
+            <p style={{ color: 'var(--sv-text-dim)', textAlign: 'center', fontSize: '.88rem', marginBottom: '1.5rem', lineHeight: 1.6 }}>
+              You have <strong>{pendingDrain.count} queued sale{pendingDrain.count !== 1 ? 's' : ''}</strong> totalling <strong>${pendingDrain.total.toFixed(2)}</strong> that were taken offline.
+              Your register session is not open — open it first and these sales will automatically link to the session for accurate end-of-day reconciliation.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
+              <button
+                onClick={() => { setPendingDrain(null); setEodInitialMode('open'); setScreen('eod'); }}
+                style={{ background: 'var(--sv-action)', border: 'none', borderRadius: 8, padding: '.7rem 1.25rem', color: '#fff', fontWeight: 700, fontSize: '.95rem', cursor: 'pointer', textAlign: 'center' }}
+              >
+                Open Register (Recommended)
+              </button>
+              <p style={{ margin: 0, fontSize: '.78rem', color: 'var(--sv-text-dim)', textAlign: 'center', lineHeight: 1.5 }}>
+                Opens the register now — when you return to the POS your queued sales will sync and link to the session automatically.
+              </p>
+              <button
+                onClick={() => { setPendingDrain(null); drainOfflineQueue().then(refreshQueueCount); }}
+                style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '.6rem 1.25rem', color: 'var(--sv-text-dim)', fontWeight: 600, fontSize: '.88rem', cursor: 'pointer', textAlign: 'center' }}
+              >
+                Sync Anyway (without session link)
+              </button>
+              <p style={{ margin: 0, fontSize: '.78rem', color: 'var(--sv-text-dim)', textAlign: 'center', lineHeight: 1.5 }}>
+                Sales will upload now but won't be linked to a register session. EOD expected amounts may not include them — you can claim them manually at End of Day.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1774,9 +1877,9 @@ function calcCash(denoms: Record<string, string>): number {
   return AUD_DENOMS.reduce((sum, d) => sum + d.value * (parseFloat(denoms[String(d.value)] ?? '0') || 0), 0);
 }
 
-function EodScreen({ session, onBack }: { session: PosSession; onBack: () => void }) {
+function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBack: () => void; initialMode?: 'open' | 'eod' }) {
   const today = new Date().toLocaleDateString('sv-SE');
-  const [mode, setMode]                   = useState<'open' | 'eod'>(() => new Date().getHours() < 12 ? 'open' : 'eod');
+  const [mode, setMode]                   = useState<'open' | 'eod'>(initialMode ?? (new Date().getHours() < 12 ? 'open' : 'eod'));
   // Default date to today; will be corrected to session_date once the register
   // session loads (handles sessions closed at midnight, reviewed next morning).
   const [date, setDate]                   = useState(today);
@@ -1790,6 +1893,7 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
   const [xeroInvoiceIds, setXeroInvoiceIds] = useState<Record<string, { id: string; number: string; syncedAt?: string }>>({});
   const [regSession, setRegSession]       = useState<any>(null);
   const [regSessionLoading, setRegSessionLoading] = useState(!!session.register_id);
+  const [offlineOpenDialog, setOfflineOpenDialog] = useState(false);
   const [dayTotals, setDayTotals]         = useState<{ total_inc_tax: number; tax_total: number; total_exc_tax: number; sale_count: number } | null>(null);
 
   useEffect(() => {
@@ -1911,6 +2015,13 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
       await loadRegSession();
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
+    } catch {
+      // Network error — show the offline options dialog instead of a generic alert
+      if (!navigator.onLine) {
+        setOfflineOpenDialog(true);
+      } else {
+        alert('Failed to open register. Please check your connection and try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -1952,12 +2063,19 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
       }
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
+    } catch {
+      if (!navigator.onLine) {
+        alert('No internet connection — your end-of-day counts were not saved. The register remains open. Reconnect and complete End of Day again.');
+      } else {
+        alert('Failed to save — please try again.');
+      }
     } finally {
       setLoading(false);
     }
   }
 
   return (
+    <>
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', padding: '1.5rem', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)' }}>
       <div style={{ maxWidth: 860, margin: '0 auto' }}>
 
@@ -2175,6 +2293,54 @@ function EodScreen({ session, onBack }: { session: PosSession; onBack: () => voi
 
       </div>
     </div>
+
+    {/* ── Offline Open Register dialog ──────────────────────────────────────── */}
+    {offlineOpenDialog && (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '1rem' }}>
+        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid rgba(248,113,113,.4)', borderRadius: 14, padding: '2rem', maxWidth: 500, width: '100%', boxShadow: '0 12px 48px rgba(0,0,0,.5)' }}>
+          <div style={{ fontSize: '2rem', textAlign: 'center', marginBottom: '.5rem' }}>📡</div>
+          <h2 style={{ margin: '0 0 .5rem', textAlign: 'center', color: 'var(--sv-text-strong)', fontSize: '1.2rem' }}>No Internet Connection</h2>
+          <p style={{ color: 'var(--sv-text-dim)', textAlign: 'center', fontSize: '.88rem', marginBottom: '1.75rem', lineHeight: 1.6 }}>
+            Opening the register requires a connection to the server. Choose how you'd like to proceed.
+          </p>
+
+          {/* Option 1 — recommended */}
+          <div style={{ background: 'rgba(16,185,129,.07)', border: '1px solid rgba(16,185,129,.3)', borderRadius: 10, padding: '1rem 1.25rem', marginBottom: '1rem' }}>
+            <div style={{ fontWeight: 700, color: '#34d399', marginBottom: '.4rem', fontSize: '.95rem' }}>✓ Connect to internet, then Open Register</div>
+            <p style={{ color: 'var(--sv-text-dim)', fontSize: '.82rem', margin: '0 0 .75rem', lineHeight: 1.5 }}>
+              Your opening float, register session, and all sales will be fully tracked and included in end-of-day reconciliation. This is the recommended path.
+            </p>
+            <button
+              onClick={() => setOfflineOpenDialog(false)}
+              style={{ background: 'rgba(16,185,129,.15)', border: '1px solid rgba(16,185,129,.4)', borderRadius: 6, padding: '.45rem 1.25rem', color: '#34d399', fontWeight: 700, fontSize: '.88rem', cursor: 'pointer', width: '100%' }}
+            >
+              Got it — I'll reconnect first
+            </button>
+          </div>
+
+          {/* Option 2 — proceed without session */}
+          <div style={{ background: 'rgba(251,146,60,.06)', border: '1px solid rgba(251,146,60,.3)', borderRadius: 10, padding: '1rem 1.25rem' }}>
+            <div style={{ fontWeight: 700, color: '#fb923c', marginBottom: '.4rem', fontSize: '.95rem' }}>⚠ Proceed without a register session</div>
+            <p style={{ color: 'var(--sv-text-dim)', fontSize: '.82rem', margin: '0 0 .5rem', lineHeight: 1.5 }}>
+              You can ring up sales and they will queue locally until connectivity returns. Be aware of the following:
+            </p>
+            <ul style={{ color: 'var(--sv-text-dim)', fontSize: '.82rem', margin: '0 0 .75rem', paddingLeft: '1.25rem', lineHeight: 1.7 }}>
+              <li>Sales won't be linked to a register session</li>
+              <li>EOD expected amounts won't include these sales — your cash count will appear higher than expected</li>
+              <li>These sales may not sync correctly to your accounting software (Xero)</li>
+              <li>Open the register as soon as you reconnect to restore normal tracking</li>
+            </ul>
+            <button
+              onClick={() => { setOfflineOpenDialog(false); onBack(); }}
+              style={{ background: 'rgba(251,146,60,.12)', border: '1px solid rgba(251,146,60,.35)', borderRadius: 6, padding: '.45rem 1.25rem', color: '#fb923c', fontWeight: 700, fontSize: '.88rem', cursor: 'pointer', width: '100%' }}
+            >
+              Understood — proceed offline without session
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>
   );
 }
 
@@ -2891,7 +3057,7 @@ function PosHelpModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
         <h3 style={h3}>Duplicate protection</h3>
         <p style={p}>Each sale carries a unique local ID. Even if a queued sale is sent twice it can only ever be recorded once — no duplicate sales from retries.</p>
         <h3 style={h3}>Before logging out</h3>
-        <p style={p}>Logging out while sales are pending shows a warning. <strong>Don&apos;t clear browser data or switch devices until the queue is empty</strong> — offline sales live on this device until they sync.</p>
+        <p style={p}>Logging out while sales are pending shows a warning. <strong>Don&apos;t clear browser data or switch devices until both the offline queue and any parked sales are empty</strong> — sales in the queue and parked sales are stored on this device only and cannot be recovered if the browser data is cleared.</p>
         <h3 style={h3}>Stale product cache</h3>
         <p style={p}>Product prices and stock are cached at login and refreshed automatically every 15 minutes and when the tab regains focus. If the cache is older than 4 hours and you&apos;re offline, a warning banner appears — hit <strong>⟳ Sync</strong> once back online.</p>
       </div>
