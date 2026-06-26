@@ -22,16 +22,25 @@ export async function GET(req: Request) {
   }
 
   try {
-    const rows = await imsQuery<{ location_name: string; qty_on_hand: number }>(
-      `SELECT l.name AS location_name, s.qty_on_hand
-       FROM ims_stock s
-       JOIN ims_locations l ON l.id = s.location_id
-       WHERE s.variant_id = ?
-       ORDER BY l.name`,
-      [variantId],
-    );
+    const [descRows, stockRows] = await Promise.all([
+      imsQuery<{ description: string | null }>(
+        `SELECT p.description FROM ims_product_variants v
+         JOIN ims_products p ON p.product_id = v.product_id
+         WHERE v.variant_id = ? LIMIT 1`,
+        [variantId],
+      ),
+      imsQuery<{ location_name: string; qty_on_hand: number }>(
+        `SELECT l.name AS location_name, s.qty_on_hand
+         FROM ims_stock s
+         JOIN ims_locations l ON l.id = s.location_id
+         WHERE s.variant_id = ?
+         ORDER BY l.name`,
+        [variantId],
+      ),
+    ]);
 
-    return NextResponse.json({ success: true, data: rows });
+    const description = descRows[0]?.description ?? null;
+    return NextResponse.json({ success: true, data: stockRows, description });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

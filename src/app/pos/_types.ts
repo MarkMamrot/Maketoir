@@ -24,7 +24,6 @@ export interface CachedProduct {
   code:        string | null;
   barcode:     string | null;
   name:        string;
-  description: string | null;
   brand:       string | null;
   price:       number;
   cost:        number | null;

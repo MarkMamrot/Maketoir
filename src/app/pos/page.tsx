@@ -1184,17 +1184,20 @@ function saveRecentIds(ids: string[]): void {
 
 // ─── POS Stock Modal ──────────────────────────────────────────────────────────
 
-function PosStockModal({ variantId, productName, description, onClose }: { variantId: string; productName: string; description: string | null; onClose: () => void }) {
-  const [rows, setRows]       = useState<{ location_name: string; qty_on_hand: number }[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState('');
+function PosStockModal({ variantId, productName, onClose }: { variantId: string; productName: string; onClose: () => void }) {
+  const [rows, setRows]           = useState<{ location_name: string; qty_on_hand: number }[]>([]);
+  const [description, setDescription] = useState<string | null>(null);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState('');
 
   useEffect(() => {
     fetch(`/api/pos/stock?variant_id=${encodeURIComponent(variantId)}`)
       .then(r => r.json())
       .then(d => {
-        if (d.success) setRows((d.data ?? []).map((r: any) => ({ location_name: r.location_name ?? `Loc ${r.location_id}`, qty_on_hand: Number(r.qty_on_hand ?? 0) })));
-        else setError(d.error ?? 'Failed to load stock.');
+        if (d.success) {
+          setRows((d.data ?? []).map((r: any) => ({ location_name: r.location_name ?? `Loc ${r.location_id}`, qty_on_hand: Number(r.qty_on_hand ?? 0) })));
+          setDescription(d.description ?? null);
+        } else setError(d.error ?? 'Failed to load stock.');
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
@@ -1251,7 +1254,7 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all' }: {
   const [search, setSearch]             = useState('');
   const [brand, setBrand]               = useState(() => defaultView.startsWith('brand:') ? defaultView.slice(6) : '');
   const [inStockOnly, setInStockOnly]   = useState(() => defaultView === 'in_stock');
-  const [stockModal, setStockModal]     = useState<{ variantId: string; productName: string; description: string | null } | null>(null);
+  const [stockModal, setStockModal]     = useState<{ variantId: string; productName: string } | null>(null);
 
   // Pinned variant IDs from the "Specific Products" setting
   const pinnedIds = useMemo(() => {
@@ -1433,9 +1436,9 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all' }: {
                     <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[p.brand, p.code].filter(Boolean).join(' · ')}</div>
                   </div>
                   <span style={{ fontWeight: 700, color: 'var(--sv-action)', fontSize: '.85rem', flexShrink: 0 }}>${fmt(p.price)}</span>
-                  <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name, description: p.description }); }} style={{ fontSize: '.72rem', padding: '2px 6px', borderRadius: 5, background: p.soh > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: p.soh > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', flexShrink: 0, border: 'none', cursor: 'pointer', fontWeight: 700 }} title="Stock at this store — click for breakdown">{p.soh > 0 ? p.soh : 'OOS'}</button>
+                  <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '2px 6px', borderRadius: 5, background: p.soh > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: p.soh > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', flexShrink: 0, border: 'none', cursor: 'pointer', fontWeight: 700 }} title="Stock at this store — click for breakdown">{p.soh > 0 ? p.soh : 'OOS'}</button>
                   {p.soh_all !== undefined && p.soh_all !== p.soh && (
-                    <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name, description: p.description }); }} style={{ fontSize: '.72rem', padding: '2px 5px', borderRadius: 5, background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', flexShrink: 0, border: '1px solid var(--sv-etch)', cursor: 'pointer' }} title="Total across all locations — click for breakdown">all:{p.soh_all}</button>
+                    <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '2px 5px', borderRadius: 5, background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', flexShrink: 0, border: '1px solid var(--sv-etch)', cursor: 'pointer' }} title="Total across all locations — click for breakdown">all:{p.soh_all}</button>
                   )}
                 </div>
               ))}
@@ -1495,7 +1498,7 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all' }: {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.3rem' }}>
                 <span style={{ fontWeight: 800, color: 'var(--sv-action)', fontSize: '1.05rem' }}>${fmt(p.price)}</span>
                 <button
-                  onClick={e => { e.stopPropagation(); setStockModal({ variantId: p.variant_id, productName: p.name, description: p.description }); }}
+                  onClick={e => { e.stopPropagation(); setStockModal({ variantId: p.variant_id, productName: p.name }); }}
                   style={{ background: 'transparent', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: '0 0 0 4px', flexShrink: 0 }}
                   title="Product info & stock by location"
                 >ℹ️</button>
@@ -1522,7 +1525,6 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all' }: {
         <PosStockModal
           variantId={stockModal.variantId}
           productName={stockModal.productName}
-          description={stockModal.description}
           onClose={() => setStockModal(null)}
         />
       )}
