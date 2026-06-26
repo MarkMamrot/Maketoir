@@ -105,10 +105,13 @@ async function ensureSyncLogTable(): Promise<void> {
       INDEX idx_business_created (business_id, created_at DESC)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `, []);
-  // Add xero_state to existing tables that pre-date this column (MySQL 8+ IF NOT EXISTS).
+  // Add xero_state to existing tables that pre-date this column.
   try {
-    await execute(`ALTER TABLE xero_sync_log ADD COLUMN IF NOT EXISTS xero_state VARCHAR(20) DEFAULT NULL AFTER status`, []);
-  } catch { /* column already exists or non-8.0 — safe to ignore */ }
+    const existing = await query(`SHOW COLUMNS FROM xero_sync_log LIKE 'xero_state'`, []);
+    if (!existing.length) {
+      await execute(`ALTER TABLE xero_sync_log ADD COLUMN xero_state VARCHAR(20) DEFAULT NULL AFTER status`, []);
+    }
+  } catch { /* column already exists or table not yet created — safe to ignore */ }
   _syncLogTableReady = true;
 }
 

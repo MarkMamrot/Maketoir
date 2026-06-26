@@ -4,15 +4,18 @@
  * Returns sync history for the Xero Sync tab:
  *   - Individual POs (po_bill)
  *   - Individual wholesale/b2b SOs (so_invoice) — NOT POS or Online SOs
- *   - Daily POS batch summaries (pos_batch) from pos_sales table
+ *   - POS EOD reconciliation entries (eod_reconciliation) — per-method per-day Xero invoices
+ *   - Stocktake journals (stocktake_journal)
  *   - Daily Online batch summaries (online_batch) from ims_sales_orders WHERE so_type='online'
+ *
+ * NOTE: POS sales are NOT shown as computed batch rows.  The actual Xero pushes happen
+ * per payment method via the EOD Reconciliation screen (sync_type='eod_reconciliation')
+ * and those entries from xero_sync_log are surfaced directly.
  *
  * Queries split across IMS DB (orders) and main DB (xero_sync_log) then merged in JS.
  *
- * Batch key format:
- *   pos_batch:    "{YYYY-MM-DD}_{locationId}"  (e.g. "2026-06-16_1")
- *   online_batch: "{YYYY-MM-DD}"               (e.g. "2026-06-17")
- * The same key is stored in xero_sync_log.detail when batch syncs run.
+ * Online batch key format: "{YYYY-MM-DD}"  (e.g. "2026-06-17")
+ * The same key is stored in xero_sync_log.detail when online batch syncs run.
  */
 import { NextResponse } from 'next/server';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
@@ -24,6 +27,22 @@ function batchDateStr(v: unknown): string {
   if (!v) return '';
   const s = v instanceof Date ? v.toISOString() : String(v);
   return s.substring(0, 10);
+}
+
+/**
+ * One-shot migration: add xero_state column to xero_sync_log if it doesn’t exist.
+ * Uses a module-level flag so it only runs once per server process.
+ */
+let _xeroStateColReady = false;
+async function ensureXeroStateColumn(): Promise<void> {
+  if (_xeroStateColReady) return;
+  try {
+    const existing = await query<any>(`SHOW COLUMNS FROM xero_sync_log LIKE 'xero_state'`, []);
+    if (!existing.length) {
+      await query(`ALTER TABLE xero_sync_log ADD COLUMN xero_state VARCHAR(20) DEFAULT NULL AFTER status`, []);
+    }
+  } catch { /* table may not exist yet — safe to ignore */ }
+  _xeroStateColReady = true;
 }
 
 export async function GET(req: Request) {
@@ -39,7 +58,8 @@ export async function GET(req: Request) {
   // prepared statements (pool.execute) reject `LIMIT ?`. It is clamped to a
   // safe integer 1..200 so inlining is injection-safe.
   const limit = Math.max(1, Math.min(Math.floor(Number(searchParams.get('limit')) || 200), 200));
-
+  // Ensure xero_state column exists (added Jun 2026 — no-op once column is present)
+  await ensureXeroStateColumn();
   try {
     // ── 1. Recent POs from IMS DB ─────────────────────────────────────────
     const pos = await imsQuery<any>(
@@ -66,22 +86,8 @@ export async function GET(req: Request) {
         LIMIT ${limit}`,
     );
 
-    // ── 3. POS daily batches from pos_sales (grouped by date + location) ──
-    const posBatches = await imsQuery<any>(
-      `SELECT DATE(ps.completed_at) AS batch_date,
-              ps.location_id,
-              COALESCE(l.name, CONCAT('Location ', ps.location_id)) AS location_name,
-              COUNT(*) AS sale_count,
-              SUM(ps.total) AS total_amount
-         FROM pos_sales ps
-         LEFT JOIN ims_locations l ON l.id = ps.location_id
-        WHERE ps.status = 'completed' AND ps.sale_type = 'sale'
-        GROUP BY DATE(ps.completed_at), ps.location_id
-        ORDER BY batch_date DESC, ps.location_id ASC
-        LIMIT ${limit}`,
-    );
-
-    // ── 4. Online daily batches from ims_sales_orders WHERE so_type='online' ──
+    // ── 3. Online daily batches from ims_sales_orders WHERE so_type='online' ──
+    //    (POS EOD recon is surfaced via eod_reconciliation in xero_sync_log, not here)
     const onlineBatches = await imsQuery<any>(
       `SELECT DATE(so.order_date) AS batch_date,
               COUNT(*) AS sale_count,
@@ -94,17 +100,12 @@ export async function GET(req: Request) {
         LIMIT ${limit}`,
     );
 
-    // ── 5. Build IDs / keys for sync log lookups ──────────────────────────
+    // ── 4. Build IDs / keys for sync log lookups ──────────────────────────
     const poIds = pos.map((p: any) => p.id as number);
     const soIds = sos.map((s: any) => s.id as number);
-
-    const posBatchKeys = posBatches.map(
-      (b: any) => `${batchDateStr(b.batch_date)}_${b.location_id}`,
-    );
     const onlineBatchKeys = onlineBatches.map((b: any) => batchDateStr(b.batch_date));
-    const allBatchKeys = [...posBatchKeys, ...onlineBatchKeys];
 
-    // ── 6. Sync log lookups (main DB) — graceful if table not yet created ──
+    // ── 5. Sync log lookups (main DB) ───────────────────────────────────────────────
     let poLogs: any[] = [];
     let paymentLogs: any[] = [];
     let soLogs: any[] = [];
@@ -148,18 +149,18 @@ export async function GET(req: Request) {
           [databaseId, ...soIds, databaseId],
         );
       }
-      if (allBatchKeys.length > 0) {
+      if (onlineBatchKeys.length > 0) {
         batchLogs = await query<any>(
           `SELECT detail AS batch_key, sync_type, xero_id, status, xero_state, created_at AS synced_at
              FROM xero_sync_log
-            WHERE business_id = ? AND sync_type IN ('pos_batch','online_batch')
-              AND detail IN (${allBatchKeys.map(() => '?').join(',')})
+            WHERE business_id = ? AND sync_type = 'online_batch'
+              AND detail IN (${onlineBatchKeys.map(() => '?').join(',')})
               AND id IN (
                 SELECT MAX(id) FROM xero_sync_log
-                 WHERE business_id = ? AND sync_type IN ('pos_batch','online_batch')
+                 WHERE business_id = ? AND sync_type = 'online_batch'
                  GROUP BY detail
               )`,
-          [databaseId, ...allBatchKeys, databaseId],
+          [databaseId, ...onlineBatchKeys, databaseId],
         );
       }
       // Standalone sync events with no still-existing source document of their own
@@ -180,7 +181,7 @@ export async function GET(req: Request) {
       console.warn('[xero/sync-log] xero_sync_log unavailable (table may not exist yet):', logErr?.message);
     }
 
-    // ── 7. Index logs ─────────────────────────────────────────────────────
+    // ── 6. Index logs ────────────────────────────────────────────────────────────────────────────
     const poLogByRef = new Map(poLogs.map((r: any) => [r.reference_id, r]));
     const soLogByRef = new Map(soLogs.map((r: any) => [r.reference_id, r]));
     const batchLogByKey = new Map(batchLogs.map((r: any) => [r.batch_key, r]));
@@ -191,7 +192,7 @@ export async function GET(req: Request) {
       paysByPo.set(p.po_id, arr);
     }
 
-    // ── 8. Shape entries ──────────────────────────────────────────────────
+    // ── 7. Shape entries ────────────────────────────────────────────────────────────────────────────
     const poEntries = pos.map((po: any) => {
       const log = poLogByRef.get(po.id);
       return {
@@ -234,29 +235,6 @@ export async function GET(req: Request) {
         last_sync_status: log?.status ?? null,
         last_xero_state: log?.xero_state ?? null,
         last_sync_detail: log?.detail ?? null,
-        last_sync_at: log?.synced_at ?? null,
-        payments: [],
-      };
-    });
-
-    const posBatchEntries = posBatches.map((b: any) => {
-      const dateStr = batchDateStr(b.batch_date);
-      const key = `${dateStr}_${b.location_id}`;
-      const log = batchLogByKey.get(key);
-      return {
-        sync_type: 'pos_batch',
-        reference_id: null,
-        reference: `POS ${dateStr} — ${b.location_name} (${b.sale_count})`,
-        contact_name: null,
-        amount: b.total_amount,
-        item_date: dateStr,
-        is_historical: 0,
-        xero_sync_status: null,
-        log_id: null,
-        xero_id: log?.xero_id ?? null,
-        last_sync_status: log?.status ?? null,
-        last_xero_state: log?.xero_state ?? null,
-        last_sync_detail: key,
         last_sync_at: log?.synced_at ?? null,
         payments: [],
       };
@@ -312,7 +290,7 @@ export async function GET(req: Request) {
     }));
 
     // Merge + sort by item_date DESC, then slice to limit
-    const entries = [...poEntries, ...soEntries, ...posBatchEntries, ...onlineBatchEntries, ...eventEntries]
+    const entries = [...poEntries, ...soEntries, ...onlineBatchEntries, ...eventEntries]
       .sort((a, b) => {
         const da = a.item_date ? new Date(a.item_date).getTime() : 0;
         const db2 = b.item_date ? new Date(b.item_date).getTime() : 0;

@@ -1895,6 +1895,8 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
   const [regSessionLoading, setRegSessionLoading] = useState(!!session.register_id);
   const [offlineOpenDialog, setOfflineOpenDialog] = useState(false);
   const [dayTotals, setDayTotals]         = useState<{ total_inc_tax: number; tax_total: number; total_exc_tax: number; sale_count: number } | null>(null);
+  const [eodVarWarning, setEodVarWarning] = useState(false);  // variance confirm dialog
+  const [eodPrintMode, setEodPrintMode]   = useState(false);  // print CSS toggle
 
   useEffect(() => {
     fetch('/api/pos/settings/payment-methods').then(r => r.json()).then(d => setMethods(d.methods ?? []));
@@ -2027,7 +2029,27 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
     }
   }
 
-  async function saveEod() {
+  // Variance calculation helper — shared between warning dialog and receipt
+  const getMethodVarianceData = () => methods.map(m => {
+    const e = entries[m] ?? {};
+    const counted = parseFloat(e.counted ?? '0') || 0;
+    const float   = parseFloat(e.openingFloat ?? '0') || 0;
+    const exp     = expected[m] ?? 0;
+    const salesAmt = m === 'Cash' ? counted - float : counted;
+    const variance = salesAmt - exp;
+    return { method: m, exp, salesAmt, counted, float, variance };
+  });
+
+  const handleEodPrint = () => {
+    setEodPrintMode(true);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      window.addEventListener('afterprint', () => setEodPrintMode(false), { once: true });
+      window.print();
+    }));
+  };
+
+  async function doSaveEod() {
+    setEodVarWarning(false);
     setLoading(true);
     const entriesArr = methods.map(m => {
       const e = entries[m] ?? {};
@@ -2074,8 +2096,23 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
     }
   }
 
+  function saveEod() {
+    const hasVariance = getMethodVarianceData().some(d => Math.abs(d.variance) >= 0.005);
+    if (hasVariance) { setEodVarWarning(true); } else { doSaveEod(); }
+  }
+
   return (
     <>
+    {eodPrintMode && (
+      <style>{`
+        @media print {
+          body * { visibility: hidden !important; }
+          .pos-eod-receipt-wrapper, .pos-eod-receipt-wrapper * { visibility: visible !important; }
+          .pos-eod-receipt-wrapper { position: fixed !important; top: 0 !important; left: 0 !important; width: 80mm !important; padding: 4mm !important; border-radius: 0 !important; box-shadow: none !important; background: #fff !important; color: #000 !important; }
+          .no-print { display: none !important; }
+        }
+      `}</style>
+    )}
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', padding: '1.5rem', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)' }}>
       <div style={{ maxWidth: 860, margin: '0 auto' }}>
 
@@ -2276,6 +2313,77 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
               {saved && <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>✓ Saved</span>}
             </div>
 
+            {/* ── EOD Receipt / Print View ─────────────────────────────────── */}
+            {methods.length > 0 && (
+              <div style={{ marginTop: '2rem' }}>
+                <div className='no-print' style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '.75rem' }}>
+                  <span style={{ fontSize: '.8rem', fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .6 }}>EOD Receipt</span>
+                  <button
+                    onClick={handleEodPrint}
+                    style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '.35rem .9rem', fontSize: '.8rem', color: 'var(--sv-text-dim)', cursor: 'pointer', fontWeight: 600 }}
+                  >
+                    🖨 Print EOD Receipt
+                  </button>
+                </div>
+                {(() => {
+                  const varData = getMethodVarianceData();
+                  const printDate = new Date(date + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
+                  return (
+                    <div className='pos-eod-receipt-wrapper' style={{ background: '#fff', color: '#000', width: 340, padding: '1.25rem 1.5rem', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,.35)', fontFamily: 'monospace', fontSize: '.78rem', lineHeight: 1.5 }}>
+                      {/* Header */}
+                      <div style={{ textAlign: 'center', borderBottom: '1px dashed #999', paddingBottom: '.75rem', marginBottom: '.75rem' }}>
+                        <div style={{ fontWeight: 700, fontSize: '1rem', letterSpacing: .5 }}>END OF DAY</div>
+                        <div style={{ fontWeight: 700, fontSize: '1rem', letterSpacing: .5 }}>RECONCILIATION</div>
+                      </div>
+                      <div style={{ marginBottom: '.75rem', borderBottom: '1px dashed #bbb', paddingBottom: '.75rem' }}>
+                        {[
+                          ['Date',       printDate],
+                          ['Location',   session.location_name],
+                          ['Register',   session.register_id ? `#${session.register_id}` : '—'],
+                          ['Session',    regSession?.id ? `#${regSession.id}` : '—'],
+                          ['User',       session.full_name || session.username],
+                        ].map(([label, value]) => (
+                          <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+                            <span style={{ color: '#555' }}>{label}:</span>
+                            <span style={{ fontWeight: 600, textAlign: 'right', flex: 1 }}>{value}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Per-method rows */}
+                      {varData.map(({ method: m, exp, salesAmt, variance }) => {
+                        const hasSynced = !!xeroInvoiceIds[m]?.id;
+                        const varColor = Math.abs(variance) < 0.005 ? '#228B22' : variance < 0 ? '#c00' : '#e07800';
+                        return (
+                          <div key={m} style={{ marginBottom: '.75rem', borderBottom: '1px dashed #e0e0e0', paddingBottom: '.6rem' }}>
+                            <div style={{ fontWeight: 700, fontSize: '.85rem', marginBottom: '.35rem', textTransform: 'uppercase', letterSpacing: .4 }}>{m}</div>
+                            {[
+                              ['System Expected',  `$${fmt(exp)}`],
+                              [m === 'Cash' ? 'Cash Sales (counted − float)' : 'Counted',  `$${fmt(salesAmt)}`],
+                              ['Variance', `${variance >= 0 ? '+' : ''}$${fmt(variance)}`],
+                            ].map(([label, value], i) => (
+                              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '.5rem', color: i === 2 ? varColor : undefined, fontWeight: i === 2 ? 700 : undefined }}>
+                                <span style={{ color: i === 2 ? varColor : '#555' }}>{label}:</span>
+                                <span>{value}</span>
+                              </div>
+                            ))}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '.5rem', marginTop: '.2rem' }}>
+                              <span style={{ color: '#555' }}>Xero:</span>
+                              <span style={{ fontWeight: 700, color: hasSynced ? '#228B22' : '#c00' }}>
+                                {hasSynced ? `✓ Synced${xeroInvoiceIds[m].number ? ` (${xeroInvoiceIds[m].number})` : ''}` : '✗ Not synced'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div style={{ textAlign: 'center', marginTop: '.5rem', fontSize: '.7rem', color: '#888' }}>
+                        Printed {new Date().toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' })}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
             <EodAccountingSection
               session={session} methods={methods} expected={expected}
               entries={entries} defaultFloat={defaultFloat} date={date}
@@ -2293,6 +2401,58 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
 
       </div>
     </div>
+
+    {/* ── EOD Variance warning dialog ──────────────────────────────────────── */}
+    {eodVarWarning && (() => {
+      const varData = getMethodVarianceData().filter(d => Math.abs(d.variance) >= 0.005);
+      return (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '1rem' }}>
+          <div style={{ background: 'var(--sv-bg-1)', border: '1px solid rgba(251,191,36,.4)', borderRadius: 14, padding: '2rem', maxWidth: 520, width: '100%', boxShadow: '0 12px 48px rgba(0,0,0,.5)' }}>
+            <div style={{ fontSize: '2rem', textAlign: 'center', marginBottom: '.5rem' }}>⚠️</div>
+            <h2 style={{ margin: '0 0 .4rem', textAlign: 'center', color: 'var(--sv-text-strong)', fontSize: '1.15rem' }}>Variance Detected — Please Check</h2>
+            <p style={{ color: 'var(--sv-text-dim)', textAlign: 'center', fontSize: '.85rem', marginBottom: '1.25rem', lineHeight: 1.6 }}>
+              The following payment methods have a discrepancy between the system total and what was counted. Review carefully before saving.
+            </p>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.85rem', marginBottom: '1.5rem' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid rgba(251,191,36,.3)', color: 'rgba(251,191,36,.8)', fontSize: '.75rem' }}>
+                  <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 600 }}>Method</th>
+                  <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 600 }}>System Expected</th>
+                  <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 600 }}>Counted</th>
+                  <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 600 }}>Variance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {varData.map(({ method: m, exp, salesAmt, variance }) => (
+                  <tr key={m} style={{ borderBottom: '1px solid rgba(255,255,255,.06)' }}>
+                    <td style={{ padding: '6px 6px', color: 'var(--sv-text-main)', fontWeight: 600 }}>{m}</td>
+                    <td style={{ padding: '6px 6px', textAlign: 'right', color: 'var(--sv-text-dim)' }}>${fmt(exp)}</td>
+                    <td style={{ padding: '6px 6px', textAlign: 'right', color: 'var(--sv-text-main)' }}>${fmt(salesAmt)}</td>
+                    <td style={{ padding: '6px 6px', textAlign: 'right', fontWeight: 700, color: variance < 0 ? 'var(--sv-red)' : 'var(--sv-mint)' }}>
+                      {variance >= 0 ? '+' : ''}{fmt(variance)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ display: 'flex', gap: '.75rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setEodVarWarning(false)}
+                style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '.55rem 1.25rem', color: 'var(--sv-text-main)', fontWeight: 600, fontSize: '.9rem', cursor: 'pointer' }}
+              >
+                ← Review &amp; Edit
+              </button>
+              <button
+                onClick={doSaveEod}
+                style={{ background: 'rgba(251,191,36,.15)', border: '1px solid rgba(251,191,36,.4)', borderRadius: 8, padding: '.55rem 1.25rem', color: '#fbbf24', fontWeight: 700, fontSize: '.9rem', cursor: 'pointer' }}
+              >
+                Save Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    })()}
 
     {/* ── Offline Open Register dialog ──────────────────────────────────────── */}
     {offlineOpenDialog && (
