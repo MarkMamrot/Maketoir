@@ -2336,6 +2336,13 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
       `}</style>
 
       <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'flex-start' }}>
+        {/* Change Due panel — left of receipts */}
+        {changeDue > 0.004 && (
+          <div className='no-print' style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: 180, padding: '2rem 1.5rem', borderRadius: 12, background: 'var(--sv-bg-1)', border: '2px solid var(--sv-etch)', gap: '1rem', alignSelf: 'center' }}>
+            <div style={{ fontSize: '.72rem', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: 'var(--sv-text-dim)', fontFamily: 'system-ui,sans-serif' }}>Change Due</div>
+            <div style={{ fontSize: '3rem', fontWeight: 800, color: 'var(--sv-text-strong)', lineHeight: 1, fontFamily: 'system-ui,sans-serif' }}>${fmt(changeDue)}</div>
+          </div>
+        )}
         {/* Regular Receipt */}
         <div>
           <div className='no-print' style={{ textAlign: 'center', marginBottom: '.5rem', fontSize: '.72rem', color: 'var(--sv-text-dim)', fontFamily: 'system-ui,sans-serif', fontWeight: 600, letterSpacing: .6, textTransform: 'uppercase' }}>Receipt</div>
