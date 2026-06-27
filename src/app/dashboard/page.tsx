@@ -179,7 +179,6 @@ const SYNC_OPTIONS = [
   { id: 'sales',           label: 'Sales',            icon: '💰', description: 'Sales invoices & line items'        },
   { id: 'products',        label: 'Product Data',     icon: '🛍️', description: 'Products, variants & stock levels'  },
   { id: 'sales-by-branch', label: 'Sales by Branch',  icon: '📊', description: 'Sales & stock aggregated per branch — also writes Online Sales sheet' },
-  { id: 'purchase-orders', label: 'Purchase Orders',  icon: '📋', description: 'Purchase orders — last 24 months'  },
 ];
 
 // Maps sync option id → route handler.
@@ -197,7 +196,6 @@ async function callSyncRoute(
     'suppliers':       '/api/sync/suppliers',
     'sales':           '/api/sync/sales',
     'sales-by-branch': '/api/sync/sales-by-branch',
-    'purchase-orders': '/api/sync/purchase-orders',
   };
   const route = routes[id];
   if (!route) return { success: false, error: `No route for "${id}"` };
@@ -216,7 +214,7 @@ type SyncLogEntry = { text: string; type: 'info' | 'ok' | 'error' };
 
 function InventorySyncTile({ databaseId }: { databaseId: string }): JSX.Element {
   const [selected, setSelected] = useState<Set<string>>(
-    new Set(['products', 'branches', 'suppliers', 'sales', 'sales-by-branch', 'purchase-orders'])
+    new Set(['products', 'branches', 'suppliers', 'sales', 'sales-by-branch'])
   );
   const [activeProductsOnly, setActiveProductsOnly] = useState(true);
   const [activeBranchesOnly, setActiveBranchesOnly] = useState(true);
