@@ -655,6 +655,20 @@ const POS_THEMES: Record<string, { name: string; vars: Record<string, string> }>
       '--pos-topbar-text-strong': '#f0edd8', '--pos-topbar-text-dim': '#c8d8b0',
     },
   },
+  wesanderson: {
+    name: 'Wes Anderson',
+    vars: {
+      // Creamy parchment panels, terracotta topbar, dusty teal accent
+      '--sv-bg-0': '#f5eddc', '--sv-bg-1': '#fdf7e8', '--sv-bg-2': '#ede3cc',
+      '--sv-text-strong': '#2c1a0e', '--sv-text-main': '#4a2d1a',
+      '--sv-text-dim': '#7a4f32', '--sv-text-muted': '#b08060',
+      '--sv-etch': 'rgba(60,30,10,.1)', '--sv-action': '#5ab5bc',
+      '--pos-topbar-bg': '#bf3928', '--pos-searchbar-bg': '#ede3cc',
+      '--pos-btn-bg': 'rgba(90,181,188,.12)', '--pos-btn-border': 'rgba(90,181,188,.28)',
+      '--pos-topbar-btn-bg': 'rgba(255,255,255,.18)', '--pos-topbar-btn-border': 'rgba(255,255,255,.32)',
+      '--pos-topbar-text-strong': '#fdf7e8', '--pos-topbar-text-dim': '#f5dfc0',
+    },
+  },
   custom: {
     name: 'Custom',
     vars: {
@@ -2432,8 +2446,14 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
         </div>
       </div>
 
-      <div className='no-print'>
-        <button onClick={onClose} style={{ ...smallBtn, padding: '.6rem 1.5rem' }}>New Sale</button>
+      <div className='no-print' style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0' }}>
+        {changeDue > 0.004 && (
+          <div style={{ background: '#ef4444', borderRadius: '12px 12px 0 0', padding: '.6rem 2.5rem', textAlign: 'center', width: '100%', boxSizing: 'border-box' }}>
+            <span style={{ fontSize: '.7rem', fontWeight: 800, color: '#fff', letterSpacing: 3, textTransform: 'uppercase', marginRight: '1rem' }}>CHANGE DUE</span>
+            <span style={{ fontSize: '1.5rem', fontWeight: 900, color: '#fff' }}>${fmt(changeDue)}</span>
+          </div>
+        )}
+        <button onClick={onClose} style={{ ...smallBtn, padding: '.6rem 1.5rem', ...(changeDue > 0.004 ? { borderRadius: '0 0 8px 8px', marginTop: 0 } : {}) }}>New Sale</button>
       </div>
     </div>
   );
