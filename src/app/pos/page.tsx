@@ -1213,7 +1213,8 @@ function MainPos({
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', padding: '.6rem 1rem', background: 'var(--pos-topbar-bg, var(--sv-bg-1))', borderBottom: '1px solid var(--sv-etch)', gap: '.5rem', flexShrink: 0, ...(posTheme['--pos-topbar-btn-bg'] ? { '--pos-btn-bg': posTheme['--pos-topbar-btn-bg'], '--pos-btn-border': posTheme['--pos-topbar-btn-border'] ?? 'rgba(255,255,255,.3)', '--sv-text-strong': posTheme['--pos-topbar-text-strong'] ?? '#e2e8f0', '--sv-text-dim': posTheme['--pos-topbar-text-dim'] ?? '#94a3b8' } : {}) } as React.CSSProperties}>
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', marginRight: '.25rem' }}>
-          <span style={{ fontWeight: 700, color: 'var(--sv-action)', fontSize: '1rem', letterSpacing: -.2, lineHeight: 1.35 }}>🛒 POS {session.location_name}</span>
+          <span style={{ fontWeight: 800, color: 'var(--sv-action)', fontSize: '.95rem', letterSpacing: -.3, lineHeight: 1.2 }}>Solvantis POS</span>
+          <span style={{ fontWeight: 500, color: 'var(--sv-text-dim)', fontSize: '.72rem', letterSpacing: .2, lineHeight: 1.2, opacity: .85 }}>{session.location_name}</span>
         </div>
         <div style={{ flex: 1 }} />
         {/* Online / Offline badge */}
