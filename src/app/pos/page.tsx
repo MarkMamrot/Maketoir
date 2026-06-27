@@ -2319,13 +2319,6 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', paddingTop: '2rem', paddingBottom: '2rem', fontFamily: 'system-ui,sans-serif', gap: '1.5rem' }}>
-      {/* Change Due banner — shown above receipts when there is cash change */}
-      {changeDue > 0.004 && (
-        <div className='no-print' style={{ background: '#1a0000', border: '3px solid #ef4444', borderRadius: 16, padding: '1.5rem 3rem', textAlign: 'center', boxShadow: '0 0 40px rgba(239,68,68,.45)', width: '100%', maxWidth: 520, boxSizing: 'border-box' }}>
-          <div style={{ fontSize: '.85rem', fontWeight: 700, color: '#ef4444', letterSpacing: 3, textTransform: 'uppercase', marginBottom: '.4rem' }}>Change Due</div>
-          <div style={{ fontSize: '4.5rem', fontWeight: 900, color: '#ef4444', lineHeight: 1, letterSpacing: -2 }}>${fmt(changeDue)}</div>
-        </div>
-      )}
       <style>{printMode === 'gift' ? `
         @media print {
           body * { visibility: hidden !important; }
@@ -2411,8 +2404,9 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
               {printSettings?.pos_receipt_footer || 'Thank you for your purchase!'}
             </div>
           </div>
-          <div className='no-print' style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
+          <div className='no-print' style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem', gap: '.75rem' }}>
             <button onClick={handlePrint} style={{ ...primaryBtn, padding: '.6rem 1.5rem' }}>🖨 Print Receipt</button>
+            <button onClick={onClose} style={{ ...smallBtn, padding: '.6rem 1.5rem' }}>New Sale</button>
           </div>
         </div>
 
@@ -2448,15 +2442,6 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
         </div>
       </div>
 
-      <div className='no-print' style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0' }}>
-        {changeDue > 0.004 && (
-          <div style={{ background: '#ef4444', borderRadius: '12px 12px 0 0', padding: '.6rem 2.5rem', textAlign: 'center', width: '100%', boxSizing: 'border-box' }}>
-            <span style={{ fontSize: '.7rem', fontWeight: 800, color: '#fff', letterSpacing: 3, textTransform: 'uppercase', marginRight: '1rem' }}>CHANGE DUE</span>
-            <span style={{ fontSize: '1.5rem', fontWeight: 900, color: '#fff' }}>${fmt(changeDue)}</span>
-          </div>
-        )}
-        <button onClick={onClose} style={{ ...smallBtn, padding: '.6rem 1.5rem', ...(changeDue > 0.004 ? { borderRadius: '0 0 8px 8px', marginTop: 0 } : {}) }}>New Sale</button>
-      </div>
     </div>
   );
 }
