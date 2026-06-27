@@ -2289,7 +2289,7 @@ interface ReceiptPrintSettings {
   gift_receipt_message?: string;
 }
 
-function ReceiptScreen({ sale, onClose, printSettings }: { sale: CompletedSale; onClose: () => void; printSettings?: ReceiptPrintSettings }) {
+function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: CompletedSale; onClose: () => void; printSettings?: ReceiptPrintSettings; changeDue?: number }) {
   const [printMode, setPrintMode] = useState<'normal' | 'gift'>('normal');
 
   const handlePrint = () => { setPrintMode('normal'); window.print(); };
@@ -2303,6 +2303,13 @@ function ReceiptScreen({ sale, onClose, printSettings }: { sale: CompletedSale; 
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', paddingTop: '2rem', paddingBottom: '2rem', fontFamily: 'system-ui,sans-serif', gap: '1.5rem' }}>
+      {/* Change Due banner — shown above receipts when there is cash change */}
+      {changeDue > 0.004 && (
+        <div className='no-print' style={{ background: '#1a0000', border: '3px solid #ef4444', borderRadius: 16, padding: '1.5rem 3rem', textAlign: 'center', boxShadow: '0 0 40px rgba(239,68,68,.45)', width: '100%', maxWidth: 520, boxSizing: 'border-box' }}>
+          <div style={{ fontSize: '.85rem', fontWeight: 700, color: '#ef4444', letterSpacing: 3, textTransform: 'uppercase', marginBottom: '.4rem' }}>Change Due</div>
+          <div style={{ fontSize: '4.5rem', fontWeight: 900, color: '#ef4444', lineHeight: 1, letterSpacing: -2 }}>${fmt(changeDue)}</div>
+        </div>
+      )}
       <style>{printMode === 'gift' ? `
         @media print {
           body * { visibility: hidden !important; }
@@ -2373,20 +2380,16 @@ function ReceiptScreen({ sale, onClose, printSettings }: { sale: CompletedSale; 
                   <span>{p.method}</span><span>${fmt(p.amount)}</span>
                 </div>
               ))}
-              {(() => {
-                const paid = sale.payments.reduce((s, p) => s + p.amount, 0);
-                const change = paid - sale.total;
-                return change > 0.005 ? (
-                  <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #ccc', marginTop: '.25rem', paddingTop: '.25rem' }}>
-                      <span>Tendered</span><span>${fmt(paid)}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
-                      <span>Change</span><span>${fmt(change)}</span>
-                    </div>
-                  </>
-                ) : null;
-              })()}
+              {changeDue > 0.004 && (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #ccc', marginTop: '.25rem', paddingTop: '.25rem' }}>
+                    <span>Tendered</span><span>${fmt(sale.total + changeDue)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+                    <span>Change</span><span>${fmt(changeDue)}</span>
+                  </div>
+                </>
+              )}
             </div>
             <div style={{ textAlign: 'center', marginTop: '1rem', fontSize: '.75rem', color: '#888', whiteSpace: 'pre-wrap' }}>
               {printSettings?.pos_receipt_footer || 'Thank you for your purchase!'}
@@ -4029,28 +4032,12 @@ export default function PosPage() {
 
   if (screen === 'receipt' && completedSale) {
     return (
-      <>
-        <ReceiptScreen
-          sale={completedSale}
-          printSettings={printSettings}
-          onClose={() => { setCompletedSale(null); setScreen('pos'); }}
-        />
-        {pendingChangeDue !== null && (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-            <div style={{ background: '#1a0000', border: '3px solid #ef4444', borderRadius: 16, padding: '2.5rem 3rem', textAlign: 'center', boxShadow: '0 0 60px rgba(239,68,68,.5)', maxWidth: 360, width: '90vw' }}>
-              <div style={{ fontSize: '1rem', fontWeight: 700, color: '#ef4444', letterSpacing: 3, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Change Due</div>
-              <div style={{ fontSize: '5rem', fontWeight: 900, color: '#ef4444', lineHeight: 1, marginBottom: '2rem', letterSpacing: -2 }}>${fmt(pendingChangeDue)}</div>
-              <button
-                autoFocus
-                onClick={() => setPendingChangeDue(null)}
-                style={{ width: '100%', padding: '1rem', background: '#ef4444', border: 'none', borderRadius: 10, color: '#fff', fontSize: '1.2rem', fontWeight: 800, cursor: 'pointer', letterSpacing: .5 }}
-              >
-                OK — Change Given ✓
-              </button>
-            </div>
-          </div>
-        )}
-      </>
+      <ReceiptScreen
+        sale={completedSale}
+        printSettings={printSettings}
+        changeDue={pendingChangeDue ?? 0}
+        onClose={() => { setCompletedSale(null); setPendingChangeDue(null); setScreen('pos'); }}
+      />
     );
   }
 
