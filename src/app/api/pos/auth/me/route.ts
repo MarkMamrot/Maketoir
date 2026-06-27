@@ -38,6 +38,7 @@ export async function GET(req: Request) {
     pos_user_id:   0,   // 0 = admin-as-POS cashier
     username:      adminSession.email ?? 'admin',
     full_name:     adminSession.name  ?? adminSession.email ?? 'Admin',
+    tier:          adminSession.tier  ?? 'SuperAdmin',
     location_id:   locationId,
     location_name: locationName,
   };
