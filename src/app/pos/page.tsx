@@ -430,35 +430,58 @@ interface PosLocationSettings {
 }
 
 const DEFAULT_POS_SETTINGS: PosLocationSettings = {
-  receiptFooter: '', giftReceiptMessage: '', theme: 'classic', topbarColor: '', searchbarColor: '',
+  receiptFooter: '', giftReceiptMessage: '', theme: 'midnight', topbarColor: '', searchbarColor: '',
 };
 
 const POS_THEMES: Record<string, { name: string; vars: Record<string, string> }> = {
   classic: {
     name: 'Classic',
     vars: {
-      '--sv-bg-0': '#020617', '--sv-bg-1': '#0f172a', '--sv-bg-2': '#1e293b',
-      '--sv-text-strong': '#ffffff', '--sv-text-main': '#e2e8f0',
-      '--sv-text-dim': '#94a3b8', '--sv-text-muted': '#64748b',
-      '--sv-etch': 'rgba(226,232,240,0.12)', '--sv-action': '#1ea8c2',
+      '--sv-bg-0': '#f1f5f9', '--sv-bg-1': '#ffffff', '--sv-bg-2': '#e8edf2',
+      '--sv-text-strong': '#0f172a', '--sv-text-main': '#1e293b',
+      '--sv-text-dim': '#475569', '--sv-text-muted': '#94a3b8',
+      '--sv-etch': 'rgba(15,23,42,0.1)', '--sv-action': '#2563eb',
+      '--pos-btn-bg': 'rgba(0,0,0,.07)', '--pos-btn-border': 'rgba(0,0,0,.13)',
     },
   },
   neon: {
     name: 'Neon Bright',
     vars: {
-      '--sv-bg-0': '#080010', '--sv-bg-1': '#130020', '--sv-bg-2': '#200035',
-      '--sv-text-strong': '#f0e0ff', '--sv-text-main': '#d4b0ff',
-      '--sv-text-dim': '#9060cc', '--sv-text-muted': '#5030a0',
-      '--sv-etch': 'rgba(210,100,255,0.18)', '--sv-action': '#e040fb',
+      '--sv-bg-0': '#f5f0ff', '--sv-bg-1': '#ffffff', '--sv-bg-2': '#ede8ff',
+      '--sv-text-strong': '#0a001a', '--sv-text-main': '#1a0040',
+      '--sv-text-dim': '#6600cc', '--sv-text-muted': '#9933ee',
+      '--sv-etch': 'rgba(100,0,220,.1)', '--sv-action': '#cc00ff',
+      '--pos-btn-bg': 'rgba(100,0,200,.08)', '--pos-btn-border': 'rgba(100,0,200,.18)',
     },
   },
   pastel: {
     name: 'Pastel',
     vars: {
-      '--sv-bg-0': '#1a1030', '--sv-bg-1': '#231540', '--sv-bg-2': '#2e1c55',
-      '--sv-text-strong': '#fce4ec', '--sv-text-main': '#f8bbd9',
-      '--sv-text-dim': '#c48eb5', '--sv-text-muted': '#9a6090',
-      '--sv-etch': 'rgba(252,180,200,0.15)', '--sv-action': '#f06292',
+      '--sv-bg-0': '#fff0f6', '--sv-bg-1': '#ffffff', '--sv-bg-2': '#fce8f2',
+      '--sv-text-strong': '#2d0a22', '--sv-text-main': '#501a3a',
+      '--sv-text-dim': '#9b4472', '--sv-text-muted': '#c47898',
+      '--sv-etch': 'rgba(180,60,120,.12)', '--sv-action': '#d63880',
+      '--pos-btn-bg': 'rgba(180,60,120,.08)', '--pos-btn-border': 'rgba(180,60,120,.18)',
+    },
+  },
+  highcontrast: {
+    name: 'High Contrast',
+    vars: {
+      '--sv-bg-0': '#ffffff', '--sv-bg-1': '#ffffff', '--sv-bg-2': '#f0f0f0',
+      '--sv-text-strong': '#000000', '--sv-text-main': '#111111',
+      '--sv-text-dim': '#333333', '--sv-text-muted': '#555555',
+      '--sv-etch': 'rgba(0,0,0,.2)', '--sv-action': '#0044dd',
+      '--pos-btn-bg': 'rgba(0,0,0,.08)', '--pos-btn-border': 'rgba(0,0,0,.3)',
+    },
+  },
+  midnight: {
+    name: 'Midnight',
+    vars: {
+      '--sv-bg-0': '#020617', '--sv-bg-1': '#0f172a', '--sv-bg-2': '#1e293b',
+      '--sv-text-strong': '#ffffff', '--sv-text-main': '#e2e8f0',
+      '--sv-text-dim': '#94a3b8', '--sv-text-muted': '#64748b',
+      '--sv-etch': 'rgba(226,232,240,0.12)', '--sv-action': '#1ea8c2',
+      '--pos-btn-bg': 'rgba(255,255,255,.1)', '--pos-btn-border': 'rgba(255,255,255,.18)',
     },
   },
   scifi: {
@@ -468,15 +491,7 @@ const POS_THEMES: Record<string, { name: string; vars: Record<string, string> }>
       '--sv-text-strong': '#00e5ff', '--sv-text-main': '#80d8ff',
       '--sv-text-dim': '#4090b0', '--sv-text-muted': '#20607e',
       '--sv-etch': 'rgba(0,229,255,0.15)', '--sv-action': '#00bcd4',
-    },
-  },
-  highcontrast: {
-    name: 'High Contrast',
-    vars: {
-      '--sv-bg-0': '#000000', '--sv-bg-1': '#111111', '--sv-bg-2': '#222222',
-      '--sv-text-strong': '#ffffff', '--sv-text-main': '#ffff00',
-      '--sv-text-dim': '#cccccc', '--sv-text-muted': '#aaaaaa',
-      '--sv-etch': 'rgba(255,255,255,0.3)', '--sv-action': '#ffff00',
+      '--pos-btn-bg': 'rgba(0,229,255,.1)', '--pos-btn-border': 'rgba(0,229,255,.18)',
     },
   },
   dark: {
@@ -486,6 +501,7 @@ const POS_THEMES: Record<string, { name: string; vars: Record<string, string> }>
       '--sv-text-strong': '#ffffff', '--sv-text-main': '#d0d0d0',
       '--sv-text-dim': '#888888', '--sv-text-muted': '#555555',
       '--sv-etch': 'rgba(255,255,255,0.1)', '--sv-action': '#1ea8c2',
+      '--pos-btn-bg': 'rgba(255,255,255,.1)', '--pos-btn-border': 'rgba(255,255,255,.18)',
     },
   },
 };
@@ -634,7 +650,7 @@ function PosSettingsModal({
               {/* Theme presets */}
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 10 }}>THEME PRESET</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8 }}>
                   {Object.entries(POS_THEMES).map(([key, t]) => {
                     const isActive = theme === key;
                     return (
@@ -1195,37 +1211,36 @@ function MainPos({
         <button
           onClick={handleSync}
           disabled={syncing}
-          style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: syncMsg === '✓ Synced' ? 'var(--sv-green, #4ade80)' : syncMsg ? 'var(--sv-red)' : 'var(--sv-text-strong)', border: `1px solid ${syncMsg === '✓ Synced' ? 'rgba(74,222,128,.35)' : syncMsg ? 'var(--sv-red-border)' : 'rgba(255,255,255,.18)'}`, opacity: syncing ? .7 : 1 }}
+          style={{ ...smallBtn, background: 'var(--pos-btn-bg)', color: syncMsg === '✓ Synced' ? 'var(--sv-green, #4ade80)' : syncMsg ? 'var(--sv-red)' : 'var(--sv-text-strong)', border: `1px solid ${syncMsg === '✓ Synced' ? 'rgba(74,222,128,.35)' : syncMsg ? 'var(--sv-red-border)' : 'var(--pos-btn-border)'}`, opacity: syncing ? .7 : 1 }}
         >
           {syncing ? '⟳ Syncing…' : syncMsg ?? '⟳ Sync'}
         </button>
-        <button onClick={() => setIsLayby(!isLayby)} style={{ ...smallBtn, background: isLayby ? 'var(--sv-amber-tint)' : 'rgba(255,255,255,.1)', color: isLayby ? 'var(--sv-amber)' : 'var(--sv-text-strong)', border: `1px solid ${isLayby ? 'var(--sv-amber-border)' : 'rgba(255,255,255,.18)'}` }}>
+        <button onClick={() => setIsLayby(!isLayby)} style={{ ...smallBtn, background: isLayby ? 'var(--sv-amber-tint)' : 'var(--pos-btn-bg)', color: isLayby ? 'var(--sv-amber)' : 'var(--sv-text-strong)', border: `1px solid ${isLayby ? 'var(--sv-amber-border)' : 'var(--pos-btn-border)'}` }}>
           {isLayby ? '📋 Layby ON' : 'Layby'}
         </button>
-        <button onClick={parkSale} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }} disabled={!cart.length}>Park Sale</button>
-        <button onClick={() => setScreen('parked')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>
+        <button onClick={parkSale} style={{ ...smallBtn, background: 'var(--pos-btn-bg)', color: 'var(--sv-text-strong)', border: '1px solid var(--pos-btn-border)' }} disabled={!cart.length}>Park Sale</button>
+        <button onClick={() => setScreen('parked')} style={{ ...smallBtn, background: 'var(--pos-btn-bg)', color: 'var(--sv-text-strong)', border: '1px solid var(--pos-btn-border)' }}>
           Parked {parkedSales.length > 0 ? `(${parkedSales.length})` : ''}
         </button>
         <button
           onClick={() => lastSale && onReceipt(lastSale)}
           disabled={!lastSale}
           title={lastSale ? 'Reprint last receipt' : 'No recent sale to reprint'}
-          style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: lastSale ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', border: '1px solid rgba(255,255,255,.18)', opacity: lastSale ? 1 : .45 }}
+          style={{ ...smallBtn, background: 'var(--pos-btn-bg)', color: lastSale ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', border: '1px solid var(--pos-btn-border)', opacity: lastSale ? 1 : .45 }}
         >🔁 Reprint</button>
-        <button onClick={() => { setEodInitialMode(regSession?.status === 'open' ? 'eod' : 'open'); setScreen('eod'); }} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>Register</button>
-        <button onClick={() => setScreen('reports')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>Reports</button>
-        <button onClick={() => setScreen('receive-transfers')} style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-strong)', border: '1px solid rgba(255,255,255,.18)' }}>📦 Receive Transfers</button>
+        <button onClick={() => { setEodInitialMode(regSession?.status === 'open' ? 'eod' : 'open'); setScreen('eod'); }} style={{ ...smallBtn, background: 'var(--pos-btn-bg)', color: 'var(--sv-text-strong)', border: '1px solid var(--pos-btn-border)' }}>Register</button>
+        <button onClick={() => setScreen('reports')} style={{ ...smallBtn, background: 'var(--pos-btn-bg)', color: 'var(--sv-text-strong)', border: '1px solid var(--pos-btn-border)' }}>Reports</button>
+        <button onClick={() => setScreen('receive-transfers')} style={{ ...smallBtn, background: 'var(--pos-btn-bg)', color: 'var(--sv-text-strong)', border: '1px solid var(--pos-btn-border)' }}>📦 Receive Transfers</button>
         <button
           onClick={() => setCartLeft(v => { const next = !v; try { localStorage.setItem('pos_cart_left', next ? '1' : '0'); } catch {} return next; })}
           title={cartLeft ? 'Cart on left — click to move right' : 'Cart on right — click to move left'}
-          style={{ ...smallBtn, background: 'rgba(255,255,255,.1)', color: 'var(--sv-text-dim)', border: '1px solid rgba(255,255,255,.18)' }}
+          style={{ ...smallBtn, background: 'var(--pos-btn-bg)', color: 'var(--sv-text-dim)', border: '1px solid var(--pos-btn-border)' }}
         >{cartLeft ? '⬅ Cart' : 'Cart ➡'}</button>
-        {/* Help then Settings (reordered), divider, then user menu */}
         <button
           onClick={() => setHelpOpen(true)}
           title="Help"
           style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--sv-text-dim)', transition: 'background .15s', flexShrink: 0 }}
-          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.1)')}
+          onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
           onMouseLeave={e => (e.currentTarget.style.background = 'none')}
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17" strokeLinecap="round" strokeWidth="2.5"/></svg>
@@ -1237,19 +1252,19 @@ function MainPos({
           }}
           title={['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '') ? 'POS Settings' : 'POS Manager access required'}
           style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: ['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '') ? 'pointer' : 'default', color: ['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '') ? 'var(--sv-text-dim)' : 'var(--sv-text-muted)', transition: 'background .15s', flexShrink: 0, opacity: ['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '') ? 1 : .45 }}
-          onMouseEnter={e => { if (['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '')) e.currentTarget.style.background = 'rgba(255,255,255,.1)'; }}
+          onMouseEnter={e => { if (['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '')) e.currentTarget.style.background = 'var(--pos-btn-bg)'; }}
           onMouseLeave={e => (e.currentTarget.style.background = 'none')}
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
         </button>
         {/* Divider before user menu */}
-        <span style={{ display: 'inline-block', width: 1, height: 20, background: 'rgba(255,255,255,.18)', flexShrink: 0, margin: '0 2px' }} />
+        <span style={{ display: 'inline-block', width: 1, height: 20, background: 'var(--pos-btn-border)', flexShrink: 0, margin: '0 2px' }} />
         {/* User menu */}
         <div style={{ position: 'relative' }}>
           <button
             onClick={() => setUserMenuOpen(p => !p)}
             style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 8px', borderRadius: 8, background: 'none', border: 'none', cursor: 'pointer', transition: 'background .15s', flexShrink: 0 }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.1)')}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'none')}
           >
             <span style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--sv-action)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>

@@ -32,7 +32,7 @@ export interface PosLocationSettings {
 const DEFAULTS: PosLocationSettings = {
   receiptFooter: '',
   giftReceiptMessage: '',
-  theme: 'classic',
+  theme: 'midnight',
   topbarColor: '',
   searchbarColor: '',
 };
