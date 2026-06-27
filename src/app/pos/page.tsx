@@ -454,8 +454,9 @@ const POS_THEMES: Record<string, { name: string; vars: Record<string, string> }>
       '--sv-etch': 'rgba(10,20,40,0.08)', '--sv-action': '#1ea8c2',
       '--pos-topbar-bg': '#1a2535', '--pos-searchbar-bg': '#eaeef2',
       '--pos-btn-bg': 'rgba(30,168,194,.1)', '--pos-btn-border': 'rgba(30,168,194,.25)',
-      // Topbar-specific button fill — white-tinted for dark topbar contrast
+      // Topbar-specific overrides — white fills + light text for dark navy topbar
       '--pos-topbar-btn-bg': 'rgba(255,255,255,.15)', '--pos-topbar-btn-border': 'rgba(255,255,255,.3)',
+      '--pos-topbar-text-strong': '#e2e8f0', '--pos-topbar-text-dim': '#94a3b8',
     },
   },
   neon: {
@@ -467,6 +468,30 @@ const POS_THEMES: Record<string, { name: string; vars: Record<string, string> }>
       '--sv-etch': 'rgba(240,255,0,.15)', '--sv-action': '#ff0080',
       '--pos-topbar-bg': '#111111', '--pos-searchbar-bg': '#0d0d0d',
       '--pos-btn-bg': 'rgba(255,0,128,.12)', '--pos-btn-border': 'rgba(255,0,128,.35)',
+    },
+  },
+  strangerthings: {
+    name: 'Stranger Things',
+    vars: {
+      // Upside Down: black-red void, neon crimson text, flicker-orange accents
+      '--sv-bg-0': '#080100', '--sv-bg-1': '#110300', '--sv-bg-2': '#1c0500',
+      '--sv-text-strong': '#ff2800', '--sv-text-main': '#e02000',
+      '--sv-text-dim': '#a03800', '--sv-text-muted': '#5a2500',
+      '--sv-etch': 'rgba(255,40,0,.18)', '--sv-action': '#ff5500',
+      '--pos-topbar-bg': '#060000', '--pos-searchbar-bg': '#0d0200',
+      '--pos-btn-bg': 'rgba(255,40,0,.12)', '--pos-btn-border': 'rgba(255,40,0,.35)',
+    },
+  },
+  eighties: {
+    name: '80s Party',
+    vars: {
+      // Miami neon: deep purple void, hot-pink text, electric-blue action, laser grid
+      '--sv-bg-0': '#090015', '--sv-bg-1': '#110022', '--sv-bg-2': '#180a32',
+      '--sv-text-strong': '#ff00cc', '--sv-text-main': '#e000b8',
+      '--sv-text-dim': '#8800ee', '--sv-text-muted': '#5000aa',
+      '--sv-etch': 'rgba(255,0,200,.15)', '--sv-action': '#00ccff',
+      '--pos-topbar-bg': '#1e0038', '--pos-searchbar-bg': '#0c0018',
+      '--pos-btn-bg': 'rgba(255,0,200,.12)', '--pos-btn-border': 'rgba(255,0,200,.38)',
     },
   },
   pastel1: {
@@ -1186,7 +1211,7 @@ function MainPos({
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--sv-bg-0)', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)', ...posTheme } as React.CSSProperties}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', padding: '.6rem 1rem', background: 'var(--pos-topbar-bg, var(--sv-bg-1))', borderBottom: '1px solid var(--sv-etch)', gap: '.5rem', flexShrink: 0, ...(posTheme['--pos-topbar-btn-bg'] ? { '--pos-btn-bg': posTheme['--pos-topbar-btn-bg'], '--pos-btn-border': posTheme['--pos-topbar-btn-border'] ?? 'rgba(255,255,255,.3)' } : {}) } as React.CSSProperties}>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '.6rem 1rem', background: 'var(--pos-topbar-bg, var(--sv-bg-1))', borderBottom: '1px solid var(--sv-etch)', gap: '.5rem', flexShrink: 0, ...(posTheme['--pos-topbar-btn-bg'] ? { '--pos-btn-bg': posTheme['--pos-topbar-btn-bg'], '--pos-btn-border': posTheme['--pos-topbar-btn-border'] ?? 'rgba(255,255,255,.3)', '--sv-text-strong': posTheme['--pos-topbar-text-strong'] ?? '#e2e8f0', '--sv-text-dim': posTheme['--pos-topbar-text-dim'] ?? '#94a3b8' } : {}) } as React.CSSProperties}>
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', marginRight: '.25rem' }}>
           <span style={{ fontWeight: 700, color: 'var(--sv-action)', fontSize: '1rem', letterSpacing: -.2, lineHeight: 1.35 }}>🛒 POS {session.location_name}</span>
         </div>
