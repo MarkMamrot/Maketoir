@@ -454,6 +454,8 @@ const POS_THEMES: Record<string, { name: string; vars: Record<string, string> }>
       '--sv-etch': 'rgba(10,20,40,0.08)', '--sv-action': '#1ea8c2',
       '--pos-topbar-bg': '#1a2535', '--pos-searchbar-bg': '#eaeef2',
       '--pos-btn-bg': 'rgba(30,168,194,.1)', '--pos-btn-border': 'rgba(30,168,194,.25)',
+      // Topbar-specific button fill — white-tinted for dark topbar contrast
+      '--pos-topbar-btn-bg': 'rgba(255,255,255,.15)', '--pos-topbar-btn-border': 'rgba(255,255,255,.3)',
     },
   },
   neon: {
@@ -468,39 +470,39 @@ const POS_THEMES: Record<string, { name: string; vars: Record<string, string> }>
     },
   },
   pastel1: {
-    name: 'Pastel 1 — Sunrise',
+    name: 'Pastel 1 — Bubblegum',
     vars: {
-      // Warm coral/peach/gold wash — like a sunrise watercolour
-      '--sv-bg-0': '#fff8f0', '--sv-bg-1': '#fffcf7', '--sv-bg-2': '#fff0e8',
-      '--sv-text-strong': '#3d1a0a', '--sv-text-main': '#6b3020',
-      '--sv-text-dim': '#c2602a', '--sv-text-muted': '#e09a70',
-      '--sv-etch': 'rgba(180,80,30,.12)', '--sv-action': '#e84f8a',
-      '--pos-topbar-bg': '#ffd4b8', '--pos-searchbar-bg': '#ffe8d0',
-      '--pos-btn-bg': 'rgba(232,79,138,.1)', '--pos-btn-border': 'rgba(232,79,138,.25)',
+      // Multi-pastel: mint bg × pink body × lavender panels — sweet & contrasting
+      '--sv-bg-0': '#f0faf5', '--sv-bg-1': '#fffdf0', '--sv-bg-2': '#fdf0f8',
+      '--sv-text-strong': '#3d0a1e', '--sv-text-main': '#6b1a40',
+      '--sv-text-dim': '#b84070', '--sv-text-muted': '#d890a8',
+      '--sv-etch': 'rgba(180,64,112,.12)', '--sv-action': '#e8306a',
+      '--pos-topbar-bg': '#f9c8dd', '--pos-searchbar-bg': '#c8f0e0',
+      '--pos-btn-bg': 'rgba(232,48,106,.1)', '--pos-btn-border': 'rgba(232,48,106,.28)',
     },
   },
   pastel2: {
-    name: 'Pastel 2 — Ocean',
+    name: 'Pastel 2 — Citrus Grove',
     vars: {
-      // Teal/seafoam/sky wash — cool ocean watercolour
-      '--sv-bg-0': '#edfaf7', '--sv-bg-1': '#f4fffe', '--sv-bg-2': '#e0f5f8',
-      '--sv-text-strong': '#06302a', '--sv-text-main': '#0d5248',
-      '--sv-text-dim': '#1a9980', '--sv-text-muted': '#5ec4b2',
-      '--sv-etch': 'rgba(20,140,110,.12)', '--sv-action': '#0e9db5',
-      '--pos-topbar-bg': '#b8e8e0', '--pos-searchbar-bg': '#cef4f0',
-      '--pos-btn-bg': 'rgba(14,157,181,.1)', '--pos-btn-border': 'rgba(14,157,181,.25)',
+      // Multi-pastel: lime bg × ivory body × peach panels — zesty & warm
+      '--sv-bg-0': '#f4fae5', '--sv-bg-1': '#fffef5', '--sv-bg-2': '#fff3e5',
+      '--sv-text-strong': '#1e2e06', '--sv-text-main': '#384e10',
+      '--sv-text-dim': '#6a8a1a', '--sv-text-muted': '#a8c060',
+      '--sv-etch': 'rgba(80,120,10,.12)', '--sv-action': '#e07818',
+      '--pos-topbar-bg': '#ffdaa8', '--pos-searchbar-bg': '#e0f5b8',
+      '--pos-btn-bg': 'rgba(224,120,24,.1)', '--pos-btn-border': 'rgba(224,120,24,.28)',
     },
   },
   pastel3: {
-    name: 'Pastel 3 — Wildflower',
+    name: 'Pastel 3 — Haze',
     vars: {
-      // Lavender/violet/rose wash — wildflower meadow watercolour
-      '--sv-bg-0': '#faf0ff', '--sv-bg-1': '#fff8fe', '--sv-bg-2': '#f5e8ff',
-      '--sv-text-strong': '#20083a', '--sv-text-main': '#3d1060',
-      '--sv-text-dim': '#8040b8', '--sv-text-muted': '#b880d8',
-      '--sv-etch': 'rgba(128,64,184,.12)', '--sv-action': '#c040e0',
-      '--pos-topbar-bg': '#e2c4f5', '--pos-searchbar-bg': '#f3deff',
-      '--pos-btn-bg': 'rgba(192,64,224,.1)', '--pos-btn-border': 'rgba(192,64,224,.25)',
+      // Multi-pastel: lavender bg × blush body × seafoam panels — dreamy & cool
+      '--sv-bg-0': '#f2f0ff', '--sv-bg-1': '#fff8fd', '--sv-bg-2': '#ecfaf7',
+      '--sv-text-strong': '#1a0a32', '--sv-text-main': '#361260',
+      '--sv-text-dim': '#5058b8', '--sv-text-muted': '#9088c8',
+      '--sv-etch': 'rgba(80,88,184,.12)', '--sv-action': '#7838e0',
+      '--pos-topbar-bg': '#ccd4f8', '--pos-searchbar-bg': '#fce8f5',
+      '--pos-btn-bg': 'rgba(120,56,224,.1)', '--pos-btn-border': 'rgba(120,56,224,.28)',
     },
   },
   highcontrast: {
@@ -1184,7 +1186,7 @@ function MainPos({
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--sv-bg-0)', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)', ...posTheme } as React.CSSProperties}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', padding: '.6rem 1rem', background: 'var(--pos-topbar-bg, var(--sv-bg-1))', borderBottom: '1px solid var(--sv-etch)', gap: '.5rem', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '.6rem 1rem', background: 'var(--pos-topbar-bg, var(--sv-bg-1))', borderBottom: '1px solid var(--sv-etch)', gap: '.5rem', flexShrink: 0, ...(posTheme['--pos-topbar-btn-bg'] ? { '--pos-btn-bg': posTheme['--pos-topbar-btn-bg'], '--pos-btn-border': posTheme['--pos-topbar-btn-border'] ?? 'rgba(255,255,255,.3)' } : {}) } as React.CSSProperties}>
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', marginRight: '.25rem' }}>
           <span style={{ fontWeight: 700, color: 'var(--sv-action)', fontSize: '1rem', letterSpacing: -.2, lineHeight: 1.35 }}>🛒 POS {session.location_name}</span>
         </div>
