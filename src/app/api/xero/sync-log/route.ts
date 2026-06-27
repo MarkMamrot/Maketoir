@@ -88,7 +88,7 @@ export async function GET(req: Request) {
   // NOTE: limit is inlined into SQL below (not a placeholder) because mysql2
   // prepared statements (pool.execute) reject `LIMIT ?`. It is clamped to a
   // safe integer 1..200 so inlining is injection-safe.
-  const limit = Math.max(1, Math.min(Math.floor(Number(searchParams.get('limit')) || 200), 200));
+  const limit = Math.max(1, Math.min(Math.floor(Number(searchParams.get('limit')) || 100), 100));
   // Ensure xero_state column exists (added Jun 2026 — no-op once column is present)
   await ensureXeroStateColumn();
   try {
@@ -100,6 +100,7 @@ export async function GET(req: Request) {
          FROM ims_purchase_orders po
          LEFT JOIN ims_contacts c ON c.id = po.supplier_id
         WHERE po.status NOT IN ('cancelled','draft')
+          AND (po.is_historical = 0 OR po.is_historical IS NULL)
         ORDER BY po.order_date DESC, po.id DESC
         LIMIT ${limit}`,
     );

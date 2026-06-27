@@ -7843,7 +7843,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
     setLoading(true);
     try {
       const [logRes, queuedRes] = await Promise.all([
-        fetch(`/api/xero/sync-log?databaseId=${encodeURIComponent(getBusinessId())}&limit=200`),
+        fetch(`/api/xero/sync-log?databaseId=${encodeURIComponent(getBusinessId())}&limit=100`),
         fetch('/api/ims/xero/queued'),
       ]);
       if (logRes.ok) { const d = await logRes.json(); setEntries(d.entries ?? []); }
