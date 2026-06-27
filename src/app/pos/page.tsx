@@ -655,6 +655,17 @@ const POS_THEMES: Record<string, { name: string; vars: Record<string, string> }>
       '--pos-topbar-text-strong': '#f0edd8', '--pos-topbar-text-dim': '#c8d8b0',
     },
   },
+  custom: {
+    name: 'Custom',
+    vars: {
+      // Neutral canvas — base colours from Midnight; topbar/searchbar set by colour pickers
+      '--sv-bg-0': '#020617', '--sv-bg-1': '#0f172a', '--sv-bg-2': '#1e293b',
+      '--sv-text-strong': '#ffffff', '--sv-text-main': '#e2e8f0',
+      '--sv-text-dim': '#94a3b8', '--sv-text-muted': '#64748b',
+      '--sv-etch': 'rgba(226,232,240,0.12)', '--sv-action': '#1ea8c2',
+      '--pos-btn-bg': 'rgba(255,255,255,.1)', '--pos-btn-border': 'rgba(255,255,255,.18)',
+    },
+  },
 };
 
 function computeThemeVars(s: PosLocationSettings): Record<string, string> {
@@ -700,12 +711,14 @@ function PosSettingsModal({
 
   function handleTopbarColor(c: string) {
     setTopbarColor(c);
-    previewTheme(theme, c, searchbarColor);
+    setTheme('custom');
+    previewTheme('custom', c, searchbarColor);
   }
 
   function handleSearchbarColor(c: string) {
     setSearchbarColor(c);
-    previewTheme(theme, topbarColor, c);
+    setTheme('custom');
+    previewTheme('custom', topbarColor, c);
   }
 
   function resetCustomColors() {
