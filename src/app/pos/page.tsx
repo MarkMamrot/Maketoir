@@ -473,13 +473,13 @@ const POS_THEMES: Record<string, { name: string; vars: Record<string, string> }>
   strangerthings: {
     name: 'Stranger Things',
     vars: {
-      // Upside Down: black-red void, neon crimson text, flicker-orange accents
-      '--sv-bg-0': '#080100', '--sv-bg-1': '#110300', '--sv-bg-2': '#1c0500',
+      // Upside Down: red-void bg, neon crimson text, portal blue-cyan glow action
+      '--sv-bg-0': '#060008', '--sv-bg-1': '#0e0210', '--sv-bg-2': '#04081a',
       '--sv-text-strong': '#ff2800', '--sv-text-main': '#e02000',
       '--sv-text-dim': '#a03800', '--sv-text-muted': '#5a2500',
-      '--sv-etch': 'rgba(255,40,0,.18)', '--sv-action': '#ff5500',
-      '--pos-topbar-bg': '#060000', '--pos-searchbar-bg': '#0d0200',
-      '--pos-btn-bg': 'rgba(255,40,0,.12)', '--pos-btn-border': 'rgba(255,40,0,.35)',
+      '--sv-etch': 'rgba(0,180,255,.15)', '--sv-action': '#00c8ff',
+      '--pos-topbar-bg': '#020010', '--pos-searchbar-bg': '#08001a',
+      '--pos-btn-bg': 'rgba(0,200,255,.1)', '--pos-btn-border': 'rgba(0,200,255,.32)',
     },
   },
   eighties: {
