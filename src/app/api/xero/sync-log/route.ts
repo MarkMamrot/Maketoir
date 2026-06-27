@@ -21,6 +21,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 import { query } from '@/services/MySQLService';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { xeroApiFetch } from '@/services/XeroService';
 
 /** Extract "YYYY-MM-DD" from a MySQL DATE value (Date object or string). */
 function batchDateStr(v: unknown): string {
@@ -327,6 +328,45 @@ export async function GET(req: Request) {
         return db2 - da;
       })
       .slice(0, limit);
+
+    // ── Live Xero status fetch ─────────────────────────────────────────────────
+    // For every entry that has a xero_id (bill or invoice), pull the current
+    // status directly from Xero so voids/deletes done outside the app are shown.
+    // Xero returns VOIDED invoices by ID; DELETED ones simply won't appear in the
+    // response — we treat "sent but not returned" as DELETED.
+    // Falls back silently to the logged state if Xero is unavailable.
+    try {
+      const invoiceXeroIds = entries
+        .filter(e => e.xero_id && ['po_bill', 'so_invoice', 'eod_reconciliation', 'online_batch'].includes(e.sync_type))
+        .map(e => e.xero_id as string);
+      const uniqueIds = [...new Set(invoiceXeroIds)];
+
+      if (uniqueIds.length > 0) {
+        const liveStatus = new Map<string, string>(); // xeroId → Xero Status
+        const BATCH = 100;
+        for (let i = 0; i < uniqueIds.length; i += BATCH) {
+          const chunk = uniqueIds.slice(i, i + BATCH);
+          const result = await xeroApiFetch(
+            databaseId!,
+            `/Invoices?IDs=${chunk.join(',')}&unitdp=4`,
+          );
+          for (const inv of result?.Invoices ?? []) {
+            if (inv.InvoiceID && inv.Status) liveStatus.set(inv.InvoiceID, inv.Status);
+          }
+        }
+
+        // Apply live status — IDs we requested but Xero didn't return = DELETED
+        const requestedSet = new Set(uniqueIds);
+        for (const entry of entries) {
+          if (!entry.xero_id) continue;
+          if (!requestedSet.has(entry.xero_id)) continue;
+          const live = liveStatus.get(entry.xero_id);
+          entry.last_xero_state = live ?? 'DELETED';
+        }
+      }
+    } catch {
+      // Xero not connected or API error — leave last_xero_state as logged value
+    }
 
     return NextResponse.json({ entries });
   } catch (err: any) {
