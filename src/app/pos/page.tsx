@@ -440,8 +440,20 @@ const POS_THEMES: Record<string, { name: string; vars: Record<string, string> }>
       '--sv-bg-0': '#f1f5f9', '--sv-bg-1': '#ffffff', '--sv-bg-2': '#e8edf2',
       '--sv-text-strong': '#0f172a', '--sv-text-main': '#1e293b',
       '--sv-text-dim': '#475569', '--sv-text-muted': '#94a3b8',
-      '--sv-etch': 'rgba(15,23,42,0.1)', '--sv-action': '#2563eb',
+      '--sv-etch': 'rgba(15,23,42,0.1)', '--sv-action': '#1ea8c2',
       '--pos-btn-bg': 'rgba(0,0,0,.07)', '--pos-btn-border': 'rgba(0,0,0,.13)',
+    },
+  },
+  sleek: {
+    name: 'Sleek',
+    vars: {
+      // Light grey panels, crisp white cards, Solvantis teal accent
+      '--sv-bg-0': '#f4f6f8', '--sv-bg-1': '#ffffff', '--sv-bg-2': '#eaeef2',
+      '--sv-text-strong': '#0a0e14', '--sv-text-main': '#1c2533',
+      '--sv-text-dim': '#4a5a70', '--sv-text-muted': '#8a9ab0',
+      '--sv-etch': 'rgba(10,20,40,0.08)', '--sv-action': '#1ea8c2',
+      '--pos-topbar-bg': '#1a2535', '--pos-searchbar-bg': '#eaeef2',
+      '--pos-btn-bg': 'rgba(30,168,194,.1)', '--pos-btn-border': 'rgba(30,168,194,.25)',
     },
   },
   neon: {
@@ -455,15 +467,40 @@ const POS_THEMES: Record<string, { name: string; vars: Record<string, string> }>
       '--pos-btn-bg': 'rgba(255,0,128,.12)', '--pos-btn-border': 'rgba(255,0,128,.35)',
     },
   },
-  pastel: {
-    name: 'Watercolour',
+  pastel1: {
+    name: 'Pastel 1 — Sunrise',
     vars: {
-      '--sv-bg-0': '#f0f7ff', '--sv-bg-1': '#fffdf4', '--sv-bg-2': '#fdf0ff',
-      '--sv-text-strong': '#1a1040', '--sv-text-main': '#2e2060',
-      '--sv-text-dim': '#7040a0', '--sv-text-muted': '#a080c0',
-      '--sv-etch': 'rgba(112,64,160,.12)', '--sv-action': '#e05aaa',
-      '--pos-topbar-bg': '#d4eaf7', '--pos-searchbar-bg': '#f9ecff',
-      '--pos-btn-bg': 'rgba(200,100,200,.1)', '--pos-btn-border': 'rgba(200,100,200,.22)',
+      // Warm coral/peach/gold wash — like a sunrise watercolour
+      '--sv-bg-0': '#fff8f0', '--sv-bg-1': '#fffcf7', '--sv-bg-2': '#fff0e8',
+      '--sv-text-strong': '#3d1a0a', '--sv-text-main': '#6b3020',
+      '--sv-text-dim': '#c2602a', '--sv-text-muted': '#e09a70',
+      '--sv-etch': 'rgba(180,80,30,.12)', '--sv-action': '#e84f8a',
+      '--pos-topbar-bg': '#ffd4b8', '--pos-searchbar-bg': '#ffe8d0',
+      '--pos-btn-bg': 'rgba(232,79,138,.1)', '--pos-btn-border': 'rgba(232,79,138,.25)',
+    },
+  },
+  pastel2: {
+    name: 'Pastel 2 — Ocean',
+    vars: {
+      // Teal/seafoam/sky wash — cool ocean watercolour
+      '--sv-bg-0': '#edfaf7', '--sv-bg-1': '#f4fffe', '--sv-bg-2': '#e0f5f8',
+      '--sv-text-strong': '#06302a', '--sv-text-main': '#0d5248',
+      '--sv-text-dim': '#1a9980', '--sv-text-muted': '#5ec4b2',
+      '--sv-etch': 'rgba(20,140,110,.12)', '--sv-action': '#0e9db5',
+      '--pos-topbar-bg': '#b8e8e0', '--pos-searchbar-bg': '#cef4f0',
+      '--pos-btn-bg': 'rgba(14,157,181,.1)', '--pos-btn-border': 'rgba(14,157,181,.25)',
+    },
+  },
+  pastel3: {
+    name: 'Pastel 3 — Wildflower',
+    vars: {
+      // Lavender/violet/rose wash — wildflower meadow watercolour
+      '--sv-bg-0': '#faf0ff', '--sv-bg-1': '#fff8fe', '--sv-bg-2': '#f5e8ff',
+      '--sv-text-strong': '#20083a', '--sv-text-main': '#3d1060',
+      '--sv-text-dim': '#8040b8', '--sv-text-muted': '#b880d8',
+      '--sv-etch': 'rgba(128,64,184,.12)', '--sv-action': '#c040e0',
+      '--pos-topbar-bg': '#e2c4f5', '--pos-searchbar-bg': '#f3deff',
+      '--pos-btn-bg': 'rgba(192,64,224,.1)', '--pos-btn-border': 'rgba(192,64,224,.25)',
     },
   },
   highcontrast: {
