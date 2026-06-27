@@ -590,16 +590,16 @@ const POS_THEMES: Record<string, { name: string; vars: Record<string, string> }>
   simpsons: {
     name: 'Simpsons',
     vars: {
-      // Springfield yellow body, deep-sky topbar (contrast for online badge), Homer-red action
-      '--sv-bg-0': '#ffd90f', '--sv-bg-1': '#ffe030', '--sv-bg-2': '#f0ca00',
-      '--sv-text-strong': '#14080a', '--sv-text-main': '#1e1000',
-      '--sv-text-dim': '#0044aa', '--sv-text-muted': '#0033aa',
-      '--sv-etch': 'rgba(0,50,140,.12)', '--sv-action': '#d43000',
-      '--pos-topbar-bg': '#1c5ea8', '--pos-searchbar-bg': '#e8c800',
-      '--pos-btn-bg': 'rgba(212,48,0,.1)', '--pos-btn-border': 'rgba(212,48,0,.25)',
-      // Dark blue topbar: yellow buttons + yellow text so everything pops
-      '--pos-topbar-btn-bg': 'rgba(255,217,15,.2)', '--pos-topbar-btn-border': 'rgba(255,217,15,.45)',
-      '--pos-topbar-text-strong': '#ffd90f', '--pos-topbar-text-dim': '#a8d4f5',
+      // Bart's palette: skin yellow #FFD90F, shirt red #D12F25, shorts blue #1E5FA8
+      '--sv-bg-0': '#ffd90f', '--sv-bg-1': '#ffdf20', '--sv-bg-2': '#f0cb00',
+      '--sv-text-strong': '#12080a', '--sv-text-main': '#1e1000',
+      '--sv-text-dim': '#1a3a8a', '--sv-text-muted': '#3a60b0',
+      '--sv-etch': 'rgba(20,55,140,.15)', '--sv-action': '#d12f25',
+      '--pos-topbar-bg': '#0e4890', '--pos-searchbar-bg': '#e6ba00',
+      '--pos-btn-bg': 'rgba(209,47,37,.1)', '--pos-btn-border': 'rgba(209,47,37,.28)',
+      // Deep blue topbar — white strong + vivid yellow dim so all icons/badges pop
+      '--pos-topbar-btn-bg': 'rgba(255,217,15,.22)', '--pos-topbar-btn-border': 'rgba(255,217,15,.55)',
+      '--pos-topbar-text-strong': '#ffffff', '--pos-topbar-text-dim': '#ffd90f',
     },
   },
   pinkfloyd: {
