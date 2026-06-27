@@ -575,39 +575,84 @@ const POS_THEMES: Record<string, { name: string; vars: Record<string, string> }>
   pulpfiction: {
     name: 'Pulp Fiction',
     vars: {
-      // Mia’s banana yellow dress, Jules’ black suit topbar, blood-red accent
-      '--sv-bg-0': '#f5e800', '--sv-bg-1': '#fef500', '--sv-bg-2': '#ece000',
-      '--sv-text-strong': '#0a0900', '--sv-text-main': '#1c1600',
-      '--sv-text-dim': '#aa0016', '--sv-text-muted': '#660010',
-      '--sv-etch': 'rgba(0,0,0,.13)', '--sv-action': '#b80018',
-      '--pos-topbar-bg': '#161200', '--pos-searchbar-bg': '#e8d800',
-      '--pos-btn-bg': 'rgba(0,0,0,.09)', '--pos-btn-border': 'rgba(0,0,0,.2)',
-      '--pos-topbar-btn-bg': 'rgba(255,255,255,.14)', '--pos-topbar-btn-border': 'rgba(255,255,255,.28)',
-      '--pos-topbar-text-strong': '#f5e800', '--pos-topbar-text-dim': '#b8a800',
+      // Movie poster: pitch-black body, vivid-red topbar, banana-yellow accent throughout
+      '--sv-bg-0': '#0a0a00', '--sv-bg-1': '#121200', '--sv-bg-2': '#1a1800',
+      '--sv-text-strong': '#f5e800', '--sv-text-main': '#d4c800',
+      '--sv-text-dim': '#8a8000', '--sv-text-muted': '#4a4400',
+      '--sv-etch': 'rgba(245,232,0,.1)', '--sv-action': '#f5e800',
+      '--pos-topbar-bg': '#cc0018', '--pos-searchbar-bg': '#060600',
+      '--pos-btn-bg': 'rgba(245,232,0,.1)', '--pos-btn-border': 'rgba(245,232,0,.28)',
+      // Red topbar: dark buttons, bright yellow text
+      '--pos-topbar-btn-bg': 'rgba(0,0,0,.25)', '--pos-topbar-btn-border': 'rgba(0,0,0,.45)',
+      '--pos-topbar-text-strong': '#f5e800', '--pos-topbar-text-dim': '#ffd060',
     },
   },
   simpsons: {
     name: 'Simpsons',
     vars: {
-      // Springfield yellow, sky-blue topbar, Homer’s-shirt red action
+      // Springfield yellow body, deep-sky topbar (contrast for online badge), Homer-red action
       '--sv-bg-0': '#ffd90f', '--sv-bg-1': '#ffe030', '--sv-bg-2': '#f0ca00',
       '--sv-text-strong': '#14080a', '--sv-text-main': '#1e1000',
-      '--sv-text-dim': '#0055bb', '--sv-text-muted': '#0033aa',
-      '--sv-etch': 'rgba(0,60,150,.12)', '--sv-action': '#d43000',
-      '--pos-topbar-bg': '#8dd4f0', '--pos-searchbar-bg': '#ffd500',
+      '--sv-text-dim': '#0044aa', '--sv-text-muted': '#0033aa',
+      '--sv-etch': 'rgba(0,50,140,.12)', '--sv-action': '#d43000',
+      '--pos-topbar-bg': '#1c5ea8', '--pos-searchbar-bg': '#e8c800',
       '--pos-btn-bg': 'rgba(212,48,0,.1)', '--pos-btn-border': 'rgba(212,48,0,.25)',
+      // Dark blue topbar: yellow buttons + yellow text so everything pops
+      '--pos-topbar-btn-bg': 'rgba(255,217,15,.2)', '--pos-topbar-btn-border': 'rgba(255,217,15,.45)',
+      '--pos-topbar-text-strong': '#ffd90f', '--pos-topbar-text-dim': '#a8d4f5',
     },
   },
   pinkfloyd: {
     name: 'Pink Floyd',
     vars: {
-      // Dark Side of the Moon: black void, white light, prism-green spectrum action
-      '--sv-bg-0': '#060606', '--sv-bg-1': '#0c0c0e', '--sv-bg-2': '#12121a',
-      '--sv-text-strong': '#ffffff', '--sv-text-main': '#d8d8e0',
-      '--sv-text-dim': '#8888a0', '--sv-text-muted': '#484858',
-      '--sv-etch': 'rgba(255,255,255,.09)', '--sv-action': '#00e864',
-      '--pos-topbar-bg': '#040408', '--pos-searchbar-bg': '#0a0a12',
-      '--pos-btn-bg': 'rgba(0,232,100,.1)', '--pos-btn-border': 'rgba(0,232,100,.28)',
+      // Dark Side of the Moon: pure black bg, white-light text, rainbow spectrum accents
+      // Red (entry) → etch | Cyan (mid-spectrum) → action | Violet (exit) → text-dim
+      '--sv-bg-0': '#000000', '--sv-bg-1': '#060606', '--sv-bg-2': '#0c0c0c',
+      '--sv-text-strong': '#f8f8f8', '--sv-text-main': '#d0d0d0',
+      '--sv-text-dim': '#8060a8', '--sv-text-muted': '#483858',
+      '--sv-etch': 'rgba(255,50,0,.22)', '--sv-action': '#00ccff',
+      '--pos-topbar-bg': '#000000', '--pos-searchbar-bg': '#040404',
+      '--pos-btn-bg': 'rgba(0,204,255,.1)', '--pos-btn-border': 'rgba(0,204,255,.3)',
+    },
+  },
+  japandi: {
+    name: 'Japandi',
+    vars: {
+      // Wabi-sabi calm: warm cream, linen grey, deep moss-green accent
+      '--sv-bg-0': '#f5f0eb', '--sv-bg-1': '#faf7f3', '--sv-bg-2': '#ede8e1',
+      '--sv-text-strong': '#1a1410', '--sv-text-main': '#2e2520',
+      '--sv-text-dim': '#6b5d52', '--sv-text-muted': '#a8998c',
+      '--sv-etch': 'rgba(40,30,20,.1)', '--sv-action': '#3d5a3e',
+      '--pos-topbar-bg': '#e4dcd2', '--pos-searchbar-bg': '#f0ece5',
+      '--pos-btn-bg': 'rgba(61,90,62,.1)', '--pos-btn-border': 'rgba(61,90,62,.2)',
+    },
+  },
+  nordic: {
+    name: 'Nordic',
+    vars: {
+      // Fjords & ice: arctic blue panels, midnight-navy topbar, steel-blue text
+      '--sv-bg-0': '#eef3f7', '--sv-bg-1': '#f7fafb', '--sv-bg-2': '#e2ebf0',
+      '--sv-text-strong': '#0e1e2e', '--sv-text-main': '#1c3045',
+      '--sv-text-dim': '#3a6080', '--sv-text-muted': '#7a9ab8',
+      '--sv-etch': 'rgba(14,30,46,.1)', '--sv-action': '#2a6496',
+      '--pos-topbar-bg': '#1c2e40', '--pos-searchbar-bg': '#e2ebf2',
+      '--pos-btn-bg': 'rgba(42,100,150,.1)', '--pos-btn-border': 'rgba(42,100,150,.22)',
+      '--pos-topbar-btn-bg': 'rgba(255,255,255,.14)', '--pos-topbar-btn-border': 'rgba(255,255,255,.28)',
+      '--pos-topbar-text-strong': '#e8f0f8', '--pos-topbar-text-dim': '#7a9ab8',
+    },
+  },
+  midcentury: {
+    name: 'Mid-Century',
+    vars: {
+      // Eames & teak: warm parchment, avocado-green topbar, burnt-orange action
+      '--sv-bg-0': '#f5f0e0', '--sv-bg-1': '#faf5e6', '--sv-bg-2': '#ece5cc',
+      '--sv-text-strong': '#2a1800', '--sv-text-main': '#3d2400',
+      '--sv-text-dim': '#7a5c20', '--sv-text-muted': '#b08840',
+      '--sv-etch': 'rgba(50,30,0,.12)', '--sv-action': '#c05e00',
+      '--pos-topbar-bg': '#4a6640', '--pos-searchbar-bg': '#ece5cc',
+      '--pos-btn-bg': 'rgba(192,94,0,.1)', '--pos-btn-border': 'rgba(192,94,0,.22)',
+      '--pos-topbar-btn-bg': 'rgba(255,255,255,.15)', '--pos-topbar-btn-border': 'rgba(255,255,255,.28)',
+      '--pos-topbar-text-strong': '#f0edd8', '--pos-topbar-text-dim': '#c8d8b0',
     },
   },
 };
