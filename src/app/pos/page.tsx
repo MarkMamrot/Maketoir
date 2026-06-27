@@ -658,7 +658,7 @@ const POS_THEMES: Record<string, { name: string; vars: Record<string, string> }>
   wesanderson: {
     name: 'Wes Anderson',
     vars: {
-      // Creamy parchment panels, terracotta topbar, dusty teal accent
+      // Creamy parchment panels, terracotta topbar, dusty teal accent, dark brown charge button
       '--sv-bg-0': '#f5eddc', '--sv-bg-1': '#fdf7e8', '--sv-bg-2': '#ede3cc',
       '--sv-text-strong': '#2c1a0e', '--sv-text-main': '#4a2d1a',
       '--sv-text-dim': '#7a4f32', '--sv-text-muted': '#b08060',
@@ -667,6 +667,8 @@ const POS_THEMES: Record<string, { name: string; vars: Record<string, string> }>
       '--pos-btn-bg': 'rgba(90,181,188,.12)', '--pos-btn-border': 'rgba(90,181,188,.28)',
       '--pos-topbar-btn-bg': 'rgba(255,255,255,.18)', '--pos-topbar-btn-border': 'rgba(255,255,255,.32)',
       '--pos-topbar-text-strong': '#fdf7e8', '--pos-topbar-text-dim': '#f5dfc0',
+      '--pos-online-color': '#fdf7e8',
+      '--pos-charge-btn-bg': '#6b4226',
     },
   },
   custom: {
@@ -1330,8 +1332,8 @@ function MainPos({
         </div>
         <div style={{ flex: 1 }} />
         {/* Online / Offline badge */}
-        <span style={{ display: 'flex', alignItems: 'center', gap: '.3rem', padding: '.15rem .5rem', borderRadius: 99, background: isOnline ? 'rgba(74,222,128,.12)' : 'rgba(248,113,113,.12)', border: `1px solid ${isOnline ? 'rgba(74,222,128,.3)' : 'rgba(248,113,113,.3)'}`, fontSize: '.73rem', fontWeight: 600, color: isOnline ? '#4ade80' : '#f87171', flexShrink: 0 }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: isOnline ? '#4ade80' : '#f87171', flexShrink: 0 }} />
+        <span style={{ display: 'flex', alignItems: 'center', gap: '.3rem', padding: '.15rem .5rem', borderRadius: 99, background: isOnline ? 'rgba(74,222,128,.12)' : 'rgba(248,113,113,.12)', border: `1px solid ${isOnline ? 'rgba(74,222,128,.3)' : 'rgba(248,113,113,.3)'}`, fontSize: '.73rem', fontWeight: 600, color: isOnline ? 'var(--pos-online-color, #4ade80)' : '#f87171', flexShrink: 0 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: isOnline ? 'var(--pos-online-color, #4ade80)' : '#f87171', flexShrink: 0 }} />
           {isOnline ? 'Online' : 'Offline'}
         </span>
         {/* Queued sales badge — clickable to inspect entries */}
@@ -1591,7 +1593,7 @@ function MainPos({
               <button
                 onClick={() => { if (!mustOpenRegister) setShowPayment(true); }}
                 disabled={!cart.length || mustOpenRegister}
-                style={{ width: '100%', padding: '1rem .5rem', background: cart.length && !mustOpenRegister ? 'var(--sv-action)' : 'var(--sv-bg-2)', border: `2px solid ${cart.length && !mustOpenRegister ? 'var(--sv-action)' : 'var(--sv-etch)'}`, borderRadius: 10, color: cart.length && !mustOpenRegister ? '#fff' : 'var(--sv-text-muted)', cursor: cart.length && !mustOpenRegister ? 'pointer' : 'not-allowed', fontWeight: 900, lineHeight: 1.15, transition: 'opacity .15s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.1rem' }}
+                style={{ width: '100%', padding: '1rem .5rem', background: cart.length && !mustOpenRegister ? 'var(--pos-charge-btn-bg, var(--sv-action))' : 'var(--sv-bg-2)', border: `2px solid ${cart.length && !mustOpenRegister ? 'var(--pos-charge-btn-bg, var(--sv-action))' : 'var(--sv-etch)'}`, borderRadius: 10, color: cart.length && !mustOpenRegister ? '#fff' : 'var(--sv-text-muted)', cursor: cart.length && !mustOpenRegister ? 'pointer' : 'not-allowed', fontWeight: 900, lineHeight: 1.15, transition: 'opacity .15s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.1rem' }}
               >
                 <span style={{ fontSize: '1rem', letterSpacing: .5, textTransform: 'uppercase' }}>{isLayby ? 'Layby' : totals.total < 0 ? 'Refund' : 'Charge'}</span>
                 <span style={{ fontSize: '2.6rem', letterSpacing: -1, fontWeight: 900 }}>{totals.total < 0 ? '−' : ''}${fmt(Math.abs(totals.total))}</span>
