@@ -550,14 +550,16 @@ const POS_THEMES: Record<string, { name: string; vars: Record<string, string> }>
       '--pos-btn-bg': 'rgba(255,255,255,.1)', '--pos-btn-border': 'rgba(255,255,255,.18)',
     },
   },
-  scifi: {
-    name: 'Sci-Fi',
+  dune: {
+    name: 'Dune',
     vars: {
-      '--sv-bg-0': '#000c18', '--sv-bg-1': '#001830', '--sv-bg-2': '#002845',
-      '--sv-text-strong': '#00e5ff', '--sv-text-main': '#80d8ff',
-      '--sv-text-dim': '#4090b0', '--sv-text-muted': '#20607e',
-      '--sv-etch': 'rgba(0,229,255,0.15)', '--sv-action': '#00bcd4',
-      '--pos-btn-bg': 'rgba(0,229,255,.1)', '--pos-btn-border': 'rgba(0,229,255,.18)',
+      // Arrakis: dark earth, spice-gold text, Fremen blue-eyes action
+      '--sv-bg-0': '#1a1008', '--sv-bg-1': '#221608', '--sv-bg-2': '#2c1e0c',
+      '--sv-text-strong': '#f5c840', '--sv-text-main': '#d4a030',
+      '--sv-text-dim': '#8a6020', '--sv-text-muted': '#5a4012',
+      '--sv-etch': 'rgba(200,150,30,.18)', '--sv-action': '#4ab8d8',
+      '--pos-topbar-bg': '#0e0804', '--pos-searchbar-bg': '#1a1008',
+      '--pos-btn-bg': 'rgba(74,184,216,.12)', '--pos-btn-border': 'rgba(74,184,216,.3)',
     },
   },
   dark: {
@@ -568,6 +570,44 @@ const POS_THEMES: Record<string, { name: string; vars: Record<string, string> }>
       '--sv-text-dim': '#888888', '--sv-text-muted': '#555555',
       '--sv-etch': 'rgba(255,255,255,0.1)', '--sv-action': '#1ea8c2',
       '--pos-btn-bg': 'rgba(255,255,255,.1)', '--pos-btn-border': 'rgba(255,255,255,.18)',
+    },
+  },
+  pulpfiction: {
+    name: 'Pulp Fiction',
+    vars: {
+      // Mia’s banana yellow dress, Jules’ black suit topbar, blood-red accent
+      '--sv-bg-0': '#f5e800', '--sv-bg-1': '#fef500', '--sv-bg-2': '#ece000',
+      '--sv-text-strong': '#0a0900', '--sv-text-main': '#1c1600',
+      '--sv-text-dim': '#aa0016', '--sv-text-muted': '#660010',
+      '--sv-etch': 'rgba(0,0,0,.13)', '--sv-action': '#b80018',
+      '--pos-topbar-bg': '#161200', '--pos-searchbar-bg': '#e8d800',
+      '--pos-btn-bg': 'rgba(0,0,0,.09)', '--pos-btn-border': 'rgba(0,0,0,.2)',
+      '--pos-topbar-btn-bg': 'rgba(255,255,255,.14)', '--pos-topbar-btn-border': 'rgba(255,255,255,.28)',
+      '--pos-topbar-text-strong': '#f5e800', '--pos-topbar-text-dim': '#b8a800',
+    },
+  },
+  simpsons: {
+    name: 'Simpsons',
+    vars: {
+      // Springfield yellow, sky-blue topbar, Homer’s-shirt red action
+      '--sv-bg-0': '#ffd90f', '--sv-bg-1': '#ffe030', '--sv-bg-2': '#f0ca00',
+      '--sv-text-strong': '#14080a', '--sv-text-main': '#1e1000',
+      '--sv-text-dim': '#0055bb', '--sv-text-muted': '#0033aa',
+      '--sv-etch': 'rgba(0,60,150,.12)', '--sv-action': '#d43000',
+      '--pos-topbar-bg': '#8dd4f0', '--pos-searchbar-bg': '#ffd500',
+      '--pos-btn-bg': 'rgba(212,48,0,.1)', '--pos-btn-border': 'rgba(212,48,0,.25)',
+    },
+  },
+  pinkfloyd: {
+    name: 'Pink Floyd',
+    vars: {
+      // Dark Side of the Moon: black void, white light, prism-green spectrum action
+      '--sv-bg-0': '#060606', '--sv-bg-1': '#0c0c0e', '--sv-bg-2': '#12121a',
+      '--sv-text-strong': '#ffffff', '--sv-text-main': '#d8d8e0',
+      '--sv-text-dim': '#8888a0', '--sv-text-muted': '#484858',
+      '--sv-etch': 'rgba(255,255,255,.09)', '--sv-action': '#00e864',
+      '--pos-topbar-bg': '#040408', '--pos-searchbar-bg': '#0a0a12',
+      '--pos-btn-bg': 'rgba(0,232,100,.1)', '--pos-btn-border': 'rgba(0,232,100,.28)',
     },
   },
 };
