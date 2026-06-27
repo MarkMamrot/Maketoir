@@ -890,7 +890,7 @@ type MainScreen = 'pos' | 'eod' | 'reports' | 'parked' | 'receive-transfers';
 function MainPos({
   deviceConfig, session, products, paymentMethods, defaultView,
   offlineMode, openEodOnMount, onEodMounted, onLogout, onReceipt, onSync,
-  lastSale, onSaleCompleted,
+  lastSale, onSaleCompleted, onChangeDue,
 }: {
   deviceConfig:    DeviceConfig;
   session:         PosSession;
@@ -905,12 +905,12 @@ function MainPos({
   onSync:          () => Promise<void>;
   lastSale:        CompletedSale | null;
   onSaleCompleted: (sale: CompletedSale) => void;
+  onChangeDue:     (amount: number) => void;
 }) {
   const [screen, setScreen] = useState<MainScreen>('pos');
   const [cart, setCart] = useState<CartItem[]>(() => loadCurrentCart());
   const [parkedSales, setParkedSales] = useState<ParkedSale[]>(() => loadParkedSales());
   const [showPayment, setShowPayment] = useState(false);
-  const [saleChangeDue, setSaleChangeDue] = useState<number | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [orderDiscType, setOrderDiscType] = useState<'percent' | 'amount'>('percent');
   const [orderDiscVal,  setOrderDiscVal]  = useState('');
@@ -1269,7 +1269,7 @@ function MainPos({
       clearCart();
       setShowPayment(false);
       onReceipt(completedSale);
-      if (changeDue > 0.004) setSaleChangeDue(Math.round(changeDue * 100) / 100);
+      if (changeDue > 0.004) onChangeDue(Math.round(changeDue * 100) / 100);
     } finally {
       submittingRef.current = false;
     }
@@ -1597,22 +1597,7 @@ function MainPos({
         />
       )}
 
-      {/* Change Due overlay — shown after receipt fires (cash drawer opens first) */}
-      {saleChangeDue !== null && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: '#1a0000', border: '3px solid #ef4444', borderRadius: 16, padding: '2.5rem 3rem', textAlign: 'center', boxShadow: '0 0 60px rgba(239,68,68,.5)', maxWidth: 360, width: '90vw' }}>
-            <div style={{ fontSize: '1rem', fontWeight: 700, color: '#ef4444', letterSpacing: 3, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Change Due</div>
-            <div style={{ fontSize: '5rem', fontWeight: 900, color: '#ef4444', lineHeight: 1, marginBottom: '2rem', letterSpacing: -2 }}>${fmt(saleChangeDue)}</div>
-            <button
-              autoFocus
-              onClick={() => setSaleChangeDue(null)}
-              style={{ width: '100%', padding: '1rem', background: '#ef4444', border: 'none', borderRadius: 10, color: '#fff', fontSize: '1.2rem', fontWeight: 800, cursor: 'pointer', letterSpacing: .5 }}
-            >
-              OK — Change Given ✓
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Change Due overlay removed — lifted to PosPage so it survives screen transition */}
 
       <PosHelpModal isOpen={helpOpen} onClose={() => setHelpOpen(false)} />
       {posSettingsOpen && (
@@ -2392,9 +2377,14 @@ function ReceiptScreen({ sale, onClose, printSettings }: { sale: CompletedSale; 
                 const paid = sale.payments.reduce((s, p) => s + p.amount, 0);
                 const change = paid - sale.total;
                 return change > 0.005 ? (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#888' }}>
-                    <span>Change</span><span>${fmt(change)}</span>
-                  </div>
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #ccc', marginTop: '.25rem', paddingTop: '.25rem' }}>
+                      <span>Tendered</span><span>${fmt(paid)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+                      <span>Change</span><span>${fmt(change)}</span>
+                    </div>
+                  </>
                 ) : null;
               })()}
             </div>
@@ -3884,6 +3874,7 @@ export default function PosPage() {
   const [defaultView, setDefaultView]   = useState<string | null>(null);
   const [completedSale, setCompletedSale] = useState<CompletedSale | null>(null);
   const [lastSale, setLastSale]           = useState<CompletedSale | null>(null);
+  const [pendingChangeDue, setPendingChangeDue] = useState<number | null>(null);
   const [printSettings, setPrintSettings] = useState<ReceiptPrintSettings>({ business_name: '', business_address: '', business_abn: '', pos_receipt_footer: '' });
   const [offlineMode, setOfflineMode]   = useState(false);
   const [openRegSession, setOpenRegSession] = useState<any>(null);
@@ -4038,11 +4029,28 @@ export default function PosPage() {
 
   if (screen === 'receipt' && completedSale) {
     return (
-      <ReceiptScreen
-        sale={completedSale}
-        printSettings={printSettings}
-        onClose={() => { setCompletedSale(null); setScreen('pos'); }}
-      />
+      <>
+        <ReceiptScreen
+          sale={completedSale}
+          printSettings={printSettings}
+          onClose={() => { setCompletedSale(null); setScreen('pos'); }}
+        />
+        {pendingChangeDue !== null && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+            <div style={{ background: '#1a0000', border: '3px solid #ef4444', borderRadius: 16, padding: '2.5rem 3rem', textAlign: 'center', boxShadow: '0 0 60px rgba(239,68,68,.5)', maxWidth: 360, width: '90vw' }}>
+              <div style={{ fontSize: '1rem', fontWeight: 700, color: '#ef4444', letterSpacing: 3, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Change Due</div>
+              <div style={{ fontSize: '5rem', fontWeight: 900, color: '#ef4444', lineHeight: 1, marginBottom: '2rem', letterSpacing: -2 }}>${fmt(pendingChangeDue)}</div>
+              <button
+                autoFocus
+                onClick={() => setPendingChangeDue(null)}
+                style={{ width: '100%', padding: '1rem', background: '#ef4444', border: 'none', borderRadius: 10, color: '#fff', fontSize: '1.2rem', fontWeight: 800, cursor: 'pointer', letterSpacing: .5 }}
+              >
+                OK — Change Given ✓
+              </button>
+            </div>
+          </div>
+        )}
+      </>
     );
   }
 
@@ -4073,6 +4081,7 @@ export default function PosPage() {
       onSync={handleSync}
       lastSale={lastSale}
       onSaleCompleted={(sale) => setLastSale(sale)}
+      onChangeDue={(amount) => setPendingChangeDue(amount)}
       onLogout={async () => {
         // Try to flush any queued sales before logging out — never silently abandon them.
         try { await drainOfflineQueue(); } catch {}
