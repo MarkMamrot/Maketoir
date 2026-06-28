@@ -3777,12 +3777,12 @@ function PurchaseOrdersView() {
         />
       )}
 
-      {/* Xero warning modal for received PO edit/delete */}
+      {/* Xero warning modal for complete PO edit/delete */}
       {xeroWarnModal && (
         <Modal title="⚠️ Xero Manual Update Required" onClose={() => setXeroWarnModal(null)}>
           <div style={{ padding: '4px 0 8px', lineHeight: 1.6 }}>
             {xeroWarnModal.action === 'edit' ? (
-              <p>This PO (<strong>{xeroWarnModal.po.po_number}</strong>) is fully received. The Xero bill is <strong>AUTHORISED</strong> and cannot be automatically updated. Any edits saved in IMS <strong>will not sync to Xero</strong> — Xero will need to be updated manually.</p>
+              <p>This PO (<strong>{xeroWarnModal.po.po_number}</strong>) is marked complete. The Xero bill is <strong>AUTHORISED</strong> and cannot be automatically updated. Any edits saved in IMS <strong>will not sync to Xero</strong> — Xero will need to be updated manually.</p>
             ) : (
               <p>Deleting <strong>{xeroWarnModal.po.po_number}</strong> will only remove it from IMS. The corresponding Xero bill will remain in Xero and may need to be manually voided.</p>
             )}
