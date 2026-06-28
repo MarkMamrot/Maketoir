@@ -431,10 +431,11 @@ interface PosLocationSettings {
   bgImage:            string;
   bgOpacity:          number;
   bgPosition:         'center' | 'bottom';
+  bgScale:            'fit' | 'original';
 }
 
 const DEFAULT_POS_SETTINGS: PosLocationSettings = {
-  receiptFooter: '', giftReceiptMessage: '', theme: 'midnight', topbarColor: '', searchbarColor: '', avatar: '', bgImage: '', bgOpacity: 10, bgPosition: 'center',
+  receiptFooter: '', giftReceiptMessage: '', theme: 'midnight', topbarColor: '', searchbarColor: '', avatar: '', bgImage: '', bgOpacity: 10, bgPosition: 'center', bgScale: 'fit',
 };
 
 const POS_AVATAR_FILES = [
@@ -752,15 +753,16 @@ function PosSettingsModal({
   const [bgImage,            setBgImage]            = useState(initialSettings.bgImage ?? '');
   const [bgOpacity,          setBgOpacity]          = useState(initialSettings.bgOpacity ?? 10);
   const [bgPosition,         setBgPosition]         = useState<'center' | 'bottom'>(initialSettings.bgPosition ?? 'center');
+  const [bgScale,            setBgScale]            = useState<'fit' | 'original'>(initialSettings.bgScale ?? 'fit');
   const [saving,             setSaving]             = useState(false);
   const [saveError,          setSaveError]          = useState('');
 
   function buildSettings(): PosLocationSettings {
-    return { receiptFooter, giftReceiptMessage, theme, topbarColor, searchbarColor, avatar, bgImage, bgOpacity, bgPosition };
+    return { receiptFooter, giftReceiptMessage, theme, topbarColor, searchbarColor, avatar, bgImage, bgOpacity, bgPosition, bgScale };
   }
 
   function previewTheme(t: string, tb: string, sb: string) {
-    onPreview(computeThemeVars({ receiptFooter: '', giftReceiptMessage: '', theme: t, topbarColor: tb, searchbarColor: sb, avatar: '', bgImage: '', bgOpacity: 10, bgPosition: 'center' }));
+    onPreview(computeThemeVars({ receiptFooter: '', giftReceiptMessage: '', theme: t, topbarColor: tb, searchbarColor: sb, avatar: '', bgImage: '', bgOpacity: 10, bgPosition: 'center', bgScale: 'fit' }));
   }
 
   function handleThemeSelect(key: string) {
@@ -992,6 +994,16 @@ function PosSettingsModal({
                           onClick={() => setBgPosition(pos)}
                           style={{ padding: '4px 14px', borderRadius: 6, border: `1px solid ${bgPosition === pos ? 'var(--sv-action)' : 'var(--sv-etch)'}`, background: bgPosition === pos ? 'rgba(255,255,255,.08)' : 'var(--sv-bg-2)', color: bgPosition === pos ? 'var(--sv-action)' : 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 12, fontWeight: bgPosition === pos ? 700 : 500 }}
                         >{pos.charAt(0).toUpperCase() + pos.slice(1)}</button>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <label style={{ fontSize: 13, color: 'var(--sv-text-main)', flexShrink: 0 }}>Size</label>
+                      {(['fit', 'original'] as const).map(s => (
+                        <button
+                          key={s}
+                          onClick={() => setBgScale(s)}
+                          style={{ padding: '4px 14px', borderRadius: 6, border: `1px solid ${bgScale === s ? 'var(--sv-action)' : 'var(--sv-etch)'}`, background: bgScale === s ? 'rgba(255,255,255,.08)' : 'var(--sv-bg-2)', color: bgScale === s ? 'var(--sv-action)' : 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 12, fontWeight: bgScale === s ? 700 : 500 }}
+                        >{s === 'fit' ? 'Scale to fit' : 'Original size'}</button>
                       ))}
                     </div>
                   </div>
@@ -1696,7 +1708,7 @@ function MainPos({
       <div style={{ flex: 1, display: 'flex', flexDirection: cartLeft ? 'row-reverse' : 'row', overflow: 'hidden' }}>
         {/* Product Panel — only render once defaultView is known to avoid flash */}
         {defaultView !== null ? (
-          <ProductPanel products={products} onAdd={addToCart} defaultView={defaultView} focusScanTick={scanFocusTick} bgImage={posSettings.bgImage ?? ''} bgOpacity={posSettings.bgOpacity ?? 10} bgPosition={posSettings.bgPosition ?? 'center'} cartLeft={cartLeft} onChargeEnter={() => { if (cart.length && !showPayment && !mustOpenRegister) setShowPayment(true); }} />
+          <ProductPanel products={products} onAdd={addToCart} defaultView={defaultView} focusScanTick={scanFocusTick} bgImage={posSettings.bgImage ?? ''} bgOpacity={posSettings.bgOpacity ?? 10} bgPosition={posSettings.bgPosition ?? 'center'} bgScale={posSettings.bgScale ?? 'fit'} cartLeft={cartLeft} onChargeEnter={() => { if (cart.length && !showPayment && !mustOpenRegister) setShowPayment(true); }} />
         ) : (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontSize: '.9rem' }}>Loading products…</div>
         )}
@@ -2362,7 +2374,7 @@ function PosStockModal({ variantId, productName, onClose }: { variantId: string;
 
 // ─── Product Panel ────────────────────────────────────────────────────────────
 
-function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', focusScanTick = 0, bgImage = '', bgOpacity = 10, bgPosition = 'center', cartLeft = false }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; onChargeEnter?: () => void; defaultView?: string; focusScanTick?: number; bgImage?: string; bgOpacity?: number; bgPosition?: 'center' | 'bottom'; cartLeft?: boolean }) {
+function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', focusScanTick = 0, bgImage = '', bgOpacity = 10, bgPosition = 'center', bgScale = 'fit', cartLeft = false }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; onChargeEnter?: () => void; defaultView?: string; focusScanTick?: number; bgImage?: string; bgOpacity?: number; bgPosition?: 'center' | 'bottom'; bgScale?: 'fit' | 'original'; cartLeft?: boolean }) {
   const [search, setSearch]             = useState('');
   const [brand, setBrand]               = useState(() => defaultView.startsWith('brand:') ? defaultView.slice(6) : '');
   const [inStockOnly, setInStockOnly]   = useState(() => defaultView === 'in_stock');
@@ -2658,7 +2670,7 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
       <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
         {/* Background image — sits behind the scrollable grid */}
         {bgImage && (
-          <img src={bgImage} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'scale-down', objectPosition: bgPosition === 'bottom' ? 'center bottom' : 'center center', opacity: bgOpacity / 100, pointerEvents: 'none', zIndex: 0 }} />
+          <img src={bgImage} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: bgScale === 'original' ? 'none' : 'contain', objectPosition: bgPosition === 'bottom' ? 'center bottom' : 'center center', opacity: bgOpacity / 100, pointerEvents: 'none', zIndex: 0 }} />
         )}
         <div style={{ position: 'relative', zIndex: 1, overflow: 'auto', height: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px,1fr))', gap: '.6rem', padding: '.75rem', alignContent: 'start' }}>
         {filtered.map(p => {
