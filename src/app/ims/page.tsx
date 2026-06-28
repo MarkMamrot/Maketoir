@@ -574,37 +574,77 @@ function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
             ) : !(salesData?.channelData?.length) ? (
               <div style={{ padding: 20, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13,
                 background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>No sales in this period.</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {(['pos', 'wholesale', 'online'] as const).map(ch => {
-                  const chRows: any[] = (salesData.channelData as any[]).filter((d: any) => d.channel === ch);
-                  if (!chRows.length) return null;
-                  const chTotal = chRows.reduce((s: number, r: any) => s + Number(r.total), 0);
-                  const chOrders = chRows.reduce((s: number, r: any) => s + Number(r.order_count), 0);
-                  const maxLoc = Math.max(...chRows.map((r: any) => Number(r.total)));
-                  const chColor = ch === 'pos' ? 'var(--sv-action)' : ch === 'wholesale' ? 'var(--sv-amber)' : '#818cf8';
-                  const chLabel = ch === 'pos' ? 'POS' : ch === 'wholesale' ? 'Wholesale' : 'Online';
-                  return (
-                    <div key={ch} style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: chColor, textTransform: 'uppercase', letterSpacing: .8 }}>{chLabel}</span>
-                        <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>{fmtCurrency(chTotal)} &middot; {chOrders} order{chOrders !== 1 ? 's' : ''}</span>
+            ) : (() => {
+              const CD = salesData.channelData as any[];
+              const CH_COLOR: Record<string, string> = { pos: '#5ab5bc', wholesale: '#f59e0b', online: '#818cf8' };
+              const CH_LABEL: Record<string, string> = { pos: 'POS', wholesale: 'Wholesale', online: 'Online' };
+              const activeChannels = (['pos','wholesale','online'] as const).filter(ch => CD.some((d: any) => d.channel === ch));
+              const locations = [...new Set(CD.map((d: any) => d.location_name as string))];
+              const getVal = (ch: string, loc: string) => Number(CD.find((d: any) => d.channel === ch && d.location_name === loc)?.total ?? 0);
+              const getOrd = (ch: string, loc: string) => Number(CD.find((d: any) => d.channel === ch && d.location_name === loc)?.order_count ?? 0);
+
+              const rawMax = Math.max(...CD.map((d: any) => Number(d.total)));
+              const niceMax = (v: number) => { if (v <= 0) return 1000; const m = Math.pow(10, Math.floor(Math.log10(v))); for (const x of [1,2,5,10]) { if (m*x >= v) return m*x; } return m*10; };
+              const yMax = niceMax(rawMax);
+              const yTicks = [0,1,2,3,4].map(i => Math.round((i/4) * yMax));
+
+              const VW=700, VH=300, PL=72, PR=16, PT=20, PB=56;
+              const plotW=VW-PL-PR, plotH=VH-PT-PB;
+              const nLoc=locations.length, nCh=activeChannels.length;
+              const groupW=plotW/nLoc;
+              const slotW=Math.min(44, Math.max(12, (groupW*0.78)/nCh));
+              const barW=Math.max(8, slotW-3);
+              const groupOffset=(groupW - slotW*nCh)/2;
+              const xBar=(li:number,ci:number) => PL + li*groupW + groupOffset + ci*slotW + 1.5;
+              const yVal=(v:number) => PT + plotH - (v/yMax)*plotH;
+              const hVal=(v:number) => (v/yMax)*plotH;
+              const fmtY=(v:number) => v>=1000000?`$${(v/1000000).toFixed(1)}M`:v>=1000?`$${(v/1000).toFixed(0)}k`:`$${v}`;
+              const trunc=(s:string,n=13) => s.length>n ? s.slice(0,n)+'…' : s;
+
+              return (
+                <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px 8px' }}>
+                  <div style={{ display: 'flex', gap: 16, marginBottom: 8, justifyContent: 'flex-end' }}>
+                    {activeChannels.map(ch => (
+                      <div key={ch} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--sv-text-dim)' }}>
+                        <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: CH_COLOR[ch] }} />
+                        {CH_LABEL[ch]}
                       </div>
-                      {[...chRows].sort((a: any, b: any) => Number(b.total) - Number(a.total)).map((row: any) => (
-                        <div key={row.location_name} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 5 }}>
-                          <div style={{ width: 120, fontSize: 12, color: 'var(--sv-text-dim)', textAlign: 'right', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.location_name}</div>
-                          <div style={{ flex: 1, height: 20, background: 'var(--sv-bg-1)', borderRadius: 3, overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${Math.max(2, (Number(row.total) / maxLoc) * 100)}%`, background: chColor, borderRadius: 3, opacity: .8, transition: 'width .4s ease' }} />
-                          </div>
-                          <div style={{ width: 84, fontSize: 12, color: 'var(--sv-text-main)', textAlign: 'right', flexShrink: 0 }}>{fmtCurrency(Number(row.total))}</div>
-                          <div style={{ width: 52, fontSize: 11, color: 'var(--sv-text-dim)', textAlign: 'right', flexShrink: 0 }}>{row.order_count} ord</div>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                    ))}
+                  </div>
+                  <svg viewBox={`0 0 ${VW} ${VH}`} style={{ width: '100%', display: 'block', overflow: 'visible' }}>
+                    {yTicks.map(tick => {
+                      const y = yVal(tick);
+                      return (
+                        <g key={tick}>
+                          <line x1={PL} y1={y} x2={VW-PR} y2={y} stroke="currentColor" strokeOpacity="0.1" strokeDasharray={tick===0?undefined:'4,3'} />
+                          <text x={PL-7} y={y+4} textAnchor="end" fontSize="10" fill="currentColor" fillOpacity="0.4">{fmtY(tick)}</text>
+                        </g>
+                      );
+                    })}
+                    <line x1={PL} y1={PT+plotH} x2={VW-PR} y2={PT+plotH} stroke="currentColor" strokeOpacity="0.15" />
+                    {locations.map((loc, li) => (
+                      <g key={loc}>
+                        {activeChannels.map((ch, ci) => {
+                          const v = getVal(ch, loc);
+                          if (v === 0) return null;
+                          const x=xBar(li,ci), y=yVal(v), h=hVal(v);
+                          return (
+                            <g key={ch}>
+                              <rect x={x} y={y} width={barW} height={h} fill={CH_COLOR[ch]} rx="3" opacity="0.85" />
+                              {h>24 && barW>14 && (
+                                <text x={x+barW/2} y={y-5} textAnchor="middle" fontSize="9" fill="currentColor" fillOpacity="0.55">{fmtY(v)}</text>
+                              )}
+                              <title>{`${CH_LABEL[ch]} — ${loc}\n${fmtCurrency(v)} · ${getOrd(ch,loc)} orders`}</title>
+                            </g>
+                          );
+                        })}
+                        <text x={PL+li*groupW+groupW/2} y={PT+plotH+18} textAnchor="middle" fontSize="11" fill="currentColor" fillOpacity="0.5">{trunc(loc)}</text>
+                      </g>
+                    ))}
+                  </svg>
+                </div>
+              );
+            })()}
           </div>
 
           {/* ── Recent POS Sales ── */}
