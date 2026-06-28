@@ -63,7 +63,7 @@ async function refreshVariantAvgCost(conn: any, variantId: string): Promise<void
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ContactType = 'supplier' | 'customer' | 'both';
-export type POStatus    = 'draft' | 'confirmed' | 'partially_received' | 'received' | 'cancelled';
+export type POStatus    = 'draft' | 'confirmed' | 'partially_received' | 'complete' | 'cancelled';
 export type SOStatus    = 'draft' | 'confirmed' | 'fulfilled' | 'cancelled';
 
 export interface ImsContact {

@@ -105,7 +105,7 @@ async function runMigrations(): Promise<void> {
 }
 
 type SOStatus = 'draft' | 'confirmed' | 'fulfilled' | 'cancelled';
-type POStatus = 'draft' | 'ordered' | 'received' | 'cancelled';
+type POStatus = 'draft' | 'ordered' | 'complete' | 'cancelled';
 
 function cinSoStageToIms(stage: string, cin7Status?: string): { status: SOStatus; isHistorical: number } {
   const apiStatus = (cin7Status ?? '').toUpperCase();
@@ -121,7 +121,7 @@ function cinPoStageToIms(stage: string): { status: POStatus; isHistorical: numbe
   const s = (stage ?? '').toLowerCase().trim();
   if (/^draft/.test(s)) return { status: 'draft', isHistorical: 0 };
   if (/void|cancel/.test(s)) return { status: 'cancelled', isHistorical: 1 };
-  if (/\breceived\b|\bcomplete\b/.test(s)) return { status: 'received', isHistorical: 1 };
+  if (/\breceived\b|\bcomplete\b/.test(s)) return { status: 'complete', isHistorical: 1 };
   return { status: 'ordered', isHistorical: 0 };
 }
 
@@ -998,7 +998,7 @@ export async function POST(req: Request) {
             const orderDate = String(po.createdDate ?? po.orderDate ?? '').slice(0, 10) || new Date().toISOString().slice(0, 10);
             const rawExpected = po.deliveryDate ?? po.dueDate ?? '';
             const expectedDate = rawExpected ? String(rawExpected).slice(0, 10) : null;
-            const receivedDate = poStatus === 'received' ? (expectedDate || orderDate) : null;
+            const receivedDate = poStatus === 'complete' ? (expectedDate || orderDate) : null;
             const paymentTerms = po.paymentTerms ?? po.terms ?? null;
             const supplierInvoiceNumber = po.supplierInvoiceNumber ?? po.invoiceNumber ?? null;
             const poLines: any[] = Array.isArray(po.lineItems) ? po.lineItems : [];
@@ -1072,7 +1072,7 @@ export async function POST(req: Request) {
                   `INSERT INTO ims_purchase_order_items
                      (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, notes)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                  [poInsertId, poItemVariantId, qty, poStatus === 'received' ? qty : 0,
+                  [poInsertId, poItemVariantId, qty, poStatus === 'complete' ? qty : 0,
                    unitCost, lineDiscount, lineItemTaxRate, lineTotal, line.name || null],
                 );
               } catch { /* skip if variant not in catalog */ }

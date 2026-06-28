@@ -4147,6 +4147,13 @@ function PurchaseOrdersView() {
 }
 
 function POActions({ po, onEdit, onReceive, onDelete, onStatus, context = 'list' }: { po: any; onEdit: () => void; onReceive?: () => void; onDelete: () => void; onStatus: (po: any, s: string) => void; context?: 'list' | 'view' }) {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 1024);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
   const isOpeningSnapshot =
     po?.po_category === 'opening_stock' ||
     po?.category === 'opening_stock' ||
@@ -4158,10 +4165,10 @@ function POActions({ po, onEdit, onReceive, onDelete, onStatus, context = 'list'
   }
   const btns = [];
   if (po.status === 'draft')    { btns.push(<button key="a" onClick={() => onStatus(po, 'confirmed')}  style={btnStyle('mint', 'xs')}>Confirm</button>); }
-  if (po.status === 'confirmed' && context !== 'list') { btns.push(<a key="p" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 Smart Device Receive</a>); }
+  if (isMobile && po.status === 'confirmed' && context !== 'list') { btns.push(<a key="p" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 Smart Device Receive</a>); }
   if (po.status === 'confirmed' && context === 'view') { btns.push(<button key="r" onClick={() => onStatus(po, 'complete')}  style={btnStyle('mint', 'xs')}>Mark Complete</button>); }
   if (po.status === 'confirmed' && context !== 'list') { btns.push(<button key="b" onClick={() => onStatus(po, 'draft')}     style={btnStyle('ghost', 'xs')}>Revert</button>); }
-  if (po.status === 'partially_received') { btns.push(<a key="pr" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 {context === 'view' ? 'Continue Receiving' : 'Continue'}</a>); }
+  if (isMobile && po.status === 'partially_received') { btns.push(<a key="pr" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 {context === 'view' ? 'Continue Receiving' : 'Continue'}</a>); }
   if (po.status === 'partially_received') { btns.push(<button key="prr" onClick={() => onStatus(po, 'complete')} style={btnStyle('mint', 'xs')}>Mark Complete</button>); }
   if (po.status === 'partially_received' && context !== 'list') { btns.push(<button key="prb" onClick={() => onStatus(po, 'confirmed')} style={btnStyle('ghost', 'xs')}>Revert to Confirmed</button>); }
   if (po.status === 'complete') {

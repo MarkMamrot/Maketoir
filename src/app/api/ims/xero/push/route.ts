@@ -27,7 +27,7 @@ export async function POST(req: Request) {
       // Determine current PO status so we know which sync to run
       const rows = await imsQuery<{ status: string }>(`SELECT status FROM ims_purchase_orders WHERE id = ?`, [id]);
       const status = rows[0]?.status ?? 'confirmed';
-      const syncStatus = status === 'received' ? 'received' : 'confirmed';
+      const syncStatus = status === 'complete' ? 'complete' : 'confirmed';
       await triggerPOXeroSync(businessId, id, syncStatus);
     } else {
       await triggerSOXeroSync(businessId, id, 'confirmed');

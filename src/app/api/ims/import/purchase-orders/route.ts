@@ -4,11 +4,11 @@ import { getImportSession, makeSSEStream } from '../_helpers';
 
 const MONTHS_BACK = 36;
 
-function mapStatus(status: string, stage: string): 'draft' | 'ordered' | 'received' | 'cancelled' {
+function mapStatus(status: string, stage: string): 'draft' | 'ordered' | 'complete' | 'cancelled' {
   const s = (status ?? '').toUpperCase();
   const g = (stage  ?? '').toLowerCase();
   if (s === 'CANCELLED') return 'cancelled';
-  if (g.includes('fully received')) return 'received';
+  if (g.includes('fully received')) return 'complete';
   if (s === 'DRAFT') return 'draft';
   return 'ordered';
 }
@@ -159,7 +159,7 @@ export async function POST() {
           const unitCost    = Number(line.unitPrice ?? 0);
           const lineDiscount = Number(line.discount ?? 0);
           const lineTotal   = Math.round(qty * unitCost * (1 - lineDiscount / 100) * 10000) / 10000;
-          const qtyReceived = existingStatus === 'received' ? qty : 0;
+          const qtyReceived = existingStatus === 'complete' ? qty : 0;
           const nameRaw     = (line.name ?? line.description ?? null) as string | null;
           const skuRaw      = (line.code ?? null) as string | null;
           await imsExecute(
@@ -213,7 +213,7 @@ export async function POST() {
         const unitCost   = Number(line.unitPrice ?? 0);
         const lineDiscount = Number(line.discount ?? 0);
         const lineTotal  = Math.round(qty * unitCost * (1 - lineDiscount / 100) * 10000) / 10000;
-        const qtyReceived = status === 'received' ? qty : 0;
+        const qtyReceived = status === 'complete' ? qty : 0;
         const nameRaw    = (line.name ?? line.description ?? null) as string | null;
         const skuRaw     = (line.code ?? null) as string | null;
 
