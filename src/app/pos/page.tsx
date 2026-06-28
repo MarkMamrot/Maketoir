@@ -724,7 +724,12 @@ function compressImage(file: File, maxDim = 1200, quality = 0.82): Promise<strin
         canvas.width = w; canvas.height = h;
         const ctx = canvas.getContext('2d')!;
         ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', quality));
+        // Preserve transparency: use JPEG only for JPEG sources; WebP (with PNG fallback) otherwise
+        const isJpeg = file.type === 'image/jpeg' || file.type === 'image/jpg';
+        const fmt = isJpeg ? 'image/jpeg' : 'image/webp';
+        const out = canvas.toDataURL(fmt, quality);
+        // Some browsers don't support WebP encoding and silently return PNG — both are fine
+        resolve(out);
       };
       img.onerror = reject;
       img.src = ev.target!.result as string;
