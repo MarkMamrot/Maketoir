@@ -114,8 +114,8 @@ export async function POST(req: Request) {
         const oldAvgCost = currentStock?.avg_cost ?? 0;
         await conn.execute(
           `INSERT INTO ims_stock_movements
-           (variant_id, location_id, movement_type, reference_type, reference_id, qty_change, qty_after_soh, unit_cost)
-           VALUES (?, ?, 'po_received', 'purchase_order', ?, ?, ?, ?)`,
+           (variant_id, location_id, movement_type, channel, reference_type, reference_id, qty_change, qty_after_soh, unit_cost)
+           VALUES (?, ?, 'po_received', NULL, 'purchase_order', ?, ?, ?, ?)`,
           [variant_id, location_id, po_id, qty_received, newQty, oldAvgCost]
         );
 

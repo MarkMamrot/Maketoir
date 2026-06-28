@@ -80,6 +80,7 @@ export interface ImsLocation {
   id: number; name: string; code?: string; address?: string;
   city?: string; state?: string; postcode?: string; country?: string;
   cin7_branch_id?: number; pos_pin?: string;
+  has_pos?: number; has_wholesale?: number; has_online?: number;
   is_active: number; created_at?: string; updated_at?: string;
 }
 
@@ -333,16 +334,17 @@ export const ImsLocationsRepo = {
 
   async create(data: Omit<ImsLocation, 'id' | 'created_at' | 'updated_at'>, businessId?: string): Promise<number> {
     const res = await imsExecute(
-      `INSERT INTO ims_locations (business_id,name,code,address,city,state,postcode,country,is_active,cin7_branch_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO ims_locations (business_id,name,code,address,city,state,postcode,country,is_active,cin7_branch_id,has_pos,has_wholesale,has_online)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [businessId ?? '', data.name, data.code, data.address, data.city, data.state,
-       data.postcode, data.country, data.is_active ?? 1, data.cin7_branch_id ?? null]
+       data.postcode, data.country, data.is_active ?? 1, data.cin7_branch_id ?? null,
+       data.has_pos ?? 0, data.has_wholesale ?? 0, data.has_online ?? 0]
     );
     return res.insertId;
   },
 
   async update(id: number, data: Partial<ImsLocation>): Promise<void> {
-    const fields = ['name','code','address','city','state','postcode','country','is_active','cin7_branch_id','pos_pin'];
+    const fields = ['name','code','address','city','state','postcode','country','is_active','cin7_branch_id','pos_pin','has_pos','has_wholesale','has_online'];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of fields) {
@@ -1687,9 +1689,9 @@ export const ImsSORepo = {
           );
           await conn.execute(
             `INSERT INTO ims_stock_movements
-               (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh)
-             VALUES (?,?,'so_confirmed','sales_order',?,?,?)`,
-            [item.variant_id, so.location_id, id, 0, s?.qty_on_hand ?? 0]
+               (variant_id,location_id,movement_type,channel,reference_type,reference_id,qty_change,qty_after_soh)
+             VALUES (?,?,'so_confirmed',?,'sales_order',?,?,?)`,
+            [item.variant_id, so.location_id, so.so_type === 'online' ? 'online' : 'wholesale', id, 0, s?.qty_on_hand ?? 0]
           );
         }
       }
@@ -1708,9 +1710,9 @@ export const ImsSORepo = {
           );
           await conn.execute(
             `INSERT INTO ims_stock_movements
-               (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh)
-             VALUES (?,?,'so_unconfirmed','sales_order',?,?,?)`,
-            [item.variant_id, so.location_id, id, 0, s?.qty_on_hand ?? 0]
+               (variant_id,location_id,movement_type,channel,reference_type,reference_id,qty_change,qty_after_soh)
+             VALUES (?,?,'so_unconfirmed',?,'sales_order',?,?,?)`,
+            [item.variant_id, so.location_id, so.so_type === 'online' ? 'online' : 'wholesale', id, 0, s?.qty_on_hand ?? 0]
           );
         }
       }
@@ -1744,9 +1746,9 @@ export const ImsSORepo = {
           );
           await conn.execute(
             `INSERT INTO ims_stock_movements
-               (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
-             VALUES (?,?,'so_fulfilled','sales_order',?,?,?,?)`,
-            [item.variant_id, so.location_id, id, -qty, new_soh, avg_cost]
+               (variant_id,location_id,movement_type,channel,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
+             VALUES (?,?,'so_fulfilled',?,'sales_order',?,?,?,?)`,
+            [item.variant_id, so.location_id, so.so_type === 'online' ? 'online' : 'wholesale', id, -qty, new_soh, avg_cost]
           );
         }
         await conn.execute(
@@ -1808,6 +1810,22 @@ export const ImsDashboardRepo = {
     const [lowStock] = await imsQuery<{ cnt: number }>(
       `SELECT COUNT(*) AS cnt FROM ims_stock WHERE qty_on_hand <= min_qty AND min_qty > 0 ${businessId ? 'AND business_id = ?' : ''}`, p
     );
+    const [soh] = await imsQuery<{ stock_value: number; stock_item_count: number }>(
+      `SELECT COALESCE(SUM(CASE WHEN qty_on_hand > 0 THEN qty_on_hand * avg_cost ELSE 0 END), 0) AS stock_value,
+              COUNT(CASE WHEN qty_on_hand > 0 THEN 1 END) AS stock_item_count
+       FROM ims_stock
+       ${businessId ? 'WHERE business_id = ?' : ''}`, p
+    );
+    const openRegisters = await imsQuery<{ register_name: string; location_name: string; opened_at: string; opened_by: string; session_date: string }>(
+      `SELECT pr.name AS register_name, l.name AS location_name,
+              prs.opened_at, prs.opened_by, prs.session_date
+       FROM pos_register_sessions prs
+       JOIN pos_registers pr ON pr.id = prs.register_id
+       JOIN ims_locations l ON l.id = prs.location_id
+       WHERE prs.status = 'open'
+       ${businessId ? 'AND l.business_id = ?' : ''}
+       ORDER BY prs.opened_at ASC`, p
+    );
     const recentPOs = await imsQuery<ImsPO>(
       `SELECT po.*, COALESCE(c.name, po.supplier_name_raw) AS supplier_name, l.name AS location_name
        FROM ims_purchase_orders po
@@ -1825,12 +1843,15 @@ export const ImsDashboardRepo = {
        ORDER BY so.created_at DESC LIMIT 5`, p
     );
     return {
-      products:  products?.cnt  ?? 0,
-      variants:  variants?.cnt  ?? 0,
-      locations: locations?.cnt ?? 0,
-      openPOs:   openPOs?.cnt   ?? 0,
-      openSOs:   openSOs?.cnt   ?? 0,
-      lowStock:  lowStock?.cnt  ?? 0,
+      products:       products?.cnt  ?? 0,
+      variants:       variants?.cnt  ?? 0,
+      locations:      locations?.cnt ?? 0,
+      openPOs:        openPOs?.cnt   ?? 0,
+      openSOs:        openSOs?.cnt   ?? 0,
+      lowStock:       lowStock?.cnt  ?? 0,
+      stockValue:     Number(soh?.stock_value     ?? 0),
+      stockItemCount: Number(soh?.stock_item_count ?? 0),
+      openRegisters,
       recentPOs,
       recentSOs,
     };

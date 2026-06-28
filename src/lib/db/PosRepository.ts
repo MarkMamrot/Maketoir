@@ -312,9 +312,9 @@ export const PosSalesRepo = {
 
           await conn.execute(
             `INSERT INTO ims_stock_movements
-               (variant_id, location_id, movement_type, reference_type, reference_id,
+               (variant_id, location_id, movement_type, channel, reference_type, reference_id,
                 qty_change, qty_after_soh)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+             VALUES (?, ?, ?, 'pos', ?, ?, ?, ?)`,
             [item.variant_id, data.location_id, 'pos_sale', 'pos_sale', saleId, qtyChange, newSoh],
           );
         }

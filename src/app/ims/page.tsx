@@ -457,6 +457,9 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
 function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [days, setDays] = useState(1);
+  const [salesData, setSalesData] = useState<any>(null);
+  const [salesLoading, setSalesLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
@@ -465,13 +468,23 @@ function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
     }).finally(() => setLoading(false));
   }, []);
 
-  const stats = [
-    { label: 'Products',       value: data?.products  ?? 0, color: 'var(--sv-action)',  nav: 'products' as ImsView },
-    { label: 'Variants',       value: data?.variants  ?? 0, color: 'var(--sv-action)',  nav: 'products' as ImsView },
-    { label: 'Locations',      value: data?.locations ?? 0, color: 'var(--sv-mint)',    nav: 'locations' as ImsView },
-    { label: 'Open POs',       value: data?.openPOs   ?? 0, color: 'var(--sv-amber)',   nav: 'purchase-orders' as ImsView },
-    { label: 'Open SOs',       value: data?.openSOs   ?? 0, color: '#818cf8',           nav: 'sales-orders' as ImsView },
-    { label: 'Low Stock',      value: data?.lowStock  ?? 0, color: 'var(--sv-red)',     nav: 'stock' as ImsView },
+  useEffect(() => {
+    setSalesLoading(true);
+    fetch(`/api/ims/dashboard/sales?days=${days}`).then(r => r.json()).then(d => {
+      if (d.success) setSalesData(d);
+    }).finally(() => setSalesLoading(false));
+  }, [days]);
+
+  const fmtCompact = (n: number) => n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `$${(n / 1_000).toFixed(1)}K` : fmtCurrency(n);
+  const stats: { label: string; value?: number; display?: React.ReactNode; color: string; nav: ImsView }[] = [
+    { label: 'Products',    value: data?.products  ?? 0,                          color: 'var(--sv-action)', nav: 'products' as ImsView },
+    { label: 'Variants',    value: data?.variants  ?? 0,                          color: 'var(--sv-action)', nav: 'products' as ImsView },
+    { label: 'Locations',   value: data?.locations ?? 0,                          color: 'var(--sv-mint)',   nav: 'locations' as ImsView },
+    { label: 'Open POs',    value: data?.openPOs   ?? 0,                          color: 'var(--sv-amber)',  nav: 'purchase-orders' as ImsView },
+    { label: 'Open SOs',    value: data?.openSOs   ?? 0,                          color: '#818cf8',          nav: 'sales-orders' as ImsView },
+    { label: 'Low Stock',   value: data?.lowStock  ?? 0,                          color: 'var(--sv-red)',    nav: 'stock' as ImsView },
+    { label: 'SOH Value',   display: fmtCompact(data?.stockValue ?? 0),           color: 'var(--sv-mint)',   nav: 'stock' as ImsView },
+    { label: 'Stocked SKUs',value: data?.stockItemCount ?? 0,                     color: 'var(--sv-mint)',   nav: 'stock' as ImsView },
   ];
 
   return (
@@ -485,7 +498,7 @@ function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
                 style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '18px 16px', textAlign: 'left', cursor: 'pointer', transition: 'border-color .15s' }}
                 onMouseEnter={e => (e.currentTarget.style.borderColor = s.color)}
                 onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--sv-etch)')}>
-                <div style={{ fontSize: 28, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.display ?? s.value}</div>
                 <div style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginTop: 4 }}>{s.label}</div>
               </button>
             ))}
@@ -504,6 +517,125 @@ function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
               { key: 'status',        label: 'Status', render: (v: string) => <StatusBadge status={v} /> },
               { key: 'total_amount',  label: 'Total', render: (v: number) => fmtCurrency(v) },
             ]} />
+          </div>
+
+          {/* Open Registers */}
+          <div style={{ marginTop: 24, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--sv-etch)', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: (data?.openRegisters ?? []).length > 0 ? 'var(--sv-mint)' : 'var(--sv-text-dim)' }} />
+              Open Registers
+              {(data?.openRegisters ?? []).length > 0 && (
+                <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--sv-text-dim)', marginLeft: 4 }}>{data.openRegisters.length} open</span>
+              )}
+            </div>
+            {(data?.openRegisters ?? []).length === 0 ? (
+              <div style={{ padding: 20, color: 'var(--sv-text-dim)', fontSize: 13 }}>No registers currently open.</div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    {['Register', 'Location', 'Opened At', 'Opened By'].map(h => (
+                      <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: .8 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(data.openRegisters as any[]).map((r, i) => (
+                    <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                      <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)', fontWeight: 600 }}>{r.register_name}</td>
+                      <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{r.location_name}</td>
+                      <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{r.opened_at ? new Date(r.opened_at).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' }) : '—'}</td>
+                      <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{r.opened_by || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* ── Sales by Channel ── */}
+          <div style={{ marginTop: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales by Channel</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {([1, 30, 120, 365] as const).map(d => (
+                  <button key={d} onClick={() => setDays(d)}
+                    style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, borderRadius: 6,
+                      border: `1px solid ${days === d ? 'var(--sv-action)' : 'var(--sv-etch)'}`,
+                      background: days === d ? 'var(--sv-action)' : 'transparent',
+                      color: days === d ? '#fff' : 'var(--sv-text-dim)', cursor: 'pointer', transition: 'all .15s' }}>
+                    {d === 1 ? 'Today' : d === 30 ? '30d' : d === 120 ? '120d' : '1yr'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {salesLoading ? (
+              <div style={{ padding: 32, textAlign: 'center' }}><Spinner /></div>
+            ) : !(salesData?.channelData?.length) ? (
+              <div style={{ padding: 20, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13,
+                background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>No sales in this period.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {(['pos', 'wholesale', 'online'] as const).map(ch => {
+                  const chRows: any[] = (salesData.channelData as any[]).filter((d: any) => d.channel === ch);
+                  if (!chRows.length) return null;
+                  const chTotal = chRows.reduce((s: number, r: any) => s + Number(r.total), 0);
+                  const chOrders = chRows.reduce((s: number, r: any) => s + Number(r.order_count), 0);
+                  const maxLoc = Math.max(...chRows.map((r: any) => Number(r.total)));
+                  const chColor = ch === 'pos' ? 'var(--sv-action)' : ch === 'wholesale' ? 'var(--sv-amber)' : '#818cf8';
+                  const chLabel = ch === 'pos' ? 'POS' : ch === 'wholesale' ? 'Wholesale' : 'Online';
+                  return (
+                    <div key={ch} style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: chColor, textTransform: 'uppercase', letterSpacing: .8 }}>{chLabel}</span>
+                        <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>{fmtCurrency(chTotal)} &middot; {chOrders} order{chOrders !== 1 ? 's' : ''}</span>
+                      </div>
+                      {[...chRows].sort((a: any, b: any) => Number(b.total) - Number(a.total)).map((row: any) => (
+                        <div key={row.location_name} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 5 }}>
+                          <div style={{ width: 120, fontSize: 12, color: 'var(--sv-text-dim)', textAlign: 'right', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.location_name}</div>
+                          <div style={{ flex: 1, height: 20, background: 'var(--sv-bg-1)', borderRadius: 3, overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${Math.max(2, (Number(row.total) / maxLoc) * 100)}%`, background: chColor, borderRadius: 3, opacity: .8, transition: 'width .4s ease' }} />
+                          </div>
+                          <div style={{ width: 84, fontSize: 12, color: 'var(--sv-text-main)', textAlign: 'right', flexShrink: 0 }}>{fmtCurrency(Number(row.total))}</div>
+                          <div style={{ width: 52, fontSize: 11, color: 'var(--sv-text-dim)', textAlign: 'right', flexShrink: 0 }}>{row.order_count} ord</div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* ── Recent POS Sales ── */}
+          <div style={{ marginTop: 24, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--sv-etch)', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Recent POS Sales</div>
+            {salesLoading ? (
+              <div style={{ padding: 20, textAlign: 'center' }}><Spinner /></div>
+            ) : !(salesData?.recentPOS?.length) ? (
+              <div style={{ padding: 20, color: 'var(--sv-text-dim)', fontSize: 13 }}>No POS sales yet.</div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>{['Time', 'Location', 'Cashier', 'Customer', 'Type', 'Total'].map(h => (
+                    <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: .8 }}>{h}</th>
+                  ))}</tr>
+                </thead>
+                <tbody>
+                  {(salesData.recentPOS as any[]).map((s: any, i: number) => (
+                    <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                      <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{new Date(s.created_at).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                      <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{s.location_name}</td>
+                      <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{s.cashier_name || '—'}</td>
+                      <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{s.customer_name || '—'}</td>
+                      <td style={{ padding: '8px 12px' }}><StatusBadge status={s.sale_type} /></td>
+                      <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 600, textAlign: 'right',
+                        color: s.sale_type === 'return' ? 'var(--sv-red)' : 'var(--sv-text-main)' }}>{fmtCurrency(Number(s.total))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </>
       )}
@@ -712,7 +844,7 @@ function ContactsView() {
 // Locations View
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BLANK_LOC = { name: '', code: '', address: '', city: '', state: '', postcode: '', country: 'Australia', is_active: 1, pos_pin: '' };
+const BLANK_LOC = { name: '', code: '', address: '', city: '', state: '', postcode: '', country: 'Australia', is_active: 1, pos_pin: '', has_pos: 0, has_wholesale: 0, has_online: 0 };
 
 function LocationRegistersPanel({ locationId, locationName, onClose }: { locationId: number; locationName: string; onClose: () => void }) {
   const [registers, setRegisters] = useState<any[]>([]);
@@ -931,6 +1063,20 @@ function LocationsView() {
             <Field label="POS Setup PIN" >
               <input value={form.pos_pin ?? ''} onChange={sf('pos_pin')} style={inputStyle} placeholder="Leave blank for no PIN requirement" maxLength={20} />
               <p style={{ margin: '4px 0 0', fontSize: '.75rem', color: 'var(--sv-text-dim)' }}>Cashiers must enter this PIN when setting up a new POS register for this location.</p>
+            </Field>
+            <Field label="Enabled Channels">
+              <div style={{ display: 'flex', gap: '1.5rem', paddingTop: 4 }}>
+                {[{ key: 'has_pos', label: 'POS' }, { key: 'has_wholesale', label: 'Wholesale' }, { key: 'has_online', label: 'Online' }].map(ch => (
+                  <label key={ch.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.88rem', color: 'var(--sv-text-main)', cursor: 'pointer' }}>
+                    <input type="checkbox"
+                      checked={!!(form as any)[ch.key]}
+                      onChange={e => setForm(f => ({ ...f, [ch.key]: e.target.checked ? 1 : 0 }))}
+                      style={{ width: 15, height: 15, accentColor: 'var(--sv-action)' }} />
+                    {ch.label}
+                  </label>
+                ))}
+              </div>
+              <p style={{ margin: '4px 0 0', fontSize: '.75rem', color: 'var(--sv-text-dim)' }}>Which sales channels are active at this location.</p>
             </Field>
             <FormActions onCancel={() => setModal({ open: false, edit: null })} saving={saving} isEdit={!!modal.edit} />
           </form>
