@@ -504,21 +504,6 @@ function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
             ))}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-            <RecentTable title="Recent Purchase Orders" rows={data?.recentPOs ?? []} columns={[
-              { key: 'po_number',     label: 'PO #'        },
-              { key: 'supplier_name', label: 'Supplier'    },
-              { key: 'status',        label: 'Status', render: (v: string) => <StatusBadge status={v} /> },
-              { key: 'total_amount',  label: 'Total', render: (v: number) => fmtCurrency(v) },
-            ]} />
-            <RecentTable title="Recent Sales Orders" rows={data?.recentSOs ?? []} columns={[
-              { key: 'so_number',     label: 'SO #'        },
-              { key: 'customer_name', label: 'Customer'    },
-              { key: 'status',        label: 'Status', render: (v: string) => <StatusBadge status={v} /> },
-              { key: 'total_amount',  label: 'Total', render: (v: number) => fmtCurrency(v) },
-            ]} />
-          </div>
-
           {/* Open Registers */}
           <div style={{ marginTop: 24, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
             <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--sv-etch)', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -647,35 +632,49 @@ function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
             })()}
           </div>
 
-          {/* ── Recent POS Sales ── */}
-          <div style={{ marginTop: 24, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
-            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--sv-etch)', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Recent POS Sales</div>
-            {salesLoading ? (
-              <div style={{ padding: 20, textAlign: 'center' }}><Spinner /></div>
-            ) : !(salesData?.recentPOS?.length) ? (
-              <div style={{ padding: 20, color: 'var(--sv-text-dim)', fontSize: 13 }}>No POS sales yet.</div>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr>{['Time', 'Location', 'Cashier', 'Customer', 'Type', 'Total'].map(h => (
-                    <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: .8 }}>{h}</th>
-                  ))}</tr>
-                </thead>
-                <tbody>
-                  {(salesData.recentPOS as any[]).map((s: any, i: number) => (
-                    <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                      <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{new Date(s.created_at).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' })}</td>
-                      <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{s.location_name}</td>
-                      <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{s.cashier_name || '—'}</td>
-                      <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{s.customer_name || '—'}</td>
-                      <td style={{ padding: '8px 12px' }}><StatusBadge status={s.sale_type} /></td>
-                      <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 600, textAlign: 'right',
-                        color: s.sale_type === 'return' ? 'var(--sv-red)' : 'var(--sv-text-main)' }}>{fmtCurrency(Number(s.total))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+          {/* ── Recent tables row: POs · SOs · POS Sales ── */}
+          <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 18, alignItems: 'start' }}>
+            <RecentTable title="Recent Purchase Orders" rows={data?.recentPOs ?? []} columns={[
+              { key: 'po_number',     label: 'PO #'        },
+              { key: 'supplier_name', label: 'Supplier'    },
+              { key: 'status',        label: 'Status', render: (v: string) => <StatusBadge status={v} /> },
+              { key: 'total_amount',  label: 'Total', render: (v: number) => fmtCurrency(v) },
+            ]} />
+            <RecentTable title="Recent Sales Orders" rows={data?.recentSOs ?? []} columns={[
+              { key: 'so_number',     label: 'SO #'        },
+              { key: 'customer_name', label: 'Customer'    },
+              { key: 'status',        label: 'Status', render: (v: string) => <StatusBadge status={v} /> },
+              { key: 'total_amount',  label: 'Total', render: (v: number) => fmtCurrency(v) },
+            ]} />
+            <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--sv-etch)', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Recent POS Sales</div>
+              {salesLoading ? (
+                <div style={{ padding: 20, textAlign: 'center' }}><Spinner /></div>
+              ) : !(salesData?.recentPOS?.length) ? (
+                <div style={{ padding: 20, color: 'var(--sv-text-dim)', fontSize: 13 }}>No POS sales yet.</div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>{['Time', 'Location', 'Cashier', 'Customer', 'Type', 'Total'].map(h => (
+                      <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: .8 }}>{h}</th>
+                    ))}</tr>
+                  </thead>
+                  <tbody>
+                    {(salesData.recentPOS as any[]).map((s: any, i: number) => (
+                      <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                        <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{new Date(s.created_at).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                        <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{s.location_name}</td>
+                        <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{s.cashier_name || '—'}</td>
+                        <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{s.customer_name || '—'}</td>
+                        <td style={{ padding: '8px 12px' }}><StatusBadge status={s.sale_type} /></td>
+                        <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 600, textAlign: 'right',
+                          color: s.sale_type === 'return' ? 'var(--sv-red)' : 'var(--sv-text-main)' }}>{fmtCurrency(Number(s.total))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
         </>
       )}
