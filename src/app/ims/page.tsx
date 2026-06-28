@@ -1851,7 +1851,7 @@ function ImportProductsModal({
 }
 
 
-function ProductsView() {
+function ProductsView({ onNavigateToPO, onNavigateToSO }: { onNavigateToPO?: (id: number) => void; onNavigateToSO?: (id: number) => void } = {}) {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
@@ -2433,6 +2433,8 @@ function ProductsView() {
           productId={stockHistoryModal.productId}
           productName={stockHistoryModal.productName}
           onClose={() => setStockHistoryModal(null)}
+          onNavigateToPO={onNavigateToPO}
+          onNavigateToSO={onNavigateToSO}
         />
       )}
 
@@ -2671,8 +2673,9 @@ type StockHistoryData = {
   };
 };
 
-function StockHistoryModal({ productId, productName, onClose }: {
+function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, onNavigateToSO }: {
   productId: string; productName: string; onClose: () => void;
+  onNavigateToPO?: (id: number) => void; onNavigateToSO?: (id: number) => void;
 }) {
   const [data, setData] = useState<StockHistoryData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -2742,6 +2745,16 @@ function StockHistoryModal({ productId, productName, onClose }: {
     if (m.pos_sale_local_id) return `POS ${m.pos_sale_local_id}`;
     if (m.notes) return m.notes;
     return '—';
+  };
+
+  const linkBtn: React.CSSProperties = { background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--sv-action)', textDecoration: 'underline', fontSize: 12, fontFamily: 'inherit', textAlign: 'left' };
+  const refLink = (m: any): React.ReactNode => {
+    const label = refLabel(m);
+    if (m.reference_type === 'purchase_order' && m.reference_id && onNavigateToPO)
+      return <button style={linkBtn} onClick={() => { onNavigateToPO(m.reference_id); onClose(); }}>{label}</button>;
+    if (m.reference_type === 'sales_order' && m.reference_id && onNavigateToSO)
+      return <button style={linkBtn} onClick={() => { onNavigateToSO(m.reference_id); onClose(); }}>{label}</button>;
+    return <span style={{ color: 'var(--sv-text-dim)' }}>{label}</span>;
   };
 
   const totalSoh = locationRows.reduce((s, r) => s + r.qty_on_hand, 0);
@@ -2881,7 +2894,7 @@ function StockHistoryModal({ productId, productName, onClose }: {
                           {m.is_online_order && m.movement_type === 'so_fulfilled' ? 'Online Order Fulfilled' : (movementLabel[m.movement_type] ?? m.movement_type)}
                         </span>
                       </td>
-                      <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>{refLabel(m)}</td>
+                      <td style={{ padding: '7px 12px', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>{refLink(m)}</td>
                       <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', fontSize: 12, whiteSpace: 'nowrap' }}>{m.location_name}</td>
                       {data.variants.length > 1 && <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', fontSize: 12 }}>{m.variant_label}</td>}
                       <td style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 700, color: movementColor(m.movement_type, Number(m.qty_change)) }}>
@@ -3108,7 +3121,7 @@ function StockView() {
 // Purchase Orders View
 // ─────────────────────────────────────────────────────────────────────────────
 
-function PurchaseOrdersView() {
+function PurchaseOrdersView({ pendingOpenId, onPendingHandled }: { pendingOpenId?: number | null; onPendingHandled?: () => void } = {}) {
   const [pos, setPos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -3255,6 +3268,9 @@ function PurchaseOrdersView() {
     setLcForm(null);
     setModal({ open: true, edit: null });
   };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (pendingOpenId) { openEdit({ id: pendingOpenId }, true); onPendingHandled?.(); } }, [pendingOpenId]);
 
   const openEdit = async (po: any, editOnly = false) => {
     const d = await apiFetch(`/api/ims/purchase-orders/${po.id}`);
@@ -4791,7 +4807,7 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
 // Sales Orders View
 // ─────────────────────────────────────────────────────────────────────────────
 
-function SalesOrdersView() {
+function SalesOrdersView({ pendingOpenId, onPendingHandled }: { pendingOpenId?: number | null; onPendingHandled?: () => void } = {}) {
   const [sos, setSos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -4871,6 +4887,9 @@ function SalesOrdersView() {
     setLineItems([{ variant_id: '', qty_ordered: 1, unit_price: 0, discount_pct: 0, tax_rate: defaultTaxRate, notes: '' }]);
     setModal({ open: true, edit: null });
   };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (pendingOpenId) { openEdit({ id: pendingOpenId }); onPendingHandled?.(); } }, [pendingOpenId]);
 
   const openEdit = async (so: any) => {
     const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);
@@ -9079,6 +9098,8 @@ export default function ImsPage() {
   const [salesMonthsInput, setSalesMonthsInput] = useState(6);
   const [poMonthsInput, setPoMonthsInput] = useState(60);
   const [xeroQueuedCount, setXeroQueuedCount] = useState(0);
+  const [pendingOpenPO, setPendingOpenPO] = useState<number | null>(null);
+  const [pendingOpenSO, setPendingOpenSO] = useState<number | null>(null);
 
   useEffect(() => {
     fetch('/api/ims/xero/queued').then(r => r.ok ? r.json() : { count: 0 }).then(d => setXeroQueuedCount(d.count ?? 0)).catch(() => {});
@@ -9339,13 +9360,13 @@ export default function ImsPage() {
         <Sidebar active={view} onSelect={(v) => { if (v === 'smart-device-receive') { window.open('/receive', '_blank'); return; } setView(v); }} />
         <main style={{ flex: 1, overflow: 'auto', padding: 28 }}>
           {view === 'dashboard'        && <DashboardView onNav={setView} />}
-          {view === 'products'         && <ProductsView />}
+          {view === 'products'         && <ProductsView onNavigateToPO={id => { setView('purchase-orders'); setPendingOpenPO(id); }} onNavigateToSO={id => { setView('sales-orders'); setPendingOpenSO(id); }} />}
           {view === 'stock'            && <StockView />}
           {view === 'bulk-edit'        && <BulkEditView />}
           {view === 'contacts'         && <ContactsView />}
           {view === 'locations'        && <LocationsView />}
-          {view === 'purchase-orders'  && <PurchaseOrdersView />}
-          {view === 'sales-orders'     && <SalesOrdersView />}
+          {view === 'purchase-orders'  && <PurchaseOrdersView pendingOpenId={pendingOpenPO} onPendingHandled={() => setPendingOpenPO(null)} />}
+          {view === 'sales-orders'     && <SalesOrdersView pendingOpenId={pendingOpenSO} onPendingHandled={() => setPendingOpenSO(null)} />}
           {view === 'branch-transfers' && <BranchTransfersView />}
           {view === 'receive-transfers' && <ReceiveTransfersView />}
           {view === 'brands'           && <BrandsView />}
@@ -9380,6 +9401,7 @@ function ReceiveBranchTransferModal({ bt, onClose, onDone }: { bt: any; onClose:
   const [lastScanned, setLastScanned] = useState<any | null>(null);
   const [scanError, setScanError]   = useState<string | null>(null);
   const [receiving, setReceiving]   = useState(false);
+  const [receivingMode, setReceivingMode] = useState<'partial' | 'final' | null>(null);
   const scanRef = useRef<HTMLInputElement>(null);
 
   const playErrorBeep = () => {
@@ -9447,6 +9469,7 @@ function ReceiveBranchTransferModal({ bt, onClose, onDone }: { bt: any; onClose:
       lines.push('Proceed? Only the quantities above will be moved to ' + bt.to_location_name + '.');
       if (!confirm(lines.join('\n'))) return;
     }
+    setReceivingMode('final');
     setReceiving(true);
     try {
       await apiFetch(`/api/ims/branch-transfers/${bt.id}`, {
@@ -9460,6 +9483,25 @@ function ReceiveBranchTransferModal({ bt, onClose, onDone }: { bt: any; onClose:
       onDone();
     } catch (e: any) { alert(e.message); }
     finally { setReceiving(false); }
+  };
+
+  const handleSaveLater = async () => {
+    const totalQty = Object.values(receiveQtys).reduce((s, q) => s + q, 0);
+    if (totalQty === 0 && !confirm('No quantities have been entered yet. Save anyway and mark this transfer as partially received?')) return;
+    setReceivingMode('partial');
+    setReceiving(true);
+    try {
+      await apiFetch(`/api/ims/branch-transfers/${bt.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'received',
+          receivedItems: Object.entries(receiveQtys).map(([id, qty]) => ({ item_id: Number(id), qty_received: qty })),
+        }),
+      });
+      onDone();
+    } catch (e: any) { alert(e.message); }
+    finally { setReceiving(false); setReceivingMode(null); }
   };
 
   return (
@@ -9559,9 +9601,12 @@ function ReceiveBranchTransferModal({ bt, onClose, onDone }: { bt: any; onClose:
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <button type="button" onClick={handleReceiveAll} style={btnStyle('ghost')}>Receive All (Fill Qty Sent)</button>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" onClick={onClose} style={btnStyle('ghost')}>Cancel</button>
+          <button type="button" onClick={onClose} disabled={receiving} style={btnStyle('ghost')}>Cancel</button>
+          <button type="button" onClick={handleSaveLater} disabled={receiving} style={btnStyle('action')}>
+            {receivingMode === 'partial' ? 'Saving…' : '💾 Save & Continue Later'}
+          </button>
           <button type="button" onClick={handleSubmit} disabled={receiving} style={btnStyle('mint')}>
-            {receiving ? 'Processing…' : 'Confirm Receipt & Move Stock'}
+            {receivingMode === 'final' ? 'Processing…' : 'Confirm Receipt & Move Stock'}
           </button>
         </div>
       </div>
@@ -10430,6 +10475,46 @@ function PartialBTManageModal({ bt: initialBt, onClose, onDone }: { bt: any; onC
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError]   = useState<string | null>(null);
+  const [scanInput, setScanInput]   = useState('');
+  const [lastScanned, setLastScanned] = useState<any | null>(null);
+  const [scanError, setScanError]   = useState<string | null>(null);
+  const scanRef = useRef<HTMLInputElement>(null);
+
+  const playErrorBeep = () => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'square'; osc.frequency.value = 200;
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+      osc.start(); osc.stop(ctx.currentTime + 0.45);
+    } catch {}
+  };
+
+  const handleScan = (value: string) => {
+    const trimmed = value.trim().toLowerCase();
+    setScanInput('');
+    if (!trimmed) return;
+    const match = items.find((i: any) =>
+      (i.barcode && i.barcode.toLowerCase() === trimmed) ||
+      (i.sku && i.sku.toLowerCase() === trimmed)
+    );
+    if (!match) {
+      playErrorBeep();
+      setScanError(`No item found matching "${value.trim()}" — check barcode/SKU`);
+      setLastScanned(null);
+      setTimeout(() => setScanError(null), 5000);
+      scanRef.current?.focus();
+      return;
+    }
+    setScanError(null);
+    const newQty = Math.min(Number(match.qty_sent), (match.qty_received ?? 0) + 1);
+    setItems(prev => prev.map((i: any) => i.id === match.id ? { ...i, qty_received: newQty } : i));
+    setLastScanned({ ...match, qty_received: newQty });
+    scanRef.current?.focus();
+  };
 
   const lineValueOf = (i: any) => Number(i.qty_received ?? 0) * Number(i.unit_cost ?? 0);
   const shortOf     = (i: any) => Math.max(0, Number(i.qty_sent) - Number(i.qty_received ?? 0));
@@ -10548,6 +10633,13 @@ function PartialBTManageModal({ bt: initialBt, onClose, onDone }: { bt: any; onC
         <div style={{ padding: '20px', textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>All lines have been removed.</div>
       )}
 
+      <_PartialBTScanPanel
+        items={items}
+        scanInput={scanInput} setScanInput={setScanInput}
+        scanError={scanError} lastScanned={lastScanned}
+        scanRef={scanRef} handleScan={handleScan}
+      />
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 4 }}>
         <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>
           {anyShort ? 'Short lines stay on record; only received units are valued and moved.' : ''}
@@ -10560,6 +10652,31 @@ function PartialBTManageModal({ bt: initialBt, onClose, onDone }: { bt: any; onC
         </div>
       </div>
     </Modal>
+  );
+}
+
+// partial BT scan panel (shared UI inside PartialBTManageModal)
+// Scan panel is rendered just above the action buttons
+function _PartialBTScanPanel({ items, scanInput, setScanInput, scanError, lastScanned, scanRef, handleScan }: any) {
+  return (
+    <div style={{ padding: 14, background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
+      <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--sv-text-strong)', marginBottom: 10 }}>📷 Continue Receiving — Scan Items</div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: scanError || lastScanned ? 10 : 0 }}>
+        <input ref={scanRef} type="text" placeholder="Scan barcode or type SKU, then press Enter…" value={scanInput}
+          onChange={e => setScanInput(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleScan(scanInput); } }}
+          autoFocus style={{ ...inputStyle, flex: 1, fontSize: 14, fontFamily: 'monospace' }} />
+        <button type="button" onClick={() => handleScan(scanInput)} style={btnStyle('action')}>Scan</button>
+      </div>
+      {scanError && <div style={{ padding: '8px 12px', background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.4)', borderRadius: 6, fontSize: 13, color: '#f87171', marginBottom: 8 }}>⚠ {scanError}</div>}
+      {lastScanned && (
+        <div style={{ padding: '10px 14px', background: 'rgba(16,185,129,.08)', border: '1px solid rgba(16,185,129,.3)', borderRadius: 8 }}>
+          <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Last Scanned</div>
+          <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--sv-text-strong)' }}>{lastScanned.product_name}{lastScanned.variant_label ? ` — ${lastScanned.variant_label}` : ''}</div>
+          <div style={{ fontSize: 13, marginTop: 4 }}><span style={{ color: 'var(--sv-text-dim)' }}>Now received: </span><strong style={{ color: '#34d399' }}>{lastScanned.qty_received}</strong> / {lastScanned.qty_sent}</div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -10688,10 +10805,12 @@ function ReceiveTransfersView() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
-  const [data,      setData]      = useState<any | null>(null);
-  const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState<string | null>(null);
-  const [shortCode, setShortCode] = useState(false);
+  const [data,        setData]        = useState<any | null>(null);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState<string | null>(null);
+  const [shortCode,   setShortCode]   = useState(true);
+  const [showBranch,  setShowBranch]  = useState(false);
+  const [showCode,    setShowCode]    = useState(false);
 
   useEffect(() => {
     fetch(`/api/ims/branch-transfers/${id}/print`)
@@ -10708,12 +10827,26 @@ function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
 
   return (
     <>
-      {/* Print-only CSS: hides everything except #bt-print-zone */}
+      {/* Print-only CSS — no overflow, no fixed/scroll, flows naturally to fill A4 */}
       <style>{`
         @media print {
-          body > * { visibility: hidden !important; }
+          @page { margin: 12mm; }
+          body * { visibility: hidden !important; }
           #bt-print-zone, #bt-print-zone * { visibility: visible !important; }
-          #bt-print-zone { position: fixed; inset: 0; background: #fff; z-index: 99999; padding: 16px; }
+          #bt-print-zone {
+            position: absolute !important;
+            top: 0 !important; left: 0 !important;
+            width: 100% !important;
+            max-height: none !important;
+            overflow: visible !important;
+            transform: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            background: #fff !important;
+            z-index: 99999;
+          }
           .bt-print-no-print { display: none !important; }
         }
       `}</style>
@@ -10723,15 +10856,23 @@ function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
 
       <div id="bt-print-zone" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 10, width: 'min(98vw, 1100px)', maxHeight: '92vh', overflowY: 'auto', zIndex: 1001, padding: 24 }}>
 
-        {/* Header row */}
+        {/* Header row — screen only */}
         <div className="bt-print-no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
             {loading ? 'Loading…' : data ? `Branch Transfer — ${data.transfer_number}` : 'Print'}
           </h2>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
               <input type="checkbox" checked={shortCode} onChange={e => setShortCode(e.target.checked)} />
-              Last 4 digits of barcode only
+              Last 4 of barcode
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+              <input type="checkbox" checked={showCode} onChange={e => setShowCode(e.target.checked)} />
+              Show Code
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+              <input type="checkbox" checked={showBranch} onChange={e => setShowBranch(e.target.checked)} />
+              Show Branch
             </label>
             <button
               onClick={() => window.print()}
@@ -10746,7 +10887,7 @@ function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
 
         {data && (
           <>
-            {/* Transfer meta — shown on print */}
+            {/* Transfer meta */}
             <div style={{ marginBottom: 16, display: 'grid', gridTemplateColumns: 'repeat(4, auto)', gap: '4px 24px', fontSize: 13 }}>
               <span style={{ fontWeight: 600 }}>Transfer:</span><span>{data.transfer_number}</span>
               <span style={{ fontWeight: 600 }}>Date:</span><span>{data.transfer_date?.slice(0,10)}</span>
@@ -10758,8 +10899,13 @@ function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1' }}>
-                  {['Zone', 'Bin', 'Brand', 'Product / Variant', 'Code', 'Barcode', 'Branch', 'Qty to Repack', 'WH Qty'].map(h => (
-                    <th key={h} style={{ padding: '7px 10px', textAlign: h === 'Qty to Repack' || h === 'WH Qty' ? 'right' : 'left', fontWeight: 700, color: '#374151', whiteSpace: 'nowrap' }}>{h}</th>
+                  {['Zone', 'Bin', 'Brand', 'Product / Variant',
+                    ...(showCode   ? ['Code']   : []),
+                    'Barcode',
+                    ...(showBranch ? ['Branch'] : []),
+                    'Qty to Send', 'WH Qty',
+                  ].map(h => (
+                    <th key={h} style={{ padding: '7px 10px', textAlign: h === 'Qty to Send' || h === 'WH Qty' ? 'right' : 'left', fontWeight: 700, color: '#374151', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -10773,9 +10919,9 @@ function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
                       <div style={{ fontWeight: 600, color: '#111827' }}>{item.product_name}</div>
                       {item.variant_label && <div style={{ fontSize: 11, color: '#6b7280' }}>{item.variant_label}</div>}
                     </td>
-                    <td style={{ padding: '8px 10px', fontFamily: 'monospace', color: '#0369a1', whiteSpace: 'nowrap' }}>{item.sku || '—'}</td>
+                    {showCode   && <td style={{ padding: '8px 10px', fontFamily: 'monospace', color: '#0369a1', whiteSpace: 'nowrap' }}>{item.sku || '—'}</td>}
                     <td style={{ padding: '8px 10px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{barcode(item.barcode)}</td>
-                    <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{item.to_location_name}</td>
+                    {showBranch && <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{item.to_location_name}</td>}
                     <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, fontSize: 18, color: '#111827', whiteSpace: 'nowrap' }}>{Number(item.qty_sent)}</td>
                     <td style={{ padding: '8px 10px', textAlign: 'right', color: Number(item.wh_qty) <= 0 ? '#ef4444' : '#374151' }}>{Number(item.wh_qty)}</td>
                   </tr>

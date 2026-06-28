@@ -1211,6 +1211,12 @@ function MainPos({
     }));
   }
 
+  function updateName(localId: string, name: string) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setCart(prev => prev.map(i => i.localId === localId ? { ...i, name: trimmed } : i));
+  }
+
   function clearCart() {
     setCart([]);
     setCustomerName('');
@@ -1589,6 +1595,7 @@ function MainPos({
                 onRemove={() => removeItem(item.localId)}
                 onDiscount={(t, v) => updateDiscount(item.localId, t, v)}
                 onPrice={(p) => updatePrice(item.localId, p)}
+                onRename={(n) => updateName(item.localId, n)}
               />
             ))}
           </div>
@@ -1893,8 +1900,12 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all' }: {
       if (e.target !== document.body && e.target !== inputRef.current) return;
       if (e.key === 'Enter') {
         if (barcodeBuffer.current.length > 3) {
-          const code = barcodeBuffer.current;
-          const found = products.find(p => p.barcode === code || p.code === code);
+          const code = barcodeBuffer.current.trim();
+          const codeLower = code.toLowerCase();
+          const found = products.find(p =>
+            (p.barcode != null && p.barcode.toLowerCase() === codeLower) ||
+            (p.code    != null && p.code.toLowerCase()    === codeLower)
+          );
           if (found) handleAdd(found);
           barcodeBuffer.current = '';
           clearTimeout(barcodeTimer.current);
@@ -2070,27 +2081,45 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all' }: {
 
 // ─── Cart Row ─────────────────────────────────────────────────────────────────
 
-function CartRow({ item, onQty, onRemove, onDiscount, onPrice }: {
+function CartRow({ item, onQty, onRemove, onDiscount, onPrice, onRename }: {
   item: CartItem;
   onQty: (d: number) => void;
   onRemove: () => void;
   onDiscount: (type: 'percent' | 'amount', value: number) => void;
   onPrice: (p: number) => void;
+  onRename: (name: string) => void;
 }) {
   const [editPrice, setEditPrice] = useState(false);
   const [editDisc,  setEditDisc]  = useState(false);
+  const [editName,  setEditName]  = useState(false);
   const [priceVal,  setPriceVal]  = useState(String(item.unit_price));
   const [discType,  setDiscType]  = useState<'percent' | 'amount'>(item.discount_type === 'none' ? 'percent' : item.discount_type);
   const [discVal,   setDiscVal]   = useState(String(item.discount_value));
+  const [nameVal,   setNameVal]   = useState(item.name);
 
   return (
     <div style={{ borderBottom: '1px solid var(--sv-etch)', paddingBottom: '.5rem', marginBottom: '.5rem' }}>
       <div style={{ display: 'flex', gap: '.4rem', alignItems: 'flex-start' }}>
         <div style={{ flex: 1, fontSize: '.82rem', lineHeight: 1.3 }}>
-          <div style={{ fontWeight: 600, color: item.qty < 0 ? 'var(--sv-red)' : 'var(--sv-text-strong)', fontStyle: item.qty < 0 ? 'italic' : 'normal', opacity: item.qty < 0 ? 0.85 : 1 }}>
-            {item.name}
-            {item.qty < 0 && <span style={{ marginLeft: '.35rem', fontSize: '.65rem', background: 'var(--sv-red-tint)', color: 'var(--sv-red)', borderRadius: 3, padding: '1px 4px', fontStyle: 'normal', fontWeight: 700, verticalAlign: 'middle' }}>RETURN</span>}
-          </div>
+          {editName ? (
+            <input
+              autoFocus
+              value={nameVal}
+              onChange={e => setNameVal(e.target.value)}
+              onBlur={() => { onRename(nameVal); setEditName(false); }}
+              onKeyDown={e => { if (e.key === 'Enter') { onRename(nameVal); setEditName(false); } if (e.key === 'Escape') { setNameVal(item.name); setEditName(false); } }}
+              style={{ width: '100%', padding: '.15rem .3rem', background: 'var(--sv-bg-0)', border: '1px solid var(--sv-action)', borderRadius: 4, color: 'var(--sv-text-main)', fontSize: '.82rem', fontWeight: 600, lineHeight: 1.3 }}
+            />
+          ) : (
+            <div
+              role="button" tabIndex={0}
+              onClick={() => { setNameVal(item.name); setEditName(true); }}
+              title="Click to edit description"
+              style={{ fontWeight: 600, color: item.qty < 0 ? 'var(--sv-red)' : 'var(--sv-text-strong)', fontStyle: item.qty < 0 ? 'italic' : 'normal', opacity: item.qty < 0 ? 0.85 : 1, cursor: 'text' }}>
+              {item.name}
+              {item.qty < 0 && <span style={{ marginLeft: '.35rem', fontSize: '.65rem', background: 'var(--sv-red-tint)', color: 'var(--sv-red)', borderRadius: 3, padding: '1px 4px', fontStyle: 'normal', fontWeight: 700, verticalAlign: 'middle' }}>RETURN</span>}
+            </div>
+          )}
           {item.code && <div style={{ color: 'var(--sv-text-dim)', fontSize: '.75rem' }}>{item.code}</div>}
         </div>
         <button onClick={onRemove} style={{ background: 'transparent', border: 'none', color: 'var(--sv-red)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: '0 .25rem' }}>×</button>
