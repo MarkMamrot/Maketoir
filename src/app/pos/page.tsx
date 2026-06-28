@@ -428,10 +428,12 @@ interface PosLocationSettings {
   topbarColor:        string;
   searchbarColor:     string;
   avatar:             string;
+  bgImage:            string;
+  bgOpacity:          number;
 }
 
 const DEFAULT_POS_SETTINGS: PosLocationSettings = {
-  receiptFooter: '', giftReceiptMessage: '', theme: 'midnight', topbarColor: '', searchbarColor: '', avatar: '',
+  receiptFooter: '', giftReceiptMessage: '', theme: 'midnight', topbarColor: '', searchbarColor: '', avatar: '', bgImage: '', bgOpacity: 10,
 };
 
 const POS_AVATAR_FILES = [
@@ -707,6 +709,29 @@ function computeThemeVars(s: PosLocationSettings): Record<string, string> {
 
 // ─── POS Settings Modal ───────────────────────────────────────────────────────
 
+function compressImage(file: File, maxDim = 1200, quality = 0.82): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = ev.target!.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 function PosSettingsModal({
   locationId, initialSettings, onSave, onCancel, onPreview,
 }: {
@@ -723,15 +748,17 @@ function PosSettingsModal({
   const [topbarColor,        setTopbarColor]        = useState(initialSettings.topbarColor);
   const [searchbarColor,     setSearchbarColor]     = useState(initialSettings.searchbarColor);
   const [avatar,             setAvatar]             = useState(initialSettings.avatar ?? '');
+  const [bgImage,            setBgImage]            = useState(initialSettings.bgImage ?? '');
+  const [bgOpacity,          setBgOpacity]          = useState(initialSettings.bgOpacity ?? 10);
   const [saving,             setSaving]             = useState(false);
   const [saveError,          setSaveError]          = useState('');
 
   function buildSettings(): PosLocationSettings {
-    return { receiptFooter, giftReceiptMessage, theme, topbarColor, searchbarColor, avatar };
+    return { receiptFooter, giftReceiptMessage, theme, topbarColor, searchbarColor, avatar, bgImage, bgOpacity };
   }
 
   function previewTheme(t: string, tb: string, sb: string) {
-    onPreview(computeThemeVars({ receiptFooter: '', giftReceiptMessage: '', theme: t, topbarColor: tb, searchbarColor: sb, avatar: '' }));
+    onPreview(computeThemeVars({ receiptFooter: '', giftReceiptMessage: '', theme: t, topbarColor: tb, searchbarColor: sb, avatar: '', bgImage: '', bgOpacity: 10 }));
   }
 
   function handleThemeSelect(key: string) {
@@ -918,6 +945,41 @@ function PosSettingsModal({
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Search area background image */}
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 10 }}>SEARCH AREA BACKGROUND IMAGE</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <label style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', cursor: 'pointer', fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
+                    {bgImage ? 'Replace image' : '+ Upload image'}
+                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async e => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setBgImage(await compressImage(file));
+                      e.target.value = '';
+                    }} />
+                  </label>
+                  {bgImage && (
+                    <>
+                      <img src={bgImage} alt="BG preview" style={{ width: 70, height: 44, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--sv-etch)', flexShrink: 0 }} />
+                      <button onClick={() => setBgImage('')} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', color: 'var(--sv-red)', cursor: 'pointer' }}>Remove</button>
+                    </>
+                  )}
+                </div>
+                {bgImage && (
+                  <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <label style={{ fontSize: 13, color: 'var(--sv-text-main)', flexShrink: 0 }}>Opacity</label>
+                    <input
+                      type="range"
+                      min={0} max={30} step={1}
+                      value={bgOpacity}
+                      onChange={e => setBgOpacity(Number(e.target.value))}
+                      style={{ flex: 1 }}
+                    />
+                    <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', width: 36, textAlign: 'right', flexShrink: 0 }}>{bgOpacity}%</span>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1618,7 +1680,7 @@ function MainPos({
       <div style={{ flex: 1, display: 'flex', flexDirection: cartLeft ? 'row-reverse' : 'row', overflow: 'hidden' }}>
         {/* Product Panel — only render once defaultView is known to avoid flash */}
         {defaultView !== null ? (
-          <ProductPanel products={products} onAdd={addToCart} defaultView={defaultView} focusScanTick={scanFocusTick} onChargeEnter={() => { if (cart.length && !showPayment && !mustOpenRegister) setShowPayment(true); }} />
+          <ProductPanel products={products} onAdd={addToCart} defaultView={defaultView} focusScanTick={scanFocusTick} bgImage={posSettings.bgImage ?? ''} bgOpacity={posSettings.bgOpacity ?? 10} onChargeEnter={() => { if (cart.length && !showPayment && !mustOpenRegister) setShowPayment(true); }} />
         ) : (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontSize: '.9rem' }}>Loading products…</div>
         )}
@@ -2284,7 +2346,7 @@ function PosStockModal({ variantId, productName, onClose }: { variantId: string;
 
 // ─── Product Panel ────────────────────────────────────────────────────────────
 
-function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', focusScanTick = 0 }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; onChargeEnter?: () => void; defaultView?: string; focusScanTick?: number }) {
+function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', focusScanTick = 0, bgImage = '', bgOpacity = 10 }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; onChargeEnter?: () => void; defaultView?: string; focusScanTick?: number; bgImage?: string; bgOpacity?: number }) {
   const [search, setSearch]             = useState('');
   const [brand, setBrand]               = useState(() => defaultView.startsWith('brand:') ? defaultView.slice(6) : '');
   const [inStockOnly, setInStockOnly]   = useState(() => defaultView === 'in_stock');
@@ -2484,7 +2546,12 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* ── Combined header block: search + scan bar + results banner ───────── */}
-      <div style={{ background: 'var(--pos-searchbar-bg, var(--sv-bg-1))', flexShrink: 0, borderBottom: '1px solid var(--sv-etch)' }}>
+      <div style={{ background: 'var(--pos-searchbar-bg, var(--sv-bg-1))', flexShrink: 0, borderBottom: '1px solid var(--sv-etch)', position: 'relative', overflow: 'hidden' }}>
+        {/* Background image overlay */}
+        {bgImage && (
+          <div style={{ position: 'absolute', inset: 0, backgroundImage: `url(${bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: bgOpacity / 100, pointerEvents: 'none', zIndex: 0 }} />
+        )}
+        <div style={{ position: 'relative', zIndex: 1 }}>
         <div style={{ padding: '.5rem .75rem', display: 'flex', gap: '.75rem', alignItems: 'center' }}>
           {/* Left: search input + controls */}
           <div style={{ flex: 1, display: 'flex', gap: '.5rem', alignItems: 'center' }}>
@@ -2574,6 +2641,7 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
             >× Clear</button>
           </div>
         )}
+        </div>{/* end content wrapper */}
       </div>{/* end header block */}
 
       {/* Product grid */}

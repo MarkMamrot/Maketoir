@@ -28,6 +28,8 @@ export interface PosLocationSettings {
   topbarColor:        string; // hex or ''
   searchbarColor:     string; // hex or ''
   avatar:             string; // filename from /avatars/
+  bgImage:            string; // base64 data URL or ''
+  bgOpacity:          number; // 0-30
 }
 
 const DEFAULTS: PosLocationSettings = {
@@ -37,6 +39,8 @@ const DEFAULTS: PosLocationSettings = {
   topbarColor: '',
   searchbarColor: '',
   avatar: '',
+  bgImage: '',
+  bgOpacity: 10,
 };
 
 const SETTINGS_KEY = (locationId: number) => `pos_loc_${locationId}_settings`;
@@ -109,8 +113,8 @@ export async function PUT(req: Request) {
     theme:              String(body.theme ?? 'classic').slice(0, 30),
     topbarColor:        String(body.topbarColor ?? '').slice(0, 30),
     searchbarColor:     String(body.searchbarColor ?? '').slice(0, 30),
-    avatar:             String(body.avatar ?? '').replace(/[^a-zA-Z0-9_.\-]/g, '').slice(0, 100),
-  };
+    avatar:             String(body.avatar ?? '').replace(/[^a-zA-Z0-9_.\-]/g, '').slice(0, 100),    bgImage:            String(body.bgImage ?? '').slice(0, 5_000_000), // base64 JPEG, capped at ~5 MB
+    bgOpacity:          Math.min(30, Math.max(0, Number(body.bgOpacity ?? 10))),  };
 
   await imsExecute(
     `INSERT INTO ims_settings (business_id, \`key\`, value, updated_at)
