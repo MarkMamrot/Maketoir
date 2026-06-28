@@ -2705,15 +2705,16 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
             {mode === 'search' ? `No products found for "${search}".` : 'No products.'}
           </div>
         )}
-      </div>
-      {stockModal && (
-        <PosStockModal
-          variantId={stockModal.variantId}
-          productName={stockModal.productName}
-          onClose={() => setStockModal(null)}
-        />
-      )}
-    </div>
+      </div>{/* end inner scroll grid */}
+    </div>{/* end outer bg wrapper */}
+    {stockModal && (
+      <PosStockModal
+        variantId={stockModal.variantId}
+        productName={stockModal.productName}
+        onClose={() => setStockModal(null)}
+      />
+    )}
+  </div>
   );
 }
 
