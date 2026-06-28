@@ -948,6 +948,7 @@ function MainPos({
   const eodFromGateRef = useRef(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [posSettingsOpen, setPosSettingsOpen] = useState(false);
+  const [cashDrawerLoading, setCashDrawerLoading] = useState(false);
   const [posSettings, setPosSettings] = useState<PosLocationSettings>(DEFAULT_POS_SETTINGS);
   const [posTheme, setPosTheme] = useState<Record<string, string>>({});
   // Pending drain prompt: shown on reconnect when queue has recent items but no open session.
@@ -1006,6 +1007,34 @@ function MainPos({
     retryFailedQueue();
     refreshQueueCount();
     drainOfflineQueue().then(refreshQueueCount);
+  }
+
+  async function handleOpenTill() {
+    if (!('serial' in navigator)) {
+      alert('Open Till uses the Web Serial API (Chrome / Edge only).\n\nConnect your receipt printer via USB, then try again.');
+      return;
+    }
+    setCashDrawerLoading(true);
+    try {
+      // ESC/POS cash-drawer-open: ESC p pin=0 t1=25 t2=25
+      const cmd = new Uint8Array([0x1B, 0x70, 0x00, 0x19, 0x19]);
+      const granted: any[] = await (navigator as any).serial.getPorts();
+      const port: any = granted[0] ?? await (navigator as any).serial.requestPort();
+      let opened = false;
+      try {
+        await port.open({ baudRate: 19200 });
+        opened = true;
+        const writer = port.writable.getWriter();
+        await writer.write(cmd);
+        writer.releaseLock();
+      } finally {
+        if (opened) await port.close().catch(() => {});
+      }
+    } catch (e: any) {
+      if (e?.name !== 'NotFoundError') alert(`Open till: ${e?.message ?? String(e)}`);
+    } finally {
+      setCashDrawerLoading(false);
+    }
   }
 
   async function handleSync() {
@@ -1417,6 +1446,20 @@ function MainPos({
           title={cartLeft ? 'Cart on left — click to move right' : 'Cart on right — click to move left'}
           style={{ ...smallBtn, background: 'var(--pos-btn-bg)', color: 'var(--sv-text-dim)', border: '1px solid var(--pos-btn-border)' }}
         >{cartLeft ? '⬅ Cart' : 'Cart ➡'}</button>
+        <button
+          onClick={handleOpenTill}
+          disabled={cashDrawerLoading}
+          title="Open Till"
+          style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--sv-text-dim)', transition: 'background .15s', flexShrink: 0, opacity: cashDrawerLoading ? .5 : 1 }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="4" width="20" height="11" rx="2" />
+            <path d="M2 15h20v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2z" />
+            <line x1="9" y1="19" x2="15" y2="19" />
+          </svg>
+        </button>
         <button
           onClick={() => setHelpOpen(true)}
           title="Help"
