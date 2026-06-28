@@ -75,15 +75,27 @@ function getTaxTypes(_businessId: string): { sales: string; purchases: string; e
 }
 
 function getTrackingForLocation(mappings: TrackingMapping[], locationId: number | null, channel?: string) {
+  const result: { TrackingCategoryID: string; TrackingOptionID: string }[] = [];
+  const usedCategories = new Set<string>();
+
+  // Location mapping — only match rows where ims_channel is null
+  if (locationId) {
+    const m = mappings.find(t => t.ims_location_id === locationId && t.ims_channel == null);
+    if (m) {
+      result.push({ TrackingCategoryID: m.xero_tracking_category_id, TrackingOptionID: m.xero_tracking_option_id });
+      usedCategories.add(m.xero_tracking_category_id);
+    }
+  }
+
+  // Channel mapping — only add if it belongs to a different Tracking Category (Xero max = 2)
   if (channel) {
     const m = mappings.find(t => t.ims_channel === channel);
-    if (m) return [{ TrackingCategoryID: m.xero_tracking_category_id, TrackingOptionID: m.xero_tracking_option_id }];
+    if (m && !usedCategories.has(m.xero_tracking_category_id)) {
+      result.push({ TrackingCategoryID: m.xero_tracking_category_id, TrackingOptionID: m.xero_tracking_option_id });
+    }
   }
-  if (locationId) {
-    const m = mappings.find(t => t.ims_location_id === locationId);
-    if (m) return [{ TrackingCategoryID: m.xero_tracking_category_id, TrackingOptionID: m.xero_tracking_option_id }];
-  }
-  return undefined;
+
+  return result.length > 0 ? result : undefined;
 }
 
 /** Ensures the xero_sync_log table exists — called lazily before first insert. */
@@ -933,7 +945,7 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
     return null;
   }
 
-  const tracking = getTrackingForLocation(trackingMappings, batch.locationId ?? null, batch.channel === 'online' ? 'online' : undefined);
+  const tracking = getTrackingForLocation(trackingMappings, batch.locationId ?? null, batch.channel);
 
   const invoice: any = {
     Type: 'ACCREC',

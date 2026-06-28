@@ -1616,8 +1616,8 @@ function ImportProductsModal({
         is_online: raw['online'] !== '' ? (raw['online'] === '1' || raw['online'].toLowerCase() === 'yes' ? 1 : 0) : undefined,
         sku: raw['sku'] || undefined,
         barcode: raw['barcode'] || undefined,
-        cost: numOrNull(raw['cost_aud'] ?? ''),
-        price: numOrNull(raw['rrp'] ?? ''),
+        cost_aud: numOrNull(raw['cost_aud'] ?? ''),
+        price_rrp: numOrNull(raw['rrp'] ?? ''),
         price_wholesale: numOrNull(raw['price_wholesale'] ?? ''),
         weight_kg: numOrNull(raw['weight_kg'] ?? ''),
         pack_size: numOrNull(raw['pack_size'] ?? ''),
@@ -7883,6 +7883,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
   // Build location/channel rows for tracking mapping
   const trackingRows: { label: string; locationId: number | null; channel: string | null }[] = [
     ...locations.map(l => ({ label: l.name, locationId: l.id, channel: null })),
+    { label: 'POS Sales', locationId: null, channel: 'pos' },
     { label: 'Online Sales', locationId: null, channel: 'online' },
     { label: 'Wholesale', locationId: null, channel: 'wholesale' },
   ];
@@ -12202,7 +12203,8 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
               <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Sales History</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <label style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Months</label>
-                <input type="number" min={1} max={120} value={salesMonthsInput} onChange={e => setSalesMonthsInput(Math.max(1, Math.min(120, Number(e.target.value) || 1)))} style={{ width: 56, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 13, fontWeight: 600, textAlign: 'center' }} />
+                <input type="number" min={1} max={240} value={salesMonthsInput} onChange={e => setSalesMonthsInput(Math.max(1, Math.min(240, Number(e.target.value) || 1)))} style={{ width: 56, padding: '5px 8px', borderRadius: 6, border: `1px solid ${salesMonthsInput > 120 ? 'var(--sv-amber)' : 'var(--sv-etch)'}`, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 13, fontWeight: 600, textAlign: 'center' }} />
+                {salesMonthsInput > 120 && <span style={{ fontSize: 11, color: 'var(--sv-amber)', whiteSpace: 'nowrap' }}>Max 10 yrs (120)</span>}
                 <FullBtn onClick={() => setFullSyncConfirm('sales')} mySteps={['sales']} />
                 <SyncBtn label="Sync Latest" onClick={() => handleSync('latest', ['sales'])} mySteps={['sales']} />
               </div>
@@ -12865,8 +12867,8 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <h3 style={h3}>Tracking categories</h3>
         <p style={p}>Xero Tracking Categories allow your Xero reports to segment P&amp;L by dimension (e.g. "Location", "Sales Channel"). Map each IMS location and sales channel to a Xero Tracking Option in the Xero settings tab.</p>
         <ul style={ul}>
-          <li><strong>Lookup priority:</strong> Channel mapping checked first (e.g. "online", "wholesale"); if no channel match, location mapping is used; if neither, no tracking is applied to that line.</li>
-          <li><strong>Channels:</strong> <span style={code}>online</span>, <span style={code}>wholesale</span> (plus any IMS location)</li>
+          <li><strong>Both location and channel</strong> tracking are applied simultaneously when mapped to <em>different</em> Xero Tracking Categories (Xero allows up to 2 per line). If both resolve to the same category, location takes priority.</li>
+          <li><strong>Channels:</strong> <span style={code}>pos</span>, <span style={code}>online</span>, <span style={code}>wholesale</span> (plus any IMS location)</li>
           <li>Tracking is optional — bills and invoices post fine without it, just won't appear in dimension reports in Xero.</li>
         </ul>
 

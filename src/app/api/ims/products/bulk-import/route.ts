@@ -48,7 +48,9 @@ interface RequestBody {
 }
 
 export async function POST(req: Request) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = getSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const businessId: string = session.businessId ?? '';
 
   let body: RequestBody;
   try { body = await req.json(); } catch {
@@ -113,7 +115,7 @@ export async function POST(req: Request) {
           is_online: row.is_online ?? 1,
           supplier_contact_id: supplierContactId,
           is_active: 1,
-        });
+        }, businessId);
         createdProductIds.set(row.product_name.trim().toLowerCase(), productId);
         // Create variant
         await ImsVariantsRepo.create({

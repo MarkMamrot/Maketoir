@@ -706,6 +706,7 @@ export async function POST(req: Request) {
           await cin7ForEachPage(creds.authHeader, '/SalesOrders', salesExtraParams, 'ims/sales', async (pageOrders, pageNum) => {
             send({ step: 'sales', status: 'running', message: `Syncing page ${pageNum} (${salesOrderCount} orders so far)...` });
           for (const order of pageOrders) {
+          try {
             if (syncType === 'latest') {
               await imsExecute('DELETE FROM ims_sales_history WHERE cin7_order_id = ?', [String(order.id)]);
               await imsExecute('DELETE FROM ims_sales_orders WHERE cin7_order_id = ?', [String(order.id)]);
@@ -905,6 +906,15 @@ export async function POST(req: Request) {
               } catch { /* skip if variant not in catalog */ }
             }
             salesOrderCount++;
+          } catch (orderErr: any) {
+            // Compensating clean-up: remove any partial inserts so the DB stays consistent.
+            // Re-throwing keeps last_sales_sync from advancing, so next sync re-processes this order.
+            try { await imsExecute('DELETE FROM ims_sales_history WHERE cin7_order_id = ?', [String(order.id)]); } catch {}
+            try { await imsExecute('DELETE FROM ims_sales_orders WHERE cin7_order_id = ?', [String(order.id)]); } catch {}
+            try { await imsExecute('DELETE FROM pos_sales WHERE local_id = ?', [String(order.id)]); } catch {}
+            console.error(`[ims/sales] Order ${order.id} failed — rolled back partial inserts: ${orderErr.message}`);
+            throw orderErr;
+          }
           } // end for order
           }); // end cin7ForEachPage
 
