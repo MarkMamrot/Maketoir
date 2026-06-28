@@ -1118,8 +1118,8 @@ export const ImsPORepo = {
         }
       }
 
-      // ── confirmed → received ───────────────────────────────────
-      if (from === 'confirmed' && to === 'received') {
+      // ── confirmed → complete ───────────────────────────────────
+      if (from === 'confirmed' && to === 'complete') {
         // Distribute landed costs (and optionally freight) proportionally by item value
         const poSubtotal = items.reduce((s, i) => s + Number(i.qty_ordered) * Number(i.unit_cost), 0);
         const totalLanded = landedCostRows.reduce((s, c) => s + Number(c.amount), 0);
@@ -1207,8 +1207,8 @@ export const ImsPORepo = {
         );
       }
 
-      // ── partially_received → received (force-close a partially received PO from IMS) ───────────
-      if (from === 'partially_received' && to === 'received') {
+      // ── partially_received → complete (force-close a partially received PO from IMS) ───────────
+      if (from === 'partially_received' && to === 'complete') {
         const poSubtotal = items.reduce((s, i) => s + Number(i.qty_ordered) * Number(i.unit_cost), 0);
         const totalLanded = landedCostRows.reduce((s, c) => s + Number(c.amount), 0);
         const effectiveTotalLanded = totalLanded + (freightTreatment === 'capitalise' ? Number(po.freight ?? 0) : 0);
@@ -1321,8 +1321,8 @@ export const ImsPORepo = {
         }
       }
 
-      // ── received → confirmed (revert a fully received PO) ─────────────────────
-      if (from === 'received' && to === 'confirmed') {
+      // ── complete → confirmed (revert a fully received PO) ─────────────────────
+      if (from === 'complete' && to === 'confirmed') {
         for (const item of items) {
           const alreadyReceived = Number(item.qty_received ?? 0);
           if (alreadyReceived <= 0) continue;

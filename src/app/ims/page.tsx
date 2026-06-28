@@ -580,8 +580,11 @@ function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
               const groupW=plotW/nLoc;
               const slotW=Math.min(44, Math.max(12, (groupW*0.78)/nCh));
               const barW=Math.max(8, slotW-3);
-              const groupOffset=(groupW - slotW*nCh)/2;
-              const xBar=(li:number,ci:number) => PL + li*groupW + groupOffset + ci*slotW + 1.5;
+              const getLocChans=(loc:string) => activeChannels.filter(ch => getVal(ch,loc) > 0);
+              const xBarLocal=(li:number, localCi:number, nLocalCh:number) => {
+                const offset=(groupW - slotW*nLocalCh)/2;
+                return PL + li*groupW + offset + localCi*slotW + 1.5;
+              };
               const yVal=(v:number) => PT + plotH - (v/yMax)*plotH;
               const hVal=(v:number) => (v/yMax)*plotH;
               const fmtY=(v:number) => v>=1000000?`$${(v/1000000).toFixed(1)}M`:v>=1000?`$${(v/1000).toFixed(0)}k`:`$${v}`;
@@ -608,25 +611,27 @@ function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
                       );
                     })}
                     <line x1={PL} y1={PT+plotH} x2={VW-PR} y2={PT+plotH} stroke="currentColor" strokeOpacity="0.15" />
-                    {locations.map((loc, li) => (
-                      <g key={loc}>
-                        {activeChannels.map((ch, ci) => {
-                          const v = getVal(ch, loc);
-                          if (v === 0) return null;
-                          const x=xBar(li,ci), y=yVal(v), h=hVal(v);
-                          return (
-                            <g key={ch}>
-                              <rect x={x} y={y} width={barW} height={h} fill={CH_COLOR[ch]} rx="3" opacity="0.85" />
-                              {h>24 && barW>14 && (
-                                <text x={x+barW/2} y={y-5} textAnchor="middle" fontSize="9" fill="currentColor" fillOpacity="0.55">{fmtY(v)}</text>
-                              )}
-                              <title>{`${CH_LABEL[ch]} — ${loc}\n${fmtCurrency(v)} · ${getOrd(ch,loc)} orders`}</title>
-                            </g>
-                          );
-                        })}
-                        <text x={PL+li*groupW+groupW/2} y={PT+plotH+18} textAnchor="middle" fontSize="11" fill="currentColor" fillOpacity="0.5">{trunc(loc)}</text>
-                      </g>
-                    ))}
+                    {locations.map((loc, li) => {
+                      const locChans = getLocChans(loc);
+                      return (
+                        <g key={loc}>
+                          {locChans.map((ch, localCi) => {
+                            const v = getVal(ch, loc);
+                            const x=xBarLocal(li,localCi,locChans.length), y=yVal(v), h=hVal(v);
+                            return (
+                              <g key={ch}>
+                                <rect x={x} y={y} width={barW} height={h} fill={CH_COLOR[ch]} rx="3" opacity="0.85" />
+                                {h>24 && barW>14 && (
+                                  <text x={x+barW/2} y={y-5} textAnchor="middle" fontSize="9" fill="currentColor" fillOpacity="0.55">{fmtY(v)}</text>
+                                )}
+                                <title>{`${CH_LABEL[ch]} — ${loc}\n${fmtCurrency(v)} · ${getOrd(ch,loc)} orders`}</title>
+                              </g>
+                            );
+                          })}
+                          <text x={PL+li*groupW+groupW/2} y={PT+plotH+18} textAnchor="middle" fontSize="11" fill="currentColor" fillOpacity="0.5">{trunc(loc)}</text>
+                        </g>
+                      );
+                    })}
                   </svg>
                 </div>
               );
