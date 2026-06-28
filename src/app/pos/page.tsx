@@ -846,14 +846,6 @@ function PosSettingsModal({
                 Choose an avatar for this location. It will appear in the live leaderboard strip at the bottom of the screen for all other locations to see.
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-                {/* None / default option */}
-                <button
-                  onClick={() => setAvatar('')}
-                  style={{ padding: 6, borderRadius: 10, border: avatar === '' ? '2px solid var(--sv-action)' : '2px solid transparent', background: avatar === '' ? 'rgba(255,255,255,.07)' : 'var(--sv-bg-2)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}
-                >
-                  <div style={{ width: 62, height: 62, borderRadius: '50%', background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>🧑</div>
-                  <span style={{ fontSize: 10, color: 'var(--sv-text-dim)' }}>Default</span>
-                </button>
                 {POS_AVATAR_FILES.map(file => (
                   <button
                     key={file}
@@ -1993,6 +1985,9 @@ function PosAvatarBar({
     if (saleRefreshTick > 0) fetchLeaderboard();
   }, [saleRefreshTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Re-fetch immediately when own avatar changes so the new image shows without waiting for the 2-min poll
+  useEffect(() => { fetchLeaderboard(); }, [myAvatar]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (morningGreetingTick > 0) {
       const text = MORNING_GREETINGS[morningIdxRef.current % MORNING_GREETINGS.length];
@@ -2059,11 +2054,11 @@ function PosAvatarBar({
                 boxShadow: isMine ? '0 0 0 2px var(--sv-action, #2563eb)' : '0 2px 8px rgba(0,0,0,.4)',
               }}
             >
-              {loc.avatar ? (
-                <img src={`/avatars/${loc.avatar}`} alt={loc.name} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }} />
-              ) : (
-                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isMine ? 22 : 16 }}>🧑</div>
-              )}
+              <img
+                src={`/avatars/${isMine ? (myAvatar || POS_AVATAR_FILES[loc.id % POS_AVATAR_FILES.length]) : (loc.avatar || POS_AVATAR_FILES[loc.id % POS_AVATAR_FILES.length])}`}
+                alt={loc.name}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', pointerEvents: 'none' }}
+              />
             </div>
 
             {/* Name + sales label */}
@@ -2185,11 +2180,11 @@ function PosChatWindow({ myLocationId, myAvatar, userName }: { myLocationId: num
               return (
                 <div key={msg.id} style={{ display: 'flex', gap: 7, alignItems: 'flex-start', flexDirection: isMine ? 'row-reverse' : 'row' }}>
                   <div style={{ width: 28, height: 28, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'rgba(255,255,255,.1)' }}>
-                    {msg.avatar ? (
-                      <img src={`/avatars/${msg.avatar}`} alt={msg.location_name} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }} />
-                    ) : (
-                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>🧑</div>
-                    )}
+                    <img
+                      src={`/avatars/${msg.avatar || POS_AVATAR_FILES[msg.location_id % POS_AVATAR_FILES.length]}`}
+                      alt={msg.location_name}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}
+                    />
                   </div>
                   <div style={{ maxWidth: '72%' }}>
                     <div style={{ fontSize: 10, color: 'rgba(255,255,255,.4)', marginBottom: 2, textAlign: isMine ? 'right' : 'left' }}>

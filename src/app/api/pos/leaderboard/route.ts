@@ -42,9 +42,8 @@ export async function GET() {
     LEFT JOIN (
       SELECT location_id, SUM(total) AS today_total
       FROM pos_sales
-      WHERE DATE(completed_at) = CURDATE()
-        AND status = 'completed'
-        AND sale_type = 'sale'
+      WHERE DATE(created_at) = CURDATE()
+        AND status IN ('completed', 'layby_complete')
       GROUP BY location_id
     ) s ON s.location_id = l.id
     LEFT JOIN (
