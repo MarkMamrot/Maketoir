@@ -19,6 +19,12 @@ export async function GET() {
   const locationId = parseInt(String(session.location_id ?? 0), 10);
   if (!locationId) return NextResponse.json({ error: 'No location in session.' }, { status: 400 });
 
+  // Compute today in the business timezone — created_at is stored in local time
+  // (via localNow()), so comparing against CURDATE() (MySQL UTC) would show
+  // the previous day's sales for the first ~10 hours of each new local day.
+  const tz    = process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney';
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: tz }); // YYYY-MM-DD
+
   // Get business_id so we can scope avatar settings to this business
   const locRows = await imsQuery<{ business_id: string | null }>(
     'SELECT business_id FROM ims_locations WHERE id = ? LIMIT 1',
@@ -42,7 +48,7 @@ export async function GET() {
     LEFT JOIN (
       SELECT location_id, SUM(total) AS today_total
       FROM pos_sales
-      WHERE DATE(created_at) = CURDATE()
+      WHERE DATE(created_at) = ?
         AND status IN ('completed', 'layby_complete')
         AND sale_type NOT IN ('return')
       GROUP BY location_id
@@ -54,7 +60,7 @@ export async function GET() {
     ) rs ON rs.location_id = l.id
     WHERE l.is_active = 1
     ORDER BY today_sales DESC, l.name ASC
-  `, []);
+  `, [today]);
 
   // Batch-fetch all location settings for this business to extract avatars
   const settingsRows = await imsQuery<{ key: string; value: string }>(

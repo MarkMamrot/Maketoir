@@ -992,6 +992,7 @@ function MainPos({
   // Tracks previous isOnline value so we can detect the offline→online transition.
   const wasOnlineRef = useRef<boolean | null>(null);
   const [saleRefreshTick,    setSaleRefreshTick]    = useState(0);
+  const [scanFocusTick,      setScanFocusTick]      = useState(0);
   const [morningGreetingTick, setMorningGreetingTick] = useState(0);
   const prevRegSessionRef = useRef<any>(undefined);
 
@@ -1378,7 +1379,7 @@ function MainPos({
     }
   }
 
-  if (screen === 'receive-transfers') return <ReceiveTransfersScreen session={session} onBack={() => setScreen('pos')} />;
+  if (screen === 'receive-transfers') return <ReceiveTransfersScreen session={session} onBack={() => { setScreen('pos'); setScanFocusTick(t => t + 1); }} />;
   if (screen === 'eod') return <EodScreen session={session} initialMode={eodInitialMode} onBack={() => {
     // Always re-fetch register session when returning from EOD so mustOpenRegister
     // reflects the latest state (closed or newly opened). Also drain the offline
@@ -1395,8 +1396,9 @@ function MainPos({
     }
     eodFromGateRef.current = false;
     setScreen('pos');
+    setScanFocusTick(t => t + 1);
   }} />;
-  if (screen === 'reports') return <ReportsScreen session={session} onBack={() => setScreen('pos')} />;
+  if (screen === 'reports') return <ReportsScreen session={session} onBack={() => { setScreen('pos'); setScanFocusTick(t => t + 1); }} />;
   if (screen === 'parked') return (
     <ParkedScreen
       sales={parkedSales}
@@ -1405,7 +1407,7 @@ function MainPos({
         const next = parkedSales.filter(p => p.local_id !== localId);
         setParkedSales(next); saveParkedSales(next);
       }}
-      onBack={() => setScreen('pos')}
+      onBack={() => { setScreen('pos'); setScanFocusTick(t => t + 1); }}
     />
   );
 
@@ -1616,7 +1618,7 @@ function MainPos({
       <div style={{ flex: 1, display: 'flex', flexDirection: cartLeft ? 'row-reverse' : 'row', overflow: 'hidden' }}>
         {/* Product Panel — only render once defaultView is known to avoid flash */}
         {defaultView !== null ? (
-          <ProductPanel products={products} onAdd={addToCart} defaultView={defaultView} onChargeEnter={() => { if (cart.length && !showPayment && !mustOpenRegister) setShowPayment(true); }} />
+          <ProductPanel products={products} onAdd={addToCart} defaultView={defaultView} focusScanTick={scanFocusTick} onChargeEnter={() => { if (cart.length && !showPayment && !mustOpenRegister) setShowPayment(true); }} />
         ) : (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontSize: '.9rem' }}>Loading products…</div>
         )}
@@ -2282,7 +2284,7 @@ function PosStockModal({ variantId, productName, onClose }: { variantId: string;
 
 // ─── Product Panel ────────────────────────────────────────────────────────────
 
-function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all' }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; onChargeEnter?: () => void; defaultView?: string }) {
+function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', focusScanTick = 0 }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; onChargeEnter?: () => void; defaultView?: string; focusScanTick?: number }) {
   const [search, setSearch]             = useState('');
   const [brand, setBrand]               = useState(() => defaultView.startsWith('brand:') ? defaultView.slice(6) : '');
   const [inStockOnly, setInStockOnly]   = useState(() => defaultView === 'in_stock');
@@ -2300,6 +2302,9 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all' }: {
   const [recentIds, setRecentIds]       = useState<string[]>(() => loadRecentIds());
 
   const inputRef      = useRef<HTMLInputElement>(null);
+  const scanRef       = useRef<HTMLInputElement>(null);
+  const [scanInput,  setScanInput]  = useState('');
+  const [scanError,  setScanError]  = useState(false);
   const barcodeBuffer = useRef('');
   const barcodeTimer  = useRef<NodeJS.Timeout>();
   const blurTimer     = useRef<NodeJS.Timeout>();
@@ -2314,8 +2319,25 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all' }: {
   const deferredSearch = useDeferredValue(search);
   const deferredMode   = useDeferredValue(mode);
 
-  // Focus search on mount
-  useEffect(() => { inputRef.current?.focus(); }, []);
+  // Focus scan bar on mount — default entry point for barcode scans
+  useEffect(() => { scanRef.current?.focus(); }, []);
+
+  // Re-focus scan bar when returning to the POS screen from any sub-screen
+  useEffect(() => { if (focusScanTick > 0) scanRef.current?.focus(); }, [focusScanTick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-focus scan bar when clicking on any non-input area of the page
+  useEffect(() => {
+    function onMouseDown() {
+      requestAnimationFrame(() => {
+        const a = document.activeElement;
+        if (!a || a === document.body || !(a as HTMLElement).matches('input,select,textarea')) {
+          scanRef.current?.focus();
+        }
+      });
+    }
+    document.addEventListener('mousedown', onMouseDown);
+    return () => document.removeEventListener('mousedown', onMouseDown);
+  }, []);
 
   // Add to cart + track recency
   const handleAdd = useCallback((p: CachedProduct) => {
@@ -2329,6 +2351,8 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all' }: {
     setDropdownOpen(false);
     setHighlightIdx(-1);
     setMode('browse');
+    // Return focus to scan bar so the next scan goes straight to cart
+    requestAnimationFrame(() => scanRef.current?.focus());
   }, [onAdd]);
 
   const brands = useMemo(() => {
@@ -2436,10 +2460,34 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all' }: {
     return () => window.removeEventListener('keydown', onKey);
   }, [products, handleAdd]);
 
+  // Scan-bar barcode handler: on Enter, find product and add to cart
+  function handleScanKey(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const val = scanInput.trim();
+    setScanInput('');
+    if (!val) return;
+    const lower = val.toLowerCase();
+    const found = products.find(p =>
+      (p.barcode != null && p.barcode.toLowerCase() === lower) ||
+      (p.code    != null && p.code.toLowerCase()    === lower)
+    );
+    if (found) {
+      handleAdd(found);
+    } else {
+      setScanError(true);
+      setTimeout(() => setScanError(false), 1200);
+    }
+    scanRef.current?.focus();
+  }
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {/* Search bar */}
-      <div style={{ padding: '.5rem .75rem', background: 'var(--pos-searchbar-bg, var(--sv-bg-1))', borderBottom: '1px solid var(--sv-etch)', display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+      {/* ── Combined header block: search + scan bar + results banner ───────── */}
+      <div style={{ background: 'var(--pos-searchbar-bg, var(--sv-bg-1))', flexShrink: 0, borderBottom: '1px solid var(--sv-etch)' }}>
+        <div style={{ padding: '.5rem .75rem', display: 'flex', gap: '.75rem', alignItems: 'center' }}>
+          {/* Left: search input + controls */}
+          <div style={{ flex: 1, display: 'flex', gap: '.5rem', alignItems: 'center' }}>
         {/* Input + dropdown wrapper */}
         <div style={{ flex: 1, position: 'relative' }}>
           <input
@@ -2487,26 +2535,46 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all' }: {
           title={inStockOnly ? 'Showing in-stock only — click to show all' : 'Show in-stock only'}
           style={{ flexShrink: 0, padding: '5px 9px', borderRadius: 6, border: `1px solid ${inStockOnly ? 'var(--sv-mint)' : 'var(--sv-etch)'}`, background: inStockOnly ? 'var(--sv-mint-tint)' : 'transparent', color: inStockOnly ? 'var(--sv-mint)' : 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 12, fontWeight: 600, lineHeight: 1, whiteSpace: 'nowrap' }}
         >In Stock</button>
-        {/* Search button: commits to full grid results mode */}
-        <button
-          onClick={() => { if (search.trim()) { setMode('search'); setDropdownOpen(false); setHighlightIdx(-1); inputRef.current?.focus(); } }}
-          disabled={!search.trim()}
-          title="Show all matching products"
-          style={{ flexShrink: 0, padding: '6px 11px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: search.trim() ? 'var(--sv-bg-2)' : 'transparent', color: search.trim() ? 'var(--sv-action)' : 'var(--sv-text-muted)', cursor: search.trim() ? 'pointer' : 'default', fontSize: 15, lineHeight: 1 }}
-        >🔍</button>
-      </div>
-
-      {/* Search results banner */}
-      {mode === 'search' && (
-        <div style={{ padding: '4px 12px 6px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <span style={{ fontSize: 12, color: 'var(--sv-action)' }}>🔍 Results for <strong>"{search}"</strong> — {filtered.length} product{filtered.length !== 1 ? 's' : ''}</span>
-          <div style={{ flex: 1 }} />
+          {/* Search button */}
           <button
-            onClick={() => { setMode('browse'); setSearch(''); setDropdownOpen(false); inputRef.current?.focus(); }}
-            style={{ fontSize: 12, padding: '2px 10px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer' }}
-          >× Clear</button>
-        </div>
-      )}
+            onClick={() => { if (search.trim()) { setMode('search'); setDropdownOpen(false); setHighlightIdx(-1); inputRef.current?.focus(); } }}
+            disabled={!search.trim()}
+            title="Show all matching products"
+            style={{ flexShrink: 0, padding: '6px 11px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: search.trim() ? 'var(--sv-bg-2)' : 'transparent', color: search.trim() ? 'var(--sv-action)' : 'var(--sv-text-muted)', cursor: search.trim() ? 'pointer' : 'default', fontSize: 15, lineHeight: 1 }}
+          >🔍</button>
+          </div>{/* end left flex */}
+
+          {/* Divider */}
+          <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--sv-etch)', flexShrink: 0 }} />
+
+          {/* Right: Scan-to-cart bar */}
+          <div style={{ width: 190, flexShrink: 0 }}>
+            <input
+              ref={scanRef}
+              value={scanInput}
+              onChange={e => setScanInput(e.target.value)}
+              onKeyDown={handleScanKey}
+              placeholder="📷 Scan sales here"
+              style={{ ...inputStyle, width: '100%', marginBottom: 0, boxSizing: 'border-box',
+                background: scanError ? 'var(--sv-red-tint)' : 'var(--sv-bg-0)',
+                border: `1px solid ${scanError ? 'var(--sv-red)' : 'var(--sv-text-dim)'}`,
+                transition: 'border-color .2s, background .2s' }}
+            />
+          </div>
+        </div>{/* end toolbar row */}
+
+        {/* Search results banner — stays inside the same header bg */}
+        {mode === 'search' && (
+          <div style={{ padding: '2px 12px 6px', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, color: 'var(--sv-action)' }}>🔍 Results for <strong>"{search}"</strong> — {filtered.length} product{filtered.length !== 1 ? 's' : ''}</span>
+            <div style={{ flex: 1 }} />
+            <button
+              onClick={() => { setMode('browse'); setSearch(''); setDropdownOpen(false); scanRef.current?.focus(); }}
+              style={{ fontSize: 12, padding: '2px 10px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer' }}
+            >× Clear</button>
+          </div>
+        )}
+      </div>{/* end header block */}
 
       {/* Product grid */}
       <div style={{ flex: 1, overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px,1fr))', gap: '.6rem', padding: '.75rem', alignContent: 'start' }}>
