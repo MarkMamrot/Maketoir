@@ -2658,7 +2658,7 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
       <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
         {/* Background image — sits behind the scrollable grid */}
         {bgImage && (
-          <div style={{ position: 'absolute', inset: 0, backgroundImage: `url(${bgImage})`, backgroundSize: 'cover', backgroundPosition: bgPosition === 'bottom' ? 'center bottom' : 'center center', opacity: bgOpacity / 100, pointerEvents: 'none', zIndex: 0 }} />
+          <img src={bgImage} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'scale-down', objectPosition: bgPosition === 'bottom' ? 'center bottom' : 'center center', opacity: bgOpacity / 100, pointerEvents: 'none', zIndex: 0 }} />
         )}
         <div style={{ position: 'relative', zIndex: 1, overflow: 'auto', height: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px,1fr))', gap: '.6rem', padding: '.75rem', alignContent: 'start' }}>
         {filtered.map(p => {
