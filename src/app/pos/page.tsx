@@ -3071,8 +3071,9 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
         // When a closed session is returned (e.g. closed at midnight, reviewed
         // next morning), snap the date picker to the session's trading date so
         // the EOD query and save target the correct recon_date.
-        if (sess?.session_date && typeof sess.session_date === 'string' && sess.session_date !== today) {
-          setDate(sess.session_date);
+        if (sess?.session_date) {
+          const sessionDateStr = String(sess.session_date).slice(0, 10);
+          if (sessionDateStr && sessionDateStr !== today) setDate(sessionDateStr);
         }
       })
       .catch(() => {})

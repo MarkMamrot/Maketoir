@@ -668,8 +668,17 @@ export const PosRegistersRepo = {
 // ─── POS Register Session Repository ─────────────────────────────────────────
 
 function parseSession(r: any): PosRegisterSessionRow {
+  // Normalize session_date to 'YYYY-MM-DD' string — mysql2 may return DATE
+  // columns as JS Date objects which serialize to ISO timestamps in JSON,
+  // causing downstream date comparisons and Xero invoice dates to be wrong.
+  const rawDate = r.session_date;
+  const sessionDate: string | null =
+    rawDate instanceof Date    ? rawDate.toISOString().slice(0, 10)
+    : typeof rawDate === 'string' ? rawDate.slice(0, 10)
+    : rawDate ?? null;
   return {
     ...r,
+    session_date: sessionDate,
     opening_float: r.opening_float != null ? toNum(r.opening_float) : null,
     denomination_data: r.denomination_data
       ? (typeof r.denomination_data === 'string' ? JSON.parse(r.denomination_data) : r.denomination_data)
