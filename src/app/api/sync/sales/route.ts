@@ -109,7 +109,7 @@ export async function POST(req: Request) {
   const session = cookies().get('marketoir_session');
   if (!session?.value) return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
 
-  const { databaseId, fullSync = false, activeBranchesOnly = true } = await req.json();
+  const { databaseId, fullSync = false, activeBranchesOnly = true, fullHistoric = false } = await req.json();
   if (!databaseId) return NextResponse.json({ success: false, error: 'databaseId is required.' }, { status: 400 });
   const _u = JSON.parse(session.value);
   if (databaseId !== _u.businessId) {
@@ -145,7 +145,7 @@ export async function POST(req: Request) {
   const mode = lastSync ? `incremental since ${lastSync}` : 'full';
   console.log(`[cin7/sales] Starting ${mode} sync`);
 
-  const cut12m = Date.now() - 365 * 86400_000;
+  const cut12m = fullHistoric ? 0 : Date.now() - 365 * 86400_000;
   let totalOrders = 0;
   let totalLines = 0;
   let rowBuffer: Array<Omit<import('@/lib/db/SalesRepository').SaleRow, 'id' | 'business_id'>> = [];
@@ -160,7 +160,7 @@ export async function POST(req: Request) {
 
   try {
     const params: Record<string, string> = {};
-    params.modifiedDate = lastSync ?? new Date(cut12m).toISOString();
+    params.modifiedDate = lastSync ?? (fullHistoric ? '2000-01-01T00:00:00Z' : new Date(cut12m).toISOString());
 
     totalOrders = await streamPages(creds.authHeader, '/SalesOrders', params, async (orders) => {
       const filtered = orders.filter(o => {
