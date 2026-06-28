@@ -3322,7 +3322,7 @@ function PurchaseOrdersView() {
     } catch (e: any) { alert(e.message); }
   };
 
-  const handleSubmit = async (e: React.FormEvent, andOrder = false, receiveQtysOverride?: Record<string, number>) => {
+  const handleSubmit = async (e: React.FormEvent, andOrder = false, receiveQtysOverride?: Record<string, number>, targetStatus?: 'received' | 'partially_received') => {
     e.preventDefault();
     if (!form.location_id) { alert('Location is required.'); return; }
     if (lineItems.length === 0 || lineItems.some(i => !i.variant_id)) { alert('Add at least one line item with a variant selected.'); return; }
@@ -3346,6 +3346,9 @@ function PurchaseOrdersView() {
           if (received_items.length > 0) {
             await apiFetch('/api/ims/receive/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ po_id: modal.edit.id, location_id: modal.edit.location_id, received_items, mark_po_received: false }) });
           }
+        }
+        if (targetStatus) {
+          await apiFetch(`/api/ims/purchase-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: targetStatus }) });
         }
       } else {
         const res = await apiFetch('/api/ims/purchase-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items, landed_costs }) });
@@ -3577,12 +3580,11 @@ function PurchaseOrdersView() {
                   <button type="button" onClick={() => setImportOpen(true)} style={btnStyle('secondary', 'xs')}>⬆ Import</button>
                   <button type="button" onClick={addLine} style={btnStyle('ghost', 'xs')}>+ Add Line</button>
                   {isReceiving && (
-                    <button type="button" disabled={saving} onClick={async (e) => {
+                    <button type="button" onClick={() => {
                       const all: Record<string, number> = {};
                       lineItems.forEach(item => { if (item.variant_id) all[item.variant_id] = Number(item.qty_ordered || 0); });
                       setReceiveQtys(all);
-                      await handleSubmit(e as any, false, all);
-                    }} style={btnStyle('mint', 'xs')}>{saving ? 'Saving…' : 'Receive All & Update'}</button>
+                    }} style={btnStyle('ghost', 'xs')}>Receive All</button>
                   )}
                 </div>
               </div>
@@ -3590,7 +3592,7 @@ function PurchaseOrdersView() {
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: 'var(--sv-bg-1)' }}>
-                      {['Variant','Qty',`Unit Cost${(form.currency_code ?? 'AUD') !== 'AUD' ? ` (${form.currency_code})` : ''}`,'Disc %',...(taxTreatment !== 'no_tax' ? ['Tax %'] : []),'Line Total',...(isReceiving ? ['Received','Awaiting'] : []),''].map(h => (
+                      {['Variant','Qty',`Unit Cost${(form.currency_code ?? 'AUD') !== 'AUD' ? ` (${form.currency_code})` : ''}`,'Disc %',...(taxTreatment !== 'no_tax' ? ['Tax %'] : []),'Line Total',...(isReceiving ? ['Received','Awaiting'] : []),'Notes',''].map(h => (
                         <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600 }}>{h}</th>
                       ))}
                     </tr>
@@ -3606,17 +3608,17 @@ function PurchaseOrdersView() {
                           />
                         </td>
                         <td style={{ padding: 4, width: 80 }}>
-                          <input type="number" min="0.0001" step="any" value={item.qty_ordered} onChange={e => updateLine(i, 'qty_ordered', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} />
+                          <input type="number" min="1" step="1" value={item.qty_ordered} onChange={e => updateLine(i, 'qty_ordered', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} />
                         </td>
                         <td style={{ padding: 4, width: 100 }}>
                           <input type="number" min="0" step="0.0001" value={item.unit_cost} onChange={e => updateLine(i, 'unit_cost', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} />
                         </td>
                         <td style={{ padding: 4, width: 70 }}>
-                          <input type="number" min="0" max="100" step="0.1" value={item.discount_pct ?? 0} onChange={e => updateLine(i, 'discount_pct', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0" />
+                          <input type="number" min="0" max="100" step="1" value={item.discount_pct ?? 0} onChange={e => updateLine(i, 'discount_pct', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0" />
                         </td>
                         {taxTreatment !== 'no_tax' && (
                         <td style={{ padding: 4, width: 70 }}>
-                          <input type="number" min="0" max="1" step="0.01" value={item.tax_rate} onChange={e => updateLine(i, 'tax_rate', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0.1" />
+                          <input type="number" min="0" max="100" step="1" value={Math.round(Number(item.tax_rate || 0) * 100)} onChange={e => updateLine(i, 'tax_rate', Number(e.target.value) / 100)} style={{ ...inputStyle, fontSize: 12 }} placeholder="10" />
                         </td>
                         )}
                         <td style={{ padding: '4px 8px', width: 100, color: 'var(--sv-text-main)', fontSize: 13 }}>{fmtCurrency(lineTotal(item))}</td>
@@ -3632,6 +3634,9 @@ function PurchaseOrdersView() {
                             </td>
                           </>);
                         })()}
+                        <td style={{ padding: 4 }}>
+                          <input type="text" value={item.notes ?? ''} onChange={e => updateLine(i, 'notes', e.target.value)} style={{ ...inputStyle, fontSize: 12, minWidth: 100 }} placeholder="Notes…" />
+                        </td>
                         <td style={{ padding: 4, width: 30 }}>
                           <button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16 }}>×</button>
                         </td>
@@ -3747,8 +3752,16 @@ function PurchaseOrdersView() {
               </div>
             </div>
 
-            <FormActions onCancel={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} saving={saving} isEdit={!!modal.edit}
-              extraActions={!modal.edit ? [{ label: saving ? 'Creating…' : 'Create & Confirm', onClick: (e: React.MouseEvent) => handleSubmit(e as any, true) }] : []} />
+            {isReceiving ? (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+                <button type="button" onClick={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} style={btnStyle('ghost')}>Cancel</button>
+                <button type="button" disabled={saving} title="Saves receive quantities and marks this PO as partially received. Does NOT sync to Xero — use when still waiting on remaining stock." onClick={e => handleSubmit(e as any, false, undefined, 'partially_received')} style={btnStyle('ghost')}>{saving ? 'Saving…' : 'Mark as Partially Received'}</button>
+                <button type="button" disabled={saving} title="Saves receive quantities and marks this PO as fully received. Triggers Xero sync: bill is approved and stock movement is posted." onClick={e => handleSubmit(e as any, false, undefined, 'received')} style={btnStyle('mint')}>{saving ? 'Saving…' : 'Mark as Received'}</button>
+              </div>
+            ) : (
+              <FormActions onCancel={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} saving={saving} isEdit={!!modal.edit}
+                extraActions={!modal.edit ? [{ label: saving ? 'Creating…' : 'Create & Confirm', onClick: (e: React.MouseEvent) => handleSubmit(e as any, true) }] : []} />
+            )}
           </form>
         </Modal>
       )}
@@ -4808,7 +4821,7 @@ function SalesOrdersView() {
   const addLine = () => {
     const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
     const taxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
-    setLineItems(p => [...p, { variant_id: '', qty_ordered: 1, unit_price: 0, discount_pct: 0, tax_rate: taxRate }]);
+    setLineItems(p => [...p, { variant_id: '', qty_ordered: 1, unit_price: 0, discount_pct: 0, tax_rate: taxRate, notes: '' }]);
   };
   const removeLine = (i: number) => setLineItems(p => p.filter((_, idx) => idx !== i));
   const updateLine = (i: number, k: string, v: any) => setLineItems(p => p.map((item, idx) => idx === i ? { ...item, [k]: v } : item));
@@ -4841,14 +4854,14 @@ function SalesOrdersView() {
     setForm({ customer_id: '', customer_po_number: '', location_id: '', order_date: today(), notes: '', payment_terms: '', freight: '', discount: '', tax_code: settings?.sales_tax_code ?? '' });
     const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
     const defaultTaxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
-    setLineItems([{ variant_id: '', qty_ordered: 1, unit_price: 0, discount_pct: 0, tax_rate: defaultTaxRate }]);
+    setLineItems([{ variant_id: '', qty_ordered: 1, unit_price: 0, discount_pct: 0, tax_rate: defaultTaxRate, notes: '' }]);
     setModal({ open: true, edit: null });
   };
 
   const openEdit = async (so: any) => {
     const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);
     setForm({ customer_id: d.data.customer_id ?? '', customer_po_number: d.data.customer_po_number ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), notes: d.data.notes ?? '', payment_terms: d.data.payment_terms ?? '', freight: d.data.freight ?? '', discount: d.data.discount ?? '', tax_code: d.data.tax_code ?? settings?.sales_tax_code ?? '' });
-    setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_price: i.unit_price, discount_pct: i.discount_pct, tax_rate: i.tax_rate })));
+    setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_price: i.unit_price, discount_pct: i.discount_pct, tax_rate: i.tax_rate, notes: i.notes ?? '' })));
     setModal({ open: true, edit: d.data });
   };
 
@@ -5110,7 +5123,7 @@ function SalesOrdersView() {
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: 'var(--sv-bg-1)' }}>
-                      {['Variant','Qty','Unit Price','Disc %','Tax %','Line Total',''].map(h => (
+                      {['Variant','Qty','Unit Price','Disc %','Tax %','Line Total','Notes',''].map(h => (
                         <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600 }}>{h}</th>
                       ))}
                     </tr>
@@ -5125,11 +5138,12 @@ function SalesOrdersView() {
                             onChange={vid => selectSOVariant(i, vid)}
                           />
                         </td>
-                        <td style={{ padding: 4, width: 70 }}><input type="number" min="0.0001" step="any" value={item.qty_ordered} onChange={e => updateLine(i, 'qty_ordered', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} /></td>
+                        <td style={{ padding: 4, width: 70 }}><input type="number" min="1" step="1" value={item.qty_ordered} onChange={e => updateLine(i, 'qty_ordered', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} /></td>
                         <td style={{ padding: 4, width: 90 }}><input type="number" min="0" step="0.0001" value={item.unit_price} onChange={e => updateLine(i, 'unit_price', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} /></td>
-                        <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="1" step="0.01" value={item.discount_pct} onChange={e => updateLine(i, 'discount_pct', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0.1" /></td>
-                        <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="1" step="0.01" value={item.tax_rate} onChange={e => updateLine(i, 'tax_rate', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0.1" /></td>
+                        <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="100" step="1" value={Math.round(Number(item.discount_pct || 0) * 100)} onChange={e => updateLine(i, 'discount_pct', Number(e.target.value) / 100)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0" /></td>
+                        <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="100" step="1" value={Math.round(Number(item.tax_rate || 0) * 100)} onChange={e => updateLine(i, 'tax_rate', Number(e.target.value) / 100)} style={{ ...inputStyle, fontSize: 12 }} placeholder="10" /></td>
                         <td style={{ padding: '4px 8px', width: 100, color: 'var(--sv-text-main)', fontSize: 13 }}>{fmtCurrency(lineTotal(item))}</td>
+                        <td style={{ padding: 4 }}><input type="text" value={item.notes ?? ''} onChange={e => updateLine(i, 'notes', e.target.value)} style={{ ...inputStyle, fontSize: 12, minWidth: 100 }} placeholder="Notes…" /></td>
                         <td style={{ padding: 4, width: 30 }}><button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16 }}>×</button></td>
                       </tr>
                     ))}
@@ -5178,7 +5192,7 @@ function SalesOrdersView() {
           lineFactory={(v, qty, price) => {
             const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
             const taxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
-            return { variant_id: v.variant_id, qty_ordered: qty, unit_price: price, discount_pct: 0, tax_rate: taxRate };
+            return { variant_id: v.variant_id, qty_ordered: qty, unit_price: price, discount_pct: 0, tax_rate: taxRate, notes: '' };
           }}
           onImport={(items) => setLineItems(prev => [...prev.filter(i => i.variant_id), ...items])}
           onClose={() => setImportOpen(false)}

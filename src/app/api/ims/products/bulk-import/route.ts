@@ -62,7 +62,7 @@ export async function POST(req: Request) {
   // 1. Create missing brands
   for (const brandName of autoCreateBrands) {
     if (brandName?.trim()) {
-      try { await ImsBrandsRepo.create(brandName.trim()); } catch { /* ignore duplicate */ }
+      try { await ImsBrandsRepo.create(brandName.trim(), businessId); } catch { /* ignore duplicate */ }
     }
   }
 
@@ -73,14 +73,14 @@ export async function POST(req: Request) {
       try {
         const id = await ImsContactsRepo.create({
           type: 'supplier', name: supplierName.trim(), is_active: 1,
-        });
+        }, businessId);
         supplierIdMap[supplierName.trim().toLowerCase()] = id;
       } catch { /* ignore */ }
     }
   }
 
   // 3. Re-load contacts to resolve supplier names ? IDs
-  const allContacts = await ImsContactsRepo.list('supplier');
+  const allContacts = await ImsContactsRepo.list('supplier', undefined, businessId);
   const contactByName = new Map<string, number>();
   for (const c of allContacts) {
     contactByName.set(c.name.trim().toLowerCase(), c.id);
@@ -138,7 +138,7 @@ export async function POST(req: Request) {
           option3_value: row.option3_value,
           cost_foreign: row.cost_foreign,
           is_active: 1,
-        });
+        }, businessId);
         created++;
 
       } else if (row.action === 'new_variant') {
@@ -178,7 +178,7 @@ export async function POST(req: Request) {
           option3_value: row.option3_value,
           cost_foreign: row.cost_foreign,
           is_active: 1,
-        });
+        }, businessId);
         created++;
 
       } else if (row.action === 'update') {

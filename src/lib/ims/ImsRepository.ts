@@ -482,16 +482,19 @@ export const ImsVariantsRepo = {
     return rows[0] ?? null;
   },
 
-  async create(data: Omit<ImsVariant, 'id' | 'created_at' | 'updated_at' | 'product_name'>): Promise<string> {
+  async create(
+    data: Omit<ImsVariant, 'id' | 'created_at' | 'updated_at' | 'product_name'>,
+    businessId?: string
+  ): Promise<string> {
     const variant_id = data.variant_id || uuidv4();
     await imsExecute(
       `INSERT INTO ims_product_variants
-         (variant_id,product_id,sku,barcode,option1_name,option1_value,
+         (variant_id,product_id,business_id,sku,barcode,option1_name,option1_value,
           option2_name,option2_value,option3_name,option3_value,
           cost_aud,price_rrp,price_wholesale,price_rrp_sale,discount_start_date,discount_end_date,
           weight_kg,shopify_variant_id,is_active,cost_foreign,pack_size,cin7_option_id,bin,zone)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [variant_id, data.product_id, data.sku ?? null, data.barcode ?? null,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [variant_id, data.product_id, businessId ?? '', data.sku ?? null, data.barcode ?? null,
        data.option1_name ?? null, data.option1_value ?? null, data.option2_name ?? null, data.option2_value ?? null,
        data.option3_name ?? null, data.option3_value ?? null, data.cost_aud ?? null, data.price_rrp ?? null,
        data.price_wholesale ?? null,

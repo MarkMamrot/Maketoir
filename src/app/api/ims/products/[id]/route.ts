@@ -36,7 +36,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         if (v.variant_id) {
           await ImsVariantsRepo.update(v.variant_id, v);
         } else {
-          await ImsVariantsRepo.create({ ...v, product_id: params.id });
+          await ImsVariantsRepo.create({ ...v, product_id: params.id }, businessId);
         }
       }
     }
