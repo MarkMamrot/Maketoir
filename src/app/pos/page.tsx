@@ -2069,34 +2069,45 @@ function PosAvatarBar({
           <div key={loc.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, position: 'relative', pointerEvents: 'auto', cursor: isMine ? 'pointer' : 'default' }}
             onClick={isMine ? () => { const text = JOKES[jokeIdxRef.current % JOKES.length]; jokeIdxRef.current++; showBubble('speech', text); } : undefined}
           >
-            {/* Speech bubble — comic-style, higher and offset right, tail at bottom-left */}
+            {/* Bubble — speech (triangle tail) or thought (rising dots), raised high above avatar */}
             {isMine && bubble && (
-              <div
-                onClick={e => { e.stopPropagation(); setBubble(null); }}
-                style={{
-                  position: 'absolute',
-                  bottom: size + 28,
-                  left: '50%',
-                  transform: 'translateX(-15%)',
-                  background: 'rgba(255,255,255,.97)',
-                  border: `2px solid ${bubClr}`,
-                  borderRadius: 14,
-                  padding: '9px 13px',
-                  maxWidth: 220, minWidth: 130,
-                  fontSize: 11, fontWeight: 600,
-                  color: '#1e293b', lineHeight: 1.45, textAlign: 'center',
-                  zIndex: 10,
-                  boxShadow: '0 6px 20px rgba(0,0,0,.35)',
-                  whiteSpace: 'normal', wordBreak: 'break-word',
-                  cursor: 'pointer',
-                }}>
-                {bubble.text}
-                <span style={{ position: 'absolute', top: 4, right: 7, fontSize: 9, color: '#94a3b8' }}>✕</span>
-                {/* Tail outer (border colour) */}
-                <div style={{ position: 'absolute', bottom: -13, left: 18, width: 0, height: 0, borderLeft: '9px solid transparent', borderRight: '9px solid transparent', borderTop: `13px solid ${bubClr}` }} />
-                {/* Tail inner (white fill) */}
-                <div style={{ position: 'absolute', bottom: -10, left: 20, width: 0, height: 0, borderLeft: '7px solid transparent', borderRight: '7px solid transparent', borderTop: '10px solid rgba(255,255,255,.97)' }} />
-              </div>
+              <>
+                {/* Main bubble body */}
+                <div
+                  onClick={e => { e.stopPropagation(); setBubble(null); }}
+                  style={{
+                    position: 'absolute',
+                    bottom: size + 52,
+                    left: '50%',
+                    transform: 'translateX(-15%)',
+                    background: 'rgba(255,255,255,.97)',
+                    border: `2px solid ${bubClr}`,
+                    borderRadius: bubble.type === 'thought' ? 22 : 14,
+                    padding: '9px 13px',
+                    maxWidth: 220, minWidth: 130,
+                    fontSize: 11, fontWeight: 600,
+                    color: '#1e293b', lineHeight: 1.45, textAlign: 'center',
+                    zIndex: 10,
+                    boxShadow: '0 6px 20px rgba(0,0,0,.35)',
+                    whiteSpace: 'normal', wordBreak: 'break-word',
+                    cursor: 'pointer',
+                  }}>
+                  {bubble.text}
+                  <span style={{ position: 'absolute', top: 4, right: 7, fontSize: 9, color: '#94a3b8' }}>✕</span>
+                  {/* Speech bubble: triangle tail at bottom-left */}
+                  {bubble.type === 'speech' && <>
+                    <div style={{ position: 'absolute', bottom: -13, left: 18, width: 0, height: 0, borderLeft: '9px solid transparent', borderRight: '9px solid transparent', borderTop: `13px solid ${bubClr}` }} />
+                    <div style={{ position: 'absolute', bottom: -10, left: 20, width: 0, height: 0, borderLeft: '7px solid transparent', borderRight: '7px solid transparent', borderTop: '10px solid rgba(255,255,255,.97)' }} />
+                  </>}
+                </div>
+
+                {/* Thought bubble: three rising dots between bubble and avatar */}
+                {bubble.type === 'thought' && <>
+                  <div style={{ position: 'absolute', bottom: size + 38, left: '50%', transform: 'translateX(10px)', width: 11, height: 11, borderRadius: '50%', background: 'rgba(255,255,255,.97)', border: `2px solid ${bubClr}`, zIndex: 9 }} />
+                  <div style={{ position: 'absolute', bottom: size + 22, left: '50%', transform: 'translateX(4px)',  width: 8,  height: 8,  borderRadius: '50%', background: 'rgba(255,255,255,.97)', border: `2px solid ${bubClr}`, zIndex: 9 }} />
+                  <div style={{ position: 'absolute', bottom: size + 10, left: '50%', transform: 'translateX(-2px)', width: 5, height: 5,  borderRadius: '50%', background: 'rgba(255,255,255,.97)', border: `2px solid ${bubClr}`, zIndex: 9 }} />
+                </>}
+              </>
             )}
 
             {/* Crown */}
@@ -2171,7 +2182,7 @@ function PosAvatarBar({
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
             <button
               onClick={() => setChatOpen(true)}
-              style={{ width: 40, height: 40, borderRadius: '50%', border: '2px solid rgba(255,255,255,.2)', background: panelBg, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, boxShadow: '0 2px 8px rgba(0,0,0,.5)', position: 'relative' }}
+              style={{ width: 40, height: 40, borderRadius: '50%', border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, boxShadow: '0 1px 4px rgba(0,0,0,.2)', position: 'relative' }}
             >
               💬
               {unread > 0 && (
