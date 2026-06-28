@@ -184,11 +184,11 @@ export async function POST(req: Request) {
       }));
 
       const allReceived = shortfallItems.length === 0;
-      const newStatus = (mark_po_received || allReceived) ? 'received' : 'partially_received';
+      const newStatus = (mark_po_received || allReceived) ? 'complete' : 'partially_received';
 
-      if (newStatus === 'received') {
+      if (newStatus === 'complete') {
         await conn.execute(
-          `UPDATE ims_purchase_orders SET status = 'received', received_date = CURDATE() WHERE id = ?`,
+          `UPDATE ims_purchase_orders SET status = 'complete', received_date = CURDATE() WHERE id = ?`,
           [po_id]
         );
       } else {
@@ -300,8 +300,8 @@ export async function POST(req: Request) {
       }
 
       // Trigger Xero approve-bill when PO is fully received (awaited to ensure bill is approved before response)
-      if (newStatus === 'received') {
-        await triggerPOXeroSync(businessId, po_id, 'received').catch(err => console.error('[Xero] PO bill approve failed:', err));
+      if (newStatus === 'complete') {
+        await triggerPOXeroSync(businessId, po_id, 'complete').catch(err => console.error('[Xero] PO bill approve failed:', err));
       }
 
       return NextResponse.json({
@@ -316,7 +316,7 @@ export async function POST(req: Request) {
         variant_updates: variantUpdatesCount,
         backorderPoId,
         backorderPoNumber,
-        message: newStatus === 'received'
+        message: newStatus === 'complete'
           ? `PO received. ${shortfallItems.length > 0 ? `${shortfallItems.length} items were short.` : 'All items fully received.'}`
           : `Progress saved — ${shortfallItems.length} items still outstanding.`,
       });

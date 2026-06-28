@@ -51,7 +51,7 @@ export async function triggerPOXeroSync(businessId: string, poId: number, newSta
       () => syncPOAsDraftBill(businessId, po as any),
       () => markPoXeroStatus(poId, 'queued'),
     );
-  } else if (newStatus === 'received') {
+  } else if (newStatus === 'complete') {
     // Prefer the stored xero_bill_id, fall back to sync_log lookup
     const storedXeroId = (po as any).xero_bill_id ?? null;
     const logRows = storedXeroId ? [] : await imsQuery(

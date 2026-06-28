@@ -235,6 +235,7 @@ const STATUS_COLORS: Record<string, string> = {
   confirmed:          'background:rgba(37,99,235,.18);color:#60a5fa',
   partially_received: 'background:rgba(251,146,60,.18);color:#f97316',
   received:           'background:rgba(16,185,129,.18);color:#34d399',
+  complete:           'background:rgba(16,185,129,.18);color:#34d399',
   fulfilled:          'background:rgba(16,185,129,.18);color:#34d399',
   sent:               'background:rgba(139,92,246,.18);color:#a78bfa',
   partial:            'background:rgba(251,146,60,.18);color:#f97316',
@@ -3106,7 +3107,7 @@ function PurchaseOrdersView() {
   const [pos, setPos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
-  const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
+  const [modal, setModal] = useState<{ open: boolean; edit: any | null; editOnly?: boolean }>({ open: false, edit: null });
   const [viewModal, setViewModal] = useState<{ open: boolean; po: any | null }>({ open: false, po: null });
   const [poPayForm, setPoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string; method: string } | null>(null);
   const [poFiles, setPoFiles] = useState<any[]>([]);
@@ -3216,7 +3217,7 @@ function PurchaseOrdersView() {
 
   const lineTotal = (item: any) => Number(item.qty_ordered || 0) * Number(item.unit_cost || 0) * (1 - Number(item.discount_pct || 0) / 100);
   const taxTreatment = (form.tax_treatment ?? 'ex_tax') as 'ex_tax' | 'inc_tax' | 'no_tax';
-  const isReceiving = !!modal.edit && (modal.edit.status === 'confirmed' || modal.edit.status === 'partially_received');
+  const isReceiving = !!modal.edit && !modal.editOnly && (modal.edit.status === 'confirmed' || modal.edit.status === 'partially_received');
   const poSubtotal = taxTreatment === 'inc_tax'
     ? lineItems.reduce((s, i) => {
         const tot = lineTotal(i);
@@ -3250,7 +3251,7 @@ function PurchaseOrdersView() {
     setModal({ open: true, edit: null });
   };
 
-  const openEdit = async (po: any) => {
+  const openEdit = async (po: any, editOnly = false) => {
     const d = await apiFetch(`/api/ims/purchase-orders/${po.id}`);
     const cur = (d.data.currency_code ?? 'AUD').toUpperCase();
     const payments = d.data.payments ?? [];
@@ -3267,7 +3268,7 @@ function PurchaseOrdersView() {
     setReceiveQtys(initQtys);
     setLandedCosts((d.data.landed_costs || []).map((c: any) => ({ label: c.label, reference: c.reference ?? '', amount: String(c.amount) })));
     setLcForm(null);
-    setModal({ open: true, edit: d.data });
+    setModal({ open: true, edit: d.data, editOnly });
   };
 
   const openView = async (po: any) => {
@@ -3322,7 +3323,7 @@ function PurchaseOrdersView() {
     } catch (e: any) { alert(e.message); }
   };
 
-  const handleSubmit = async (e: React.FormEvent, andOrder = false, receiveQtysOverride?: Record<string, number>, targetStatus?: 'received' | 'partially_received') => {
+  const handleSubmit = async (e: React.FormEvent, andOrder = false, receiveQtysOverride?: Record<string, number>, targetStatus?: 'complete' | 'partially_received') => {
     e.preventDefault();
     if (!form.location_id) { alert('Location is required.'); return; }
     if (lineItems.length === 0 || lineItems.some(i => !i.variant_id)) { alert('Add at least one line item with a variant selected.'); return; }
@@ -3362,7 +3363,7 @@ function PurchaseOrdersView() {
   };
 
   const changeStatus = async (po: any, status: string) => {
-    const labels: Record<string, string> = { confirmed: 'confirm', received: 'mark as received', draft: 'revert to draft', cancelled: 'cancel', partially_received: 'mark as partially received' };
+    const labels: Record<string, string> = { confirmed: 'confirm', complete: 'mark as complete', draft: 'revert to draft', cancelled: 'cancel', partially_received: 'mark as partially received' };
     if (!confirm(`${labels[status] || status} PO ${po.po_number}?`)) return;
     try {
       const res = await apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
@@ -3394,18 +3395,18 @@ function PurchaseOrdersView() {
     }
   };
 
-  const editPoWithWarn = (po: any, beforeAction?: () => void) => {
-    if (po.status === 'received') {
+  const editPoWithWarn = (po: any, beforeAction?: () => void, editOnly = false) => {
+    if (po.status === 'complete') {
       beforeAction?.(); // close view modal before showing warning so it renders on top
-      showXeroWarnForReceived('edit', po, () => openEdit(po));
+      showXeroWarnForReceived('edit', po, () => openEdit(po, editOnly));
     } else {
       beforeAction?.();
-      openEdit(po);
+      openEdit(po, editOnly);
     }
   };
 
   const deletePoWithWarn = (po: any, beforeAction?: () => void) => {
-    if (po.status === 'received') {
+    if (po.status === 'complete') {
       beforeAction?.(); // close view modal before showing warning so it renders on top
       showXeroWarnForReceived('delete', po, () => {
         apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'DELETE' }).then(() => load()).catch((e: any) => alert(e.message));
@@ -3500,7 +3501,7 @@ function PurchaseOrdersView() {
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{po.order_date?.slice(0, 10)}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(po.total_amount)}</td>
                   <td style={{ padding: '10px 12px' }}><StatusBadge status={po.status} /></td>
-                  <td style={{ padding: '10px 12px' }}><POActions po={po} onEdit={() => editPoWithWarn(po)} onDelete={() => deletePoWithWarn(po)} onStatus={changeStatus} /></td>
+                  <td style={{ padding: '10px 12px' }}><POActions po={po} onEdit={() => editPoWithWarn(po, undefined, true)} onReceive={() => openEdit(po)} onDelete={() => deletePoWithWarn(po)} onStatus={changeStatus} /></td>
                 </tr>
               ))}
             </tbody>
@@ -3755,8 +3756,8 @@ function PurchaseOrdersView() {
             {isReceiving ? (
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
                 <button type="button" onClick={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} style={btnStyle('ghost')}>Cancel</button>
-                <button type="button" disabled={saving} title="Saves receive quantities and marks this PO as partially received. Does NOT sync to Xero — use when still waiting on remaining stock." onClick={e => handleSubmit(e as any, false, undefined, 'partially_received')} style={btnStyle('ghost')}>{saving ? 'Saving…' : 'Mark as Partially Received'}</button>
-                <button type="button" disabled={saving} title="Saves receive quantities and marks this PO as fully received. Triggers Xero sync: bill is approved and stock movement is posted." onClick={e => handleSubmit(e as any, false, undefined, 'received')} style={btnStyle('mint')}>{saving ? 'Saving…' : 'Mark as Received'}</button>
+                <button type="button" disabled={saving} title="Saves received quantities. PO becomes Partially Received if any items have been received, or stays Confirmed if nothing received yet. Does NOT sync to Xero." onClick={e => { const hasAny = lineItems.some(item => item.variant_id && Number(receiveQtys[item.variant_id] || 0) > 0); handleSubmit(e as any, false, undefined, (hasAny || modal.edit?.status === 'partially_received') ? 'partially_received' : undefined); }} style={btnStyle('ghost')}>{saving ? 'Saving…' : 'Save'}</button>
+                <button type="button" disabled={saving} title="Saves received quantities and marks this PO as complete. Triggers Xero sync: bill is approved and inventory journal is posted." onClick={e => handleSubmit(e as any, false, undefined, 'complete')} style={btnStyle('mint')}>{saving ? 'Saving…' : 'Save and Complete'}</button>
               </div>
             ) : (
               <FormActions onCancel={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} saving={saving} isEdit={!!modal.edit}
@@ -3993,7 +3994,7 @@ function PurchaseOrdersView() {
                     </div>
                   </div>
                 )}
-                {viewModal.po.status === 'received' && lcs.length > 0 && (
+                {viewModal.po.status === 'complete' && lcs.length > 0 && (
                   <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', background: 'var(--sv-bg-2)', borderRadius: 6, padding: '6px 10px' }}>
                     Landed costs have been distributed into avg. cost per unit.
                   </div>
@@ -4145,7 +4146,7 @@ function PurchaseOrdersView() {
   );
 }
 
-function POActions({ po, onEdit, onDelete, onStatus, context = 'list' }: { po: any; onEdit: () => void; onDelete: () => void; onStatus: (po: any, s: string) => void; context?: 'list' | 'view' }) {
+function POActions({ po, onEdit, onReceive, onDelete, onStatus, context = 'list' }: { po: any; onEdit: () => void; onReceive?: () => void; onDelete: () => void; onStatus: (po: any, s: string) => void; context?: 'list' | 'view' }) {
   const isOpeningSnapshot =
     po?.po_category === 'opening_stock' ||
     po?.category === 'opening_stock' ||
@@ -4157,18 +4158,19 @@ function POActions({ po, onEdit, onDelete, onStatus, context = 'list' }: { po: a
   }
   const btns = [];
   if (po.status === 'draft')    { btns.push(<button key="a" onClick={() => onStatus(po, 'confirmed')}  style={btnStyle('mint', 'xs')}>Confirm</button>); }
-  if (po.status === 'confirmed') { btns.push(<a key="p" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 {context === 'view' ? 'Smart Device Receive' : 'Receive'}</a>); }
-  if (po.status === 'confirmed' && context === 'view') { btns.push(<button key="r" onClick={() => onStatus(po, 'received')}  style={btnStyle('mint', 'xs')}>Mark Received</button>); }
+  if (po.status === 'confirmed' && context !== 'list') { btns.push(<a key="p" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 Smart Device Receive</a>); }
+  if (po.status === 'confirmed' && context === 'view') { btns.push(<button key="r" onClick={() => onStatus(po, 'complete')}  style={btnStyle('mint', 'xs')}>Mark Complete</button>); }
   if (po.status === 'confirmed' && context !== 'list') { btns.push(<button key="b" onClick={() => onStatus(po, 'draft')}     style={btnStyle('ghost', 'xs')}>Revert</button>); }
   if (po.status === 'partially_received') { btns.push(<a key="pr" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 {context === 'view' ? 'Continue Receiving' : 'Continue'}</a>); }
-  if (po.status === 'partially_received') { btns.push(<button key="prr" onClick={() => onStatus(po, 'received')} style={btnStyle('mint', 'xs')}>Mark Received</button>); }
+  if (po.status === 'partially_received') { btns.push(<button key="prr" onClick={() => onStatus(po, 'complete')} style={btnStyle('mint', 'xs')}>Mark Complete</button>); }
   if (po.status === 'partially_received' && context !== 'list') { btns.push(<button key="prb" onClick={() => onStatus(po, 'confirmed')} style={btnStyle('ghost', 'xs')}>Revert to Confirmed</button>); }
-  if (po.status === 'received') {
+  if (po.status === 'complete') {
     btns.push(<button key="e" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>);
     btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>);
   }
-  if (po.status !== 'received' && po.status !== 'cancelled') {
+  if (po.status !== 'complete' && po.status !== 'cancelled') {
     btns.push(<button key="e" onClick={onEdit}  style={btnStyle('ghost', 'xs')}>Edit</button>);
+    if (po.status === 'confirmed' && context === 'list') { btns.push(<button key="recv" onClick={onReceive ?? onEdit} style={btnStyle('action', 'xs')}>Receive</button>); }
     if (context !== 'list' && po.status !== 'partially_received') { btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>); }
     if (context !== 'list' && po.status === 'partially_received') { btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>); }
   }
@@ -4246,7 +4248,7 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
             {xeroAt && <span style={{ color:'var(--sv-text-dim)' }}>{xeroAt}</span>}
             {xeroId && <span style={{ color:'var(--sv-text-dim)', fontFamily:'monospace', fontSize:10 }}>{xeroId.slice(0,8)}…</span>}
             {xeroId && <a href={`https://go.xero.com/AccountsPayable/View.aspx?InvoiceID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color:'var(--sv-mint)' }}>View Bill ↗</a>}
-            {xeroId && xeroVoidResult !== 'voided' && <button onClick={doXeroVoid} disabled={xeroVoiding} style={{ background:'none', border:'1px solid #f87171', borderRadius:4, cursor:'pointer', padding:'2px 8px', fontSize:11, color:'#f87171' }}>{xeroVoiding ? 'Removing…' : po.status === 'received' ? 'Void in Xero' : 'Delete from Xero'}</button>}
+            {xeroId && xeroVoidResult !== 'voided' && <button onClick={doXeroVoid} disabled={xeroVoiding} style={{ background:'none', border:'1px solid #f87171', borderRadius:4, cursor:'pointer', padding:'2px 8px', fontSize:11, color:'#f87171' }}>{xeroVoiding ? 'Removing…' : po.status === 'complete' ? 'Void in Xero' : 'Delete from Xero'}</button>}
             {xeroVoidResult === 'failed' && <span style={{ color:'#f87171' }}>{xeroVoidMsg}</span>}
           </div>
           {xeroBillFetching && !xeroBillDetails && xeroVoidResult !== 'voided' && (
@@ -4441,9 +4443,9 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
       </div>
 
       {/* D – COGS on Receive */}
-      {po.status === 'received' && (
+      {po.status === 'complete' && (
         <>
-          <div style={lbl}>D — COGS / Inventory Impact (status: received)</div>
+          <div style={lbl}>D — COGS / Inventory Impact (status: complete)</div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>

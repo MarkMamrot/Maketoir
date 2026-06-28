@@ -66,7 +66,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         // Revert to draft → void existing Xero bill (triggerPOXeroVoid also clears xero_bill_id)
         xeroWarning = await triggerPOXeroVoid(businessId, Number(params.id)).catch(() => null);
       } else if (status === 'confirmed') {
-        if (priorPo?.status === 'received') {
+        if (priorPo?.status === 'complete') {
           // Reverting from received: void the AUTHORISED Xero bill, then create a new Draft
           xeroWarning = await triggerPOXeroVoid(businessId, Number(params.id)).catch(() => null);
           // xero_bill_id is now cleared — create a fresh Draft Bill
@@ -78,7 +78,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
             triggerPOXeroSync(businessId, Number(params.id), 'confirmed').catch(() => {});
           }
         }
-      } else if (status === 'received') {
+      } else if (status === 'complete') {
         // Only fire sync on full receive via IMS list (batch API fires its own sync)
         triggerPOXeroSync(businessId, Number(params.id), status).catch(() => {});
       }
