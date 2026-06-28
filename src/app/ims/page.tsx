@@ -3608,13 +3608,13 @@ function PurchaseOrdersView() {
                           />
                         </td>
                         <td style={{ padding: 4, width: 80 }}>
-                          <input type="number" min="1" step="1" value={item.qty_ordered} onChange={e => updateLine(i, 'qty_ordered', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} />
+                          <input type="number" min="1" step="1" value={Math.round(Number(item.qty_ordered || 0))} onChange={e => updateLine(i, 'qty_ordered', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} />
                         </td>
                         <td style={{ padding: 4, width: 100 }}>
                           <input type="number" min="0" step="0.0001" value={item.unit_cost} onChange={e => updateLine(i, 'unit_cost', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} />
                         </td>
                         <td style={{ padding: 4, width: 70 }}>
-                          <input type="number" min="0" max="100" step="1" value={item.discount_pct ?? 0} onChange={e => updateLine(i, 'discount_pct', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0" />
+                          <input type="number" min="0" max="100" step="1" value={Math.round(Number(item.discount_pct ?? 0))} onChange={e => updateLine(i, 'discount_pct', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0" />
                         </td>
                         {taxTreatment !== 'no_tax' && (
                         <td style={{ padding: 4, width: 70 }}>
@@ -5138,7 +5138,7 @@ function SalesOrdersView() {
                             onChange={vid => selectSOVariant(i, vid)}
                           />
                         </td>
-                        <td style={{ padding: 4, width: 70 }}><input type="number" min="1" step="1" value={item.qty_ordered} onChange={e => updateLine(i, 'qty_ordered', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} /></td>
+                        <td style={{ padding: 4, width: 70 }}><input type="number" min="1" step="1" value={Math.round(Number(item.qty_ordered || 0))} onChange={e => updateLine(i, 'qty_ordered', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} /></td>
                         <td style={{ padding: 4, width: 90 }}><input type="number" min="0" step="0.0001" value={item.unit_price} onChange={e => updateLine(i, 'unit_price', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} /></td>
                         <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="100" step="1" value={Math.round(Number(item.discount_pct || 0) * 100)} onChange={e => updateLine(i, 'discount_pct', Number(e.target.value) / 100)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0" /></td>
                         <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="100" step="1" value={Math.round(Number(item.tax_rate || 0) * 100)} onChange={e => updateLine(i, 'tax_rate', Number(e.target.value) / 100)} style={{ ...inputStyle, fontSize: 12 }} placeholder="10" /></td>
