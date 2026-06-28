@@ -1772,6 +1772,7 @@ function MainPos({
         userName={session.full_name}
         saleRefreshTick={saleRefreshTick}
         morningGreetingTick={morningGreetingTick}
+        cartLeft={cartLeft}
       />
     </div>
   );
@@ -1917,13 +1918,14 @@ const MORNING_GREETINGS = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 function PosAvatarBar({
-  myLocationId, myAvatar, userName, saleRefreshTick, morningGreetingTick,
+  myLocationId, myAvatar, userName, saleRefreshTick, morningGreetingTick, cartLeft,
 }: {
   myLocationId: number;
   myAvatar: string;
   userName: string;
   saleRefreshTick: number;
   morningGreetingTick: number;
+  cartLeft: boolean;
 }) {
   // ── Leaderboard state ────────────────────────────────────────────────────────
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
@@ -2050,11 +2052,91 @@ function PosAvatarBar({
   const topSalesId = leaderboard[0]?.today_sales > 0 ? leaderboard[0]?.id : null;
   const panelBg    = 'rgba(10, 15, 30, 0.96)';
 
-  return (
-    <div style={{ position: 'fixed', bottom: 12, left: 12, zIndex: 600, display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
+  // Chat panel expands toward the screen edge (right when bar is on right, left when on left)
+  const chatAlign = cartLeft ? 'flex-end' : 'flex-start';
 
-      {/* ── Chat panel / toggle (leftmost) ──────────────────────────────────── */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', pointerEvents: 'auto' }}>
+  return (
+    <div style={{ position: 'fixed', bottom: 12, ...(cartLeft ? { right: 12 } : { left: 12 }), zIndex: 600, display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
+
+      {/* ── Avatar circles ───────────────────────────────────────────────────── */}
+      {leaderboard.map(loc => {
+        const isMine  = loc.id === myLocationId;
+        const isTop   = loc.id === topSalesId;
+        const size    = isMine ? 54 : 40;
+        const sales   = Math.max(0, loc.today_sales);
+        const bubClr  = bubble?.type === 'speech' ? '#2563eb' : '#7c3aed';
+
+        return (
+          <div key={loc.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, position: 'relative', pointerEvents: 'auto', cursor: isMine ? 'pointer' : 'default' }}
+            onClick={isMine ? () => { const text = JOKES[jokeIdxRef.current % JOKES.length]; jokeIdxRef.current++; showBubble('speech', text); } : undefined}
+          >
+            {/* Speech bubble — comic-style, higher and offset right, tail at bottom-left */}
+            {isMine && bubble && (
+              <div
+                onClick={e => { e.stopPropagation(); setBubble(null); }}
+                style={{
+                  position: 'absolute',
+                  bottom: size + 28,
+                  left: '50%',
+                  transform: 'translateX(-15%)',
+                  background: 'rgba(255,255,255,.97)',
+                  border: `2px solid ${bubClr}`,
+                  borderRadius: 14,
+                  padding: '9px 13px',
+                  maxWidth: 220, minWidth: 130,
+                  fontSize: 11, fontWeight: 600,
+                  color: '#1e293b', lineHeight: 1.45, textAlign: 'center',
+                  zIndex: 10,
+                  boxShadow: '0 6px 20px rgba(0,0,0,.35)',
+                  whiteSpace: 'normal', wordBreak: 'break-word',
+                  cursor: 'pointer',
+                }}>
+                {bubble.text}
+                <span style={{ position: 'absolute', top: 4, right: 7, fontSize: 9, color: '#94a3b8' }}>✕</span>
+                {/* Tail outer (border colour) */}
+                <div style={{ position: 'absolute', bottom: -13, left: 18, width: 0, height: 0, borderLeft: '9px solid transparent', borderRight: '9px solid transparent', borderTop: `13px solid ${bubClr}` }} />
+                {/* Tail inner (white fill) */}
+                <div style={{ position: 'absolute', bottom: -10, left: 20, width: 0, height: 0, borderLeft: '7px solid transparent', borderRight: '7px solid transparent', borderTop: '10px solid rgba(255,255,255,.97)' }} />
+              </div>
+            )}
+
+            {/* Crown */}
+            {isTop && (
+              <img src="/avatars/crown.png" alt="crown" style={{ position: 'absolute', top: -20, left: '50%', transform: 'translateX(-50%)', width: 24, height: 'auto', zIndex: 2, pointerEvents: 'none' }} />
+            )}
+
+            {/* Avatar circle */}
+            <div style={{
+              width: size, height: size, borderRadius: '50%', overflow: 'hidden',
+              border: isMine ? '2px solid var(--sv-action, #2563eb)' : '2px solid rgba(255,255,255,.2)',
+              filter: loc.is_open ? 'none' : 'grayscale(1)',
+              opacity: loc.is_open ? 1 : 0.38,
+              background: 'var(--sv-bg-2, #1e293b)',
+              flexShrink: 0,
+              boxShadow: isMine ? '0 0 0 2px var(--sv-action, #2563eb)' : '0 2px 8px rgba(0,0,0,.4)',
+            }}>
+              <img
+                src={`/avatars/${isMine ? (myAvatar || POS_AVATAR_FILES[loc.id % POS_AVATAR_FILES.length]) : (loc.avatar || POS_AVATAR_FILES[loc.id % POS_AVATAR_FILES.length])}`}
+                alt={loc.name}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', pointerEvents: 'none' }}
+              />
+            </div>
+
+            {/* Name + sales label — clean text, no heavy pill */}
+            <div style={{ textAlign: 'center', maxWidth: 64 }}>
+              <div style={{ fontSize: 9.5, fontWeight: 600, color: 'rgba(255,255,255,.85)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 64, textShadow: '0 1px 4px rgba(0,0,0,1)' }}>
+                {loc.name}
+              </div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: sales > 0 ? '#86efac' : 'rgba(255,255,255,.35)', textShadow: '0 1px 3px rgba(0,0,0,1)', marginTop: 1 }}>
+                ${sales >= 1000 ? `${(sales / 1000).toFixed(1)}k` : sales.toFixed(0)}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* ── Chat panel / toggle (rightmost, beside avatars) ─────────────────── */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: chatAlign, pointerEvents: 'auto' }}>
         {chatOpen ? (
           <div style={{ width: 290, background: panelBg, border: '1px solid rgba(255,255,255,.12)', borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,.7)', overflow: 'hidden', marginBottom: 4 }}>
             <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,.1)', gap: 8 }}>
@@ -2086,7 +2168,7 @@ function PosAvatarBar({
             </div>
           </div>
         ) : (
-          /* Minimised chat pill — same height as smaller avatars so it sits flush in the row */
+          /* Minimised chat circle — matches the 40px avatar size */
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
             <button
               onClick={() => setChatOpen(true)}
@@ -2097,77 +2179,10 @@ function PosAvatarBar({
                 <span style={{ position: 'absolute', top: -4, right: -4, background: '#ef4444', color: '#fff', borderRadius: 10, padding: '1px 5px', fontSize: 9, fontWeight: 800, lineHeight: 1.4 }}>{unread}</span>
               )}
             </button>
-            <div style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,.6)', textShadow: '0 1px 3px rgba(0,0,0,.9)' }}>Chat</div>
+            <div style={{ fontSize: 9.5, fontWeight: 600, color: 'rgba(255,255,255,.5)', textShadow: '0 1px 3px rgba(0,0,0,.9)' }}>Chat</div>
           </div>
         )}
       </div>
-
-      {/* ── Avatar circles ───────────────────────────────────────────────────── */}
-      {leaderboard.map(loc => {
-        const isMine = loc.id === myLocationId;
-        const isTop  = loc.id === topSalesId;
-        const size   = isMine ? 54 : 40;
-        const sales  = Math.max(0, loc.today_sales);
-
-        return (
-          <div key={loc.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, position: 'relative', pointerEvents: 'auto', cursor: isMine ? 'pointer' : 'default' }}
-            onClick={isMine ? () => { const text = JOKES[jokeIdxRef.current % JOKES.length]; jokeIdxRef.current++; showBubble('speech', text); } : undefined}
-          >
-            {/* Thought / speech bubble — only over own avatar */}
-            {isMine && bubble && (
-              <div
-                onClick={e => { e.stopPropagation(); setBubble(null); }}
-                style={{
-                  position: 'absolute', bottom: size + 18, left: '50%', transform: 'translateX(-50%)',
-                  background: 'rgba(255,255,255,.97)',
-                  border: `2px solid ${bubble.type === 'speech' ? '#2563eb' : '#7c3aed'}`,
-                  borderRadius: bubble.type === 'speech' ? 12 : 18,
-                  padding: '8px 12px', maxWidth: 210, fontSize: 11, fontWeight: 600,
-                  color: '#1e293b', lineHeight: 1.4, textAlign: 'center', zIndex: 10,
-                  boxShadow: '0 4px 16px rgba(0,0,0,.3)',
-                  whiteSpace: 'normal', wordBreak: 'break-word', minWidth: 120,
-                  cursor: 'pointer',
-                }}>
-                {bubble.text}
-                <span style={{ position: 'absolute', top: 4, right: 6, fontSize: 9, color: '#94a3b8' }}>✕</span>
-                <div style={{ position: 'absolute', bottom: -10, left: '50%', transform: 'translateX(-50%)', width: 0, height: 0, borderLeft: '8px solid transparent', borderRight: '8px solid transparent', borderTop: `10px solid ${bubble.type === 'speech' ? '#2563eb' : '#7c3aed'}` }} />
-              </div>
-            )}
-
-            {/* Crown */}
-            {isTop && (
-              <img src="/avatars/crown.png" alt="crown" style={{ position: 'absolute', top: -20, left: '50%', transform: 'translateX(-50%)', width: 24, height: 'auto', zIndex: 2, pointerEvents: 'none' }} />
-            )}
-
-            {/* Avatar circle */}
-            <div style={{
-              width: size, height: size, borderRadius: '50%', overflow: 'hidden',
-              border: isMine ? '2px solid var(--sv-action, #2563eb)' : '2px solid rgba(255,255,255,.2)',
-              filter: loc.is_open ? 'none' : 'grayscale(1)',
-              opacity: loc.is_open ? 1 : 0.38,
-              background: 'var(--sv-bg-2, #1e293b)',
-              flexShrink: 0,
-              boxShadow: isMine ? '0 0 0 2px var(--sv-action, #2563eb)' : '0 2px 8px rgba(0,0,0,.4)',
-            }}>
-              <img
-                src={`/avatars/${isMine ? (myAvatar || POS_AVATAR_FILES[loc.id % POS_AVATAR_FILES.length]) : (loc.avatar || POS_AVATAR_FILES[loc.id % POS_AVATAR_FILES.length])}`}
-                alt={loc.name}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', pointerEvents: 'none' }}
-              />
-            </div>
-
-            {/* Name + sales label */}
-            <div style={{ textAlign: 'center', maxWidth: 64 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 64, textShadow: '0 1px 4px rgba(0,0,0,1)' }}>
-                {loc.name}
-              </div>
-              <div style={{ display: 'inline-block', background: 'rgba(0,0,0,.55)', borderRadius: 6, padding: '1px 5px', fontSize: 10, fontWeight: 700, color: sales > 0 ? '#4ade80' : 'rgba(255,255,255,.45)', marginTop: 1 }}>
-                ${sales >= 1000 ? `${(sales / 1000).toFixed(1)}k` : sales.toFixed(0)}
-              </div>
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }
