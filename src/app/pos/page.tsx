@@ -1765,18 +1765,13 @@ function MainPos({
         </div>
       )}
 
-      {/* ── Avatar Leaderboard Bar ────────────────────────────────────────────── */}
+      {/* ── Avatar Leaderboard Bar + Chat ───────────────────────────────────── */}
       <PosAvatarBar
         myLocationId={session.location_id}
         myAvatar={posSettings.avatar}
+        userName={session.full_name}
         saleRefreshTick={saleRefreshTick}
         morningGreetingTick={morningGreetingTick}
-      />
-      {/* ── Group Chat ─────────────────────────────────────────────────────────── */}
-      <PosChatWindow
-        myLocationId={session.location_id}
-        myAvatar={posSettings.avatar}
-        userName={session.full_name}
       />
     </div>
   );
@@ -1785,6 +1780,7 @@ function MainPos({
 // ─── POS Avatar Leaderboard Bar ───────────────────────────────────────────────
 
 interface LeaderboardEntry { id: number; name: string; today_sales: number; is_open: boolean; avatar: string; }
+interface ChatMessage { id: number; location_id: number; location_name: string; user_name: string; avatar: string; message: string; created_at: string; }
 
 const OVERTAKE_SAYINGS = [
   "Eat my dust, {other}! 💨",
@@ -1921,13 +1917,15 @@ const MORNING_GREETINGS = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 function PosAvatarBar({
-  myLocationId, myAvatar, saleRefreshTick, morningGreetingTick,
+  myLocationId, myAvatar, userName, saleRefreshTick, morningGreetingTick,
 }: {
   myLocationId: number;
   myAvatar: string;
+  userName: string;
   saleRefreshTick: number;
   morningGreetingTick: number;
 }) {
+  // ── Leaderboard state ────────────────────────────────────────────────────────
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const prevLeaderRef   = useRef<LeaderboardEntry[]>([]);
   const [bubble, setBubble] = useState<{ type: 'thought' | 'speech'; text: string } | null>(null);
@@ -1937,6 +1935,16 @@ function PosAvatarBar({
   const jokeIdxRef      = useRef(0);
   const morningIdxRef   = useRef(0);
 
+  // ── Chat state ───────────────────────────────────────────────────────────────
+  const [chatOpen,  setChatOpen]  = useState(false);
+  const [messages,  setMessages]  = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [sending,   setSending]   = useState(false);
+  const [unread,    setUnread]    = useState(0);
+  const lastReadRef = useRef<number>(0);
+  const listRef     = useRef<HTMLDivElement>(null);
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
   function showBubble(type: 'thought' | 'speech', text: string) {
     if (bubbleTimerRef.current) clearTimeout(bubbleTimerRef.current);
     setBubble({ type, text });
@@ -1975,85 +1983,172 @@ function PosAvatarBar({
       .catch(() => {});
   }
 
+  function loadLastRead()  { try { return parseInt(localStorage.getItem('pos_chat_last_read') ?? '0', 10) || 0; } catch { return 0; } }
+  function saveLastRead(id: number) { try { localStorage.setItem('pos_chat_last_read', String(id)); } catch {} lastReadRef.current = id; }
+
+  function fetchMessages() {
+    fetch('/api/pos/chat')
+      .then(r => r.json())
+      .then(d => {
+        if (!d.messages) return;
+        setMessages(d.messages);
+        const nr = d.messages.filter((m: ChatMessage) => m.id > lastReadRef.current).length;
+        setUnread(nr);
+        if (chatOpen && d.messages.length > 0) { saveLastRead(Math.max(...d.messages.map((m: ChatMessage) => m.id))); setUnread(0); }
+      })
+      .catch(() => {});
+  }
+
+  async function sendMessage() {
+    if (!chatInput.trim() || sending) return;
+    setSending(true);
+    try {
+      await fetch('/api/pos/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: chatInput.trim(), avatar: myAvatar }) });
+      setChatInput('');
+      fetchMessages();
+    } catch {} finally { setSending(false); }
+  }
+
+  function relTime(iso: string) {
+    const diff = Date.now() - new Date(iso).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1)  return 'just now';
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    return h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
+  }
+
+  // ── Effects ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     fetchLeaderboard();
     const id = setInterval(fetchLeaderboard, 120_000);
     return () => clearInterval(id);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (saleRefreshTick > 0) fetchLeaderboard();
-  }, [saleRefreshTick]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Re-fetch immediately when own avatar changes so the new image shows without waiting for the 2-min poll
+  useEffect(() => { if (saleRefreshTick > 0) fetchLeaderboard(); }, [saleRefreshTick]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { fetchLeaderboard(); }, [myAvatar]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (morningGreetingTick > 0) { const text = MORNING_GREETINGS[morningIdxRef.current % MORNING_GREETINGS.length]; morningIdxRef.current++; showBubble('speech', text); }
+  }, [morningGreetingTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (morningGreetingTick > 0) {
-      const text = MORNING_GREETINGS[morningIdxRef.current % MORNING_GREETINGS.length];
-      morningIdxRef.current++;
-      showBubble('speech', text);
+    lastReadRef.current = loadLastRead();
+    fetchMessages();
+    const id = setInterval(fetchMessages, 60_000);
+    return () => clearInterval(id);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (chatOpen) {
+      if (messages.length > 0) { saveLastRead(Math.max(...messages.map(m => m.id))); setUnread(0); }
+      setTimeout(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, 80);
     }
-  }, [morningGreetingTick]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [chatOpen, messages]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (leaderboard.length === 0) return null;
 
   const topSalesId = leaderboard[0]?.today_sales > 0 ? leaderboard[0]?.id : null;
+  const panelBg    = 'rgba(10, 15, 30, 0.96)';
 
   return (
-    <div style={{ position: 'fixed', bottom: 12, left: 12, zIndex: 500, display: 'flex', flexDirection: 'row', gap: 10, alignItems: 'flex-end', pointerEvents: 'none' }}>
+    <div style={{ position: 'fixed', bottom: 12, left: 12, zIndex: 600, display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
+
+      {/* ── Chat panel / toggle (leftmost) ──────────────────────────────────── */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', pointerEvents: 'auto' }}>
+        {chatOpen ? (
+          <div style={{ width: 290, background: panelBg, border: '1px solid rgba(255,255,255,.12)', borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,.7)', overflow: 'hidden', marginBottom: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,.1)', gap: 8 }}>
+              <span style={{ fontSize: 13, flex: 1, fontWeight: 700, color: 'rgba(255,255,255,.9)' }}>💬 Team Chat</span>
+              <button onClick={() => setChatOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.5)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>✕</button>
+            </div>
+            <div ref={listRef} style={{ height: 260, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {messages.length === 0 && <div style={{ color: 'rgba(255,255,255,.3)', fontSize: 12, textAlign: 'center', marginTop: 40 }}>No messages yet. Say hi! 👋</div>}
+              {messages.map(msg => {
+                const isMine = msg.location_id === myLocationId;
+                return (
+                  <div key={msg.id} style={{ display: 'flex', gap: 7, alignItems: 'flex-start', flexDirection: isMine ? 'row-reverse' : 'row' }}>
+                    <div style={{ width: 26, height: 26, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'rgba(255,255,255,.1)' }}>
+                      <img src={`/avatars/${msg.avatar || POS_AVATAR_FILES[msg.location_id % POS_AVATAR_FILES.length]}`} alt={msg.location_name} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }} />
+                    </div>
+                    <div style={{ maxWidth: '72%' }}>
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,.4)', marginBottom: 2, textAlign: isMine ? 'right' : 'left' }}>{msg.location_name} · {relTime(msg.created_at)}</div>
+                      <div style={{ background: isMine ? 'rgba(37,99,235,.75)' : 'rgba(255,255,255,.09)', borderRadius: isMine ? '12px 12px 2px 12px' : '12px 12px 12px 2px', padding: '7px 10px', fontSize: 12, color: 'rgba(255,255,255,.92)', lineHeight: 1.5 }}>
+                        {msg.message}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ padding: '8px 10px', borderTop: '1px solid rgba(255,255,255,.1)', display: 'flex', gap: 6 }}>
+              <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }} placeholder="Message the team…" maxLength={500} style={{ flex: 1, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', borderRadius: 8, padding: '6px 10px', color: 'rgba(255,255,255,.9)', fontSize: 12, outline: 'none' }} />
+              <button onClick={sendMessage} disabled={sending || !chatInput.trim()} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', fontWeight: 700, fontSize: 12, cursor: sending || !chatInput.trim() ? 'not-allowed' : 'pointer', opacity: sending || !chatInput.trim() ? 0.5 : 1 }}>{sending ? '…' : '→'}</button>
+            </div>
+          </div>
+        ) : (
+          /* Minimised chat pill — same height as smaller avatars so it sits flush in the row */
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+            <button
+              onClick={() => setChatOpen(true)}
+              style={{ width: 40, height: 40, borderRadius: '50%', border: '2px solid rgba(255,255,255,.2)', background: panelBg, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, boxShadow: '0 2px 8px rgba(0,0,0,.5)', position: 'relative' }}
+            >
+              💬
+              {unread > 0 && (
+                <span style={{ position: 'absolute', top: -4, right: -4, background: '#ef4444', color: '#fff', borderRadius: 10, padding: '1px 5px', fontSize: 9, fontWeight: 800, lineHeight: 1.4 }}>{unread}</span>
+              )}
+            </button>
+            <div style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,.6)', textShadow: '0 1px 3px rgba(0,0,0,.9)' }}>Chat</div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Avatar circles ───────────────────────────────────────────────────── */}
       {leaderboard.map(loc => {
         const isMine = loc.id === myLocationId;
         const isTop  = loc.id === topSalesId;
         const size   = isMine ? 54 : 40;
+        const sales  = Math.max(0, loc.today_sales);
 
         return (
-          <div key={loc.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, position: 'relative', pointerEvents: 'auto' }}>
-
+          <div key={loc.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, position: 'relative', pointerEvents: 'auto', cursor: isMine ? 'pointer' : 'default' }}
+            onClick={isMine ? () => { const text = JOKES[jokeIdxRef.current % JOKES.length]; jokeIdxRef.current++; showBubble('speech', text); } : undefined}
+          >
             {/* Thought / speech bubble — only over own avatar */}
             {isMine && bubble && (
-              <div style={{
-                position: 'absolute', bottom: size + 18, left: '50%', transform: 'translateX(-50%)',
-                background: 'rgba(255,255,255,.97)',
-                border: `2px solid ${bubble.type === 'speech' ? '#2563eb' : '#7c3aed'}`,
-                borderRadius: bubble.type === 'speech' ? 12 : 18,
-                padding: '8px 12px', maxWidth: 200, fontSize: 11, fontWeight: 600,
-                color: '#1e293b', lineHeight: 1.4, textAlign: 'center', zIndex: 10,
-                boxShadow: '0 4px 16px rgba(0,0,0,.3)',
-                whiteSpace: 'normal', wordBreak: 'break-word', minWidth: 120,
-              }}>
+              <div
+                onClick={e => { e.stopPropagation(); setBubble(null); }}
+                style={{
+                  position: 'absolute', bottom: size + 18, left: '50%', transform: 'translateX(-50%)',
+                  background: 'rgba(255,255,255,.97)',
+                  border: `2px solid ${bubble.type === 'speech' ? '#2563eb' : '#7c3aed'}`,
+                  borderRadius: bubble.type === 'speech' ? 12 : 18,
+                  padding: '8px 12px', maxWidth: 210, fontSize: 11, fontWeight: 600,
+                  color: '#1e293b', lineHeight: 1.4, textAlign: 'center', zIndex: 10,
+                  boxShadow: '0 4px 16px rgba(0,0,0,.3)',
+                  whiteSpace: 'normal', wordBreak: 'break-word', minWidth: 120,
+                  cursor: 'pointer',
+                }}>
                 {bubble.text}
-                <div style={{
-                  position: 'absolute', bottom: -10, left: '50%', transform: 'translateX(-50%)',
-                  width: 0, height: 0,
-                  borderLeft: '8px solid transparent', borderRight: '8px solid transparent',
-                  borderTop: `10px solid ${bubble.type === 'speech' ? '#2563eb' : '#7c3aed'}`,
-                }} />
+                <span style={{ position: 'absolute', top: 4, right: 6, fontSize: 9, color: '#94a3b8' }}>✕</span>
+                <div style={{ position: 'absolute', bottom: -10, left: '50%', transform: 'translateX(-50%)', width: 0, height: 0, borderLeft: '8px solid transparent', borderRight: '8px solid transparent', borderTop: `10px solid ${bubble.type === 'speech' ? '#2563eb' : '#7c3aed'}` }} />
               </div>
             )}
 
             {/* Crown */}
             {isTop && (
-              <img src="/avatars/crown.png" alt="crown" style={{
-                position: 'absolute', top: -20, left: '50%', transform: 'translateX(-50%)',
-                width: 24, height: 'auto', zIndex: 2, pointerEvents: 'none',
-              }} />
+              <img src="/avatars/crown.png" alt="crown" style={{ position: 'absolute', top: -20, left: '50%', transform: 'translateX(-50%)', width: 24, height: 'auto', zIndex: 2, pointerEvents: 'none' }} />
             )}
 
             {/* Avatar circle */}
-            <div
-              onClick={isMine ? () => { const text = JOKES[jokeIdxRef.current % JOKES.length]; jokeIdxRef.current++; showBubble('speech', text); } : undefined}
-              style={{
-                width: size, height: size, borderRadius: '50%', overflow: 'hidden',
-                border: isMine ? '2px solid var(--sv-action, #2563eb)' : '2px solid rgba(255,255,255,.2)',
-                cursor: isMine ? 'pointer' : 'default',
-                filter: loc.is_open ? 'none' : 'grayscale(1)',
-                opacity: loc.is_open ? 1 : 0.38,
-                background: 'var(--sv-bg-2, #1e293b)',
-                flexShrink: 0,
-                boxShadow: isMine ? '0 0 0 2px var(--sv-action, #2563eb)' : '0 2px 8px rgba(0,0,0,.4)',
-              }}
-            >
+            <div style={{
+              width: size, height: size, borderRadius: '50%', overflow: 'hidden',
+              border: isMine ? '2px solid var(--sv-action, #2563eb)' : '2px solid rgba(255,255,255,.2)',
+              filter: loc.is_open ? 'none' : 'grayscale(1)',
+              opacity: loc.is_open ? 1 : 0.38,
+              background: 'var(--sv-bg-2, #1e293b)',
+              flexShrink: 0,
+              boxShadow: isMine ? '0 0 0 2px var(--sv-action, #2563eb)' : '0 2px 8px rgba(0,0,0,.4)',
+            }}>
               <img
                 src={`/avatars/${isMine ? (myAvatar || POS_AVATAR_FILES[loc.id % POS_AVATAR_FILES.length]) : (loc.avatar || POS_AVATAR_FILES[loc.id % POS_AVATAR_FILES.length])}`}
                 alt={loc.name}
@@ -2063,11 +2158,11 @@ function PosAvatarBar({
 
             {/* Name + sales label */}
             <div style={{ textAlign: 'center', maxWidth: 64 }}>
-              <div style={{ fontSize: 9, fontWeight: 600, color: 'rgba(255,255,255,.78)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 64, textShadow: '0 1px 3px rgba(0,0,0,.9)' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 64, textShadow: '0 1px 4px rgba(0,0,0,1)' }}>
                 {loc.name}
               </div>
-              <div style={{ fontSize: 9, color: 'rgba(255,255,255,.5)', textShadow: '0 1px 3px rgba(0,0,0,.9)' }}>
-                ${loc.today_sales >= 1000 ? `${(loc.today_sales / 1000).toFixed(1)}k` : loc.today_sales.toFixed(0)}
+              <div style={{ display: 'inline-block', background: 'rgba(0,0,0,.55)', borderRadius: 6, padding: '1px 5px', fontSize: 10, fontWeight: 700, color: sales > 0 ? '#4ade80' : 'rgba(255,255,255,.45)', marginTop: 1 }}>
+                ${sales >= 1000 ? `${(sales / 1000).toFixed(1)}k` : sales.toFixed(0)}
               </div>
             </div>
           </div>
@@ -2078,159 +2173,8 @@ function PosAvatarBar({
 }
 
 // ─── POS Group Chat Window ─────────────────────────────────────────────────────
-
-interface ChatMessage { id: number; location_id: number; location_name: string; user_name: string; avatar: string; message: string; created_at: string; }
-
-function PosChatWindow({ myLocationId, myAvatar, userName }: { myLocationId: number; myAvatar: string; userName: string }) {
-  const [open,     setOpen]     = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input,    setInput]    = useState('');
-  const [sending,  setSending]  = useState(false);
-  const [unread,   setUnread]   = useState(0);
-  const lastReadRef = useRef<number>(0);
-  const listRef     = useRef<HTMLDivElement>(null);
-
-  function loadLastRead() {
-    try { return parseInt(localStorage.getItem('pos_chat_last_read') ?? '0', 10) || 0; } catch { return 0; }
-  }
-  function saveLastRead(id: number) {
-    try { localStorage.setItem('pos_chat_last_read', String(id)); } catch {}
-    lastReadRef.current = id;
-  }
-
-  function fetchMessages() {
-    fetch('/api/pos/chat')
-      .then(r => r.json())
-      .then(d => {
-        if (!d.messages) return;
-        setMessages(d.messages);
-        const lastRead = lastReadRef.current;
-        const newCount = d.messages.filter((m: ChatMessage) => m.id > lastRead).length;
-        setUnread(newCount);
-        if (open && d.messages.length > 0) {
-          const maxId = Math.max(...d.messages.map((m: ChatMessage) => m.id));
-          saveLastRead(maxId);
-          setUnread(0);
-        }
-      })
-      .catch(() => {});
-  }
-
-  useEffect(() => {
-    lastReadRef.current = loadLastRead();
-    fetchMessages();
-    const id = setInterval(fetchMessages, 60_000);
-    return () => clearInterval(id);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (open) {
-      if (messages.length > 0) {
-        const maxId = Math.max(...messages.map(m => m.id));
-        saveLastRead(maxId);
-        setUnread(0);
-      }
-      setTimeout(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, 80);
-    }
-  }, [open, messages]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function sendMessage() {
-    if (!input.trim() || sending) return;
-    setSending(true);
-    try {
-      await fetch('/api/pos/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: input.trim(), avatar: myAvatar }),
-      });
-      setInput('');
-      fetchMessages();
-    } catch {}
-    setSending(false);
-  }
-
-  function relTime(iso: string) {
-    const diff = Date.now() - new Date(iso).getTime();
-    const m = Math.floor(diff / 60000);
-    if (m < 1)  return 'just now';
-    if (m < 60) return `${m}m ago`;
-    const h = Math.floor(m / 60);
-    if (h < 24) return `${h}h ago`;
-    return `${Math.floor(h / 24)}d ago`;
-  }
-
-  const panelBg = 'rgba(15, 23, 42, 0.95)';
-
-  return (
-    <div style={{ position: 'fixed', bottom: 12, left: 14, zIndex: 600, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', pointerEvents: 'auto' }}>
-      {open ? (
-        <div style={{ width: 290, background: panelBg, border: '1px solid rgba(255,255,255,.12)', borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,.6)', overflow: 'hidden', marginBottom: 6 }}>
-          {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,.1)', gap: 8 }}>
-            <span style={{ fontSize: 14, flex: 1, fontWeight: 700, color: 'rgba(255,255,255,.9)' }}>💬 Team Chat</span>
-            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.5)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>✕</button>
-          </div>
-          {/* Messages */}
-          <div ref={listRef} style={{ height: 270, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {messages.length === 0 && (
-              <div style={{ color: 'rgba(255,255,255,.3)', fontSize: 12, textAlign: 'center', marginTop: 40 }}>No messages yet. Say hi! 👋</div>
-            )}
-            {messages.map(msg => {
-              const isMine = msg.location_id === myLocationId;
-              return (
-                <div key={msg.id} style={{ display: 'flex', gap: 7, alignItems: 'flex-start', flexDirection: isMine ? 'row-reverse' : 'row' }}>
-                  <div style={{ width: 28, height: 28, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'rgba(255,255,255,.1)' }}>
-                    <img
-                      src={`/avatars/${msg.avatar || POS_AVATAR_FILES[msg.location_id % POS_AVATAR_FILES.length]}`}
-                      alt={msg.location_name}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}
-                    />
-                  </div>
-                  <div style={{ maxWidth: '72%' }}>
-                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,.4)', marginBottom: 2, textAlign: isMine ? 'right' : 'left' }}>
-                      {msg.location_name} · {msg.user_name} · {relTime(msg.created_at)}
-                    </div>
-                    <div style={{
-                      background: isMine ? 'rgba(37,99,235,.7)' : 'rgba(255,255,255,.08)',
-                      borderRadius: isMine ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
-                      padding: '7px 10px', fontSize: 12, color: 'rgba(255,255,255,.9)', lineHeight: 1.5,
-                    }}>
-                      {msg.message}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {/* Input */}
-          <div style={{ padding: '8px 10px', borderTop: '1px solid rgba(255,255,255,.1)', display: 'flex', gap: 6 }}>
-            <input
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-              placeholder="Message the team…"
-              maxLength={500}
-              style={{ flex: 1, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', borderRadius: 8, padding: '6px 10px', color: 'rgba(255,255,255,.9)', fontSize: 12, outline: 'none' }}
-            />
-            <button onClick={sendMessage} disabled={sending || !input.trim()} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', fontWeight: 700, fontSize: 12, cursor: sending || !input.trim() ? 'not-allowed' : 'pointer', opacity: sending || !input.trim() ? 0.5 : 1 }}>
-              {sending ? '…' : '→'}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <button
-          onClick={() => setOpen(true)}
-          style={{ background: panelBg, border: '1px solid rgba(255,255,255,.15)', borderRadius: 20, padding: '6px 12px', color: 'rgba(255,255,255,.8)', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 4px 16px rgba(0,0,0,.5)', marginBottom: 112 }}
-        >
-          💬
-          {unread > 0 && (
-            <span style={{ background: '#ef4444', color: '#fff', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 800 }}>{unread}</span>
-          )}
-        </button>
-      )}
-    </div>
-  );
-}
+// (chat is now integrated into PosAvatarBar — this stub is kept for reference)
+function PosChatWindow(_props: { myLocationId: number; myAvatar: string; userName: string }) { return null; }
 
 // ─── Recent product helpers ───────────────────────────────────────────────────
 

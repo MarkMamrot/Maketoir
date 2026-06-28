@@ -44,6 +44,7 @@ export async function GET() {
       FROM pos_sales
       WHERE DATE(created_at) = CURDATE()
         AND status IN ('completed', 'layby_complete')
+        AND sale_type NOT IN ('return')
       GROUP BY location_id
     ) s ON s.location_id = l.id
     LEFT JOIN (
