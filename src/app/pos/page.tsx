@@ -952,7 +952,7 @@ function PosSettingsModal({
               {/* Search area background image */}
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 10 }}>SEARCH AREA BACKGROUND IMAGE</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <label style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', cursor: 'pointer', fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
                     {bgImage ? 'Replace image' : '+ Upload image'}
                     <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async e => {
@@ -963,12 +963,14 @@ function PosSettingsModal({
                     }} />
                   </label>
                   {bgImage && (
-                    <>
-                      <img src={bgImage} alt="BG preview" style={{ width: 70, height: 44, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--sv-etch)', flexShrink: 0 }} />
-                      <button onClick={() => setBgImage('')} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', color: 'var(--sv-red)', cursor: 'pointer' }}>Remove</button>
-                    </>
+                    <button onClick={() => setBgImage('')} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', color: 'var(--sv-red)', cursor: 'pointer' }}>Remove</button>
                   )}
                 </div>
+                {bgImage && (
+                  <div style={{ marginTop: 10, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <img src={bgImage} alt="BG preview" style={{ maxWidth: '100%', maxHeight: 180, width: 'auto', height: 'auto', display: 'block' }} />
+                  </div>
+                )}
                 {bgImage && (
                   <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
