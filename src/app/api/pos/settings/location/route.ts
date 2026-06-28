@@ -27,6 +27,7 @@ export interface PosLocationSettings {
   theme:              string; // preset key
   topbarColor:        string; // hex or ''
   searchbarColor:     string; // hex or ''
+  avatar:             string; // filename from /avatars/
 }
 
 const DEFAULTS: PosLocationSettings = {
@@ -35,6 +36,7 @@ const DEFAULTS: PosLocationSettings = {
   theme: 'midnight',
   topbarColor: '',
   searchbarColor: '',
+  avatar: '',
 };
 
 const SETTINGS_KEY = (locationId: number) => `pos_loc_${locationId}_settings`;
@@ -107,6 +109,7 @@ export async function PUT(req: Request) {
     theme:              String(body.theme ?? 'classic').slice(0, 30),
     topbarColor:        String(body.topbarColor ?? '').slice(0, 30),
     searchbarColor:     String(body.searchbarColor ?? '').slice(0, 30),
+    avatar:             String(body.avatar ?? '').replace(/[^a-zA-Z0-9_.\-]/g, '').slice(0, 100),
   };
 
   await imsExecute(

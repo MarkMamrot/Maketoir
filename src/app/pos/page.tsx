@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useState, useEffect, useRef, useCallback, useMemo, useDeferredValue } from 'react';
 import type { DeviceConfig, PosSession, CachedProduct, CartItem, PaymentEntry, ParkedSale, CompletedSale } from './_types';
 import {
@@ -427,11 +427,24 @@ interface PosLocationSettings {
   theme:              string;
   topbarColor:        string;
   searchbarColor:     string;
+  avatar:             string;
 }
 
 const DEFAULT_POS_SETTINGS: PosLocationSettings = {
-  receiptFooter: '', giftReceiptMessage: '', theme: 'midnight', topbarColor: '', searchbarColor: '',
+  receiptFooter: '', giftReceiptMessage: '', theme: 'midnight', topbarColor: '', searchbarColor: '', avatar: '',
 };
+
+const POS_AVATAR_FILES = [
+  'l1_base_boy_1.png', 'l1_base_boy_2.png', 'l1_base_boy_4.png', 'l1_base_boy_5.png',
+  'l1_base_girl_3.png', 'l1_base_girl_4.png',
+  'l2_sports_rugby.png',
+  'l3_anime_kunoichi.png', 'l3_gamer_cyber.png',
+  'l4_anime_delinquent.png', 'l4_gamer_hacker.png', 'l4_gamer_modder.png',
+  'l5_fantasy_witch.png', 'l5_music_dj.png', 'l5_music_vocalist.png',
+  'l6_scifi_engineer.png',
+  'l7_anime_deity.png',
+  'l8_ghibli_castle_mage.png', 'l8_ghibli_sky_pilot.png', 'l8_ghibli_witch.png',
+];
 
 const POS_THEMES: Record<string, { name: string; vars: Record<string, string> }> = {
   classic: {
@@ -703,21 +716,22 @@ function PosSettingsModal({
   onCancel:        () => void;
   onPreview:       (vars: Record<string, string>) => void;
 }) {
-  const [tab,                setTab]                = useState<'receipt' | 'appearance'>('receipt');
+  const [tab,                setTab]                = useState<'receipt' | 'appearance' | 'avatar'>('receipt');
   const [receiptFooter,      setReceiptFooter]      = useState(initialSettings.receiptFooter);
   const [giftReceiptMessage, setGiftReceiptMessage] = useState(initialSettings.giftReceiptMessage);
   const [theme,              setTheme]              = useState(initialSettings.theme || 'classic');
   const [topbarColor,        setTopbarColor]        = useState(initialSettings.topbarColor);
   const [searchbarColor,     setSearchbarColor]     = useState(initialSettings.searchbarColor);
+  const [avatar,             setAvatar]             = useState(initialSettings.avatar ?? '');
   const [saving,             setSaving]             = useState(false);
   const [saveError,          setSaveError]          = useState('');
 
   function buildSettings(): PosLocationSettings {
-    return { receiptFooter, giftReceiptMessage, theme, topbarColor, searchbarColor };
+    return { receiptFooter, giftReceiptMessage, theme, topbarColor, searchbarColor, avatar };
   }
 
   function previewTheme(t: string, tb: string, sb: string) {
-    onPreview(computeThemeVars({ receiptFooter: '', giftReceiptMessage: '', theme: t, topbarColor: tb, searchbarColor: sb }));
+    onPreview(computeThemeVars({ receiptFooter: '', giftReceiptMessage: '', theme: t, topbarColor: tb, searchbarColor: sb, avatar: '' }));
   }
 
   function handleThemeSelect(key: string) {
@@ -789,6 +803,7 @@ function PosSettingsModal({
         <div style={{ display: 'flex', borderBottom: '1px solid var(--sv-etch)', flexShrink: 0 }}>
           <button style={tabBtn(tab === 'receipt')} onClick={() => setTab('receipt')}>Receipt</button>
           <button style={tabBtn(tab === 'appearance')} onClick={() => setTab('appearance')}>Appearance</button>
+          <button style={tabBtn(tab === 'avatar')} onClick={() => setTab('avatar')}>Avatar</button>
         </div>
         {/* Body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '18px' }}>
@@ -822,6 +837,33 @@ function PosSettingsModal({
                   placeholder="E.g. A gift for you — with love ❤"
                   style={{ width: '100%', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 7, padding: '8px 10px', color: 'var(--sv-text-main)', fontSize: 13, resize: 'vertical', boxSizing: 'border-box' }}
                 />
+              </div>
+            </div>
+          )}
+          {tab === 'avatar' && (
+            <div>
+              <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 0, marginBottom: 14, lineHeight: 1.6 }}>
+                Choose an avatar for this location. It will appear in the live leaderboard strip at the bottom of the screen for all other locations to see.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                {/* None / default option */}
+                <button
+                  onClick={() => setAvatar('')}
+                  style={{ padding: 6, borderRadius: 10, border: avatar === '' ? '2px solid var(--sv-action)' : '2px solid transparent', background: avatar === '' ? 'rgba(255,255,255,.07)' : 'var(--sv-bg-2)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}
+                >
+                  <div style={{ width: 62, height: 62, borderRadius: '50%', background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>🧑</div>
+                  <span style={{ fontSize: 10, color: 'var(--sv-text-dim)' }}>Default</span>
+                </button>
+                {POS_AVATAR_FILES.map(file => (
+                  <button
+                    key={file}
+                    onClick={() => setAvatar(file)}
+                    style={{ padding: 6, borderRadius: 10, border: avatar === file ? '2px solid var(--sv-action)' : '2px solid transparent', background: avatar === file ? 'rgba(255,255,255,.07)' : 'var(--sv-bg-2)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}
+                  >
+                    <img src={`/avatars/${file}`} alt={file} style={{ width: 62, height: 62, borderRadius: '50%', objectFit: 'cover', objectPosition: 'top' }} />
+                    <span style={{ fontSize: 9, color: 'var(--sv-text-dim)', wordBreak: 'break-all', textAlign: 'center', lineHeight: 1.3 }}>{file.replace(/\.png$/, '').replace(/_/g, ' ')}</span>
+                  </button>
+                ))}
               </div>
             </div>
           )}
@@ -957,6 +999,9 @@ function MainPos({
   const [eodInitialMode, setEodInitialMode] = useState<'open' | 'eod' | undefined>(undefined);
   // Tracks previous isOnline value so we can detect the offline→online transition.
   const wasOnlineRef = useRef<boolean | null>(null);
+  const [saleRefreshTick,    setSaleRefreshTick]    = useState(0);
+  const [morningGreetingTick, setMorningGreetingTick] = useState(0);
+  const prevRegSessionRef = useRef<any>(undefined);
 
   useEffect(() => {
     if (!session.register_id) { setRegSession(null); return; }
@@ -978,6 +1023,20 @@ function MainPos({
       })
       .catch(() => {});
   }, [session.location_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Detect register open (null → object) and fire morning greeting once per day
+  useEffect(() => {
+    if (prevRegSessionRef.current === null && regSession && typeof regSession === 'object') {
+      const today = new Date().toDateString();
+      try {
+        if (localStorage.getItem('pos_morning_greeting_date') !== today) {
+          localStorage.setItem('pos_morning_greeting_date', today);
+          setMorningGreetingTick(t => t + 1);
+        }
+      } catch {}
+    }
+    prevRegSessionRef.current = regSession;
+  }, [regSession]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // If the outer PosPage signalled "go straight to EOD" (from register gate close path),
   // navigate the inner screen immediately and acknowledge so the flag is cleared.
@@ -1317,6 +1376,7 @@ function MainPos({
 
       // lastSale is lifted to PosPage — notify parent instead
       onSaleCompleted(completedSale);
+      setSaleRefreshTick(t => t + 1);
       clearCart();
       setShowPayment(false);
       onReceipt(completedSale);
@@ -1711,6 +1771,467 @@ function MainPos({
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Avatar Leaderboard Bar ────────────────────────────────────────────── */}
+      <PosAvatarBar
+        myLocationId={session.location_id}
+        myAvatar={posSettings.avatar}
+        saleRefreshTick={saleRefreshTick}
+        morningGreetingTick={morningGreetingTick}
+      />
+      {/* ── Group Chat ─────────────────────────────────────────────────────────── */}
+      <PosChatWindow
+        myLocationId={session.location_id}
+        myAvatar={posSettings.avatar}
+        userName={session.full_name}
+      />
+    </div>
+  );
+}
+
+// ─── POS Avatar Leaderboard Bar ───────────────────────────────────────────────
+
+interface LeaderboardEntry { id: number; name: string; today_sales: number; is_open: boolean; avatar: string; }
+
+const OVERTAKE_SAYINGS = [
+  "Eat my dust, {other}! 💨",
+  "Step aside {other}, new sales champion coming through! 👑",
+  "Sorry {other}, your crown doesn't fit you anymore 😏",
+  "Plot twist: {other} is now watching our taillights 🚀",
+  "That's right {other}, scoreboard check! 📊",
+  "Did anyone tell {other} we're in the lead now? No? Good 😈",
+  "{other} is giving us serious side-eye from the standings 👀",
+  "Welp, {other} just got lapped! Time for a hot lap 🏎️",
+  "POV: You're {other} watching us zoom past 🤩",
+  "The barcode scanner is on FIRE today, {other} can't handle it 🔥",
+  "{other}: 'wait where did they come from?!' 😂",
+  "We just overtook {other}. No big deal. Just excellence 💅",
+  "From the back of the pack to the front — see ya {other}! 🏁",
+  "{other} thought they had this. They thought wrong 😤",
+  "New sales leader just dropped. It's us. Sorry {other} 🎉",
+  "Vibes: immaculate. Sales: immaculate. Ranking: #1! {other} 📈",
+  "{other} can have our number two spot. We're busy being #1 ✌️",
+  "If {other} needs us, we'll be up here at the top 😎",
+  "Someone tell {other} to look at their screen for a sec… 👋",
+  "Achievement unlocked: Overtook {other}. Simply epic 🏆",
+];
+
+const OVERTAKEN_SAYINGS = [
+  "{other} just snuck past us. Sneaky, very sneaky 😤",
+  "Oi {other}, come back here, that's our spot! 😡",
+  "The audacity of {other} right now is UNREAL 😤",
+  "{other} really said 'hold my barcode scanner' and went for it 🙄",
+  "OK {other}, you got us. For NOW. Watch this space 👀",
+  "Plot twist nobody asked for: {other} is now ahead 😱",
+  "Welp. Looks like {other} had a big sale. Time to grind 💪",
+  "{other} is flexing hard but we know it won't last ✊",
+  "Message to {other}: enjoy that spot while it lasts 😈",
+  "The comeback arc starts NOW. Watch out {other} 🔥",
+  "Okay {other} that's impressive. Annoyingly impressive 😒",
+  "So {other} thinks they can just waltz past us like that?! Rude 😂",
+  "Not us getting overtaken by {other}. Is this a joke? 🤡",
+  "Fine {other}, you win... this round 🤺",
+  "We were literally #1. {other} really came for us 😭",
+  "Time to sell like our life depends on it. {other} started something 🏃",
+  "Legend says {other} once looked up and saw us. Not anymore 👀",
+  "We'll remember this, {other}. We'll remember this 📝",
+  "{other} made a bold move. We're making a bolder one 💥",
+  "Shoutout to {other} for the motivation boost. We needed that 😅",
+];
+
+const JOKES = [
+  "Why don't scientists trust atoms? Because they make up everything. Kind of like our competitor's sales figures 📊",
+  "I asked the barcode scanner if it had feelings. It said it was feeling a bit 'scanned' 😂",
+  "Why did the POS system go to school? To improve its 'checkout' performance 🏫",
+  "I told a customer 'You're welcome' before they said thank you. I'm always ahead of the register 😎",
+  "What do you call a retail worker who moonlights as a superhero? A sales-person of interest 🦸",
+  "Why did the cash register break up with the credit card machine? There was no connection 💔",
+  "I'm reading a book about anti-gravity. It's impossible to put down. Unlike this POS loading screen ⬇️",
+  "Retail tip: The customer is always right. Unless they're trying to return without a receipt 🧾",
+  "Why do retail workers make good detectives? They can spot a shoplifter from a barcode away 🔍",
+  "Why did the inventory system go to therapy? Too many unresolved stock issues 📦",
+  "What's a computer's favourite snack? Microchips 🍟",
+  "Why did the Excel spreadsheet feel lonely? Because all its cells were empty 😢",
+  "I have a joke about stocktakes but I lost count 🔢",
+  "What do you call a belt made of watches? A waist of time. Unlike this sale I'm about to close ⌚",
+  "A customer asked if we price-match. I said yes — we match whatever price is in our system 😅",
+  "Why was the JavaScript developer sad? Because they didn't Node how to Express their feelings 💻",
+  "I have a joke about UDP but I'm not sure if you'll get it 📡",
+  "Why did the developer quit? Because they didn't get arrays 📋",
+  "What do you call fake spaghetti? An impasta. What do you call fake discounts? Our competitor's sale 🍝",
+  "Why do programmers prefer dark mode? Because light attracts bugs 🐛",
+  "Why can't you trust a staircase? They're always up to something. Unlike our sales — always going up 📈",
+  "Why did the scarecrow win an award? Because he was outstanding in his field. Like our customer service 🏆",
+  "My boss told me to have a good day so I went home 🏃",
+  "Why did the broom get promoted? It swept the competition 🧹",
+  "I asked the database admin why he got fired. Too many relations 🗃️",
+  "Why don't we ever tell secrets on a farm? The corn has ears, the beans stalk 🌽",
+  "I used to work in a shoe recycling shop. It was sole destroying 👟",
+  "Why do cows wear bells? Because their horns don't work 🐄",
+  "I'm on a seafood diet. I see food and I eat it. Kind of like how I see a sale opportunity 🐟",
+  "What did the ocean say to the beach? Nothing, it just waved. What did our sales say to last month? Same 👋",
+  "Why did the bicycle fall over? It was two-tyred. Unlike us — we're energized! 🚴",
+  "Why don't eggs tell jokes? They'd crack each other up 🥚",
+  "What do you call cheese that isn't yours? Nacho cheese. The top spot? OURS 🧀",
+  "Why did the math book look sad? Too many problems. Unlike this register 📚",
+  "I quit my job at the helium factory. Refused to be talked to in that tone 🎈",
+  "Why was the belt arrested? For holding up some pants 👖",
+  "I have a joke about construction — I'm still working on it 🔨",
+  "Why did the golfer wear two pairs of pants? In case he got a hole in one ⛳",
+  "What do you call a bear with no teeth? A gummy bear 🐻",
+  "I told my girlfriend she was drawing her eyebrows too high. She looked surprised 😲",
+  "How many programmers does it take to change a light bulb? None — it's a hardware problem 💡",
+  "Why did the retail store get an award? They were always on sale! 🏅",
+  "I'm reading a book on the history of glue. I can't seem to put it down 📖",
+  "What do call a factory that makes okay products? A satisfactory 🏭",
+  "Why do retail workers never play hide and seek? Good help is hard to find 🙈",
+  "I named my WiFi 'Loading...' so customers think the internet is slow 😈",
+  "Why did the cash register go to college? To make more cents 🎓",
+  "What's a retail worker's favourite game? Price is Right 🎮",
+  "Why don't sale items ever feel lonely? They're always marked down 🏷️",
+  "I tried to come up with a retail pun but the sale-price was too high 😅",
+];
+
+const MORNING_GREETINGS = [
+  "Rise and SELL! Let's make today legendary 🌅",
+  "Good morning! The registers are open and the opportunities are endless 💪",
+  "Today's goal: outsell yesterday. Let's go! 📈",
+  "The early bird catches the sale! And we are VERY early birds 🐦",
+  "Wakey wakey, barcode scanner ready! Let's hunt some sales 🎯",
+  "GLHF team (Good Luck Have Fun Sales) — let's crush it today! 🎮",
+  "Today I choose: violence against our sales targets 🔥",
+  "Another day, another opportunity to be absolutely excellent at retail 🏪",
+  "Coffee: ✅. Register: open. Attitude: unbeatable. Let's go! ☕",
+  "This register has been opened. All sales are now fair game. Commence operation: Full Send 🚀",
+  "Morning! Fun fact: Every legendary sales day started with someone opening the register 📖",
+  "The universe has conspired to make today's sales incredible. I can feel it 🔮",
+  "Opening the register is the retail equivalent of saying 'it's go time' ⏰",
+  "Day X of being the best retail team in the city. Today we continue the streak 🏆",
+  "Somewhere a customer is thinking 'I need something from that shop today'. That's us 🛍️",
+  "Let the games begin! May the sales be ever in your favour 🏹",
+  "We are absolutely GM (Gonna Make it) today 💎",
+  "You miss 100% of the shots you don't take. Register is open. Take ALL the shots 🏀",
+  "Register open. Vibes: immaculate. Probability of great day: extremely high 📊",
+  "Today we are not just opening a register. We are opening a portal to excellence ✨",
+  "Stack those sales like you stack pancakes — one beautiful layer at a time 🥞",
+  "I woke up and chose revenue. Join me 💰",
+  "Hot take: today is going to be our best sales day yet. Let's make it true 🌡️",
+  "Register: armed. Team: ready. Customers: incoming. Let's roll 🎲",
+  "To infinity and beyond... the sales target! 🚀",
+  "Plot twist: we absolutely smash it today ⚡",
+  "Day loaded. Sales ready. Fear? What's that? Let's go! 🦁",
+  "Challenge accepted: have an amazing sales day 🎯",
+  "Attention all departments: the register is open and we mean business 📢",
+  "We didn't open this register to be mediocre. Main character energy only today 🌟",
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+function PosAvatarBar({
+  myLocationId, myAvatar, saleRefreshTick, morningGreetingTick,
+}: {
+  myLocationId: number;
+  myAvatar: string;
+  saleRefreshTick: number;
+  morningGreetingTick: number;
+}) {
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const prevLeaderRef   = useRef<LeaderboardEntry[]>([]);
+  const [bubble, setBubble] = useState<{ type: 'thought' | 'speech'; text: string } | null>(null);
+  const bubbleTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const overtakeIdxRef  = useRef(0);
+  const overtakenIdxRef = useRef(0);
+  const jokeIdxRef      = useRef(0);
+  const morningIdxRef   = useRef(0);
+
+  function showBubble(type: 'thought' | 'speech', text: string) {
+    if (bubbleTimerRef.current) clearTimeout(bubbleTimerRef.current);
+    setBubble({ type, text });
+    bubbleTimerRef.current = setTimeout(() => setBubble(null), 6000);
+  }
+
+  function fetchLeaderboard() {
+    fetch('/api/pos/leaderboard')
+      .then(r => r.json())
+      .then(d => {
+        if (!d.locations) return;
+        const next: LeaderboardEntry[] = d.locations;
+        const prev = prevLeaderRef.current;
+        if (prev.length > 0) {
+          const myPrevRank = prev.findIndex(l => l.id === myLocationId);
+          const myNextRank = next.findIndex(l => l.id === myLocationId);
+          if (myPrevRank > myNextRank && myNextRank >= 0) {
+            const overtaken = prev[myNextRank];
+            if (overtaken && overtaken.id !== myLocationId) {
+              const text = OVERTAKE_SAYINGS[overtakeIdxRef.current % OVERTAKE_SAYINGS.length].replace('{other}', overtaken.name);
+              overtakeIdxRef.current++;
+              showBubble('thought', text);
+            }
+          } else if (myPrevRank < myNextRank && myPrevRank >= 0) {
+            const overtaker = next[myPrevRank];
+            if (overtaker && overtaker.id !== myLocationId) {
+              const text = OVERTAKEN_SAYINGS[overtakenIdxRef.current % OVERTAKEN_SAYINGS.length].replace('{other}', overtaker.name);
+              overtakenIdxRef.current++;
+              showBubble('thought', text);
+            }
+          }
+        }
+        prevLeaderRef.current = next;
+        setLeaderboard(next);
+      })
+      .catch(() => {});
+  }
+
+  useEffect(() => {
+    fetchLeaderboard();
+    const id = setInterval(fetchLeaderboard, 120_000);
+    return () => clearInterval(id);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (saleRefreshTick > 0) fetchLeaderboard();
+  }, [saleRefreshTick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (morningGreetingTick > 0) {
+      const text = MORNING_GREETINGS[morningIdxRef.current % MORNING_GREETINGS.length];
+      morningIdxRef.current++;
+      showBubble('speech', text);
+    }
+  }, [morningGreetingTick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (leaderboard.length === 0) return null;
+
+  const topSalesId = leaderboard[0]?.today_sales > 0 ? leaderboard[0]?.id : null;
+
+  return (
+    <div style={{ position: 'fixed', bottom: 12, left: 12, zIndex: 500, display: 'flex', flexDirection: 'row', gap: 10, alignItems: 'flex-end', pointerEvents: 'none' }}>
+      {leaderboard.map(loc => {
+        const isMine = loc.id === myLocationId;
+        const isTop  = loc.id === topSalesId;
+        const size   = isMine ? 54 : 40;
+
+        return (
+          <div key={loc.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, position: 'relative', pointerEvents: 'auto' }}>
+
+            {/* Thought / speech bubble — only over own avatar */}
+            {isMine && bubble && (
+              <div style={{
+                position: 'absolute', bottom: size + 18, left: '50%', transform: 'translateX(-50%)',
+                background: 'rgba(255,255,255,.97)',
+                border: `2px solid ${bubble.type === 'speech' ? '#2563eb' : '#7c3aed'}`,
+                borderRadius: bubble.type === 'speech' ? 12 : 18,
+                padding: '8px 12px', maxWidth: 200, fontSize: 11, fontWeight: 600,
+                color: '#1e293b', lineHeight: 1.4, textAlign: 'center', zIndex: 10,
+                boxShadow: '0 4px 16px rgba(0,0,0,.3)',
+                whiteSpace: 'normal', wordBreak: 'break-word', minWidth: 120,
+              }}>
+                {bubble.text}
+                <div style={{
+                  position: 'absolute', bottom: -10, left: '50%', transform: 'translateX(-50%)',
+                  width: 0, height: 0,
+                  borderLeft: '8px solid transparent', borderRight: '8px solid transparent',
+                  borderTop: `10px solid ${bubble.type === 'speech' ? '#2563eb' : '#7c3aed'}`,
+                }} />
+              </div>
+            )}
+
+            {/* Crown */}
+            {isTop && (
+              <img src="/avatars/crown.png" alt="crown" style={{
+                position: 'absolute', top: -20, left: '50%', transform: 'translateX(-50%)',
+                width: 24, height: 'auto', zIndex: 2, pointerEvents: 'none',
+              }} />
+            )}
+
+            {/* Avatar circle */}
+            <div
+              onClick={isMine ? () => { const text = JOKES[jokeIdxRef.current % JOKES.length]; jokeIdxRef.current++; showBubble('speech', text); } : undefined}
+              style={{
+                width: size, height: size, borderRadius: '50%', overflow: 'hidden',
+                border: isMine ? '2px solid var(--sv-action, #2563eb)' : '2px solid rgba(255,255,255,.2)',
+                cursor: isMine ? 'pointer' : 'default',
+                filter: loc.is_open ? 'none' : 'grayscale(1)',
+                opacity: loc.is_open ? 1 : 0.38,
+                background: 'var(--sv-bg-2, #1e293b)',
+                flexShrink: 0,
+                boxShadow: isMine ? '0 0 0 2px var(--sv-action, #2563eb)' : '0 2px 8px rgba(0,0,0,.4)',
+              }}
+            >
+              {loc.avatar ? (
+                <img src={`/avatars/${loc.avatar}`} alt={loc.name} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }} />
+              ) : (
+                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isMine ? 22 : 16 }}>🧑</div>
+              )}
+            </div>
+
+            {/* Name + sales label */}
+            <div style={{ textAlign: 'center', maxWidth: 64 }}>
+              <div style={{ fontSize: 9, fontWeight: 600, color: 'rgba(255,255,255,.78)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 64, textShadow: '0 1px 3px rgba(0,0,0,.9)' }}>
+                {loc.name}
+              </div>
+              <div style={{ fontSize: 9, color: 'rgba(255,255,255,.5)', textShadow: '0 1px 3px rgba(0,0,0,.9)' }}>
+                ${loc.today_sales >= 1000 ? `${(loc.today_sales / 1000).toFixed(1)}k` : loc.today_sales.toFixed(0)}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── POS Group Chat Window ─────────────────────────────────────────────────────
+
+interface ChatMessage { id: number; location_id: number; location_name: string; user_name: string; avatar: string; message: string; created_at: string; }
+
+function PosChatWindow({ myLocationId, myAvatar, userName }: { myLocationId: number; myAvatar: string; userName: string }) {
+  const [open,     setOpen]     = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input,    setInput]    = useState('');
+  const [sending,  setSending]  = useState(false);
+  const [unread,   setUnread]   = useState(0);
+  const lastReadRef = useRef<number>(0);
+  const listRef     = useRef<HTMLDivElement>(null);
+
+  function loadLastRead() {
+    try { return parseInt(localStorage.getItem('pos_chat_last_read') ?? '0', 10) || 0; } catch { return 0; }
+  }
+  function saveLastRead(id: number) {
+    try { localStorage.setItem('pos_chat_last_read', String(id)); } catch {}
+    lastReadRef.current = id;
+  }
+
+  function fetchMessages() {
+    fetch('/api/pos/chat')
+      .then(r => r.json())
+      .then(d => {
+        if (!d.messages) return;
+        setMessages(d.messages);
+        const lastRead = lastReadRef.current;
+        const newCount = d.messages.filter((m: ChatMessage) => m.id > lastRead).length;
+        setUnread(newCount);
+        if (open && d.messages.length > 0) {
+          const maxId = Math.max(...d.messages.map((m: ChatMessage) => m.id));
+          saveLastRead(maxId);
+          setUnread(0);
+        }
+      })
+      .catch(() => {});
+  }
+
+  useEffect(() => {
+    lastReadRef.current = loadLastRead();
+    fetchMessages();
+    const id = setInterval(fetchMessages, 60_000);
+    return () => clearInterval(id);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (open) {
+      if (messages.length > 0) {
+        const maxId = Math.max(...messages.map(m => m.id));
+        saveLastRead(maxId);
+        setUnread(0);
+      }
+      setTimeout(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, 80);
+    }
+  }, [open, messages]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function sendMessage() {
+    if (!input.trim() || sending) return;
+    setSending(true);
+    try {
+      await fetch('/api/pos/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: input.trim(), avatar: myAvatar }),
+      });
+      setInput('');
+      fetchMessages();
+    } catch {}
+    setSending(false);
+  }
+
+  function relTime(iso: string) {
+    const diff = Date.now() - new Date(iso).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1)  return 'just now';
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
+  }
+
+  const panelBg = 'rgba(15, 23, 42, 0.95)';
+
+  return (
+    <div style={{ position: 'fixed', bottom: 12, left: 14, zIndex: 600, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', pointerEvents: 'auto' }}>
+      {open ? (
+        <div style={{ width: 290, background: panelBg, border: '1px solid rgba(255,255,255,.12)', borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,.6)', overflow: 'hidden', marginBottom: 6 }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,.1)', gap: 8 }}>
+            <span style={{ fontSize: 14, flex: 1, fontWeight: 700, color: 'rgba(255,255,255,.9)' }}>💬 Team Chat</span>
+            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.5)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>✕</button>
+          </div>
+          {/* Messages */}
+          <div ref={listRef} style={{ height: 270, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {messages.length === 0 && (
+              <div style={{ color: 'rgba(255,255,255,.3)', fontSize: 12, textAlign: 'center', marginTop: 40 }}>No messages yet. Say hi! 👋</div>
+            )}
+            {messages.map(msg => {
+              const isMine = msg.location_id === myLocationId;
+              return (
+                <div key={msg.id} style={{ display: 'flex', gap: 7, alignItems: 'flex-start', flexDirection: isMine ? 'row-reverse' : 'row' }}>
+                  <div style={{ width: 28, height: 28, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'rgba(255,255,255,.1)' }}>
+                    {msg.avatar ? (
+                      <img src={`/avatars/${msg.avatar}`} alt={msg.location_name} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }} />
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>🧑</div>
+                    )}
+                  </div>
+                  <div style={{ maxWidth: '72%' }}>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,.4)', marginBottom: 2, textAlign: isMine ? 'right' : 'left' }}>
+                      {msg.location_name} · {msg.user_name} · {relTime(msg.created_at)}
+                    </div>
+                    <div style={{
+                      background: isMine ? 'rgba(37,99,235,.7)' : 'rgba(255,255,255,.08)',
+                      borderRadius: isMine ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+                      padding: '7px 10px', fontSize: 12, color: 'rgba(255,255,255,.9)', lineHeight: 1.5,
+                    }}>
+                      {msg.message}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {/* Input */}
+          <div style={{ padding: '8px 10px', borderTop: '1px solid rgba(255,255,255,.1)', display: 'flex', gap: 6 }}>
+            <input
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+              placeholder="Message the team…"
+              maxLength={500}
+              style={{ flex: 1, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', borderRadius: 8, padding: '6px 10px', color: 'rgba(255,255,255,.9)', fontSize: 12, outline: 'none' }}
+            />
+            <button onClick={sendMessage} disabled={sending || !input.trim()} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', fontWeight: 700, fontSize: 12, cursor: sending || !input.trim() ? 'not-allowed' : 'pointer', opacity: sending || !input.trim() ? 0.5 : 1 }}>
+              {sending ? '…' : '→'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setOpen(true)}
+          style={{ background: panelBg, border: '1px solid rgba(255,255,255,.15)', borderRadius: 20, padding: '6px 12px', color: 'rgba(255,255,255,.8)', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 4px 16px rgba(0,0,0,.5)', marginBottom: 112 }}
+        >
+          💬
+          {unread > 0 && (
+            <span style={{ background: '#ef4444', color: '#fff', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 800 }}>{unread}</span>
+          )}
+        </button>
       )}
     </div>
   );
