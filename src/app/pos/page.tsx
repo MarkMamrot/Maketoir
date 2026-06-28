@@ -1680,7 +1680,7 @@ function MainPos({
       <div style={{ flex: 1, display: 'flex', flexDirection: cartLeft ? 'row-reverse' : 'row', overflow: 'hidden' }}>
         {/* Product Panel — only render once defaultView is known to avoid flash */}
         {defaultView !== null ? (
-          <ProductPanel products={products} onAdd={addToCart} defaultView={defaultView} focusScanTick={scanFocusTick} bgImage={posSettings.bgImage ?? ''} bgOpacity={posSettings.bgOpacity ?? 10} onChargeEnter={() => { if (cart.length && !showPayment && !mustOpenRegister) setShowPayment(true); }} />
+          <ProductPanel products={products} onAdd={addToCart} defaultView={defaultView} focusScanTick={scanFocusTick} bgImage={posSettings.bgImage ?? ''} bgOpacity={posSettings.bgOpacity ?? 10} cartLeft={cartLeft} onChargeEnter={() => { if (cart.length && !showPayment && !mustOpenRegister) setShowPayment(true); }} />
         ) : (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontSize: '.9rem' }}>Loading products…</div>
         )}
@@ -2346,7 +2346,7 @@ function PosStockModal({ variantId, productName, onClose }: { variantId: string;
 
 // ─── Product Panel ────────────────────────────────────────────────────────────
 
-function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', focusScanTick = 0, bgImage = '', bgOpacity = 10 }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; onChargeEnter?: () => void; defaultView?: string; focusScanTick?: number; bgImage?: string; bgOpacity?: number }) {
+function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', focusScanTick = 0, bgImage = '', bgOpacity = 10, cartLeft = false }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; onChargeEnter?: () => void; defaultView?: string; focusScanTick?: number; bgImage?: string; bgOpacity?: number; cartLeft?: boolean }) {
   const [search, setSearch]             = useState('');
   const [brand, setBrand]               = useState(() => defaultView.startsWith('brand:') ? defaultView.slice(6) : '');
   const [inStockOnly, setInStockOnly]   = useState(() => defaultView === 'in_stock');
@@ -2552,7 +2552,7 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
           <div style={{ position: 'absolute', inset: 0, backgroundImage: `url(${bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: bgOpacity / 100, pointerEvents: 'none', zIndex: 0 }} />
         )}
         <div style={{ position: 'relative', zIndex: 1 }}>
-        <div style={{ padding: '.5rem .75rem', display: 'flex', gap: '.75rem', alignItems: 'center' }}>
+        <div style={{ padding: '.5rem .75rem', display: 'flex', flexDirection: cartLeft ? 'row-reverse' : 'row', gap: '.75rem', alignItems: 'center' }}>
           {/* Left: search input + controls */}
           <div style={{ flex: 1, display: 'flex', gap: '.5rem', alignItems: 'center' }}>
         {/* Input + dropdown wrapper */}
@@ -2614,8 +2614,8 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
           {/* Divider */}
           <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--sv-etch)', flexShrink: 0 }} />
 
-          {/* Right: Scan-to-cart bar */}
-          <div style={{ width: 190, flexShrink: 0 }}>
+          {/* Scan-to-cart bar — positioned on the cart side */}
+          <div style={{ width: 260, flexShrink: 0 }}>
             <input
               ref={scanRef}
               value={scanInput}
