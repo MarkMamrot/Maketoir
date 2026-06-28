@@ -430,10 +430,11 @@ interface PosLocationSettings {
   avatar:             string;
   bgImage:            string;
   bgOpacity:          number;
+  bgPosition:         'center' | 'bottom';
 }
 
 const DEFAULT_POS_SETTINGS: PosLocationSettings = {
-  receiptFooter: '', giftReceiptMessage: '', theme: 'midnight', topbarColor: '', searchbarColor: '', avatar: '', bgImage: '', bgOpacity: 10,
+  receiptFooter: '', giftReceiptMessage: '', theme: 'midnight', topbarColor: '', searchbarColor: '', avatar: '', bgImage: '', bgOpacity: 10, bgPosition: 'center',
 };
 
 const POS_AVATAR_FILES = [
@@ -750,15 +751,16 @@ function PosSettingsModal({
   const [avatar,             setAvatar]             = useState(initialSettings.avatar ?? '');
   const [bgImage,            setBgImage]            = useState(initialSettings.bgImage ?? '');
   const [bgOpacity,          setBgOpacity]          = useState(initialSettings.bgOpacity ?? 10);
+  const [bgPosition,         setBgPosition]         = useState<'center' | 'bottom'>(initialSettings.bgPosition ?? 'center');
   const [saving,             setSaving]             = useState(false);
   const [saveError,          setSaveError]          = useState('');
 
   function buildSettings(): PosLocationSettings {
-    return { receiptFooter, giftReceiptMessage, theme, topbarColor, searchbarColor, avatar, bgImage, bgOpacity };
+    return { receiptFooter, giftReceiptMessage, theme, topbarColor, searchbarColor, avatar, bgImage, bgOpacity, bgPosition };
   }
 
   function previewTheme(t: string, tb: string, sb: string) {
-    onPreview(computeThemeVars({ receiptFooter: '', giftReceiptMessage: '', theme: t, topbarColor: tb, searchbarColor: sb, avatar: '', bgImage: '', bgOpacity: 10 }));
+    onPreview(computeThemeVars({ receiptFooter: '', giftReceiptMessage: '', theme: t, topbarColor: tb, searchbarColor: sb, avatar: '', bgImage: '', bgOpacity: 10, bgPosition: 'center' }));
   }
 
   function handleThemeSelect(key: string) {
@@ -968,16 +970,28 @@ function PosSettingsModal({
                   )}
                 </div>
                 {bgImage && (
-                  <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <label style={{ fontSize: 13, color: 'var(--sv-text-main)', flexShrink: 0 }}>Opacity</label>
-                    <input
-                      type="range"
-                      min={0} max={30} step={1}
-                      value={bgOpacity}
-                      onChange={e => setBgOpacity(Number(e.target.value))}
-                      style={{ flex: 1 }}
-                    />
-                    <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', width: 36, textAlign: 'right', flexShrink: 0 }}>{bgOpacity}%</span>
+                  <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <label style={{ fontSize: 13, color: 'var(--sv-text-main)', flexShrink: 0 }}>Opacity</label>
+                      <input
+                        type="range"
+                        min={0} max={30} step={1}
+                        value={bgOpacity}
+                        onChange={e => setBgOpacity(Number(e.target.value))}
+                        style={{ flex: 1 }}
+                      />
+                      <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', width: 36, textAlign: 'right', flexShrink: 0 }}>{bgOpacity}%</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <label style={{ fontSize: 13, color: 'var(--sv-text-main)', flexShrink: 0 }}>Position</label>
+                      {(['center', 'bottom'] as const).map(pos => (
+                        <button
+                          key={pos}
+                          onClick={() => setBgPosition(pos)}
+                          style={{ padding: '4px 14px', borderRadius: 6, border: `1px solid ${bgPosition === pos ? 'var(--sv-action)' : 'var(--sv-etch)'}`, background: bgPosition === pos ? 'rgba(255,255,255,.08)' : 'var(--sv-bg-2)', color: bgPosition === pos ? 'var(--sv-action)' : 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 12, fontWeight: bgPosition === pos ? 700 : 500 }}
+                        >{pos.charAt(0).toUpperCase() + pos.slice(1)}</button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1680,7 +1694,7 @@ function MainPos({
       <div style={{ flex: 1, display: 'flex', flexDirection: cartLeft ? 'row-reverse' : 'row', overflow: 'hidden' }}>
         {/* Product Panel — only render once defaultView is known to avoid flash */}
         {defaultView !== null ? (
-          <ProductPanel products={products} onAdd={addToCart} defaultView={defaultView} focusScanTick={scanFocusTick} bgImage={posSettings.bgImage ?? ''} bgOpacity={posSettings.bgOpacity ?? 10} cartLeft={cartLeft} onChargeEnter={() => { if (cart.length && !showPayment && !mustOpenRegister) setShowPayment(true); }} />
+          <ProductPanel products={products} onAdd={addToCart} defaultView={defaultView} focusScanTick={scanFocusTick} bgImage={posSettings.bgImage ?? ''} bgOpacity={posSettings.bgOpacity ?? 10} bgPosition={posSettings.bgPosition ?? 'center'} cartLeft={cartLeft} onChargeEnter={() => { if (cart.length && !showPayment && !mustOpenRegister) setShowPayment(true); }} />
         ) : (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontSize: '.9rem' }}>Loading products…</div>
         )}
@@ -2346,7 +2360,7 @@ function PosStockModal({ variantId, productName, onClose }: { variantId: string;
 
 // ─── Product Panel ────────────────────────────────────────────────────────────
 
-function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', focusScanTick = 0, bgImage = '', bgOpacity = 10, cartLeft = false }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; onChargeEnter?: () => void; defaultView?: string; focusScanTick?: number; bgImage?: string; bgOpacity?: number; cartLeft?: boolean }) {
+function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', focusScanTick = 0, bgImage = '', bgOpacity = 10, bgPosition = 'center', cartLeft = false }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; onChargeEnter?: () => void; defaultView?: string; focusScanTick?: number; bgImage?: string; bgOpacity?: number; bgPosition?: 'center' | 'bottom'; cartLeft?: boolean }) {
   const [search, setSearch]             = useState('');
   const [brand, setBrand]               = useState(() => defaultView.startsWith('brand:') ? defaultView.slice(6) : '');
   const [inStockOnly, setInStockOnly]   = useState(() => defaultView === 'in_stock');
@@ -2546,12 +2560,7 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* ── Combined header block: search + scan bar + results banner ───────── */}
-      <div style={{ background: 'var(--pos-searchbar-bg, var(--sv-bg-1))', flexShrink: 0, borderBottom: '1px solid var(--sv-etch)', position: 'relative', overflow: 'hidden' }}>
-        {/* Background image overlay */}
-        {bgImage && (
-          <div style={{ position: 'absolute', inset: 0, backgroundImage: `url(${bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: bgOpacity / 100, pointerEvents: 'none', zIndex: 0 }} />
-        )}
-        <div style={{ position: 'relative', zIndex: 1 }}>
+      <div style={{ background: 'var(--pos-searchbar-bg, var(--sv-bg-1))', flexShrink: 0, borderBottom: '1px solid var(--sv-etch)' }}>
         <div style={{ padding: '.5rem .75rem', display: 'flex', flexDirection: cartLeft ? 'row-reverse' : 'row', gap: '.75rem', alignItems: 'center' }}>
           {/* Left: search input + controls */}
           <div style={{ flex: 1, display: 'flex', gap: '.5rem', alignItems: 'center' }}>
@@ -2641,11 +2650,15 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
             >× Clear</button>
           </div>
         )}
-        </div>{/* end content wrapper */}
       </div>{/* end header block */}
 
       {/* Product grid */}
-      <div style={{ flex: 1, overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px,1fr))', gap: '.6rem', padding: '.75rem', alignContent: 'start' }}>
+      <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+        {/* Background image — sits behind the scrollable grid */}
+        {bgImage && (
+          <div style={{ position: 'absolute', inset: 0, backgroundImage: `url(${bgImage})`, backgroundSize: 'cover', backgroundPosition: bgPosition === 'bottom' ? 'center bottom' : 'center center', opacity: bgOpacity / 100, pointerEvents: 'none', zIndex: 0 }} />
+        )}
+        <div style={{ position: 'relative', zIndex: 1, overflow: 'auto', height: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px,1fr))', gap: '.6rem', padding: '.75rem', alignContent: 'start' }}>
         {filtered.map(p => {
           const isRecent = mode === 'browse' && recentIds.includes(p.variant_id);
           return (
