@@ -2121,12 +2121,12 @@ function PosAvatarBar({
               />
             </div>
 
-            {/* Name + sales label — clean text, no heavy pill */}
-            <div style={{ textAlign: 'center', maxWidth: 64 }}>
-              <div style={{ fontSize: 9.5, fontWeight: 600, color: 'rgba(255,255,255,.85)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 64, textShadow: '0 1px 4px rgba(0,0,0,1)' }}>
+            {/* Name + sales label — theme-aware, pill bg for contrast on any theme */}
+            <div style={{ textAlign: 'center', maxWidth: 68, background: 'var(--sv-bg-0)', borderRadius: 6, padding: '2px 5px', marginTop: 2 }}>
+              <div style={{ fontSize: 9.5, fontWeight: 600, color: 'var(--sv-text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 64, letterSpacing: '0.01em' }}>
                 {loc.name}
               </div>
-              <div style={{ fontSize: 9, fontWeight: 700, color: sales > 0 ? '#86efac' : 'rgba(255,255,255,.35)', textShadow: '0 1px 3px rgba(0,0,0,1)', marginTop: 1 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: sales > 0 ? 'var(--sv-action)' : 'var(--sv-text-dim)', marginTop: 1 }}>
                 ${sales >= 1000 ? `${(sales / 1000).toFixed(1)}k` : sales.toFixed(0)}
               </div>
             </div>
@@ -2167,7 +2167,7 @@ function PosAvatarBar({
             </div>
           </div>
         ) : (
-          /* Minimised chat circle — matches the 40px avatar size */
+          /* Minimised chat circle — aligns with avatar circles */
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
             <button
               onClick={() => setChatOpen(true)}
@@ -2178,7 +2178,11 @@ function PosAvatarBar({
                 <span style={{ position: 'absolute', top: -4, right: -4, background: '#ef4444', color: '#fff', borderRadius: 10, padding: '1px 5px', fontSize: 9, fontWeight: 800, lineHeight: 1.4 }}>{unread}</span>
               )}
             </button>
-            <div style={{ fontSize: 9.5, fontWeight: 600, color: 'rgba(255,255,255,.5)', textShadow: '0 1px 3px rgba(0,0,0,.9)' }}>Chat</div>
+            {/* Two-line label block mirrors the avatar name+amount structure so circles align */}
+            <div style={{ textAlign: 'center', background: 'var(--sv-bg-0)', borderRadius: 6, padding: '2px 5px', marginTop: 2 }}>
+              <div style={{ fontSize: 9.5, fontWeight: 600, color: 'var(--sv-text-main)' }}>Chat</div>
+              <div style={{ fontSize: 9, color: 'var(--sv-text-dim)', marginTop: 1 }}>{unread > 0 ? `${unread} new` : '·'}</div>
+            </div>
           </div>
         )}
       </div>
