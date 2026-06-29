@@ -13,7 +13,7 @@ import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 type ImsView =
   | 'dashboard' | 'products' | 'stock' | 'brands' | 'bulk-edit'
   | 'contacts' | 'locations'
-  | 'purchase-orders' | 'sales-orders' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
+  | 'purchase-orders' | 'sales-orders' | 'credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
   | 'reports' | 'report-sales-by-branch' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes'
@@ -36,6 +36,7 @@ const NAV = [
   { id: '__orders',        label: 'Orders',           section: 'orders', children: [
     { id: 'purchase-orders',  label: 'Purchase Orders' },
     { id: 'sales-orders',     label: 'Sales Orders' },
+    { id: 'credit-notes',     label: 'Credit Notes / Returns' },
     { id: 'smart-device-receive', label: '📱 Smart Device Receive' },
     { id: 'pos-sales',            label: 'POS Sales' },
     { id: 'online-sales',     label: 'Online Sales' },
@@ -4804,6 +4805,444 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Credit Notes View
+// ─────────────────────────────────────────────────────────────────────────────
+
+function CreditNotesView() {
+  const [cns, setCns] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
+  const [viewModal, setViewModal] = useState<{ open: boolean; cn: any | null }>({ open: false, cn: null });
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
+  const [variants, setVariants] = useState<any[]>([]);
+  const [form, setForm] = useState<any>({ customer_id: '', location_id: '', cn_date: today(), reference: '', tax_treatment: 'ex_tax', tax_code: '', notes: '' });
+  const [lineItems, setLineItems] = useState<any[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [completing, setCompleting] = useState(false);
+  const { settings } = useImsSettings();
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch('/api/ims/credit-notes').then(r => r.json()).then(d => {
+      if (d.success) setCns(d.data);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    fetch('/api/ims/contacts?type=customer&active=1').then(r => r.json()).then(d => { if (d.success) setCustomers(d.data); });
+    fetch('/api/ims/locations').then(r => r.json()).then(d => { if (d.success) setLocations(d.data); });
+    fetch('/api/ims/variants').then(r => r.json()).then(d => { if (d.success) setVariants(d.data); });
+  }, []);
+
+  const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+    setForm((p: any) => ({ ...p, [k]: e.target.value }));
+
+  const addLine = () => {
+    const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
+    const taxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
+    setLineItems(p => [...p, { variant_id: '', code: '', name: '', qty: 1, unit_price: 0, price_basis: 'custom', tax_rate: taxRate }]);
+  };
+  const removeLine = (i: number) => setLineItems(p => p.filter((_, idx) => idx !== i));
+  const updateLine = (i: number, k: string, v: any) => setLineItems(p => p.map((item, idx) => idx === i ? { ...item, [k]: v } : item));
+
+  const getPriceForBasis = (v: any, basis: string): number => {
+    if (!v) return 0;
+    const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
+    const taxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
+    if (basis === 'cost') return Number(v.cost_aud ?? 0);
+    if (basis === 'wholesale') return Number(v.price_wholesale ?? 0);
+    if (basis === 'rrp') {
+      const rrp = effectiveRRP(v, today());
+      // RRP is INC-tax in AUS; if CN is ex_tax, convert back to ex-tax
+      if (form.tax_treatment === 'ex_tax' && taxRate > 0) return Math.round((rrp / (1 + taxRate)) * 10000) / 10000;
+      return rrp;
+    }
+    return 0;
+  };
+
+  const selectCNVariant = (i: number, variant_id: string, basis: string) => {
+    const v = variants.find((v: any) => v.variant_id === variant_id);
+    const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
+    const taxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
+    const unit_price = getPriceForBasis(v, basis);
+    setLineItems(p => p.map((item, j) => j === i ? { ...item, variant_id, code: v?.sku ?? '', name: v ? null : item.name, unit_price, tax_rate: taxRate } : item));
+  };
+
+  const changeBasis = (i: number, basis: string) => {
+    const item = lineItems[i];
+    const v = variants.find((v: any) => v.variant_id === item.variant_id);
+    const unit_price = v ? getPriceForBasis(v, basis) : item.unit_price;
+    updateLine(i, 'price_basis', basis);
+    if (v) updateLine(i, 'unit_price', unit_price);
+  };
+
+  const lineTotal = (item: any) => Number(item.qty || 0) * Number(item.unit_price || 0);
+  const cnSubtotal = lineItems.reduce((s, i) => s + lineTotal(i), 0);
+  const cnTax      = lineItems.reduce((s, i) => s + lineTotal(i) * Number(i.tax_rate || 0), 0);
+  const grandTotal = cnSubtotal + cnTax;
+
+  const openNew = () => {
+    const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
+    const defaultTaxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
+    setForm({ customer_id: '', location_id: '', cn_date: today(), reference: '', tax_treatment: 'ex_tax', tax_code: settings?.sales_tax_code ?? '', notes: '' });
+    setLineItems([{ variant_id: '', code: '', name: '', qty: 1, unit_price: 0, price_basis: 'custom', tax_rate: defaultTaxRate }]);
+    setModal({ open: true, edit: null });
+  };
+
+  const openEdit = async (cn: any) => {
+    const d = await apiFetch(`/api/ims/credit-notes/${cn.id}`);
+    setForm({ customer_id: d.data.customer_id ?? '', location_id: d.data.location_id, cn_date: d.data.cn_date?.slice(0, 10), reference: d.data.reference ?? '', tax_treatment: d.data.tax_treatment ?? 'ex_tax', tax_code: d.data.tax_code ?? '', notes: d.data.notes ?? '' });
+    setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id ?? '', code: i.code ?? '', name: i.name ?? i.product_name ?? '', qty: i.qty, unit_price: i.unit_price, price_basis: i.price_basis ?? 'custom', tax_rate: i.tax_rate })));
+    setModal({ open: true, edit: d.data });
+  };
+
+  const openView = async (cn: any) => {
+    const d = await apiFetch(`/api/ims/credit-notes/${cn.id}`);
+    setViewModal({ open: true, cn: d.data });
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.location_id) return alert('Please select a location.');
+    if (!lineItems.length) return alert('Please add at least one line item.');
+    setSaving(true);
+    try {
+      const body = {
+        ...form,
+        customer_id: form.customer_id ? Number(form.customer_id) : null,
+        location_id: Number(form.location_id),
+        items: lineItems.map(i => ({ ...i, qty: Number(i.qty), unit_price: Number(i.unit_price), tax_rate: Number(i.tax_rate) })),
+      };
+      if (modal.edit) {
+        await apiFetch(`/api/ims/credit-notes/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      } else {
+        await apiFetch('/api/ims/credit-notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      }
+      setModal({ open: false, edit: null });
+      load();
+    } catch (err: any) {
+      alert(err.message || 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (cn: any) => {
+    if (!confirm(`Delete Credit Note ${cn.cn_number}? This cannot be undone.`)) return;
+    await apiFetch(`/api/ims/credit-notes/${cn.id}`, { method: 'DELETE' });
+    load();
+  };
+
+  const handleComplete = async (cn: any) => {
+    if (!confirm(`Complete ${cn.cn_number}? This will return stock for all line items with a variant. The status cannot be changed after this.`)) return;
+    setCompleting(true);
+    try {
+      const d = await apiFetch(`/api/ims/credit-notes/${cn.id}/complete`, { method: 'POST' });
+      setViewModal({ open: true, cn: d.data });
+      load();
+    } catch (err: any) {
+      alert(err.message || 'Complete failed');
+    } finally {
+      setCompleting(false);
+    }
+  };
+
+  const filtered = cns.filter(cn => !statusFilter || cn.status === statusFilter);
+
+  const statusBadge = (status: string) => {
+    const map: Record<string, { label: string; color: string; bg: string }> = {
+      draft:    { label: 'Draft',    color: '#fbbf24', bg: 'rgba(251,191,36,.12)' },
+      complete: { label: 'Complete', color: '#34d399', bg: 'rgba(52,211,153,.12)' },
+    };
+    const s = map[status] ?? { label: status, color: 'var(--sv-text-dim)', bg: 'var(--sv-bg-1)' };
+    return <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 12, background: s.bg, color: s.color }}>{s.label}</span>;
+  };
+
+  return (
+    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Credit Notes / Returns</h1>
+        <button onClick={openNew} style={btnStyle('action')}>+ New Credit Note</button>
+      </div>
+
+      {/* Filters */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        {(['', 'draft', 'complete'] as const).map(s => (
+          <button key={s} onClick={() => setStatusFilter(s)}
+            style={{ ...btnStyle(statusFilter === s ? 'action' : 'ghost'), fontSize: 12, padding: '4px 12px' }}>
+            {s === '' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {/* Table */}
+      {loading ? <Spinner /> : filtered.length === 0 ? <EmptyState text="No credit notes match your filters." /> : (
+        <div style={{ background: 'var(--sv-card)', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--sv-etch)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'var(--sv-bg-1)', borderBottom: '1px solid var(--sv-etch)' }}>
+                {['CN #', 'Date', 'Customer', 'Location', 'Status', 'Total', 'Xero', ''].map(h => (
+                  <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((cn, ri) => (
+                <tr key={cn.id} style={{ borderBottom: ri < filtered.length - 1 ? '1px solid var(--sv-etch)' : 'none', cursor: 'pointer' }}
+                  onClick={() => cn.status === 'complete' ? openView(cn) : openEdit(cn)}>
+                  <td style={{ padding: '10px 12px', fontWeight: 600, color: 'var(--sv-mint)' }}>{cn.cn_number}</td>
+                  <td style={{ padding: '10px 12px' }}>{cn.cn_date?.slice(0, 10)}</td>
+                  <td style={{ padding: '10px 12px' }}>{cn.customer_name ?? <span style={{ color: 'var(--sv-text-dim)' }}>—</span>}</td>
+                  <td style={{ padding: '10px 12px' }}>{cn.location_name}</td>
+                  <td style={{ padding: '10px 12px' }}>{statusBadge(cn.status)}</td>
+                  <td style={{ padding: '10px 12px', fontWeight: 600 }}>{fmtCurrency(cn.total_amount)}</td>
+                  <td style={{ padding: '10px 12px' }}>
+                    {cn.xero_sync_status === 'synced' ? <span style={{ color: '#34d399', fontSize: 11 }}>✓ Synced</span>
+                      : cn.xero_sync_status === 'queued' ? <span style={{ color: '#fbbf24', fontSize: 11 }}>⚠ Queued</span>
+                      : cn.xero_sync_status === 'error' ? <span style={{ color: '#f87171', fontSize: 11 }}>✕ Error</span>
+                      : <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>—</span>}
+                  </td>
+                  <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
+                    {cn.status === 'draft' && (
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button onClick={() => openEdit(cn)} style={{ ...btnStyle('ghost'), padding: '3px 8px', fontSize: 11 }}>Edit</button>
+                        <button onClick={() => handleDelete(cn)} style={{ ...btnStyle('ghost'), padding: '3px 8px', fontSize: 11, color: '#f87171' }}>Delete</button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Edit / New Modal */}
+      {modal.open && (
+        <Modal title={modal.edit ? `Edit CN ${modal.edit.cn_number}` : 'New Credit Note'} onClose={() => setModal({ open: false, edit: null })} wide>
+          <form onSubmit={handleSave}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <Field label="CN Date *">
+                <input type="date" value={form.cn_date} onChange={sf('cn_date')} required style={inputStyle} />
+              </Field>
+              <Field label="Location *">
+                <select value={form.location_id} onChange={sf('location_id')} required style={inputStyle}>
+                  <option value="">Select location…</option>
+                  {locations.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+              </Field>
+              <Field label="Customer">
+                <select value={form.customer_id} onChange={sf('customer_id')} style={inputStyle}>
+                  <option value="">No customer</option>
+                  {customers.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </Field>
+              <Field label="Reference (e.g. original SO #)">
+                <input type="text" value={form.reference} onChange={sf('reference')} placeholder="e.g. SO-00123" style={inputStyle} />
+              </Field>
+              <Field label="Tax Treatment">
+                <select value={form.tax_treatment} onChange={sf('tax_treatment')} style={inputStyle}>
+                  <option value="ex_tax">Ex-Tax (prices entered excluding tax)</option>
+                  <option value="inc_tax">Inc-Tax (prices entered including tax)</option>
+                </select>
+              </Field>
+              <Field label="Tax Code">
+                <input type="text" value={form.tax_code} onChange={sf('tax_code')} placeholder={settings?.sales_tax_code ?? ''} style={inputStyle} />
+              </Field>
+            </div>
+            <Field label="Notes">
+              <textarea value={form.notes} onChange={sf('notes')} rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
+            </Field>
+
+            {/* Line Items */}
+            <div style={{ marginTop: 16, marginBottom: 8, fontWeight: 600, fontSize: 13, color: 'var(--sv-text-strong)' }}>Return Items</div>
+            <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden', marginBottom: 12 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: 'var(--sv-bg-1)', borderBottom: '1px solid var(--sv-etch)' }}>
+                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '28%' }}>Product</th>
+                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '18%' }}>Price Basis</th>
+                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '10%' }}>Qty</th>
+                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '14%' }}>Unit Price</th>
+                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '10%' }}>Tax %</th>
+                    <th style={{ padding: '7px 8px', textAlign: 'right', color: 'var(--sv-text-dim)', fontWeight: 600, width: '14%' }}>Line Total</th>
+                    <th style={{ width: '6%' }} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {lineItems.map((item, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                      <td style={{ padding: '6px 8px' }}>
+                        <select value={item.variant_id} onChange={e => selectCNVariant(i, e.target.value, item.price_basis)} style={{ ...inputStyle, fontSize: 11, padding: '4px 6px' }}>
+                          <option value="">Select variant…</option>
+                          {variants.map((v: any) => <option key={v.variant_id} value={v.variant_id}>{v.sku} — {v.product_name} {v.variant_label !== 'Default' ? `(${v.variant_label})` : ''}</option>)}
+                        </select>
+                        {!item.variant_id && (
+                          <input type="text" placeholder="Custom name" value={item.name} onChange={e => updateLine(i, 'name', e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: '4px 6px', marginTop: 3 }} />
+                        )}
+                      </td>
+                      <td style={{ padding: '6px 8px' }}>
+                        <select value={item.price_basis} onChange={e => changeBasis(i, e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: '4px 6px' }}>
+                          <option value="cost">Cost</option>
+                          <option value="wholesale">Wholesale</option>
+                          <option value="rrp">RRP</option>
+                          <option value="custom">Custom</option>
+                        </select>
+                      </td>
+                      <td style={{ padding: '6px 8px' }}>
+                        <input type="number" min="0.001" step="0.001" value={item.qty} onChange={e => updateLine(i, 'qty', e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: '4px 6px', width: 60 }} />
+                      </td>
+                      <td style={{ padding: '6px 8px' }}>
+                        <input type="number" min="0" step="0.01" value={item.unit_price} onChange={e => updateLine(i, 'unit_price', e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: '4px 6px', width: 80 }} />
+                      </td>
+                      <td style={{ padding: '6px 8px' }}>
+                        <input type="number" min="0" max="1" step="0.01" value={item.tax_rate} onChange={e => updateLine(i, 'tax_rate', e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: '4px 6px', width: 60 }} />
+                      </td>
+                      <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600 }}>{fmtCurrency(lineTotal(item))}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                        <button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f87171', fontSize: 16, lineHeight: 1 }}>×</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ padding: '8px 12px' }}>
+                <button type="button" onClick={addLine} style={{ ...btnStyle('ghost'), fontSize: 12, padding: '4px 10px' }}>+ Add Item</button>
+              </div>
+            </div>
+
+            {/* Totals */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+              <div style={{ fontSize: 13, textAlign: 'right', display: 'grid', gridTemplateColumns: '1fr auto', gap: '4px 24px', color: 'var(--sv-text-dim)', minWidth: 220 }}>
+                <span>Subtotal</span><span style={{ fontWeight: 600 }}>{fmtCurrency(cnSubtotal)}</span>
+                <span>Tax</span><span style={{ fontWeight: 600 }}>{fmtCurrency(cnTax)}</span>
+                <span style={{ color: 'var(--sv-text-strong)', fontWeight: 700, fontSize: 15 }}>Total</span>
+                <span style={{ color: 'var(--sv-text-strong)', fontWeight: 700, fontSize: 15 }}>{fmtCurrency(grandTotal)}</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button type="button" onClick={() => setModal({ open: false, edit: null })} style={btnStyle('ghost')}>Cancel</button>
+              <button type="submit" disabled={saving} style={btnStyle('action')}>{saving ? 'Saving…' : modal.edit ? 'Save Changes' : 'Create Draft'}</button>
+              {modal.edit && modal.edit.status === 'draft' && (
+                <button type="button" disabled={completing} onClick={() => { setModal({ open: false, edit: null }); handleComplete(modal.edit); }} style={{ ...btnStyle('action'), background: '#34d399', borderColor: '#34d399' }}>
+                  {completing ? 'Completing…' : 'Complete & Return Stock'}
+                </button>
+              )}
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* View Modal (completed CNs) */}
+      {viewModal.open && viewModal.cn && (
+        <Modal title={`Credit Note ${viewModal.cn.cn_number}`} onClose={() => setViewModal({ open: false, cn: null })} wide>
+          <div style={{ fontSize: 13 }}>
+            {/* Xero Status */}
+            {(() => {
+              const cn = viewModal.cn;
+              const xeroStatus = cn.xero_sync_status as string | null;
+              const xeroId = cn.xero_credit_note_id as string | null;
+              const xeroAt = cn.xero_synced_at ? new Date(cn.xero_synced_at).toLocaleString() : null;
+              if (xeroStatus === 'synced')
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', background: 'rgba(16,185,129,.1)', borderRadius: 6, fontSize: 11, marginBottom: 12, flexWrap: 'wrap' }}>
+                    <span style={{ color: '#34d399', fontWeight: 700 }}>✓ Synced to Xero</span>
+                    {xeroAt && <span style={{ color: 'var(--sv-text-dim)' }}>{xeroAt}</span>}
+                    {xeroId && <span style={{ color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 10 }}>{xeroId.slice(0, 8)}…</span>}
+                    {xeroId && <a href={`https://go.xero.com/AccountsReceivable/CreditNote.aspx?creditNoteID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sv-mint)' }}>View in Xero ↗</a>}
+                  </div>
+                );
+              if (xeroStatus === 'queued' || xeroStatus === 'error')
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', background: 'rgba(251,191,36,.1)', borderRadius: 6, fontSize: 11, marginBottom: 12 }}>
+                    <span style={{ color: '#fbbf24', fontWeight: 700 }}>⚠ Queued for Xero sync</span>
+                    {xeroAt && <span style={{ color: 'var(--sv-text-dim)' }}>Last: {xeroAt}</span>}
+                  </div>
+                );
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--sv-bg-1)', borderRadius: 6, fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 12 }}>
+                  <span>○ Not yet synced to Xero</span>
+                </div>
+              );
+            })()}
+
+            {/* Details */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', marginBottom: 16 }}>
+              {[
+                ['Date', viewModal.cn.cn_date?.slice(0, 10)],
+                ['Location', viewModal.cn.location_name],
+                ['Customer', viewModal.cn.customer_name ?? '—'],
+                ['Reference', viewModal.cn.reference ?? '—'],
+                ['Tax Treatment', viewModal.cn.tax_treatment === 'inc_tax' ? 'Inc-Tax' : 'Ex-Tax'],
+                ['Status', viewModal.cn.status],
+              ].map(([label, val]) => (
+                <div key={label as string}>
+                  <div style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--sv-text-dim)', fontWeight: 600, marginBottom: 2 }}>{label}</div>
+                  <div style={{ fontWeight: 500 }}>{val}</div>
+                </div>
+              ))}
+            </div>
+            {viewModal.cn.notes && (
+              <div style={{ background: 'var(--sv-bg-1)', borderRadius: 6, padding: '8px 12px', fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 12 }}>{viewModal.cn.notes}</div>
+            )}
+
+            {/* Items */}
+            <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden', marginBottom: 12 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: 'var(--sv-bg-1)', borderBottom: '1px solid var(--sv-etch)' }}>
+                    {['SKU', 'Product', 'Qty', 'Unit Price', 'Tax', 'Line Total'].map(h => (
+                      <th key={h} style={{ padding: '7px 10px', textAlign: h === 'Line Total' ? 'right' : 'left', color: 'var(--sv-text-dim)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(viewModal.cn.items ?? []).map((item: any, i: number) => (
+                    <tr key={i} style={{ borderBottom: i < (viewModal.cn.items.length - 1) ? '1px solid var(--sv-etch)' : 'none' }}>
+                      <td style={{ padding: '8px 10px', color: 'var(--sv-text-dim)' }}>{item.sku ?? item.code ?? '—'}</td>
+                      <td style={{ padding: '8px 10px' }}>{item.product_name ?? item.name}</td>
+                      <td style={{ padding: '8px 10px' }}>{item.qty}</td>
+                      <td style={{ padding: '8px 10px' }}>{fmtCurrency(item.unit_price)}</td>
+                      <td style={{ padding: '8px 10px' }}>{item.tax_rate > 0 ? `${(item.tax_rate * 100).toFixed(0)}%` : '—'}</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>{fmtCurrency(item.line_total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Totals */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+              <div style={{ fontSize: 13, textAlign: 'right', display: 'grid', gridTemplateColumns: '1fr auto', gap: '4px 24px', color: 'var(--sv-text-dim)', minWidth: 220 }}>
+                <span>Subtotal</span><span style={{ fontWeight: 600 }}>{fmtCurrency(viewModal.cn.subtotal)}</span>
+                <span>Tax</span><span style={{ fontWeight: 600 }}>{fmtCurrency(viewModal.cn.tax_amount)}</span>
+                <span style={{ color: 'var(--sv-text-strong)', fontWeight: 700, fontSize: 15 }}>Total</span>
+                <span style={{ color: 'var(--sv-text-strong)', fontWeight: 700, fontSize: 15 }}>{fmtCurrency(viewModal.cn.total_amount)}</span>
+              </div>
+            </div>
+
+            {viewModal.cn.status === 'draft' && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button onClick={() => { setViewModal({ open: false, cn: null }); openEdit(viewModal.cn); }} style={btnStyle('ghost')}>Edit</button>
+                <button disabled={completing} onClick={() => handleComplete(viewModal.cn)} style={{ ...btnStyle('action'), background: '#34d399', borderColor: '#34d399' }}>
+                  {completing ? 'Completing…' : 'Complete & Return Stock'}
+                </button>
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Sales Orders View
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -7858,6 +8297,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
     { key: 'inventory_in_transit', label: 'Inventory in Transit', desc: 'Goods ordered but not received', filter: (a: any) => a.class === 'ASSET' },
     { key: 'cogs', label: 'Cost of Goods Sold', desc: 'COGS expense (P&L)', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'sales_revenue', label: 'Sales Revenue', desc: 'Income from sales (P&L)', filter: (a: any) => a.class === 'REVENUE' },
+    { key: 'credit_note', label: 'Credit Notes', desc: 'Account for credit note lines (defaults to Sales Revenue if not set)', filter: (a: any) => a.class === 'REVENUE' },
     { key: 'freight', label: 'Freight / Shipping', desc: 'Freight Paid expense account (P&L). Only used when PO Freight Treatment = Expense.', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'stock_adjustment', label: 'Stock Adjustment / Shrinkage', desc: 'Stocktake variance expense account (P&L) — used for stock write-offs and surpluses', filter: (a: any) => a.class === 'EXPENSE' },
   ].filter(r => !(r.key === 'freight' && freightTreatment === 'capitalise'));
@@ -9367,6 +9807,7 @@ export default function ImsPage() {
           {view === 'locations'        && <LocationsView />}
           {view === 'purchase-orders'  && <PurchaseOrdersView pendingOpenId={pendingOpenPO} onPendingHandled={() => setPendingOpenPO(null)} />}
           {view === 'sales-orders'     && <SalesOrdersView pendingOpenId={pendingOpenSO} onPendingHandled={() => setPendingOpenSO(null)} />}
+          {view === 'credit-notes'     && <CreditNotesView />}
           {view === 'branch-transfers' && <BranchTransfersView />}
           {view === 'receive-transfers' && <ReceiveTransfersView />}
           {view === 'brands'           && <BrandsView />}

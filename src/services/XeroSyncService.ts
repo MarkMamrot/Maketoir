@@ -29,6 +29,7 @@ interface AccountMapping {
   sales_revenue?: string;
   freight?: string;
   stock_adjustment?: string;
+  credit_note?: string;
 }
 
 interface TrackingMapping {
@@ -1135,4 +1136,103 @@ export async function triggerEodXeroSync(
     }
   }
   return results;
+}
+
+// ─── Credit Note → Xero Credit Note ──────────────────────────────────────────
+
+export interface CNForSync {
+  id: number;
+  cn_number: string;
+  customer_id?: number | null;
+  customer_name?: string | null;
+  location_id: number;
+  cn_date: string;
+  reference?: string | null;
+  tax_treatment?: 'ex_tax' | 'inc_tax';
+  total_amount: number;
+  items?: {
+    code?: string | null;
+    name?: string | null;
+    qty: number;
+    unit_price: number;
+    tax_rate: number;
+    line_total: number;
+  }[];
+}
+
+/** Write Xero sync status back to the CN row. Silent — never throws. */
+export async function markCNXeroStatus(
+  cnId: number,
+  status: 'synced' | 'queued' | 'error',
+  xeroId?: string | null,
+): Promise<void> {
+  try {
+    await imsExecute(
+      `UPDATE ims_credit_notes
+         SET xero_sync_status = ?, xero_synced_at = NOW()
+             ${xeroId !== undefined ? ', xero_credit_note_id = ?' : ''}
+         WHERE id = ?`,
+      xeroId !== undefined ? [status, xeroId, cnId] : [status, cnId],
+    );
+  } catch { /* non-critical */ }
+}
+
+/**
+ * Post an AUTHORISED Xero Credit Note (ACCREC) for a completed Credit Note.
+ * Returns the Xero CreditNoteID, or null on failure.
+ */
+export async function syncCNAsCreditNote(businessId: string, cn: CNForSync): Promise<string | null> {
+  const accounts = await getAccountMappings(businessId);
+  const trackingMappings = await getTrackingMappings(businessId);
+  const taxTypes = getTaxTypes(businessId);
+
+  const accountCode = accounts.credit_note || accounts.sales_revenue;
+  if (!accountCode) {
+    await logSync(businessId, 'cn_credit_note', cn.id, null, 'skipped', 'No credit_note or sales_revenue account mapped');
+    return null;
+  }
+
+  const tracking = getTrackingForLocation(trackingMappings, cn.location_id, 'wholesale');
+  const lineAmountType = cn.tax_treatment === 'inc_tax' ? 'Inclusive' : 'Exclusive';
+
+  const lineItems = (cn.items ?? []).map(item => ({
+    Description: `${item.code || ''} ${item.name || ''}`.trim() || 'Return',
+    Quantity: item.qty,
+    UnitAmount: item.unit_price,
+    AccountCode: accountCode,
+    ...((item.tax_rate > 0 ? taxTypes.sales : taxTypes.exempt)
+      ? { TaxType: item.tax_rate > 0 ? taxTypes.sales : taxTypes.exempt }
+      : {}),
+    Tracking: tracking,
+  }));
+
+  if (!lineItems.length) {
+    await logSync(businessId, 'cn_credit_note', cn.id, null, 'skipped', 'No line items');
+    return null;
+  }
+
+  const creditNote: any = {
+    Type: 'ACCREC',
+    Contact: { Name: cn.customer_name || `Customer #${cn.customer_id}` },
+    Date: cn.cn_date,
+    CreditNoteNumber: cn.cn_number,
+    Reference: cn.reference || cn.cn_number,
+    Status: 'AUTHORISED',
+    LineAmountTypes: lineAmountType,
+    LineItems: lineItems,
+  };
+
+  try {
+    const result = await xeroApiFetch(businessId, '/CreditNotes', {
+      method: 'POST',
+      body: { CreditNotes: [creditNote] },
+    });
+    const xeroId = result.CreditNotes?.[0]?.CreditNoteID ?? null;
+    await logSync(businessId, 'cn_credit_note', cn.id, xeroId, 'success', `Credit note created: ${cn.cn_number}`, result.CreditNotes?.[0]?.Status ?? 'AUTHORISED');
+    await markCNXeroStatus(cn.id, 'synced', xeroId);
+    return xeroId;
+  } catch (err: any) {
+    await logSync(businessId, 'cn_credit_note', cn.id, null, 'error', err.message);
+    return null;
+  }
 }

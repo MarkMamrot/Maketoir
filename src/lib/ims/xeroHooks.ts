@@ -7,8 +7,8 @@
  */
 
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { ImsPORepo, ImsSORepo } from '@/lib/ims/ImsRepository';
-import { syncPOAsDraftBill, updateXeroDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOPayment, syncSOAsInvoice, updateXeroDraftInvoice, approveInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice } from '@/services/XeroSyncService';
+import { ImsPORepo, ImsSORepo, ImsCNRepo } from '@/lib/ims/ImsRepository';
+import { syncPOAsDraftBill, updateXeroDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOPayment, syncSOAsInvoice, updateXeroDraftInvoice, approveInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice, syncCNAsCreditNote, markCNXeroStatus } from '@/services/XeroSyncService';
 import { imsQuery } from '@/services/IMSMySQLService';
 
 /**
@@ -288,4 +288,41 @@ export async function triggerSOXeroVoid(businessId: string, soId: number): Promi
   // Clear the stored invoice ID
   await markSoXeroStatus(Number(soId), 'synced', null);
   return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Credit Note hooks
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Sync a completed Credit Note to Xero as an AUTHORISED ACCREC Credit Note.
+ * Fire-and-forget — called after CN.complete().
+ */
+export async function triggerCNXeroSync(businessId: string, cnId: number): Promise<void> {
+  if (!(await isXeroConnected(businessId))) return;
+  const cn = await ImsCNRepo.get(cnId, businessId);
+  if (!cn || cn.status !== 'complete') return;
+
+  await withRetry(
+    () => syncCNAsCreditNote(businessId, {
+      id: cn.id,
+      cn_number: cn.cn_number,
+      customer_id: cn.customer_id,
+      customer_name: cn.customer_name,
+      location_id: cn.location_id,
+      cn_date: cn.cn_date,
+      reference: cn.reference,
+      tax_treatment: cn.tax_treatment,
+      total_amount: cn.total_amount,
+      items: (cn.items ?? []).map(i => ({
+        code: i.code,
+        name: i.name ?? i.product_name,
+        qty: i.qty,
+        unit_price: i.unit_price,
+        tax_rate: i.tax_rate,
+        line_total: i.line_total,
+      })),
+    }),
+    () => markCNXeroStatus(cnId, 'queued'),
+  );
 }

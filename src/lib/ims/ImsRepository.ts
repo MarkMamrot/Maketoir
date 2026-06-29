@@ -2886,3 +2886,257 @@ export const ImsPaymentMethodsRepo = {
     await imsExecute('DELETE FROM ims_payment_methods WHERE id = ? AND business_id = ?', [id, businessId]);
   },
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Credit Notes
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type CNStatus = 'draft' | 'complete';
+
+export interface ImsCN {
+  id: number;
+  business_id: string;
+  cn_number: string;
+  customer_id?: number | null;
+  location_id: number;
+  status: CNStatus;
+  cn_date: string;
+  completed_at?: string | null;
+  reference?: string | null;
+  tax_treatment: 'ex_tax' | 'inc_tax';
+  tax_code?: string | null;
+  subtotal: number;
+  tax_amount: number;
+  total_amount: number;
+  notes?: string | null;
+  xero_credit_note_id?: string | null;
+  xero_synced_at?: string | null;
+  xero_sync_status?: 'synced' | 'queued' | 'error' | null;
+  created_by?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  // joined
+  customer_name?: string | null;
+  location_name?: string | null;
+  items?: ImsCNItem[];
+}
+
+export interface ImsCNItem {
+  id: number;
+  cn_id: number;
+  variant_id?: string | null;
+  code?: string | null;
+  name?: string | null;
+  qty: number;
+  unit_price: number;
+  price_basis: 'cost' | 'wholesale' | 'rrp' | 'custom';
+  tax_rate: number;
+  line_total: number;
+  // joined from variant / product
+  sku?: string | null;
+  product_name?: string | null;
+  variant_label?: string | null;
+  avg_cost?: number | null;
+}
+
+async function nextCNNumber(businessId: string): Promise<string> {
+  const rows = await imsQuery<{ max_num: string | null }>(
+    `SELECT MAX(CAST(REGEXP_REPLACE(cn_number, '[^0-9]', '') AS UNSIGNED)) AS max_num
+     FROM ims_credit_notes WHERE business_id = ?`,
+    [businessId],
+  );
+  const next = (Number(rows[0]?.max_num ?? 0) + 1).toString().padStart(5, '0');
+  return `CN-${next}`;
+}
+
+export const ImsCNRepo = {
+  async list(businessId: string, status?: CNStatus): Promise<ImsCN[]> {
+    const wheres: string[] = ['cn.business_id = ?'];
+    const params: any[] = [businessId];
+    if (status) { wheres.push('cn.status = ?'); params.push(status); }
+    return imsQuery<ImsCN>(
+      `SELECT cn.*,
+              c.name AS customer_name,
+              l.name AS location_name
+       FROM ims_credit_notes cn
+       LEFT JOIN ims_contacts c ON c.id = cn.customer_id
+       JOIN ims_locations l ON l.id = cn.location_id
+       WHERE ${wheres.join(' AND ')}
+       ORDER BY cn.created_at DESC`,
+      params,
+    );
+  },
+
+  async get(id: number, businessId: string): Promise<ImsCN | null> {
+    const rows = await imsQuery<ImsCN>(
+      `SELECT cn.*,
+              c.name  AS customer_name,
+              c.email AS customer_email,
+              l.name  AS location_name
+       FROM ims_credit_notes cn
+       LEFT JOIN ims_contacts c ON c.id = cn.customer_id
+       JOIN ims_locations l ON l.id = cn.location_id
+       WHERE cn.id = ? AND cn.business_id = ?`,
+      [id, businessId],
+    );
+    if (!rows[0]) return null;
+    await ensureVariantAvgCost();
+    const items = await imsQuery<ImsCNItem>(
+      `SELECT i.*,
+              COALESCE(v.sku, i.code) AS sku,
+              COALESCE(p.name, i.name) AS product_name,
+              CONCAT_WS(' / ',
+                NULLIF(v.option1_value,''),
+                NULLIF(v.option2_value,''),
+                NULLIF(v.option3_value,'')
+              ) AS variant_label,
+              COALESCE(v.avg_cost, v.cost_aud) AS avg_cost
+       FROM ims_credit_note_items i
+       LEFT JOIN ims_product_variants v ON v.variant_id = i.variant_id
+       LEFT JOIN ims_products p ON p.product_id = v.product_id
+       WHERE i.cn_id = ?`,
+      [id],
+    );
+    return { ...rows[0], items };
+  },
+
+  async create(
+    data: Pick<ImsCN, 'location_id' | 'cn_date' | 'reference' | 'tax_treatment' | 'tax_code' | 'notes' | 'customer_id'>,
+    items: Omit<ImsCNItem, 'id' | 'cn_id' | 'line_total' | 'sku' | 'product_name' | 'variant_label' | 'avg_cost'>[],
+    businessId: string,
+    createdBy?: string,
+  ): Promise<number> {
+    const cn_number = await nextCNNumber(businessId);
+    let subtotal = 0, tax_amount = 0;
+    for (const item of items) {
+      const line = Number(item.qty) * Number(item.unit_price);
+      subtotal   += line;
+      tax_amount += line * Number(item.tax_rate ?? 0);
+    }
+    const res = await imsExecute(
+      `INSERT INTO ims_credit_notes
+         (business_id,cn_number,customer_id,location_id,status,cn_date,reference,
+          tax_treatment,tax_code,subtotal,tax_amount,total_amount,notes,created_by)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [businessId, cn_number, data.customer_id ?? null, data.location_id, 'draft',
+       data.cn_date, data.reference ?? null, data.tax_treatment, data.tax_code ?? null,
+       subtotal, tax_amount, subtotal + tax_amount,
+       data.notes ?? null, createdBy ?? null],
+    );
+    const cn_id = (res as any).insertId;
+    for (const item of items) {
+      const line_total = Number(item.qty) * Number(item.unit_price);
+      await imsExecute(
+        `INSERT INTO ims_credit_note_items
+           (cn_id,variant_id,code,name,qty,unit_price,price_basis,tax_rate,line_total)
+         VALUES (?,?,?,?,?,?,?,?,?)`,
+        [cn_id, item.variant_id ?? null, item.code ?? null, item.name ?? null,
+         item.qty, item.unit_price, item.price_basis ?? 'custom',
+         item.tax_rate ?? 0, line_total],
+      );
+    }
+    return cn_id;
+  },
+
+  async update(
+    id: number,
+    businessId: string,
+    data: Partial<Pick<ImsCN, 'location_id' | 'cn_date' | 'customer_id' | 'reference' | 'tax_treatment' | 'tax_code' | 'notes'>>,
+    items?: Omit<ImsCNItem, 'id' | 'cn_id' | 'line_total' | 'sku' | 'product_name' | 'variant_label' | 'avg_cost'>[],
+  ): Promise<void> {
+    const allowed = ['location_id','cn_date','customer_id','reference','tax_treatment','tax_code','notes'];
+    const sets: string[] = [];
+    const vals: any[] = [];
+    for (const f of allowed) {
+      if (data[f as keyof typeof data] !== undefined) {
+        sets.push(`${f} = ?`);
+        vals.push(data[f as keyof typeof data] ?? null);
+      }
+    }
+    if (items !== undefined) {
+      // Recompute totals
+      let subtotal = 0, tax_amount = 0;
+      for (const item of items) {
+        const line = Number(item.qty) * Number(item.unit_price);
+        subtotal   += line;
+        tax_amount += line * Number(item.tax_rate ?? 0);
+      }
+      sets.push('subtotal = ?', 'tax_amount = ?', 'total_amount = ?');
+      vals.push(subtotal, tax_amount, subtotal + tax_amount);
+    }
+    if (sets.length) {
+      vals.push(id, businessId);
+      await imsExecute(
+        `UPDATE ims_credit_notes SET ${sets.join(', ')} WHERE id = ? AND business_id = ? AND status = 'draft'`,
+        vals,
+      );
+    }
+    if (items !== undefined) {
+      await imsExecute(`DELETE FROM ims_credit_note_items WHERE cn_id = ?`, [id]);
+      for (const item of items) {
+        const line_total = Number(item.qty) * Number(item.unit_price);
+        await imsExecute(
+          `INSERT INTO ims_credit_note_items
+             (cn_id,variant_id,code,name,qty,unit_price,price_basis,tax_rate,line_total)
+           VALUES (?,?,?,?,?,?,?,?,?)`,
+          [id, item.variant_id ?? null, item.code ?? null, item.name ?? null,
+           item.qty, item.unit_price, item.price_basis ?? 'custom',
+           item.tax_rate ?? 0, line_total],
+        );
+      }
+    }
+  },
+
+  /** Complete a draft CN: return stock, insert movements, mark complete. Atomic transaction. */
+  async complete(id: number, businessId: string): Promise<void> {
+    const cn = await ImsCNRepo.get(id, businessId);
+    if (!cn) throw new Error('Credit note not found');
+    if (cn.status !== 'draft') throw new Error('Only draft credit notes can be completed');
+
+    const pool = getIMSPool();
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      for (const item of cn.items ?? []) {
+        if (!item.variant_id) continue;
+        await conn.execute(
+          `INSERT IGNORE INTO ims_stock (variant_id, location_id) VALUES (?, ?)`,
+          [item.variant_id, cn.location_id],
+        );
+        await conn.execute(
+          `UPDATE ims_stock SET qty_on_hand = qty_on_hand + ? WHERE variant_id = ? AND location_id = ?`,
+          [item.qty, item.variant_id, cn.location_id],
+        );
+        const [[s]] = await conn.execute<any[]>(
+          `SELECT qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ?`,
+          [item.variant_id, cn.location_id],
+        );
+        await conn.execute(
+          `INSERT INTO ims_stock_movements
+             (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh)
+           VALUES (?,?,'cn_returned','credit_note',?,?,?)`,
+          [item.variant_id, cn.location_id, id, item.qty, s?.qty_on_hand ?? 0],
+        );
+      }
+
+      await conn.execute(
+        `UPDATE ims_credit_notes SET status = 'complete', completed_at = NOW() WHERE id = ?`,
+        [id],
+      );
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  },
+
+  async delete(id: number, businessId: string): Promise<void> {
+    await imsExecute(
+      `DELETE FROM ims_credit_notes WHERE id = ? AND business_id = ? AND status = 'draft'`,
+      [id, businessId],
+    );
+  },
+};
