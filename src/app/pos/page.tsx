@@ -914,11 +914,11 @@ function PosSettingsModal({
                           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                         }}
                       >
-                        {/* Colour swatch */}
+                        {/* Colour swatch — topbar | body panel | accent */}
                         <div style={{ display: 'flex', gap: 3 }}>
-                          <div style={{ width: 14, height: 14, borderRadius: 3, background: t.vars['--sv-bg-0'] }} />
+                          <div style={{ width: 14, height: 14, borderRadius: 3, background: t.vars['--pos-topbar-bg'] ?? t.vars['--sv-bg-1'] }} />
+                          <div style={{ width: 14, height: 14, borderRadius: 3, background: t.vars['--sv-bg-1'] }} />
                           <div style={{ width: 14, height: 14, borderRadius: 3, background: t.vars['--sv-action'] }} />
-                          <div style={{ width: 14, height: 14, borderRadius: 3, background: t.vars['--sv-text-main'] }} />
                         </div>
                         <span style={{ fontSize: 11, fontWeight: isActive ? 700 : 500, color: isActive ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)' }}>{t.name}</span>
                       </button>
@@ -1574,99 +1574,32 @@ function MainPos({
             ⚠ {failedCount} failed — retry
           </button>
         )}
-        <button onClick={parkSale} style={{ ...smallBtn, background: 'var(--pos-btn-bg)', color: 'var(--sv-text-strong)', border: '1px solid var(--pos-btn-border)' }} disabled={!cart.length}>Park Sale</button>
-        <button onClick={() => setScreen('parked')} style={{ ...smallBtn, background: 'var(--pos-btn-bg)', color: 'var(--sv-text-strong)', border: '1px solid var(--pos-btn-border)' }}>
-          Parked {parkedSales.length > 0 ? `(${parkedSales.length})` : ''}
+        {/* Park Sale icon */}
+        <button
+          onClick={parkSale}
+          disabled={!cart.length}
+          title="Park current sale"
+          style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: cart.length ? 'pointer' : 'default', color: cart.length ? 'var(--sv-text-dim)' : 'var(--sv-text-muted)', transition: 'background .15s', flexShrink: 0, opacity: cart.length ? 1 : .4 }}
+          onMouseEnter={e => { if (cart.length) e.currentTarget.style.background = 'var(--pos-btn-bg)'; }}
+          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V7h4a3 3 0 010 6H9"/>
+          </svg>
         </button>
+        {/* Reprint icon */}
         <button
           onClick={() => lastSale && onReceipt(lastSale)}
           disabled={!lastSale}
           title={lastSale ? 'Reprint last receipt' : 'No recent sale to reprint'}
-          style={{ ...smallBtn, background: 'var(--pos-btn-bg)', color: lastSale ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', border: '1px solid var(--pos-btn-border)', opacity: lastSale ? 1 : .45 }}
-        >🔁 Reprint</button>
-        {/* ── Hamburger menu ── */}
-        <div style={{ position: 'relative', flexShrink: 0 }}>
-          <button
-            onClick={() => setMoreMenuOpen(p => !p)}
-            title="More options"
-            style={{ background: moreMenuOpen ? 'var(--pos-btn-bg)' : 'none', border: moreMenuOpen ? '1px solid var(--pos-btn-border)' : 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--sv-text-dim)', transition: 'background .15s', flexShrink: 0 }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
-            onMouseLeave={e => { if (!moreMenuOpen) e.currentTarget.style.background = 'none'; }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-              <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
-            </svg>
-          </button>
-          {moreMenuOpen && (
-            <>
-              <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setMoreMenuOpen(false)} />
-              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, minWidth: 200, background: 'var(--sv-card, #1a1a1a)', border: '1px solid var(--sv-etch)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.35)', zIndex: 50, overflow: 'hidden', padding: '4px 0' }}>
-                {/* Sync */}
-                <button
-                  onClick={() => { handleSync(); setMoreMenuOpen(false); }}
-                  disabled={syncing}
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer', color: syncMsg === '✓ Synced' ? 'var(--sv-green, #4ade80)' : syncMsg ? 'var(--sv-red)' : 'var(--sv-text-strong)', fontSize: 13, textAlign: 'left', opacity: syncing ? .7 : 1 }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                >
-                  <span style={{ fontSize: 15, width: 18, textAlign: 'center' }}>⟳</span>
-                  {syncing ? 'Syncing…' : syncMsg ?? 'Sync'}
-                </button>
-                {/* Layby toggle */}
-                <button
-                  onClick={() => { setIsLayby(v => !v); setMoreMenuOpen(false); }}
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: isLayby ? 'rgba(251,191,36,.08)' : 'none', border: 'none', cursor: 'pointer', color: isLayby ? 'var(--sv-amber)' : 'var(--sv-text-strong)', fontSize: 13, textAlign: 'left' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = isLayby ? 'rgba(251,191,36,.14)' : 'var(--pos-btn-bg)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = isLayby ? 'rgba(251,191,36,.08)' : 'none')}
-                >
-                  <span style={{ fontSize: 15, width: 18, textAlign: 'center' }}>📋</span>
-                  {isLayby ? 'Layby: ON' : 'Layby: Off'}
-                </button>
-                {/* Cart side */}
-                <button
-                  onClick={() => { setCartLeft(v => { const next = !v; try { localStorage.setItem('pos_cart_left', next ? '1' : '0'); } catch {} return next; }); setMoreMenuOpen(false); }}
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-strong)', fontSize: 13, textAlign: 'left' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                >
-                  <span style={{ fontSize: 15, width: 18, textAlign: 'center' }}>{cartLeft ? '⬅' : '➡'}</span>
-                  {cartLeft ? 'Cart: Left side' : 'Cart: Right side'}
-                </button>
-                <div style={{ height: 1, background: 'var(--sv-etch)', margin: '4px 0' }} />
-                {/* Register */}
-                <button
-                  onClick={() => { setEodInitialMode(regSession?.status === 'open' ? 'eod' : 'open'); setScreen('eod'); setMoreMenuOpen(false); }}
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-strong)', fontSize: 13, textAlign: 'left' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                >
-                  <span style={{ fontSize: 15, width: 18, textAlign: 'center' }}>🗃</span>
-                  Register
-                </button>
-                {/* Reports */}
-                <button
-                  onClick={() => { setScreen('reports'); setMoreMenuOpen(false); }}
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-strong)', fontSize: 13, textAlign: 'left' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                >
-                  <span style={{ fontSize: 15, width: 18, textAlign: 'center' }}>📊</span>
-                  Reports
-                </button>
-                {/* Receive Transfers */}
-                <button
-                  onClick={() => { setScreen('receive-transfers'); setMoreMenuOpen(false); }}
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-strong)', fontSize: 13, textAlign: 'left' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                >
-                  <span style={{ fontSize: 15, width: 18, textAlign: 'center' }}>📦</span>
-                  Receive Transfers
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+          style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: lastSale ? 'pointer' : 'default', color: lastSale ? 'var(--sv-text-dim)' : 'var(--sv-text-muted)', transition: 'background .15s', flexShrink: 0, opacity: lastSale ? 1 : .4 }}
+          onMouseEnter={e => { if (lastSale) e.currentTarget.style.background = 'var(--pos-btn-bg)'; }}
+          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
+          </svg>
+        </button>
         <button
           onClick={handleOpenTill}
           disabled={cashDrawerLoading}
@@ -1702,6 +1635,99 @@ function MainPos({
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
         </button>
+        {/* ── Hamburger menu ── */}
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <button
+            onClick={() => setMoreMenuOpen(p => !p)}
+            title="More options"
+            style={{ background: moreMenuOpen ? 'var(--pos-btn-bg)' : 'none', border: moreMenuOpen ? '1px solid var(--pos-btn-border)' : 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--sv-text-dim)', transition: 'background .15s', flexShrink: 0 }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
+            onMouseLeave={e => { if (!moreMenuOpen) e.currentTarget.style.background = 'none'; }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+              <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
+          {moreMenuOpen && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setMoreMenuOpen(false)} />
+              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, minWidth: 210, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, boxShadow: '0 8px 28px rgba(0,0,0,.35)', zIndex: 50, overflow: 'hidden', padding: '4px 0' }}>
+                {/* Parked sales */}
+                <button
+                  onClick={() => { setScreen('parked'); setMoreMenuOpen(false); }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-strong)', fontSize: 13, textAlign: 'left' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V7h4a3 3 0 010 6H9"/></svg>
+                  Parked Sales{parkedSales.length > 0 ? ` (${parkedSales.length})` : ''}
+                </button>
+                {/* Sync */}
+                <button
+                  onClick={() => { handleSync(); setMoreMenuOpen(false); }}
+                  disabled={syncing}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer', color: syncMsg === '✓ Synced' ? 'var(--sv-green, #4ade80)' : syncMsg ? 'var(--sv-red)' : 'var(--sv-text-strong)', fontSize: 13, textAlign: 'left', opacity: syncing ? .7 : 1 }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+                  {syncing ? 'Syncing…' : syncMsg ?? 'Sync'}
+                </button>
+                {/* Layby toggle */}
+                <button
+                  onClick={() => { setIsLayby(v => !v); setMoreMenuOpen(false); }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: isLayby ? 'rgba(251,191,36,.08)' : 'none', border: 'none', cursor: 'pointer', color: isLayby ? 'var(--sv-amber)' : 'var(--sv-text-strong)', fontSize: 13, textAlign: 'left' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = isLayby ? 'rgba(251,191,36,.14)' : 'var(--pos-btn-bg)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = isLayby ? 'rgba(251,191,36,.08)' : 'none')}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                  {isLayby ? 'Layby: ON' : 'Layby: Off'}
+                </button>
+                {/* Cart side */}
+                <button
+                  onClick={() => { setCartLeft(v => { const next = !v; try { localStorage.setItem('pos_cart_left', next ? '1' : '0'); } catch {} return next; }); setMoreMenuOpen(false); }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-strong)', fontSize: 13, textAlign: 'left' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>{cartLeft ? <><polyline points="15 18 9 12 15 6"/><line x1="21" y1="12" x2="9" y2="12"/></> : <><polyline points="9 18 15 12 9 6"/><line x1="3" y1="12" x2="15" y2="12"/></>}</svg>
+                  {cartLeft ? 'Cart: Left side' : 'Cart: Right side'}
+                </button>
+                <div style={{ height: 1, background: 'var(--sv-etch)', margin: '4px 0' }} />
+                {/* Register */}
+                <button
+                  onClick={() => { setEodInitialMode(regSession?.status === 'open' ? 'eod' : 'open'); setScreen('eod'); setMoreMenuOpen(false); }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-strong)', fontSize: 13, textAlign: 'left' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><rect x="2" y="4" width="20" height="11" rx="2"/><path d="M2 15h20v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2z"/><line x1="9" y1="19" x2="15" y2="19"/></svg>
+                  Register
+                </button>
+                {/* Reports */}
+                <button
+                  onClick={() => { setScreen('reports'); setMoreMenuOpen(false); }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-strong)', fontSize: 13, textAlign: 'left' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                  Reports
+                </button>
+                {/* Receive Transfers */}
+                <button
+                  onClick={() => { setScreen('receive-transfers'); setMoreMenuOpen(false); }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-strong)', fontSize: 13, textAlign: 'left' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                  Receive Transfers
+                </button>
+              </div>
+            </>
+          )}
+        </div>
         {/* Divider before user menu */}
         <span style={{ display: 'inline-block', width: 1, height: 20, background: 'var(--pos-btn-border)', flexShrink: 0, margin: '0 2px' }} />
         {/* User menu */}
