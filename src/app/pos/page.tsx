@@ -914,11 +914,11 @@ function PosSettingsModal({
                           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                         }}
                       >
-                        {/* Colour swatch — topbar | body panel | accent */}
+                        {/* Colour swatch: background feel | accent | text — the 3 most visually distinct colours per theme */}
                         <div style={{ display: 'flex', gap: 3 }}>
-                          <div style={{ width: 14, height: 14, borderRadius: 3, background: t.vars['--pos-topbar-bg'] ?? t.vars['--sv-bg-1'] }} />
-                          <div style={{ width: 14, height: 14, borderRadius: 3, background: t.vars['--sv-bg-1'] }} />
+                          <div style={{ width: 14, height: 14, borderRadius: 3, background: t.vars['--pos-topbar-bg'] ?? t.vars['--sv-bg-0'] }} />
                           <div style={{ width: 14, height: 14, borderRadius: 3, background: t.vars['--sv-action'] }} />
+                          <div style={{ width: 14, height: 14, borderRadius: 3, background: t.vars['--sv-text-strong'], border: '1px solid rgba(128,128,128,.25)' }} />
                         </div>
                         <span style={{ fontSize: 11, fontWeight: isActive ? 700 : 500, color: isActive ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)' }}>{t.name}</span>
                       </button>
@@ -1585,7 +1585,7 @@ function MainPos({
           onClick={parkSale}
           disabled={!cart.length}
           title="Park current sale"
-          style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: cart.length ? 'pointer' : 'default', color: cart.length ? 'var(--sv-text-dim)' : 'var(--sv-text-muted)', transition: 'background .15s', flexShrink: 0, opacity: cart.length ? 1 : .4 }}
+          style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: cart.length ? 'pointer' : 'default', color: 'var(--sv-text-dim)', transition: 'background .15s', flexShrink: 0, opacity: cart.length ? 1 : .55 }}
           onMouseEnter={e => { if (cart.length) e.currentTarget.style.background = 'var(--pos-btn-bg)'; }}
           onMouseLeave={e => (e.currentTarget.style.background = 'none')}
         >
@@ -1598,7 +1598,7 @@ function MainPos({
           onClick={() => lastSale && onReceipt(lastSale)}
           disabled={!lastSale}
           title={lastSale ? 'Reprint last receipt' : 'No recent sale to reprint'}
-          style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: lastSale ? 'pointer' : 'default', color: lastSale ? 'var(--sv-text-dim)' : 'var(--sv-text-muted)', transition: 'background .15s', flexShrink: 0, opacity: lastSale ? 1 : .4 }}
+          style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: lastSale ? 'pointer' : 'default', color: 'var(--sv-text-dim)', transition: 'background .15s', flexShrink: 0, opacity: lastSale ? 1 : .55 }}
           onMouseEnter={e => { if (lastSale) e.currentTarget.style.background = 'var(--pos-btn-bg)'; }}
           onMouseLeave={e => (e.currentTarget.style.background = 'none')}
         >
@@ -1657,7 +1657,12 @@ function MainPos({
           {moreMenuOpen && (
             <>
               <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setMoreMenuOpen(false)} />
-              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, minWidth: 210, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, boxShadow: '0 8px 28px rgba(0,0,0,.35)', zIndex: 50, overflow: 'hidden', padding: '4px 0' }}>
+              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, minWidth: 210, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, boxShadow: '0 8px 28px rgba(0,0,0,.35)', zIndex: 50, overflow: 'hidden', padding: '4px 0',
+                // Reset any topbar CSS-var overrides so text/hover colours match the body panel, not the topbar
+                '--sv-text-strong': posTheme['--sv-text-strong'] ?? '',
+                '--sv-text-dim':    posTheme['--sv-text-dim']    ?? '',
+                '--pos-btn-bg':     posTheme['--pos-btn-bg']     ?? '',
+              } as React.CSSProperties}>
                 {/* Parked sales */}
                 <button
                   onClick={() => { setScreen('parked'); setMoreMenuOpen(false); }}
