@@ -12578,6 +12578,8 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   const [ordersOpen, setOrdersOpen]         = useState(false);
   const [posDisplayOpen, setPosDisplayOpen]  = useState(false);
   const [setupOpen, setSetupOpen]           = useState(false);
+  const [bfFrom, setBfFrom]                 = useState('');
+  const [bfTo,   setBfTo]                   = useState('');
 
   // Tax draft
   const [taxDraft, setTaxDraft] = useState<Record<string, string>>({});
@@ -12829,28 +12831,22 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
             </div>
             <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: '0 0 10px', lineHeight: 1.5 }}><strong>Sync Latest</strong> adds orders since last sync. <strong>Full Sync</strong> rebuilds history from scratch for the chosen number of months.</p>
             {/* Backfill historical date range */}
-            {(() => {
-              const [bfFrom, setBfFrom] = React.useState('');
-              const [bfTo,   setBfTo]   = React.useState('');
-              return (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', paddingTop: 8, borderTop: '1px solid var(--sv-etch)' }}>
-                  <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Backfill from</span>
-                  <input type="date" value={bfFrom} onChange={e => setBfFrom(e.target.value)}
-                    style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }} />
-                  <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>to</span>
-                  <input type="date" value={bfTo} onChange={e => setBfTo(e.target.value)}
-                    style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }} />
-                  <button
-                    disabled={!bfFrom || syncing}
-                    onClick={() => handleSync('latest', ['sales'], undefined, { sales_backfill_from: bfFrom, sales_backfill_to: bfTo || undefined })}
-                    style={{ padding: '5px 14px', borderRadius: 6, border: 'none', background: bfFrom && !syncing ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: bfFrom && !syncing ? '#fff' : 'var(--sv-text-dim)', cursor: bfFrom && !syncing ? 'pointer' : 'not-allowed', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', opacity: syncing ? .6 : 1 }}
-                  >
-                    Append (no clear)
-                  </button>
-                  <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Imports date range without clearing existing data.</span>
-                </div>
-              );
-            })()}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', paddingTop: 8, borderTop: '1px solid var(--sv-etch)' }}>
+              <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Backfill from</span>
+              <input type="date" value={bfFrom} onChange={e => setBfFrom(e.target.value)}
+                style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }} />
+              <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>to</span>
+              <input type="date" value={bfTo} onChange={e => setBfTo(e.target.value)}
+                style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }} />
+              <button
+                disabled={!bfFrom || syncing}
+                onClick={() => handleSync('latest', ['sales'], undefined, { sales_backfill_from: bfFrom, sales_backfill_to: bfTo || undefined })}
+                style={{ padding: '5px 14px', borderRadius: 6, border: 'none', background: bfFrom && !syncing ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: bfFrom && !syncing ? '#fff' : 'var(--sv-text-dim)', cursor: bfFrom && !syncing ? 'pointer' : 'not-allowed', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', opacity: syncing ? .6 : 1 }}
+              >
+                Append (no clear)
+              </button>
+              <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Imports date range without clearing existing data.</span>
+            </div>
           </div>
 
           {/* Purchase Orders */}
