@@ -1057,6 +1057,7 @@ function MainPos({
   const [parkedSales, setParkedSales] = useState<ParkedSale[]>(() => loadParkedSales());
   const [showPayment, setShowPayment] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [orderDiscType, setOrderDiscType] = useState<'percent' | 'amount'>('percent');
   const [orderDiscVal,  setOrderDiscVal]  = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -1573,16 +1574,6 @@ function MainPos({
             ⚠ {failedCount} failed — retry
           </button>
         )}
-        <button
-          onClick={handleSync}
-          disabled={syncing}
-          style={{ ...smallBtn, background: 'var(--pos-btn-bg)', color: syncMsg === '✓ Synced' ? 'var(--sv-green, #4ade80)' : syncMsg ? 'var(--sv-red)' : 'var(--sv-text-strong)', border: `1px solid ${syncMsg === '✓ Synced' ? 'rgba(74,222,128,.35)' : syncMsg ? 'var(--sv-red-border)' : 'var(--pos-btn-border)'}`, opacity: syncing ? .7 : 1 }}
-        >
-          {syncing ? '⟳ Syncing…' : syncMsg ?? '⟳ Sync'}
-        </button>
-        <button onClick={() => setIsLayby(!isLayby)} style={{ ...smallBtn, background: isLayby ? 'var(--sv-amber-tint)' : 'var(--pos-btn-bg)', color: isLayby ? 'var(--sv-amber)' : 'var(--sv-text-strong)', border: `1px solid ${isLayby ? 'var(--sv-amber-border)' : 'var(--pos-btn-border)'}` }}>
-          {isLayby ? '📋 Layby ON' : 'Layby'}
-        </button>
         <button onClick={parkSale} style={{ ...smallBtn, background: 'var(--pos-btn-bg)', color: 'var(--sv-text-strong)', border: '1px solid var(--pos-btn-border)' }} disabled={!cart.length}>Park Sale</button>
         <button onClick={() => setScreen('parked')} style={{ ...smallBtn, background: 'var(--pos-btn-bg)', color: 'var(--sv-text-strong)', border: '1px solid var(--pos-btn-border)' }}>
           Parked {parkedSales.length > 0 ? `(${parkedSales.length})` : ''}
@@ -1593,14 +1584,89 @@ function MainPos({
           title={lastSale ? 'Reprint last receipt' : 'No recent sale to reprint'}
           style={{ ...smallBtn, background: 'var(--pos-btn-bg)', color: lastSale ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', border: '1px solid var(--pos-btn-border)', opacity: lastSale ? 1 : .45 }}
         >🔁 Reprint</button>
-        <button onClick={() => { setEodInitialMode(regSession?.status === 'open' ? 'eod' : 'open'); setScreen('eod'); }} style={{ ...smallBtn, background: 'var(--pos-btn-bg)', color: 'var(--sv-text-strong)', border: '1px solid var(--pos-btn-border)' }}>Register</button>
-        <button onClick={() => setScreen('reports')} style={{ ...smallBtn, background: 'var(--pos-btn-bg)', color: 'var(--sv-text-strong)', border: '1px solid var(--pos-btn-border)' }}>Reports</button>
-        <button onClick={() => setScreen('receive-transfers')} style={{ ...smallBtn, background: 'var(--pos-btn-bg)', color: 'var(--sv-text-strong)', border: '1px solid var(--pos-btn-border)' }}>📦 Receive Transfers</button>
-        <button
-          onClick={() => setCartLeft(v => { const next = !v; try { localStorage.setItem('pos_cart_left', next ? '1' : '0'); } catch {} return next; })}
-          title={cartLeft ? 'Cart on left — click to move right' : 'Cart on right — click to move left'}
-          style={{ ...smallBtn, background: 'var(--pos-btn-bg)', color: 'var(--sv-text-dim)', border: '1px solid var(--pos-btn-border)' }}
-        >{cartLeft ? '⬅ Cart' : 'Cart ➡'}</button>
+        {/* ── Hamburger menu ── */}
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <button
+            onClick={() => setMoreMenuOpen(p => !p)}
+            title="More options"
+            style={{ background: moreMenuOpen ? 'var(--pos-btn-bg)' : 'none', border: moreMenuOpen ? '1px solid var(--pos-btn-border)' : 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--sv-text-dim)', transition: 'background .15s', flexShrink: 0 }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
+            onMouseLeave={e => { if (!moreMenuOpen) e.currentTarget.style.background = 'none'; }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+              <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
+          {moreMenuOpen && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setMoreMenuOpen(false)} />
+              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, minWidth: 200, background: 'var(--sv-card, #1a1a1a)', border: '1px solid var(--sv-etch)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.35)', zIndex: 50, overflow: 'hidden', padding: '4px 0' }}>
+                {/* Sync */}
+                <button
+                  onClick={() => { handleSync(); setMoreMenuOpen(false); }}
+                  disabled={syncing}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer', color: syncMsg === '✓ Synced' ? 'var(--sv-green, #4ade80)' : syncMsg ? 'var(--sv-red)' : 'var(--sv-text-strong)', fontSize: 13, textAlign: 'left', opacity: syncing ? .7 : 1 }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                >
+                  <span style={{ fontSize: 15, width: 18, textAlign: 'center' }}>⟳</span>
+                  {syncing ? 'Syncing…' : syncMsg ?? 'Sync'}
+                </button>
+                {/* Layby toggle */}
+                <button
+                  onClick={() => { setIsLayby(v => !v); setMoreMenuOpen(false); }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: isLayby ? 'rgba(251,191,36,.08)' : 'none', border: 'none', cursor: 'pointer', color: isLayby ? 'var(--sv-amber)' : 'var(--sv-text-strong)', fontSize: 13, textAlign: 'left' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = isLayby ? 'rgba(251,191,36,.14)' : 'var(--pos-btn-bg)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = isLayby ? 'rgba(251,191,36,.08)' : 'none')}
+                >
+                  <span style={{ fontSize: 15, width: 18, textAlign: 'center' }}>📋</span>
+                  {isLayby ? 'Layby: ON' : 'Layby: Off'}
+                </button>
+                {/* Cart side */}
+                <button
+                  onClick={() => { setCartLeft(v => { const next = !v; try { localStorage.setItem('pos_cart_left', next ? '1' : '0'); } catch {} return next; }); setMoreMenuOpen(false); }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-strong)', fontSize: 13, textAlign: 'left' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                >
+                  <span style={{ fontSize: 15, width: 18, textAlign: 'center' }}>{cartLeft ? '⬅' : '➡'}</span>
+                  {cartLeft ? 'Cart: Left side' : 'Cart: Right side'}
+                </button>
+                <div style={{ height: 1, background: 'var(--sv-etch)', margin: '4px 0' }} />
+                {/* Register */}
+                <button
+                  onClick={() => { setEodInitialMode(regSession?.status === 'open' ? 'eod' : 'open'); setScreen('eod'); setMoreMenuOpen(false); }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-strong)', fontSize: 13, textAlign: 'left' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                >
+                  <span style={{ fontSize: 15, width: 18, textAlign: 'center' }}>🗃</span>
+                  Register
+                </button>
+                {/* Reports */}
+                <button
+                  onClick={() => { setScreen('reports'); setMoreMenuOpen(false); }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-strong)', fontSize: 13, textAlign: 'left' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                >
+                  <span style={{ fontSize: 15, width: 18, textAlign: 'center' }}>📊</span>
+                  Reports
+                </button>
+                {/* Receive Transfers */}
+                <button
+                  onClick={() => { setScreen('receive-transfers'); setMoreMenuOpen(false); }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-strong)', fontSize: 13, textAlign: 'left' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                >
+                  <span style={{ fontSize: 15, width: 18, textAlign: 'center' }}>📦</span>
+                  Receive Transfers
+                </button>
+              </div>
+            </>
+          )}
+        </div>
         <button
           onClick={handleOpenTill}
           disabled={cashDrawerLoading}
