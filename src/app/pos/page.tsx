@@ -2528,7 +2528,7 @@ function PosStockModal({ variantId, productName, onClose }: { variantId: string;
 function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', focusScanTick = 0, bgImage = '', bgOpacity = 10, bgPosition = 'center', bgScale = 'fit', cartLeft = false }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; onChargeEnter?: () => void; defaultView?: string; focusScanTick?: number; bgImage?: string; bgOpacity?: number; bgPosition?: 'center' | 'bottom'; bgScale?: 'fit' | 'original'; cartLeft?: boolean }) {
   const [search, setSearch]             = useState('');
   const [brand, setBrand]               = useState(() => defaultView.startsWith('brand:') ? defaultView.slice(6) : '');
-  const [inStockOnly, setInStockOnly]   = useState(() => defaultView === 'in_stock');
+  const [inStockOnly, setInStockOnly]   = useState(true);
   const [stockModal, setStockModal]     = useState<{ variantId: string; productName: string } | null>(null);
 
   // Pinned variant IDs from the "Specific Products" setting
