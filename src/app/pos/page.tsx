@@ -2507,7 +2507,9 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
     function onKey(e: KeyboardEvent) {
       if (e.target !== document.body && e.target !== inputRef.current) return;
       if (e.key === 'Enter') {
-        if (barcodeBuffer.current.length > 3) {
+        // Barcode-to-cart: only when no input is focused (scanner fires into document.body).
+        // When the search bar is focused the characters already appear in the input — let normal search handle it.
+        if (e.target === document.body && barcodeBuffer.current.length > 3) {
           const code = barcodeBuffer.current.trim();
           const codeLower = code.toLowerCase();
           const found = products.find(p =>
