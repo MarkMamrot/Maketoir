@@ -154,6 +154,9 @@ export async function POST(req: Request) {
   const syncType: 'full' | 'latest' = body.sync_type === 'full' ? 'full' : 'latest';
   const salesMonths: number = Math.min(Math.max(Number(body.sales_months) || 6, 1), 120);
   const poMonths: number = Math.min(Math.max(Number(body.po_months) || 60, 1), 240);
+  // Backfill: import a specific historical date window without clearing existing data
+  const salesBackfillFrom: string | null = body.sales_backfill_from ?? null; // ISO date string
+  const salesBackfillTo: string | null   = body.sales_backfill_to   ?? null; // ISO date string (optional)
   const stepsRequested: string[] = Array.isArray(body.steps)
     ? body.steps
     : ['locations', 'contacts', 'products', 'stock', 'sales'];
@@ -678,7 +681,13 @@ export async function POST(req: Request) {
           const lastSalesSync = await getImsSetting(businessId, 'last_sales_sync');
           const salesExtraParams: Record<string, string> = {};
 
-          if (syncType === 'full' || !lastSalesSync) {
+          if (salesBackfillFrom) {
+            // Backfill mode: append historical window without clearing existing data
+            let whereClause = `createdDate>='${salesBackfillFrom}T00:00:00Z'`;
+            if (salesBackfillTo) whereClause += `AND createdDate<'${salesBackfillTo}T00:00:00Z'`;
+            salesExtraParams['where'] = whereClause;
+            send({ step: 'sales', status: 'running', message: `Backfill: appending sales from ${salesBackfillFrom}${salesBackfillTo ? ` to ${salesBackfillTo}` : ''}...` });
+          } else if (syncType === 'full' || !lastSalesSync) {
             const cutoff = new Date();
             cutoff.setMonth(cutoff.getMonth() - salesMonths);
             salesExtraParams['where'] = `createdDate>='${cutoff.toISOString().replace(/\.\d{3}Z$/, 'Z')}'`;
@@ -945,7 +954,8 @@ export async function POST(req: Request) {
 
           const histRows  = await imsQuery<{ cnt: number }>('SELECT COUNT(*) AS cnt FROM ims_sales_history', []);
           const cacheRows = await imsQuery<{ cnt: number }>('SELECT COUNT(*) AS cnt FROM ims_sales_cache', []);
-          await setImsSetting(businessId, 'last_sales_sync', nowStr);
+          // Don't overwrite the sync stamp in backfill mode — it would break future latest syncs
+          if (!salesBackfillFrom) await setImsSetting(businessId, 'last_sales_sync', nowStr);
           send({
             step: 'sales', status: 'done',
             count: histRows[0]?.cnt ?? 0,
