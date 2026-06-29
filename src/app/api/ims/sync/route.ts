@@ -406,12 +406,12 @@ export async function POST(req: Request) {
               imsProdId = uuidv4();
               await imsExecute(
                 `INSERT INTO ims_products
-                   (product_id, name, description, product_type, brand, tags, style_code,
+                   (product_id, business_id, name, description, product_type, brand, tags, style_code,
                     is_active, is_online, supplier_contact_id, cin7_product_id,
                     pack_size, zone, bin, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
-                  imsProdId, (p.name || '').trim() || 'Unknown',
+                  imsProdId, businessId, (p.name || '').trim() || 'Unknown',
                   p.description || null, productType, p.brand || null,
                   tagsJson, p.styleCode || null,
                   isActive, isOnline, supplierContactId, cin7Id,
@@ -535,7 +535,7 @@ export async function POST(req: Request) {
                 const newVariantId = uuidv4();
                 await imsExecute(
                   `INSERT INTO ims_product_variants
-                     (variant_id, product_id, sku, barcode,
+                     (variant_id, business_id, product_id, sku, barcode,
                       option1_name, option1_value,
                       option2_name, option2_value,
                       option3_name, option3_value,
@@ -543,9 +543,9 @@ export async function POST(req: Request) {
                       price_rrp_sale, discount_start_date, discount_end_date,
                       cost_foreign,
                       weight_kg, is_active, cin7_option_id, pack_size)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                   [
-                    newVariantId, imsProdId,
+                    newVariantId, businessId, imsProdId,
                     optSku, opt.barcode || null,
                     opt1NameResolved, opt1Value,
                     opt2Name, opt.option2 || null,
@@ -651,15 +651,15 @@ export async function POST(req: Request) {
           for (const s of stockAgg.values()) {
             await imsExecute(
               `INSERT INTO ims_stock
-                 (variant_id, location_id, qty_on_hand, qty_incoming, qty_committed, avg_cost)
-               VALUES (?, ?, ?, ?, ?, ?)
+                 (variant_id, location_id, business_id, qty_on_hand, qty_incoming, qty_committed, avg_cost)
+               VALUES (?, ?, ?, ?, ?, ?, ?)
                ON DUPLICATE KEY UPDATE
                  qty_on_hand   = VALUES(qty_on_hand),
                  qty_incoming  = VALUES(qty_incoming),
                  qty_committed = VALUES(qty_committed),
                  avg_cost      = COALESCE(VALUES(avg_cost), avg_cost),
                  updated_at    = CURRENT_TIMESTAMP`,
-              [s.variantId, s.locationId, s.soh, s.incoming, s.committed, s.avgCost],
+              [s.variantId, s.locationId, businessId, s.soh, s.incoming, s.committed, s.avgCost],
             );
             stockSynced++;
           }
@@ -858,11 +858,11 @@ export async function POST(req: Request) {
               const rawSoMemberId = Number(order.memberId ?? order.customerId ?? 0) || null;
               const soRes = await imsExecute(
                 `INSERT INTO ims_sales_orders
-                   (so_number, customer_id, location_id, status, order_date, expected_date,
+                   (so_number, business_id, customer_id, location_id, status, order_date, expected_date,
                     fulfilled_date, freight, discount, subtotal, tax_amount, total_amount,
                     cin7_order_id, is_historical, currency_code, exchange_rate, so_type, cin7_member_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [soNumber, soCustomerId, soLocationId, soStatus, orderDate, expectedDateStr,
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [soNumber, businessId, soCustomerId, soLocationId, soStatus, orderDate, expectedDateStr,
                  fulfilledDate, soFreight, soDiscount, subtotal, taxAmt, totalAmt,
                  String(order.id), isHistorical, soCurrencyCode, soExchangeRate, soType, rawSoMemberId],
               );
@@ -871,11 +871,11 @@ export async function POST(req: Request) {
               const rawSoMemberId = Number(order.memberId ?? order.customerId ?? 0) || null;
               const soRes = await imsExecute(
                 `INSERT INTO ims_sales_orders
-                   (so_number, customer_id, location_id, status, order_date, expected_date,
+                   (so_number, business_id, customer_id, location_id, status, order_date, expected_date,
                     fulfilled_date, freight, discount, subtotal, tax_amount, total_amount,
                     cin7_order_id, is_historical, currency_code, exchange_rate, so_type, cin7_member_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [`CIN7-${order.id}`, soCustomerId, soLocationId, soStatus, orderDate, expectedDateStr,
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [`CIN7-${order.id}`, businessId, soCustomerId, soLocationId, soStatus, orderDate, expectedDateStr,
                  fulfilledDate, soFreight, soDiscount, subtotal, taxAmt, totalAmt,
                  String(order.id), isHistorical, soCurrencyCode, soExchangeRate, soType, rawSoMemberId],
               );
@@ -1027,12 +1027,12 @@ export async function POST(req: Request) {
             try {
               const poRes = await imsExecute(
                 `INSERT INTO ims_purchase_orders
-                   (po_number, supplier_id, supplier_name_raw, location_id, status, order_date, expected_date,
+                   (po_number, business_id, supplier_id, supplier_name_raw, location_id, status, order_date, expected_date,
                     received_date, notes, payment_terms, supplier_invoice_number, freight, discount,
                     subtotal, tax_amount, total_amount, cin7_order_id, is_historical,
                     currency_code, exchange_rate, cin7_contact_id, tax_treatment)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [poNumber, supplierId, supplierNameRaw, locationId, poStatus, orderDate, expectedDate,
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [poNumber, businessId, supplierId, supplierNameRaw, locationId, poStatus, orderDate, expectedDate,
                  receivedDate, po.notes || null, paymentTerms ? String(paymentTerms) : null,
                  supplierInvoiceNumber,
                  freight, discount, subtotal, taxAmt, totalAmt, cin7PoId, isHistorical,
@@ -1042,12 +1042,12 @@ export async function POST(req: Request) {
             } catch {
               const poRes = await imsExecute(
                 `INSERT INTO ims_purchase_orders
-                   (po_number, supplier_id, supplier_name_raw, location_id, status, order_date, expected_date,
+                   (po_number, business_id, supplier_id, supplier_name_raw, location_id, status, order_date, expected_date,
                     received_date, notes, payment_terms, supplier_invoice_number, freight, discount,
                     subtotal, tax_amount, total_amount, cin7_order_id, is_historical,
                     currency_code, exchange_rate, cin7_contact_id, tax_treatment)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [`CIN7-${po.id}`, supplierId, supplierNameRaw, locationId, poStatus, orderDate, expectedDate,
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [`CIN7-${po.id}`, businessId, supplierId, supplierNameRaw, locationId, poStatus, orderDate, expectedDate,
                  receivedDate, po.notes || null, paymentTerms ? String(paymentTerms) : null,
                  supplierInvoiceNumber,
                  freight, discount, subtotal, taxAmt, totalAmt, cin7PoId, isHistorical,
