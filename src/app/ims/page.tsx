@@ -4817,7 +4817,7 @@ function CreditNotesView() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [variants, setVariants] = useState<any[]>([]);
-  const [form, setForm] = useState<any>({ customer_id: '', location_id: '', cn_date: today(), reference: '', tax_treatment: 'ex_tax', tax_code: '', notes: '' });
+  const [form, setForm] = useState<any>({ customer_id: '', location_id: '', cn_date: today(), reference: '', tax_treatment: 'ex_tax', tax_code: '', notes: '', price_basis: 'custom' });
   const [lineItems, setLineItems] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [completing, setCompleting] = useState(false);
@@ -4844,7 +4844,7 @@ function CreditNotesView() {
   const addLine = () => {
     const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
     const taxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
-    setLineItems(p => [...p, { variant_id: '', code: '', name: '', qty: 1, unit_price: 0, price_basis: 'custom', tax_rate: taxRate }]);
+    setLineItems(p => [...p, { variant_id: '', code: '', name: '', qty: 1, unit_price: 0, price_basis: form.price_basis ?? 'custom', tax_rate: taxRate }]);
   };
   const removeLine = (i: number) => setLineItems(p => p.filter((_, idx) => idx !== i));
   const updateLine = (i: number, k: string, v: any) => setLineItems(p => p.map((item, idx) => idx === i ? { ...item, [k]: v } : item));
@@ -4864,20 +4864,22 @@ function CreditNotesView() {
     return 0;
   };
 
-  const selectCNVariant = (i: number, variant_id: string, basis: string) => {
+  const selectCNVariant = (i: number, variant_id: string) => {
     const v = variants.find((v: any) => v.variant_id === variant_id);
     const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
     const taxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
-    const unit_price = getPriceForBasis(v, basis);
-    setLineItems(p => p.map((item, j) => j === i ? { ...item, variant_id, code: v?.sku ?? '', name: v ? null : item.name, unit_price, tax_rate: taxRate } : item));
+    const unit_price = getPriceForBasis(v, form.price_basis ?? 'custom');
+    setLineItems(p => p.map((item, j) => j === i ? { ...item, variant_id, code: v?.sku ?? '', name: item.name, unit_price, tax_rate: taxRate } : item));
   };
 
-  const changeBasis = (i: number, basis: string) => {
-    const item = lineItems[i];
-    const v = variants.find((v: any) => v.variant_id === item.variant_id);
-    const unit_price = v ? getPriceForBasis(v, basis) : item.unit_price;
-    updateLine(i, 'price_basis', basis);
-    if (v) updateLine(i, 'unit_price', unit_price);
+  const changeOrderBasis = (basis: string) => {
+    setForm((p: any) => ({ ...p, price_basis: basis }));
+    // Re-apply prices to all lines that have a variant
+    setLineItems(p => p.map(item => {
+      if (!item.variant_id) return { ...item, price_basis: basis };
+      const v = variants.find((v: any) => v.variant_id === item.variant_id);
+      return { ...item, price_basis: basis, unit_price: v ? getPriceForBasis(v, basis) : item.unit_price };
+    }));
   };
 
   const lineTotal = (item: any) => Number(item.qty || 0) * Number(item.unit_price || 0);
@@ -4888,15 +4890,16 @@ function CreditNotesView() {
   const openNew = () => {
     const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
     const defaultTaxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
-    setForm({ customer_id: '', location_id: '', cn_date: today(), reference: '', tax_treatment: 'ex_tax', tax_code: settings?.sales_tax_code ?? '', notes: '' });
+    setForm({ customer_id: '', location_id: '', cn_date: today(), reference: '', tax_treatment: 'ex_tax', tax_code: settings?.sales_tax_code ?? '', notes: '', price_basis: 'custom' });
     setLineItems([{ variant_id: '', code: '', name: '', qty: 1, unit_price: 0, price_basis: 'custom', tax_rate: defaultTaxRate }]);
     setModal({ open: true, edit: null });
   };
 
   const openEdit = async (cn: any) => {
     const d = await apiFetch(`/api/ims/credit-notes/${cn.id}`);
-    setForm({ customer_id: d.data.customer_id ?? '', location_id: d.data.location_id, cn_date: d.data.cn_date?.slice(0, 10), reference: d.data.reference ?? '', tax_treatment: d.data.tax_treatment ?? 'ex_tax', tax_code: d.data.tax_code ?? '', notes: d.data.notes ?? '' });
-    setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id ?? '', code: i.code ?? '', name: i.name ?? i.product_name ?? '', qty: i.qty, unit_price: i.unit_price, price_basis: i.price_basis ?? 'custom', tax_rate: i.tax_rate })));
+    const savedBasis = d.data.items?.[0]?.price_basis ?? 'custom';
+    setForm({ customer_id: d.data.customer_id ?? '', location_id: d.data.location_id, cn_date: d.data.cn_date?.slice(0, 10), reference: d.data.reference ?? '', tax_treatment: d.data.tax_treatment ?? 'ex_tax', tax_code: d.data.tax_code ?? '', notes: d.data.notes ?? '', price_basis: savedBasis });
+    setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id ?? '', code: i.code ?? '', name: i.name ?? i.product_name ?? '', qty: i.qty, unit_price: i.unit_price, price_basis: i.price_basis ?? savedBasis, tax_rate: i.tax_rate })));
     setModal({ open: true, edit: d.data });
   };
 
@@ -4915,7 +4918,7 @@ function CreditNotesView() {
         ...form,
         customer_id: form.customer_id ? Number(form.customer_id) : null,
         location_id: Number(form.location_id),
-        items: lineItems.map(i => ({ ...i, qty: Number(i.qty), unit_price: Number(i.unit_price), tax_rate: Number(i.tax_rate) })),
+        items: lineItems.map(i => ({ ...i, price_basis: form.price_basis ?? 'custom', qty: Number(i.qty), unit_price: Number(i.unit_price), tax_rate: Number(i.tax_rate) })),
       };
       if (modal.edit) {
         await apiFetch(`/api/ims/credit-notes/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -5054,6 +5057,14 @@ function CreditNotesView() {
               <Field label="Tax Code">
                 <input type="text" value={form.tax_code} onChange={sf('tax_code')} placeholder={settings?.sales_tax_code ?? ''} style={inputStyle} />
               </Field>
+              <Field label="Price Basis">
+                <select value={form.price_basis ?? 'custom'} onChange={e => changeOrderBasis(e.target.value)} style={inputStyle}>
+                  <option value="cost">Cost price</option>
+                  <option value="wholesale">Wholesale price</option>
+                  <option value="rrp">RRP</option>
+                  <option value="custom">Custom (enter manually)</option>
+                </select>
+              </Field>
             </div>
             <Field label="Notes">
               <textarea value={form.notes} onChange={sf('notes')} rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
@@ -5065,8 +5076,7 @@ function CreditNotesView() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: 'var(--sv-bg-1)', borderBottom: '1px solid var(--sv-etch)' }}>
-                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '28%' }}>Product</th>
-                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '18%' }}>Price Basis</th>
+                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '36%' }}>Product</th>
                     <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '10%' }}>Qty</th>
                     <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '14%' }}>Unit Price</th>
                     <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '10%' }}>Tax %</th>
@@ -5078,20 +5088,9 @@ function CreditNotesView() {
                   {lineItems.map((item, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
                       <td style={{ padding: '6px 8px' }}>
-                        <select value={item.variant_id} onChange={e => selectCNVariant(i, e.target.value, item.price_basis)} style={{ ...inputStyle, fontSize: 11, padding: '4px 6px' }}>
+                        <select value={item.variant_id} onChange={e => selectCNVariant(i, e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: '4px 6px' }}>
                           <option value="">Select variant…</option>
                           {variants.map((v: any) => <option key={v.variant_id} value={v.variant_id}>{v.sku} — {v.product_name} {v.variant_label !== 'Default' ? `(${v.variant_label})` : ''}</option>)}
-                        </select>
-                        {!item.variant_id && (
-                          <input type="text" placeholder="Custom name" value={item.name} onChange={e => updateLine(i, 'name', e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: '4px 6px', marginTop: 3 }} />
-                        )}
-                      </td>
-                      <td style={{ padding: '6px 8px' }}>
-                        <select value={item.price_basis} onChange={e => changeBasis(i, e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: '4px 6px' }}>
-                          <option value="cost">Cost</option>
-                          <option value="wholesale">Wholesale</option>
-                          <option value="rrp">RRP</option>
-                          <option value="custom">Custom</option>
                         </select>
                       </td>
                       <td style={{ padding: '6px 8px' }}>
