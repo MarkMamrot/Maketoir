@@ -1035,22 +1035,23 @@ type MainScreen = 'pos' | 'eod' | 'reports' | 'parked' | 'receive-transfers';
 function MainPos({
   deviceConfig, session, products, paymentMethods, defaultView,
   offlineMode, openEodOnMount, onEodMounted, onLogout, onReceipt, onSync,
-  lastSale, onSaleCompleted, onChangeDue,
+  lastSale, onSaleCompleted, onChangeDue, onReceiptSettingsSaved,
 }: {
-  deviceConfig:    DeviceConfig;
-  session:         PosSession;
-  products:        CachedProduct[];
-  paymentMethods:  string[];
-  defaultView:     string | null;
-  offlineMode:     boolean;
-  openEodOnMount?: boolean;
-  onEodMounted?:   () => void;
-  onLogout:        () => void;
-  onReceipt:       (sale: CompletedSale) => void;
-  onSync:          () => Promise<void>;
-  lastSale:        CompletedSale | null;
-  onSaleCompleted: (sale: CompletedSale) => void;
-  onChangeDue:     (amount: number) => void;
+  deviceConfig:              DeviceConfig;
+  session:                   PosSession;
+  products:                  CachedProduct[];
+  paymentMethods:            string[];
+  defaultView:               string | null;
+  offlineMode:               boolean;
+  openEodOnMount?:           boolean;
+  onEodMounted?:             () => void;
+  onLogout:                  () => void;
+  onReceipt:                 (sale: CompletedSale) => void;
+  onSync:                    () => Promise<void>;
+  lastSale:                  CompletedSale | null;
+  onSaleCompleted:           (sale: CompletedSale) => void;
+  onChangeDue:               (amount: number) => void;
+  onReceiptSettingsSaved?:   (footer: string, giftMsg: string) => void;
 }) {
   const [screen, setScreen] = useState<MainScreen>('pos');
   const [cart, setCart] = useState<CartItem[]>(() => loadCurrentCart());
@@ -1062,6 +1063,8 @@ function MainPos({
   const [orderDiscVal,  setOrderDiscVal]  = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [customerOpen, setCustomerOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const [saleNotes, setSaleNotes] = useState('');
   const [isLayby, setIsLayby] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -1369,6 +1372,8 @@ function MainPos({
     setCart([]);
     setCustomerName('');
     setCustomerPhone('');
+    setCustomerOpen(false);
+    setNotesOpen(false);
     setSaleNotes('');
     setIsLayby(false);
     setOrderDiscType('percent');
@@ -1396,6 +1401,7 @@ function MainPos({
   function retrieveParked(sale: ParkedSale) {
     setCart(sale.items);
     setCustomerName(sale.customer_name ?? '');
+    if (sale.customer_name) setCustomerOpen(true);
     const next = parkedSales.filter(p => p.local_id !== sale.local_id);
     setParkedSales(next);
     saveParkedSales(next);
@@ -1812,16 +1818,48 @@ function MainPos({
 
         {/* Cart Panel */}
         <div style={{ width: 520, display: 'flex', flexDirection: 'column', borderLeft: cartLeft ? 'none' : '1px solid var(--sv-etch)', borderRight: cartLeft ? '1px solid var(--sv-etch)' : 'none', background: 'var(--sv-bg-1)' }}>
-          {/* Customer info */}
-          <div style={{ padding: '.5rem .75rem', display: 'flex', gap: '.5rem' }}>
-            <input placeholder='Customer name' value={customerName} onChange={e => setCustomerName(e.target.value)} style={{ ...inputStyle, flex: 1, marginBottom: 0, padding: '.35rem .5rem', fontSize: '.8rem' }} />
-            <input placeholder='Phone' value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} style={{ ...inputStyle, width: 110, marginBottom: 0, padding: '.35rem .5rem', fontSize: '.8rem' }} />
+          {/* Customer & Order Notes — collapsible pills */}
+          <div style={{ padding: '.4rem .75rem', display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setCustomerOpen(v => !v)}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 10px 3px 8px', borderRadius: 20,
+                border: customerName || customerPhone ? '1px solid var(--sv-action)' : '1px solid var(--sv-etch)',
+                background: 'var(--sv-bg-2)',
+                color: customerName || customerPhone ? 'var(--sv-action)' : 'var(--sv-text-dim)',
+                cursor: 'pointer', fontSize: '.78rem', fontWeight: 600, transition: 'border-color .15s, color .15s' }}
+            >
+              <span style={{ width: 14, height: 14, borderRadius: '50%', border: '1.5px solid currentColor', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, lineHeight: 1, flexShrink: 0 }}>
+                {customerOpen ? '−' : '+'}
+              </span>
+              {customerName
+                ? (customerName + (customerPhone && !customerOpen ? ' · ' + customerPhone : ''))
+                : 'Customer'}
+            </button>
+            <button
+              onClick={() => setNotesOpen(v => !v)}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 10px 3px 8px', borderRadius: 20,
+                border: saleNotes ? '1px solid #f59e0b' : '1px solid var(--sv-etch)',
+                background: 'var(--sv-bg-2)',
+                color: saleNotes ? '#f59e0b' : 'var(--sv-text-dim)',
+                cursor: 'pointer', fontSize: '.78rem', fontWeight: 600, transition: 'border-color .15s, color .15s' }}
+            >
+              <span style={{ width: 14, height: 14, borderRadius: '50%', border: '1.5px solid currentColor', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, lineHeight: 1, flexShrink: 0 }}>
+                {notesOpen ? '−' : '+'}
+              </span>
+              {saleNotes ? (saleNotes.length > 22 ? saleNotes.slice(0, 22) + '…' : saleNotes) : 'Order Notes'}
+            </button>
           </div>
-
-          {/* Order notes */}
-          <div style={{ padding: '0 .75rem .4rem' }}>
-            <input placeholder='Order notes (optional)' value={saleNotes} onChange={e => setSaleNotes(e.target.value)} style={{ ...inputStyle, width: '100%', marginBottom: 0, padding: '.35rem .5rem', fontSize: '.8rem', boxSizing: 'border-box' }} />
-          </div>
+          {customerOpen && (
+            <div style={{ padding: '0 .75rem .4rem', display: 'flex', gap: '.5rem' }}>
+              <input placeholder='Customer name' value={customerName} onChange={e => setCustomerName(e.target.value)} style={{ ...inputStyle, flex: 1, marginBottom: 0, padding: '.35rem .5rem', fontSize: '.8rem' }} />
+              <input placeholder='Phone' value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} style={{ ...inputStyle, width: 110, marginBottom: 0, padding: '.35rem .5rem', fontSize: '.8rem' }} />
+            </div>
+          )}
+          {notesOpen && (
+            <div style={{ padding: '0 .75rem .4rem' }}>
+              <input placeholder='Order notes…' value={saleNotes} onChange={e => setSaleNotes(e.target.value)} style={{ ...inputStyle, width: '100%', marginBottom: 0, padding: '.35rem .5rem', fontSize: '.8rem', boxSizing: 'border-box' }} />
+            </div>
+          )}
 
           {/* Cart items */}
           <div style={{ flex: 1, overflow: 'auto', padding: '.5rem .75rem' }}>
@@ -1911,7 +1949,7 @@ function MainPos({
         <PosSettingsModal
           locationId={session.location_id}
           initialSettings={posSettings}
-          onSave={saved => { setPosSettings(saved); setPosTheme(computeThemeVars(saved)); setPosSettingsOpen(false); }}
+          onSave={saved => { setPosSettings(saved); setPosTheme(computeThemeVars(saved)); setPosSettingsOpen(false); onReceiptSettingsSaved?.(saved.receiptFooter, saved.giftReceiptMessage); }}
           onCancel={() => { setPosTheme(computeThemeVars(posSettings)); setPosSettingsOpen(false); }}
           onPreview={vars => setPosTheme(vars)}
         />
@@ -4770,6 +4808,16 @@ export default function PosPage() {
     fetch('/api/pos/settings/products').then(r => r.json()).then(d => { setDefaultView(d.defaultView || 'all'); }).catch(() => { setDefaultView('all'); });
   }, []);
 
+  // Re-fetch receipt settings with location_id once session is known so branch-level
+  // footer/gift message overrides the business-level defaults.
+  useEffect(() => {
+    if (!session?.location_id) return;
+    fetch(`/api/pos/settings/receipt?location_id=${session.location_id}`)
+      .then(r => r.json())
+      .then(d => setPrintSettings(d))
+      .catch(() => {});
+  }, [session?.location_id]);
+
   useEffect(() => {
     const cfg = loadDeviceConfig();
     if (cfg) {
@@ -4908,6 +4956,7 @@ export default function PosPage() {
       lastSale={lastSale}
       onSaleCompleted={(sale) => setLastSale(sale)}
       onChangeDue={(amount) => setPendingChangeDue(amount)}
+      onReceiptSettingsSaved={(footer, giftMsg) => setPrintSettings(prev => ({ ...prev, pos_receipt_footer: footer || prev.pos_receipt_footer, gift_receipt_message: giftMsg || prev.gift_receipt_message }))}
       onLogout={async () => {
         // Try to flush any queued sales before logging out — never silently abandon them.
         try { await drainOfflineQueue(); } catch {}
