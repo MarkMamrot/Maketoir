@@ -5076,11 +5076,12 @@ function CreditNotesView() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: 'var(--sv-bg-1)', borderBottom: '1px solid var(--sv-etch)' }}>
-                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '36%' }}>Product</th>
-                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '10%' }}>Qty</th>
-                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '14%' }}>Unit Price</th>
-                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '10%' }}>Tax %</th>
-                    <th style={{ padding: '7px 8px', textAlign: 'right', color: 'var(--sv-text-dim)', fontWeight: 600, width: '14%' }}>Line Total</th>
+                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '32%' }}>Product</th>
+                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '12%' }}>Code</th>
+                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '9%' }}>Qty</th>
+                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '13%' }}>Unit Price</th>
+                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '9%' }}>Tax %</th>
+                    <th style={{ padding: '7px 8px', textAlign: 'right', color: 'var(--sv-text-dim)', fontWeight: 600, width: '13%' }}>Line Total</th>
                     <th style={{ width: '6%' }} />
                   </tr>
                 </thead>
@@ -5092,6 +5093,9 @@ function CreditNotesView() {
                           <option value="">Select variant…</option>
                           {variants.map((v: any) => <option key={v.variant_id} value={v.variant_id}>{v.sku} — {v.product_name} {v.variant_label !== 'Default' ? `(${v.variant_label})` : ''}</option>)}
                         </select>
+                      </td>
+                      <td style={{ padding: '6px 8px' }}>
+                        <input type="text" value={item.code ?? ''} onChange={e => updateLine(i, 'code', e.target.value)} placeholder="Barcode / SKU" style={{ ...inputStyle, fontSize: 11, padding: '4px 6px', width: '100%' }} />
                       </td>
                       <td style={{ padding: '6px 8px' }}>
                         <input type="number" min="0.001" step="0.001" value={item.qty} onChange={e => updateLine(i, 'qty', e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: '4px 6px', width: 60 }} />
@@ -5196,7 +5200,7 @@ function CreditNotesView() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: 'var(--sv-bg-1)', borderBottom: '1px solid var(--sv-etch)' }}>
-                    {['SKU', 'Product', 'Qty', 'Unit Price', 'Tax', 'Line Total'].map(h => (
+                    {['SKU / Code', 'Product', 'Qty', 'Unit Price', 'Tax', 'Line Total'].map(h => (
                       <th key={h} style={{ padding: '7px 10px', textAlign: h === 'Line Total' ? 'right' : 'left', color: 'var(--sv-text-dim)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase' }}>{h}</th>
                     ))}
                   </tr>
@@ -5204,7 +5208,7 @@ function CreditNotesView() {
                 <tbody>
                   {(viewModal.cn.items ?? []).map((item: any, i: number) => (
                     <tr key={i} style={{ borderBottom: i < (viewModal.cn.items.length - 1) ? '1px solid var(--sv-etch)' : 'none' }}>
-                      <td style={{ padding: '8px 10px', color: 'var(--sv-text-dim)' }}>{item.sku ?? item.code ?? '—'}</td>
+                      <td style={{ padding: '8px 10px', color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 11 }}>{item.sku ?? item.code ?? '—'}</td>
                       <td style={{ padding: '8px 10px' }}>{item.product_name ?? item.name}</td>
                       <td style={{ padding: '8px 10px' }}>{item.qty}</td>
                       <td style={{ padding: '8px 10px' }}>{fmtCurrency(item.unit_price)}</td>
