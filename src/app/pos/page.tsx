@@ -4568,17 +4568,20 @@ function ReportsScreen({ session, onBack }: { session: PosSession; onBack: () =>
   const [graphData, setGraphData] = useState<{ date: string; total: number; count: number }[]>([]);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [editPaymentsSale, setEditPaymentsSale] = useState<{ saleId: number; saleRef: string; payments: any[]; total: number } | null>(null);
 
-  useEffect(() => {
+  const loadData = (d: string) => {
     setLoading(true);
     Promise.all([
-      fetch(`/api/pos/reports/daily?location_id=${session.location_id}&date=${date}`).then(r => r.json()),
+      fetch(`/api/pos/reports/daily?location_id=${session.location_id}&date=${d}`).then(r => r.json()),
       fetch(`/api/pos/reports/graph?location_id=${session.location_id}&days=30`).then(r => r.json()),
     ]).then(([daily, graph]) => {
       setData(daily);
       setGraphData(graph.data ?? []);
     }).finally(() => setLoading(false));
-  }, [date, session.location_id]);
+  };
+
+  useEffect(() => { loadData(date); }, [date, session.location_id]);
 
   const maxTotal = Math.max(...graphData.map(d => d.total), 1);
 
@@ -4623,14 +4626,31 @@ function ReportsScreen({ session, onBack }: { session: PosSession; onBack: () =>
               <div key={t.sale.id ?? idx} style={{ background: 'var(--sv-bg-2)', borderRadius: 8, marginBottom: '.75rem', border: '1px solid var(--sv-etch)', overflow: 'hidden' }}>
                 <div
                   onClick={() => setExpanded(expanded === idx ? null : idx)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '.75rem 1rem', cursor: 'pointer' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '.6rem', padding: '.75rem 1rem', cursor: 'pointer', flexWrap: 'wrap' }}
                 >
-                  <span style={{ color: 'var(--sv-text-dim)', fontSize: '.85rem' }}>{new Date(t.sale.created_at).toLocaleTimeString('en-AU', { timeStyle: 'short' })}</span>
-                  <span style={{ flex: 1, fontSize: '.9rem', color: 'var(--sv-text-main)' }}>{t.sale.customer_name ?? '—'} <span style={{ color: 'var(--sv-text-dim)', fontSize: '.8rem' }}>({t.items.length} item{t.items.length !== 1 ? 's' : ''})</span></span>
-                  <span style={{ color: t.sale.sale_type === 'return' ? 'var(--sv-red)' : 'var(--sv-mint)', fontWeight: 700 }}>
+                  <span style={{ color: 'var(--sv-text-dim)', fontSize: '.85rem', flexShrink: 0 }}>{new Date(t.sale.created_at).toLocaleTimeString('en-AU', { timeStyle: 'short' })}</span>
+                  <span style={{ fontSize: '.9rem', color: 'var(--sv-text-main)', flexShrink: 0 }}>{t.sale.customer_name ?? '—'} <span style={{ color: 'var(--sv-text-dim)', fontSize: '.8rem' }}>({t.items.length} item{t.items.length !== 1 ? 's' : ''})</span></span>
+                  {/* Payment method pills — inline, no expand needed */}
+                  <span style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+                    {t.payments.map((p: any) => (
+                      <span key={p.id} style={{ background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 99, padding: '1px 8px', fontSize: '.75rem', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
+                        {p.payment_method} <strong style={{ color: 'var(--sv-text-main)' }}>${fmt(p.amount)}</strong>
+                      </span>
+                    ))}
+                  </span>
+                  <span style={{ color: t.sale.sale_type === 'return' ? 'var(--sv-red)' : 'var(--sv-mint)', fontWeight: 700, flexShrink: 0 }}>
                     {t.sale.sale_type === 'return' ? '-' : ''}${fmt(t.sale.total)}
                   </span>
-                  <span style={{ fontSize: '.8rem', color: 'var(--sv-text-muted)' }}>{expanded === idx ? '▲' : '▼'}</span>
+                  {/* Edit payment split button */}
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      setEditPaymentsSale({ saleId: t.sale.id, saleRef: t.sale.id ? `#${t.sale.id}` : '—', payments: t.payments, total: t.sale.total });
+                    }}
+                    title="Edit payment split"
+                    style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, padding: '2px 7px', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: '.8rem', flexShrink: 0 }}
+                  >✏️ Edit</button>
+                  <span style={{ fontSize: '.8rem', color: 'var(--sv-text-muted)', flexShrink: 0 }}>{expanded === idx ? '▲' : '▼'}</span>
                 </div>
                 {expanded === idx && (
                   <div style={{ borderTop: '1px solid var(--sv-etch)', padding: '.75rem 1rem', fontSize: '.85rem' }}>
@@ -4652,6 +4672,13 @@ function ReportsScreen({ session, onBack }: { session: PosSession; onBack: () =>
           </>
         )}
       </div>
+      {editPaymentsSale && (
+        <PaymentSplitModal
+          sale={editPaymentsSale}
+          onClose={() => setEditPaymentsSale(null)}
+          onSaved={() => { setEditPaymentsSale(null); loadData(date); }}
+        />
+      )}
     </div>
   );
 }
@@ -4661,6 +4688,149 @@ function StatCard({ label, value }: { label: string; value: string }) {
     <div style={{ background: 'var(--sv-bg-2)', borderRadius: 8, padding: '1rem', border: '1px solid var(--sv-etch)' }}>
       <div style={{ color: 'var(--sv-text-dim)', fontSize: '.8rem', marginBottom: '.25rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</div>
       <div style={{ fontWeight: 700, fontSize: '1.3rem', color: 'var(--sv-text-strong)' }}>{value}</div>
+    </div>
+  );
+}
+
+// ─── Payment Split Modal ──────────────────────────────────────────────────────
+
+function PaymentSplitModal({
+  sale,
+  onClose,
+  onSaved,
+}: {
+  sale: { saleId: number; saleRef: string; payments: any[]; total: number };
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [lines, setLines] = useState<{ method: string; amount: string }[]>(
+    () => sale.payments.map(p => ({ method: p.payment_method, amount: fmt(p.amount) }))
+  );
+  const [methods, setMethods] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetch('/api/pos/settings/payment-methods').then(r => r.json()).then(d => {
+      if (Array.isArray(d.methods)) setMethods(d.methods);
+    }).catch(() => {});
+  }, []);
+
+  // Close on Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const allocated = lines.reduce((s, l) => s + (parseFloat(l.amount) || 0), 0);
+  const remaining = Math.round((sale.total - allocated) * 100) / 100;
+  const canSave = Math.abs(remaining) < 0.005 && lines.every(l => l.method.trim() && (parseFloat(l.amount) || 0) >= 0);
+
+  const updateLine = (i: number, field: 'method' | 'amount', val: string) => {
+    setLines(prev => prev.map((l, idx) => idx === i ? { ...l, [field]: val } : l));
+    setError('');
+  };
+  const removeLine = (i: number) => setLines(prev => prev.filter((_, idx) => idx !== i));
+  const addLine = () => setLines(prev => [...prev, { method: methods[0] ?? '', amount: fmt(remaining > 0 ? remaining : 0) }]);
+
+  const handleSave = async () => {
+    setError('');
+    setSaving(true);
+    try {
+      const payments = lines.map(l => ({ payment_method: l.method.trim(), amount: parseFloat(l.amount) || 0 }));
+      const res = await fetch(`/api/pos/sales/${sale.saleId}/payments`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payments }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setError(json.error || 'Save failed.'); return; }
+      onSaved();
+    } catch (e: any) {
+      setError(e.message || 'Save failed.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Available methods: union of configured methods + current sale methods
+  const allMethods = Array.from(new Set([...methods, ...sale.payments.map((p: any) => p.payment_method)])).filter(Boolean);
+
+  return (
+    <div
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000, padding: '1rem' }}
+    >
+      <div style={{ background: 'var(--sv-bg-1)', borderRadius: 12, padding: '1.5rem', width: '100%', maxWidth: 440, boxShadow: '0 8px 40px rgba(0,0,0,.4)', color: 'var(--sv-text-main)', fontFamily: 'system-ui,sans-serif' }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem', gap: '.75rem' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--sv-text-strong)' }}>Edit Payment Split</div>
+            <div style={{ fontSize: '.8rem', color: 'var(--sv-text-dim)', marginTop: 2 }}>Sale {sale.saleRef} — total is fixed at <strong>${fmt(sale.total)}</strong></div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--sv-text-dim)', lineHeight: 1, padding: 4 }}>✕</button>
+        </div>
+
+        {/* Warning banner */}
+        <div style={{ background: 'var(--sv-amber-tint, #fffbe6)', border: '1px solid var(--sv-amber, #f5a623)', borderRadius: 6, padding: '.5rem .75rem', fontSize: '.8rem', color: 'var(--sv-text-main)', marginBottom: '1rem' }}>
+          ⚠️ You can only reassign amounts between payment types. The total sale amount cannot be changed.
+        </div>
+
+        {/* Payment lines */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem', marginBottom: '.75rem' }}>
+          {lines.map((line, i) => (
+            <div key={i} style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+              <select
+                value={line.method}
+                onChange={e => updateLine(i, 'method', e.target.value)}
+                style={{ flex: 1, padding: '.45rem .6rem', background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: '.9rem' }}
+              >
+                {allMethods.map(m => <option key={m} value={m}>{m}</option>)}
+                {!allMethods.includes(line.method) && line.method && <option value={line.method}>{line.method}</option>}
+              </select>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ color: 'var(--sv-text-dim)', fontSize: '.9rem' }}>$</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={line.amount}
+                  onChange={e => updateLine(i, 'amount', e.target.value)}
+                  style={{ width: 90, padding: '.45rem .6rem', background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: '.9rem' }}
+                />
+              </div>
+              <button
+                onClick={() => removeLine(i)}
+                disabled={lines.length <= 1}
+                title="Remove line"
+                style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, padding: '4px 8px', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: '.85rem', opacity: lines.length <= 1 ? .3 : 1 }}
+              >✕</button>
+            </div>
+          ))}
+        </div>
+
+        <button onClick={addLine} style={{ background: 'none', border: '1px dashed var(--sv-etch)', borderRadius: 6, padding: '.35rem .75rem', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: '.85rem', marginBottom: '.75rem', width: '100%' }}>
+          + Add payment line
+        </button>
+
+        {/* Remaining indicator */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '.5rem .75rem', borderRadius: 6, marginBottom: '1rem', background: Math.abs(remaining) < 0.005 ? 'var(--sv-mint-tint, #edfdf5)' : 'var(--sv-red-tint, #fef2f2)', border: `1px solid ${Math.abs(remaining) < 0.005 ? 'var(--sv-mint, #10b981)' : 'var(--sv-red, #ef4444)'}` }}>
+          <span style={{ fontSize: '.9rem', fontWeight: 600, color: 'var(--sv-text-main)' }}>Unallocated</span>
+          <span style={{ fontSize: '.9rem', fontWeight: 700, color: Math.abs(remaining) < 0.005 ? 'var(--sv-mint, #10b981)' : 'var(--sv-red, #ef4444)' }}>
+            {remaining > 0 ? '+' : ''}{remaining === 0 ? '—' : `$${fmt(Math.abs(remaining))}`}
+            {Math.abs(remaining) < 0.005 ? ' ✓' : remaining > 0 ? ' (over by $' + fmt(Math.abs(remaining)) + ')' : ' (under by $' + fmt(Math.abs(remaining)) + ')'}
+          </span>
+        </div>
+
+        {error && <div style={{ color: 'var(--sv-red, #ef4444)', fontSize: '.85rem', marginBottom: '.75rem' }}>{error}</div>}
+
+        <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ ...smallBtn }}>Cancel</button>
+          <button onClick={handleSave} disabled={!canSave || saving} style={{ ...primaryBtn, opacity: (!canSave || saving) ? .5 : 1 }}>
+            {saving ? 'Saving…' : 'Save Split'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

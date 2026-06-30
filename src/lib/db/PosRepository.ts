@@ -355,6 +355,40 @@ export const PosSalesRepo = {
       [saleId, payment.payment_method, payment.amount, payment.reference ?? null],
     );
   },
+
+  async updatePaymentSplit(
+    saleId: number,
+    payments: { payment_method: string; amount: number }[],
+  ): Promise<void> {
+    // Server-side guard: new amounts must sum to the original sale total (within 1 cent)
+    const saleRows = await imsQuery<any>('SELECT total FROM pos_sales WHERE id = ? LIMIT 1', [saleId]);
+    if (!saleRows[0]) throw new Error('Sale not found.');
+    const originalTotal = toNum(saleRows[0].total);
+    const newTotal = payments.reduce((s, p) => s + p.amount, 0);
+    if (Math.abs(newTotal - originalTotal) > 0.01) {
+      throw new Error(`Payment total $${newTotal.toFixed(2)} does not match sale total $${originalTotal.toFixed(2)}.`);
+    }
+    if (payments.some(p => p.amount < 0)) throw new Error('Payment amounts cannot be negative.');
+    // Replace all payments in a transaction
+    const pool = getIMSPool();
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      await conn.execute('DELETE FROM pos_payments WHERE sale_id = ?', [saleId]);
+      for (const p of payments) {
+        await conn.execute(
+          'INSERT INTO pos_payments (sale_id, payment_method, amount) VALUES (?, ?, ?)',
+          [saleId, p.payment_method, p.amount],
+        );
+      }
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  },
 };
 
 // ─── POS EOD Repository ───────────────────────────────────────────────────────
