@@ -188,6 +188,7 @@ export const PosSalesRepo = {
     discount_total:    number;
     tax_total:         number;
     total:             number;
+    cash_rounding?:    number;
     notes?:            string | null;
     parked_label?:     string | null;
     return_of_sale_id?: number | null;
@@ -223,8 +224,8 @@ export const PosSalesRepo = {
         `INSERT INTO pos_sales
            (local_id, register_id, register_session_id, location_id, cashier_id, cashier_name, sale_type, status,
             customer_name, customer_phone, subtotal, discount_total,
-            tax_total, total, notes, parked_label, return_of_sale_id, completed_at, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            tax_total, total, cash_rounding, notes, parked_label, return_of_sale_id, completed_at, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           data.local_id ?? null,
           data.register_id ?? null,
@@ -240,6 +241,7 @@ export const PosSalesRepo = {
           data.discount_total,
           data.tax_total,
           data.total,
+          data.cash_rounding ?? 0,
           data.notes ?? null,
           data.parked_label ?? null,
           data.return_of_sale_id ?? null,

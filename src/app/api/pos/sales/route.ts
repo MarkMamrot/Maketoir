@@ -69,6 +69,7 @@ export async function POST(req: Request) {
       discount_total:    Number(body.discount_total ?? 0),
       tax_total:         Number(body.tax_total      ?? 0),
       total:             Number(body.total          ?? 0),
+      cash_rounding:     Number(body.cash_rounding  ?? 0),
       notes:             body.notes        ?? null,
       parked_label:      body.parked_label ?? null,
       return_of_sale_id: body.return_of_sale_id ?? null,

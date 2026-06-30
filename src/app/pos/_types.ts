@@ -77,6 +77,7 @@ export interface CompletedSale {
   discount_total: number;
   tax_total:     number;
   total:         number;
+  cash_rounding?: number;
   customer_name?: string | null;
   customer_phone?: string | null;
   notes?: string | null;

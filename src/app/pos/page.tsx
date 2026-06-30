@@ -16,6 +16,10 @@ import {
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
 function fmt(n: number) { return n.toFixed(2); }
+/** Australian cash rounding — round to nearest 5 cents using integer arithmetic to avoid FP drift */
+function roundCash(amount: number): number {
+  return Math.round(Math.round(amount * 100) / 5) * 5 / 100;
+}
 function calcLineTotal(item: CartItem): number {
   const base = item.qty * item.unit_price;
   return base - item.discount_amount;
@@ -1408,7 +1412,7 @@ function MainPos({
     setScreen('pos');
   }
 
-  async function completeSale(payments: PaymentEntry[], changeDue = 0) {
+  async function completeSale(payments: PaymentEntry[], changeDue = 0, cashRounding = 0) {
     // Re-entrancy guard — prevents a double-fired handler (double-click / key event)
     // from creating two sales. Each completeSale generates a fresh local_id, so the
     // DB UNIQUE(local_id) constraint would NOT catch a double-invocation.
@@ -1431,6 +1435,7 @@ function MainPos({
         customer_phone: customerPhone || null,
         notes:          saleNotes || null,
         subtotal, discount_total: db_discount_total, tax_total, total,
+        cash_rounding: cashRounding || undefined,
         items:    cart.map(i => ({ variant_id: i.variant_id, code: i.code, name: i.name, qty: i.qty, unit_price: i.unit_price, original_price: i.original_price, discount_type: i.discount_type, discount_value: i.discount_value, discount_amount: i.discount_amount, tax_rate: i.tax_rate, line_total: i.line_total })),
         payments: payments.map(p => ({ payment_method: p.method, amount: p.amount, reference: p.reference || null })),
       };
@@ -1464,6 +1469,7 @@ function MainPos({
         items:         cart,
         payments,
         subtotal, discount_total: db_discount_total, tax_total, total,
+        cash_rounding:  cashRounding || undefined,
         customer_name:  customerName || null,
         customer_phone: customerPhone || null,
         created_at:    now,
@@ -2265,11 +2271,14 @@ function PosAvatarBar({
   // ── Effects ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     fetchLeaderboard();
-    const id = setInterval(fetchLeaderboard, 120_000);
+    const id = setInterval(fetchLeaderboard, 20_000);
     return () => clearInterval(id);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { if (saleRefreshTick > 0) fetchLeaderboard(); }, [saleRefreshTick]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    // Small delay so the DB sale record is fully committed before we compare ranks
+    if (saleRefreshTick > 0) { const t = setTimeout(fetchLeaderboard, 1500); return () => clearTimeout(t); }
+  }, [saleRefreshTick]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { fetchLeaderboard(); }, [myAvatar]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (morningGreetingTick > 0) { const text = MORNING_GREETINGS[morningIdxRef.current % MORNING_GREETINGS.length]; morningIdxRef.current++; showBubble('speech', text); }
@@ -2277,9 +2286,41 @@ function PosAvatarBar({
 
   useEffect(() => {
     lastReadRef.current = loadLastRead();
-    fetchMessages();
-    const id = setInterval(fetchMessages, 60_000);
-    return () => clearInterval(id);
+    fetchMessages(); // initial load via REST (fast, no streaming overhead)
+
+    // SSE stream for near-instant new messages
+    let es: EventSource | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    function connectSSE() {
+      const lastId = lastReadRef.current;
+      es = new EventSource(`/api/pos/chat/stream?since=${lastId}`);
+      es.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (!data.messages?.length) return;
+          setMessages(prev => {
+            const existingIds = new Set(prev.map((m: ChatMessage) => m.id));
+            const newMsgs = data.messages.filter((m: ChatMessage) => !existingIds.has(m.id));
+            if (!newMsgs.length) return prev;
+            const merged = [...prev, ...newMsgs].sort((a: ChatMessage, b: ChatMessage) => a.id - b.id).slice(-200);
+            const maxId = Math.max(...merged.map((m: ChatMessage) => m.id));
+            const nr = merged.filter((m: ChatMessage) => m.id > lastReadRef.current).length;
+            setUnread(u => chatOpen ? 0 : u + newMsgs.length);
+            if (chatOpen) { saveLastRead(maxId); setUnread(0); }
+            return merged;
+          });
+        } catch {}
+      };
+      es.onerror = () => {
+        es?.close();
+        // Reconnect after 2s (stream naturally closes every ~25s — EventSource auto-reconnects but we add a short delay)
+        retryTimer = setTimeout(connectSSE, 2000);
+      };
+    }
+
+    connectSSE();
+    return () => { es?.close(); if (retryTimer) clearTimeout(retryTimer); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -2464,6 +2505,11 @@ function PosStockModal({ variantId, productName, onClose }: { variantId: string;
   const [description, setDescription] = useState<string | null>(null);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState('');
+  const [showRawHtml, setShowRawHtml] = useState(false);
+
+  function stripHtml(html: string): string {
+    return html.replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/gi, ' ').replace(/\s+/g, ' ').trim();
+  }
 
   useEffect(() => {
     fetch(`/api/pos/stock?variant_id=${encodeURIComponent(variantId)}`)
@@ -2494,9 +2540,12 @@ function PosStockModal({ variantId, productName, onClose }: { variantId: string;
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 22, lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
         </div>
         {description && (
-          <div style={{ marginBottom: '1rem', padding: '.55rem .7rem', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', maxHeight: 110, overflow: 'auto' }}>
-            <div style={{ fontSize: '.68rem', color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: .5, marginBottom: 4 }}>Description</div>
-            <div style={{ fontSize: '.82rem', color: 'var(--sv-text-main)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{description}</div>
+          <div style={{ marginBottom: '1rem', padding: '.55rem .7rem', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', maxHeight: 130, overflow: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <div style={{ fontSize: '.68rem', color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: .5 }}>Description</div>
+              <button onClick={() => setShowRawHtml(v => !v)} style={{ fontSize: '.65rem', padding: '1px 7px', borderRadius: 4, border: '1px solid var(--sv-etch)', background: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer' }}>{showRawHtml ? 'Plain' : 'HTML'}</button>
+            </div>
+            <div style={{ fontSize: '.82rem', color: 'var(--sv-text-main)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{showRawHtml ? description : stripHtml(description)}</div>
           </div>
         )}
         {loading && <div style={{ textAlign: 'center', color: 'var(--sv-text-dim)', padding: '1.5rem 0' }}>Loading…</div>}
@@ -2544,6 +2593,8 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
 
   const inputRef      = useRef<HTMLInputElement>(null);
   const scanRef       = useRef<HTMLInputElement>(null);
+  const modeRef       = useRef<'browse' | 'search'>('browse');
+  modeRef.current = mode;
   const [scanInput,  setScanInput]  = useState('');
   const [scanError,  setScanError]  = useState(false);
   const barcodeBuffer = useRef('');
@@ -2588,10 +2639,14 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
       saveRecentIds(updated);
       return updated;
     });
-    setSearch('');
+    // In full-grid search mode keep results visible so the user can keep picking;
+    // only clear when using the dropdown (browse mode).
+    if (modeRef.current !== 'search') {
+      setSearch('');
+      setMode('browse');
+    }
     setDropdownOpen(false);
     setHighlightIdx(-1);
-    setMode('browse');
     // Return focus to scan bar so the next scan goes straight to cart
     requestAnimationFrame(() => scanRef.current?.focus());
   }, [onAdd]);
@@ -2615,18 +2670,25 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
     });
   }, [products, recentIds]);
 
-  const matchQuery = (p: CachedProduct, q: string) =>
-    p.name.toLowerCase().includes(q) ||
-    (p.code ?? '').toLowerCase().includes(q) ||
-    (p.barcode ?? '').includes(q) ||
-    (p.brand ?? '').toLowerCase().includes(q);
+  const matchQuery = (p: CachedProduct, q: string) => {
+    const haystack = [p.name, p.code ?? '', p.barcode ?? '', p.brand ?? ''].join(' ').toLowerCase();
+    const words = q.trim().split(/\s+/).filter(Boolean);
+    return words.every(w => haystack.includes(w));
+  };
 
   // Top 8 quick-select matches for the dropdown (shown while typing)
+  // Exact phrase matches are ranked first, then all-words-present matches
   const dropdownItems = useMemo(() => {
     if (search.length < 2) return [];
     const q = search.toLowerCase();
     let list = brand ? sortedProducts.filter(p => p.brand === brand) : sortedProducts;
-    return list.filter(p => matchQuery(p, q)).slice(0, 8);
+    const matches = list.filter(p => matchQuery(p, q));
+    matches.sort((a, b) => {
+      const aPhrase = [a.name, a.code ?? '', a.brand ?? ''].join(' ').toLowerCase().includes(q) ? 0 : 1;
+      const bPhrase = [b.name, b.code ?? '', b.brand ?? ''].join(' ').toLowerCase().includes(q) ? 0 : 1;
+      return aPhrase - bPhrase;
+    });
+    return matches.slice(0, 8);
   }, [sortedProducts, brand, search]);
 
   // Main grid products: browse = smart-sorted full list; search = filtered
@@ -2651,6 +2713,15 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
   // Barcode scanner + keyboard navigation
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      // Escape always clears search regardless of which element has focus
+      if (e.key === 'Escape') {
+        setDropdownOpen(false);
+        setHighlightIdx(-1);
+        setSearch('');
+        setMode('browse');
+        requestAnimationFrame(() => scanRef.current?.focus());
+        return;
+      }
       if (e.target !== document.body && e.target !== inputRef.current) return;
       if (e.key === 'Enter') {
         // Barcode-to-cart: only when no input is focused (scanner fires into document.body).
@@ -2688,11 +2759,6 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setHighlightIdx(i => Math.max(i - 1, -1));
-      } else if (e.key === 'Escape') {
-        setDropdownOpen(false);
-        setHighlightIdx(-1);
-        setSearch('');
-        setMode('browse');
       } else if (e.key.length === 1) {
         barcodeBuffer.current += e.key;
         clearTimeout(barcodeTimer.current);
@@ -3006,29 +3072,42 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
   total:      number;
   methods:    string[];
   isLayby:    boolean;
-  onComplete: (payments: PaymentEntry[], changeDue?: number) => void;
+  onComplete: (payments: PaymentEntry[], changeDue?: number, cashRounding?: number) => void;
   onCancel:   () => void;
 }) {
   const isRefund  = total < 0;
   const absTotal  = Math.abs(total);
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
   const [activeMethod, setActiveMethod] = useState(() => methods.find(m => /card/i.test(m)) ?? methods[0] ?? 'Cash');
-  const [amount, setAmount] = useState(() => String(absTotal));
+  const [amount, setAmount] = useState(() => {
+    const m = methods.find(m => /card/i.test(m)) ?? methods[0] ?? 'Cash';
+    return String(total >= 0 && /cash/i.test(m) ? roundCash(absTotal) : absTotal);
+  });
   const [reference, setReference] = useState('');
   const amountRef      = useRef<HTMLInputElement>(null);
 
   const paid      = payments.reduce((s, p) => s + p.amount, 0);
   const remaining = Math.round((absTotal - paid) * 100) / 100;
-  const change    = Math.max(0, paid - absTotal);
+  // Cash rounding: round the remaining balance to nearest 5c when paying with cash
+  const isCashMethod  = !isRefund && /cash/i.test(activeMethod);
+  const cashDue       = isCashMethod && remaining > 0.004 ? roundCash(remaining) : remaining;
+  const cashRoundAdj  = Math.round((cashDue - remaining) * 100) / 100;
+  const change        = Math.max(0, paid - absTotal);
 
-  useEffect(() => { amountRef.current?.focus(); }, [activeMethod]);
+  // Update default amount (rounded for cash) whenever active method changes
+  useEffect(() => {
+    const due = remaining > 0.004 ? remaining : absTotal;
+    setAmount(String(!isRefund && /cash/i.test(activeMethod) ? roundCash(due) : due));
+    amountRef.current?.focus();
+  }, [activeMethod]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function addPayment() {
-    const tendered = parseFloat(amount) || remaining;
+    // For cash payments, apply Australian cash rounding to the remaining balance
+    const effectiveRemaining = isCashMethod && remaining > 0.004 ? cashDue : remaining;
+    const tendered = parseFloat(amount) || effectiveRemaining;
     if (tendered <= 0) return;
-    // Cap at the remaining balance so pos_payments.amount reflects the actual
-    // sale contribution, not the tendered amount. Change = tendered − contribution.
-    const contribution = Math.round(Math.min(tendered, remaining) * 100) / 100;
+    // Cap at the effective (rounded) remaining; contribution may slightly exceed exact remaining
+    const contribution = Math.round(Math.min(tendered, effectiveRemaining) * 100) / 100;
     const newPayment = { localId: newLocalId(), method: activeMethod, amount: contribution, reference };
     const newPayments = [...payments, newPayment];
     const newPaid = newPayments.reduce((s, p) => s + p.amount, 0);
@@ -3037,7 +3116,8 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
     setReference('');
     if (newPaid >= absTotal - 0.001) {
       const changeAmt = Math.round((tendered - contribution) * 100) / 100;
-      onComplete(isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments, changeAmt > 0.004 ? changeAmt : 0);
+      const rounding = isCashMethod ? cashRoundAdj : 0;
+      onComplete(isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments, changeAmt > 0.004 ? changeAmt : 0, rounding !== 0 ? rounding : undefined);
     }
   }
 
@@ -3083,7 +3163,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
         {/* Quick amounts (Cash) */}
         {activeMethod === 'Cash' && !isRefund && (
           <div style={{ display: 'flex', gap: '.4rem', marginBottom: '.75rem', flexWrap: 'wrap' }}>
-            {[Math.ceil(remaining / 5) * 5, Math.ceil(remaining / 10) * 10, Math.ceil(remaining / 20) * 20, 50, 100].filter((v, i, a) => v >= remaining && a.indexOf(v) === i).slice(0, 4).map(v => (
+            {[Math.ceil(cashDue / 5) * 5, Math.ceil(cashDue / 10) * 10, Math.ceil(cashDue / 20) * 20, 50, 100].filter((v, i, a) => v >= cashDue && a.indexOf(v) === i).slice(0, 4).map(v => (
               <button key={v} onClick={() => { setAmount(String(v)); amountRef.current?.focus(); }}
                 style={{ padding: '.35rem .75rem', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', cursor: 'pointer', fontSize: '.85rem' }}>
                 ${v}
@@ -3117,6 +3197,12 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
             <span style={{ color: 'var(--sv-text-dim)' }}>{isRefund ? 'To Refund' : 'Remaining'}</span>
             <span style={{ color: remaining > 0 ? 'var(--sv-red)' : 'var(--sv-mint)', fontWeight: 700 }}>{isRefund && remaining > 0 ? '−' : ''}${fmt(remaining)}</span>
           </div>
+          {cashRoundAdj !== 0 && remaining > 0.004 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.25rem', paddingTop: '.3rem', borderTop: '1px solid var(--sv-etch)', fontWeight: 700 }}>
+              <span style={{ color: 'var(--sv-amber)' }}>Cash Due (rounded)</span>
+              <span style={{ color: 'var(--sv-amber)' }}>${fmt(cashDue)}</span>
+            </div>
+          )}
           {change > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '.5rem', paddingTop: '.5rem', borderTop: '1px solid var(--sv-etch)', fontSize: '1.1rem', fontWeight: 700 }}>
               <span style={{ color: 'var(--sv-amber)' }}>CHANGE</span>
@@ -3186,6 +3272,12 @@ interface ReceiptPrintSettings {
 function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: CompletedSale; onClose: () => void; printSettings?: ReceiptPrintSettings; changeDue?: number }) {
   const [printMode, setPrintMode] = useState<'normal' | 'gift'>('normal');
 
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   const handlePrint = () => { setPrintMode('normal'); window.print(); };
   const handleGiftPrint = () => {
     setPrintMode('gift');
@@ -3219,6 +3311,9 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
           <div className='no-print' style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: 180, padding: '2rem 1.5rem', borderRadius: 12, background: 'var(--sv-bg-1)', border: '2px solid var(--sv-etch)', gap: '1rem', alignSelf: 'center' }}>
             <div style={{ fontSize: '.72rem', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: 'var(--sv-text-dim)', fontFamily: 'system-ui,sans-serif' }}>Change Due</div>
             <div style={{ fontSize: '3rem', fontWeight: 800, color: 'var(--sv-text-strong)', lineHeight: 1, fontFamily: 'system-ui,sans-serif' }}>${fmt(changeDue)}</div>
+            <div style={{ fontSize: '.78rem', color: 'var(--sv-text-dim)', fontFamily: 'system-ui,sans-serif', textAlign: 'center' }}>
+              {sale.items.reduce((s, i) => s + Math.abs(i.qty), 0)} item{sale.items.reduce((s, i) => s + Math.abs(i.qty), 0) !== 1 ? 's' : ''} · {sale.items.length} line{sale.items.length !== 1 ? 's' : ''}
+            </div>
           </div>
         )}
         {/* Regular Receipt */}
@@ -3246,8 +3341,8 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
             {/* Items */}
             <div style={{ marginBottom: '.75rem', fontSize: '.8rem' }}>
               {sale.items.map(i => (
-                <div key={i.localId} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.2rem' }}>
-                  <span style={{ flex: 1, paddingRight: '.5rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div key={i.localId} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.2rem', gap: '.4rem' }}>
+                  <span style={{ flex: 1, wordBreak: 'break-word' }}>
                     {i.qty}x {i.name}
                   </span>
                   <span>${fmt(i.line_total)}</span>
@@ -3260,11 +3355,17 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
                   <span>Discount</span><span>-${fmt(sale.discount_total)}</span>
                 </div>
               )}
+              {!!sale.cash_rounding && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#888' }}>
+                  <span>Cash Rounding</span>
+                  <span>{(sale.cash_rounding ?? 0) >= 0 ? '+' : ''}{fmt(sale.cash_rounding ?? 0)}</span>
+                </div>
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#555', fontSize: '.75rem' }}>
                 <span>GST included</span><span>${fmt(sale.tax_total)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '1rem', marginTop: '.25rem' }}>
-                <span>TOTAL</span><span>${fmt(sale.total)}</span>
+                <span>TOTAL</span><span>${fmt((sale.total ?? 0) + (sale.cash_rounding ?? 0))}</span>
               </div>
             </div>
             {/* Payments */}
@@ -3277,7 +3378,7 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
               {changeDue > 0.004 && (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #ccc', marginTop: '.25rem', paddingTop: '.25rem' }}>
-                    <span>Tendered</span><span>${fmt(sale.total + changeDue)}</span>
+                    <span>Tendered</span><span>${fmt((sale.total ?? 0) + (sale.cash_rounding ?? 0) + changeDue)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
                     <span>Change</span><span>${fmt(changeDue)}</span>
@@ -3291,7 +3392,7 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
           </div>
           <div className='no-print' style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem', gap: '.75rem' }}>
             <button onClick={handlePrint} style={{ ...primaryBtn, padding: '.6rem 1.5rem' }}>🖨 Print Receipt</button>
-            <button onClick={onClose} style={{ ...smallBtn, padding: '.6rem 1.5rem' }}>New Sale</button>
+            <button onClick={onClose} style={{ ...smallBtn, padding: '.6rem 1.5rem' }}>New Sale <span style={{ opacity: .45, fontSize: '.7rem' }}>Esc</span></button>
           </div>
         </div>
 

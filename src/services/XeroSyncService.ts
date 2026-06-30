@@ -30,6 +30,7 @@ interface AccountMapping {
   freight?: string;
   stock_adjustment?: string;
   credit_note?: string;
+  rounding?: string; // Optional dedicated account for cash rounding adjustments
 }
 
 interface TrackingMapping {
@@ -1041,6 +1042,7 @@ export async function syncEodEntry(
     sessionId?: number | null;
     method: string;
     salesAmount: number; // cash: counted − float; others: counted
+    cashRounding?: number; // net cash rounding adjustment for the session (Cash only)
   },
 ): Promise<{ xeroId: string; invoiceNumber: string } | null> {
   const accounts         = await getAccountMappings(businessId);
@@ -1067,14 +1069,28 @@ export async function syncEodEntry(
     Status:          'AUTHORISED',
     LineAmountTypes: 'Inclusive',
     CurrencyCode:    'AUD',
-    LineItems: [{
-      Description: `${entry.method} Sales — ${entry.locationName}${regLabel}${sessLabel} — ${entry.date}`,
-      Quantity:    1,
-      UnitAmount:  entry.salesAmount,
-      AccountCode: accounts.sales_revenue,
-      TaxType:     'OUTPUT',
-      Tracking:    tracking,
-    }],
+    LineItems: [
+      {
+        Description: `${entry.method} Sales — ${entry.locationName}${regLabel}${sessLabel} — ${entry.date}`,
+        Quantity:    1,
+        UnitAmount:  entry.salesAmount,
+        AccountCode: accounts.sales_revenue,
+        TaxType:     'OUTPUT',
+        Tracking:    tracking,
+      },
+      // Net cash rounding for the session (positive = customer paid more, negative = less)
+      // Posted to dedicated Rounding account if mapped, otherwise falls back to sales_revenue.
+      // Tax type NONE: rounding adjustments are not subject to GST.
+      ...(entry.cashRounding
+        ? [{
+            Description: `Cash Rounding Adjustment — ${entry.locationName} — ${entry.date}`,
+            Quantity:    1,
+            UnitAmount:  entry.cashRounding,
+            AccountCode: accounts.rounding ?? accounts.sales_revenue,
+            TaxType:     'NONE',
+          }]
+        : []),
+    ],
   };
 
   try {
@@ -1115,6 +1131,28 @@ export async function triggerEodXeroSync(
   registerName?: string | null,
 ): Promise<{ method: string; xeroId: string; invoiceNumber: string }[]> {
   const results: { method: string; xeroId: string; invoiceNumber: string }[] = [];
+
+  // Sum net cash rounding for the session so we can attach it to the Cash invoice.
+  // Positive = customers paid slightly more (round up); negative = slightly less (round down).
+  let netCashRounding = 0;
+  const cashEodRow = rows.find(r => /cash/i.test(r.payment_method));
+  if (cashEodRow) {
+    const sessionId = cashEodRow.register_session_id ?? null;
+    const roundRows = await imsQuery<{ net_rounding: string }>(
+      sessionId
+        ? `SELECT COALESCE(SUM(cash_rounding), 0) AS net_rounding
+             FROM pos_sales
+            WHERE location_id = ? AND register_session_id = ?
+              AND status IN ('completed', 'return')`
+        : `SELECT COALESCE(SUM(cash_rounding), 0) AS net_rounding
+             FROM pos_sales
+            WHERE location_id = ? AND DATE(created_at) = ?
+              AND status IN ('completed', 'return')`,
+      sessionId ? [locationId, sessionId] : [locationId, date],
+    );
+    netCashRounding = Math.round(Number(roundRows[0]?.net_rounding ?? 0) * 100) / 100;
+  }
+
   for (const row of rows) {
     if (row.counted_amount == null) continue;
     // Skip re-sync if already synced
@@ -1129,6 +1167,7 @@ export async function triggerEodXeroSync(
       sessionId: row.register_session_id ?? undefined,
       method: row.payment_method,
       salesAmount,
+      cashRounding: /cash/i.test(row.payment_method) && netCashRounding !== 0 ? netCashRounding : undefined,
     });
     if (result) {
       await setXeroInvoice(locationId, date, row.payment_method, result.xeroId, registerId);
