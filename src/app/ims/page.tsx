@@ -12624,6 +12624,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   const [posPickerOpen, setPosPickerOpen]    = useState(false);
 
   const [posConfigOpen, setPosConfigOpen]   = useState(false);
+  const [logoSaving, setLogoSaving]         = useState(false);
 
   useEffect(() => { setProfileDraft(settings); }, [settings]);
   useEffect(() => {
@@ -13223,6 +13224,53 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                     onChange={e => setProfileDraft(p => ({ ...p, gift_receipt_message: e.target.value }))} 
                     placeholder="We hope this gift brings you joy and happiness!" 
                   />
+                </div>
+                {/* ── Receipt Logo ── */}
+                <div style={{ marginBottom: 16 }}>
+                  <label style={labelStyle}>Receipt Logo</label>
+                  <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 8, marginTop: 0 }}>Displayed at the top of printed receipts. PNG or JPG recommended. Max displayed size: 180×80px.</p>
+                  {settings['pos_receipt_logo'] && (
+                    <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <img src={settings['pos_receipt_logo']} alt="Receipt logo preview" style={{ maxWidth: 180, maxHeight: 80, objectFit: 'contain', border: '1px solid var(--sv-etch)', borderRadius: 4, background: '#fff', padding: 4 }} />
+                      <button
+                        type="button"
+                        disabled={logoSaving}
+                        onClick={async () => { setLogoSaving(true); await saveSettings({ pos_receipt_logo: '' }); setLogoSaving(false); }}
+                        style={btnStyle('ghost', 'sm')}
+                      >{logoSaving ? 'Removing…' : 'Remove logo'}</button>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      style={{ fontSize: 13 }}
+                      onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = ev => {
+                          const src = ev.target?.result as string;
+                          const img = new window.Image();
+                          img.onload = () => {
+                            const MAX_W = 400;
+                            const scale = Math.min(1, MAX_W / img.width);
+                            const canvas = document.createElement('canvas');
+                            canvas.width  = Math.round(img.width  * scale);
+                            canvas.height = Math.round(img.height * scale);
+                            canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+                            const dataUrl = canvas.toDataURL('image/png');
+                            setLogoSaving(true);
+                            saveSettings({ pos_receipt_logo: dataUrl }).finally(() => setLogoSaving(false));
+                          };
+                          img.src = src;
+                        };
+                        reader.readAsDataURL(file);
+                        e.target.value = '';
+                      }}
+                    />
+                    {logoSaving && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Saving…</span>}
+                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                   <button type="button" onClick={() => setProfileDraft(settings)} style={btnStyle('ghost', 'sm')}>Cancel</button>

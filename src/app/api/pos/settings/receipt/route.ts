@@ -52,8 +52,9 @@ export async function GET(req: Request) {
       business_abn:         settings['business_abn']     || '',
       pos_receipt_footer:   receiptFooter,
       gift_receipt_message: giftReceiptMsg,
+      receipt_logo_url:     settings['pos_receipt_logo'] || '',
     });
   } catch {
-    return NextResponse.json({ business_name: '', business_address: '', business_abn: '', pos_receipt_footer: '', gift_receipt_message: '' });
+    return NextResponse.json({ business_name: '', business_address: '', business_abn: '', pos_receipt_footer: '', gift_receipt_message: '', receipt_logo_url: '' });
   }
 }

@@ -3267,6 +3267,7 @@ interface ReceiptPrintSettings {
   business_abn: string;
   pos_receipt_footer: string;
   gift_receipt_message?: string;
+  receipt_logo_url?: string;
 }
 
 function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: CompletedSale; onClose: () => void; printSettings?: ReceiptPrintSettings; changeDue?: number }) {
@@ -3321,6 +3322,9 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
           <div className='no-print' style={{ textAlign: 'center', marginBottom: '.5rem', fontSize: '.72rem', color: 'var(--sv-text-dim)', fontFamily: 'system-ui,sans-serif', fontWeight: 600, letterSpacing: .6, textTransform: 'uppercase' }}>Receipt</div>
           <div className='pos-receipt-wrapper' style={{ background: '#fff', color: '#000', width: 300, padding: '1.5rem', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,.4)', fontFamily: 'monospace' }}>
             <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+              {printSettings?.receipt_logo_url && (
+                <img src={printSettings.receipt_logo_url} alt="" style={{ maxWidth: 180, maxHeight: 80, objectFit: 'contain', marginBottom: '.5rem', display: 'block', marginLeft: 'auto', marginRight: 'auto' }} />
+              )}
               <div style={{ fontWeight: 700, fontSize: '1.2rem' }}>{printSettings?.business_name || 'Marketoir POS'}</div>
               {(printSettings?.business_address || sale.location_name) && (
                 <div style={{ fontSize: '.8rem', color: '#555' }}>{printSettings?.business_address || sale.location_name}</div>
@@ -3401,6 +3405,9 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
           <div className='no-print' style={{ textAlign: 'center', marginBottom: '.5rem', fontSize: '.72rem', color: 'var(--sv-text-dim)', fontFamily: 'system-ui,sans-serif', fontWeight: 600, letterSpacing: .6, textTransform: 'uppercase' }}>Gift Receipt</div>
           <div className='pos-gift-receipt-wrapper' style={{ background: '#fff', color: '#000', width: 300, padding: '1.5rem', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,.4)', fontFamily: 'monospace' }}>
             <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+              {printSettings?.receipt_logo_url && (
+                <img src={printSettings.receipt_logo_url} alt="" style={{ maxWidth: 180, maxHeight: 80, objectFit: 'contain', marginBottom: '.5rem', display: 'block', marginLeft: 'auto', marginRight: 'auto' }} />
+              )}
               <div style={{ fontWeight: 700, fontSize: '1.2rem' }}>{printSettings?.business_name || 'Marketoir POS'}</div>
               {(printSettings?.business_address || sale.location_name) && (
                 <div style={{ fontSize: '.8rem', color: '#555' }}>{printSettings?.business_address || sale.location_name}</div>
