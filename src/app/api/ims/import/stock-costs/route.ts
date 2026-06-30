@@ -12,8 +12,16 @@ function getSession() {
 function parseCsv(text: string): string[][] {
   const rows: string[][] = [];
   const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  if (!lines.length) return rows;
+  // Auto-detect delimiter: tab wins if any non-empty line has more tabs than commas
+  const sample = lines.find(l => l.trim()) ?? '';
+  const delim = (sample.split('\t').length - 1) >= (sample.split(',').length - 1) ? '\t' : ',';
   for (const line of lines) {
     if (!line.trim()) continue;
+    if (delim === '\t') {
+      rows.push(line.split('\t').map(c => c.trim()));
+      continue;
+    }
     const cells: string[] = [];
     let inQuote = false;
     let cur = '';
@@ -55,6 +63,19 @@ function findHeaderRow(rows: string[][]): { headerIdx: number; skuCol: number; q
       return { headerIdx: i, skuCol, qtyCol, valueCol };
     }
   }
+
+  // ── Headerless fallback: if the first row looks like data (col 0 is a SKU-like
+  //    string, col 1 is numeric, col 2 is numeric) assume SKU | Qty | Value ──
+  if (rows[0] && rows[0].length >= 3) {
+    const [c0, c1, c2] = rows[0];
+    const looksLikeSku   = /^[A-Za-z0-9]/.test(c0) && !c0.includes(' ');
+    const looksLikeNum1  = !isNaN(parseFloat(c1.replace(/,/g, '')));
+    const looksLikeNum2  = !isNaN(parseFloat(c2.replace(/,/g, '')));
+    if (looksLikeSku && looksLikeNum1 && looksLikeNum2) {
+      return { headerIdx: -1, skuCol: 0, qtyCol: 1, valueCol: 2 };
+    }
+  }
+
   return null;
 }
 
@@ -102,16 +123,18 @@ export async function POST(req: Request) {
   }
 
   const { headerIdx, skuCol, qtyCol, valueCol } = meta;
-  const dataRows = rows.slice(headerIdx + 1);
+  const dataRows = rows.slice(headerIdx + 1); // headerIdx=-1 means no header → slice(0) = all rows
 
   // ── 1. Aggregate qty+value per SKU across all branches ───────────────────
-  const aggBySku = new Map<string, { qty: number; value: number }>();
+  // Keys are normalised to lowercase to avoid case-sensitivity issues
+  const aggBySku = new Map<string, { qty: number; value: number; originalSku: string }>();
   for (const row of dataRows) {
-    const sku   = (row[skuCol] ?? '').trim();
-    const qty   = parseFloat((row[qtyCol]   ?? '0').replace(/,/g, '')) || 0;
-    const value = parseFloat((row[valueCol] ?? '0').replace(/,/g, '')) || 0;
+    const rawSku = (row[skuCol] ?? '').trim();
+    const sku    = rawSku.toLowerCase();
+    const qty    = parseFloat((row[qtyCol]   ?? '0').replace(/,/g, '')) || 0;
+    const value  = parseFloat((row[valueCol] ?? '0').replace(/,/g, '')) || 0;
     if (!sku) continue;
-    if (!aggBySku.has(sku)) aggBySku.set(sku, { qty: 0, value: 0 });
+    if (!aggBySku.has(sku)) aggBySku.set(sku, { qty: 0, value: 0, originalSku: rawSku });
     const agg = aggBySku.get(sku)!;
     agg.qty   += qty;
     agg.value += value;
@@ -121,9 +144,9 @@ export async function POST(req: Request) {
   const variants = await imsQuery<{ variant_id: string; sku: string | null }>(
     'SELECT variant_id, sku FROM ims_product_variants WHERE is_active = 1',
   );
-  const variantBySku = new Map<string, string>();
+  const variantBySku = new Map<string, string>(); // key = lowercase sku
   for (const v of variants) {
-    if (v.sku) variantBySku.set(v.sku.trim(), v.variant_id);
+    if (v.sku) variantBySku.set(v.sku.trim().toLowerCase(), v.variant_id);
   }
 
   // ── 3. Apply updates ──────────────────────────────────────────────────────
@@ -139,24 +162,45 @@ export async function POST(req: Request) {
     }
     const avgCost = Math.round((agg.value / agg.qty) * 10000) / 10000; // 4 dp
 
-    const variantId = variantBySku.get(sku);
-    if (!variantId) {
-      skippedNotFound++;
-      notFound.push(sku);
+    // ── Try exact SKU match first (both sides already lowercase) ───────────
+    const exactVariantId = variantBySku.get(sku);
+    if (exactVariantId) {
+      await imsExecute(
+        'UPDATE ims_product_variants SET cost_aud = ?, avg_cost = ? WHERE variant_id = ?',
+        [avgCost, avgCost, exactVariantId],
+      );
+      await imsExecute(
+        'UPDATE ims_stock SET avg_cost = ? WHERE variant_id = ?',
+        [avgCost, exactVariantId],
+      );
+      updated++;
       continue;
     }
 
-    // Update canonical cost + business-wide avg_cost on the variant
-    await imsExecute(
-      'UPDATE ims_product_variants SET cost_aud = ?, avg_cost = ? WHERE variant_id = ?',
-      [avgCost, avgCost, variantId],
+    // ── Fallback: product-level prefix match (e.g. CSV has "MT-RCA70sSurf",
+    //    variants are "MT-RCA70sSurf-SM", "MT-RCA70sSurf-ML", etc.)
+    //    LOWER() on both sides guarantees case-insensitive match regardless of collation ──
+    const prefixVariants = await imsQuery<{ variant_id: string }>(
+      'SELECT variant_id FROM ims_product_variants WHERE LOWER(sku) LIKE ? AND is_active = 1',
+      [`${sku}-%`],
     );
-    // Keep ims_stock.avg_cost consistent (uniform across all locations after CSV import)
-    await imsExecute(
-      'UPDATE ims_stock SET avg_cost = ? WHERE variant_id = ?',
-      [avgCost, variantId],
-    );
-    updated++;
+    if (prefixVariants.length > 0) {
+      for (const { variant_id } of prefixVariants) {
+        await imsExecute(
+          'UPDATE ims_product_variants SET cost_aud = ?, avg_cost = ? WHERE variant_id = ?',
+          [avgCost, avgCost, variant_id],
+        );
+        await imsExecute(
+          'UPDATE ims_stock SET avg_cost = ? WHERE variant_id = ?',
+          [avgCost, variant_id],
+        );
+      }
+      updated += prefixVariants.length;
+      continue;
+    }
+
+    skippedNotFound++;
+    notFound.push(agg.originalSku); // report the original casing for easier debugging
   }
 
   return NextResponse.json({

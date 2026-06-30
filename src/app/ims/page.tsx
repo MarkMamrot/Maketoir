@@ -12294,7 +12294,8 @@ function StockCostImportCard() {
     <div style={{ background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 14, marginBottom: 10 }}>
       <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Import Average Landed Costs (CSV)</div>
       <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 12 }}>
-        Upload a Cin7 stock export CSV. Average cost is calculated as <em>Stock Value ÷ Stock Qty</em> per SKU and written to product cost and stock records.
+        Upload a CSV (or tab-separated) stock export. Average cost is calculated as <em>Stock Value ÷ Stock Qty</em> and written to all matching variants.
+        Accepts <strong>variant-level SKUs</strong> (e.g. <em>MT-RCA70sSurf-SM</em>) or <strong>product-level codes</strong> (e.g. <em>MT-RCA70sSurf</em>) — if a product code is used, the cost is applied to every variant of that product.
         Requires columns: <strong>Size Code</strong> (or SKU/Code), <strong>Stock Qty</strong>, <strong>Stock Value</strong>.
       </div>
 
