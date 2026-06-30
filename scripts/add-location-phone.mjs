@@ -20,10 +20,16 @@ const conn = await mysql.createConnection({
   database: env.IMS_MYSQL_DATABASE,
 });
 
-await conn.execute(
-  `ALTER TABLE ims_locations
-   ADD COLUMN IF NOT EXISTS phone VARCHAR(50) NULL AFTER address`
+const [cols] = await conn.execute(
+  `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+   WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ims_locations' AND COLUMN_NAME = 'phone'`,
+  [env.IMS_MYSQL_DATABASE]
 );
-console.log('✅  Added phone column to ims_locations.');
+if (cols.length === 0) {
+  await conn.execute(`ALTER TABLE ims_locations ADD COLUMN phone VARCHAR(50) NULL AFTER address`);
+  console.log('✅  Added phone column to ims_locations.');
+} else {
+  console.log('ℹ️   phone column already exists — nothing to do.');
+}
 
 await conn.end();

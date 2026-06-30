@@ -1092,8 +1092,10 @@ function LocationsView() {
               <Field label="Name *"><input required value={form.name} onChange={sf('name')} style={inputStyle} /></Field>
               <Field label="Code"><input value={form.code} onChange={sf('code')} style={inputStyle} /></Field>
             </Row2>
-            <Field label="Address"><input value={form.address} onChange={sf('address')} style={inputStyle} /></Field>
-            <Field label="Phone"><input value={(form as any).phone ?? ''} onChange={sf('phone')} style={inputStyle} placeholder="e.g. (02) 9000 0000" /></Field>
+            <Row2>
+              <Field label="Address"><input value={form.address} onChange={sf('address')} style={inputStyle} /></Field>
+              <Field label="Phone"><input value={(form as any).phone ?? ''} onChange={sf('phone')} style={inputStyle} placeholder="e.g. (02) 9000 0000" /></Field>
+            </Row2>
             <Row3>
               <Field label="City"><input value={form.city} onChange={sf('city')} style={inputStyle} /></Field>
               <Field label="State"><input value={form.state} onChange={sf('state')} style={inputStyle} /></Field>
