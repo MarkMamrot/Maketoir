@@ -3264,6 +3264,7 @@ function ParkedScreen({ sales, onRetrieve, onDelete, onBack }: {
 interface ReceiptPrintSettings {
   business_name: string;
   business_address: string;
+  business_phone?: string;
   business_abn: string;
   pos_receipt_footer: string;
   gift_receipt_message?: string;

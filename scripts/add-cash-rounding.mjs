@@ -29,11 +29,20 @@ const conn = await mysql.createConnection({
   database: env.IMS_MYSQL_DATABASE,
 });
 
-await conn.execute(
-  `ALTER TABLE pos_sales
-   ADD COLUMN IF NOT EXISTS cash_rounding DECIMAL(10,2) NOT NULL DEFAULT 0
-   COMMENT 'Australian cash rounding adjustment: total + cash_rounding = actual cash received'`
+const [cols] = await conn.execute(
+  `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+   WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'pos_sales' AND COLUMN_NAME = 'cash_rounding'`,
+  [env.IMS_MYSQL_DATABASE]
 );
-console.log('✅  Added cash_rounding column to pos_sales (0 = no rounding, idempotent).');
+if (cols.length === 0) {
+  await conn.execute(
+    `ALTER TABLE pos_sales
+     ADD COLUMN cash_rounding DECIMAL(10,2) NOT NULL DEFAULT 0
+     COMMENT 'Australian cash rounding adjustment: total + cash_rounding = actual cash received'`
+  );
+  console.log('✅  Added cash_rounding column to pos_sales.');
+} else {
+  console.log('ℹ️  cash_rounding column already exists, skipping.');
+}
 
 await conn.end();
