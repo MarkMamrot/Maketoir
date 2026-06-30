@@ -890,7 +890,7 @@ function ContactsView() {
 // Locations View
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BLANK_LOC = { name: '', code: '', address: '', city: '', state: '', postcode: '', country: 'Australia', is_active: 1, pos_pin: '', has_pos: 0, has_wholesale: 0, has_online: 0 };
+const BLANK_LOC = { name: '', code: '', address: '', phone: '', city: '', state: '', postcode: '', country: 'Australia', is_active: 1, pos_pin: '', has_pos: 0, has_wholesale: 0, has_online: 0 };
 
 function LocationRegistersPanel({ locationId, locationName, onClose }: { locationId: number; locationName: string; onClose: () => void }) {
   const [registers, setRegisters] = useState<any[]>([]);
@@ -1093,6 +1093,7 @@ function LocationsView() {
               <Field label="Code"><input value={form.code} onChange={sf('code')} style={inputStyle} /></Field>
             </Row2>
             <Field label="Address"><input value={form.address} onChange={sf('address')} style={inputStyle} /></Field>
+            <Field label="Phone"><input value={(form as any).phone ?? ''} onChange={sf('phone')} style={inputStyle} placeholder="e.g. (02) 9000 0000" /></Field>
             <Row3>
               <Field label="City"><input value={form.city} onChange={sf('city')} style={inputStyle} /></Field>
               <Field label="State"><input value={form.state} onChange={sf('state')} style={inputStyle} /></Field>
