@@ -291,6 +291,16 @@ export const PosSalesRepo = {
       if (data.status === 'completed' || data.status === 'layby_complete') {
         for (const item of data.items) {
           if (!item.variant_id) continue;
+
+          // Guard: skip stock deduction if variant doesn't exist in IMS
+          // (product not yet synced). The sale still completes; stock can be
+          // corrected later via a manual adjustment or sync.
+          const [variantCheck]: any = await conn.execute(
+            'SELECT 1 FROM ims_product_variants WHERE variant_id = ? LIMIT 1',
+            [item.variant_id],
+          );
+          if (!variantCheck[0]) continue;
+
           // For returns, qty is negative — this ADDS back to stock
           const qtyChange = data.sale_type === 'return' ? item.qty : -item.qty;
           const [stockRows]: any = await conn.execute(
