@@ -25,13 +25,17 @@ export async function GET(req: Request) {
   const locationId = parseInt(searchParams.get('location_id') ?? '0', 10);
   if (!locationId) return NextResponse.json({ session: null });
 
-  // Fetch location name
+  // Fetch location name and businessId
   let locationName = `Location ${locationId}`;
+  let locationBusinessId: string | null = adminSession.businessId ?? null;
   try {
-    const rows = await imsQuery<{ name: string }>(
-      'SELECT name FROM ims_locations WHERE id = ? LIMIT 1', [locationId]
+    const rows = await imsQuery<{ name: string; business_id: string | null }>(
+      'SELECT name, business_id FROM ims_locations WHERE id = ? LIMIT 1', [locationId]
     );
-    if (rows[0]) locationName = rows[0].name;
+    if (rows[0]) {
+      locationName = rows[0].name;
+      if (rows[0].business_id) locationBusinessId = rows[0].business_id;
+    }
   } catch {}
 
   const sessionData = {
@@ -41,6 +45,7 @@ export async function GET(req: Request) {
     tier:          adminSession.tier  ?? 'SuperAdmin',
     location_id:   locationId,
     location_name: locationName,
+    businessId:    locationBusinessId,
   };
 
   // Set pos_session cookie so subsequent requests don't need this fallback

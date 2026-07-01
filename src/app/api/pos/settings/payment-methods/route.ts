@@ -28,9 +28,10 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
   }
   try {
-    // Use admin session's business_id, or fall back to a shared key if only pos_session
     const adminSession = getAdminSession();
-    const bizId = adminSession?.businessId ?? 'shared';
+    const posSession   = getPosSession();
+    const bizId = adminSession?.businessId ?? posSession?.businessId ?? null;
+    if (!bizId) return NextResponse.json({ methods: DEFAULT_METHODS });
     const raw = await ConfigRepository.get(bizId, CONFIG_KEY);
     const methods = raw ? JSON.parse(raw) : DEFAULT_METHODS;
     return NextResponse.json({ methods });

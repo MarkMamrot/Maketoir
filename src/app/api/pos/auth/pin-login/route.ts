@@ -88,6 +88,7 @@ export async function POST(req: Request) {
       location_id:   Number(location_id),
       location_name: locationName,
       tier:          user.tier ?? 'PosUser',
+      businessId:    locationBusinessId ?? user.business_id ?? null,
     };
 
     cookies().set('pos_session', JSON.stringify(sessionData), {
