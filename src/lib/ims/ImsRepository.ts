@@ -437,12 +437,19 @@ export const ImsProductsRepo = {
     await imsExecute(`DELETE FROM ims_products WHERE product_id = ?`, [productId]);
   },
 
-  /** Returns { productId: primaryImageUrl } for all products that have at least one image. */
-  async listPrimaryImages(businessId?: string): Promise<Record<string, string>> {
-    const where = businessId
-      ? 'WHERE p.business_id = ?'
-      : '';
-    const params = businessId ? [businessId] : [];
+  /** Returns { productId: primaryImageUrl } for products that have at least one image.
+   *  Pass `ids` to restrict to a specific set of product IDs (current-page optimisation). */
+  async listPrimaryImages(businessId?: string, ids?: string[]): Promise<Record<string, string>> {
+    const conditions: string[] = [];
+    const params: any[] = [];
+
+    if (businessId) { conditions.push('p.business_id = ?'); params.push(businessId); }
+    if (ids?.length) {
+      conditions.push(`p.product_id IN (${ids.map(() => '?').join(',')})`);
+      params.push(...ids);
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const rows = await imsQuery<{ product_id: string; url: string }>(
       `SELECT p.product_id,
          (SELECT url FROM ims_product_images

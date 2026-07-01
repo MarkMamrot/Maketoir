@@ -1926,13 +1926,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO }: { onNavigateToPO?: (id
     setLoading(true);
     fetch('/api/ims/products').then(r => r.json()).then(d => {
       if (d.success) setProducts(d.data);
-    }).finally(() => {
-      setLoading(false);
-      // Load images in the background after the table is rendered
-      fetch('/api/ims/products/primary-images').then(r => r.json()).then(d => {
-        if (d.success) setPrimaryImages(d.data);
-      }).catch(() => {});
-    });
+    }).finally(() => setLoading(false));
   }, []);
 
   const loadBrands = useCallback(() => {
@@ -2188,6 +2182,21 @@ function ProductsView({ onNavigateToPO, onNavigateToSO }: { onNavigateToPO?: (id
   const totalPages = Math.max(1, Math.ceil(sortedFiltered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const visible = sortedFiltered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  // Fetch primary images for the current page only — accumulates as user pages through
+  const visiblePageKey = visible.map((p: any) => p.product_id).join(',');
+  useEffect(() => {
+    if (!visiblePageKey) return;
+    const missing = visible
+      .filter((p: any) => !(p.product_id in primaryImages))
+      .map((p: any) => p.product_id);
+    if (missing.length === 0) return;
+    fetch(`/api/ims/products/primary-images?ids=${missing.join(',')}`)
+      .then(r => r.json())
+      .then(d => { if (d.success) setPrimaryImages(prev => ({ ...prev, ...d.data })); })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visiblePageKey]);
   const visibleIds = visible.map((p: any) => p.product_id);
   const expandableVisibleIds = visible.filter((p: any) => (p.variants || []).length > 0).map((p: any) => p.product_id);
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id: string) => selected.has(id));
