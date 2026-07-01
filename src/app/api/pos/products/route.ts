@@ -55,6 +55,7 @@ export async function GET(req: Request) {
     qty_on_hand:   string | null;
     qty_on_hand_all: string | null;
     is_active:     number;
+    image_url:     string | null;
   }>(
     `SELECT
        v.variant_id,
@@ -76,7 +77,8 @@ export async function GET(req: Request) {
        v.discount_end_date,
        COALESCE(s.qty_on_hand, 0) AS qty_on_hand,
        COALESCE((SELECT SUM(s2.qty_on_hand) FROM ims_stock s2 WHERE s2.variant_id = v.variant_id), 0) AS qty_on_hand_all,
-       v.is_active
+       v.is_active,
+       (SELECT url FROM ims_product_images WHERE product_id = p.product_id ORDER BY is_primary DESC, sort_order ASC LIMIT 1) AS image_url
      FROM ims_product_variants v
      JOIN ims_products p ON p.product_id = v.product_id
      LEFT JOIN ims_stock s ON s.variant_id = v.variant_id AND s.location_id = ?
@@ -118,6 +120,7 @@ export async function GET(req: Request) {
       cost:             r.cost != null ? Number(r.cost) : null,
       soh:              Number(r.qty_on_hand ?? 0),
       soh_all:          Number(r.qty_on_hand_all ?? 0),
+      image_url:        r.image_url ?? null,
     };
   });
 

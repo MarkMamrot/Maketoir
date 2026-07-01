@@ -2824,6 +2824,9 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
                   onMouseEnter={() => setHighlightIdx(i)}
                   style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', cursor: 'pointer', background: i === highlightIdx ? 'var(--sv-bg-2)' : 'transparent', borderBottom: i < dropdownItems.length - 1 ? '1px solid var(--sv-etch)' : 'none' }}
                 >
+                  {p.image_url
+                    ? <img src={p.image_url} alt="" style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
+                    : <div style={{ width: 36, height: 36, borderRadius: 4, flexShrink: 0, background: 'var(--sv-bg-2)' }} />}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '.85rem', fontWeight: 600, color: 'var(--sv-text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
                     <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[p.brand, p.code].filter(Boolean).join(' · ')}</div>
@@ -2912,6 +2915,11 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
               onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--sv-action)')}
               onMouseLeave={e => (e.currentTarget.style.borderColor = isRecent ? 'rgba(37,99,235,.35)' : 'var(--sv-etch)')}
             >
+              <div style={{ display: 'flex', gap: '.55rem', alignItems: 'flex-start' }}>
+                {p.image_url && (
+                  <img src={p.image_url} alt="" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 5, flexShrink: 0 }} />
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
               {/* Price row + info icon */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.3rem' }}>
                 <span style={{ fontWeight: 800, color: 'var(--sv-action)', fontSize: '1.05rem' }}>${fmt(p.price)}</span>
@@ -2930,6 +2938,8 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
               </div>
               {/* SKU */}
               {p.code && <div style={{ fontSize: '.68rem', color: 'var(--sv-text-muted)', marginTop: '.25rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.code}</div>}
+                </div>{/* end text col */}
+              </div>{/* end flex row */}
             </button>
           );
         })}

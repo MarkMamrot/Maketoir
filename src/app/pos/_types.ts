@@ -26,11 +26,12 @@ export interface CachedProduct {
   barcode:        string | null;
   name:           string;
   brand:          string | null;
-  price:          number;          // effective selling price (discounted if in window)
-  original_price: number | null;   // RRP before discount; null when no active discount
+  price:          number;
+  original_price: number | null;
   cost:           number | null;
-  soh:            number;  // SOH at the POS location
-  soh_all:        number;  // SOH across all locations combined
+  soh:            number;
+  soh_all:        number;
+  image_url:      string | null;
 }
 
 export interface CartItem {
