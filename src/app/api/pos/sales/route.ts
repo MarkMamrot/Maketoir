@@ -54,7 +54,7 @@ export async function POST(req: Request) {
       registerSessionId = openSession?.id ?? null;
     }
 
-    const saleId = await PosSalesRepo.complete({
+    const { saleId, stockError } = await PosSalesRepo.complete({
       local_id:          body.local_id ?? null,
       register_id:       registerId,
       register_session_id: registerSessionId,
@@ -85,7 +85,7 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, id: saleId });
+    return NextResponse.json({ success: true, id: saleId, ...(stockError ? { stockWarning: stockError } : {}) });
   } catch (err: any) {
     console.error('POS sale create error:', err);
     return NextResponse.json({ error: err.message || String(err) }, { status: 500 });

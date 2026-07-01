@@ -284,56 +284,60 @@ export const PosSalesRepo = {
         );
       }
 
-      // 4. Deduct IMS stock for completed/layby_complete sales.
-      //    Stock movement is part of the sale transaction: if it fails, the whole
-      //    sale is rolled back so we never record a sale without its stock movement.
-      //    (The client re-queues the sale offline and retries — idempotent via local_id.)
+      await conn.commit();
+
+      // 4. Deduct IMS stock AFTER the sale transaction has committed.
+      //    Separated so a stock failure (e.g. unsynced variant FK error) never
+      //    causes the sale itself to roll back and re-queue.
+      //    Returns stockError string if deduction failed — API returns success
+      //    anyway so the client clears the queue, but logs the issue.
+      let stockError: string | undefined;
       if (data.status === 'completed' || data.status === 'layby_complete') {
-        for (const item of data.items) {
-          if (!item.variant_id) continue;
-
-          // Guard: skip stock deduction if variant doesn't exist in IMS
-          // (product not yet synced). The sale still completes; stock can be
-          // corrected later via a manual adjustment or sync.
-          const [variantCheck]: any = await conn.execute(
-            'SELECT 1 FROM ims_product_variants WHERE variant_id = ? LIMIT 1',
-            [item.variant_id],
-          );
-          if (!variantCheck[0]) continue;
-
-          // For returns, qty is negative — this ADDS back to stock
-          const qtyChange = data.sale_type === 'return' ? item.qty : -item.qty;
-          const [stockRows]: any = await conn.execute(
-            `SELECT qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ? LIMIT 1`,
-            [item.variant_id, data.location_id],
-          );
-          const currentSoh = stockRows[0] ? Number(stockRows[0].qty_on_hand) : 0;
-          const newSoh = currentSoh + qtyChange;
-
-          if (stockRows[0]) {
-            await conn.execute(
-              `UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id = ? AND location_id = ?`,
-              [newSoh, item.variant_id, data.location_id],
+        const pool = getIMSPool();
+        const stockConn = await pool.getConnection();
+        try {
+          await stockConn.beginTransaction();
+          for (const item of data.items) {
+            if (!item.variant_id) continue;
+            const qtyChange = data.sale_type === 'return' ? item.qty : -item.qty;
+            const [stockRows]: any = await stockConn.execute(
+              `SELECT qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ? LIMIT 1`,
+              [item.variant_id, data.location_id],
             );
-          } else {
-            await conn.execute(
-              `INSERT INTO ims_stock (variant_id, location_id, qty_on_hand) VALUES (?, ?, ?)`,
-              [item.variant_id, data.location_id, newSoh],
+            const currentSoh = stockRows[0] ? Number(stockRows[0].qty_on_hand) : 0;
+            const newSoh = currentSoh + qtyChange;
+
+            if (stockRows[0]) {
+              await stockConn.execute(
+                `UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id = ? AND location_id = ?`,
+                [newSoh, item.variant_id, data.location_id],
+              );
+            } else {
+              await stockConn.execute(
+                `INSERT INTO ims_stock (variant_id, location_id, qty_on_hand) VALUES (?, ?, ?)`,
+                [item.variant_id, data.location_id, newSoh],
+              );
+            }
+
+            await stockConn.execute(
+              `INSERT INTO ims_stock_movements
+                 (variant_id, location_id, movement_type, channel, reference_type, reference_id,
+                  qty_change, qty_after_soh)
+               VALUES (?, ?, ?, 'pos', ?, ?, ?, ?)`,
+              [item.variant_id, data.location_id, 'pos_sale', 'pos_sale', saleId, qtyChange, newSoh],
             );
           }
-
-          await conn.execute(
-            `INSERT INTO ims_stock_movements
-               (variant_id, location_id, movement_type, channel, reference_type, reference_id,
-                qty_change, qty_after_soh)
-             VALUES (?, ?, ?, 'pos', ?, ?, ?, ?)`,
-            [item.variant_id, data.location_id, 'pos_sale', 'pos_sale', saleId, qtyChange, newSoh],
-          );
+          await stockConn.commit();
+        } catch (stockErr: any) {
+          await stockConn.rollback();
+          stockError = stockErr?.message || String(stockErr);
+          console.error(`[POS] Sale ${saleId} saved but stock deduction failed:`, stockErr);
+        } finally {
+          stockConn.release();
         }
       }
 
-      await conn.commit();
-      return saleId;
+      return { saleId, stockError };
     } catch (err) {
       await conn.rollback();
       throw err;
