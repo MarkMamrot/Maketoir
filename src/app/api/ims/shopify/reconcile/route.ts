@@ -55,20 +55,68 @@ export async function POST() {
     }>(`SELECT variant_id, product_id, sku, barcode FROM ims_product_variants WHERE is_active = 1 AND business_id = ?`,
       [session.businessId]);
 
-    let matched = 0;
+    // 4. Collect matches in memory — no DB writes yet
+    type VariantLink  = { variantId: string; shopifyVariantId: string; shopifyInventoryItemId: string };
+    type ProductLink  = { productId: string; shopifyProductId: string };
+
+    const variantLinks  = new Map<string, VariantLink>();   // keyed by variant_id (deduped)
+    const productLinks  = new Map<string, ProductLink>();   // keyed by product_id (deduped)
     const unmatchedIms: string[] = [];
 
     for (const v of imsVariants) {
-      const hit = (v.sku ? shopifyBySku.get(v.sku.trim()) : null)
+      const hit = (v.sku    ? shopifyBySku.get(v.sku.trim())     : null)
                ?? (v.barcode ? shopifyByBarcode.get(v.barcode.trim()) : null);
-
       if (hit) {
-        await ImsShopifyRepo.linkProduct(v.product_id, hit.productId, session.businessId);
-        await ImsShopifyRepo.linkVariant(v.variant_id, hit.variantId, hit.inventoryItemId, session.businessId);
-        matched++;
+        variantLinks.set(v.variant_id, {
+          variantId:             v.variant_id,
+          shopifyVariantId:      hit.variantId,
+          shopifyInventoryItemId: hit.inventoryItemId,
+        });
+        productLinks.set(v.product_id, {
+          productId:      v.product_id,
+          shopifyProductId: hit.productId,
+        });
       } else {
         unmatchedIms.push(v.sku ?? v.barcode ?? v.variant_id);
       }
+    }
+
+    const matched = variantLinks.size;
+
+    // 5. Bulk-update variants in chunks of 500 (avoids per-row round-trips)
+    const CHUNK = 500;
+    const vLinks = [...variantLinks.values()];
+    for (let i = 0; i < vLinks.length; i += CHUNK) {
+      const chunk = vLinks.slice(i, i + CHUNK);
+      const ids   = chunk.map(l => l.variantId);
+      const vidParams   = chunk.flatMap(l => [l.variantId, l.shopifyVariantId]);
+      const invParams   = chunk.flatMap(l => [l.variantId, l.shopifyInventoryItemId]);
+      const whenVid     = chunk.map(() => 'WHEN ? THEN ?').join(' ');
+      const whenInv     = chunk.map(() => 'WHEN ? THEN ?').join(' ');
+      const inList      = ids.map(() => '?').join(',');
+      await imsExecute(
+        `UPDATE ims_product_variants
+           SET shopify_variant_id           = CASE variant_id ${whenVid} END,
+               shopify_inventory_item_id    = CASE variant_id ${whenInv} END
+         WHERE business_id = ? AND variant_id IN (${inList})`,
+        [...vidParams, ...invParams, session.businessId, ...ids],
+      );
+    }
+
+    // 6. Bulk-update products in chunks of 500
+    const pLinks = [...productLinks.values()];
+    for (let i = 0; i < pLinks.length; i += CHUNK) {
+      const chunk   = pLinks.slice(i, i + CHUNK);
+      const ids     = chunk.map(l => l.productId);
+      const pidParams = chunk.flatMap(l => [l.productId, l.shopifyProductId]);
+      const whenPid   = chunk.map(() => 'WHEN ? THEN ?').join(' ');
+      const inList    = ids.map(() => '?').join(',');
+      await imsExecute(
+        `UPDATE ims_products
+           SET shopify_product_id = CASE product_id ${whenPid} END
+         WHERE business_id = ? AND product_id IN (${inList})`,
+        [...pidParams, session.businessId, ...ids],
+      );
     }
 
     const unmatchedShopifyCount = shopifyBySku.size - matched;
