@@ -8,10 +8,17 @@ function getAdminSession() {
   try { return JSON.parse(c.value); } catch { return null; }
 }
 
+function getPosSession() {
+  const c = cookies().get('pos_session');
+  if (!c?.value) return null;
+  try { return JSON.parse(c.value); } catch { return null; }
+}
+
 export async function GET() {
   try {
-    const session = getAdminSession();
-    const businessId = session?.businessId as string | undefined;
+    const adminSession = getAdminSession();
+    const posSession   = getPosSession();
+    const businessId = (adminSession?.businessId ?? posSession?.businessId) as string | undefined;
     const rows = await imsQuery<{ value: string }>(
       `SELECT \`value\` FROM ims_settings WHERE \`key\` = 'pos_default_product_view'${businessId ? ' AND business_id = ?' : ''} LIMIT 1`,
       businessId ? [businessId] : undefined

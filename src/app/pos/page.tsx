@@ -3326,7 +3326,7 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
               {printSettings?.receipt_logo_url && (
                 <img src={printSettings.receipt_logo_url} alt="" style={{ maxWidth: 180, maxHeight: 80, objectFit: 'contain', marginBottom: '.5rem', display: 'block', marginLeft: 'auto', marginRight: 'auto' }} />
               )}
-              <div style={{ fontWeight: 700, fontSize: '1.2rem' }}>{printSettings?.business_name || 'Marketoir POS'}</div>
+              <div style={{ fontWeight: 700, fontSize: '1.2rem' }}>{printSettings?.business_name}</div>
               {(printSettings?.business_address || sale.location_name) && (
                 <div style={{ fontSize: '.8rem', color: '#555' }}>{printSettings?.business_address || sale.location_name}</div>
               )}
@@ -3409,7 +3409,7 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
               {printSettings?.receipt_logo_url && (
                 <img src={printSettings.receipt_logo_url} alt="" style={{ maxWidth: 180, maxHeight: 80, objectFit: 'contain', marginBottom: '.5rem', display: 'block', marginLeft: 'auto', marginRight: 'auto' }} />
               )}
-              <div style={{ fontWeight: 700, fontSize: '1.2rem' }}>{printSettings?.business_name || 'Marketoir POS'}</div>
+              <div style={{ fontWeight: 700, fontSize: '1.2rem' }}>{printSettings?.business_name}</div>
               {(printSettings?.business_address || sale.location_name) && (
                 <div style={{ fontSize: '.8rem', color: '#555' }}>{printSettings?.business_address || sale.location_name}</div>
               )}
@@ -3464,7 +3464,7 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
   // session loads (handles sessions closed at midnight, reviewed next morning).
   const [date, setDate]                   = useState(today);
   const [expected, setExpected]           = useState<Record<string, number>>({});
-  const [defaultFloat, setDefaultFloat]   = useState(200);
+  const [defaultFloat, setDefaultFloat]   = useState(0);
   const [openDenoms, setOpenDenoms]       = useState<Record<string, string>>({});
   const [entries, setEntries]             = useState<Record<string, EodEntryState>>({});
   const [loading, setLoading]             = useState(false);
@@ -3482,7 +3482,7 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
 
   useEffect(() => {
     fetch('/api/pos/settings/payment-methods').then(r => r.json()).then(d => setMethods(d.methods ?? []));
-    fetch('/api/pos/settings/float').then(r => r.json()).then(d => setDefaultFloat(d.amount ?? 200));
+    fetch('/api/pos/settings/float').then(r => r.json()).then(d => setDefaultFloat(d.amount ?? 0));
   }, []);
 
   const loadRegSession = () => {

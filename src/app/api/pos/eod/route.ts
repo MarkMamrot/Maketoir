@@ -30,16 +30,16 @@ export async function GET(req: Request) {
 
   const adminRaw    = cookies().get('marketoir_session')?.value;
   const adminSession = adminRaw ? (() => { try { return JSON.parse(adminRaw); } catch { return null; } })() : null;
-  const bizId = adminSession?.businessId ?? 'shared';
+  const bizId = adminSession?.businessId ?? session?.businessId ?? 'shared';
 
   // Get default_float: prefer per-register setting, fall back to global config
-  let default_float = 200;
+  let default_float = 0;
   if (registerId) {
     const reg = await PosRegistersRepo.get(registerId).catch(() => null);
     if (reg) default_float = reg.default_float;
   } else {
     const floatRaw = await ConfigRepository.get(bizId, 'POS_DefaultFloat').catch(() => null);
-    if (floatRaw !== null) default_float = parseFloat(floatRaw) || 200;
+    if (floatRaw !== null) default_float = parseFloat(floatRaw) || 0;
   }
 
   // When a register session is supplied, reconcile by SESSION (open→close window),

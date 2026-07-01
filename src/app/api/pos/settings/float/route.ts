@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { ConfigRepository } from '@/lib/db/ConfigRepository';
 
-const CONFIG_KEY    = 'POS_DefaultFloat';
-const DEFAULT_FLOAT = 200;
+const CONFIG_KEY = 'POS_DefaultFloat';
 
 function getAdminSession() {
   const raw = cookies().get('marketoir_session')?.value;
@@ -25,12 +24,12 @@ export async function GET() {
     const adminSession = getAdminSession();
     const posSession   = getPosSession();
     const bizId = adminSession?.businessId ?? posSession?.businessId ?? null;
-    if (!bizId) return NextResponse.json({ amount: DEFAULT_FLOAT });
+    if (!bizId) return NextResponse.json({ amount: 0 });
     const raw = await ConfigRepository.get(bizId, CONFIG_KEY);
-    const amount = raw !== null ? parseFloat(raw) : DEFAULT_FLOAT;
-    return NextResponse.json({ amount: isNaN(amount) ? DEFAULT_FLOAT : amount });
+    const amount = raw !== null ? parseFloat(raw) : 0;
+    return NextResponse.json({ amount: isNaN(amount) ? 0 : amount });
   } catch {
-    return NextResponse.json({ amount: DEFAULT_FLOAT });
+    return NextResponse.json({ amount: 0 });
   }
 }
 

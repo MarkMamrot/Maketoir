@@ -2,16 +2,23 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
+function getAdminSession() {
+  const raw = cookies().get('marketoir_session')?.value;
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+function getPosSession() {
+  const raw = cookies().get('pos_session')?.value;
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
 }
 
 export async function GET(req: Request) {
   try {
-    const session = getSession();
-    const businessId = session?.businessId as string | undefined;
+    const adminSession = getAdminSession();
+    const posSession   = getPosSession();
+    const businessId = (adminSession?.businessId ?? posSession?.businessId) as string | undefined;
     const rows = await imsQuery<{ key: string; value: string }>(
       businessId
         ? 'SELECT `key`, `value` FROM ims_settings WHERE business_id = ?'

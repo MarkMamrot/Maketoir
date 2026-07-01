@@ -3,7 +3,6 @@ import { cookies } from 'next/headers';
 import { ConfigRepository } from '@/lib/db/ConfigRepository';
 
 const CONFIG_KEY = 'POS_PaymentMethods';
-const DEFAULT_METHODS = ['Cash', 'Card', 'EFT', 'Gift Card', 'Account'];
 
 function getAdminSession() {
   const raw = cookies().get('marketoir_session')?.value;
@@ -17,12 +16,6 @@ function getPosSession() {
   try { return JSON.parse(raw); } catch { return null; }
 }
 
-function getBusinessId(): string | null {
-  const admin = getAdminSession();
-  if (admin?.businessId) return admin.businessId;
-  return null;
-}
-
 export async function GET() {
   if (!getAdminSession() && !getPosSession()) {
     return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
@@ -31,12 +24,12 @@ export async function GET() {
     const adminSession = getAdminSession();
     const posSession   = getPosSession();
     const bizId = adminSession?.businessId ?? posSession?.businessId ?? null;
-    if (!bizId) return NextResponse.json({ methods: DEFAULT_METHODS });
+    if (!bizId) return NextResponse.json({ methods: [] });
     const raw = await ConfigRepository.get(bizId, CONFIG_KEY);
-    const methods = raw ? JSON.parse(raw) : DEFAULT_METHODS;
+    const methods = raw ? JSON.parse(raw) : [];
     return NextResponse.json({ methods });
   } catch {
-    return NextResponse.json({ methods: DEFAULT_METHODS });
+    return NextResponse.json({ methods: [] });
   }
 }
 
