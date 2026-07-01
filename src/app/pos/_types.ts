@@ -20,16 +20,17 @@ export interface PosSession {
 }
 
 export interface CachedProduct {
-  variant_id:  string;
-  product_id:  string;
-  code:        string | null;
-  barcode:     string | null;
-  name:        string;
-  brand:       string | null;
-  price:       number;
-  cost:        number | null;
-  soh:         number;  // SOH at the POS location
-  soh_all:     number;  // SOH across all locations combined
+  variant_id:     string;
+  product_id:     string;
+  code:           string | null;
+  barcode:        string | null;
+  name:           string;
+  brand:          string | null;
+  price:          number;          // effective selling price (discounted if in window)
+  original_price: number | null;   // RRP before discount; null when no active discount
+  cost:           number | null;
+  soh:            number;  // SOH at the POS location
+  soh_all:        number;  // SOH across all locations combined
 }
 
 export interface CartItem {

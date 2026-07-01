@@ -1323,7 +1323,7 @@ function MainPos({
         name:           product.name,
         qty,
         unit_price:     product.price,
-        original_price: product.price,
+        original_price: product.original_price ?? product.price,
         discount_type:  'none',
         discount_value: 0,
         discount_amount: 0,

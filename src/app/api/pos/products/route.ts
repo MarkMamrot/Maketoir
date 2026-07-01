@@ -49,6 +49,9 @@ export async function GET(req: Request) {
     option3_value: string | null;
     cost:          string | null;
     price:         string | null;
+    price_rrp_sale:      string | null;
+    discount_start_date: string | null;
+    discount_end_date:   string | null;
     qty_on_hand:   string | null;
     qty_on_hand_all: string | null;
     is_active:     number;
@@ -68,6 +71,9 @@ export async function GET(req: Request) {
        v.option3_value,
        v.cost_aud  AS cost,
        v.price_rrp AS price,
+       v.price_rrp_sale,
+       v.discount_start_date,
+       v.discount_end_date,
        COALESCE(s.qty_on_hand, 0) AS qty_on_hand,
        COALESCE((SELECT SUM(s2.qty_on_hand) FROM ims_stock s2 WHERE s2.variant_id = v.variant_id), 0) AS qty_on_hand_all,
        v.is_active
@@ -79,22 +85,39 @@ export async function GET(req: Request) {
     [locationId],
   );
 
+  // Today as YYYY-MM-DD (server date) for discount range check
+  const today = new Date().toISOString().slice(0, 10);
+
   // Build display name: product name + option values
   const products = rows.map((r) => {
     const opts = [r.option1_value, r.option2_value, r.option3_value]
       .filter(Boolean)
       .join(' / ');
+
+    // Apply discounted price when today falls within the discount window
+    const rrp = r.price != null ? Number(r.price) : 0;
+    const discPrice = r.price_rrp_sale != null ? Number(r.price_rrp_sale) : null;
+    const inDiscountWindow =
+      discPrice != null &&
+      discPrice > 0 &&
+      r.discount_start_date != null &&
+      r.discount_end_date   != null &&
+      today >= r.discount_start_date.slice(0, 10) &&
+      today <= r.discount_end_date.slice(0, 10);
+    const effectivePrice = inDiscountWindow ? discPrice! : rrp;
+
     return {
-      variant_id:  r.variant_id,
-      product_id:  r.product_id,
-      code:        r.sku,
-      barcode:     r.barcode,
-      name:        opts ? `${r.product_name} — ${opts}` : r.product_name,
-      brand:       r.brand,
-      price:       r.price != null ? Number(r.price) : 0,
-      cost:        r.cost  != null ? Number(r.cost)  : null,
-      soh:         Number(r.qty_on_hand ?? 0),
-      soh_all:     Number(r.qty_on_hand_all ?? 0),
+      variant_id:       r.variant_id,
+      product_id:       r.product_id,
+      code:             r.sku,
+      barcode:          r.barcode,
+      name:             opts ? `${r.product_name} — ${opts}` : r.product_name,
+      brand:            r.brand,
+      price:            effectivePrice,
+      original_price:   inDiscountWindow ? rrp : null,
+      cost:             r.cost != null ? Number(r.cost) : null,
+      soh:              Number(r.qty_on_hand ?? 0),
+      soh_all:          Number(r.qty_on_hand_all ?? 0),
     };
   });
 
