@@ -48,10 +48,11 @@ export async function POST() {
       }
     }
 
-    // 3. Fetch all IMS variants
+    // 3. Fetch IMS variants for this business only
     const imsVariants = await imsQuery<{
       variant_id: string; product_id: string; sku: string | null; barcode: string | null;
-    }>(`SELECT variant_id, product_id, sku, barcode FROM ims_product_variants WHERE is_active = 1`);
+    }>(`SELECT variant_id, product_id, sku, barcode FROM ims_product_variants WHERE is_active = 1 AND business_id = ?`,
+      [session.businessId]);
 
     let matched = 0;
     const unmatchedIms: string[] = [];
@@ -61,8 +62,8 @@ export async function POST() {
                ?? (v.barcode ? shopifyByBarcode.get(v.barcode.trim()) : null);
 
       if (hit) {
-        await ImsShopifyRepo.linkProduct(v.product_id, hit.productId);
-        await ImsShopifyRepo.linkVariant(v.variant_id, hit.variantId, hit.inventoryItemId);
+        await ImsShopifyRepo.linkProduct(v.product_id, hit.productId, session.businessId);
+        await ImsShopifyRepo.linkVariant(v.variant_id, hit.variantId, hit.inventoryItemId, session.businessId);
         matched++;
       } else {
         unmatchedIms.push(v.sku ?? v.barcode ?? v.variant_id);
@@ -71,7 +72,7 @@ export async function POST() {
 
     const unmatchedShopifyCount = shopifyBySku.size - matched;
     const summary = `Matched ${matched} of ${imsVariants.length} IMS variants to Shopify`;
-    await ImsShopifyRepo.logAction('reconcile', matched > 0 ? 'success' : 'partial', summary, {
+    await ImsShopifyRepo.logAction('reconcile', matched > 0 ? 'success' : 'partial', summary, session.businessId, {
       matched, unmatched_ims: unmatchedIms.length, unmatched_shopify: unmatchedShopifyCount,
     });
 
@@ -83,7 +84,7 @@ export async function POST() {
       summary,
     });
   } catch (e: any) {
-    await ImsShopifyRepo.logAction('reconcile', 'error', e.message).catch(() => {});
+    await ImsShopifyRepo.logAction('reconcile', 'error', e.message, session?.businessId ?? '').catch(() => {});
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }

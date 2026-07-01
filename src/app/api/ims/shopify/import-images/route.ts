@@ -34,10 +34,11 @@ export async function POST() {
     }
     const shopify = new ShopifyService(shopName, decrypt(encToken));
 
-    // Get all IMS products that are linked to Shopify
+    // Get all IMS products for this business that are linked to Shopify
     const linked = await imsQuery<{ product_id: string; shopify_product_id: string }>(
       `SELECT product_id, shopify_product_id FROM ims_products
-       WHERE shopify_product_id IS NOT NULL AND is_active = 1`,
+       WHERE shopify_product_id IS NOT NULL AND is_active = 1 AND business_id = ?`,
+      [session.businessId],
     );
     if (!linked.length) {
       return NextResponse.json({ success: true, imported: 0, message: 'No linked products found. Run Reconcile first.' });
@@ -69,7 +70,7 @@ export async function POST() {
     }
 
     await ImsShopifyRepo.logAction('reconcile', 'success',
-      `Imported images for ${imported} products from Shopify`, { imported, skipped });
+      `Imported images for ${imported} products from Shopify`, session.businessId, { imported, skipped });
 
     return NextResponse.json({ success: true, imported, skipped, total: linked.length });
   } catch (e: any) {

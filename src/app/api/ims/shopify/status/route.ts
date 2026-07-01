@@ -15,7 +15,7 @@ export async function GET() {
   try {
     const conn = await ConnectionsRepository.get(session.businessId);
     const connected = !!(conn?.shopify_shop_id && conn?.shopify_access_token);
-    const counts = await ImsShopifyRepo.getCounts();
+    const counts = await ImsShopifyRepo.getCounts(session.businessId);
     return NextResponse.json({
       success: true,
       connected,

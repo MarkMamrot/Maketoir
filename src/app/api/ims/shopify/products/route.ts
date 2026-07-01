@@ -9,9 +9,10 @@ function getSession() {
 }
 
 export async function GET() {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = getSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
-    const products = await ImsShopifyRepo.listWithShopifyStatus();
+    const products = await ImsShopifyRepo.listWithShopifyStatus(session.businessId);
     return NextResponse.json({ success: true, data: products });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
