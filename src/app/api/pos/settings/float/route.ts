@@ -23,7 +23,8 @@ export async function GET() {
   }
   try {
     const adminSession = getAdminSession();
-    const bizId = adminSession?.businessId ?? 'shared';
+    const posSession   = getPosSession();
+    const bizId = adminSession?.businessId ?? posSession?.businessId ?? 'shared';
     const raw = await ConfigRepository.get(bizId, CONFIG_KEY);
     const amount = raw !== null ? parseFloat(raw) : DEFAULT_FLOAT;
     return NextResponse.json({ amount: isNaN(amount) ? DEFAULT_FLOAT : amount });
