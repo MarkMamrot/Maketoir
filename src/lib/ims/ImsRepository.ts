@@ -1941,7 +1941,7 @@ export const ImsStocktakeRepo = {
           varParams.push(data.brand_id);
         }
         if (data.supplier_id) {
-          varWheres.push('p.supplier_id = ?');
+          varWheres.push('p.supplier_contact_id = ?');
           varParams.push(data.supplier_id);
         }
         if (data.product_type) {
@@ -2156,7 +2156,7 @@ export const ImsStocktakeRepo = {
       varParams.push(data.brand_id);
     }
     if (data.supplier_id) {
-      varWheres.push('p.supplier_id = ?');
+      varWheres.push('p.supplier_contact_id = ?');
       varParams.push(data.supplier_id);
     }
     if (data.product_type) {

@@ -2471,6 +2471,18 @@ function ProductsView({ onNavigateToPO, onNavigateToSO }: { onNavigateToPO?: (id
                 </select>
               </Field>
             </Row2>
+            <Field label="Default Supplier">
+              <select
+                value={form.supplier_contact_id ?? ''}
+                onChange={e => setForm((p: any) => ({ ...p, supplier_contact_id: e.target.value ? Number(e.target.value) : null }))}
+                style={inputStyle}
+              >
+                <option value="">— None —</option>
+                {contacts.filter((c: any) => c.type === 'supplier').map((c: any) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </Field>
             <Field label="Description">
               <textarea value={form.description} onChange={sf('description') as any} rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
             </Field>
