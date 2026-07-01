@@ -372,8 +372,7 @@ export const ImsProductsRepo = {
     const where = businessId ? 'WHERE p.business_id = ?' : '';
     const params = businessId ? [businessId] : [];
     const products = await imsQuery<ImsProduct>(
-      `SELECT p.*, c.name AS supplier_name, c.is_active AS supplier_is_active,
-       (SELECT url FROM ims_product_images WHERE product_id = p.product_id COLLATE utf8mb4_general_ci ORDER BY is_primary DESC, sort_order ASC LIMIT 1) AS primary_image_url
+      `SELECT p.*, c.name AS supplier_name, c.is_active AS supplier_is_active
        FROM ims_products p
        LEFT JOIN ims_contacts c ON c.id = p.supplier_contact_id
        ${where}
@@ -436,6 +435,27 @@ export const ImsProductsRepo = {
 
   async delete(productId: string): Promise<void> {
     await imsExecute(`DELETE FROM ims_products WHERE product_id = ?`, [productId]);
+  },
+
+  /** Returns { productId: primaryImageUrl } for all products that have at least one image. */
+  async listPrimaryImages(businessId?: string): Promise<Record<string, string>> {
+    const where = businessId
+      ? 'WHERE p.business_id = ?'
+      : '';
+    const params = businessId ? [businessId] : [];
+    const rows = await imsQuery<{ product_id: string; url: string }>(
+      `SELECT p.product_id,
+         (SELECT url FROM ims_product_images
+          WHERE product_id = p.product_id COLLATE utf8mb4_general_ci
+          ORDER BY is_primary DESC, sort_order ASC LIMIT 1) AS url
+       FROM ims_products p
+       ${where}
+       HAVING url IS NOT NULL`,
+      params,
+    );
+    const map: Record<string, string> = {};
+    for (const r of rows) map[r.product_id] = r.url;
+    return map;
   },
 
   async findByName(name: string): Promise<ImsProduct | null> {

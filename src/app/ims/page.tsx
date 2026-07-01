@@ -1884,6 +1884,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO }: { onNavigateToPO?: (id
   const [activeCurrencies, setActiveCurrencies] = useState<string[]>([]);
   const [stockHistoryModal, setStockHistoryModal] = useState<{ productId: string; productName: string } | null>(null);
   const [showThumbnails, setShowThumbnails] = useState(false);
+  const [primaryImages, setPrimaryImages] = useState<Record<string, string>>({});
   const [importProductsOpen, setImportProductsOpen] = useState(false);
   const [contacts, setContacts] = useState<{ id: number; name: string; type: string }[]>([]);
 
@@ -1925,7 +1926,13 @@ function ProductsView({ onNavigateToPO, onNavigateToSO }: { onNavigateToPO?: (id
     setLoading(true);
     fetch('/api/ims/products').then(r => r.json()).then(d => {
       if (d.success) setProducts(d.data);
-    }).finally(() => setLoading(false));
+    }).finally(() => {
+      setLoading(false);
+      // Load images in the background after the table is rendered
+      fetch('/api/ims/products/primary-images').then(r => r.json()).then(d => {
+        if (d.success) setPrimaryImages(d.data);
+      }).catch(() => {});
+    });
   }, []);
 
   const loadBrands = useCallback(() => {
@@ -2366,8 +2373,8 @@ function ProductsView({ onNavigateToPO, onNavigateToSO }: { onNavigateToPO?: (id
                     <td style={{ padding: '10px 12px', overflow: 'hidden' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
                         {showThumbnails && (
-                          p.primary_image_url
-                            ? <img src={p.primary_image_url} alt="" style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
+                          primaryImages[p.product_id]
+                            ? <img src={primaryImages[p.product_id]} alt="" style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
                             : <div style={{ width: 36, height: 36, borderRadius: 4, flexShrink: 0, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)' }} />
                         )}
                         <strong
