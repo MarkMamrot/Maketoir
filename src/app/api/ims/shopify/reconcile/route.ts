@@ -32,6 +32,7 @@ export async function POST() {
 
     // 1. Fetch all Shopify products
     const shopifyProducts = await shopify.getAllProducts();
+    const shopifyProductCount = shopifyProducts.length;
 
     // 2. Build lookup maps: sku → variant info, barcode → variant info
     const shopifyBySku     = new Map<string, { productId: string; variantId: string; inventoryItemId: string }>();
@@ -78,6 +79,7 @@ export async function POST() {
 
     return NextResponse.json({
       success: true, matched,
+      shopify_products_fetched: shopifyProductCount,
       unmatched_ims: unmatchedIms.length,
       unmatched_shopify: unmatchedShopifyCount,
       unmatched_ims_samples: unmatchedIms.slice(0, 20),

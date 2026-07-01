@@ -167,6 +167,7 @@ function ShopifyOverviewTab({ status, onReload }: { status: any; onReload: () =>
           <div style={{ marginTop: 16, padding: 14, background: 'rgba(16,185,129,.08)', borderRadius: 8, border: '1px solid rgba(16,185,129,.25)', fontSize: 13 }}>
             <strong style={{ color: '#34d399' }}>✓ Reconcile complete</strong>
             <div style={{ marginTop: 6, color: 'var(--sv-text-main)', lineHeight: 1.8 }}>
+              <div>Shopify products fetched: <strong>{reconcileResult.shopify_products_fetched}</strong></div>
               <div>Matched: <strong>{reconcileResult.matched}</strong> variants</div>
               <div>IMS with no Shopify match: <strong>{reconcileResult.unmatched_ims}</strong></div>
               <div>Shopify with no IMS match: <strong>{reconcileResult.unmatched_shopify}</strong></div>

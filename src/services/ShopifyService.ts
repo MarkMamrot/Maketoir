@@ -59,13 +59,20 @@ export class ShopifyService {
   /** Paginated fetch — handles stores with >250 products. */
   async getAllProducts(): Promise<any[]> {
     const products: any[] = [];
-    let params: any = { limit: 250, status: 'any' };
+    let params: any = { limit: 250 };
     while (true) {
-      const page = await (this.shopify.product.list(params) as Promise<any>);
+      const page = await (this.shopify as any).product.list(params) as any;
       products.push(...(page as any[]));
-      const next = (page as any).nextPageParameters as any | undefined;
-      if (!next) break;
-      params = next;
+      // Prefer cursor-based pagination when available (Link header present)
+      const next = page.nextPageParameters as any | undefined;
+      if (next) {
+        params = next;
+      } else if ((page as any[]).length >= 250) {
+        // Fallback: since_id for stores where cursor isn't returned
+        params = { limit: 250, since_id: (page as any[])[(page as any[]).length - 1].id };
+      } else {
+        break;
+      }
     }
     return products;
   }
