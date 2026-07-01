@@ -59,12 +59,13 @@ export class ShopifyService {
   /** Paginated fetch — handles stores with >250 products. */
   async getAllProducts(): Promise<any[]> {
     const products: any[] = [];
-    let params: any = { limit: 250 };
+    let params: any = { limit: 250, status: 'any' };
     while (true) {
-      const page = await (this.shopify.product.list(params) as Promise<any[]>);
-      products.push(...page);
-      if (page.length < 250) break;
-      params = { limit: 250, since_id: page[page.length - 1].id };
+      const page = await (this.shopify.product.list(params) as Promise<any>);
+      products.push(...(page as any[]));
+      const next = (page as any).nextPageParameters as any | undefined;
+      if (!next) break;
+      params = next;
     }
     return products;
   }
@@ -121,19 +122,21 @@ export class ShopifyService {
     // Custom collections
     let params: any = { limit: 250 };
     while (true) {
-      const page: any[] = await (this.shopify as any).customCollection.list(params);
-      page.forEach(c => results.push({ ...c, _type: 'custom' }));
-      if (page.length < 250) break;
-      params = { limit: 250, since_id: page[page.length - 1].id };
+      const page = await (this.shopify as any).customCollection.list(params) as any;
+      (page as any[]).forEach(c => results.push({ ...c, _type: 'custom' }));
+      const next = page.nextPageParameters as any | undefined;
+      if (!next) break;
+      params = next;
     }
 
     // Smart collections
     params = { limit: 250 };
     while (true) {
-      const page: any[] = await (this.shopify as any).smartCollection.list(params);
-      page.forEach(c => results.push({ ...c, _type: 'smart' }));
-      if (page.length < 250) break;
-      params = { limit: 250, since_id: page[page.length - 1].id };
+      const page = await (this.shopify as any).smartCollection.list(params) as any;
+      (page as any[]).forEach(c => results.push({ ...c, _type: 'smart' }));
+      const next = page.nextPageParameters as any | undefined;
+      if (!next) break;
+      params = next;
     }
 
     return results.map(c => ({
