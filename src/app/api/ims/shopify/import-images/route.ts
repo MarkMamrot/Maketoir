@@ -69,7 +69,7 @@ export async function POST() {
       imported++;
     }
 
-    await ImsShopifyRepo.logAction('reconcile', 'success',
+    await ImsShopifyRepo.logAction('upload', 'success',
       `Imported images for ${imported} products from Shopify`, session.businessId, { imported, skipped });
 
     return NextResponse.json({ success: true, imported, skipped, total: linked.length });
