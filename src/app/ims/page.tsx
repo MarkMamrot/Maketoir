@@ -1883,6 +1883,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO }: { onNavigateToPO?: (id
   const [brandPromptSelected, setBrandPromptSelected] = useState('');
   const [activeCurrencies, setActiveCurrencies] = useState<string[]>([]);
   const [stockHistoryModal, setStockHistoryModal] = useState<{ productId: string; productName: string } | null>(null);
+  const [showThumbnails, setShowThumbnails] = useState(false);
   const [importProductsOpen, setImportProductsOpen] = useState(false);
   const [contacts, setContacts] = useState<{ id: number; name: string; type: string }[]>([]);
 
@@ -2277,6 +2278,11 @@ function ProductsView({ onNavigateToPO, onNavigateToSO }: { onNavigateToPO?: (id
         {(filter || filterBrand || filterSupplier || filterType || filterActive !== 'all') && (
           <button onClick={() => { setFilter(''); setFilterBrand(''); setFilterSupplier(''); setFilterType(''); setFilterActive('all'); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
         )}
+        <button
+          onClick={() => setShowThumbnails(v => !v)}
+          title={showThumbnails ? 'Hide product photos' : 'Show product photos'}
+          style={{ flexShrink: 0, padding: '5px 10px', borderRadius: 6, border: `1px solid ${showThumbnails ? 'var(--sv-action)' : 'var(--sv-etch)'}`, background: showThumbnails ? 'color-mix(in srgb, var(--sv-action) 12%, transparent)' : 'transparent', color: showThumbnails ? 'var(--sv-action)' : 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}
+        >🖼 Photos</button>
       </div>
 
       {/* ── Bulk actions bar ── */}
@@ -2357,13 +2363,20 @@ function ProductsView({ onNavigateToPO, onNavigateToSO }: { onNavigateToPO?: (id
                     <td style={{ padding: '10px 8px' }}>
                       <input type="checkbox" checked={selected.has(p.product_id)} onChange={() => toggleSelect(p.product_id)} style={{ cursor: 'pointer' }} />
                     </td>
-                    <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <strong
-                        onClick={() => openEdit(p)}
-                        style={{ color: 'var(--sv-text-strong)', cursor: 'pointer' }}
-                        onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
-                        onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
-                      >{p.name}</strong>
+                    <td style={{ padding: '10px 12px', overflow: 'hidden' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
+                        {showThumbnails && (
+                          p.primary_image_url
+                            ? <img src={p.primary_image_url} alt="" style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
+                            : <div style={{ width: 36, height: 36, borderRadius: 4, flexShrink: 0, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)' }} />
+                        )}
+                        <strong
+                          onClick={() => openEdit(p)}
+                          style={{ color: 'var(--sv-text-strong)', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}
+                          onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
+                          onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
+                        >{p.name}</strong>
+                      </div>
                     </td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.product_type || '—'}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.brand || '—'}</td>

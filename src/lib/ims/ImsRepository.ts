@@ -372,7 +372,8 @@ export const ImsProductsRepo = {
     const where = businessId ? 'WHERE p.business_id = ?' : '';
     const params = businessId ? [businessId] : [];
     const products = await imsQuery<ImsProduct>(
-      `SELECT p.*, c.name AS supplier_name, c.is_active AS supplier_is_active
+      `SELECT p.*, c.name AS supplier_name, c.is_active AS supplier_is_active,
+       (SELECT url FROM ims_product_images WHERE product_id = p.product_id COLLATE utf8mb4_general_ci ORDER BY is_primary DESC, sort_order ASC LIMIT 1) AS primary_image_url
        FROM ims_products p
        LEFT JOIN ims_contacts c ON c.id = p.supplier_contact_id
        ${where}
