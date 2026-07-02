@@ -3277,6 +3277,8 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
   const [payTerms, setPayTerms] = React.useState('');
   const [overrides, setOverrides] = React.useState<Record<number, string>>({});
   const [skipped, setSkipped] = React.useState<Set<number>>(new Set());
+  const [aiMatchLoading, setAiMatchLoading] = React.useState(false);
+  const [aiMatchError, setAiMatchError] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const isPo = !!poId;
 
@@ -3313,6 +3315,8 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
   function confidenceSt(c: string): React.CSSProperties {
     if (c === 'exact_sku' || c === 'exact_barcode') return { color: 'var(--sv-mint)', fontSize: 11, fontWeight: 600 };
     if (c === 'fuzzy_name' || c === 'manual') return { color: '#f59e0b', fontSize: 11, fontWeight: 600 };
+    if (c === 'ai_high') return { color: '#818cf8', fontSize: 11, fontWeight: 600 };
+    if (c === 'ai_match') return { color: '#a78bfa', fontSize: 11, fontWeight: 600 };
     return { color: 'var(--sv-red)', fontSize: 11, fontWeight: 600 };
   }
 
@@ -3337,6 +3341,59 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
     }
     onPreFillReceive(qtys);
     onClose();
+  }
+
+  async function runAiMatching() {
+    if (!supplierId || !result) return;
+    setAiMatchLoading(true);
+    setAiMatchError(null);
+    try {
+      // Only send lines that aren't already exactly matched
+      const linesToSend = result.line_results
+        .map((lr, i) => ({ ...lr.invoice_line, index: i }))
+        .filter((_, i) => {
+          const conf = result.line_results[i].match?.confidence;
+          return conf !== 'exact_sku' && conf !== 'exact_barcode';
+        });
+      const res = await fetch('/api/ims/ai/match-invoice-lines', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invoice_lines: linesToSend, supplier_id: supplierId }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) { setAiMatchError(json.error ?? 'AI matching failed'); return; }
+
+      // Merge AI matches into result — only override non-exact, non-manual lines
+      setResult(prev => {
+        if (!prev) return prev;
+        const newLines = prev.line_results.map((lr, i) => {
+          const aiM = (json.matches as any[]).find(m => m.invoice_index === i);
+          if (!aiM?.variant_id) return lr;
+          const existingConf = lr.match?.confidence ?? 'none';
+          if (existingConf === 'exact_sku' || existingConf === 'exact_barcode') return lr;
+          if (i in overrides) return lr; // user has manually set this line
+          if (aiM.confidence === 'low') return lr; // skip low-confidence AI matches
+          const imsV = variants.find((v: any) => v.variant_id === aiM.variant_id);
+          return {
+            ...lr,
+            match: {
+              variant_id:    aiM.variant_id,
+              sku:           imsV?.sku           ?? null,
+              product_name:  imsV?.product_name  ?? null,
+              variant_label: imsV?.variant_label ?? null,
+              cost_aud:      imsV?.cost_aud      ?? null,
+              confidence:    aiM.confidence === 'high' ? 'ai_high' : 'ai_match',
+              method:        'AI second pass',
+            },
+          };
+        });
+        return { ...prev, line_results: newLines };
+      });
+    } catch (e: any) {
+      setAiMatchError(e.message ?? 'AI matching failed');
+    } finally {
+      setAiMatchLoading(false);
+    }
   }
 
   const thSt: React.CSSProperties = { padding: '6px 8px', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-muted)', borderBottom: '1px solid var(--sv-border)', whiteSpace: 'nowrap' };
@@ -3429,7 +3486,12 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
   const importableCount = result.line_results.filter((lr, i) => !skipped.has(i) && getVid(i, lr) !== null).length;
   const exactN = result.line_results.filter(lr => lr.match?.confidence === 'exact_sku' || lr.match?.confidence === 'exact_barcode').length;
   const fuzzyN = result.line_results.filter(lr => lr.match?.confidence === 'fuzzy_name').length;
+  const aiN    = result.line_results.filter(lr => lr.match?.confidence === 'ai_high' || lr.match?.confidence === 'ai_match').length;
   const noneN  = result.line_results.filter(lr => !lr.match).length;
+  const totalN = result.line_results.length;
+  const matchedN = exactN + fuzzyN + aiN;
+  const matchRate = totalN > 0 ? matchedN / totalN : 1;
+  const showAiBanner = matchRate < 0.7 && !aiMatchLoading;
 
   return (
     <Modal title="Review Parsed Invoice" onClose={onClose} wide>
@@ -3449,9 +3511,31 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
       <div style={{ display: 'flex', gap: 16, fontSize: 12, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>✓ {exactN} exact</span>
         {fuzzyN > 0 && <span style={{ color: '#f59e0b', fontWeight: 600 }}>~ {fuzzyN} fuzzy</span>}
+        {aiN   > 0 && <span style={{ color: '#818cf8', fontWeight: 600 }}>🤖 {aiN} AI</span>}
         {noneN  > 0 && <span style={{ color: 'var(--sv-red)', fontWeight: 600 }}>✗ {noneN} unmatched</span>}
         <span style={{ marginLeft: 'auto', color: 'var(--sv-text-muted)' }}>Invoice total: {fmt$(result.invoice.total_amount)}</span>
       </div>
+
+      {/* Second-pass AI banner */}
+      {showAiBanner && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, padding: '10px 14px', background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.3)', borderRadius: 8 }}>
+          <span style={{ fontSize: 18 }}>🤖</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#f59e0b' }}>Only {Math.round(matchRate * 100)}% matched — want to try a second AI pass?</div>
+            <div style={{ fontSize: 12, color: 'var(--sv-text-muted)' }}>
+              {supplierId ? 'AI will compare each unmatched invoice line against all products for this supplier.' : 'Select a supplier above first so AI knows which products to search.'}
+            </div>
+            {aiMatchError && <div style={{ fontSize: 12, color: 'var(--sv-red)', marginTop: 4 }}>{aiMatchError}</div>}
+          </div>
+          <button
+            onClick={runAiMatching}
+            disabled={!supplierId || aiMatchLoading}
+            style={{ padding: '7px 16px', background: supplierId ? '#f59e0b' : 'var(--sv-border)', color: supplierId ? '#fff' : 'var(--sv-text-muted)', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: supplierId ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap' }}
+          >
+            {aiMatchLoading ? 'Matching…' : 'Try AI Matching'}
+          </button>
+        </div>
+      )}
 
       {/* Lines table */}
       <div style={{ overflowX: 'auto', marginBottom: 14 }}>
@@ -3473,7 +3557,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
               const effectiveVid = getVid(i, lr);
               const hasOverride = i in overrides;
               const conf = hasOverride ? (overrides[i] ? 'manual' : 'skipped') : (lr.match?.confidence ?? 'none');
-              const confLabel = conf === 'exact_sku' ? '✓ SKU' : conf === 'exact_barcode' ? '✓ Barcode' : conf === 'fuzzy_name' ? '~ Name' : conf === 'manual' ? '✎ Manual' : '✗ None';
+              const confLabel = conf === 'exact_sku' ? '✓ SKU' : conf === 'exact_barcode' ? '✓ Barcode' : conf === 'fuzzy_name' ? '~ Name' : conf === 'manual' ? '✎ Manual' : conf === 'ai_high' ? '🤖 AI' : conf === 'ai_match' ? '🤖 AI~' : '✗ None';
               const imsV = effectiveVid ? variants.find((v: any) => v.variant_id === effectiveVid) : null;
               const imsLabel = imsV ? `${imsV.product_name}${imsV.variant_label ? ' · ' + imsV.variant_label : ''} (${imsV.sku ?? ''})` : (lr.match && !hasOverride) ? `${lr.match.product_name ?? ''}${lr.match.variant_label ? ' · ' + lr.match.variant_label : ''} (${lr.match.sku ?? ''})` : null;
               return (
@@ -11019,7 +11103,7 @@ function BranchTransfersView() {
   const selectVariant = (i: number, variant_id: string) => {
     const v = variants.find((v: any) => v.variant_id === variant_id);
     setLineItems(p => p.map((item, j) => j === i
-      ? { ...item, variant_id, unit_cost_aud: v?.cost ?? 0 }
+      ? { ...item, variant_id, unit_cost: v?.cost_aud ?? 0 }
       : item));
   };
 
