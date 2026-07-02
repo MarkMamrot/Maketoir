@@ -1847,16 +1847,49 @@ export const ImsDashboardRepo = {
        FROM ims_stock
        ${businessId ? 'WHERE business_id = ?' : ''}`, p
     );
-    const openRegisters = await imsQuery<{ register_name: string; location_name: string; opened_at: string; opened_by: string; session_date: string }>(
-      `SELECT pr.name AS register_name, l.name AS location_name,
-              prs.opened_at, prs.opened_by, prs.session_date
+    const tz = process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney';
+    const todayAEST = new Date().toLocaleDateString('sv-SE', { timeZone: tz });
+
+    const posRegisters = await imsQuery<{
+      id: number; register_name: string; location_name: string; status: string;
+      opened_at: string; opened_by: string | null; opening_float: string | null;
+      closed_at: string | null; closed_by: string | null;
+    }>(
+      `SELECT prs.id, pr.name AS register_name, l.name AS location_name,
+              prs.status, prs.opened_at, prs.opened_by, prs.opening_float,
+              prs.closed_at, prs.closed_by
        FROM pos_register_sessions prs
        JOIN pos_registers pr ON pr.id = prs.register_id
        JOIN ims_locations l ON l.id = prs.location_id
-       WHERE prs.status = 'open'
+       WHERE prs.session_date = ?
        ${businessId ? 'AND l.business_id = ?' : ''}
-       ORDER BY prs.opened_at ASC`, p
+       ORDER BY l.name, prs.opened_at ASC`,
+      businessId ? [todayAEST, businessId] : [todayAEST]
     );
+
+    // Fetch EOD close totals per payment type for each session
+    const sessionIds = posRegisters.map(s => s.id);
+    let reconRows: { register_session_id: number; payment_method: string; counted_amount: string }[] = [];
+    if (sessionIds.length > 0) {
+      reconRows = await imsQuery<{ register_session_id: number; payment_method: string; counted_amount: string }>(
+        `SELECT register_session_id, payment_method, counted_amount
+         FROM pos_eod_reconciliations
+         WHERE register_session_id IN (${sessionIds.map(() => '?').join(',')})
+           AND counted_amount IS NOT NULL
+         ORDER BY register_session_id, payment_method`,
+        sessionIds
+      );
+    }
+    // Group reconciliation rows by session id
+    const reconBySession = new Map<number, { payment_method: string; counted_amount: string }[]>();
+    for (const r of reconRows) {
+      if (!reconBySession.has(r.register_session_id)) reconBySession.set(r.register_session_id, []);
+      reconBySession.get(r.register_session_id)!.push({ payment_method: r.payment_method, counted_amount: r.counted_amount });
+    }
+    const posRegistersWithTotals = posRegisters.map(s => ({
+      ...s,
+      close_totals: reconBySession.get(s.id) ?? [],
+    }));
     const recentPOs = await imsQuery<ImsPO>(
       `SELECT po.*, COALESCE(c.name, po.supplier_name_raw) AS supplier_name, l.name AS location_name
        FROM ims_purchase_orders po
@@ -1882,7 +1915,8 @@ export const ImsDashboardRepo = {
       lowStock:       lowStock?.cnt  ?? 0,
       stockValue:     Number(soh?.stock_value     ?? 0),
       stockItemCount: Number(soh?.stock_item_count ?? 0),
-      openRegisters,
+      openRegisters:  posRegistersWithTotals.filter(r => r.status === 'open'),
+      posRegisters:   posRegistersWithTotals,
       recentPOs,
       recentSOs,
     };

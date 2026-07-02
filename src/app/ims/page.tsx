@@ -506,37 +506,69 @@ function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
             ))}
           </div>
 
-          {/* Open Registers */}
+          {/* POS Registers */}
           <div style={{ marginTop: 24, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
             <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--sv-etch)', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: (data?.openRegisters ?? []).length > 0 ? 'var(--sv-mint)' : 'var(--sv-text-dim)' }} />
-              Open Registers
+              POS Registers
               {(data?.openRegisters ?? []).length > 0 && (
-                <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--sv-text-dim)', marginLeft: 4 }}>{data.openRegisters.length} open</span>
+                <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--sv-mint)', marginLeft: 4 }}>{data.openRegisters.length} open</span>
+              )}
+              {(data?.posRegisters ?? []).length > 0 && (
+                <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--sv-text-dim)', marginLeft: 2 }}>· {(data.posRegisters as any[]).filter((r: any) => r.status === 'closed').length} closed today</span>
               )}
             </div>
-            {(data?.openRegisters ?? []).length === 0 ? (
-              <div style={{ padding: 20, color: 'var(--sv-text-dim)', fontSize: 13 }}>No registers currently open.</div>
+            {!(data?.posRegisters ?? []).length ? (
+              <div style={{ padding: 20, color: 'var(--sv-text-dim)', fontSize: 13 }}>No register sessions today.</div>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr>
-                    {['Register', 'Location', 'Opened At', 'Opened By'].map(h => (
-                      <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: .8 }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(data.openRegisters as any[]).map((r, i) => (
-                    <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                      <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)', fontWeight: 600 }}>{r.register_name}</td>
-                      <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{r.location_name}</td>
-                      <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{r.opened_at ? new Date(r.opened_at).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' }) : '—'}</td>
-                      <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{r.opened_by || '—'}</td>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+                  <thead>
+                    <tr>
+                      {['Register', 'Location', 'Status', 'Opened', 'Opened By', 'Float', 'Closed', 'Closed By', 'Close Totals'].map(h => (
+                        <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: .8, whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {(data.posRegisters as any[]).map((r: any, i: number) => {
+                      const fmtDt = (v: string | null) => v ? new Date(v.includes('T') ? v : v.replace(' ', 'T') + 'Z').toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+                      const isOpen = r.status === 'open';
+                      const totals: { payment_method: string; counted_amount: string }[] = r.close_totals ?? [];
+                      return (
+                        <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)', opacity: isOpen ? 1 : 0.8 }}>
+                          <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)', fontWeight: 600 }}>{r.register_name}</td>
+                          <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{r.location_name}</td>
+                          <td style={{ padding: '8px 12px' }}>
+                            <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 700,
+                              background: isOpen ? 'rgba(16,185,129,.15)' : 'rgba(255,255,255,.07)',
+                              color: isOpen ? 'var(--sv-mint)' : 'var(--sv-text-dim)' }}>
+                              {isOpen ? '● Open' : 'Closed'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{fmtDt(r.opened_at)}</td>
+                          <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{r.opened_by || '—'}</td>
+                          <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)', whiteSpace: 'nowrap' }}>{r.opening_float != null ? fmtCurrency(Number(r.opening_float)) : '—'}</td>
+                          <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{isOpen ? '—' : fmtDt(r.closed_at)}</td>
+                          <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{isOpen ? '—' : (r.closed_by || '—')}</td>
+                          <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--sv-text-main)' }}>
+                            {totals.length === 0 ? <span style={{ color: 'var(--sv-text-dim)' }}>—</span> : (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 10px' }}>
+                                {totals.map(t => (
+                                  <span key={t.payment_method} style={{ whiteSpace: 'nowrap' }}>
+                                    <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>{t.payment_method}: </span>
+                                    <span style={{ fontWeight: 600 }}>{fmtCurrency(Number(t.counted_amount))}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
 
@@ -623,7 +655,7 @@ function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
                               <g key={ch}>
                                 <rect x={x} y={y} width={barW} height={h} fill={CH_COLOR[ch]} rx="3" opacity="0.85" />
                                 {h>24 && barW>14 && (
-                                  <text x={x+barW/2} y={y-5} textAnchor="middle" fontSize="9" fill="currentColor" fillOpacity="0.55">{fmtY(v)}</text>
+                                  <text x={x+barW/2} y={y-5} textAnchor="middle" fontSize="9" fill="currentColor" fillOpacity="0.55">{fmtCurrency(v)}</text>
                                 )}
                                 <title>{`${CH_LABEL[ch]} — ${loc}\n${fmtCurrency(v)} · ${getOrd(ch,loc)} orders`}</title>
                               </g>
