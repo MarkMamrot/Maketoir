@@ -229,12 +229,18 @@ export async function POST(req: Request) {
     }
 
     if (locationId) {
-      const affected = await imsExecute(
-        `UPDATE ims_stock SET ${sets.join(', ')} WHERE variant_id = ? AND location_id = ?`,
-        [...vals, variantId, locationId],
+      // Upsert: if the stock row doesn't exist yet, create it with qty_on_hand = 0 and set the
+      // min/reorder values. COALESCE keeps the existing value when only one field is in the CSV.
+      await imsExecute(
+        `INSERT INTO ims_stock (variant_id, location_id, min_qty, reorder_qty)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           min_qty     = COALESCE(VALUES(min_qty),     min_qty),
+           reorder_qty = COALESCE(VALUES(reorder_qty), reorder_qty),
+           updated_at  = CURRENT_TIMESTAMP`,
+        [variantId, locationId, minQty ?? null, reorderQty ?? null],
       );
-      if (affected.affectedRows > 0) updated++;
-      else notFoundRows.push({ code: sku, barcode: csvBarcode ?? '', reason: 'no_stock_row_for_location', ...info });
+      updated++;
     } else {
       // Apply to all existing locations for this variant
       const affected = await imsExecute(
