@@ -16,6 +16,7 @@ export interface ReplenishItem {
   variant_label: string | null;
   need: number;
   min_qty: number;
+  reorder_qty: number;
   branch_soh: number;
   warehouse_soh: number;
   allocated: number;
@@ -118,7 +119,7 @@ export async function POST(req: Request) {
   const warehouseMap = new Map(warehouseStockRaw.map(r => [r.variant_id, r]));
 
   // ── 4. Build needs map: variant_id → { branch_id → need } ──
-  type BranchNeed = { location_id: number; location_name: string; need: number; min_qty: number; branch_soh: number; unit_cost: number; sku: string | null; brand_name: string | null; product_name: string; variant_label: string | null };
+  type BranchNeed = { location_id: number; location_name: string; need: number; min_qty: number; reorder_qty: number; branch_soh: number; unit_cost: number; sku: string | null; brand_name: string | null; product_name: string; variant_label: string | null };
   const needsByVariant = new Map<string, BranchNeed[]>();
 
   for (const row of branchNeedsRaw) {
@@ -137,6 +138,7 @@ export async function POST(req: Request) {
       location_name: row.location_name,
       need,
       min_qty,
+      reorder_qty: Number(row.reorder_qty),
       branch_soh: Number(row.qty_on_hand),
       unit_cost: unitCost,
       sku: row.sku,
@@ -224,6 +226,7 @@ export async function POST(req: Request) {
         variant_label: bn.variant_label,
         need: bn.need,
         min_qty: bn.min_qty,
+        reorder_qty: bn.reorder_qty,
         branch_soh: bn.branch_soh,
         warehouse_soh,
         allocated,

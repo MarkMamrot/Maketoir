@@ -10960,6 +10960,9 @@ function BranchTransfersView() {
   const [rpCreating, setRpCreating]   = useState(false);
   const [rpCreateResults, setRpCreateResults] = useState<string[]>([]);
   const [rpHideZeroWh, setRpHideZeroWh] = useState(true);
+  const [showMinCols, setShowMinCols]   = useState(false);
+  const [minQtyEdits, setMinQtyEdits]   = useState<Record<string, { min_qty: number; reorder_qty: number }>>({});
+  const [savingMinQtys, setSavingMinQtys] = useState(false);
   const [btPrintId, setBtPrintId]     = useState<number | null>(null);
 
   const openReplenish = () => {
@@ -11033,6 +11036,32 @@ function BranchTransfersView() {
       ...b,
       items: b.items.map((it, ii) => ii !== itemIdx ? it : { ...it, allocated: Math.max(0, Math.min(val, it.warehouse_soh)) }),
     }));
+  };
+
+  const saveMinQtyEdits = async () => {
+    const entries = Object.entries(minQtyEdits);
+    if (!entries.length) return;
+    setSavingMinQtys(true);
+    try {
+      await Promise.all(entries.map(([key, vals]) => {
+        const [locationId, variantId] = key.split(':');
+        return fetch('/api/ims/stock', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ variant_id: variantId, location_id: Number(locationId), min_qty: vals.min_qty, reorder_qty: vals.reorder_qty }),
+        });
+      }));
+      // Reflect saved values back into rpPlan so display is consistent
+      setRpPlan(prev => prev.map(branch => ({
+        ...branch,
+        items: branch.items.map(item => {
+          const e = minQtyEdits[`${branch.location_id}:${item.variant_id}`];
+          return e ? { ...item, min_qty: e.min_qty, reorder_qty: e.reorder_qty } : item;
+        }),
+      })));
+      setMinQtyEdits({});
+    } catch (e: any) { alert('Save failed: ' + e.message); }
+    finally { setSavingMinQtys(false); }
   };
 
   const createDraftTransfers = async () => {
@@ -11506,7 +11535,7 @@ function BranchTransfersView() {
 
       {/* ── Replenish Wizard Modal ─────────────────────────────────────────── */}
       {rpOpen && (
-        <Modal title={rpStep === 1 ? 'Replenish Stores from Warehouse' : 'Review Allocation'} onClose={() => setRpOpen(false)} width={rpStep === 2 ? 900 : 560}>
+        <Modal title={rpStep === 1 ? 'Replenish Stores from Warehouse' : 'Review Allocation'} onClose={() => setRpOpen(false)} width={rpStep === 2 ? (showMinCols ? 1150 : 900) : 560}>
           {rpStep === 1 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
@@ -11690,6 +11719,19 @@ function BranchTransfersView() {
                               <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, whiteSpace: 'nowrap' }}>Need</th>
                               <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, whiteSpace: 'nowrap' }}>WH Stock</th>
                               <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, whiteSpace: 'nowrap' }}>Allocate</th>
+                              {showMinCols ? (
+                                <>
+                                  <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, whiteSpace: 'nowrap', borderLeft: '2px solid var(--sv-accent)', color: 'var(--sv-accent)' }}>Min Qty ✎</th>
+                                  <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, whiteSpace: 'nowrap', color: 'var(--sv-accent)' }}>Reorder Qty ✎</th>
+                                  <th style={{ padding: '4px 6px' }}>
+                                    <button onClick={() => { setShowMinCols(false); setMinQtyEdits({}); }} title="Collapse" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--sv-text-muted)', padding: '2px 4px' }}>✕</button>
+                                  </th>
+                                </>
+                              ) : (
+                                <th style={{ padding: '4px 6px', borderLeft: '2px solid var(--sv-etch)' }}>
+                                  <button onClick={() => setShowMinCols(true)} title="Edit Min/Reorder Qty" style={{ background: 'none', border: '1px solid var(--sv-border)', borderRadius: 4, cursor: 'pointer', fontSize: 11, color: 'var(--sv-text-muted)', padding: '3px 7px', whiteSpace: 'nowrap' }}>✎ Min/Reorder</button>
+                                </th>
+                              )}
                             </tr>
                           </thead>
                           <tbody>
@@ -11722,6 +11764,29 @@ function BranchTransfersView() {
                                       />
                                     )}
                                   </td>
+                                  {showMinCols && (() => {
+                                    const editKey = `${branch.location_id}:${item.variant_id}`;
+                                    const edited = minQtyEdits[editKey];
+                                    const curMin    = edited?.min_qty     ?? item.min_qty;
+                                    const curReorder = edited?.reorder_qty ?? item.reorder_qty;
+                                    const isDirty = !!edited;
+                                    const inpSt: React.CSSProperties = { ...inputStyle, width: 68, textAlign: 'right', fontSize: 12, padding: '3px 5px', marginBottom: 0, borderColor: isDirty ? 'var(--sv-accent)' : undefined };
+                                    return (
+                                      <>
+                                        <td style={{ textAlign: 'right', padding: '4px 6px', borderLeft: '2px solid var(--sv-accent)' }}>
+                                          <input type="number" min={0} value={curMin}
+                                            onChange={e => setMinQtyEdits(p => ({ ...p, [editKey]: { min_qty: Number(e.target.value), reorder_qty: p[editKey]?.reorder_qty ?? item.reorder_qty } }))}
+                                            style={inpSt} />
+                                        </td>
+                                        <td style={{ textAlign: 'right', padding: '4px 6px' }}>
+                                          <input type="number" min={0} value={curReorder}
+                                            onChange={e => setMinQtyEdits(p => ({ ...p, [editKey]: { min_qty: p[editKey]?.min_qty ?? item.min_qty, reorder_qty: Number(e.target.value) } }))}
+                                            style={inpSt} />
+                                        </td>
+                                        <td style={{ padding: '4px 4px' }} />
+                                      </>
+                                    );
+                                  })()}
                                 </tr>
                               );
                             })}
@@ -11734,6 +11799,12 @@ function BranchTransfersView() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, paddingTop: 14, borderTop: '1px solid var(--sv-etch)', marginTop: 4 }}>
                     <button type="button" onClick={() => setRpStep(1)} style={btnStyle('ghost')}>← Back</button>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      {showMinCols && Object.keys(minQtyEdits).length > 0 && (
+                        <button type="button" onClick={saveMinQtyEdits} disabled={savingMinQtys}
+                          style={{ ...btnStyle('action'), background: 'var(--sv-accent)', opacity: savingMinQtys ? 0.7 : 1 }}>
+                          {savingMinQtys ? 'Saving…' : `Save Min/Reorder (${Object.keys(minQtyEdits).length})`}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => setRpHideZeroWh(v => !v)}

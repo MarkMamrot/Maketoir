@@ -65,7 +65,9 @@ function findCol(row: string[], ...names: string[]): number {
  *   OptimumStockQty → reorder_qty (target/optimum stock level)
  */
 export async function POST(req: Request) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = getSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const businessId: string = session.businessId ?? '';
 
   let csvText: string;
   let locationIdOverride: number | null = null;
@@ -232,13 +234,13 @@ export async function POST(req: Request) {
       // Upsert: if the stock row doesn't exist yet, create it with qty_on_hand = 0 and set the
       // min/reorder values. COALESCE keeps the existing value when only one field is in the CSV.
       await imsExecute(
-        `INSERT INTO ims_stock (variant_id, location_id, min_qty, reorder_qty)
-         VALUES (?, ?, ?, ?)
+        `INSERT INTO ims_stock (business_id, variant_id, location_id, min_qty, reorder_qty)
+         VALUES (?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            min_qty     = COALESCE(VALUES(min_qty),     min_qty),
            reorder_qty = COALESCE(VALUES(reorder_qty), reorder_qty),
            updated_at  = CURRENT_TIMESTAMP`,
-        [variantId, locationId, minQty ?? null, reorderQty ?? null],
+        [businessId, variantId, locationId, minQty ?? null, reorderQty ?? null],
       );
       updated++;
     } else {
