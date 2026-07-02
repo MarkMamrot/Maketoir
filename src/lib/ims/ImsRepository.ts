@@ -2443,7 +2443,7 @@ export const ImsBTRepo = {
       if (!allowed[from]?.includes(finalStatus)) throw new Error(`Cannot transition from ${from} to ${finalStatus}`);
 
       // draft → sent: commit stock at source so it can't be oversold or re-sent.
-      if (from === 'draft' && to === 'sent') {
+      if (from === 'draft' && newStatus === 'sent') {
         for (const item of items) {
           const qtySent = Number(item.qty_sent);
           if (qtySent <= 0) continue;
@@ -2457,7 +2457,7 @@ export const ImsBTRepo = {
       }
 
       // sent → cancelled: release committed stock at source.
-      if (to === 'cancelled' && from === 'sent') {
+      if (newStatus === 'cancelled' && from === 'sent') {
         for (const item of items) {
           await conn.execute(
             `UPDATE ims_stock SET qty_committed = GREATEST(0, qty_committed - ?)

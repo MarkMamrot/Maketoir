@@ -4,9 +4,9 @@ import { ImsBTRepo } from '@/lib/ims/ImsRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 
 function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
+  const raw = cookies().get('marketoir_session')?.value ?? cookies().get('pos_session')?.value;
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
 }
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
