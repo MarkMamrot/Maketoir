@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { PosEodRepo, PosRegistersRepo } from '@/lib/db/PosRepository';
+import { PosEodRepo } from '@/lib/db/PosRepository';
 import { ConfigRepository } from '@/lib/db/ConfigRepository';
 import { triggerEodXeroSync } from '@/services/XeroSyncService';
 import { imsQuery } from '@/services/IMSMySQLService';
@@ -32,15 +32,9 @@ export async function GET(req: Request) {
   const adminSession = adminRaw ? (() => { try { return JSON.parse(adminRaw); } catch { return null; } })() : null;
   const bizId = adminSession?.businessId ?? session?.businessId ?? 'shared';
 
-  // Get default_float: prefer per-register setting, fall back to global config
-  let default_float = 0;
-  if (registerId) {
-    const reg = await PosRegistersRepo.get(registerId).catch(() => null);
-    if (reg) default_float = reg.default_float;
-  } else {
-    const floatRaw = await ConfigRepository.get(bizId, 'POS_DefaultFloat').catch(() => null);
-    if (floatRaw !== null) default_float = parseFloat(floatRaw) || 0;
-  }
+  // Always use the business-wide float default from global config
+  const floatRaw = await ConfigRepository.get(bizId, 'POS_DefaultFloat').catch(() => null);
+  const default_float = floatRaw !== null ? (parseFloat(floatRaw) || 0) : 0;
 
   // When a register session is supplied, reconcile by SESSION (open→close window),
   // which correctly handles shifts crossing midnight / registers left open overnight.

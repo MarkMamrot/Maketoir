@@ -2030,7 +2030,7 @@ function MainPos({
 // ─── POS Avatar Leaderboard Bar ───────────────────────────────────────────────
 
 interface LeaderboardEntry { id: number; name: string; today_sales: number; is_open: boolean; avatar: string; }
-interface ChatMessage { id: number; location_id: number; location_name: string; user_name: string; avatar: string; message: string; created_at: string; }
+interface ChatMessage { id: number; location_id: number; location_name: string; user_name: string; avatar: string; message: string; to_location_id?: number | null; created_at: string; }
 
 const OVERTAKE_SAYINGS = [
   "Eat my dust, {other}! 💨",
@@ -2194,6 +2194,15 @@ function PosAvatarBar({
   const lastReadRef = useRef<number>(0);
   const listRef     = useRef<HTMLDivElement>(null);
 
+  // ── DM state ─────────────────────────────────────────────────────────────────
+  const [dmOpen,     setDmOpen]     = useState<number | null>(null);
+  const [dmMessages, setDmMessages] = useState<Record<number, ChatMessage[]>>({});
+  const [dmInput,    setDmInput]    = useState('');
+  const [dmSending,  setDmSending]  = useState(false);
+  const [dmUnread,   setDmUnread]   = useState<Record<number, number>>({});
+  const dmLastReadRef = useRef<Record<number, number>>({});
+  const dmListRef     = useRef<HTMLDivElement>(null);
+
   // ── Helpers ─────────────────────────────────────────────────────────────────
   function showBubble(type: 'thought' | 'speech', text: string) {
     if (bubbleTimerRef.current) clearTimeout(bubbleTimerRef.current);
@@ -2236,6 +2245,9 @@ function PosAvatarBar({
   function loadLastRead()  { try { return parseInt(localStorage.getItem('pos_chat_last_read') ?? '0', 10) || 0; } catch { return 0; } }
   function saveLastRead(id: number) { try { localStorage.setItem('pos_chat_last_read', String(id)); } catch {} lastReadRef.current = id; }
 
+  function loadDmLastRead(partnerId: number)  { try { return parseInt(localStorage.getItem(`pos_dm_last_read_${partnerId}`) ?? '0', 10) || 0; } catch { return 0; } }
+  function saveDmLastRead(partnerId: number, id: number) { try { localStorage.setItem(`pos_dm_last_read_${partnerId}`, String(id)); } catch {} dmLastReadRef.current = { ...dmLastReadRef.current, [partnerId]: id }; }
+
   function fetchMessages() {
     fetch('/api/pos/chat')
       .then(r => r.json())
@@ -2257,6 +2269,36 @@ function PosAvatarBar({
       setChatInput('');
       fetchMessages();
     } catch {} finally { setSending(false); }
+  }
+
+  async function openDm(partnerId: number) {
+    setChatOpen(false);
+    setDmOpen(partnerId);
+    setDmInput('');
+    const res = await fetch(`/api/pos/chat?type=dm&to=${partnerId}`).then(r => r.json()).catch(() => ({ messages: [] }));
+    const msgs: ChatMessage[] = res.messages ?? [];
+    setDmMessages(prev => ({ ...prev, [partnerId]: msgs }));
+    if (msgs.length > 0) {
+      const maxId = Math.max(...msgs.map(m => m.id));
+      saveDmLastRead(partnerId, maxId);
+      setDmUnread(prev => ({ ...prev, [partnerId]: 0 }));
+    }
+    setTimeout(() => { if (dmListRef.current) dmListRef.current.scrollTop = dmListRef.current.scrollHeight; }, 80);
+  }
+
+  async function sendDm() {
+    if (!dmInput.trim() || dmSending || dmOpen === null) return;
+    setDmSending(true);
+    try {
+      await fetch('/api/pos/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: dmInput.trim(), avatar: myAvatar, to_location_id: dmOpen }) });
+      setDmInput('');
+      // Reload DM messages
+      const res = await fetch(`/api/pos/chat?type=dm&to=${dmOpen}`).then(r => r.json()).catch(() => ({ messages: [] }));
+      const msgs: ChatMessage[] = res.messages ?? [];
+      setDmMessages(prev => ({ ...prev, [dmOpen!]: msgs }));
+      if (msgs.length > 0) { const maxId = Math.max(...msgs.map(m => m.id)); saveDmLastRead(dmOpen, maxId); setDmUnread(prev => ({ ...prev, [dmOpen!]: 0 })); }
+      setTimeout(() => { if (dmListRef.current) dmListRef.current.scrollTop = dmListRef.current.scrollHeight; }, 80);
+    } catch {} finally { setDmSending(false); }
   }
 
   function relTime(iso: string) {
@@ -2286,6 +2328,10 @@ function PosAvatarBar({
 
   useEffect(() => {
     lastReadRef.current = loadLastRead();
+    // Load DM last-reads for all known partners
+    for (const loc of leaderboard) {
+      if (loc.id !== myLocationId) dmLastReadRef.current[loc.id] = loadDmLastRead(loc.id);
+    }
     fetchMessages(); // initial load via REST (fast, no streaming overhead)
 
     // SSE stream for near-instant new messages
@@ -2299,17 +2345,46 @@ function PosAvatarBar({
         try {
           const data = JSON.parse(e.data);
           if (!data.messages?.length) return;
-          setMessages(prev => {
-            const existingIds = new Set(prev.map((m: ChatMessage) => m.id));
-            const newMsgs = data.messages.filter((m: ChatMessage) => !existingIds.has(m.id));
-            if (!newMsgs.length) return prev;
-            const merged = [...prev, ...newMsgs].sort((a: ChatMessage, b: ChatMessage) => a.id - b.id).slice(-200);
-            const maxId = Math.max(...merged.map((m: ChatMessage) => m.id));
-            const nr = merged.filter((m: ChatMessage) => m.id > lastReadRef.current).length;
-            setUnread(u => chatOpen ? 0 : u + newMsgs.length);
-            if (chatOpen) { saveLastRead(maxId); setUnread(0); }
-            return merged;
-          });
+
+          // Split group vs DM messages
+          const groupMsgs: ChatMessage[] = data.messages.filter((m: ChatMessage) => !m.to_location_id);
+          const dmMsgsArr: ChatMessage[] = data.messages.filter((m: ChatMessage) => !!m.to_location_id);
+
+          // Route group messages
+          if (groupMsgs.length > 0) {
+            setMessages(prev => {
+              const existingIds = new Set(prev.map((m: ChatMessage) => m.id));
+              const newMsgs = groupMsgs.filter((m: ChatMessage) => !existingIds.has(m.id));
+              if (!newMsgs.length) return prev;
+              const merged = [...prev, ...newMsgs].sort((a: ChatMessage, b: ChatMessage) => a.id - b.id).slice(-200);
+              const maxId = Math.max(...merged.map((m: ChatMessage) => m.id));
+              if (chatOpen) { saveLastRead(maxId); setUnread(0); }
+              else setUnread(u => u + newMsgs.length);
+              return merged;
+            });
+          }
+
+          // Route DM messages
+          for (const msg of dmMsgsArr) {
+            const partnerId = msg.location_id === myLocationId ? msg.to_location_id! : msg.location_id;
+            setDmMessages(prev => {
+              const existing = prev[partnerId] ?? [];
+              if (existing.some(m => m.id === msg.id)) return prev;
+              const updated = [...existing, msg].sort((a, b) => a.id - b.id).slice(-200);
+              return { ...prev, [partnerId]: updated };
+            });
+            // Only count unread if this DM is incoming (not from me) and not currently open
+            if (msg.location_id !== myLocationId) {
+              setDmOpen(currentDmOpen => {
+                if (currentDmOpen !== partnerId) {
+                  setDmUnread(u => ({ ...u, [partnerId]: (u[partnerId] ?? 0) + 1 }));
+                } else {
+                  saveDmLastRead(partnerId, msg.id);
+                }
+                return currentDmOpen;
+              });
+            }
+          }
         } catch {}
       };
       es.onerror = () => {
@@ -2329,6 +2404,14 @@ function PosAvatarBar({
       setTimeout(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, 80);
     }
   }, [chatOpen, messages]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (dmOpen !== null) {
+      const msgs = dmMessages[dmOpen] ?? [];
+      if (msgs.length > 0) { saveDmLastRead(dmOpen, Math.max(...msgs.map(m => m.id))); setDmUnread(p => ({ ...p, [dmOpen]: 0 })); }
+      setTimeout(() => { if (dmListRef.current) dmListRef.current.scrollTop = dmListRef.current.scrollHeight; }, 80);
+    }
+  }, [dmOpen, dmMessages]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (leaderboard.length === 0) return null;
 
@@ -2350,8 +2433,11 @@ function PosAvatarBar({
         const bubClr  = bubble?.type === 'speech' ? '#2563eb' : '#7c3aed';
 
         return (
-          <div key={loc.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, position: 'relative', pointerEvents: 'auto', cursor: isMine ? 'pointer' : 'default' }}
-            onClick={isMine ? () => { const text = JOKES[jokeIdxRef.current % JOKES.length]; jokeIdxRef.current++; showBubble('speech', text); } : undefined}
+          <div key={loc.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, position: 'relative', pointerEvents: 'auto', cursor: isMine ? 'pointer' : 'pointer' }}
+            onClick={isMine
+              ? () => { const text = JOKES[jokeIdxRef.current % JOKES.length]; jokeIdxRef.current++; showBubble('speech', text); }
+              : () => { if (dmOpen === loc.id) { setDmOpen(null); } else { openDm(loc.id); } }
+            }
           >
             {/* Bubble — speech (triangle tail) or thought (rising dots), raised high above avatar */}
             {isMine && bubble && (
@@ -2402,12 +2488,13 @@ function PosAvatarBar({
             {/* Avatar circle */}
             <div style={{
               width: size, height: size, borderRadius: '50%', overflow: 'hidden',
-              border: isMine ? '2px solid var(--sv-action, #2563eb)' : '2px solid rgba(255,255,255,.2)',
+              border: isMine ? '2px solid var(--sv-action, #2563eb)' : dmOpen === loc.id ? '2px solid #10b981' : '2px solid rgba(255,255,255,.2)',
               filter: loc.is_open ? 'none' : 'grayscale(1)',
               opacity: loc.is_open ? 1 : 0.38,
               background: 'var(--sv-bg-2, #1e293b)',
               flexShrink: 0,
-              boxShadow: isMine ? '0 0 0 2px var(--sv-action, #2563eb)' : '0 2px 8px rgba(0,0,0,.4)',
+              boxShadow: isMine ? '0 0 0 2px var(--sv-action, #2563eb)' : dmOpen === loc.id ? '0 0 0 2px #10b981' : '0 2px 8px rgba(0,0,0,.4)',
+              position: 'relative',
             }}>
               <img
                 src={`/avatars/${isMine ? (myAvatar || POS_AVATAR_FILES[loc.id % POS_AVATAR_FILES.length]) : (loc.avatar || POS_AVATAR_FILES[loc.id % POS_AVATAR_FILES.length])}`}
@@ -2415,6 +2502,10 @@ function PosAvatarBar({
                 style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', pointerEvents: 'none' }}
               />
             </div>
+            {/* DM unread badge on non-mine avatars */}
+            {!isMine && (dmUnread[loc.id] ?? 0) > 0 && (
+              <span style={{ position: 'absolute', top: 0, right: -4, background: '#ef4444', color: '#fff', borderRadius: 10, padding: '1px 5px', fontSize: 9, fontWeight: 800, lineHeight: 1.4, zIndex: 3 }}>{dmUnread[loc.id]}</span>
+            )}
 
             {/* Name + sales label — theme-aware, pill bg for contrast on any theme */}
             <div style={{ textAlign: 'center', maxWidth: 68, background: 'var(--sv-bg-0)', borderRadius: 6, padding: '2px 5px', marginTop: 2 }}>
@@ -2429,12 +2520,56 @@ function PosAvatarBar({
         );
       })}
 
-      {/* ── Chat panel / toggle (rightmost, beside avatars) ─────────────────── */}
+      {/* ── DM panel (shown when a location avatar is clicked) ──────────────── */}
+      {dmOpen !== null && (() => {
+        const partner = leaderboard.find(l => l.id === dmOpen);
+        const msgs = dmMessages[dmOpen] ?? [];
+        const partnerName = partner?.name ?? `Location ${dmOpen}`;
+        const partnerAvatar = partner?.avatar || POS_AVATAR_FILES[dmOpen % POS_AVATAR_FILES.length];
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: chatAlign, pointerEvents: 'auto', marginBottom: 4 }}>
+            <div style={{ width: 290, background: panelBg, border: '1px solid rgba(16,185,129,.35)', borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,.7)', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,.1)', gap: 8 }}>
+                <div style={{ width: 22, height: 22, borderRadius: '50%', overflow: 'hidden', flexShrink: 0 }}>
+                  <img src={`/avatars/${partnerAvatar}`} alt={partnerName} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }} />
+                </div>
+                <span style={{ fontSize: 13, flex: 1, fontWeight: 700, color: '#10b981' }}>💬 {partnerName}</span>
+                <button onClick={() => setDmOpen(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.5)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>✕</button>
+              </div>
+              <div ref={dmListRef} style={{ height: 260, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {msgs.length === 0 && <div style={{ color: 'rgba(255,255,255,.3)', fontSize: 12, textAlign: 'center', marginTop: 40 }}>No messages yet. Say hi to {partnerName}! 👋</div>}
+                {msgs.map(msg => {
+                  const isMine = msg.location_id === myLocationId;
+                  return (
+                    <div key={msg.id} style={{ display: 'flex', gap: 7, alignItems: 'flex-start', flexDirection: isMine ? 'row-reverse' : 'row' }}>
+                      <div style={{ width: 26, height: 26, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'rgba(255,255,255,.1)' }}>
+                        <img src={`/avatars/${msg.avatar || POS_AVATAR_FILES[msg.location_id % POS_AVATAR_FILES.length]}`} alt={msg.location_name} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }} />
+                      </div>
+                      <div style={{ maxWidth: '72%' }}>
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,.4)', marginBottom: 2, textAlign: isMine ? 'right' : 'left' }}>{msg.location_name} · {relTime(msg.created_at)}</div>
+                        <div style={{ background: isMine ? 'rgba(16,185,129,.55)' : 'rgba(255,255,255,.09)', borderRadius: isMine ? '12px 12px 2px 12px' : '12px 12px 12px 2px', padding: '7px 10px', fontSize: 12, color: 'rgba(255,255,255,.92)', lineHeight: 1.5 }}>
+                          {msg.message}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ padding: '8px 10px', borderTop: '1px solid rgba(255,255,255,.1)', display: 'flex', gap: 6 }}>
+                <input value={dmInput} onChange={e => setDmInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendDm(); } }} placeholder={`Message ${partnerName}…`} maxLength={500} style={{ flex: 1, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', borderRadius: 8, padding: '6px 10px', color: 'rgba(255,255,255,.9)', fontSize: 12, outline: 'none' }} />
+                <button onClick={sendDm} disabled={dmSending || !dmInput.trim()} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#10b981', color: '#fff', fontWeight: 700, fontSize: 12, cursor: dmSending || !dmInput.trim() ? 'not-allowed' : 'pointer', opacity: dmSending || !dmInput.trim() ? 0.5 : 1 }}>{dmSending ? '…' : '→'}</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Group chat panel / toggle (rightmost, beside avatars) ───────────── */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: chatAlign, pointerEvents: 'auto' }}>
         {chatOpen ? (
           <div style={{ width: 290, background: panelBg, border: '1px solid rgba(255,255,255,.12)', borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,.7)', overflow: 'hidden', marginBottom: 4 }}>
             <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,.1)', gap: 8 }}>
-              <span style={{ fontSize: 13, flex: 1, fontWeight: 700, color: 'rgba(255,255,255,.9)' }}>💬 Team Chat</span>
+              <span style={{ fontSize: 13, flex: 1, fontWeight: 700, color: 'rgba(255,255,255,.9)' }}>💬 Team Chat (All Locations)</span>
               <button onClick={() => setChatOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.5)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>✕</button>
             </div>
             <div ref={listRef} style={{ height: 260, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -2465,7 +2600,7 @@ function PosAvatarBar({
           /* Minimised chat circle — aligns with avatar circles */
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
             <button
-              onClick={() => setChatOpen(true)}
+              onClick={() => { setChatOpen(true); setDmOpen(null); }}
               style={{ width: 40, height: 40, borderRadius: '50%', border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, boxShadow: '0 1px 4px rgba(0,0,0,.2)', position: 'relative' }}
             >
               💬
@@ -3536,7 +3671,7 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
       .then(d => {
         setExpected(d.expected ?? {});
         setDayTotals(d.day_totals ?? null);
-        const floatDefault: number = d.default_float ?? defaultFloat;
+        const floatDefault: number = defaultFloat;
         const init: Record<string, EodEntryState> = {};
         for (const m of methods) {
           const rec = (d.reconciliations ?? []).find((r: any) => r.payment_method === m);

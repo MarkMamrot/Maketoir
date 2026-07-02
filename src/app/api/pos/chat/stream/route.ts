@@ -21,6 +21,7 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   let since = parseInt(url.searchParams.get('since') ?? '0', 10) || 0;
+  const myLocId = parseInt(String(session.location_id ?? 0), 10);
 
   const encoder = new TextEncoder();
 
@@ -30,20 +31,26 @@ export async function GET(req: Request) {
         try { controller.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch {}
       };
 
-      // Helper: fetch messages newer than `since`
+      // Helper: fetch messages newer than `since` — group + DMs involving this location
       async function fetchNew() {
         try {
           const rows = await imsQuery<{
             id: number; location_id: number; location_name: string;
-            user_name: string; avatar: string; message: string; created_at: string;
+            user_name: string; avatar: string; message: string;
+            to_location_id: number | null; created_at: string;
           }>(
-            `SELECT id, location_id, location_name, user_name, avatar, message, created_at
+            `SELECT id, location_id, location_name, user_name, avatar, message, to_location_id, created_at
              FROM pos_chat_messages
              WHERE id > ?
                AND created_at >= DATE_SUB(NOW(), INTERVAL 3 DAY)
+               AND (
+                 (to_location_id IS NULL OR to_location_id = 0)
+                 OR location_id = ?
+                 OR to_location_id = ?
+               )
              ORDER BY created_at ASC
              LIMIT 50`,
-            [since],
+            [since, myLocId, myLocId],
           );
           return rows;
         } catch { return []; }
