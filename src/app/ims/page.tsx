@@ -16,7 +16,7 @@ type ImsView =
   | 'purchase-orders' | 'sales-orders' | 'credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
-  | 'reports' | 'report-sales-by-branch' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes'
+  | 'reports' | 'report-sales-by-branch' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers'
   | 'xero' | 'shopify';
 
 interface User { name: string; email: string; company: string; businessId: string }
@@ -541,8 +541,8 @@ function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
                           <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{r.location_name}</td>
                           <td style={{ padding: '8px 12px' }}>
                             <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 700,
-                              background: isOpen ? 'rgba(16,185,129,.15)' : 'rgba(255,255,255,.07)',
-                              color: isOpen ? 'var(--sv-mint)' : 'var(--sv-text-dim)' }}>
+                              background: isOpen ? 'rgba(16,185,129,.15)' : 'rgba(239,68,68,.15)',
+                              color: isOpen ? 'var(--sv-mint)' : 'var(--sv-red)' }}>
                               {isOpen ? '● Open' : 'Closed'}
                             </span>
                           </td>
@@ -3243,6 +3243,278 @@ function StockView() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Invoice Import Modal
+// ─────────────────────────────────────────────────────────────────────────────
+
+type InvoiceParseResult = {
+  invoice: { supplier_name: string | null; invoice_number: string | null; invoice_date: string | null; currency: string; subtotal: number | null; tax_total: number | null; total_amount: number | null; payment_terms: string | null };
+  matched_supplier: { id: number; name: string } | null;
+  line_results: Array<{
+    invoice_line: { product_code: string | null; product_name: string; qty: number; unit_price: number; discount_pct: number; line_total: number; tax_rate: number };
+    match: { variant_id: string; sku?: string | null; product_name?: string | null; variant_label?: string | null; cost_aud?: number | null; confidence: string; method: string } | null;
+  }>;
+  po_comparison: Array<{
+    po_line: { id: number; variant_id: string; qty_ordered: number; qty_received: number; unit_cost: number; sku: string; product_name: string; variant_label?: string } | null;
+    invoice_line: { product_code: string | null; product_name: string; qty: number; unit_price: number } | null;
+    qty_diff: number | null; price_diff: number | null; not_in_po: boolean;
+  }> | null;
+};
+
+function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, variants, poId }: {
+  onClose: () => void;
+  onImport?: (data: { supplier_id: number | ''; invoice_number: string; invoice_date: string; currency: string; payment_terms: string; line_items: Array<{ variant_id: string; qty_ordered: number; unit_cost: number; discount_pct: number; tax_rate: number }> }) => void;
+  onPreFillReceive?: (qtys: Record<string, number>) => void;
+  suppliers: any[]; variants: any[]; poId?: number | null;
+}) {
+  const [stage, setStage] = React.useState<'idle' | 'uploading' | 'review'>('idle');
+  const [dragging, setDragging] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [result, setResult] = React.useState<InvoiceParseResult | null>(null);
+  const [supplierId, setSupplierId] = React.useState<number | ''>('');
+  const [invoiceNum, setInvoiceNum] = React.useState('');
+  const [invoiceDate, setInvoiceDate] = React.useState('');
+  const [currency, setCurrency] = React.useState('AUD');
+  const [payTerms, setPayTerms] = React.useState('');
+  const [overrides, setOverrides] = React.useState<Record<number, string>>({});
+  const [skipped, setSkipped] = React.useState<Set<number>>(new Set());
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const isPo = !!poId;
+
+  async function processFile(file: File) {
+    setError(null); setStage('uploading');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      if (poId) fd.append('poId', String(poId));
+      const res = await fetch('/api/ims/ai/parse-invoice', { method: 'POST', body: fd });
+      const json = await res.json();
+      if (!res.ok || !json.success) { setError(json.error ?? 'Failed to parse invoice'); setStage('idle'); return; }
+      const r: InvoiceParseResult = json;
+      setResult(r);
+      setSupplierId(r.matched_supplier?.id ?? '');
+      setInvoiceNum(r.invoice?.invoice_number ?? '');
+      setInvoiceDate(r.invoice?.invoice_date ?? '');
+      setCurrency(r.invoice?.currency ?? 'AUD');
+      setPayTerms(r.invoice?.payment_terms ?? '');
+      setOverrides({}); setSkipped(new Set()); setStage('review');
+    } catch (e: any) { setError(e.message ?? 'An error occurred'); setStage('idle'); }
+  }
+
+  function getVid(i: number, lr: InvoiceParseResult['line_results'][0]): string | null {
+    if (i in overrides) return overrides[i] || null;
+    return lr.match?.variant_id ?? null;
+  }
+
+  function confidenceSt(c: string): React.CSSProperties {
+    if (c === 'exact_sku' || c === 'exact_barcode') return { color: 'var(--sv-mint)', fontSize: 11, fontWeight: 600 };
+    if (c === 'fuzzy_name' || c === 'manual') return { color: '#f59e0b', fontSize: 11, fontWeight: 600 };
+    return { color: 'var(--sv-red)', fontSize: 11, fontWeight: 600 };
+  }
+
+  const fmt$ = (v: number | null | undefined) =>
+    v == null ? '—' : Number(v).toLocaleString('en-AU', { style: 'currency', currency: currency || 'AUD', minimumFractionDigits: 2 });
+
+  function handleImport() {
+    if (!result || !onImport) return;
+    const line_items = result.line_results
+      .filter((_, i) => !skipped.has(i))
+      .map((lr, i) => { const vid = getVid(i, lr); return vid ? { variant_id: vid, qty_ordered: Number(lr.invoice_line.qty) || 1, unit_cost: Number(lr.invoice_line.unit_price) || 0, discount_pct: Number(lr.invoice_line.discount_pct) || 0, tax_rate: Number(lr.invoice_line.tax_rate) || 0.1 } : null; })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+    onImport({ supplier_id: supplierId, invoice_number: invoiceNum, invoice_date: invoiceDate, currency, payment_terms: payTerms, line_items });
+    onClose();
+  }
+
+  function handlePreFillReceive() {
+    if (!result?.po_comparison || !onPreFillReceive) return;
+    const qtys: Record<string, number> = {};
+    for (const row of result.po_comparison) {
+      if (row.po_line && row.invoice_line && !row.not_in_po) qtys[row.po_line.variant_id] = Number(row.invoice_line.qty) || 0;
+    }
+    onPreFillReceive(qtys);
+    onClose();
+  }
+
+  const thSt: React.CSSProperties = { padding: '6px 8px', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-muted)', borderBottom: '1px solid var(--sv-border)', whiteSpace: 'nowrap' };
+  const tdSt: React.CSSProperties = { padding: '6px 8px', borderBottom: '1px solid var(--sv-border)' };
+
+  // ── Upload / Loading ──
+  if (stage === 'idle' || stage === 'uploading') return (
+    <Modal title={isPo ? 'Match Supplier Invoice to PO' : 'Import from Supplier Invoice'} onClose={onClose}>
+      <div style={{ minHeight: 200, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {error && <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,.1)', color: 'var(--sv-red)', borderRadius: 6, fontSize: 13 }}>{error}</div>}
+        <div
+          onDragOver={e => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files?.[0]; if (f) processFile(f); }}
+          onClick={() => stage !== 'uploading' && fileInputRef.current?.click()}
+          style={{ border: `2px dashed ${dragging ? 'var(--sv-accent)' : 'var(--sv-border)'}`, borderRadius: 10, padding: '40px 24px', textAlign: 'center', cursor: stage === 'uploading' ? 'default' : 'pointer', background: dragging ? 'rgba(99,102,241,.05)' : 'var(--sv-bg-subtle)', transition: 'all 0.15s' }}
+        >
+          {stage === 'uploading'
+            ? <><div style={{ fontSize: 32, marginBottom: 10 }}>⏳</div><div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 6 }}>AI is reading your invoice…</div><div style={{ fontSize: 13, color: 'var(--sv-text-muted)' }}>This usually takes 10–30 seconds</div></>
+            : <><div style={{ fontSize: 32, marginBottom: 10 }}>📄</div><div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 6 }}>Drop invoice here or click to browse</div><div style={{ fontSize: 12, color: 'var(--sv-text-muted)' }}>PDF, JPEG, or PNG · Max 20 MB</div></>}
+        </div>
+        <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) processFile(f); }} />
+        {isPo && <div style={{ fontSize: 12, color: 'var(--sv-text-muted)', padding: '8px 12px', background: 'var(--sv-bg-subtle)', borderRadius: 6 }}>Upload the supplier's invoice for this PO. The AI will compare each line and highlight any quantity or price differences.</div>}
+      </div>
+    </Modal>
+  );
+
+  if (!result) return null;
+
+  // ── Pathway 2: PO comparison view ──
+  if (isPo && result.po_comparison) {
+    const hasDisc = result.po_comparison.some(r => Math.abs(r.qty_diff ?? 0) > 0.001 || Math.abs(r.price_diff ?? 0) > 0.001);
+    const extra   = result.po_comparison.filter(r => r.not_in_po);
+    const missing = result.po_comparison.filter(r => r.po_line && !r.invoice_line);
+    return (
+      <Modal title="PO vs Invoice Comparison" onClose={onClose} wide>
+        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 13, marginBottom: 12 }}>
+          {[['Invoice #', result.invoice.invoice_number], ['Date', result.invoice.invoice_date], ['Supplier', result.invoice.supplier_name], ['Total', fmt$(result.invoice.total_amount)]].map(([l, v]) => <div key={l as string}><span style={{ color: 'var(--sv-text-muted)' }}>{l} </span><strong>{v ?? '—'}</strong></div>)}
+        </div>
+        {hasDisc && <div style={{ padding: '8px 12px', background: 'rgba(245,158,11,.1)', color: '#f59e0b', borderRadius: 6, fontSize: 13, marginBottom: 10 }}>⚠️ Discrepancies found — review before receiving.</div>}
+        <div style={{ overflowX: 'auto', marginBottom: 14 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: 'var(--sv-bg-subtle)' }}>
+                {['Product', 'SKU', 'PO Qty', 'Inv Qty', 'Qty Diff', 'PO Price', 'Inv Price', 'Price Diff', 'Status'].map((h, i) => (
+                  <th key={h} style={{ ...thSt, textAlign: i >= 2 && i <= 7 ? 'right' : 'left' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {result.po_comparison.map((row, i) => {
+                const qd = row.qty_diff ?? 0; const pd = row.price_diff ?? 0;
+                const hasQD = Math.abs(qd) > 0.001; const hasPD = Math.abs(pd) > 0.001;
+                const bg = row.not_in_po ? 'rgba(99,102,241,.06)' : !row.invoice_line ? 'rgba(107,114,128,.06)' : (hasQD || hasPD) ? 'rgba(245,158,11,.06)' : undefined;
+                const pl = row.po_line; const il = row.invoice_line;
+                const ds = (v: number): React.CSSProperties => ({ color: v === 0 ? undefined : v > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: v !== 0 ? 600 : undefined, textAlign: 'right' });
+                return (
+                  <tr key={i} style={{ background: bg }}>
+                    <td style={tdSt}>{pl?.product_name ?? il?.product_name ?? '—'}{pl?.variant_label ? ` · ${pl.variant_label}` : ''}</td>
+                    <td style={{ ...tdSt, color: 'var(--sv-text-muted)', fontFamily: 'monospace', fontSize: 11 }}>{pl?.sku ?? il?.product_code ?? '—'}</td>
+                    <td style={{ ...tdSt, textAlign: 'right' }}>{pl ? pl.qty_ordered : '—'}</td>
+                    <td style={{ ...tdSt, textAlign: 'right' }}>{il ? il.qty : '—'}</td>
+                    <td style={{ ...tdSt, ...ds(qd) }}>{row.qty_diff != null ? (qd > 0 ? '+' : '') + qd : '—'}</td>
+                    <td style={{ ...tdSt, textAlign: 'right' }}>{pl ? fmt$(pl.unit_cost) : '—'}</td>
+                    <td style={{ ...tdSt, textAlign: 'right' }}>{il ? fmt$(il.unit_price) : '—'}</td>
+                    <td style={{ ...tdSt, ...ds(pd) }}>{row.price_diff != null ? (pd > 0 ? '+' : '') + fmt$(Math.abs(pd)) : '—'}</td>
+                    <td style={{ ...tdSt, whiteSpace: 'nowrap', fontSize: 11 }}>
+                      {row.not_in_po ? <span style={{ color: '#818cf8', fontWeight: 600 }}>Not in PO</span>
+                        : !il ? <span style={{ color: 'var(--sv-text-muted)' }}>Not on invoice</span>
+                        : (hasQD || hasPD) ? <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ Diff</span>
+                        : <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>✓ Match</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {missing.length > 0 && <div style={{ fontSize: 12, color: 'var(--sv-text-muted)', marginBottom: 6 }}>{missing.length} PO item{missing.length !== 1 ? 's' : ''} not found on the invoice.</div>}
+        {extra.length > 0  && <div style={{ fontSize: 12, color: '#818cf8', marginBottom: 10 }}>{extra.length} invoice line{extra.length !== 1 ? 's' : ''} not in this PO.</div>}
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid var(--sv-border)' }}>
+          <button onClick={onClose} style={{ padding: '8px 18px', background: 'none', border: '1px solid var(--sv-border)', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: 'pointer', color: 'var(--sv-text-muted)' }}>Close</button>
+          <button onClick={handlePreFillReceive} style={{ padding: '8px 20px', background: 'var(--sv-accent)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Confirm &amp; Pre-fill Receive</button>
+        </div>
+      </Modal>
+    );
+  }
+
+  // ── Pathway 1: line-item review ──
+  const importableCount = result.line_results.filter((lr, i) => !skipped.has(i) && getVid(i, lr) !== null).length;
+  const exactN = result.line_results.filter(lr => lr.match?.confidence === 'exact_sku' || lr.match?.confidence === 'exact_barcode').length;
+  const fuzzyN = result.line_results.filter(lr => lr.match?.confidence === 'fuzzy_name').length;
+  const noneN  = result.line_results.filter(lr => !lr.match).length;
+
+  return (
+    <Modal title="Review Parsed Invoice" onClose={onClose} wide>
+      {/* Editable header */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10, marginBottom: 14, padding: '10px 12px', background: 'var(--sv-bg-subtle)', borderRadius: 8 }}>
+        {[
+          { label: 'Supplier', el: <select value={supplierId} onChange={e => setSupplierId(e.target.value ? Number(e.target.value) : '')} style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-border)', background: 'var(--sv-bg-card)', color: 'var(--sv-text-strong)', fontSize: 12, width: '100%' }}><option value="">— Unmatched —</option>{suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select> },
+          { label: 'Invoice #', el: <input value={invoiceNum} onChange={e => setInvoiceNum(e.target.value)} style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-border)', background: 'var(--sv-bg-card)', color: 'var(--sv-text-strong)', fontSize: 12, width: '100%' }} /> },
+          { label: 'Invoice Date', el: <input type="date" value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-border)', background: 'var(--sv-bg-card)', color: 'var(--sv-text-strong)', fontSize: 12, width: '100%' }} /> },
+          { label: 'Currency', el: <input value={currency} onChange={e => setCurrency(e.target.value.toUpperCase())} maxLength={3} style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-border)', background: 'var(--sv-bg-card)', color: 'var(--sv-text-strong)', fontSize: 12, width: '100%' }} /> },
+        ].map(({ label, el }) => (
+          <div key={label}><div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>{el}</div>
+        ))}
+      </div>
+
+      {/* Stats bar */}
+      <div style={{ display: 'flex', gap: 16, fontSize: 12, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>✓ {exactN} exact</span>
+        {fuzzyN > 0 && <span style={{ color: '#f59e0b', fontWeight: 600 }}>~ {fuzzyN} fuzzy</span>}
+        {noneN  > 0 && <span style={{ color: 'var(--sv-red)', fontWeight: 600 }}>✗ {noneN} unmatched</span>}
+        <span style={{ marginLeft: 'auto', color: 'var(--sv-text-muted)' }}>Invoice total: {fmt$(result.invoice.total_amount)}</span>
+      </div>
+
+      {/* Lines table */}
+      <div style={{ overflowX: 'auto', marginBottom: 14 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: 'var(--sv-bg-subtle)' }}>
+              <th style={thSt} />
+              <th style={thSt}>Code</th>
+              <th style={thSt}>Invoice Description</th>
+              <th style={{ ...thSt, textAlign: 'right' }}>Qty</th>
+              <th style={{ ...thSt, textAlign: 'right' }}>Unit Price</th>
+              <th style={thSt}>IMS Match</th>
+              <th style={thSt}>Confidence</th>
+            </tr>
+          </thead>
+          <tbody>
+            {result.line_results.map((lr, i) => {
+              const isSkipped = skipped.has(i);
+              const effectiveVid = getVid(i, lr);
+              const hasOverride = i in overrides;
+              const conf = hasOverride ? (overrides[i] ? 'manual' : 'skipped') : (lr.match?.confidence ?? 'none');
+              const confLabel = conf === 'exact_sku' ? '✓ SKU' : conf === 'exact_barcode' ? '✓ Barcode' : conf === 'fuzzy_name' ? '~ Name' : conf === 'manual' ? '✎ Manual' : '✗ None';
+              const imsV = effectiveVid ? variants.find((v: any) => v.variant_id === effectiveVid) : null;
+              const imsLabel = imsV ? `${imsV.product_name}${imsV.variant_label ? ' · ' + imsV.variant_label : ''} (${imsV.sku ?? ''})` : (lr.match && !hasOverride) ? `${lr.match.product_name ?? ''}${lr.match.variant_label ? ' · ' + lr.match.variant_label : ''} (${lr.match.sku ?? ''})` : null;
+              return (
+                <tr key={i} style={{ opacity: isSkipped ? 0.4 : 1, borderBottom: '1px solid var(--sv-border)' }}>
+                  <td style={{ ...tdSt, width: 28 }}>
+                    <input type="checkbox" checked={!isSkipped} title="Include this line" onChange={e => setSkipped(p => { const n = new Set(p); e.target.checked ? n.delete(i) : n.add(i); return n; })} />
+                  </td>
+                  <td style={{ ...tdSt, color: 'var(--sv-text-muted)', fontFamily: 'monospace', fontSize: 11 }}>{lr.invoice_line.product_code ?? '—'}</td>
+                  <td style={{ ...tdSt, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={lr.invoice_line.product_name}>{lr.invoice_line.product_name}</td>
+                  <td style={{ ...tdSt, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{lr.invoice_line.qty}</td>
+                  <td style={{ ...tdSt, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt$(lr.invoice_line.unit_price)}</td>
+                  <td style={{ ...tdSt, minWidth: 200 }}>
+                    {conf === 'none' || hasOverride
+                      ? <VariantSearch value={effectiveVid ?? ''} variants={variants} onChange={vid => setOverrides(p => ({ ...p, [i]: vid }))} style={{ minWidth: 180 }} />
+                      : <span style={{ fontSize: 12 }}>{imsLabel ?? <em style={{ color: 'var(--sv-text-muted)' }}>No match</em>}</span>}
+                  </td>
+                  <td style={{ ...tdSt, whiteSpace: 'nowrap' }}>
+                    <span style={confidenceSt(conf)}>{confLabel}</span>
+                    {conf !== 'none' && conf !== 'manual' && conf !== 'skipped' && !hasOverride && (
+                      <button onClick={() => setOverrides(p => ({ ...p, [i]: lr.match?.variant_id ?? '' }))} title="Override" style={{ marginLeft: 5, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-muted)', fontSize: 11, padding: 0 }}>✎</button>
+                    )}
+                    {hasOverride && (
+                      <button onClick={() => setOverrides(p => { const n = { ...p }; delete n[i]; return n; })} title="Reset to AI match" style={{ marginLeft: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-muted)', fontSize: 11, padding: 0 }}>↩</button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid var(--sv-border)', flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 12, color: 'var(--sv-text-muted)' }}>{importableCount} line{importableCount !== 1 ? 's' : ''} will be added to the PO</div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={onClose} style={{ padding: '8px 18px', background: 'none', border: '1px solid var(--sv-border)', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: 'pointer', color: 'var(--sv-text-muted)' }}>Cancel</button>
+          <button onClick={handleImport} disabled={importableCount === 0} style={{ padding: '8px 20px', background: 'var(--sv-accent)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: importableCount === 0 ? 'not-allowed' : 'pointer', opacity: importableCount === 0 ? 0.5 : 1 }}>
+            Import {importableCount > 0 ? `${importableCount} Line${importableCount !== 1 ? 's' : ''}` : ''} to PO
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Purchase Orders View
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -3273,6 +3545,9 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled }: { pendingOpenId
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [showInvoiceImport, setShowInvoiceImport] = useState(false);
+  const [invoiceImportPoId, setInvoiceImportPoId] = useState<number | null>(null);
+  const pendingReceiveOverrideRef = React.useRef<Record<string, number> | null>(null);
   const { settings } = useImsSettings();
   const load = useCallback(() => {
     setLoading(true);
@@ -3411,7 +3686,9 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled }: { pendingOpenId
     setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_cost: i.unit_cost, discount_pct: i.discount_pct ?? 0, tax_rate: i.tax_rate, notes: i.notes ?? '' })));
     const initQtys: Record<string, number> = {};
     (d.data.items || []).forEach((i: any) => { if (i.variant_id) initQtys[i.variant_id] = Number(i.qty_received || 0); });
-    setReceiveQtys(initQtys);
+    const finalQtys = pendingReceiveOverrideRef.current ? { ...initQtys, ...pendingReceiveOverrideRef.current } : initQtys;
+    pendingReceiveOverrideRef.current = null;
+    setReceiveQtys(finalQtys);
     setLandedCosts((d.data.landed_costs || []).map((c: any) => ({ label: c.label, reference: c.reference ?? '', amount: String(c.amount) })));
     setLcForm(null);
     setModal({ open: true, edit: d.data, editOnly });
@@ -3668,6 +3945,18 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled }: { pendingOpenId
       {modal.open && (
         <Modal title={modal.edit ? `Edit ${modal.edit.po_number}` : 'New Purchase Order'} onClose={() => setModal({ open: false, edit: null })} wide>
           <form onSubmit={handleSubmit}>
+            {!modal.edit && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, padding: '10px 14px', background: 'var(--sv-bg-subtle)', borderRadius: 8, border: '1px dashed var(--sv-border)' }}>
+                <span style={{ fontSize: 20 }}>📄</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Have a supplier invoice?</div>
+                  <div style={{ fontSize: 12, color: 'var(--sv-text-muted)' }}>Let AI read it and pre-fill this PO automatically.</div>
+                </div>
+                <button type="button" onClick={() => { setInvoiceImportPoId(null); setShowInvoiceImport(true); }} style={{ padding: '7px 16px', background: 'var(--sv-accent)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  Import from Invoice
+                </button>
+              </div>
+            )}
             <Row3>
               <Field label="Supplier">
                 <select value={form.supplier_id} onChange={e => selectSupplier(e.target.value)} style={inputStyle}>
@@ -4242,8 +4531,15 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled }: { pendingOpenId
           <div style={{ marginTop: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Supplier Invoices</div>
-              <label style={{ cursor: 'pointer' }}>
-                <span style={btnStyle('mint', 'xs') as any}>{poFileUploading ? 'Uploading…' : '+ Upload'}</span>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                {(viewModal.po.status === 'confirmed' || viewModal.po.status === 'partially_received') && (
+                  <button
+                    onClick={() => { setInvoiceImportPoId(viewModal.po!.id); setShowInvoiceImport(true); }}
+                    style={{ padding: '4px 12px', background: 'none', border: '1px solid var(--sv-accent)', color: 'var(--sv-accent)', borderRadius: 6, fontWeight: 600, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >📄 Match from Invoice</button>
+                )}
+                <label style={{ cursor: 'pointer' }}>
+                  <span style={btnStyle('mint', 'xs') as any}>{poFileUploading ? 'Uploading…' : '+ Upload'}</span>
                 <input type="file" accept=".pdf,image/jpeg,image/png" style={{ display: 'none' }} disabled={poFileUploading}
                   onChange={async (e) => {
                     const file = e.target.files?.[0];
@@ -4261,6 +4557,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled }: { pendingOpenId
                   }}
                 />
               </label>
+              </div>
             </div>
             {poFiles.length === 0 ? (
               <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', padding: '8px 0' }}>No invoices attached yet.</div>
@@ -4287,6 +4584,39 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled }: { pendingOpenId
             )}
           </div>
         </Modal>
+      )}
+
+      {/* ── Invoice Import Modal (Pathway 1: new PO pre-fill; Pathway 2: PO comparison) ── */}
+      {showInvoiceImport && (
+        <InvoiceImportModal
+          onClose={() => { setShowInvoiceImport(false); setInvoiceImportPoId(null); }}
+          suppliers={suppliers}
+          variants={variants}
+          poId={invoiceImportPoId}
+          onImport={data => {
+            // Pathway 1 – pre-fill the new PO form
+            setForm((p: any) => ({
+              ...p,
+              supplier_id: data.supplier_id,
+              supplier_invoice_number: data.invoice_number,
+              supplier_invoice_date: data.invoice_date,
+              currency_code: data.currency || 'AUD',
+              payment_terms: data.payment_terms || p.payment_terms,
+            }));
+            if (data.supplier_id) selectSupplier(String(data.supplier_id));
+            if (data.line_items.length > 0) setLineItems(data.line_items);
+            setShowInvoiceImport(false);
+          }}
+          onPreFillReceive={qtys => {
+            // Pathway 2 – open PO in receive mode with invoice quantities
+            const po = viewModal.po;
+            pendingReceiveOverrideRef.current = qtys;
+            setViewModal({ open: false, po: null });
+            setShowInvoiceImport(false);
+            setInvoiceImportPoId(null);
+            if (po) openEdit(po);
+          }}
+        />
       )}
     </div>
   );
@@ -7027,6 +7357,301 @@ function PosPriceChangesView({ onBack }: { onBack: () => void }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Daily POS Registers Report
+// ─────────────────────────────────────────────────────────────────────────────
+
+type PosRegisterSession = {
+  id: number;
+  register_name: string;
+  location_name: string;
+  location_id: number;
+  status: string;
+  opened_at: string | null;
+  opened_by: string | null;
+  opening_float: string | null;
+  closed_at: string | null;
+  closed_by: string | null;
+  reconciliations: {
+    payment_method: string;
+    expected_amount: number | null;
+    counted_amount: number | null;
+    variance: number | null;
+    xero_invoice_id: string | null;
+    xero_synced_at: string | null;
+  }[];
+  total_expected: number;
+  total_counted: number;
+  total_variance: number;
+};
+
+function PosRegistersReportView({ onBack }: { onBack: () => void }) {
+  const tz = process.env.NEXT_PUBLIC_BUSINESS_TIMEZONE ?? 'Australia/Sydney';
+  const todayAest = new Date().toLocaleDateString('sv-SE', { timeZone: 'Australia/Sydney' });
+
+  const [date, setDate] = React.useState(todayAest);
+  const [sessions, setSessions] = React.useState<PosRegisterSession[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [fetched, setFetched] = React.useState(false);
+
+  async function run() {
+    setLoading(true);
+    setFetched(false);
+    try {
+      const res = await fetch(`/api/ims/reports/pos-registers?date=${date}`);
+      const j = await res.json();
+      setSessions(j.sessions ?? []);
+    } finally {
+      setLoading(false);
+      setFetched(true);
+    }
+  }
+
+  // Run on mount for today
+  React.useEffect(() => { run(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fmt$ = (v: number | null) =>
+    v == null ? '—' : v.toLocaleString('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 2 });
+
+  const fmtDt = (v: string | null) => {
+    if (!v) return '—';
+    return new Date(v).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' });
+  };
+
+  const varColor = (v: number | null) => {
+    if (v == null || v === 0) return undefined;
+    return v > 0 ? 'var(--sv-mint)' : 'var(--sv-red)';
+  };
+
+  function xeroLink(id: string) {
+    return `https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${id}`;
+  }
+
+  function exportCsv() {
+    const rows: string[][] = [
+      ['Location', 'Register', 'Status', 'Opened At', 'Opened By', 'Opening Float',
+       'Closed At', 'Closed By', 'Payment Method', 'Expected', 'Counted', 'Variance',
+       'Xero Invoice', 'Xero Synced'],
+    ];
+    for (const s of sessions) {
+      const base = [
+        s.location_name, s.register_name, s.status,
+        s.opened_at ? fmtDt(s.opened_at) : '',
+        s.opened_by ?? '',
+        s.opening_float ?? '',
+        s.closed_at ? fmtDt(s.closed_at) : '',
+        s.closed_by ?? '',
+      ];
+      if (s.reconciliations.length === 0) {
+        rows.push([...base, '', '', '', '', '', '']);
+      } else {
+        for (const r of s.reconciliations) {
+          rows.push([
+            ...base,
+            r.payment_method,
+            r.expected_amount?.toFixed(2) ?? '',
+            r.counted_amount?.toFixed(2) ?? '',
+            r.variance?.toFixed(2) ?? '',
+            r.xero_invoice_id ?? '',
+            r.xero_synced_at ? fmtDt(r.xero_synced_at) : '',
+          ]);
+        }
+        rows.push([
+          ...base,
+          'TOTAL',
+          s.total_expected.toFixed(2),
+          s.total_counted.toFixed(2),
+          s.total_variance.toFixed(2),
+          '', '',
+        ]);
+      }
+    }
+    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `pos-registers-${date}.csv`;
+    a.click();
+  }
+
+  const thStyle: React.CSSProperties = {
+    textAlign: 'left', padding: '6px 10px',
+    fontSize: 11, fontWeight: 600, color: 'var(--sv-text-muted)',
+    textTransform: 'uppercase', letterSpacing: '0.04em',
+    borderBottom: '1px solid var(--sv-border)',
+    whiteSpace: 'nowrap',
+  };
+  const tdStyle: React.CSSProperties = {
+    padding: '7px 10px', fontSize: 13,
+    borderBottom: '1px solid var(--sv-border)',
+    verticalAlign: 'middle',
+  };
+
+  return (
+    <div>
+      {/* Back + title */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <button
+          onClick={onBack}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-muted)', fontSize: 20, lineHeight: 1, padding: 0 }}
+        >‹</button>
+        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--sv-text-strong)' }}>
+          Daily POS Registers Report
+        </h1>
+      </div>
+
+      {/* Filters */}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 20, flexWrap: 'wrap' }}>
+        <div>
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Date</label>
+          <input
+            type="date"
+            value={date}
+            onChange={e => setDate(e.target.value)}
+            style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-border)', fontSize: 13, background: 'var(--sv-bg-card)', color: 'var(--sv-text-strong)' }}
+          />
+        </div>
+        <button
+          onClick={run}
+          disabled={loading}
+          style={{ padding: '8px 18px', background: 'var(--sv-accent)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}
+        >{loading ? 'Loading…' : 'Run'}</button>
+        {fetched && sessions.length > 0 && (
+          <button
+            onClick={exportCsv}
+            style={{ padding: '8px 16px', background: 'none', color: 'var(--sv-accent)', border: '1px solid var(--sv-accent)', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
+          >Export CSV</button>
+        )}
+      </div>
+
+      {/* Results */}
+      {fetched && sessions.length === 0 && (
+        <div style={{ color: 'var(--sv-text-muted)', fontSize: 14, padding: '40px 0', textAlign: 'center' }}>
+          No register sessions found for {date}.
+        </div>
+      )}
+
+      {sessions.length > 0 && (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'var(--sv-bg-subtle)' }}>
+                <th style={thStyle}>Location</th>
+                <th style={thStyle}>Register</th>
+                <th style={thStyle}>Status</th>
+                <th style={thStyle}>Opened</th>
+                <th style={thStyle}>Opened By</th>
+                <th style={thStyle}>Float</th>
+                <th style={thStyle}>Closed</th>
+                <th style={thStyle}>Closed By</th>
+                <th style={thStyle}>Payment Method</th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>Expected</th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>Counted</th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>Variance</th>
+                <th style={thStyle}>Xero</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sessions.map(s => {
+                const isOpen = s.status === 'open';
+                const rowBg = isOpen ? 'rgba(16,185,129,0.04)' : undefined;
+                const hasRecons = s.reconciliations.length > 0;
+                const reconRows = hasRecons ? s.reconciliations.length + 1 : 1; // +1 for totals row
+
+                return (
+                  <React.Fragment key={s.id}>
+                    {/* Session header row */}
+                    <tr style={{ background: rowBg }}>
+                      <td style={{ ...tdStyle, fontWeight: 600 }} rowSpan={reconRows}>{s.location_name}</td>
+                      <td style={{ ...tdStyle, fontWeight: 600 }} rowSpan={reconRows}>{s.register_name}</td>
+                      <td style={tdStyle} rowSpan={reconRows}>
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5,
+                          padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600,
+                          background: isOpen ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
+                          color: isOpen ? 'var(--sv-mint)' : 'var(--sv-red)',
+                        }}>
+                          <span style={{
+                            width: 6, height: 6, borderRadius: '50%',
+                            background: isOpen ? 'var(--sv-mint)' : 'var(--sv-red)',
+                          }} />
+                          {isOpen ? 'Open' : 'Closed'}
+                        </span>
+                      </td>
+                      <td style={tdStyle} rowSpan={reconRows}>{fmtDt(s.opened_at)}</td>
+                      <td style={{ ...tdStyle, color: 'var(--sv-text-muted)' }} rowSpan={reconRows}>{s.opened_by ?? '—'}</td>
+                      <td style={tdStyle} rowSpan={reconRows}>{fmt$(s.opening_float != null ? parseFloat(s.opening_float) : null)}</td>
+                      <td style={tdStyle} rowSpan={reconRows}>{fmtDt(s.closed_at)}</td>
+                      <td style={{ ...tdStyle, color: 'var(--sv-text-muted)' }} rowSpan={reconRows}>{s.closed_by ?? '—'}</td>
+
+                      {hasRecons ? (
+                        /* First recon row inline */
+                        <>
+                          <td style={tdStyle}>{s.reconciliations[0].payment_method}</td>
+                          <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt$(s.reconciliations[0].expected_amount)}</td>
+                          <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt$(s.reconciliations[0].counted_amount)}</td>
+                          <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: varColor(s.reconciliations[0].variance) }}>
+                            {s.reconciliations[0].variance != null ? (s.reconciliations[0].variance >= 0 ? '+' : '') + fmt$(s.reconciliations[0].variance) : '—'}
+                          </td>
+                          <td style={tdStyle}>
+                            {s.reconciliations[0].xero_invoice_id ? (
+                              <a href={xeroLink(s.reconciliations[0].xero_invoice_id)} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
+                                <XeroStatusBadge status="success" />
+                              </a>
+                            ) : (
+                              <XeroStatusBadge status={null} />
+                            )}
+                          </td>
+                        </>
+                      ) : (
+                        <td style={{ ...tdStyle, color: 'var(--sv-text-muted)' }} colSpan={5}>No reconciliation data</td>
+                      )}
+                    </tr>
+
+                    {/* Remaining recon rows */}
+                    {s.reconciliations.slice(1).map(r => (
+                      <tr key={r.payment_method} style={{ background: rowBg }}>
+                        <td style={tdStyle}>{r.payment_method}</td>
+                        <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt$(r.expected_amount)}</td>
+                        <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt$(r.counted_amount)}</td>
+                        <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: varColor(r.variance) }}>
+                          {r.variance != null ? (r.variance >= 0 ? '+' : '') + fmt$(r.variance) : '—'}
+                        </td>
+                        <td style={tdStyle}>
+                          {r.xero_invoice_id ? (
+                            <a href={xeroLink(r.xero_invoice_id)} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
+                              <XeroStatusBadge status="success" />
+                            </a>
+                          ) : (
+                            <XeroStatusBadge status={null} />
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+
+                    {/* Totals row */}
+                    {hasRecons && (
+                      <tr style={{ background: rowBg }}>
+                        <td style={{ ...tdStyle, fontWeight: 700, color: 'var(--sv-text-muted)', fontStyle: 'italic' }}>TOTAL</td>
+                        <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>{fmt$(s.total_expected)}</td>
+                        <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>{fmt$(s.total_counted)}</td>
+                        <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: varColor(s.total_variance) }}>
+                          {(s.total_variance >= 0 ? '+' : '') + fmt$(s.total_variance)}
+                        </td>
+                        <td style={tdStyle} />
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Reports Dashboard
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -7054,6 +7679,12 @@ const REPORT_CATALOG = [
     title: 'POS Price Changed Transactions',
     description: 'All POS transactions where a price was manually overridden at the register. Review Date, Location, Cashier, Item, Original Price, and Changed Price.',
     icon: '🏷️',
+  },
+  {
+    id: 'report-pos-registers' as ImsView,
+    title: 'Daily POS Registers Report',
+    description: 'Per-register session breakdown by date: open/close times, opening float, close totals by payment type, variances, and Xero sync status.',
+    icon: '🏪',
   },
 ];
 
@@ -9946,6 +10577,7 @@ export default function ImsPage() {
           {view === 'report-inventory-valuation' && <InventoryValuationView onBack={() => setView('reports')} />}
           {view === 'report-product-margin' && <ProductMarginView onBack={() => setView('reports')} />}
           {view === 'report-pos-price-changes' && <PosPriceChangesView onBack={() => setView('reports')} />}
+          {view === 'report-pos-registers'    && <PosRegistersReportView onBack={() => setView('reports')} />}
           {view === 'xero'              && <XeroView businessId={user?.businessId ?? ''} />}
           {view === 'shopify'           && <ShopifyView />}
           {view === 'order-planner'     && <OrderPlannerView databaseId={user?.businessId ?? ''} />}
