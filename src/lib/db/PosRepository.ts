@@ -79,6 +79,12 @@ export interface PosRegisterRow {
   default_float: number;
   is_active:     number;
   created_at:    string;
+  // Card terminal
+  card_terminal_provider: string | null;
+  zeller_site_id:         string | null;
+  zeller_terminal_id:     string | null;
+  zeller_api_key:         string | null;
+  card_terminal_methods:  string | null;  // JSON array e.g. '["Card","EFTPOS"]'
 }
 
 export interface PosRegisterSessionRow {
@@ -670,7 +676,15 @@ export const PosEodRepo = {
 // ─── POS Registers Repository ─────────────────────────────────────────────────
 
 function parseRegister(r: any): PosRegisterRow {
-  return { ...r, default_float: toNum(r.default_float) };
+  return {
+    ...r,
+    default_float:           toNum(r.default_float),
+    card_terminal_provider:  r.card_terminal_provider  ?? null,
+    zeller_site_id:          r.zeller_site_id          ?? null,
+    zeller_terminal_id:      r.zeller_terminal_id      ?? null,
+    zeller_api_key:          r.zeller_api_key          ?? null,
+    card_terminal_methods:   r.card_terminal_methods   ?? null,
+  };
 }
 
 export const PosRegistersRepo = {
@@ -703,15 +717,40 @@ export const PosRegistersRepo = {
     return result.insertId;
   },
 
-  async update(id: number, data: { name?: string; default_float?: number; is_active?: number }): Promise<void> {
+  async update(id: number, data: {
+    name?:                   string;
+    default_float?:          number;
+    is_active?:              number;
+    card_terminal_provider?: string | null;
+    zeller_site_id?:         string | null;
+    zeller_terminal_id?:     string | null;
+    zeller_api_key?:         string | null;
+    card_terminal_methods?:  string | null;
+  }): Promise<void> {
     const fields: string[] = [];
     const vals:   any[]    = [];
-    if (data.name          !== undefined) { fields.push('name = ?');          vals.push(data.name.trim()); }
-    if (data.default_float !== undefined) { fields.push('default_float = ?'); vals.push(data.default_float); }
-    if (data.is_active     !== undefined) { fields.push('is_active = ?');     vals.push(data.is_active); }
+    if (data.name                   !== undefined) { fields.push('name = ?');                   vals.push(data.name.trim()); }
+    if (data.default_float          !== undefined) { fields.push('default_float = ?');          vals.push(data.default_float); }
+    if (data.is_active              !== undefined) { fields.push('is_active = ?');              vals.push(data.is_active); }
+    if (data.card_terminal_provider !== undefined) { fields.push('card_terminal_provider = ?'); vals.push(data.card_terminal_provider); }
+    if (data.zeller_site_id         !== undefined) { fields.push('zeller_site_id = ?');         vals.push(data.zeller_site_id); }
+    if (data.zeller_terminal_id     !== undefined) { fields.push('zeller_terminal_id = ?');     vals.push(data.zeller_terminal_id); }
+    if (data.zeller_api_key         !== undefined) { fields.push('zeller_api_key = ?');         vals.push(data.zeller_api_key); }
+    if (data.card_terminal_methods  !== undefined) { fields.push('card_terminal_methods = ?');  vals.push(data.card_terminal_methods); }
     if (!fields.length) return;
     vals.push(id);
     await imsExecute(`UPDATE pos_registers SET ${fields.join(', ')} WHERE id = ?`, vals);
+  },
+
+  async listAll(businessId: string): Promise<(PosRegisterRow & { location_name: string })[]> {
+    const rows = await imsQuery<any>(
+      `SELECT r.*, l.name AS location_name
+       FROM pos_registers r
+       JOIN ims_locations l ON l.id = r.location_id AND l.business_id = ?
+       ORDER BY l.name, r.name`,
+      [businessId],
+    );
+    return rows.map(r => ({ ...parseRegister(r), location_name: r.location_name ?? '' }));
   },
 };
 

@@ -14,15 +14,31 @@ function getAnySession() {
   try { return JSON.parse(raw); } catch { return null; }
 }
 
-// GET /api/pos/registers?location_id=X — list registers for a location (public for device setup)
+// GET /api/pos/registers?location_id=X  — list registers for a location (public for device setup)
+// GET /api/pos/registers?all=true       — list ALL registers for the business (admin only)
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
+
+  if (searchParams.get('all') === 'true') {
+    const session = getAdminSession();
+    if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+    const registers = await PosRegistersRepo.listAll(session.businessId as string);
+    // Mask API key in admin settings view
+    return NextResponse.json({ registers: registers.map(r => ({ ...r, zeller_api_key: r.zeller_api_key ? '****' : null })) });
+  }
+
   const locationId = parseInt(searchParams.get('location_id') ?? '', 10);
   if (!locationId || isNaN(locationId)) {
     return NextResponse.json({ error: 'location_id required.' }, { status: 400 });
   }
+  // Public — device setup calls this before any session exists.
+  // Only return the Zeller API key when an authenticated session is present.
+  const session = getAnySession();
   const registers = await PosRegistersRepo.listForLocation(locationId);
-  return NextResponse.json({ registers });
+  const safeRegisters = session
+    ? registers
+    : registers.map(r => ({ ...r, zeller_api_key: null }));
+  return NextResponse.json({ registers: safeRegisters });
 }
 
 // POST /api/pos/registers — create a new register (admin only)

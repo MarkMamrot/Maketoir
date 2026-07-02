@@ -745,14 +745,18 @@ function compressImage(file: File, maxDim = 1200, quality = 0.82): Promise<strin
 
 function PosSettingsModal({
   locationId, initialSettings, onSave, onCancel, onPreview,
+  activeRegister, zellerEnabled, onZellerToggle,
 }: {
   locationId:      number;
   initialSettings: PosLocationSettings;
   onSave:          (s: PosLocationSettings) => void;
   onCancel:        () => void;
   onPreview:       (vars: Record<string, string>) => void;
+  activeRegister?: any;
+  zellerEnabled?:  boolean;
+  onZellerToggle?: (enabled: boolean) => void;
 }) {
-  const [tab,                setTab]                = useState<'receipt' | 'appearance' | 'avatar'>('receipt');
+  const [tab, setTab] = useState<'receipt' | 'appearance' | 'avatar' | 'terminal'>('receipt');
   const [receiptFooter,      setReceiptFooter]      = useState(initialSettings.receiptFooter);
   const [giftReceiptMessage, setGiftReceiptMessage] = useState(initialSettings.giftReceiptMessage);
   const [theme,              setTheme]              = useState(initialSettings.theme || 'classic');
@@ -844,9 +848,43 @@ function PosSettingsModal({
           <button style={tabBtn(tab === 'receipt')} onClick={() => setTab('receipt')}>Receipt</button>
           <button style={tabBtn(tab === 'appearance')} onClick={() => setTab('appearance')}>Appearance</button>
           <button style={tabBtn(tab === 'avatar')} onClick={() => setTab('avatar')}>Avatar</button>
+          {activeRegister?.card_terminal_provider === 'zeller' && (
+            <button style={tabBtn(tab === 'terminal')} onClick={() => setTab('terminal')}>💳 Terminal</button>
+          )}
         </div>
         {/* Body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '18px' }}>
+          {tab === 'terminal' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div style={{ padding: '14px 16px', background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 4 }}>Zeller Card Terminal</div>
+                {activeRegister?.zeller_terminal_id && (
+                  <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 12 }}>Terminal ID: {activeRegister.zeller_terminal_id}</div>
+                )}
+                <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+                  <div
+                    onClick={() => onZellerToggle?.(!zellerEnabled)}
+                    style={{ width: 48, height: 26, borderRadius: 99, background: zellerEnabled ? 'var(--sv-action)' : 'var(--sv-etch)', position: 'relative', cursor: 'pointer', transition: 'background .2s', flexShrink: 0 }}
+                  >
+                    <div style={{ position: 'absolute', top: 3, left: zellerEnabled ? 25 : 3, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 4px rgba(0,0,0,.3)' }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: zellerEnabled ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)' }}>
+                      {zellerEnabled ? 'Terminal active this session' : 'Terminal bypassed this session'}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 2 }}>
+                      {zellerEnabled
+                        ? 'Card payments will route to the Zeller terminal.'
+                        : 'Card payments will use manual entry. Toggle back on to reconnect.'}
+                    </div>
+                  </div>
+                </label>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', padding: '10px 12px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
+                💡 This toggle only affects this login session. To permanently enable or disable the terminal for this register, go to IMS → Settings → Point of Sale → Card Terminals.
+              </div>
+            </div>
+          )}
           {tab === 'receipt' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
@@ -1088,6 +1126,9 @@ function MainPos({
   const [cashDrawerLoading, setCashDrawerLoading] = useState(false);
   const [posSettings, setPosSettings] = useState<PosLocationSettings>(DEFAULT_POS_SETTINGS);
   const [posTheme, setPosTheme] = useState<Record<string, string>>({});
+  // Card terminal session-level toggle (staff can override admin config for this session)
+  const [activeRegister, setActiveRegister] = useState<any>(null);
+  const [zellerTerminalEnabled, setZellerTerminalEnabled] = useState(false);
   // Pending drain prompt: shown on reconnect when queue has recent items but no open session.
   const [pendingDrain, setPendingDrain] = useState<{ count: number; total: number } | null>(null);
   // Forces EodScreen to open in a specific tab (used when navigating from the pending-drain prompt).
@@ -1119,6 +1160,21 @@ function MainPos({
       })
       .catch(() => {});
   }, [session.location_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load register config (Zeller terminal settings) — requires authenticated session
+  useEffect(() => {
+    if (!session.register_id) return;
+    fetch(`/api/pos/registers?location_id=${session.location_id}`)
+      .then(r => r.json())
+      .then(d => {
+        const reg = (d.registers ?? []).find((r: any) => r.id === session.register_id);
+        if (reg) {
+          setActiveRegister(reg);
+          setZellerTerminalEnabled(reg.card_terminal_provider === 'zeller');
+        }
+      })
+      .catch(() => {});
+  }, [session.register_id, session.location_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Detect register open (null → object) and fire morning greeting once per day
   useEffect(() => {
@@ -1971,6 +2027,9 @@ function MainPos({
         <PosSettingsModal
           locationId={session.location_id}
           initialSettings={posSettings}
+          activeRegister={activeRegister}
+          zellerEnabled={zellerTerminalEnabled}
+          onZellerToggle={setZellerTerminalEnabled}
           onSave={saved => { setPosSettings(saved); setPosTheme(computeThemeVars(saved)); setPosSettingsOpen(false); onReceiptSettingsSaved?.(saved.receiptFooter, saved.giftReceiptMessage); }}
           onCancel={() => { setPosTheme(computeThemeVars(posSettings)); setPosSettingsOpen(false); }}
           onPreview={vars => setPosTheme(vars)}

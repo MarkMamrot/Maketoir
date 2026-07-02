@@ -13608,6 +13608,10 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   const [posPickerOpen, setPosPickerOpen]    = useState(false);
 
   const [posConfigOpen, setPosConfigOpen]   = useState(false);
+  const [cardTermOpen, setCardTermOpen]     = useState(false);
+  const [cardTermRegs, setCardTermRegs]     = useState<any[]>([]);
+  const [cardTermLoading, setCardTermLoading] = useState(false);
+  const [savingTerminalId, setSavingTerminalId] = useState<number | null>(null);
   const [logoSaving, setLogoSaving]         = useState(false);
 
   useEffect(() => { setProfileDraft(settings); }, [settings]);
@@ -14260,6 +14264,134 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                   <button type="button" onClick={() => setProfileDraft(settings)} style={btnStyle('ghost', 'sm')}>Cancel</button>
                   <button type="button" disabled={profileSaving} onClick={async () => { setProfileSaving(true); await saveSettings(profileDraft); setProfileSaving(false); }} style={btnStyle('action', 'sm')}>{profileSaving ? 'Saving…' : 'Save Header/Footer'}</button>
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── Card Terminals ── */}
+          <div style={{ marginBottom: 8 }}>
+            <CollHeader label="💳 Card Terminals" open={cardTermOpen} toggle={async () => {
+              if (!cardTermOpen && cardTermRegs.length === 0) {
+                setCardTermLoading(true);
+                try {
+                  const res = await fetch('/api/pos/registers?all=true');
+                  const data = await res.json();
+                  setCardTermRegs((data.registers ?? []).map((r: any) => ({
+                    ...r,
+                    _enabled:    !!r.card_terminal_provider,
+                    _provider:   r.card_terminal_provider ?? 'zeller',
+                    _siteId:     r.zeller_site_id         ?? '',
+                    _terminalId: r.zeller_terminal_id     ?? '',
+                    _apiKey:     '',
+                    _methods:    (() => { try { return JSON.parse(r.card_terminal_methods || '[]'); } catch { return []; } })(),
+                  })));
+                } catch { /* silent */ }
+                setCardTermLoading(false);
+              }
+              setCardTermOpen(o => !o);
+            }} />
+            {cardTermOpen && (
+              <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
+                {cardTermLoading && <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading registers…</div>}
+                {!cardTermLoading && cardTermRegs.length === 0 && (
+                  <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>No registers found. Create registers in Locations → Registers first.</div>
+                )}
+                {cardTermRegs.map((reg, idx) => {
+                  const updateReg = (patch: Record<string, any>) =>
+                    setCardTermRegs(prev => prev.map((r, i) => i === idx ? { ...r, ...patch } : r));
+                  return (
+                    <div key={reg.id} style={{ marginBottom: 16, padding: 14, border: '1px solid var(--sv-etch)', borderRadius: 8, background: 'var(--sv-bg-2)' }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: 'var(--sv-text-strong)' }}>
+                        {reg.location_name} — {reg.name}
+                      </div>
+
+                      {/* Enable/Disable toggle */}
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, cursor: 'pointer' }}>
+                        <div
+                          onClick={() => updateReg({ _enabled: !reg._enabled })}
+                          style={{ width: 42, height: 24, borderRadius: 99, background: reg._enabled ? 'var(--sv-mint)' : 'var(--sv-etch)', position: 'relative', cursor: 'pointer', transition: 'background .2s', flexShrink: 0 }}
+                        >
+                          <div style={{ position: 'absolute', top: 3, left: reg._enabled ? 21 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.3)' }} />
+                        </div>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: reg._enabled ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)' }}>
+                          {reg._enabled ? 'Card terminal enabled' : 'Card terminal disabled'}
+                        </span>
+                      </label>
+
+                      {/* Provider */}
+                      {reg._enabled && (
+                        <div style={{ marginBottom: 10 }}>
+                          <label style={labelStyle}>Provider</label>
+                          <select style={{ ...inputStyle, maxWidth: 240 }} value={reg._provider} onChange={e => updateReg({ _provider: e.target.value })}>
+                            <option value="zeller">Zeller</option>
+                          </select>
+                        </div>
+                      )}
+
+                      {reg._enabled && reg._provider === 'zeller' && (<>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                          <div>
+                            <label style={labelStyle}>Zeller Site ID</label>
+                            <input style={inputStyle} value={reg._siteId} onChange={e => updateReg({ _siteId: e.target.value })} placeholder="e.g. site_abc123" />
+                          </div>
+                          <div>
+                            <label style={labelStyle}>Terminal ID / Serial</label>
+                            <input style={inputStyle} value={reg._terminalId} onChange={e => updateReg({ _terminalId: e.target.value })} placeholder="e.g. T001-XXXX" />
+                          </div>
+                        </div>
+                        <div style={{ marginBottom: 10 }}>
+                          <label style={labelStyle}>
+                            API Key
+                            {reg.zeller_api_key === '****' && <span style={{ fontWeight: 400, color: 'var(--sv-text-dim)', marginLeft: 6 }}>— currently set, enter new value to change</span>}
+                          </label>
+                          <input type="password" style={{ ...inputStyle, maxWidth: 340 }} value={reg._apiKey} onChange={e => updateReg({ _apiKey: e.target.value })} placeholder={reg.zeller_api_key === '****' ? '••••••••' : 'Enter API key…'} autoComplete="new-password" />
+                        </div>
+                        <div style={{ marginBottom: 10 }}>
+                          <label style={labelStyle}>Payment Methods That Trigger This Terminal</label>
+                          <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: '2px 0 8px' }}>When staff selects one of these methods, the Zeller terminal will be used instead of manual entry.</p>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                            {paymentTypes.map(pt => {
+                              const checked = reg._methods.includes(pt);
+                              return (
+                                <label key={pt} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, cursor: 'pointer', padding: '3px 10px', border: `1px solid ${checked ? 'var(--sv-mint)' : 'var(--sv-etch)'}`, borderRadius: 99, background: checked ? 'rgba(16,185,129,.1)' : 'var(--sv-bg-1)', color: checked ? 'var(--sv-mint)' : 'var(--sv-text-dim)' }}>
+                                  <input type="checkbox" checked={checked} onChange={e => {
+                                    const methods = e.target.checked ? [...reg._methods, pt] : reg._methods.filter((m: string) => m !== pt);
+                                    updateReg({ _methods: methods });
+                                  }} />
+                                  {pt}
+                                </label>
+                              );
+                            })}
+                            {paymentTypes.length === 0 && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Add payment types in the Orders section above first.</span>}
+                          </div>
+                        </div>
+                      </>)}
+
+                      <button type="button" disabled={savingTerminalId === reg.id}
+                        onClick={async () => {
+                          setSavingTerminalId(reg.id);
+                          try {
+                            const body: Record<string, any> = {
+                              card_terminal_provider: reg._enabled ? (reg._provider || null) : null,
+                              zeller_site_id:         reg._siteId     || null,
+                              zeller_terminal_id:     reg._terminalId || null,
+                              card_terminal_methods:  reg._methods.length ? JSON.stringify(reg._methods) : null,
+                            };
+                            if (reg._apiKey) body.zeller_api_key = reg._apiKey;
+                            const res = await fetch(`/api/pos/registers/${reg.id}`, {
+                              method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+                            });
+                            const data = await res.json();
+                            if (!res.ok) throw new Error(data.error);
+                            updateReg({ _apiKey: '', zeller_api_key: reg._apiKey ? '****' : reg.zeller_api_key });
+                          } catch (e: any) { alert('Save failed: ' + e.message); }
+                          finally { setSavingTerminalId(null); }
+                        }}
+                        style={btnStyle('action', 'sm')}
+                      >{savingTerminalId === reg.id ? 'Saving…' : 'Save'}</button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
