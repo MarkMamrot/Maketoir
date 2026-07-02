@@ -13,40 +13,6 @@ function getSession() {
   try { return JSON.parse(c.value); } catch { return null; }
 }
 
-// Upload a binary buffer to the Gemini File API and wait until ACTIVE
-async function uploadBinaryToGemini(
-  ai: GoogleGenAI,
-  buffer: Buffer,
-  filename: string,
-  mimeType: string,
-): Promise<{ uri: string; name: string } | null> {
-  try {
-    const blob = new Blob([buffer], { type: mimeType });
-    const uploaded = await ai.files.upload({ file: blob, config: { displayName: filename, mimeType } });
-    const name: string = (uploaded as any).name ?? '';
-    const initialUri: string = (uploaded as any).uri ?? '';
-
-    if (!name) return initialUri ? { uri: initialUri, name: '' } : null;
-
-    const MAX_POLLS = 20;
-    for (let i = 0; i < MAX_POLLS; i++) {
-      await new Promise(r => setTimeout(r, 3000));
-      try {
-        const info = await (ai.files as any).get(name);
-        const state: string = info?.state ?? 'PROCESSING';
-        const uri: string = info?.uri ?? '';
-        if (state === 'ACTIVE' && uri) return { uri, name };
-        if (state === 'FAILED') return null;
-        if (uri && state !== 'PROCESSING' && state !== 'PENDING') return { uri, name };
-      } catch { /* keep polling */ }
-    }
-    return null;
-  } catch (e) {
-    console.error('[parse-invoice] Gemini upload failed:', e);
-    return null;
-  }
-}
-
 function normalize(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
@@ -161,12 +127,9 @@ export async function POST(req: Request) {
 
   const ai = new GoogleGenAI({ apiKey });
 
-  // Upload to Gemini File API
+  // Read file as base64 for inline Gemini data (faster + more reliable than File API for invoices)
   const buffer = Buffer.from(await invoiceFile.arrayBuffer());
-  const uploaded = await uploadBinaryToGemini(ai, buffer, invoiceFile.name, invoiceFile.type);
-  if (!uploaded) {
-    return NextResponse.json({ error: 'Failed to upload file to AI service. Please try again.' }, { status: 500 });
-  }
+  const base64Data = buffer.toString('base64');
 
   // Fetch suppliers
   const suppliers = await imsQuery<{ id: number; name: string }>(
@@ -217,26 +180,24 @@ ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
       model: modelId,
       contents: [{
         parts: [
-          { fileData: { mimeType: invoiceFile.type, fileUri: uploaded.uri } },
+          // Inline base64: works for PDF + images up to ~20 MB, no File API polling needed
+          { inlineData: { mimeType: invoiceFile.type, data: base64Data } } as any,
           { text: prompt },
         ],
       }],
       config: { responseMimeType: 'application/json' },
     });
     const raw = (result.text ?? '').replace(/^```json?\s*/i, '').replace(/\s*```$/i, '').trim();
+    if (!raw) throw new Error('Empty response from AI');
     parsedInvoice = JSON.parse(raw);
-  } catch (e) {
-    console.error('[parse-invoice] AI error:', e);
-    // Best-effort cleanup
-    if (uploaded.name) {
-      try { await (ai.files as any).delete(uploaded.name); } catch {}
-    }
-    return NextResponse.json({ error: 'AI failed to parse the invoice. Try a clearer scan or different file.' }, { status: 500 });
-  }
-
-  // Best-effort cleanup of Gemini file (privacy)
-  if (uploaded.name) {
-    try { await (ai.files as any).delete(uploaded.name); } catch {}
+  } catch (e: any) {
+    console.error('[parse-invoice] AI error:', e?.message ?? e);
+    const msg = e?.message?.includes('RESOURCE_EXHAUSTED')
+      ? 'AI quota exceeded — try again in a moment.'
+      : (e?.message?.includes('INVALID_ARGUMENT') || e?.message?.includes('400'))
+      ? 'AI could not read this file. Try a clearer scan or convert to PDF.'
+      : 'AI failed to parse the invoice. Try a clearer scan or different file.';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 
   // Resolve supplier
