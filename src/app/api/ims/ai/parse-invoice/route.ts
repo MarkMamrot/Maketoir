@@ -179,24 +179,28 @@ ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
     const result = await ai.models.generateContent({
       model: modelId,
       contents: [{
+        role: 'user',
         parts: [
-          // Inline base64: works for PDF + images up to ~20 MB, no File API polling needed
+          // Inline base64 — works for PDF + images, no File API polling needed
           { inlineData: { mimeType: invoiceFile.type, data: base64Data } } as any,
           { text: prompt },
         ],
       }],
-      config: { responseMimeType: 'application/json' },
-    });
+      generationConfig: { responseMimeType: 'application/json' },
+    } as any);
     const raw = (result.text ?? '').replace(/^```json?\s*/i, '').replace(/\s*```$/i, '').trim();
     if (!raw) throw new Error('Empty response from AI');
     parsedInvoice = JSON.parse(raw);
   } catch (e: any) {
-    console.error('[parse-invoice] AI error:', e?.message ?? e);
-    const msg = e?.message?.includes('RESOURCE_EXHAUSTED')
+    const detail = e?.message ?? String(e);
+    console.error('[parse-invoice] AI error:', detail);
+    const msg = detail.includes('RESOURCE_EXHAUSTED')
       ? 'AI quota exceeded — try again in a moment.'
-      : (e?.message?.includes('INVALID_ARGUMENT') || e?.message?.includes('400'))
-      ? 'AI could not read this file. Try a clearer scan or convert to PDF.'
-      : 'AI failed to parse the invoice. Try a clearer scan or different file.';
+      : detail.includes('INVALID_ARGUMENT') || detail.includes('400')
+      ? `AI rejected the request: ${detail.slice(0, 120)}`
+      : detail.includes('404') || detail.includes('not found')
+      ? `Model "${modelId}" not found — update your AI model in Foresight settings.`
+      : `AI error: ${detail.slice(0, 200)}`;
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 
