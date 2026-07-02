@@ -18,7 +18,9 @@ export interface BTPrintItem {
   zone: string | null;
   bin: string | null;
   qty_sent: number;
-  wh_qty: number;
+  wh_qty: number;       // warehouse gross qty_on_hand (SOH in Warehouse)
+  wh_available: number; // warehouse net available (SOH - committed)
+  branch_soh: number;   // destination branch qty_on_hand
   to_location_name: string;
 }
 
@@ -74,12 +76,15 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
          p.zone,
          p.bin,
          bti.qty_sent,
-         COALESCE(s.qty_on_hand, 0) AS wh_qty,
+         COALESCE(whs.qty_on_hand, 0)                                                          AS wh_qty,
+         GREATEST(0, COALESCE(whs.qty_on_hand, 0) - COALESCE(whs.qty_committed, 0))           AS wh_available,
+         COALESCE(brs.qty_on_hand, 0)                                                          AS branch_soh,
          tl.name AS to_location_name
        FROM ims_branch_transfer_items bti
        JOIN ims_product_variants v  ON v.variant_id = bti.variant_id
        JOIN ims_products p          ON p.product_id = v.product_id
-       LEFT JOIN ims_stock s        ON s.variant_id = bti.variant_id AND s.location_id = ?
+       LEFT JOIN ims_stock whs      ON whs.variant_id = bti.variant_id AND whs.location_id = ?
+       LEFT JOIN ims_stock brs      ON brs.variant_id = bti.variant_id AND brs.location_id = ?
        JOIN ims_locations tl        ON tl.id = ?
        WHERE bti.transfer_id = ?
        ORDER BY
@@ -87,7 +92,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
          COALESCE(NULLIF(TRIM(p.bin),''),  '~~~'),
          COALESCE(NULLIF(TRIM(p.brand),''), '~~~'),
          p.name`,
-      [bt.from_location_id, bt.to_location_id, id]
+      [bt.from_location_id, bt.to_location_id, bt.to_location_id, id]
     );
 
     return NextResponse.json({ ...bt, items });

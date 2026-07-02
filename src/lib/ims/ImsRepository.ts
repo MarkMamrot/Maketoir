@@ -237,21 +237,25 @@ async function getStock(variantId: string, locationId: number): Promise<ImsStock
 
 async function nextPONumber(): Promise<string> {
   const year = new Date().getFullYear();
-  const rows = await imsQuery<{ cnt: number }>(
-    `SELECT COUNT(*) AS cnt FROM ims_purchase_orders WHERE po_number LIKE ?`,
+  const rows = await imsQuery<{ max_seq: number | null }>(
+    `SELECT MAX(CAST(SUBSTRING_INDEX(po_number, '-', -1) AS UNSIGNED)) AS max_seq
+     FROM ims_purchase_orders
+     WHERE po_number LIKE ?`,
     [`PO-${year}-%`]
   );
-  const seq = String((rows[0]?.cnt ?? 0) + 1).padStart(4, '0');
+  const seq = String((rows[0]?.max_seq ?? 0) + 1).padStart(4, '0');
   return `PO-${year}-${seq}`;
 }
 
 async function nextSONumber(): Promise<string> {
   const year = new Date().getFullYear();
-  const rows = await imsQuery<{ cnt: number }>(
-    `SELECT COUNT(*) AS cnt FROM ims_sales_orders WHERE so_number LIKE ?`,
+  const rows = await imsQuery<{ max_seq: number | null }>(
+    `SELECT MAX(CAST(SUBSTRING_INDEX(so_number, '-', -1) AS UNSIGNED)) AS max_seq
+     FROM ims_sales_orders
+     WHERE so_number LIKE ?`,
     [`SO-${year}-%`]
   );
-  const seq = String((rows[0]?.cnt ?? 0) + 1).padStart(4, '0');
+  const seq = String((rows[0]?.max_seq ?? 0) + 1).padStart(4, '0');
   return `SO-${year}-${seq}`;
 }
 
@@ -2261,11 +2265,13 @@ export interface ImsBTItem {
 
 async function nextBTNumber(): Promise<string> {
   const year = new Date().getFullYear();
-  const rows = await imsQuery<{ cnt: number }>(
-    `SELECT COUNT(*) AS cnt FROM ims_branch_transfers WHERE transfer_number LIKE ?`,
+  const rows = await imsQuery<{ max_seq: number | null }>(
+    `SELECT MAX(CAST(SUBSTRING_INDEX(transfer_number, '-', -1) AS UNSIGNED)) AS max_seq
+     FROM ims_branch_transfers
+     WHERE transfer_number LIKE ?`,
     [`BT-${year}-%`]
   );
-  const seq = String((rows[0]?.cnt ?? 0) + 1).padStart(4, '0');
+  const seq = String((rows[0]?.max_seq ?? 0) + 1).padStart(4, '0');
   return `BT-${year}-${seq}`;
 }
 
