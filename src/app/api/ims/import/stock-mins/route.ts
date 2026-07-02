@@ -85,13 +85,14 @@ export async function POST(req: Request) {
 
   // Find header row (scan first 10 rows)
   let headerIdx = -1;
-  let skuCol = -1, minQtyCol = -1, reorderQtyCol = -1, locationCol = -1, branchIdCol = -1;
+  let skuCol = -1, minQtyCol = -1, reorderQtyCol = -1, locationCol = -1, branchIdCol = -1, barcodeCol = -1;
 
   for (let i = 0; i < Math.min(rows.length, 10); i++) {
     skuCol        = findCol(rows[i], 'Code', 'Size Code', 'SKU', 'Product Code', 'StyleCode', 'Style Code');
     minQtyCol     = findCol(rows[i], 'SafetyStockQty', 'Min Qty', 'Min Stock', 'Minimum', 'Reorder Point', 'reorderPoint', 'Min Level', 'MinQty', 'MinStock');
     reorderQtyCol = findCol(rows[i], 'OptimumStockQty', 'Reorder Qty', 'Reorder Quantity', 'reorderQty', 'Order Qty', 'OrderQty', 'ReorderQty');
     locationCol   = findCol(rows[i], 'BranchName', 'Branch Name', 'Location', 'Branch', 'Store');
+    barcodeCol    = findCol(rows[i], 'Barcode', 'barcode', 'EAN', 'UPC', 'GTIN', 'Barcode Number');
     // BranchId as fallback location identifier
     if (locationCol === -1) branchIdCol = findCol(rows[i], 'BranchId', 'Branch Id', 'branchId');
 
@@ -108,10 +109,25 @@ export async function POST(req: Request) {
   }
 
   // Load lookup maps
-  const variants = await imsQuery<{ variant_id: string; sku: string | null }>(
-    'SELECT variant_id, sku FROM ims_product_variants WHERE sku IS NOT NULL',
+  const variants = await imsQuery<{ variant_id: string; sku: string | null; barcode: string | null }>(
+    'SELECT variant_id, sku, barcode FROM ims_product_variants WHERE sku IS NOT NULL OR barcode IS NOT NULL',
   );
-  const variantBySku = new Map<string, string>(variants.map(v => [v.sku!.trim().toLowerCase(), v.variant_id]));
+  // Primary: exact SKU (lowercased)
+  const variantBySku = new Map<string, string>();
+  // Secondary: SKU with all spaces stripped
+  const variantBySkuNoSpaces = new Map<string, string>();
+  // Tertiary: barcode
+  const variantByBarcode = new Map<string, string>();
+  for (const v of variants) {
+    if (v.sku) {
+      const key = v.sku.trim().toLowerCase();
+      variantBySku.set(key, v.variant_id);
+      variantBySkuNoSpaces.set(key.replace(/\s+/g, ''), v.variant_id);
+    }
+    if (v.barcode) {
+      variantByBarcode.set(v.barcode.trim().toLowerCase(), v.variant_id);
+    }
+  }
 
   const locations = await imsQuery<{ id: number; name: string; cin7_branch_id: number | null }>(
     'SELECT id, name, cin7_branch_id FROM ims_locations',
@@ -135,6 +151,7 @@ export async function POST(req: Request) {
     const reorderRaw   = reorderQtyCol !== -1 ? row[reorderQtyCol]?.trim() : undefined;
     const locationName  = locationCol  !== -1 ? row[locationCol]?.trim()  : undefined;
     const branchIdRaw   = branchIdCol  !== -1 ? row[branchIdCol]?.trim()  : undefined;
+    const csvBarcode    = barcodeCol   !== -1 ? row[barcodeCol]?.trim()   : undefined;
     const branchIdNum   = branchIdRaw  ? Number(branchIdRaw) : undefined;
 
     const minQty    = minQtyRaw    ? parseFloat(minQtyRaw)    : null;
@@ -143,7 +160,12 @@ export async function POST(req: Request) {
     if (minQty === null && reorderQty === null) { skippedNoValue++; continue; }
     if ((minQty !== null && isNaN(minQty)) && (reorderQty !== null && isNaN(reorderQty))) { skippedNoValue++; continue; }
 
-    const variantId = variantBySku.get(sku.toLowerCase());
+    // Lookup: 1) exact SKU  2) SKU with spaces stripped  3) barcode from CSV
+    const variantId =
+      variantBySku.get(sku.toLowerCase()) ??
+      variantBySkuNoSpaces.get(sku.toLowerCase().replace(/\s+/g, '')) ??
+      (csvBarcode ? variantByBarcode.get(csvBarcode.toLowerCase()) : undefined);
+
     if (!variantId) {
       skippedNotFound++;
       if (!notFound.includes(sku) && notFound.length < 20) notFound.push(sku);
