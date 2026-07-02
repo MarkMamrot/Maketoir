@@ -12296,30 +12296,29 @@ function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
               <thead>
                 <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1' }}>
                   {['Zone', 'Bin', 'Qty to Send', 'Barcode', 'Product / Variant',
-                    'WH Qty', 'SOH in Branch', 'SOH in Warehouse',
+                    'SOH in Branch', 'SOH in Warehouse',
                     ...(showCode  ? ['Code']  : []),
                     ...(showBrand ? ['Brand'] : []),
                   ].map(h => (
-                    <th key={h} style={{ padding: '7px 10px', textAlign: h === 'Qty to Send' || h === 'WH Qty' || h === 'SOH in Branch' || h === 'SOH in Warehouse' ? 'right' : 'left', fontWeight: 700, color: '#374151', whiteSpace: 'nowrap' }}>{h}</th>
+                    <th key={h} style={{ padding: '5px 8px', textAlign: h === 'Qty to Send' || h === 'SOH in Branch' || h === 'SOH in Warehouse' ? 'right' : 'left', fontWeight: 700, color: '#374151', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {data.items.map((item: any, i: number) => (
                   <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i % 2 === 1 ? '#f8fafc' : '#fff' }}>
-                    <td style={{ padding: '8px 10px', color: '#6b7280', whiteSpace: 'nowrap' }}>{item.zone || '—'}</td>
-                    <td style={{ padding: '8px 10px', color: '#6b7280', whiteSpace: 'nowrap' }}>{item.bin  || '—'}</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, fontSize: 18, color: '#111827', whiteSpace: 'nowrap' }}>{Number(item.qty_sent)}</td>
-                    <td style={{ padding: '8px 10px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{barcode(item.barcode)}</td>
-                    <td style={{ padding: '8px 10px' }}>
+                    <td style={{ padding: '4px 8px', color: '#6b7280', whiteSpace: 'nowrap' }}>{item.zone || '—'}</td>
+                    <td style={{ padding: '4px 8px', color: '#6b7280', whiteSpace: 'nowrap' }}>{item.bin  || '—'}</td>
+                    <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 800, fontSize: 16, color: '#111827', whiteSpace: 'nowrap' }}>{Number(item.qty_sent)}</td>
+                    <td style={{ padding: '4px 8px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{barcode(item.barcode)}</td>
+                    <td style={{ padding: '4px 8px' }}>
                       <div style={{ fontWeight: 600, color: '#111827' }}>{item.product_name}</div>
                       {item.variant_label && <div style={{ fontSize: 11, color: '#6b7280' }}>{item.variant_label}</div>}
                     </td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', color: Number(item.wh_available) <= 0 ? '#ef4444' : '#374151' }}>{Number(item.wh_available)}</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', color: '#374151' }}>{Number(item.branch_soh)}</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', color: Number(item.wh_qty) <= 0 ? '#ef4444' : '#6b7280' }}>{Number(item.wh_qty)}</td>
-                    {showCode  && <td style={{ padding: '8px 10px', fontFamily: 'monospace', color: '#0369a1', whiteSpace: 'nowrap' }}>{item.sku || '—'}</td>}
-                    {showBrand && <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{item.brand || '—'}</td>}
+                    <td style={{ padding: '4px 8px', textAlign: 'right', color: '#374151' }}>{Number(item.branch_soh)}</td>
+                    <td style={{ padding: '4px 8px', textAlign: 'right', color: Number(item.wh_qty) <= 0 ? '#ef4444' : '#6b7280' }}>{Number(item.wh_qty)}</td>
+                    {showCode  && <td style={{ padding: '4px 8px', fontFamily: 'monospace', color: '#0369a1', whiteSpace: 'nowrap' }}>{item.sku || '—'}</td>}
+                    {showBrand && <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>{item.brand || '—'}</td>}
                   </tr>
                 ))}
               </tbody>
