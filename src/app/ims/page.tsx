@@ -3260,11 +3260,11 @@ type InvoiceParseResult = {
   }> | null;
 };
 
-function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, variants, poId }: {
+function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, variants, poId, pendingFile }: {
   onClose: () => void;
   onImport?: (data: { supplier_id: number | ''; invoice_number: string; invoice_date: string; currency: string; payment_terms: string; line_items: Array<{ variant_id: string; qty_ordered: number; unit_cost: number; discount_pct: number; tax_rate: number }> }) => void;
   onPreFillReceive?: (qtys: Record<string, number>) => void;
-  suppliers: any[]; variants: any[]; poId?: number | null;
+  suppliers: any[]; variants: any[]; poId?: number | null; pendingFile?: File | null;
 }) {
   const [stage, setStage] = React.useState<'idle' | 'uploading' | 'review'>('idle');
   const [dragging, setDragging] = React.useState(false);
@@ -3279,6 +3279,11 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
   const [skipped, setSkipped] = React.useState<Set<number>>(new Set());
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const isPo = !!poId;
+
+  // Auto-process a file passed in from outside (e.g. the banner picker)
+  React.useEffect(() => {
+    if (pendingFile) processFile(pendingFile);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function processFile(file: File) {
     setError(null); setStage('uploading');
@@ -3547,6 +3552,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled }: { pendingOpenId
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [showInvoiceImport, setShowInvoiceImport] = useState(false);
   const [invoiceImportPoId, setInvoiceImportPoId] = useState<number | null>(null);
+  const [invoicePendingFile, setInvoicePendingFile] = useState<File | null>(null);
   const pendingReceiveOverrideRef = React.useRef<Record<string, number> | null>(null);
   const { settings } = useImsSettings();
   const load = useCallback(() => {
@@ -3946,16 +3952,21 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled }: { pendingOpenId
         <Modal title={modal.edit ? `Edit ${modal.edit.po_number}` : 'New Purchase Order'} onClose={() => setModal({ open: false, edit: null })} wide>
           <form onSubmit={handleSubmit}>
             {!modal.edit && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, padding: '10px 14px', background: 'var(--sv-bg-subtle)', borderRadius: 8, border: '1px dashed var(--sv-border)' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, padding: '10px 14px', background: 'var(--sv-bg-subtle)', borderRadius: 8, border: '1px dashed var(--sv-border)', cursor: 'pointer' }}>
                 <span style={{ fontSize: 20 }}>📄</span>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Have a supplier invoice?</div>
-                  <div style={{ fontSize: 12, color: 'var(--sv-text-muted)' }}>Let AI read it and pre-fill this PO automatically.</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Have a supplier invoice? Click to upload</div>
+                  <div style={{ fontSize: 12, color: 'var(--sv-text-muted)' }}>PDF, JPEG or PNG — AI reads it and pre-fills this PO automatically.</div>
                 </div>
-                <button type="button" onClick={() => { setInvoiceImportPoId(null); setShowInvoiceImport(true); }} style={{ padding: '7px 16px', background: 'var(--sv-accent)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  Import from Invoice
-                </button>
-              </div>
+                <span style={{ padding: '7px 16px', background: 'var(--sv-accent)', color: '#fff', borderRadius: 6, fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }}>Upload Invoice</span>
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
+                  onChange={e => {
+                    const f = e.target.files?.[0];
+                    if (f) { setInvoicePendingFile(f); setInvoiceImportPoId(null); setShowInvoiceImport(true); }
+                    e.target.value = '';
+                  }}
+                />
+              </label>
             )}
             <Row3>
               <Field label="Supplier">
@@ -4589,10 +4600,11 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled }: { pendingOpenId
       {/* ── Invoice Import Modal (Pathway 1: new PO pre-fill; Pathway 2: PO comparison) ── */}
       {showInvoiceImport && (
         <InvoiceImportModal
-          onClose={() => { setShowInvoiceImport(false); setInvoiceImportPoId(null); }}
+          onClose={() => { setShowInvoiceImport(false); setInvoiceImportPoId(null); setInvoicePendingFile(null); }}
           suppliers={suppliers}
           variants={variants}
           poId={invoiceImportPoId}
+          pendingFile={invoicePendingFile}
           onImport={data => {
             // Pathway 1 – pre-fill the new PO form
             setForm((p: any) => ({
