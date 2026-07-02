@@ -2442,6 +2442,31 @@ export const ImsBTRepo = {
       };
       if (!allowed[from]?.includes(finalStatus)) throw new Error(`Cannot transition from ${from} to ${finalStatus}`);
 
+      // draft → sent: commit stock at source so it can't be oversold or re-sent.
+      if (from === 'draft' && to === 'sent') {
+        for (const item of items) {
+          const qtySent = Number(item.qty_sent);
+          if (qtySent <= 0) continue;
+          await conn.execute(
+            `INSERT INTO ims_stock (variant_id, location_id, qty_committed)
+             VALUES (?, ?, ?)
+             ON DUPLICATE KEY UPDATE qty_committed = qty_committed + VALUES(qty_committed)`,
+            [item.variant_id, bt.from_location_id, qtySent]
+          );
+        }
+      }
+
+      // sent → cancelled: release committed stock at source.
+      if (to === 'cancelled' && from === 'sent') {
+        for (const item of items) {
+          await conn.execute(
+            `UPDATE ims_stock SET qty_committed = GREATEST(0, qty_committed - ?)
+             WHERE variant_id = ? AND location_id = ?`,
+            [Number(item.qty_sent), item.variant_id, bt.from_location_id]
+          );
+        }
+      }
+
       // sent → received/partial: move stock, record ACTUAL line values
       // (qty_received × unit_cost), and auto-detect a shortfall.
       if (from === 'sent' && finalStatus === 'received') {
@@ -2456,6 +2481,12 @@ export const ImsBTRepo = {
           await conn.execute(
             `UPDATE ims_branch_transfer_items SET qty_received = ?, line_value = ? * unit_cost WHERE id = ?`,
             [qty_rcvd, qty_rcvd, item.id]
+          );
+          // Release the full commitment (qty_sent) — the shortfall never physically left.
+          await conn.execute(
+            `UPDATE ims_stock SET qty_committed = GREATEST(0, qty_committed - ?)
+             WHERE variant_id = ? AND location_id = ?`,
+            [Number(item.qty_sent), item.variant_id, bt.from_location_id]
           );
           await _btMove(conn, bt, id, item, qty_rcvd);
         }
@@ -2556,6 +2587,17 @@ export const ImsBTRepo = {
       );
       if (!item) throw new Error('Item not found on this transfer');
       const rcvd = Number(item.qty_received ?? 0);
+      // If BT is still 'sent', release the committed stock at source for this item.
+      if (bt.status === 'sent') {
+        const qtySent = Number(item.qty_sent);
+        if (qtySent > 0) {
+          await conn.execute(
+            `UPDATE ims_stock SET qty_committed = GREATEST(0, qty_committed - ?)
+             WHERE variant_id = ? AND location_id = ?`,
+            [qtySent, item.variant_id, bt.from_location_id]
+          );
+        }
+      }
       // Return any already-received units to the source branch.
       if (rcvd > 0) await _btMove(conn, bt, transferId, item, -rcvd);
       await conn.execute(`DELETE FROM ims_branch_transfer_items WHERE id = ?`, [itemId]);

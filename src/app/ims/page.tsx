@@ -2165,7 +2165,9 @@ function ProductsView({ onNavigateToPO, onNavigateToSO }: { onNavigateToPO?: (id
       if (!p.name.toLowerCase().includes(q) &&
           !(p.brand || '').toLowerCase().includes(q) &&
           !(p.product_type || '').toLowerCase().includes(q) &&
-          !(p.variants || []).some((v: any) => (v.sku || '').toLowerCase().includes(q)))
+          !(p.variants || []).some((v: any) =>
+            (v.sku || '').toLowerCase().includes(q) ||
+            (v.barcode || '').toLowerCase().includes(q)))
         return false;
     }
     return true;
