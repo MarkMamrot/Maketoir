@@ -2307,7 +2307,11 @@ function PosAvatarBar({
   }
 
   function relTime(iso: string) {
-    const diff = Date.now() - new Date(iso).getTime();
+    // MySQL DATETIME strings have no TZ suffix — browsers parse them as local time,
+    // making them appear 10h off. Normalise to ISO-with-Z so they're always UTC.
+    const s = iso.includes('T') ? iso : iso.replace(' ', 'T');
+    const utc = s.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(s) ? s : s + 'Z';
+    const diff = Date.now() - new Date(utc).getTime();
     const m = Math.floor(diff / 60000);
     if (m < 1)  return 'just now';
     if (m < 60) return `${m}m ago`;
