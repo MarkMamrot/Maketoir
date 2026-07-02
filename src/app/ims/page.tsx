@@ -12310,13 +12310,13 @@ function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
                     <td style={{ padding: '4px 8px', color: '#6b7280', whiteSpace: 'nowrap' }}>{item.zone || '—'}</td>
                     <td style={{ padding: '4px 8px', color: '#6b7280', whiteSpace: 'nowrap' }}>{item.bin  || '—'}</td>
                     <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 800, fontSize: 16, color: '#111827', whiteSpace: 'nowrap' }}>{Number(item.qty_sent)}</td>
-                    <td style={{ padding: '4px 8px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{barcode(item.barcode)}</td>
+                    <td style={{ padding: '4px 8px', fontFamily: 'monospace', fontWeight: 800, fontSize: 16, whiteSpace: 'nowrap' }}>{barcode(item.barcode)}</td>
                     <td style={{ padding: '4px 8px' }}>
                       <div style={{ fontWeight: 600, color: '#111827' }}>{item.product_name}</div>
                       {item.variant_label && <div style={{ fontSize: 11, color: '#6b7280' }}>{item.variant_label}</div>}
                     </td>
                     <td style={{ padding: '4px 8px', textAlign: 'right', color: '#374151' }}>{Number(item.branch_soh)}</td>
-                    <td style={{ padding: '4px 8px', textAlign: 'right', color: Number(item.wh_qty) <= 0 ? '#ef4444' : '#6b7280' }}>{Number(item.wh_qty)}</td>
+                    <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 800, fontSize: 16, color: Number(item.wh_qty) <= 0 ? '#ef4444' : '#6b7280' }}>{Number(item.wh_qty)}</td>
                     {showCode  && <td style={{ padding: '4px 8px', fontFamily: 'monospace', color: '#0369a1', whiteSpace: 'nowrap' }}>{item.sku || '—'}</td>}
                     {showBrand && <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>{item.brand || '—'}</td>}
                   </tr>
