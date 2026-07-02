@@ -10547,14 +10547,18 @@ function BranchTransfersView() {
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: 'var(--sv-bg-1)' }}>
-                      {['Variant', 'Qty to Send', 'Unit Cost', 'Line Value', ''].map(h => (
+                      {['Zone', 'Bin', 'Variant', 'Qty to Send', 'Unit Cost', 'Line Value', ''].map(h => (
                         <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600 }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {lineItems.map((item, i) => (
+                    {lineItems.map((item, i) => {
+                      const meta = (modal.edit?.items ?? []).find((x: any) => x.variant_id === item.variant_id);
+                      return (
                       <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                        <td style={{ padding: '4px 8px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{meta?.zone || '—'}</td>
+                        <td style={{ padding: '4px 8px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{meta?.bin || '—'}</td>
                         <td style={{ padding: 4 }}>
                           <VariantSearch
                             value={item.variant_id}
@@ -10573,7 +10577,8 @@ function BranchTransfersView() {
                           <button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16 }}>×</button>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

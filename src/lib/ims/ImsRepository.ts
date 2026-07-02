@@ -2324,13 +2324,21 @@ export const ImsBTRepo = {
       `SELECT bti.*,
               v.sku, v.barcode, v.price_rrp,
               p.name AS product_name,
+              p.brand,
+              p.zone,
+              p.bin,
               CONCAT_WS(' / ',
                 NULLIF(v.option1_value,''), NULLIF(v.option2_value,''),
                 NULLIF(v.option3_value,'')) AS variant_label
          FROM ims_branch_transfer_items bti
          JOIN ims_product_variants v ON v.variant_id = bti.variant_id
          JOIN ims_products p ON p.product_id = v.product_id
-         WHERE bti.transfer_id = ?`,
+         WHERE bti.transfer_id = ?
+         ORDER BY
+           COALESCE(NULLIF(TRIM(p.zone),''), '~~~'),
+           COALESCE(NULLIF(TRIM(p.bin),''),  '~~~'),
+           COALESCE(NULLIF(TRIM(p.brand),''), '~~~'),
+           p.name`,
       [id]
     );
     return { ...rows[0], items };
