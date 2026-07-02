@@ -12459,10 +12459,44 @@ function StockMinsImportCard() {
       {result && (
         <div style={{ marginTop: 10, background: '#111', borderRadius: 6, padding: '8px 12px', fontSize: 12, fontFamily: 'monospace', color: '#aaa', lineHeight: 1.7 }}>
           <div style={{ color: '#22c55e', fontWeight: 700 }}>✓ Import complete</div>
-          <div>CSV rows read:    {result.summary.csvRowsRead}</div>
+          <div>CSV rows read: {result.summary.csvRowsRead}</div>
           <div style={{ color: '#22c55e' }}>Stock rows updated: {result.summary.updated}</div>
-          {result.summary.skippedNoValue  > 0 && <div style={{ color: '#f59e0b' }}>Skipped (no value):  {result.summary.skippedNoValue}</div>}
-          {result.summary.skippedNotFound > 0 && <div style={{ color: '#f87171' }}>Not found in IMS: {result.summary.skippedNotFound}{result.notFound?.length ? ` — e.g. ${result.notFound.slice(0, 5).join(', ')}` : ''}</div>}
+          {result.summary.matchedByNoSpaces > 0 && <div style={{ color: '#86efac' }}>Matched (spaces stripped): {result.summary.matchedByNoSpaces}</div>}
+          {result.summary.matchedByBarcode  > 0 && <div style={{ color: '#86efac' }}>Matched (barcode fallback): {result.summary.matchedByBarcode}</div>}
+          {result.summary.skippedNoValue    > 0 && <div style={{ color: '#f59e0b' }}>Skipped (no value): {result.summary.skippedNoValue}</div>}
+          {result.summary.skippedNotFound   > 0 && (
+            <>
+              <div style={{ color: '#f87171', marginTop: 4 }}>Not matched: {result.summary.skippedNotFound}</div>
+              {Object.entries(result.notFoundByReason ?? {}).map(([reason, rows]: [string, any]) => {
+                const labels: Record<string, string> = {
+                  not_in_ims:                  'SKU & barcode not in IMS',
+                  sku_has_spaces_no_match:      'SKU has spaces — no match even after stripping',
+                  barcode_also_not_in_ims:      'SKU not found, barcode also not in IMS',
+                  location_not_matched:         'Variant found but location not matched',
+                  no_stock_row_for_location:    'Variant found but no stock row for that location',
+                  no_stock_row:                 'Variant found but no stock row at all',
+                };
+                return (
+                  <div key={reason} style={{ marginLeft: 12, color: '#fca5a5' }}>
+                    {labels[reason] ?? reason}: {(rows as any[]).length}
+                    {(rows as any[]).length <= 5 && (
+                      <span style={{ color: '#9ca3af' }}> — {(rows as any[]).map((r: any) => r.code).join(', ')}</span>
+                    )}
+                  </div>
+                );
+              })}
+              <button
+                onClick={() => {
+                  const all = Object.values(result.notFoundByReason ?? {}).flat() as any[];
+                  const csv = ['Reason,Code,Barcode', ...all.map((r: any) => `${r.reason},${r.code},${r.barcode}`)].join('\n');
+                  const blob = new Blob([csv], { type: 'text/csv' });
+                  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+                  a.download = 'stock-mins-unmatched.csv'; a.click();
+                }}
+                style={{ marginTop: 8, padding: '4px 10px', borderRadius: 5, border: 'none', background: '#374151', color: '#d1d5db', cursor: 'pointer', fontSize: 11, fontFamily: 'sans-serif' }}
+              >⬇ Download full unmatched list ({result.summary.skippedNotFound} rows)</button>
+            </>
+          )}
         </div>
       )}
     </div>

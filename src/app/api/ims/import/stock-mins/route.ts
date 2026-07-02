@@ -138,37 +138,60 @@ export async function POST(req: Request) {
   );
 
   let updated = 0;
-  let skippedNotFound = 0;
   let skippedNoValue = 0;
-  const notFound: string[] = [];
+  let matchedByExact = 0, matchedByNoSpaces = 0, matchedByBarcode = 0;
+
+  // Full not-found list with categorisation
+  type NotFoundRow = { code: string; barcode: string; reason: string };
+  const notFoundRows: NotFoundRow[] = [];
 
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const row = rows[i];
     const sku = row[skuCol]?.trim();
     if (!sku) continue;
 
-    const minQtyRaw    = minQtyCol   !== -1 ? row[minQtyCol]?.trim()   : undefined;
+    const minQtyRaw    = minQtyCol     !== -1 ? row[minQtyCol]?.trim()     : undefined;
     const reorderRaw   = reorderQtyCol !== -1 ? row[reorderQtyCol]?.trim() : undefined;
-    const locationName  = locationCol  !== -1 ? row[locationCol]?.trim()  : undefined;
-    const branchIdRaw   = branchIdCol  !== -1 ? row[branchIdCol]?.trim()  : undefined;
-    const csvBarcode    = barcodeCol   !== -1 ? row[barcodeCol]?.trim()   : undefined;
-    const branchIdNum   = branchIdRaw  ? Number(branchIdRaw) : undefined;
+    const locationName = locationCol   !== -1 ? row[locationCol]?.trim()   : undefined;
+    const branchIdRaw  = branchIdCol   !== -1 ? row[branchIdCol]?.trim()   : undefined;
+    const csvBarcode   = barcodeCol    !== -1 ? row[barcodeCol]?.trim()    : undefined;
+    const branchIdNum  = branchIdRaw   ? Number(branchIdRaw) : undefined;
 
-    const minQty    = minQtyRaw    ? parseFloat(minQtyRaw)    : null;
-    const reorderQty = reorderRaw  ? parseFloat(reorderRaw)   : null;
+    const minQty     = minQtyRaw  ? parseFloat(minQtyRaw)  : null;
+    const reorderQty = reorderRaw ? parseFloat(reorderRaw) : null;
 
     if (minQty === null && reorderQty === null) { skippedNoValue++; continue; }
     if ((minQty !== null && isNaN(minQty)) && (reorderQty !== null && isNaN(reorderQty))) { skippedNoValue++; continue; }
 
-    // Lookup: 1) exact SKU  2) SKU with spaces stripped  3) barcode from CSV
-    const variantId =
-      variantBySku.get(sku.toLowerCase()) ??
-      variantBySkuNoSpaces.get(sku.toLowerCase().replace(/\s+/g, '')) ??
-      (csvBarcode ? variantByBarcode.get(csvBarcode.toLowerCase()) : undefined);
+    // Lookup with tracking of which method matched
+    let variantId: string | undefined;
+    let matchMethod = '';
+    const skuLower = sku.toLowerCase();
+
+    if (variantBySku.has(skuLower)) {
+      variantId = variantBySku.get(skuLower);
+      matchMethod = 'exact';
+      matchedByExact++;
+    } else if (variantBySkuNoSpaces.has(skuLower.replace(/\s+/g, ''))) {
+      variantId = variantBySkuNoSpaces.get(skuLower.replace(/\s+/g, ''));
+      matchMethod = 'no_spaces';
+      matchedByNoSpaces++;
+    } else if (csvBarcode && variantByBarcode.has(csvBarcode.toLowerCase())) {
+      variantId = variantByBarcode.get(csvBarcode.toLowerCase());
+      matchMethod = 'barcode';
+      matchedByBarcode++;
+    }
 
     if (!variantId) {
-      skippedNotFound++;
-      if (!notFound.includes(sku) && notFound.length < 20) notFound.push(sku);
+      // Categorise the miss
+      const skuHasSpaces = sku.includes(' ');
+      const hasCsvBarcode = !!(csvBarcode);
+      const reason = skuHasSpaces
+        ? 'sku_has_spaces_no_match'
+        : hasCsvBarcode
+          ? 'barcode_also_not_in_ims'
+          : 'not_in_ims';
+      notFoundRows.push({ code: sku, barcode: csvBarcode ?? '', reason });
       continue;
     }
 
@@ -193,8 +216,7 @@ export async function POST(req: Request) {
 
       if (locationKey && !locationId) {
         // Location column present but couldn't match — skip
-        skippedNotFound++;
-        if (notFound.length < 20) notFound.push(`${sku} (location: ${locationKey})`);
+        notFoundRows.push({ code: sku, barcode: csvBarcode ?? '', reason: 'location_not_matched' });
         continue;
       }
     }
@@ -205,7 +227,7 @@ export async function POST(req: Request) {
         [...vals, variantId, locationId],
       );
       if (affected.affectedRows > 0) updated++;
-      else skippedNotFound++;
+      else notFoundRows.push({ code: sku, barcode: csvBarcode ?? '', reason: 'no_stock_row_for_location' });
     } else {
       // Apply to all locations for this variant
       const affected = await imsExecute(
@@ -213,18 +235,29 @@ export async function POST(req: Request) {
         [...vals, variantId],
       );
       if (affected.affectedRows > 0) updated += affected.affectedRows;
-      else skippedNotFound++;
+      else notFoundRows.push({ code: sku, barcode: csvBarcode ?? '', reason: 'no_stock_row' });
     }
+  }
+
+  // Group not-found rows by reason for easy diagnosis
+  const notFoundByReason: Record<string, NotFoundRow[]> = {};
+  for (const r of notFoundRows) {
+    if (!notFoundByReason[r.reason]) notFoundByReason[r.reason] = [];
+    notFoundByReason[r.reason].push(r);
   }
 
   return NextResponse.json({
     success: true,
     summary: {
-      csvRowsRead: rows.length - headerIdx - 1,
+      csvRowsRead:        rows.length - headerIdx - 1,
       updated,
-      skippedNotFound,
+      matchedByExact,
+      matchedByNoSpaces,
+      matchedByBarcode,
       skippedNoValue,
+      skippedNotFound:    notFoundRows.length,
     },
-    notFound,
+    notFoundByReason,          // full list grouped by cause
+    notFound: notFoundRows.slice(0, 20).map(r => r.code),  // backward-compat preview
   });
 }
