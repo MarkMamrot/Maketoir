@@ -2023,6 +2023,11 @@ function MainPos({
         morningGreetingTick={morningGreetingTick}
         cartLeft={cartLeft}
       />
+      <SalesTargetTracker
+        myLocationId={session.location_id}
+        saleRefreshTick={saleRefreshTick}
+        cartLeft={cartLeft}
+      />
     </div>
   );
 }
@@ -2610,11 +2615,114 @@ function PosAvatarBar({
             </button>
             {/* Two-line label block mirrors the avatar name+amount structure so circles align */}
             <div style={{ textAlign: 'center', background: 'var(--sv-bg-0)', borderRadius: 6, padding: '2px 5px', marginTop: 2 }}>
-              <div style={{ fontSize: 9.5, fontWeight: 600, color: 'var(--sv-text-main)' }}>Chat</div>
+              <div style={{ fontSize: 9.5, fontWeight: 600, color: 'var(--sv-text-main)' }}>Team Chat</div>
               <div style={{ fontSize: 9, color: 'var(--sv-text-dim)', marginTop: 1 }}>{unread > 0 ? `${unread} new` : '·'}</div>
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Sales Target Tracker ─────────────────────────────────────────────────────
+
+function fmtSalesAmt(n: number): string {
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(Math.round(n));
+}
+
+function getTargetMotivation(pct: number, remaining: number): string {
+  if (pct >= 100) return "You SMASHED it! Keep the register firing! 🚀";
+  if (pct >= 90) return `So close! Just $${fmtSalesAmt(remaining)} away — FINISH STRONG! 🔥`;
+  if (pct >= 75) return `Almost there! $${fmtSalesAmt(remaining)} left to conquer! 💥`;
+  if (pct >= 50) return `Over halfway! Final push time — let's go! 💪`;
+  if (pct >= 25) return `Good start! Building momentum — keep it up! ⚡`;
+  return `Every sale gets us closer — let's get moving! 🎯`;
+}
+
+function SalesTargetTracker({
+  myLocationId, saleRefreshTick, cartLeft,
+}: { myLocationId: number; saleRefreshTick: number; cartLeft: boolean }) {
+  const [target, setTarget]       = useState<number | null>(null);
+  const [todaySales, setTodaySales] = useState(0);
+
+  useEffect(() => {
+    fetch('/api/pos/target')
+      .then(r => r.json())
+      .then(d => setTarget(d.target ?? null))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (target === null) return;
+    fetch('/api/pos/leaderboard')
+      .then(r => r.json())
+      .then(d => {
+        const me = (d.locations ?? []).find((l: any) => l.id === myLocationId);
+        if (me) setTodaySales(me.today_sales ?? 0);
+      })
+      .catch(() => {});
+  }, [saleRefreshTick, myLocationId, target]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!target) return null;
+
+  const pct       = Math.min(120, Math.round((todaySales / target) * 100));
+  const barPct    = Math.min(100, pct);
+  const remaining = Math.max(0, target - todaySales);
+  const over      = Math.max(0, todaySales - target);
+  const hit       = todaySales >= target;
+  const barColor  = hit
+    ? 'linear-gradient(90deg, #f59e0b, #ef4444)'
+    : pct >= 75
+      ? 'linear-gradient(90deg, #10b981, #06b6d4)'
+      : 'linear-gradient(90deg, #2563eb, #06b6d4)';
+
+  return (
+    <div style={{
+      position: 'fixed', bottom: 12,
+      ...(cartLeft ? { left: 12 } : { right: 12 }),
+      zIndex: 600, pointerEvents: 'none',
+    }}>
+      <div style={{
+        width: 230,
+        background: 'rgba(10, 15, 30, 0.93)',
+        border: `1px solid ${hit ? 'rgba(245,158,11,.4)' : 'rgba(255,255,255,.12)'}`,
+        borderRadius: 14,
+        padding: '12px 14px',
+        boxShadow: '0 8px 32px rgba(0,0,0,.7)',
+      }}>
+        {/* Header */}
+        <div style={{ fontSize: 10, fontWeight: 800, color: hit ? '#f59e0b' : 'rgba(255,255,255,.55)', textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 9 }}>
+          {hit ? '🏆 Target Smashed!' : '🎯 Today\'s Mission'}
+        </div>
+
+        {/* Progress bar */}
+        <div style={{ background: 'rgba(255,255,255,.1)', borderRadius: 6, height: 8, overflow: 'hidden', marginBottom: 10 }}>
+          <div style={{ width: `${barPct}%`, height: '100%', background: barColor, borderRadius: 6, transition: 'width 0.8s ease' }} />
+        </div>
+
+        {/* Stats row */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 8 }}>
+          <div>
+            <div style={{ fontSize: 8.5, fontWeight: 700, color: 'rgba(255,255,255,.4)', textTransform: 'uppercase', letterSpacing: 0.8 }}>Sales</div>
+            <div style={{ fontSize: 18, fontWeight: 900, color: '#fff', lineHeight: 1.1 }}>${fmtSalesAmt(todaySales)}</div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 8.5, fontWeight: 700, color: 'rgba(255,255,255,.4)', textTransform: 'uppercase', letterSpacing: 0.8 }}>Progress</div>
+            <div style={{ fontSize: 18, fontWeight: 900, color: hit ? '#f59e0b' : '#06b6d4', lineHeight: 1.1 }}>{pct}%</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 8.5, fontWeight: 700, color: 'rgba(255,255,255,.4)', textTransform: 'uppercase', letterSpacing: 0.8 }}>{hit ? 'Over by' : 'Target'}</div>
+            <div style={{ fontSize: 18, fontWeight: 900, color: hit ? '#f59e0b' : 'rgba(255,255,255,.5)', lineHeight: 1.1 }}>
+              {hit ? `+$${fmtSalesAmt(over)}` : `$${fmtSalesAmt(target)}`}
+            </div>
+          </div>
+        </div>
+
+        {/* Motivation text */}
+        <div style={{ fontSize: 10.5, fontWeight: 700, color: hit ? '#f59e0b' : 'rgba(255,255,255,.75)', textAlign: 'center', lineHeight: 1.4, borderTop: '1px solid rgba(255,255,255,.08)', paddingTop: 7 }}>
+          {getTargetMotivation(pct, remaining)}
+        </div>
       </div>
     </div>
   );

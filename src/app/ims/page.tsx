@@ -891,6 +891,7 @@ function ContactsView() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const BLANK_LOC = { name: '', code: '', address: '', phone: '', city: '', state: '', postcode: '', country: 'Australia', is_active: 1, pos_pin: '', has_pos: 0, has_wholesale: 0, has_online: 0 };
+const LOC_TARGET_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
 function LocationRegistersPanel({ locationId, locationName, onClose }: { locationId: number; locationName: string; onClose: () => void }) {
   const [registers, setRegisters] = useState<any[]>([]);
@@ -1027,6 +1028,22 @@ function LocationsView() {
   const [form, setForm] = useState({ ...BLANK_LOC });
   const [saving, setSaving] = useState(false);
   const [registersFor, setRegistersFor] = useState<{ id: number; name: string } | null>(null);
+  const [targets, setTargets] = useState<Record<string, string>>({});
+
+  // Load/reset targets whenever modal opens or changes
+  useEffect(() => {
+    if (!modal.open) { setTargets({}); return; }
+    if (modal.edit?.id) {
+      fetch(`/api/ims/locations/${modal.edit.id}/targets`)
+        .then(r => r.json())
+        .then(d => {
+          const t: Record<string, string> = {};
+          for (const [k, v] of Object.entries(d.targets ?? {})) t[k] = String(v);
+          setTargets(t);
+        })
+        .catch(() => {});
+    }
+  }, [modal.open, modal.edit?.id]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -1045,7 +1062,19 @@ function LocationsView() {
     try {
       const url  = modal.edit ? `/api/ims/locations/${modal.edit.id}` : '/api/ims/locations';
       const method = modal.edit ? 'PUT' : 'POST';
-      await apiFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      const result = await apiFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      const locationId = modal.edit?.id ?? result.id;
+      // Save daily sales targets
+      const targetsPayload: Record<string, number> = {};
+      for (const day of LOC_TARGET_DAYS) {
+        const v = parseInt(targets[day] ?? '0', 10);
+        if (v > 0) targetsPayload[day] = v;
+      }
+      await apiFetch(`/api/ims/locations/${locationId}/targets`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targets: targetsPayload }),
+      });
       load(); setModal({ open: false, edit: null });
     } catch (e: any) { alert(e.message); }
     finally { setSaving(false); }
@@ -1126,6 +1155,23 @@ function LocationsView() {
                 ))}
               </div>
               <p style={{ margin: '4px 0 0', fontSize: '.75rem', color: 'var(--sv-text-dim)' }}>Which sales channels are active at this location.</p>
+            </Field>
+            <Field label="Daily Sales Targets ($)">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, marginTop: 4 }}>
+                {LOC_TARGET_DAYS.map(day => (
+                  <div key={day} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{day}</span>
+                    <input
+                      type="number" min="0" step="1"
+                      value={targets[day] ?? ''}
+                      onChange={e => setTargets(p => ({ ...p, [day]: e.target.value }))}
+                      placeholder="—"
+                      style={{ ...inputStyle, textAlign: 'center', padding: '5px 2px', fontSize: 13, width: '100%', minWidth: 0 }}
+                    />
+                  </div>
+                ))}
+              </div>
+              <p style={{ margin: '5px 0 0', fontSize: '.75rem', color: 'var(--sv-text-dim)' }}>Whole dollar amounts. Leave blank = no target shown in POS for that day.</p>
             </Field>
             <FormActions onCancel={() => setModal({ open: false, edit: null })} saving={saving} isEdit={!!modal.edit} />
           </form>
