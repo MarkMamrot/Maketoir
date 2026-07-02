@@ -10145,6 +10145,7 @@ function BranchTransfersView() {
   const [rpWarehouseId, setRpWarehouseId] = useState<number | ''>('');
   const [rpBranchIds, setRpBranchIds] = useState<number[]>([]);
   const [rpStrategy, setRpStrategy]   = useState<'even' | 'priority'>('priority');
+  const [rpTrigger, setRpTrigger]     = useState<'below' | 'at_or_below'>('below');
   const [rpPriorityOrder, setRpPriorityOrder] = useState<number[]>([]);
   const [rpCalculating, setRpCalculating] = useState(false);
   const [rpPlan, setRpPlan]           = useState<ReplenishBranch[]>([]);
@@ -10162,6 +10163,7 @@ function BranchTransfersView() {
         if (d.warehouse_id) setRpWarehouseId(d.warehouse_id);
         if (Array.isArray(d.branch_ids)) setRpBranchIds(d.branch_ids);
         if (d.strategy) setRpStrategy(d.strategy);
+        if (d.trigger) setRpTrigger(d.trigger);
         if (Array.isArray(d.priority_order)) setRpPriorityOrder(d.priority_order);
       } catch {}
     }
@@ -10169,8 +10171,8 @@ function BranchTransfersView() {
     setRpOpen(true);
   };
 
-  const saveReplenishDefaults = (wId: number | '', bIds: number[], strat: 'even' | 'priority', pOrder: number[]) => {
-    localStorage.setItem(REPLENISH_KEY, JSON.stringify({ warehouse_id: wId, branch_ids: bIds, strategy: strat, priority_order: pOrder }));
+  const saveReplenishDefaults = (wId: number | '', bIds: number[], strat: 'even' | 'priority', trig: 'below' | 'at_or_below', pOrder: number[]) => {
+    localStorage.setItem(REPLENISH_KEY, JSON.stringify({ warehouse_id: wId, branch_ids: bIds, strategy: strat, trigger: trig, priority_order: pOrder }));
   };
 
   const movePriority = (branchId: number, dir: -1 | 1) => {
@@ -10194,7 +10196,7 @@ function BranchTransfersView() {
   const calculateReplenish = async () => {
     if (!rpWarehouseId) { alert('Please select a warehouse location.'); return; }
     if (rpBranchIds.length === 0) { alert('Please select at least one branch to replenish.'); return; }
-    saveReplenishDefaults(rpWarehouseId, rpBranchIds, rpStrategy, rpPriorityOrder);
+    saveReplenishDefaults(rpWarehouseId, rpBranchIds, rpStrategy, rpTrigger, rpPriorityOrder);
     setRpCalculating(true);
     try {
       const res = await apiFetch('/api/ims/branch-transfers/replenish', {
@@ -10204,6 +10206,7 @@ function BranchTransfersView() {
           warehouse_id:  rpWarehouseId,
           branch_ids:    rpBranchIds,
           strategy:      rpStrategy,
+          trigger:       rpTrigger,
           priority_order: rpPriorityOrder,
         }),
       });
@@ -10730,6 +10733,27 @@ function BranchTransfersView() {
                   {locations.filter((l: any) => l.id !== Number(rpWarehouseId)).length === 0 && (
                     <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Select a warehouse first to see branches.</span>
                   )}
+                </div>
+              </div>
+
+              {/* Trigger condition */}
+              <div>
+                <label style={{ ...labelStyle, fontWeight: 700 }}>Trigger Replenishment When</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+                    <input type="radio" checked={rpTrigger === 'below'} onChange={() => setRpTrigger('below')} />
+                    <div>
+                      <span style={{ fontWeight: 600 }}>SOH &lt; Min Qty</span>
+                      <span style={{ color: 'var(--sv-text-dim)', marginLeft: 6 }}>Only when stock drops below minimum</span>
+                    </div>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+                    <input type="radio" checked={rpTrigger === 'at_or_below'} onChange={() => setRpTrigger('at_or_below')} />
+                    <div>
+                      <span style={{ fontWeight: 600 }}>SOH &le; Min Qty</span>
+                      <span style={{ color: 'var(--sv-text-dim)', marginLeft: 6 }}>Also includes stock exactly at minimum</span>
+                    </div>
+                  </label>
                 </div>
               </div>
 

@@ -195,12 +195,12 @@ export async function POST(req: Request) {
       continue;
     }
 
-    // Build the SET clause dynamically
-    const sets: string[] = [];
-    const vals: any[] = [];
-    if (minQty !== null && !isNaN(minQty))      { sets.push('min_qty = ?');     vals.push(minQty); }
-    if (reorderQty !== null && !isNaN(reorderQty)) { sets.push('reorder_qty = ?'); vals.push(reorderQty); }
-    sets.push('updated_at = CURRENT_TIMESTAMP');
+    // Build dynamic column lists for the upsert
+    const upsertCols: string[] = [];
+    const upsertVals: any[] = [];
+    const onDupParts: string[] = ['updated_at = CURRENT_TIMESTAMP'];
+    if (minQty !== null && !isNaN(minQty))         { upsertCols.push('min_qty');     upsertVals.push(minQty);     onDupParts.push('min_qty = VALUES(min_qty)'); }
+    if (reorderQty !== null && !isNaN(reorderQty)) { upsertCols.push('reorder_qty'); upsertVals.push(reorderQty); onDupParts.push('reorder_qty = VALUES(reorder_qty)'); }
 
     // Resolve location: override > BranchName > BranchId > apply to all
     let locationId: number | undefined;
@@ -222,17 +222,25 @@ export async function POST(req: Request) {
     }
 
     if (locationId) {
-      const affected = await imsExecute(
-        `UPDATE ims_stock SET ${sets.join(', ')} WHERE variant_id = ? AND location_id = ?`,
-        [...vals, variantId, locationId],
+      // Upsert: creates the stock row (qty_on_hand = 0) if missing, then sets min/reorder.
+      const colList = ['variant_id', 'location_id', ...upsertCols].join(', ');
+      const placeholders = [variantId, locationId, ...upsertVals].map(() => '?').join(', ');
+      await imsExecute(
+        `INSERT INTO ims_stock (${colList}) VALUES (${placeholders})
+         ON DUPLICATE KEY UPDATE ${onDupParts.join(', ')}`,
+        [variantId, locationId, ...upsertVals],
       );
-      if (affected.affectedRows > 0) updated++;
-      else notFoundRows.push({ code: sku, barcode: csvBarcode ?? '', reason: 'no_stock_row_for_location' });
+      updated++;
     } else {
-      // Apply to all locations for this variant
+      // Apply to all existing locations for this variant (update only — don't mass-create rows)
+      const updateSets: string[] = [];
+      const updateVals: any[] = [];
+      if (minQty !== null && !isNaN(minQty))         { updateSets.push('min_qty = ?');     updateVals.push(minQty); }
+      if (reorderQty !== null && !isNaN(reorderQty)) { updateSets.push('reorder_qty = ?'); updateVals.push(reorderQty); }
+      updateSets.push('updated_at = CURRENT_TIMESTAMP');
       const affected = await imsExecute(
-        `UPDATE ims_stock SET ${sets.join(', ')} WHERE variant_id = ?`,
-        [...vals, variantId],
+        `UPDATE ims_stock SET ${updateSets.join(', ')} WHERE variant_id = ?`,
+        [...updateVals, variantId],
       );
       if (affected.affectedRows > 0) updated += affected.affectedRows;
       else notFoundRows.push({ code: sku, barcode: csvBarcode ?? '', reason: 'no_stock_row' });

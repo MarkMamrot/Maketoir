@@ -36,10 +36,11 @@ export async function POST(req: Request) {
     warehouse_id: number;
     branch_ids: number[];
     strategy: 'even' | 'priority';
+    trigger?: 'below' | 'at_or_below';
     priority_order: number[];
   };
 
-  const { warehouse_id, branch_ids, strategy, priority_order } = body;
+  const { warehouse_id, branch_ids, strategy, trigger = 'below', priority_order } = body;
 
   if (!warehouse_id || !Array.isArray(branch_ids) || branch_ids.length === 0) {
     return NextResponse.json({ error: 'warehouse_id and branch_ids are required.' }, { status: 400 });
@@ -87,7 +88,7 @@ export async function POST(req: Request) {
      JOIN ims_product_variants v ON v.variant_id = s.variant_id AND v.is_active = 1
      JOIN ims_products p ON p.product_id = v.product_id AND p.is_active = 1
      WHERE s.location_id IN (${branchPlaceholders})
-       AND s.qty_on_hand < s.min_qty
+       AND s.qty_on_hand ${trigger === 'at_or_below' ? '<=' : '<'} s.min_qty
        AND s.min_qty > 0`,
     filteredBranchIds
   );
