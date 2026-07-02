@@ -109,8 +109,11 @@ export async function POST(req: Request) {
   }
 
   // Load lookup maps
-  const variants = await imsQuery<{ variant_id: string; sku: string | null; barcode: string | null }>(
-    'SELECT variant_id, sku, barcode FROM ims_product_variants WHERE sku IS NOT NULL OR barcode IS NOT NULL',
+  const variants = await imsQuery<{ variant_id: string; sku: string | null; barcode: string | null; product_name: string | null; brand: string | null }>(
+    `SELECT v.variant_id, v.sku, v.barcode, p.name AS product_name, p.brand
+     FROM ims_product_variants v
+     JOIN ims_products p ON p.product_id = v.product_id
+     WHERE v.sku IS NOT NULL OR v.barcode IS NOT NULL`,
   );
   // Primary: exact SKU (lowercased)
   const variantBySku = new Map<string, string>();
@@ -118,6 +121,8 @@ export async function POST(req: Request) {
   const variantBySkuNoSpaces = new Map<string, string>();
   // Tertiary: barcode
   const variantByBarcode = new Map<string, string>();
+  // Product info by variant_id (for enriching unmatched rows)
+  const variantInfo = new Map<string, { product_name: string; brand: string }>();
   for (const v of variants) {
     if (v.sku) {
       const key = v.sku.trim().toLowerCase();
@@ -127,6 +132,7 @@ export async function POST(req: Request) {
     if (v.barcode) {
       variantByBarcode.set(v.barcode.trim().toLowerCase(), v.variant_id);
     }
+    variantInfo.set(v.variant_id, { product_name: v.product_name ?? '', brand: v.brand ?? '' });
   }
 
   const locations = await imsQuery<{ id: number; name: string; cin7_branch_id: number | null }>(
@@ -142,7 +148,7 @@ export async function POST(req: Request) {
   let matchedByExact = 0, matchedByNoSpaces = 0, matchedByBarcode = 0;
 
   // Full not-found list with categorisation
-  type NotFoundRow = { code: string; barcode: string; reason: string };
+  type NotFoundRow = { code: string; barcode: string; reason: string; product_name: string; brand: string };
   const notFoundRows: NotFoundRow[] = [];
 
   for (let i = headerIdx + 1; i < rows.length; i++) {
@@ -191,16 +197,17 @@ export async function POST(req: Request) {
         : hasCsvBarcode
           ? 'barcode_also_not_in_ims'
           : 'not_in_ims';
-      notFoundRows.push({ code: sku, barcode: csvBarcode ?? '', reason });
+      notFoundRows.push({ code: sku, barcode: csvBarcode ?? '', reason, product_name: '', brand: '' });
       continue;
     }
 
-    // Build dynamic column lists for the upsert
-    const upsertCols: string[] = [];
-    const upsertVals: any[] = [];
-    const onDupParts: string[] = ['updated_at = CURRENT_TIMESTAMP'];
-    if (minQty !== null && !isNaN(minQty))         { upsertCols.push('min_qty');     upsertVals.push(minQty);     onDupParts.push('min_qty = VALUES(min_qty)'); }
-    if (reorderQty !== null && !isNaN(reorderQty)) { upsertCols.push('reorder_qty'); upsertVals.push(reorderQty); onDupParts.push('reorder_qty = VALUES(reorder_qty)'); }
+    // Build SET clause
+    const sets: string[] = [];
+    const vals: any[] = [];
+    if (minQty !== null && !isNaN(minQty))         { sets.push('min_qty = ?');     vals.push(minQty); }
+    if (reorderQty !== null && !isNaN(reorderQty)) { sets.push('reorder_qty = ?'); vals.push(reorderQty); }
+    sets.push('updated_at = CURRENT_TIMESTAMP');
+    const info = variantInfo.get(variantId) ?? { product_name: '', brand: '' };
 
     // Resolve location: override > BranchName > BranchId > apply to all
     let locationId: number | undefined;
@@ -222,28 +229,20 @@ export async function POST(req: Request) {
     }
 
     if (locationId) {
-      // Upsert: creates the stock row (qty_on_hand = 0) if missing, then sets min/reorder.
-      const colList = ['variant_id', 'location_id', ...upsertCols].join(', ');
-      const placeholders = [variantId, locationId, ...upsertVals].map(() => '?').join(', ');
-      await imsExecute(
-        `INSERT INTO ims_stock (${colList}) VALUES (${placeholders})
-         ON DUPLICATE KEY UPDATE ${onDupParts.join(', ')}`,
-        [variantId, locationId, ...upsertVals],
-      );
-      updated++;
-    } else {
-      // Apply to all existing locations for this variant (update only — don't mass-create rows)
-      const updateSets: string[] = [];
-      const updateVals: any[] = [];
-      if (minQty !== null && !isNaN(minQty))         { updateSets.push('min_qty = ?');     updateVals.push(minQty); }
-      if (reorderQty !== null && !isNaN(reorderQty)) { updateSets.push('reorder_qty = ?'); updateVals.push(reorderQty); }
-      updateSets.push('updated_at = CURRENT_TIMESTAMP');
       const affected = await imsExecute(
-        `UPDATE ims_stock SET ${updateSets.join(', ')} WHERE variant_id = ?`,
-        [...updateVals, variantId],
+        `UPDATE ims_stock SET ${sets.join(', ')} WHERE variant_id = ? AND location_id = ?`,
+        [...vals, variantId, locationId],
+      );
+      if (affected.affectedRows > 0) updated++;
+      else notFoundRows.push({ code: sku, barcode: csvBarcode ?? '', reason: 'no_stock_row_for_location', ...info });
+    } else {
+      // Apply to all existing locations for this variant
+      const affected = await imsExecute(
+        `UPDATE ims_stock SET ${sets.join(', ')} WHERE variant_id = ?`,
+        [...vals, variantId],
       );
       if (affected.affectedRows > 0) updated += affected.affectedRows;
-      else notFoundRows.push({ code: sku, barcode: csvBarcode ?? '', reason: 'no_stock_row' });
+      else notFoundRows.push({ code: sku, barcode: csvBarcode ?? '', reason: 'no_stock_row', ...info });
     }
   }
 

@@ -12512,7 +12512,8 @@ function StockMinsImportCard() {
               <button
                 onClick={() => {
                   const all = Object.values(result.notFoundByReason ?? {}).flat() as any[];
-                  const csv = ['Reason,Code,Barcode', ...all.map((r: any) => `${r.reason},${r.code},${r.barcode}`)].join('\n');
+                  const esc = (v: string) => `"${(v ?? '').replace(/"/g, '""')}"`;
+                  const csv = ['Reason,Code,Barcode,Product Name,Brand', ...all.map((r: any) => [r.reason, esc(r.code), esc(r.barcode), esc(r.product_name ?? ''), esc(r.brand ?? '')].join(','))].join('\n');
                   const blob = new Blob([csv], { type: 'text/csv' });
                   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
                   a.download = 'stock-mins-unmatched.csv'; a.click();
