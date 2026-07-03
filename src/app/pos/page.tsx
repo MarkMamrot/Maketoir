@@ -724,10 +724,11 @@ function ZellerPairButton() {
     setPairing(true); setMsg(null);
     try {
       const result = await terminal.setup();
-      if (result instanceof Error) { setMsg(`Pairing failed: ${result.message}`); return; }
+      if (result instanceof Error) { setMsg(`Pairing failed: ${(result as any).type ?? result.message}`); return; }
+      // result === true on success
       setMsg('✓ Terminal paired successfully!');
     } catch (e: any) {
-      setMsg(`Error: ${e?.message ?? 'Unknown'}`);
+      setMsg(`Error: ${e?.type ?? e?.message ?? 'Unknown'}`);
     } finally { setPairing(false); }
   }
 
@@ -3490,16 +3491,17 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
     try {
       const result = await terminal.purchase({ amount: amountCents, reference: ref });
       if (result instanceof Error) {
-        setZellerError(`Payment declined: ${result.message}`);
+        setZellerError(`Payment declined: ${(result as any).type ?? result.message}`);
         return;
       }
-      const txId = (result as Zeller.PurchaseSuccessResponse).transactionUuid ?? ref;
+      // result is ClientTransaction — transactionUuid is the authorisation ID
+      const txId = result.transactionUuid ?? ref;
       const newPayment: PaymentEntry = { localId: newLocalId(), method: activeMethod, amount: remaining, reference: txId };
       const newPayments = [...payments, newPayment];
       const rounding = isCashMethod ? cashRoundAdj : 0;
       onComplete(isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments, 0, rounding !== 0 ? rounding : undefined);
     } catch (e: any) {
-      setZellerError(`Terminal error: ${e?.message ?? 'Unknown error'}`);
+      setZellerError(`Terminal error: ${e?.type ?? e?.message ?? 'Unknown error'}`);
     } finally {
       setZellerPending(false);
     }
@@ -5651,7 +5653,7 @@ export default function PosPage() {
     setOfflineMode(false);
   }
 
-  return (
+  const mainPosContent = (
     <MainPos
       deviceConfig={deviceConfig}
       session={session}
@@ -5712,5 +5714,10 @@ export default function PosPage() {
         setScreen('receipt');
       }}
     />
+  );
+  return (
+    <Zeller.Provider vendorName="Marketoir" vendorApplicationName="Monsterthreads POS" vendorApplicationVersion="1.0.0" vendorDeviceType="POS">
+      {mainPosContent}
+    </Zeller.Provider>
   );
 }

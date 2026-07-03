@@ -11,3 +11,4 @@ deploy.zip
 # Credential files — never commit
 base64.txt
 *.key.json
+.npmrc
