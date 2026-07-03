@@ -37,6 +37,11 @@ export async function POST(req: Request) {
   const businessId: string = session.businessId ?? '';
 
   // Load config
+  const syncEnabled = await getSetting(businessId, 'shopify_order_sync_enabled');
+  if (syncEnabled !== '1') {
+    return NextResponse.json({ error: 'Shopify order sync is disabled. Enable it in IMS → Shopify → Orders & Webhooks.' }, { status: 400 });
+  }
+
   const syncFrom = await getSetting(businessId, 'shopify_order_sync_from');
   if (!syncFrom) {
     return NextResponse.json({

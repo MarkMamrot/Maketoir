@@ -58,6 +58,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   }
 
+  // Check sync is enabled (always return 200 to avoid Shopify deactivating the webhook)
+  const enabledRow = await imsQuery<{ value: string }>(
+    `SELECT value FROM ims_settings WHERE business_id = ? AND \`key\` = 'shopify_order_sync_enabled' LIMIT 1`,
+    [config.businessId],
+  );
+  if (enabledRow[0]?.value !== '1') return NextResponse.json({ ok: true });
+
   // Verify HMAC
   const computed = crypto.createHmac('sha256', config.secret).update(rawBody, 'utf8').digest('base64');
   const valid = hmac.length > 0 && crypto.timingSafeEqual(Buffer.from(computed), Buffer.from(hmac));

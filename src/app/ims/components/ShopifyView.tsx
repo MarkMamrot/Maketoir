@@ -492,6 +492,7 @@ function ShopifyOrdersTab() {
   const [locations,      setLocations]      = useState<{ id: number; name: string }[]>([]);
   const [saving,         setSaving]         = useState(false);
   const [saveMsg,        setSaveMsg]        = useState<string | null>(null);
+  const [syncEnabled,    setSyncEnabled]    = useState(false);
   const [importing,      setImporting]      = useState(false);
   const [importResult,   setImportResult]   = useState<any>(null);
   const [importError,    setImportError]    = useState<string | null>(null);
@@ -503,6 +504,7 @@ function ShopifyOrdersTab() {
         if (d.data.shopify_order_sync_from) setSyncFrom(d.data.shopify_order_sync_from);
         if (d.data.online_sales_location_id) setLocationId(d.data.online_sales_location_id);
         if (d.data.shopify_webhook_secret) setWebhookSecret(d.data.shopify_webhook_secret);
+        setSyncEnabled(d.data.shopify_order_sync_enabled === '1');
       }
     }).catch(() => {});
     // Load locations
@@ -518,6 +520,7 @@ function ShopifyOrdersTab() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings: {
+          shopify_order_sync_enabled: syncEnabled ? '1' : '0',
           shopify_order_sync_from: syncFrom,
           online_sales_location_id: locationId,
           shopify_webhook_secret: webhookSecret,
@@ -548,7 +551,29 @@ function ShopifyOrdersTab() {
 
   return (
     <div style={{ maxWidth: 680 }}>
-      {/* Configuration */}
+      {/* Enable/Disable toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20, padding: '14px 18px', background: syncEnabled ? 'rgba(16,185,129,.08)' : 'var(--sv-bg-2)', border: `1px solid ${syncEnabled ? 'rgba(16,185,129,.3)' : 'var(--sv-etch)'}`, borderRadius: 10 }}>
+        <div
+          onClick={async () => {
+            const next = !syncEnabled;
+            setSyncEnabled(next);
+            await fetch('/api/ims/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: { shopify_order_sync_enabled: next ? '1' : '0' } }) }).catch(() => {});
+          }}
+          style={{ width: 48, height: 26, borderRadius: 99, background: syncEnabled ? '#10b981' : 'var(--sv-etch)', position: 'relative', cursor: 'pointer', transition: 'background .2s', flexShrink: 0 }}
+        >
+          <div style={{ position: 'absolute', top: 3, left: syncEnabled ? 25 : 3, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 4px rgba(0,0,0,.3)' }} />
+        </div>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: syncEnabled ? '#10b981' : 'var(--sv-text-dim)' }}>
+            Shopify Order Sync {syncEnabled ? 'Enabled' : 'Disabled'}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 2 }}>
+            {syncEnabled
+              ? 'Webhook events and manual imports are active. New Shopify orders will flow into IMS automatically.'
+              : 'Sync is off. Webhook calls will be accepted but silently ignored. Manual import is also blocked.'}
+          </div>
+        </div>
+      </div>}
       <div style={card}>
         <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Order Sync Configuration</h3>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
