@@ -4,6 +4,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Zeller Payments SDK overlay — the SDK's .zeller-sdk-display container is
+   position:fixed with no z-index, so it renders behind POS modals (z-index
+   up to 9999). Force it above everything so the login/pairing UI is usable. */
+.zeller-sdk-display {
+  z-index: 2147483647 !important;
+}
+
 :root,
 html[data-skin='dark'] {
   --sv-bg-0: #020617;
