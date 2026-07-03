@@ -145,33 +145,23 @@ export async function POST(req: Request) {
       let soId: number;
       try {
         const soNumber = `ONL-${orderDate.replace(/-/g, '')}-${orderIdStr.slice(-6)}`;
+        // Use Shopify's authoritative money fields — prices are GST-inclusive for AU stores,
+        // so total_tax is the real GST (total/11), NOT subtotal × 0.1.
+        const subtotal    = parseFloat(order.subtotal_price ?? '0');
+        const taxAmount   = parseFloat(order.total_tax ?? '0');
+        const totalAmount = parseFloat(order.total_price ?? '0');
         const [result] = await poolConn.execute<any>(
           `INSERT INTO ims_sales_orders
              (business_id, so_number, so_type, location_id, status, order_date, freight, discount,
               subtotal, tax_amount, total_amount, shopify_order_id, notes)
-           VALUES (?, ?, 'online', ?, 'draft', ?, ?, ?,
-             (SELECT IFNULL(SUM(qty * price), 0) FROM (SELECT ? AS dummy) t),
-             0, ?, ?, ?)`,
+           VALUES (?, ?, 'online', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             businessId, soNumber, locationId, orderDate, freight, discount,
-            0, // subtotal placeholder
-            parseFloat(order.total_price ?? '0'),
-            orderIdStr,
+            subtotal, taxAmount, totalAmount, orderIdStr,
             `Shopify order ${order.name ?? ''}`.trim(),
           ],
         );
-
-        // Recalculate subtotal from items
-        let subtotal = 0;
-        for (const it of items) subtotal += it.qty_ordered * it.unit_price * (1 - 0);
-        const taxAmount = subtotal * 0.1;
         soId = result.insertId;
-
-        // Fix subtotal/tax
-        await poolConn.execute(
-          'UPDATE ims_sales_orders SET subtotal = ?, tax_amount = ? WHERE id = ?',
-          [subtotal, taxAmount, soId],
-        );
 
         // Insert line items
         for (const it of items) {

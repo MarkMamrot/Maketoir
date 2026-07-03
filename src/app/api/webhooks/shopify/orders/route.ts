@@ -66,9 +66,14 @@ export async function POST(req: Request) {
   );
   if (enabledRow[0]?.value !== '1') return NextResponse.json({ ok: true });
 
-  // Verify HMAC
+  // Verify HMAC (timingSafeEqual throws on length mismatch — guard first)
   const computed = crypto.createHmac('sha256', config.secret).update(rawBody, 'utf8').digest('base64');
-  const valid = hmac.length > 0 && crypto.timingSafeEqual(Buffer.from(computed), Buffer.from(hmac));
+  let valid = false;
+  try {
+    const a = Buffer.from(computed);
+    const b = Buffer.from(hmac);
+    valid = hmac.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch { valid = false; }
   if (!valid) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
   }
@@ -124,7 +129,10 @@ export async function POST(req: Request) {
       let soId: number;
       try {
         const soNumber = `ONL-${orderDate.replace(/-/g, '')}-${orderIdStr.slice(-6)}`;
-        const subtotal = items.reduce((s, it) => s + it.line_total, 0);
+        // Shopify money fields are authoritative; prices are GST-inclusive (AU) so
+        // total_tax is the real GST, not subtotal × 0.1.
+        const subtotal = parseFloat(payload.subtotal_price ?? '0');
+        const taxAmount = parseFloat(payload.total_tax ?? '0');
         const freight  = parseFloat(payload.total_shipping_price_set?.shop_money?.amount ?? '0');
         const discount = parseFloat(payload.total_discounts ?? '0');
         const [r] = await conn.execute<any>(
@@ -133,7 +141,7 @@ export async function POST(req: Request) {
               subtotal, tax_amount, total_amount, shopify_order_id, notes)
            VALUES (?, ?, 'online', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)`,
           [config.businessId, soNumber, config.locationId, orderDate, freight, discount,
-           subtotal, subtotal * 0.1, parseFloat(payload.total_price ?? '0'), orderIdStr,
+           subtotal, taxAmount, parseFloat(payload.total_price ?? '0'), orderIdStr,
            `Shopify ${payload.name ?? ''}`.trim()],
         );
         soId = r.insertId;
