@@ -22,6 +22,7 @@ const NAV_ICONS: Record<string, string> = {
   'customer-service': `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>`,
   settings: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37a1.724 1.724 0 002.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>`,
   ims: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>`,
+  'brand-assets': `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="18" height="18" rx="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8.5" cy="8.5" r="1.5"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 15l-5-5L5 21"/></svg>`,
 };
 
 const NAV: NavItem[] = [
@@ -50,6 +51,14 @@ const NAV: NavItem[] = [
     children: [
       { id: 'marketing-assistant', label: 'Marketing Assistant' },
       { id: 'campaign-audit',      label: 'Campaign Audit'      },
+    ],
+  },
+  {
+    id: 'brand-assets', label: 'Brand Assets', icon: 'brand-assets',
+    children: [
+      { id: 'brand-assets-models',    label: 'Models'    },
+      { id: 'brand-assets-backdrops', label: 'Backdrops' },
+      { id: 'brand-assets-templates', label: 'Templates' },
     ],
   },
   {
@@ -89,7 +98,7 @@ function Sidebar({
   onSelect: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
-    inventory: false, marketing: false, website: false, 'ai-helper': false, 'business-intelligence': false, settings: false,
+    inventory: false, marketing: false, website: false, 'ai-helper': false, 'business-intelligence': false, 'brand-assets': false, settings: false,
   });
   const [collapsed, setCollapsed] = useState(false);
 
@@ -7936,6 +7945,122 @@ function CalculatedDataView({ databaseId }: { databaseId: string }) {
   );
 }
 
+// ── Brand Assets ─────────────────────────────────────────────────────────────
+type BrandAssetCategory = {
+  id: string;
+  label: string;
+  description: string;
+  icon: string;
+  accentColor: string;
+};
+
+const BRAND_ASSET_CATEGORIES: BrandAssetCategory[] = [
+  {
+    id: 'models',
+    label: 'Models',
+    description: 'Manage model images and profiles used across visual content and campaigns.',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>`,
+    accentColor: '#0ea5e9',
+  },
+  {
+    id: 'backdrops',
+    label: 'Backdrops',
+    description: 'Organise backdrop and background images for product and promotional photography.',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 15l-5-5L5 21"/></svg>`,
+    accentColor: '#8b5cf6',
+  },
+  {
+    id: 'templates',
+    label: 'Templates',
+    description: 'Store and reuse design and content templates across your brand communications.',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>`,
+    accentColor: '#f59e0b',
+  },
+];
+
+function BrandAssetsView({ activeCategory }: { activeCategory?: string }) {
+  const filteredCategories = activeCategory
+    ? BRAND_ASSET_CATEGORIES.filter(c => c.id === activeCategory)
+    : BRAND_ASSET_CATEGORIES;
+
+  return (
+    <div>
+      {/* Category card grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+        {filteredCategories.map(cat => (
+          <div
+            key={cat.id}
+            style={{
+              background: 'var(--sv-bg-2, #fff)',
+              border: '1px solid var(--sv-etch, #e5e7eb)',
+              borderRadius: 12,
+              padding: '24px 22px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14,
+              transition: 'box-shadow .15s, border-color .15s',
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLDivElement).style.borderColor = cat.accentColor + '66';
+              (e.currentTarget as HTMLDivElement).style.boxShadow = `0 4px 20px 0 ${cat.accentColor}18`;
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--sv-etch, #e5e7eb)';
+              (e.currentTarget as HTMLDivElement).style.boxShadow = 'none';
+            }}
+          >
+            {/* Icon badge */}
+            <div style={{
+              width: 48,
+              height: 48,
+              borderRadius: 10,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: cat.accentColor + '18',
+              color: cat.accentColor,
+            }} dangerouslySetInnerHTML={{ __html: cat.icon }} />
+
+            {/* Label + description */}
+            <div>
+              <h3 style={{ fontWeight: 700, fontSize: 16, color: 'var(--sv-text-strong, #111827)', margin: 0 }}>{cat.label}</h3>
+              <p style={{ fontSize: 13, color: 'var(--sv-text-dim, #6b7280)', margin: '6px 0 0', lineHeight: 1.5 }}>{cat.description}</p>
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              marginTop: 'auto',
+              paddingTop: 14,
+              borderTop: '1px solid var(--sv-etch, #e5e7eb)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
+              <span style={{ fontSize: 12, color: 'var(--sv-text-dim, #9ca3af)' }}>No assets yet</span>
+              <button
+                disabled
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: cat.accentColor,
+                  background: cat.accentColor + '12',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '5px 12px',
+                  cursor: 'not-allowed',
+                  opacity: 0.6,
+                }}
+              >
+                Browse
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [activeView, setActiveView] = useState('home');
   const [setupComplete, setSetupComplete] = useState(false);
@@ -8003,6 +8128,10 @@ export default function DashboardPage() {
     'business-info': 'Business Info',
     'brand-profile': 'Brand Profile',
     'sync-data': 'Sync Data',
+    'brand-assets': 'Brand Assets',
+    'brand-assets-models': 'Brand Assets — Models',
+    'brand-assets-backdrops': 'Brand Assets — Backdrops',
+    'brand-assets-templates': 'Brand Assets — Templates',
   };
 
   const handleSignOut = async () => {
@@ -8135,6 +8264,16 @@ export default function DashboardPage() {
           )}
           {activeView === 'brand-profile' && (
             <BrandProfileTab business={databaseId ? { name: businessName, userId: '', databaseId } : null} />
+          )}
+          {(activeView === 'brand-assets' || activeView === 'brand-assets-models' || activeView === 'brand-assets-backdrops' || activeView === 'brand-assets-templates') && (
+            <BrandAssetsView
+              activeCategory={
+                activeView === 'brand-assets' ? undefined
+                  : activeView === 'brand-assets-models' ? 'models'
+                  : activeView === 'brand-assets-backdrops' ? 'backdrops'
+                  : 'templates'
+              }
+            />
           )}
           {activeView === 'calculated-data' && (
             <CalculatedDataView databaseId={databaseId} />
