@@ -77,6 +77,29 @@ export class ShopifyService {
     return products;
   }
 
+  /**
+   * Fetches all orders created on or after `sinceDate` (ISO date string, e.g. '2026-07-01').
+   * Returns full order objects including line_items, financial_status, fulfillment_status.
+   */
+  async getAllOrders(sinceDate: string): Promise<any[]> {
+    const orders: any[] = [];
+    let params: any = { status: 'any', created_at_min: sinceDate, limit: 250 };
+    while (true) {
+      const page = await (this.shopify as any).order.list(params) as any[];
+      orders.push(...page);
+      const next = (page as any).nextPageParameters;
+      if (next) {
+        params = next;
+      } else if (page.length >= 250) {
+        params = { ...params, since_id: page[page.length - 1].id };
+        delete params.created_at_min; // since_id is the cursor from here
+      } else {
+        break;
+      }
+    }
+    return orders;
+  }
+
   /** Map a Shopify product object to a flat row matching PRODUCT_HEADERS. */
   toSheetRow(product: any): string[] {
     const v = product.variants?.[0] ?? {};

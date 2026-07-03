@@ -31,7 +31,7 @@ function actionLabel(a: string) {
 export default function ShopifyView() {
   const [status, setStatus]   = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab]         = useState<'overview' | 'products' | 'log'>('overview');
+  const [tab, setTab]         = useState<'overview' | 'products' | 'log' | 'orders'>('overview');
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -72,10 +72,12 @@ export default function ShopifyView() {
             <button style={tabBtnStyle(tab === 'overview')} onClick={() => setTab('overview')}>Overview</button>
             <button style={tabBtnStyle(tab === 'products')} onClick={() => setTab('products')}>Products</button>
             <button style={tabBtnStyle(tab === 'log')}      onClick={() => setTab('log')}>Sync Log</button>
+            <button style={tabBtnStyle(tab === 'orders')}   onClick={() => setTab('orders')}>Orders & Webhooks</button>
           </div>
           {tab === 'overview' && <ShopifyOverviewTab status={status} onReload={reload} />}
           {tab === 'products' && <ShopifyProductsTab />}
           {tab === 'log'      && <ShopifyLogTab />}
+          {tab === 'orders'   && <ShopifyOrdersTab />}
         </>
       )}
     </div>
@@ -478,6 +480,144 @@ function ShopifyLogTab() {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// ─── Orders & Webhooks Tab ────────────────────────────────────────────────────
+function ShopifyOrdersTab() {
+  const [syncFrom,       setSyncFrom]       = useState('2026-07-01');
+  const [locationId,     setLocationId]     = useState('');
+  const [webhookSecret,  setWebhookSecret]  = useState('');
+  const [locations,      setLocations]      = useState<{ id: number; name: string }[]>([]);
+  const [saving,         setSaving]         = useState(false);
+  const [saveMsg,        setSaveMsg]        = useState<string | null>(null);
+  const [importing,      setImporting]      = useState(false);
+  const [importResult,   setImportResult]   = useState<any>(null);
+  const [importError,    setImportError]    = useState<string | null>(null);
+
+  useEffect(() => {
+    // Load current settings
+    fetch('/api/ims/settings').then(r => r.json()).then(d => {
+      if (d.data) {
+        if (d.data.shopify_order_sync_from) setSyncFrom(d.data.shopify_order_sync_from);
+        if (d.data.online_sales_location_id) setLocationId(d.data.online_sales_location_id);
+        if (d.data.shopify_webhook_secret) setWebhookSecret(d.data.shopify_webhook_secret);
+      }
+    }).catch(() => {});
+    // Load locations
+    fetch('/api/ims/locations').then(r => r.json()).then(d => {
+      if (d.success) setLocations(d.data ?? []);
+    }).catch(() => {});
+  }, []);
+
+  async function saveSettings() {
+    setSaving(true); setSaveMsg(null);
+    try {
+      await fetch('/api/ims/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: {
+          shopify_order_sync_from: syncFrom,
+          online_sales_location_id: locationId,
+          shopify_webhook_secret: webhookSecret,
+        }}),
+      });
+      setSaveMsg('Settings saved.');
+    } catch (e: any) { setSaveMsg(`Error: ${e.message}`); }
+    setSaving(false);
+  }
+
+  async function runImport() {
+    setImporting(true); setImportResult(null); setImportError(null);
+    try {
+      const r = await fetch('/api/ims/shopify/import-orders', { method: 'POST' });
+      const d = await r.json();
+      if (!r.ok || !d.success) throw new Error(d.error ?? 'Import failed');
+      setImportResult(d);
+    } catch (e: any) { setImportError(e.message); }
+    setImporting(false);
+  }
+
+  const card: React.CSSProperties = { padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 };
+  const label: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em' };
+  const input: React.CSSProperties = { padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 13, width: '100%', boxSizing: 'border-box' as const };
+  const btn = (primary?: boolean): React.CSSProperties => ({ padding: '8px 20px', background: primary ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: primary ? '#fff' : 'var(--sv-text-main)', border: `1px solid ${primary ? 'transparent' : 'var(--sv-etch)'}`, borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13 });
+
+  const webhookUrl = typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/shopify/orders` : '/api/webhooks/shopify/orders';
+
+  return (
+    <div style={{ maxWidth: 680 }}>
+      {/* Configuration */}
+      <div style={card}>
+        <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Order Sync Configuration</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+          <div>
+            <label style={label}>Transition Date (sync orders from)</label>
+            <input type="date" value={syncFrom} onChange={e => setSyncFrom(e.target.value)} style={input} />
+            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 4 }}>Orders before this date were imported from Cin7 and should not be re-imported.</div>
+          </div>
+          <div>
+            <label style={label}>Online Orders Location (warehouse)</label>
+            <select value={locationId} onChange={e => setLocationId(e.target.value)} style={input}>
+              <option value="">— Select —</option>
+              {locations.map(l => <option key={l.id} value={String(l.id)}>{l.name}</option>)}
+            </select>
+            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 4 }}>Which location's stock is committed/deducted for online orders.</div>
+          </div>
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <label style={label}>Shopify Webhook Signing Secret</label>
+          <input type="password" value={webhookSecret} onChange={e => setWebhookSecret(e.target.value)} placeholder="shpss_…" style={input} autoComplete="new-password" />
+          <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 4 }}>Found in Shopify Admin → Settings → Notifications → Webhooks → your webhook → Signing secret.</div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button onClick={saveSettings} disabled={saving} style={btn(true)}>{saving ? 'Saving…' : 'Save Settings'}</button>
+          {saveMsg && <span style={{ fontSize: 13, color: saveMsg.startsWith('Error') ? 'var(--sv-red)' : 'var(--sv-mint)' }}>{saveMsg}</span>}
+        </div>
+      </div>
+
+      {/* Webhook URL */}
+      <div style={card}>
+        <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Webhook URL</h3>
+        <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
+          Add this URL in <strong>Shopify Admin → Settings → Notifications → Webhooks</strong> for the following events: <code>orders/create</code>, <code>orders/cancelled</code>, <code>fulfillments/create</code>
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <code style={{ flex: 1, padding: '8px 12px', background: 'var(--sv-bg-1)', borderRadius: 6, border: '1px solid var(--sv-etch)', fontSize: 12, color: 'var(--sv-mint)', overflowX: 'auto' as const }}>{webhookUrl}</code>
+          <button onClick={() => navigator.clipboard?.writeText(webhookUrl)} style={btn()}>Copy</button>
+        </div>
+      </div>
+
+      {/* Manual import */}
+      <div style={card}>
+        <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Manual Order Import</h3>
+        <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
+          Pulls all Shopify orders from the transition date to now and imports them into IMS. Safe to run multiple times — existing orders are skipped.
+        </p>
+        <button onClick={runImport} disabled={importing} style={btn(true)}>{importing ? 'Importing…' : '📦 Import Orders from Shopify'}</button>
+
+        {importError && (
+          <div style={{ marginTop: 14, padding: 12, background: 'rgba(248,113,113,.1)', borderRadius: 8, border: '1px solid rgba(248,113,113,.3)', color: 'var(--sv-red)', fontSize: 13 }}>✗ {importError}</div>
+        )}
+        {importResult && (
+          <div style={{ marginTop: 14, padding: 14, background: 'rgba(16,185,129,.08)', borderRadius: 8, border: '1px solid rgba(16,185,129,.25)', fontSize: 13 }}>
+            <strong style={{ color: '#34d399' }}>✓ Import complete</strong>
+            <div style={{ marginTop: 8, color: 'var(--sv-text-main)', lineHeight: 2 }}>
+              <div>Orders from Shopify: <strong>{importResult.total_from_shopify}</strong></div>
+              <div>Newly imported: <strong style={{ color: '#34d399' }}>{importResult.imported}</strong></div>
+              <div>Already existed (skipped): <strong>{importResult.skipped_existing}</strong></div>
+              <div>No matched variants (skipped): <strong>{importResult.skipped_no_items}</strong></div>
+              {importResult.errors?.length > 0 && (
+                <details style={{ marginTop: 6 }}>
+                  <summary style={{ cursor: 'pointer', color: 'var(--sv-red)' }}>{importResult.errors.length} errors</summary>
+                  <pre style={{ margin: '6px 0', fontSize: 11, color: 'var(--sv-text-dim)', whiteSpace: 'pre-wrap' }}>{importResult.errors.join('\n')}</pre>
+                </details>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -7077,7 +7077,7 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
 // Online Sales View — sales orders from Cin7, grouped by day
 // ─────────────────────────────────────────────────────────────────────────────
 
-function OnlineSalesView() {
+function OnlineSalesView({ businessId }: { businessId: string }) {
   const [locationId, setLocationId] = useState<number | ''>('');
   const [locations, setLocations]   = useState<{ id: number; name: string }[]>([]);
   const [days, setDays]             = useState<any[]>([]);
@@ -7086,6 +7086,10 @@ function OnlineSalesView() {
   const [dayData, setDayData]               = useState<Record<string, any[]>>({});
   const [dayLoading, setDayLoading]         = useState<Set<string>>(new Set());
   const [expandedOrders, setExpandedOrders] = useState<Set<number>>(new Set());
+  const [importing,      setImporting]      = useState(false);
+  const [importResult,   setImportResult]   = useState<string | null>(null);
+  const [xeroSyncing,    setXeroSyncing]    = useState<string | null>(null); // date being synced
+  const [xeroResults,    setXeroResults]    = useState<Record<string, 'ok' | 'err' | 'none'>>({});
 
   useEffect(() => {
     fetch('/api/ims/locations').then(r => r.json()).then(d => {
@@ -7164,7 +7168,23 @@ function OnlineSalesView() {
             {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         </div>
+        <button
+          onClick={async () => {
+            setImporting(true); setImportResult(null);
+            try {
+              const r = await apiFetch('/api/ims/shopify/import-orders', { method: 'POST' });
+              setImportResult(r.error ? `✗ ${r.error}` : `✓ Imported ${r.imported} order${r.imported !== 1 ? 's' : ''} (${r.skipped_existing} already existed)`);
+              if (r.imported > 0) loadDays();
+            } catch (e: any) { setImportResult(`✗ ${e.message}`); }
+            setImporting(false);
+          }}
+          disabled={importing}
+          style={{ padding: '7px 14px', background: 'none', border: '1px solid var(--sv-accent)', color: 'var(--sv-accent)', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: importing ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
+        >{importing ? 'Importing…' : '📦 Import from Shopify'}</button>
       </div>
+      {importResult && (
+        <div style={{ marginBottom: 14, padding: '8px 14px', borderRadius: 6, background: importResult.startsWith('✓') ? 'rgba(16,185,129,.1)' : 'rgba(239,68,68,.1)', color: importResult.startsWith('✓') ? 'var(--sv-mint)' : 'var(--sv-red)', fontSize: 13 }}>{importResult}</div>
+      )}
 
       {/* Summary strip */}
       {!daysLoading && days.length > 0 && (
@@ -7233,6 +7253,24 @@ function OnlineSalesView() {
               <span style={{ flex: 1 }} />
               <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 66, textAlign: 'right', flexShrink: 0 }}>{Number(day.count)} order{Number(day.count) !== 1 ? 's' : ''}</span>
               <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', minWidth: 96, textAlign: 'right', flexShrink: 0 }}>{fmtMoney(dayTotal)}</span>
+              {/* Xero sync button */}
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  setXeroSyncing(day.day);
+                  try {
+                    const r = await apiFetch('/api/xero/sync/daily-sales', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ databaseId: businessId, date: day.day, channel: 'online' }),
+                    });
+                    setXeroResults(prev => ({ ...prev, [day.day]: r.success ? 'ok' : 'none' }));
+                  } catch { setXeroResults(prev => ({ ...prev, [day.day]: 'err' })); }
+                  setXeroSyncing(null);
+                }}
+                disabled={xeroSyncing === day.day}
+                style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: xeroResults[day.day] === 'ok' ? 'rgba(16,185,129,.1)' : 'none', color: xeroResults[day.day] === 'ok' ? 'var(--sv-mint)' : xeroResults[day.day] === 'err' ? 'var(--sv-red)' : 'var(--sv-text-muted)', fontSize: 11, fontWeight: 600, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
+              >{xeroSyncing === day.day ? 'Syncing…' : xeroResults[day.day] === 'ok' ? '✓ Xero' : xeroResults[day.day] === 'err' ? '✗ Xero' : 'Sync Xero'}</button>
               <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', width: 14, textAlign: 'center', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
             </div>
 
@@ -10666,7 +10704,7 @@ export default function ImsPage() {
           {view === 'receive-transfers' && <ReceiveTransfersView />}
           {view === 'brands'           && <BrandsView />}
           {view === 'pos-sales'        && <PosSalesView />}
-          {view === 'online-sales'     && <OnlineSalesView />}
+          {view === 'online-sales'     && <OnlineSalesView businessId={user?.businessId ?? ''} />}
           {view === 'stocktakes'        && <StocktakesView businessId={user?.businessId ?? ''} />}
           {view === 'reports'           && <ReportsView onNav={setView} />}
           {view === 'report-sales-by-branch' && <SalesByBranchView onBack={() => setView('reports')} />}
