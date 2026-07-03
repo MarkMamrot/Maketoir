@@ -1,0 +1,5 @@
+[phases.setup]
+cmds = [
+  'echo "@zeller-public:registry=https://zeller.jfrog.io/artifactory/api/npm/npm/" > .npmrc',
+  'echo "//zeller.jfrog.io/artifactory/api/npm/npm/:_authToken=$ZELLER_NPM_TOKEN" >> .npmrc'
+]
