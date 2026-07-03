@@ -1,5 +1,0 @@
-[phases.install]
-cmds = [
-  'echo "//zeller.jfrog.io/artifactory/api/npm/npm/:_authToken=$ZELLER_NPM_TOKEN" >> .npmrc',
-  'npm ci'
-]
