@@ -717,31 +717,77 @@ function computeThemeVars(s: PosLocationSettings): Record<string, string> {
 // Small helper rendered inside PosSettingsModal — calls useTerminal() for terminal pairing
 function ZellerPairButton() {
   const terminal = Zeller.useTerminal();
-  const [pairing, setPairing] = useState(false);
-  const [msg, setMsg]         = useState<string | null>(null);
+  const [pairing,  setPairing]  = useState(false);
+  const [testing,  setTesting]  = useState(false);
+  const [msg,      setMsg]      = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<{ ok: boolean; type: string; detail: string } | null>(null);
 
   async function handlePair() {
-    setPairing(true); setMsg(null);
+    setPairing(true); setMsg(null); setTestResult(null);
     try {
       const result = await terminal.setup();
       if (result instanceof Error) { setMsg(`Pairing failed: ${(result as any).type ?? result.message}`); return; }
-      // result === true on success
       setMsg('✓ Terminal paired successfully!');
     } catch (e: any) {
       setMsg(`Error: ${e?.type ?? e?.message ?? 'Unknown'}`);
     } finally { setPairing(false); }
   }
 
+  async function handleTest() {
+    setTesting(true); setMsg(null); setTestResult(null);
+    try {
+      const result = await (terminal as any).initialise?.();
+      if (!result || result === true) {
+        setTestResult({ ok: true, type: 'OK', detail: 'Terminal is paired and reachable.' });
+        return;
+      }
+      if (result instanceof Error) {
+        const type = (result as any).type ?? result.message ?? 'Unknown';
+        const guidance: Record<string, string> = {
+          'Setup Required':              'Terminal not yet paired. Use "Pair Terminal" below.',
+          'Connection Failure':          'Could not reach Zeller services. Check this device\'s internet connection.',
+          'Network Failure':             'Could not load the Zeller SDK. Check this device\'s internet connection.',
+          'Paired Device Not Available': 'Terminal paired but not reachable.\n• Is the Zeller terminal powered on?\n• Is it connected to the internet (WiFi light on)?\n• Is Integrated Payments enabled on the terminal (Settings → POS)?\n• Both this device and the terminal must have working internet — Zeller routes through the cloud, not your local network.',
+          'Operation Failure':           'Unexpected SDK error. Try re-pairing.',
+        };
+        setTestResult({ ok: false, type, detail: guidance[type] ?? `Error code: ${type}` });
+      }
+    } catch (e: any) {
+      setTestResult({ ok: false, type: 'Exception', detail: e?.message ?? 'Unknown error' });
+    } finally { setTesting(false); }
+  }
+
+  const dimStyle: React.CSSProperties = { fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 4, lineHeight: 1.5 };
+
   return (
-    <div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* Test connection */}
+      <button
+        onClick={handleTest} disabled={testing}
+        style={{ padding: '.5rem 1.1rem', background: testing ? 'var(--sv-etch)' : 'rgba(37,99,235,.12)', border: '1px solid rgba(37,99,235,.4)', borderRadius: 7, color: 'var(--sv-action)', cursor: testing ? 'default' : 'pointer', fontSize: 13, fontWeight: 600 }}
+      >
+        {testing ? 'Testing…' : '🔍 Test Terminal Connection'}
+      </button>
+
+      {testResult && (
+        <div style={{ padding: '10px 13px', borderRadius: 8, background: testResult.ok ? 'rgba(16,185,129,.1)' : 'rgba(239,68,68,.08)', border: `1px solid ${testResult.ok ? 'rgba(16,185,129,.3)' : 'rgba(239,68,68,.3)'}` }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: testResult.ok ? 'var(--sv-mint)' : 'var(--sv-red)' }}>
+            {testResult.ok ? '✓ Connected' : `✗ ${testResult.type}`}
+          </div>
+          <div style={{ ...dimStyle, color: testResult.ok ? 'var(--sv-mint)' : 'rgba(255,100,100,.9)', whiteSpace: 'pre-line' }}>{testResult.detail}</div>
+        </div>
+      )}
+
+      {/* Pair / Re-pair */}
       <button
         onClick={handlePair} disabled={pairing}
         style={{ padding: '.5rem 1.1rem', background: pairing ? 'var(--sv-etch)' : 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 7, color: 'var(--sv-text-main)', cursor: pairing ? 'default' : 'pointer', fontSize: 13, fontWeight: 600 }}
       >
         {pairing ? 'Opening Zeller pairing…' : '🔗 Pair / Re-pair Terminal'}
       </button>
-      {msg && <div style={{ marginTop: 6, fontSize: 12, color: msg.startsWith('✓') ? 'var(--sv-mint)' : 'var(--sv-red)' }}>{msg}</div>}
-      <div style={{ marginTop: 6, fontSize: 11, color: 'var(--sv-text-dim)' }}>Sign in with your Zeller account to select this terminal. Pairing persists across sessions.</div>
+      {msg && <div style={{ fontSize: 12, color: msg.startsWith('✓') ? 'var(--sv-mint)' : 'var(--sv-red)' }}>{msg}</div>}
+      <div style={dimStyle}>Sign in with your Zeller account to select this terminal. Pairing persists across sessions.</div>
+      <div style={dimStyle}>💡 Zeller connects via the cloud — both this device and the terminal need internet access on the same Zeller account. Local network/IP address is not relevant.</div>
     </div>
   );
 }
