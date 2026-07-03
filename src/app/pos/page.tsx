@@ -3486,8 +3486,15 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
   async function handleZellerPurchase() {
     setZellerPending(true);
     setZellerError(null);
-    const amountCents = Math.round(remaining * 100);
-    const ref = `POS-${Date.now()}`;
+    // Zeller expects a positive integer in the smallest currency unit (cents).
+    // e.g. $15.00 => 1500. Guard against floats/NaN/zero.
+    const amountCents = Math.round(Math.abs(Number(remaining)) * 100);
+    const ref = `POS${Date.now()}`;
+    if (!Number.isInteger(amountCents) || amountCents <= 0) {
+      setZellerError(`Invalid amount ($${fmt(remaining)}). Nothing to charge.`);
+      setZellerPending(false);
+      return;
+    }
     try {
       // Pre-flight: verify the SDK is authenticated + paired + terminal reachable.
       // initialise() is non-interactive and returns the *specific* failure reason.
@@ -3504,9 +3511,14 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
         return;
       }
 
-      const result = await terminal.purchase({ amount: amountCents, reference: ref });
+      const result = await terminal.purchase({
+        amount: amountCents,
+        reference: ref,
+        sessionUuid: (globalThis.crypto?.randomUUID?.() ?? ref),
+      });
       if (result instanceof Error) {
-        setZellerError(`Payment failed: ${(result as any).type ?? result.message}`);
+        const t = (result as any).type ?? result.message;
+        setZellerError(`Payment ${t === 'Cancelled' ? 'cancelled at terminal' : 'failed'}: ${t} (sent $${(amountCents / 100).toFixed(2)})`);
         return;
       }
       // result is ClientTransaction — transactionUuid is the authorisation ID
