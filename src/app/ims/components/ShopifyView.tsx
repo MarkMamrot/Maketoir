@@ -633,6 +633,7 @@ function ShopifyOrdersTab() {
               <div>Newly imported: <strong style={{ color: '#34d399' }}>{importResult.imported}</strong></div>
               <div>Already existed (skipped): <strong>{importResult.skipped_existing}</strong></div>
               <div>No matched variants (skipped): <strong>{importResult.skipped_no_items}</strong></div>
+              {importResult.skipped_pre_transition > 0 && <div>Before transition date (skipped): <strong>{importResult.skipped_pre_transition}</strong></div>}
               {importResult.errors?.length > 0 && (
                 <details style={{ marginTop: 6 }}>
                   <summary style={{ cursor: 'pointer', color: 'var(--sv-red)' }}>{importResult.errors.length} errors</summary>

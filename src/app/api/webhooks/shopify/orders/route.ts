@@ -15,6 +15,7 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { imsQuery, imsExecute, getIMSPool } from '@/services/IMSMySQLService';
 import { ImsSalesOrdersRepo } from '@/lib/ims/ImsRepository';
+import { toBusinessDate } from '@/lib/shopifyDate';
 
 export const runtime = 'nodejs';
 
@@ -82,7 +83,8 @@ export async function POST(req: Request) {
 
   // ── orders/create ────────────────────────────────────────────────────────────
   if (topic === 'orders/create' || topic === 'orders/paid') {
-    const orderDate = (payload.created_at ?? '').slice(0, 10);
+    // Business-timezone (AEST) date — matches how the admin entered the transition date.
+    const orderDate = toBusinessDate(payload.created_at);
 
     // Skip orders before transition date
     if (orderDate < config.syncFrom) return respond();

@@ -15,6 +15,7 @@ import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { ShopifyService } from '@/services/ShopifyService';
 import { ImsSalesOrdersRepo } from '@/lib/ims/ImsRepository';
 import { decrypt } from '@/lib/encryption';
+import { toBusinessDate } from '@/lib/shopifyDate';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -70,7 +71,12 @@ export async function POST(req: Request) {
   const shopify = new ShopifyService(shopId, shopToken);
   let shopifyOrders: any[];
   try {
-    shopifyOrders = await shopify.getAllOrders(syncFrom);
+    // Fetch from (syncFrom − 1 day) so no order near the AEST/UTC midnight boundary
+    // is missed. The exact cut-off is enforced in-code via toBusinessDate below.
+    const buffered = new Date(`${syncFrom}T00:00:00Z`);
+    buffered.setUTCDate(buffered.getUTCDate() - 1);
+    const fetchFrom = buffered.toISOString().slice(0, 10);
+    shopifyOrders = await shopify.getAllOrders(fetchFrom);
   } catch (e: any) {
     return NextResponse.json({ error: `Shopify API error: ${e.message}` }, { status: 500 });
   }
@@ -98,6 +104,7 @@ export async function POST(req: Request) {
   let imported = 0;
   let skippedExisting = 0;
   let skippedNoItems = 0;
+  let skippedPreTransition = 0;
   const errors: string[] = [];
 
   for (const order of shopifyOrders) {
@@ -105,6 +112,12 @@ export async function POST(req: Request) {
 
     // Skip if already imported
     if (existingIds.has(orderIdStr)) { skippedExisting++; continue; }
+
+    // Business-timezone order date (AEST) — the authoritative "what day" value.
+    const orderDate = toBusinessDate(order.created_at);
+
+    // Enforce the transition cut-off in business-local time (avoids the buffer day slipping through)
+    if (orderDate < syncFrom) { skippedPreTransition++; continue; }
 
     // Map line items to IMS variants
     const items: { variant_id: string; qty_ordered: number; unit_price: number; tax_rate: number; notes: string }[] = [];
@@ -122,7 +135,6 @@ export async function POST(req: Request) {
 
     if (items.length === 0) { skippedNoItems++; continue; }
 
-    const orderDate = (order.created_at ?? new Date().toISOString()).slice(0, 10);
     const freight   = parseFloat(order.total_shipping_price_set?.shop_money?.amount ?? '0');
     const discount  = parseFloat(order.total_discounts ?? '0');
 
@@ -200,6 +212,7 @@ export async function POST(req: Request) {
     imported,
     skipped_existing: skippedExisting,
     skipped_no_items: skippedNoItems,
+    skipped_pre_transition: skippedPreTransition,
     errors: errors.slice(0, 20),
   });
 }
