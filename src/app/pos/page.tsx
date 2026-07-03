@@ -1,6 +1,7 @@
 ﻿'use client';
 import { useState, useEffect, useRef, useCallback, useMemo, useDeferredValue } from 'react';
 import type { DeviceConfig, PosSession, CachedProduct, CartItem, PaymentEntry, ParkedSale, CompletedSale } from './_types';
+import * as Zeller from '@/lib/zeller';
 import {
   loadDeviceConfig, saveDeviceConfig, clearDeviceConfig,
   loadProductsCache, saveProductsCache,
@@ -713,6 +714,37 @@ function computeThemeVars(s: PosLocationSettings): Record<string, string> {
   return vars;
 }
 
+// Small helper rendered inside PosSettingsModal — calls useTerminal() for terminal pairing
+function ZellerPairButton() {
+  const terminal = Zeller.useTerminal();
+  const [pairing, setPairing] = useState(false);
+  const [msg, setMsg]         = useState<string | null>(null);
+
+  async function handlePair() {
+    setPairing(true); setMsg(null);
+    try {
+      const result = await terminal.setup();
+      if (result instanceof Error) { setMsg(`Pairing failed: ${result.message}`); return; }
+      setMsg('✓ Terminal paired successfully!');
+    } catch (e: any) {
+      setMsg(`Error: ${e?.message ?? 'Unknown'}`);
+    } finally { setPairing(false); }
+  }
+
+  return (
+    <div>
+      <button
+        onClick={handlePair} disabled={pairing}
+        style={{ padding: '.5rem 1.1rem', background: pairing ? 'var(--sv-etch)' : 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 7, color: 'var(--sv-text-main)', cursor: pairing ? 'default' : 'pointer', fontSize: 13, fontWeight: 600 }}
+      >
+        {pairing ? 'Opening Zeller pairing…' : '🔗 Pair / Re-pair Terminal'}
+      </button>
+      {msg && <div style={{ marginTop: 6, fontSize: 12, color: msg.startsWith('✓') ? 'var(--sv-mint)' : 'var(--sv-red)' }}>{msg}</div>}
+      <div style={{ marginTop: 6, fontSize: 11, color: 'var(--sv-text-dim)' }}>Sign in with your Zeller account to select this terminal. Pairing persists across sessions.</div>
+    </div>
+  );
+}
+
 // ─── POS Settings Modal ───────────────────────────────────────────────────────
 
 function compressImage(file: File, maxDim = 1200, quality = 0.82): Promise<string> {
@@ -861,7 +893,7 @@ function PosSettingsModal({
                 {activeRegister?.zeller_terminal_id && (
                   <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 12 }}>Terminal ID: {activeRegister.zeller_terminal_id}</div>
                 )}
-                <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', marginBottom: 14 }}>
                   <div
                     onClick={() => onZellerToggle?.(!zellerEnabled)}
                     style={{ width: 48, height: 26, borderRadius: 99, background: zellerEnabled ? 'var(--sv-action)' : 'var(--sv-etch)', position: 'relative', cursor: 'pointer', transition: 'background .2s', flexShrink: 0 }}
@@ -879,6 +911,7 @@ function PosSettingsModal({
                     </div>
                   </div>
                 </label>
+                <ZellerPairButton />
               </div>
               <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', padding: '10px 12px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
                 💡 This toggle only affects this login session. To permanently enable or disable the terminal for this register, go to IMS → Settings → Point of Sale → Card Terminals.
@@ -2017,6 +2050,8 @@ function MainPos({
           isLayby={isLayby}
           onComplete={completeSale}
           onCancel={() => setShowPayment(false)}
+          zellerEnabled={zellerTerminalEnabled}
+          cardTerminalMethods={(() => { try { return JSON.parse(activeRegister?.card_terminal_methods || '[]'); } catch { return []; } })()}
         />
       )}
 
@@ -3384,13 +3419,19 @@ function TotalRow({ label, value, large, muted, color }: { label: string; value:
 
 // ─── Payment Modal ────────────────────────────────────────────────────────────
 
-function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
-  total:      number;
-  methods:    string[];
-  isLayby:    boolean;
-  onComplete: (payments: PaymentEntry[], changeDue?: number, cashRounding?: number) => void;
-  onCancel:   () => void;
+function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEnabled, cardTerminalMethods }: {
+  total:              number;
+  methods:            string[];
+  isLayby:            boolean;
+  onComplete:         (payments: PaymentEntry[], changeDue?: number, cashRounding?: number) => void;
+  onCancel:           () => void;
+  zellerEnabled?:     boolean;
+  cardTerminalMethods?: string[];
 }) {
+  const terminal = Zeller.useTerminal();
+  const [zellerPending, setZellerPending] = useState(false);
+  const [zellerError,   setZellerError]   = useState<string | null>(null);
+  const [manualOverride, setManualOverride] = useState(false);
   const isRefund  = total < 0;
   const absTotal  = Math.abs(total);
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
@@ -3418,6 +3459,10 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
   }, [activeMethod]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function addPayment() {
+    setZellerError(null);
+    // Check if this method routes to the Zeller terminal
+    const isZellerMethod = zellerEnabled && !manualOverride && (cardTerminalMethods ?? []).some(m => m.toLowerCase() === activeMethod.toLowerCase());
+    if (isZellerMethod) { handleZellerPurchase(); return; }
     // For cash payments, apply Australian cash rounding to the remaining balance
     const effectiveRemaining = isCashMethod && remaining > 0.004 ? cashDue : remaining;
     const tendered = parseFloat(amount) || effectiveRemaining;
@@ -3437,12 +3482,34 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
     }
   }
 
+  async function handleZellerPurchase() {
+    setZellerPending(true);
+    setZellerError(null);
+    const amountCents = Math.round(remaining * 100);
+    const ref = `POS-${Date.now()}`;
+    try {
+      const result = await terminal.purchase({ amount: amountCents, reference: ref });
+      if (result instanceof Error) {
+        setZellerError(`Payment declined: ${result.message}`);
+        return;
+      }
+      const txId = (result as Zeller.PurchaseSuccessResponse).transactionUuid ?? ref;
+      const newPayment: PaymentEntry = { localId: newLocalId(), method: activeMethod, amount: remaining, reference: txId };
+      const newPayments = [...payments, newPayment];
+      const rounding = isCashMethod ? cashRoundAdj : 0;
+      onComplete(isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments, 0, rounding !== 0 ? rounding : undefined);
+    } catch (e: any) {
+      setZellerError(`Terminal error: ${e?.message ?? 'Unknown error'}`);
+    } finally {
+      setZellerPending(false);
+    }
+  }
+
+  const isZellerActive = zellerEnabled && !manualOverride && (cardTerminalMethods ?? []).some(m => m.toLowerCase() === activeMethod.toLowerCase());
+
   function removePayment(localId: string) {
     setPayments(prev => prev.filter(p => p.localId !== localId));
   }
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: '1.5rem', width: 420, maxWidth: '95vw', boxShadow: '0 20px 60px rgba(0,0,0,.6)' }}>
         <h2 style={{ margin: '0 0 1rem', color: 'var(--sv-text-strong)', fontSize: '1.3rem' }}>
           {isLayby ? 'Layby Deposit' : isRefund ? 'Refund' : 'Payment'}
@@ -3459,22 +3526,53 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel }: {
           ))}
         </div>
 
-        {/* Amount input */}
-        <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.75rem' }}>
-          <input
-            ref={amountRef}
-            type='number' step='0.01' min='0'
-            placeholder={isRefund ? `Refund (−$${fmt(remaining)} due)` : `Amount ($${fmt(remaining)} remaining)`}
-            value={amount}
-            onChange={e => setAmount(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') addPayment(); }}
-            style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
-          />
-          {activeMethod !== 'Cash' && (
-            <input placeholder='Ref / Last 4' value={reference} onChange={e => setReference(e.target.value)} style={{ ...inputStyle, width: 110, marginBottom: 0 }} />
-          )}
-          <button onClick={addPayment} style={{ ...primaryBtn, padding: '.5rem 1rem', margin: 0 }}>Add</button>
-        </div>
+        {/* Zeller Terminal payment UI */}
+        {isZellerActive && !isRefund ? (
+          <div style={{ marginBottom: '.75rem' }}>
+            {zellerError && (
+              <div style={{ marginBottom: '.5rem', padding: '.5rem .75rem', background: 'rgba(239,68,68,.12)', border: '1px solid rgba(239,68,68,.3)', borderRadius: 6, color: 'var(--sv-red)', fontSize: '.85rem' }}>
+                {zellerError}
+              </div>
+            )}
+            <button
+              onClick={handleZellerPurchase}
+              disabled={zellerPending || remaining <= 0}
+              style={{ width: '100%', padding: '.85rem', background: zellerPending ? 'var(--sv-etch)' : 'var(--sv-action)', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: '1.1rem', cursor: zellerPending ? 'default' : 'pointer', marginBottom: '.4rem' }}
+            >
+              {zellerPending ? '⏳ Waiting for terminal…' : `💳 Pay $${fmt(remaining)} via Terminal`}
+            </button>
+            <button
+              onClick={() => setManualOverride(true)}
+              style={{ width: '100%', padding: '.4rem', background: 'transparent', border: 'none', color: 'var(--sv-text-dim)', fontSize: '.8rem', cursor: 'pointer' }}
+            >
+              Use manual entry instead
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Amount input */}
+            <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.75rem' }}>
+              <input
+                ref={amountRef}
+                type='number' step='0.01' min='0'
+                placeholder={isRefund ? `Refund (−$${fmt(remaining)} due)` : `Amount ($${fmt(remaining)} remaining)`}
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') addPayment(); }}
+                style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
+              />
+              {activeMethod !== 'Cash' && (
+                <input placeholder='Ref / Last 4' value={reference} onChange={e => setReference(e.target.value)} style={{ ...inputStyle, width: 110, marginBottom: 0 }} />
+              )}
+              <button onClick={addPayment} style={{ ...primaryBtn, padding: '.5rem 1rem', margin: 0 }}>Add</button>
+            </div>
+            {manualOverride && isZellerActive !== undefined && !isZellerActive && zellerEnabled && (cardTerminalMethods ?? []).some(m => m.toLowerCase() === activeMethod.toLowerCase()) && (
+              <button onClick={() => setManualOverride(false)} style={{ fontSize: '.8rem', color: 'var(--sv-action)', background: 'none', border: 'none', cursor: 'pointer', marginBottom: '.5rem', padding: 0 }}>
+                ← Back to terminal
+              </button>
+            )}
+          </>
+        )}
 
         {/* Quick amounts (Cash) */}
         {activeMethod === 'Cash' && !isRefund && (
