@@ -1,16 +1,14 @@
 'use client';
 /**
- * Zeller Payments SDK adapter.
- *
- * When @zeller-public/payments-sdk-react is installed, swap this whole file
- * for a simple re-export:
- *
- *   export { Provider, useTerminal } from '@zeller-public/payments-sdk-react';
- *
- * Until then this stub lets the rest of the app compile and run without the
- * package, with graceful error messages wherever terminal calls are attempted.
+ * Zeller Payments SDK adapter — re-exports the real package.
+ * Package: @zeller-public/payments-sdk-react
  */
-import React from 'react';
+export { Provider, useTerminal } from '@zeller-public/payments-sdk-react';
+export type {
+  TerminalClient  as ZellerTerminal,
+  TerminalError   as ZellerError,
+  TerminalTransaction as ZellerTransaction,
+} from '@zeller-public/payments-sdk-react';
 
 // ── Public types (match the real SDK shape) ────────────────────────────────
 

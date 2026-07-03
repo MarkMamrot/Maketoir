@@ -11,6 +11,7 @@
   "dependencies": {
     "@google-analytics/data": "^5.2.1",
     "@google/genai": "^2.8.0",
+    "@zeller-public/payments-sdk-react": "^0.2.4",
     "axios": "^1.6.5",
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.4.2",
