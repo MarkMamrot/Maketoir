@@ -3512,6 +3512,9 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
   function removePayment(localId: string) {
     setPayments(prev => prev.filter(p => p.localId !== localId));
   }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: '1.5rem', width: 420, maxWidth: '95vw', boxShadow: '0 20px 60px rgba(0,0,0,.6)' }}>
         <h2 style={{ margin: '0 0 1rem', color: 'var(--sv-text-strong)', fontSize: '1.3rem' }}>
           {isLayby ? 'Layby Deposit' : isRefund ? 'Refund' : 'Payment'}
