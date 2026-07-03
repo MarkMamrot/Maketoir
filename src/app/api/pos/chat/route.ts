@@ -14,11 +14,21 @@ function getSession() {
 let _dmColReady = false;
 async function ensureDmColumn() {
   if (_dmColReady) return;
-  await imsExecute(
-    'ALTER TABLE pos_chat_messages ADD COLUMN IF NOT EXISTS to_location_id INT NULL',
-    [],
-  ).catch(() => {});
-  _dmColReady = true;
+  // `ADD COLUMN IF NOT EXISTS` is unsupported on some MySQL versions, so check
+  // information_schema first and only ALTER when the column is genuinely missing.
+  try {
+    const cols = await imsQuery<{ c: number }>(
+      `SELECT COUNT(*) AS c FROM information_schema.columns
+       WHERE table_schema = DATABASE() AND table_name = 'pos_chat_messages' AND column_name = 'to_location_id'`,
+      [],
+    );
+    if (!cols[0]?.c) {
+      await imsExecute('ALTER TABLE pos_chat_messages ADD COLUMN to_location_id INT NULL', []);
+    }
+    _dmColReady = true;
+  } catch {
+    // leave _dmColReady false so a later request retries
+  }
 }
 
 // GET /api/pos/chat
