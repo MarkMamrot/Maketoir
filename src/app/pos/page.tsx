@@ -3489,9 +3489,24 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
     const amountCents = Math.round(remaining * 100);
     const ref = `POS-${Date.now()}`;
     try {
+      // Pre-flight: verify the SDK is authenticated + paired + terminal reachable.
+      // initialise() is non-interactive and returns the *specific* failure reason.
+      const init = await (terminal as any).initialise?.();
+      if (init instanceof Error) {
+        const t = (init as any).type ?? init.message;
+        setZellerError(
+          t === 'Setup Required'
+            ? 'Terminal not paired. Open Settings → Terminal → Pair Terminal.'
+            : t === 'Paired Device Not Available'
+            ? 'Cannot reach the terminal. Check it is powered on, awake, online, and in Integrated Payments mode.'
+            : `Terminal not ready: ${t}`,
+        );
+        return;
+      }
+
       const result = await terminal.purchase({ amount: amountCents, reference: ref });
       if (result instanceof Error) {
-        setZellerError(`Payment declined: ${(result as any).type ?? result.message}`);
+        setZellerError(`Payment failed: ${(result as any).type ?? result.message}`);
         return;
       }
       // result is ClientTransaction — transactionUuid is the authorisation ID
