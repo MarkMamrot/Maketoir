@@ -121,8 +121,17 @@ export async function POST(req: Request) {
             `UPDATE ims_sales_orders SET order_date = ? WHERE id = ?`,
             [toBusinessDateTime(order.created_at), existing.id],
           );
-          await ImsSalesOrdersRepo.changeStatus(existing.id, 'confirmed');
-          if (order.fulfillment_status === 'fulfilled') await ImsSalesOrdersRepo.changeStatus(existing.id, 'fulfilled');
+          // Apply the CURRENT Shopify state (re-fetched fresh), not the state at first import.
+          if (order.cancelled_at || order.financial_status === 'voided') {
+            // Cancelled on Shopify since import — mark cancelled (no stock committed from a draft).
+            await ImsSalesOrdersRepo.changeStatus(existing.id, 'cancelled');
+          } else {
+            await ImsSalesOrdersRepo.changeStatus(existing.id, 'confirmed');
+            // If it has since been fulfilled on Shopify, deduct stock now.
+            if (order.fulfillment_status === 'fulfilled') {
+              await ImsSalesOrdersRepo.changeStatus(existing.id, 'fulfilled');
+            }
+          }
           confirmedDrafts++;
         } catch (e: any) { errors.push(`Confirm ${order.name}: ${e.message}`); }
       } else {
