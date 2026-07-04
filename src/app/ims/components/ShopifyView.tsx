@@ -28,7 +28,7 @@ function actionLabel(a: string) {
 }
 
 // ─── Main ShopifyView ─────────────────────────────────────────────────────────
-export default function ShopifyView() {
+export default function ShopifyView({ businessId }: { businessId?: string }) {
   const [status, setStatus]   = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab]         = useState<'overview' | 'products' | 'log' | 'orders'>('overview');
@@ -77,7 +77,7 @@ export default function ShopifyView() {
           {tab === 'overview' && <ShopifyOverviewTab status={status} onReload={reload} />}
           {tab === 'products' && <ShopifyProductsTab />}
           {tab === 'log'      && <ShopifyLogTab />}
-          {tab === 'orders'   && <ShopifyOrdersTab />}
+          {tab === 'orders'   && <ShopifyOrdersTab businessId={businessId ?? ''} />}
         </>
       )}
     </div>
@@ -485,7 +485,7 @@ function ShopifyLogTab() {
 }
 
 // ─── Orders & Webhooks Tab ────────────────────────────────────────────────────
-function ShopifyOrdersTab() {
+function ShopifyOrdersTab({ businessId }: { businessId: string }) {
   const [syncFrom,       setSyncFrom]       = useState('2026-07-01');
   const [locationId,     setLocationId]     = useState('');
   const [webhookSecret,  setWebhookSecret]  = useState('');
@@ -547,7 +547,7 @@ function ShopifyOrdersTab() {
   const input: React.CSSProperties = { padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 13, width: '100%', boxSizing: 'border-box' as const };
   const btn = (primary?: boolean): React.CSSProperties => ({ padding: '8px 20px', background: primary ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: primary ? '#fff' : 'var(--sv-text-main)', border: `1px solid ${primary ? 'transparent' : 'var(--sv-etch)'}`, borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13 });
 
-  const webhookUrl = typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/shopify/orders` : '/api/webhooks/shopify/orders';
+  const webhookUrl = (typeof window !== 'undefined' ? window.location.origin : '') + `/api/webhooks/shopify/orders/${businessId}`;
 
   return (
     <div style={{ maxWidth: 680 }}>

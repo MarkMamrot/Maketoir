@@ -10713,7 +10713,7 @@ export default function ImsPage() {
           {view === 'report-pos-price-changes' && <PosPriceChangesView onBack={() => setView('reports')} />}
           {view === 'report-pos-registers'    && <PosRegistersReportView onBack={() => setView('reports')} />}
           {view === 'xero'              && <XeroView businessId={user?.businessId ?? ''} />}
-          {view === 'shopify'           && <ShopifyView />}
+          {view === 'shopify'           && <ShopifyView businessId={user?.businessId ?? ''} />}
           {view === 'order-planner'     && <OrderPlannerView databaseId={user?.businessId ?? ''} />}
         </main>
       </div>
