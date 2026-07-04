@@ -15,7 +15,7 @@ import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { ShopifyService } from '@/services/ShopifyService';
 import { ImsSalesOrdersRepo } from '@/lib/ims/ImsRepository';
 import { decrypt } from '@/lib/encryption';
-import { toBusinessDate } from '@/lib/shopifyDate';
+import { toBusinessDate, toBusinessDateTime } from '@/lib/shopifyDate';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -93,16 +93,17 @@ export async function POST(req: Request) {
     variantRows.map(r => [String(r.shopify_variant_id), r.variant_id]),
   );
 
-  // Existing shopify_order_ids to avoid duplicates
-  const existingRows = await imsQuery<{ shopify_order_id: string }>(
-    `SELECT shopify_order_id FROM ims_sales_orders
+  // Existing shopify orders — id → {id, status} so we can self-heal stuck drafts.
+  const existingRows = await imsQuery<{ id: number; shopify_order_id: string; status: string }>(
+    `SELECT id, shopify_order_id, status FROM ims_sales_orders
      WHERE business_id = ? AND shopify_order_id IS NOT NULL`,
     [businessId],
   );
-  const existingIds = new Set(existingRows.map(r => String(r.shopify_order_id)));
+  const existingById = new Map(existingRows.map(r => [String(r.shopify_order_id), r]));
 
   let imported = 0;
   let skippedExisting = 0;
+  let confirmedDrafts = 0;
   let skippedNoItems = 0;
   let skippedPreTransition = 0;
   const errors: string[] = [];
@@ -110,8 +111,25 @@ export async function POST(req: Request) {
   for (const order of shopifyOrders) {
     const orderIdStr = String(order.id);
 
-    // Skip if already imported
-    if (existingIds.has(orderIdStr)) { skippedExisting++; continue; }
+    // Already imported — but self-heal if it got stuck at draft (stock never committed).
+    const existing = existingById.get(orderIdStr);
+    if (existing) {
+      if (existing.status === 'draft') {
+        try {
+          // Backfill the real AEST order time (early imports stored date-only).
+          await imsExecute(
+            `UPDATE ims_sales_orders SET order_date = ? WHERE id = ?`,
+            [toBusinessDateTime(order.created_at), existing.id],
+          );
+          await ImsSalesOrdersRepo.changeStatus(existing.id, 'confirmed');
+          if (order.fulfillment_status === 'fulfilled') await ImsSalesOrdersRepo.changeStatus(existing.id, 'fulfilled');
+          confirmedDrafts++;
+        } catch (e: any) { errors.push(`Confirm ${order.name}: ${e.message}`); }
+      } else {
+        skippedExisting++;
+      }
+      continue;
+    }
 
     // Business-timezone order date (AEST) — the authoritative "what day" value.
     const orderDate = toBusinessDate(order.created_at);
@@ -145,6 +163,8 @@ export async function POST(req: Request) {
       let soId: number;
       try {
         const soNumber = `ONL-${orderDate.replace(/-/g, '')}-${orderIdStr.slice(-6)}`;
+        // Store the full AEST order timestamp so the day view can show real order times.
+        const orderDateTime = toBusinessDateTime(order.created_at);
         // Use Shopify's authoritative money fields — prices are GST-inclusive for AU stores,
         // so total_tax is the real GST (total/11), NOT subtotal × 0.1.
         const subtotal    = parseFloat(order.subtotal_price ?? '0');
@@ -156,7 +176,7 @@ export async function POST(req: Request) {
               subtotal, tax_amount, total_amount, shopify_order_id, notes)
            VALUES (?, ?, 'online', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            businessId, soNumber, locationId, orderDate, freight, discount,
+            businessId, soNumber, locationId, orderDateTime, freight, discount,
             subtotal, taxAmount, totalAmount, orderIdStr,
             `Shopify order ${order.name ?? ''}`.trim(),
           ],
@@ -200,6 +220,7 @@ export async function POST(req: Request) {
     success: true,
     total_from_shopify: shopifyOrders.length,
     imported,
+    confirmed_drafts: confirmedDrafts,
     skipped_existing: skippedExisting,
     skipped_no_items: skippedNoItems,
     skipped_pre_transition: skippedPreTransition,

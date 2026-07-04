@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
        LEFT JOIN ims_locations l ON l.id = so.location_id
        WHERE so.so_type = 'online' AND DATE_FORMAT(so.order_date, '%Y-%m-%d') = ?
        ${locWhere}
-       ORDER BY so.id ASC`,
+       ORDER BY so.order_date ASC, so.id ASC`,
       params,
     );
 

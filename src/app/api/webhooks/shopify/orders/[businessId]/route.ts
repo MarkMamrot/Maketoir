@@ -15,7 +15,7 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { imsQuery, getIMSPool } from '@/services/IMSMySQLService';
 import { ImsSalesOrdersRepo } from '@/lib/ims/ImsRepository';
-import { toBusinessDate } from '@/lib/shopifyDate';
+import { toBusinessDate, toBusinessDateTime } from '@/lib/shopifyDate';
 
 export const runtime = 'nodejs';
 
@@ -105,6 +105,7 @@ export async function POST(req: Request, { params }: { params: { businessId: str
       let soId: number;
       try {
         const soNumber  = `ONL-${orderDate.replace(/-/g, '')}-${orderIdStr.slice(-6)}`;
+        const orderDateTime = toBusinessDateTime(payload.created_at);
         const subtotal  = parseFloat(payload.subtotal_price ?? '0');
         const taxAmount = parseFloat(payload.total_tax ?? '0');
         const freight   = parseFloat(payload.total_shipping_price_set?.shop_money?.amount ?? '0');
@@ -114,7 +115,7 @@ export async function POST(req: Request, { params }: { params: { businessId: str
              (business_id, so_number, so_type, location_id, status, order_date, freight, discount,
               subtotal, tax_amount, total_amount, shopify_order_id, notes)
            VALUES (?, ?, 'online', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [businessId, soNumber, config.locationId, orderDate, freight, discount,
+          [businessId, soNumber, config.locationId, orderDateTime, freight, discount,
            subtotal, taxAmount, parseFloat(payload.total_price ?? '0'), orderIdStr,
            `Shopify ${payload.name ?? ''}`.trim()],
         );

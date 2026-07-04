@@ -631,6 +631,7 @@ function ShopifyOrdersTab({ businessId }: { businessId: string }) {
             <div style={{ marginTop: 8, color: 'var(--sv-text-main)', lineHeight: 2 }}>
               <div>Orders from Shopify: <strong>{importResult.total_from_shopify}</strong></div>
               <div>Newly imported: <strong style={{ color: '#34d399' }}>{importResult.imported}</strong></div>
+              {importResult.confirmed_drafts > 0 && <div>Fixed stuck drafts (stock committed): <strong style={{ color: '#34d399' }}>{importResult.confirmed_drafts}</strong></div>}
               <div>Already existed (skipped): <strong>{importResult.skipped_existing}</strong></div>
               <div>No matched variants (skipped): <strong>{importResult.skipped_no_items}</strong></div>
               {importResult.skipped_pre_transition > 0 && <div>Before transition date (skipped): <strong>{importResult.skipped_pre_transition}</strong></div>}

@@ -7173,8 +7173,8 @@ function OnlineSalesView({ businessId }: { businessId: string }) {
             setImporting(true); setImportResult(null);
             try {
               const r = await apiFetch('/api/ims/shopify/import-orders', { method: 'POST' });
-              setImportResult(r.error ? `✗ ${r.error}` : `✓ Imported ${r.imported} order${r.imported !== 1 ? 's' : ''} (${r.skipped_existing} already existed)`);
-              if (r.imported > 0) loadDays();
+              setImportResult(r.error ? `✗ ${r.error}` : `✓ Imported ${r.imported} order${r.imported !== 1 ? 's' : ''}${r.confirmed_drafts > 0 ? `, fixed ${r.confirmed_drafts} stuck draft${r.confirmed_drafts !== 1 ? 's' : ''}` : ''} (${r.skipped_existing} already existed)`);
+              if (r.imported > 0 || r.confirmed_drafts > 0) loadDays();
             } catch (e: any) { setImportResult(`✗ ${e.message}`); }
             setImporting(false);
           }}
@@ -7294,6 +7294,12 @@ function OnlineSalesView({ businessId }: { businessId: string }) {
                         style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 20px', cursor: 'pointer', background: orderOpen ? 'rgba(255,255,255,.02)' : 'transparent' }}
                       >
                         <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 100, fontFamily: 'monospace' }}>{order.so_number}</span>
+                        {(() => {
+                          // order_date is an AEST wall-clock string 'YYYY-MM-DD HH:mm:ss' (dateStrings:true).
+                          const t = String(order.order_date ?? '').slice(11, 16);
+                          if (!t || t === '00:00') return null;
+                          return <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', minWidth: 42, fontVariantNumeric: 'tabular-nums' }}>{t}</span>;
+                        })()}
                         <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, fontWeight: 600, background: badge.bg, color: badge.color }}>
                           {badge.label}
                         </span>
