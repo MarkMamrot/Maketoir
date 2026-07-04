@@ -45,6 +45,8 @@ export async function GET(req: NextRequest) {
          SUM(so.discount) AS discount,
          COUNT(CASE WHEN so.shopify_order_id IS NOT NULL THEN 1 END) AS shopify_count,
          COUNT(CASE WHEN so.cin7_order_id IS NOT NULL AND so.shopify_order_id IS NULL THEN 1 END) AS b2b_count,
+         COUNT(CASE WHEN so.is_historical = 1 THEN 1 END) AS historical_count,
+         COUNT(CASE WHEN (so.is_historical IS NULL OR so.is_historical = 0) AND so.status != 'cancelled' THEN 1 END) AS syncable_count,
          GROUP_CONCAT(DISTINCT l.name ORDER BY l.name SEPARATOR ', ') AS locations
        FROM ims_sales_orders so
        LEFT JOIN ims_locations l ON l.id = so.location_id

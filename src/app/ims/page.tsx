@@ -7253,24 +7253,28 @@ function OnlineSalesView({ businessId }: { businessId: string }) {
               <span style={{ flex: 1 }} />
               <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 66, textAlign: 'right', flexShrink: 0 }}>{Number(day.count)} order{Number(day.count) !== 1 ? 's' : ''}</span>
               <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', minWidth: 96, textAlign: 'right', flexShrink: 0 }}>{fmtMoney(dayTotal)}</span>
-              {/* Xero sync button */}
-              <button
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  setXeroSyncing(day.day);
-                  try {
-                    const r = await apiFetch('/api/xero/sync/daily-sales', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ databaseId: businessId, date: day.day, channel: 'online' }),
-                    });
-                    setXeroResults(prev => ({ ...prev, [day.day]: r.success ? 'ok' : 'none' }));
-                  } catch { setXeroResults(prev => ({ ...prev, [day.day]: 'err' })); }
-                  setXeroSyncing(null);
-                }}
-                disabled={xeroSyncing === day.day}
-                style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: xeroResults[day.day] === 'ok' ? 'rgba(16,185,129,.1)' : 'none', color: xeroResults[day.day] === 'ok' ? 'var(--sv-mint)' : xeroResults[day.day] === 'err' ? 'var(--sv-red)' : 'var(--sv-text-muted)', fontSize: 11, fontWeight: 600, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
-              >{xeroSyncing === day.day ? 'Syncing…' : xeroResults[day.day] === 'ok' ? '✓ Xero' : xeroResults[day.day] === 'err' ? '✗ Xero' : 'Sync Xero'}</button>
+              {/* Xero sync button — only for days with syncable (non-historical) orders */}
+              {Number(day.syncable_count ?? 0) > 0 ? (
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    setXeroSyncing(day.day);
+                    try {
+                      const r = await apiFetch('/api/xero/sync/daily-sales', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ databaseId: businessId, date: day.day, channel: 'online' }),
+                      });
+                      setXeroResults(prev => ({ ...prev, [day.day]: r.success ? 'ok' : 'none' }));
+                    } catch { setXeroResults(prev => ({ ...prev, [day.day]: 'err' })); }
+                    setXeroSyncing(null);
+                  }}
+                  disabled={xeroSyncing === day.day}
+                  style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: xeroResults[day.day] === 'ok' ? 'rgba(16,185,129,.1)' : 'none', color: xeroResults[day.day] === 'ok' ? 'var(--sv-mint)' : xeroResults[day.day] === 'err' ? 'var(--sv-red)' : 'var(--sv-text-muted)', fontSize: 11, fontWeight: 600, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
+                >{xeroSyncing === day.day ? 'Syncing…' : xeroResults[day.day] === 'ok' ? '✓ Xero' : xeroResults[day.day] === 'err' ? '✗ Xero' : 'Sync Xero'}</button>
+              ) : (
+                <span title="Historical Cin7 orders — already in Xero, cannot be re-synced" style={{ padding: '3px 10px', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', flexShrink: 0, whiteSpace: 'nowrap' }}>Historical</span>
+              )}
               <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', width: 14, textAlign: 'center', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
             </div>
 

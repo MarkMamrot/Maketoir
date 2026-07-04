@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 import { syncDailySalesBatch } from '@/services/XeroSyncService';
 import { query } from '@/services/MySQLService';
+import { imsQuery } from '@/services/IMSMySQLService';
 
 export async function POST(req: Request) {
   const { user, response } = requireAdminSession();
@@ -50,11 +51,15 @@ export async function POST(req: Request) {
       }
       lineDescription = `POS Sales ${date}${locName ? ` — ${locName}` : ''} (${count} transactions)`;
     } else {
-      // Aggregate online sales for the given date
-      const rows = await query(
+      // Aggregate online sales for the given date (IMS DB).
+      // Exclude is_historical=1 — those are pre-transition Cin7 orders already in Xero.
+      // Exclude cancelled orders — they are not revenue.
+      const rows = await imsQuery<{ total_sales: number; total_tax: number; txn_count: number }>(
         `SELECT COALESCE(SUM(total_amount), 0) AS total_sales, COALESCE(SUM(tax_amount), 0) AS total_tax, COUNT(*) AS txn_count
          FROM ims_sales_orders
-         WHERE business_id = ? AND DATE(order_date) = ? AND so_type = 'online'`,
+         WHERE business_id = ? AND DATE(order_date) = ? AND so_type = 'online'
+           AND (is_historical IS NULL OR is_historical = 0)
+           AND status != 'cancelled'`,
         [databaseId, date],
       );
       totalSales = Number(rows[0]?.total_sales || 0);
@@ -78,6 +83,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: !!xeroId, xeroId, totalSales, totalTax });
   } catch (err: any) {
-    return NextResponse.json({ error: 'Daily sales sync failed.' }, { status: 500 });
+    console.error('[xero/daily-sales] error:', err?.message ?? err);
+    return NextResponse.json({ error: `Daily sales sync failed: ${err?.message ?? 'unknown error'}` }, { status: 500 });
   }
 }
