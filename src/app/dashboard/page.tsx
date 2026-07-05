@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, Fragment, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, useRef, Fragment, forwardRef, useImperativeHandle } from 'react';
 import Link from 'next/link';
 import { SpaceAnalysisView } from './SpaceAnalysisView';
 import { StockTurnoverView } from './StockTurnoverView';
@@ -7383,9 +7383,13 @@ function CalculatedDataView({ databaseId }: { databaseId: string }) {
   const [reportsSavedAt, setReportsSavedAt] = useState<string | null>(null);
   const [reportsLoading, setReportsLoading] = useState(false);
 
+  const [reportsError, setReportsError] = useState('');
+
   const resyncReports = async () => {
+    if (!databaseId) { setReportsStatus('error'); setReportsError('No business ID — please reload the page.'); return; }
     setSavingReports(true);
     setReportsStatus('idle');
+    setReportsError('');
     try {
       const res = await fetch(`/api/calculated/reports?databaseId=${encodeURIComponent(databaseId)}`, { method: 'POST' });
       const json = await res.json();
@@ -7395,9 +7399,11 @@ function CalculatedDataView({ databaseId }: { databaseId: string }) {
         await loadSavedReports();
       } else {
         setReportsStatus('error');
+        setReportsError(json.error ?? 'Unknown error');
       }
-    } catch {
+    } catch (e: any) {
       setReportsStatus('error');
+      setReportsError(e.message ?? 'Network error');
     } finally {
       setSavingReports(false);
     }
@@ -7420,7 +7426,7 @@ function CalculatedDataView({ databaseId }: { databaseId: string }) {
         </div>
         <div className="flex items-center gap-3 shrink-0">
           {reportsStatus === 'saved' && <span className="text-xs text-green-600 font-medium">✓ Synced</span>}
-          {reportsStatus === 'error' && <span className="text-xs text-red-600 font-medium">✗ Error</span>}
+          {reportsStatus === 'error' && <span className="text-xs text-red-600 font-medium" title={reportsError}>✗ Error{reportsError ? `: ${reportsError}` : ''}</span>}
           <button
             onClick={resyncReports}
             disabled={savingReports || reportsLoading}
@@ -7986,34 +7992,34 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
     ? BRAND_ASSET_CATEGORIES.filter(c => c.id === activeCategory)
     : BRAND_ASSET_CATEGORIES;
 
-  const [assetsByCategory, setAssetsByCategory] = React.useState<Record<string, BrandAsset[]>>({ models: [], backdrops: [], templates: [] });
-  const [assetsLoading, setAssetsLoading] = React.useState(false);
+  const [assetsByCategory, setAssetsByCategory] = useState<Record<string, BrandAsset[]>>({ models: [], backdrops: [], templates: [] });
+  const [assetsLoading, setAssetsLoading] = useState(false);
 
   // AI panel
-  const [aiOpen, setAiOpen] = React.useState(false);
-  const [aiCategory, setAiCategory] = React.useState('');
-  const [chatMsgs, setChatMsgs] = React.useState<AssetChatMsg[]>([]);
-  const [chatInput, setChatInput] = React.useState('');
-  const [chatLoading, setChatLoading] = React.useState(false);
-  const [chatError, setChatError] = React.useState('');
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiCategory, setAiCategory] = useState('');
+  const [chatMsgs, setChatMsgs] = useState<AssetChatMsg[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState('');
 
   // Context toggles
-  const [useBrandProfile, setUseBrandProfile] = React.useState(true);
-  const [useBusinessInfo, setUseBusinessInfo] = React.useState(true);
-  const [useExisting, setUseExisting] = React.useState(false);
+  const [useBrandProfile, setUseBrandProfile] = useState(true);
+  const [useBusinessInfo, setUseBusinessInfo] = useState(true);
+  const [useExisting, setUseExisting] = useState(false);
 
   // Save flow
-  const [savingIdx, setSavingIdx] = React.useState<number | null>(null);
-  const [saveName, setSaveName] = React.useState('');
-  const [savedIdx, setSavedIdx] = React.useState<number | null>(null);
+  const [savingIdx, setSavingIdx] = useState<number | null>(null);
+  const [saveName, setSaveName] = useState('');
+  const [savedIdx, setSavedIdx] = useState<number | null>(null);
 
-  const chatEndRef = React.useRef<HTMLDivElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMsgs, chatLoading]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!databaseId) return;
     loadAssets();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -8139,7 +8145,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
                           onMouseLeave={e => (e.currentTarget.style.color = '#9ca3af')}
                         >×</button>
                       </div>
-                      <p style={{ fontSize: 11, color: 'var(--sv-text-dim, #6b7280)', lineHeight: 1.5, margin: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' } as React.CSSProperties}>{asset.content}</p>
+                      <p style={{ fontSize: 11, color: 'var(--sv-text-dim, #6b7280)', lineHeight: 1.5, margin: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' } as any}>{asset.content}</p>
                       <span style={{ fontSize: 10, color: '#9ca3af' }}>{new Date(asset.created_at).toLocaleDateString()}</span>
                     </div>
                   ))}
