@@ -53,6 +53,7 @@ export async function GET(req: Request) {
       operationsSummary: row.operations_summary ?? '',
       returnsPolicy:     row.returns_policy     ?? '',
       brandHistory:      row.brand_history      ?? '',
+      detailedBrandAesthetic: row.detailed_brand_aesthetic ?? '',
       physicalBranches:  parsePhysicalBranches(row.physical_branches ?? ''),
       loyaltyProgram:    row.loyalty_program    ?? '',
     });
@@ -74,7 +75,7 @@ export async function POST(req: Request) {
       databaseId, mission, uvp, tone, demographics, geo, products, pricing,
       praises, objections, competitors, marketGap, logoUrl, brandColours,
       shippingPolicy, returnsPolicy, connectedSoftware, operationsSummary,
-      brandHistory, physicalBranches, loyaltyProgram, logoBase64, logoMimeType,
+      brandHistory, detailedBrandAesthetic, physicalBranches, loyaltyProgram, logoBase64, logoMimeType,
     } = body;
 
     if (!databaseId) {
@@ -128,6 +129,7 @@ export async function POST(req: Request) {
       operations_summary: operationsSummary || null,
       returns_policy:     returnsPolicy     || null,
       brand_history:      brandHistory      || null,
+      detailed_brand_aesthetic: detailedBrandAesthetic || null,
       physical_branches:  physStr,
       loyalty_program:    loyaltyProgram    || null,
     });

@@ -129,6 +129,7 @@ export async function POST(req: Request) {
           bp.hero_products       ? `Hero products: ${bp.hero_products}` : '',
           bp.geo                 ? `Key markets: ${bp.geo}` : '',
           bp.brand_history       ? `Brand history: ${bp.brand_history}` : '',
+          bp.detailed_brand_aesthetic ? `Detailed Brand Aesthetic: ${bp.detailed_brand_aesthetic}` : '',
         ].filter(Boolean);
         if (lines.length > 1) sections.push(lines.join('\n'));
       }

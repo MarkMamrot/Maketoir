@@ -329,6 +329,7 @@ export function BrandProfileTab({ business }: { business: { name: string; userId
     returnsPolicy: '',
     connectedSoftware: '',
     brandHistory: '',
+    detailedBrandAesthetic: '',
     physicalBranches: [{ name: '', address: '', phone: '', email: '', openingHours: '' }],
     loyaltyProgram: '',
     operationsSummary: '',
@@ -347,7 +348,7 @@ export function BrandProfileTab({ business }: { business: { name: string; userId
   useEffect(() => {
     if (!business?.databaseId) return;
     setFetching(true);
-    setFormData({ mission: '', uvp: '', tone: '', demographics: '', geo: '', products: '', pricing: '', praises: '', objections: '', competitors: '', marketGap: '', shippingPolicy: '', returnsPolicy: '', connectedSoftware: '', brandHistory: '', physicalBranches: [{ name: '', address: '', phone: '', email: '', openingHours: '' }], loyaltyProgram: '', operationsSummary: '', logoUrl: '', brandColours: '' });
+    setFormData({ mission: '', uvp: '', tone: '', demographics: '', geo: '', products: '', pricing: '', praises: '', objections: '', competitors: '', marketGap: '', shippingPolicy: '', returnsPolicy: '', connectedSoftware: '', brandHistory: '', detailedBrandAesthetic: '', physicalBranches: [{ name: '', address: '', phone: '', email: '', openingHours: '' }], loyaltyProgram: '', operationsSummary: '', logoUrl: '', brandColours: '' });
     setLogoPreview(null); setLogoBase64(null);
     setSuccess(''); setError('');
     const databaseId = business.databaseId;
@@ -367,6 +368,7 @@ export function BrandProfileTab({ business }: { business: { name: string; userId
               returnsPolicy: data.returnsPolicy || '',
               connectedSoftware: data.connectedSoftware || '',
               brandHistory: data.brandHistory || '',
+              detailedBrandAesthetic: data.detailedBrandAesthetic || '',
               physicalBranches: Array.isArray(data.physicalBranches) ? data.physicalBranches : [{ name: '', address: '', phone: '', email: '', openingHours: '' }],
               loyaltyProgram: data.loyaltyProgram || '',
               operationsSummary: data.operationsSummary || '',
@@ -486,6 +488,7 @@ export function BrandProfileTab({ business }: { business: { name: string; userId
           returnsPolicy: p.returnsPolicy || '',
           connectedSoftware: p.connectedSoftware || '',
           brandHistory: p.brandHistory || '',
+          detailedBrandAesthetic: Array.isArray(p.detailedBrandAesthetic) ? p.detailedBrandAesthetic.join('\n') : (p.detailedBrandAesthetic || ''),
            physicalBranches: Array.isArray(p.physicalBranches) ? p.physicalBranches : (p.physicalBranches ? [{ name: p.physicalBranches, address: '', phone: '', email: '', openingHours: '' }] : [{ name: '', address: '', phone: '', email: '', openingHours: '' }]),
           loyaltyProgram: p.loyaltyProgram || '',
           operationsSummary: formData.operationsSummary, // not AI-managed
@@ -557,6 +560,7 @@ export function BrandProfileTab({ business }: { business: { name: string; userId
           returnsPolicy: p.returnsPolicy || '',
           connectedSoftware: p.connectedSoftware || '',
           brandHistory: p.brandHistory || '',
+          detailedBrandAesthetic: Array.isArray(p.detailedBrandAesthetic) ? p.detailedBrandAesthetic.join('\n') : (p.detailedBrandAesthetic || ''),
            physicalBranches: Array.isArray(p.physicalBranches) ? p.physicalBranches : (p.physicalBranches ? [{ name: p.physicalBranches, address: '', phone: '', email: '', openingHours: '' }] : [{ name: '', address: '', phone: '', email: '', openingHours: '' }]),
           loyaltyProgram: p.loyaltyProgram || '',
           operationsSummary: formData.operationsSummary, // not AI-managed

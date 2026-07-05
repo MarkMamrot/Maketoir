@@ -20,6 +20,7 @@ export interface BrandProfileRow {
   operations_summary: string | null;
   returns_policy:     string | null;
   brand_history:      string | null;
+  detailed_brand_aesthetic: string | null;
   physical_branches:  string | null;  // JSON string
   loyalty_program:    string | null;
   updated_at:         string;
