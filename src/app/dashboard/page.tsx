@@ -8208,13 +8208,10 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
                   <option value="gemini-3.1-flash-lite-image">Nano Banana 2 Lite — Gemini 3.1 Flash Lite Image</option>
                   <option value="gemini-2.5-flash-image">Nano Banana (legacy) — Gemini 2.5 Flash Image</option>
                 </optgroup>
-                <optgroup label="Imagen (deprecated Aug 2026)">
-                  <option value="imagen-4.0-ultra-generate-preview-06-06">Imagen 4 Ultra ⚠️</option>
-                  <option value="imagen-4.0-generate-001">Imagen 4 ⚠️</option>
+                <optgroup label="Imagen 4 (deprecated Aug 2026)">
+                  <option value="imagen-4.0-generate-001">Imagen 4 Standard ⚠️</option>
+                  <option value="imagen-4.0-ultra-generate-001">Imagen 4 Ultra ⚠️</option>
                   <option value="imagen-4.0-fast-generate-001">Imagen 4 Fast ⚠️</option>
-                  <option value="imagen-3.0-generate-001">Imagen 3 ⚠️</option>
-                  <option value="imagen-3.0-fast-generate-001">Imagen 3 Fast ⚠️</option>
-                  <option value="imagegeneration@006">Imagen 2 ⚠️</option>
                 </optgroup>
                 <optgroup label="Other">
                   <option value="other">Other / Generic</option>
@@ -8324,11 +8321,15 @@ export default function DashboardPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeSettingView, setActiveSettingView] = useState('appearance');
 
-  // Load first business and current user on mount
+  // Load first business and current user on mount; redirect to /login if session expired
   useEffect(() => {
     fetch('/api/user/businesses')
-      .then(r => r.json())
+      .then(r => {
+        if (r.status === 401) { window.location.href = '/login'; return null; }
+        return r.json();
+      })
       .then(d => {
+        if (!d) return;
         if (d.success && d.businesses?.length > 0) {
           setDatabaseId(d.businesses[0].databaseId);
           setBusinessName(d.businesses[0].name);
@@ -8336,8 +8337,11 @@ export default function DashboardPage() {
       })
       .catch(() => {});
     fetch('/api/user/me')
-      .then(r => r.json())
-      .then(d => { if (d.name) setUserName(d.name); })
+      .then(r => {
+        if (r.status === 401) { window.location.href = '/login'; return null; }
+        return r.json();
+      })
+      .then(d => { if (d?.name) setUserName(d.name); })
       .catch(() => {});
   }, []);
 

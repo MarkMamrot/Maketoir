@@ -52,22 +52,15 @@ const IMAGE_MODEL_NOTES: Record<string, string> = {
     'Use clear, direct prompts (50–120 words). Google recommends migrating to Nano Banana 2 Lite for better quality and lower cost.',
 
   // ── Imagen series (deprecated — shutdown August 17, 2026) ──────────────────
-  'imagen-4.0-ultra-generate-preview-06-06':
-    '⚠️ DEPRECATED (Imagen 4 Ultra — shutdown Aug 17, 2026). Migrate to Nano Banana 2. ' +
-    'Supports highly detailed photorealistic prompts up to ~480 tokens. Use rich descriptive language, camera settings, and stylistic references. Separate concepts with commas.',
   'imagen-4.0-generate-001':
-    '⚠️ DEPRECATED (Imagen 4 — shutdown Aug 17, 2026). Migrate to Nano Banana 2. ' +
+    '⚠️ DEPRECATED (Imagen 4 Standard — shutdown Aug 17, 2026). Migrate to Nano Banana 2. ' +
     'Use descriptive natural language covering subject, setting, lighting, style, and mood. Aim for 100–300 words.',
+  'imagen-4.0-ultra-generate-001':
+    '⚠️ DEPRECATED (Imagen 4 Ultra — shutdown Aug 17, 2026). Migrate to Nano Banana Pro. ' +
+    'Supports highly detailed photorealistic prompts up to ~480 tokens. Use rich descriptive language, camera settings, and stylistic references.',
   'imagen-4.0-fast-generate-001':
-    '⚠️ DEPRECATED (Imagen 4 Fast — shutdown Aug 17, 2026). Migrate to Nano Banana 2 Lite. ' +
+    '⚠️ DEPRECATED (Imagen 4 Fast — shutdown Aug 17, 2026). Migrate to Nano Banana Lite. ' +
     'Keep prompts concise and focused, around 50–100 words.',
-  'imagen-3.0-generate-001':
-    '⚠️ DEPRECATED (Imagen 3 — shutdown Aug 17, 2026). Migrate to Nano Banana 2. ' +
-    'Use natural language, 80–200 words, include subject, environment, lighting, colour palette, and mood.',
-  'imagen-3.0-fast-generate-001':
-    '⚠️ DEPRECATED (Imagen 3 Fast — shutdown Aug 17, 2026). Migrate to Nano Banana 2 Lite. Concise prompts, 40–80 words.',
-  'imagegeneration@006':
-    '⚠️ DEPRECATED (Imagen 2 — shutdown Aug 17, 2026). Migrate to Nano Banana 2 Lite. Short direct prompts, 30–100 words.',
 };
 
 export async function POST(req: Request) {
@@ -95,7 +88,7 @@ export async function POST(req: Request) {
   }
 
   // Get Gemini model preference
-  let modelId = 'gemini-2.5-flash-preview-04-17';
+  let modelId = 'gemini-2.5-flash';
   try {
     const conn = await ConnectionsRepository.get(databaseId) as any;
     if (conn?.gemini_model) modelId = conn.gemini_model;
