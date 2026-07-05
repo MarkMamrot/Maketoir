@@ -35,18 +35,49 @@ When generating prompts or templates:
 Be concise in your explanations but thorough in the prompts themselves.`;
 
 const IMAGE_MODEL_NOTES: Record<string, string> = {
+  // ── Nano Banana family (current / recommended) ──────────────────────────────
+  'gemini-3.1-flash-image':
+    'Target: Nano Banana 2 (Gemini 3.1 Flash Image). Best all-round model. ' +
+    'Supports 4K output, reliable text rendering, up to 10 high-fidelity object references and 4 character references, Google Image Search grounding, and video-to-image. ' +
+    'Use rich, detailed prompts in natural language (100–350 words). Describe subject, setting, lighting, camera angle, mood, and colour palette. ' +
+    'For model/person prompts include pose, expression, wardrobe detail, and photographic style. ' +
+    'Separate key concepts with commas and use photographic/cinematic language.',
+
+  'gemini-3-pro-image':
+    'Target: Nano Banana Pro (Gemini 3 Pro Image). Premium model for professional asset production. ' +
+    'Features a built-in Thinking process, up to 4K resolution, up to 14 reference images (5 high-fidelity), and the highest world-knowledge accuracy. ' +
+    'Write highly detailed, professional-grade prompts (150–500 words). ' +
+    'Include brand references, precise colour hex codes, typography notes, stylistic references, and step-by-step composition instructions. ' +
+    'Use "Thinking-aware" language: break complex scenes into numbered steps for the model to reason through.',
+
+  'gemini-3.1-flash-lite-image':
+    'Target: Nano Banana 2 Lite (Gemini 3.1 Flash Lite Image). Fastest and cheapest model — optimised for speed and scale. ' +
+    'Supports 1K resolution only. Not optimised for multiple reference images or multi-turn sequential editing. ' +
+    'Keep prompts concise and focused (40–80 words). Prioritise the single most important visual elements. ' +
+    'Avoid complex multi-element compositions.',
+
+  'gemini-2.5-flash-image':
+    'Target: Nano Banana (Gemini 2.5 Flash Image) — legacy model. ' +
+    'Generates 1024px images, optimised for high-volume low-latency tasks. Works best with up to 3 input images. ' +
+    'Use clear, direct prompts (50–120 words). Google recommends migrating to Nano Banana 2 Lite for better quality and lower cost.',
+
+  // ── Imagen series (deprecated — shutdown August 17, 2026) ──────────────────
   'imagen-4.0-ultra-generate-preview-06-06':
-    'Target: Google Imagen 4 Ultra. Supports highly detailed, photorealistic prompts up to ~480 tokens. Use rich descriptive language, camera settings, lighting details, and stylistic references. Separate concepts with commas.',
+    '⚠️ DEPRECATED (Imagen 4 Ultra — shutdown Aug 17, 2026). Migrate to Nano Banana 2. ' +
+    'Supports highly detailed photorealistic prompts up to ~480 tokens. Use rich descriptive language, camera settings, and stylistic references. Separate concepts with commas.',
   'imagen-4.0-generate-001':
-    'Target: Google Imagen 4. Supports detailed prompts. Use descriptive natural language covering subject, setting, lighting, style, and mood. Aim for 100-300 words.',
+    '⚠️ DEPRECATED (Imagen 4 — shutdown Aug 17, 2026). Migrate to Nano Banana 2. ' +
+    'Use descriptive natural language covering subject, setting, lighting, style, and mood. Aim for 100–300 words.',
   'imagen-4.0-fast-generate-001':
-    'Target: Google Imagen 4 Fast (nano). Optimised for speed — keep prompts concise and focused, around 50-100 words. Prioritise the most important visual elements.',
+    '⚠️ DEPRECATED (Imagen 4 Fast — shutdown Aug 17, 2026). Migrate to Nano Banana 2 Lite. ' +
+    'Keep prompts concise and focused, around 50–100 words.',
   'imagen-3.0-generate-001':
-    'Target: Google Imagen 3. Use natural language descriptions. Include subject, environment, lighting, colour palette, and mood. Works well with 80-200 word prompts.',
+    '⚠️ DEPRECATED (Imagen 3 — shutdown Aug 17, 2026). Migrate to Nano Banana 2. ' +
+    'Use natural language, 80–200 words, include subject, environment, lighting, colour palette, and mood.',
   'imagen-3.0-fast-generate-001':
-    'Target: Google Imagen 3 Fast. Concise, clear prompts work best — 40-80 words. Focus on key visual descriptors.',
+    '⚠️ DEPRECATED (Imagen 3 Fast — shutdown Aug 17, 2026). Migrate to Nano Banana 2 Lite. Concise prompts, 40–80 words.',
   'imagegeneration@006':
-    'Target: Google Imagen 2. Use short-to-medium prompts (30-100 words). Be direct and specific. Style references and lighting descriptors work well.',
+    '⚠️ DEPRECATED (Imagen 2 — shutdown Aug 17, 2026). Migrate to Nano Banana 2 Lite. Short direct prompts, 30–100 words.',
 };
 
 export async function POST(req: Request) {

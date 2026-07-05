@@ -8009,7 +8009,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
   const [useExisting, setUseExisting] = useState(false);
 
   // Target image model
-  const [imageModel, setImageModel] = useState('imagen-4.0-generate-001');
+  const [imageModel, setImageModel] = useState('gemini-3.1-flash-image');
 
   // Save flow
   const [savingIdx, setSavingIdx] = useState<number | null>(null);
@@ -8202,13 +8202,23 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
                 onChange={e => setImageModel(e.target.value)}
                 style={{ flex: 1, fontSize: 11, padding: '4px 8px', borderRadius: 7, border: '1px solid var(--sv-etch, #e5e7eb)', background: 'var(--sv-bg-1, #f9fafb)', color: 'var(--sv-text-strong, #111827)', cursor: 'pointer', outline: 'none' }}
               >
-                <option value="imagen-4.0-ultra-generate-preview-06-06">Imagen 4 Ultra</option>
-                <option value="imagen-4.0-generate-001">Imagen 4</option>
-                <option value="imagen-4.0-fast-generate-001">Imagen 4 Fast (nano)</option>
-                <option value="imagen-3.0-generate-001">Imagen 3</option>
-                <option value="imagen-3.0-fast-generate-001">Imagen 3 Fast</option>
-                <option value="imagegeneration@006">Imagen 2</option>
-                <option value="other">Other / Generic</option>
+                <optgroup label="Nano Banana (recommended)">
+                  <option value="gemini-3.1-flash-image">Nano Banana 2 — Gemini 3.1 Flash Image</option>
+                  <option value="gemini-3-pro-image">Nano Banana Pro — Gemini 3 Pro Image</option>
+                  <option value="gemini-3.1-flash-lite-image">Nano Banana 2 Lite — Gemini 3.1 Flash Lite Image</option>
+                  <option value="gemini-2.5-flash-image">Nano Banana (legacy) — Gemini 2.5 Flash Image</option>
+                </optgroup>
+                <optgroup label="Imagen (deprecated Aug 2026)">
+                  <option value="imagen-4.0-ultra-generate-preview-06-06">Imagen 4 Ultra ⚠️</option>
+                  <option value="imagen-4.0-generate-001">Imagen 4 ⚠️</option>
+                  <option value="imagen-4.0-fast-generate-001">Imagen 4 Fast ⚠️</option>
+                  <option value="imagen-3.0-generate-001">Imagen 3 ⚠️</option>
+                  <option value="imagen-3.0-fast-generate-001">Imagen 3 Fast ⚠️</option>
+                  <option value="imagegeneration@006">Imagen 2 ⚠️</option>
+                </optgroup>
+                <optgroup label="Other">
+                  <option value="other">Other / Generic</option>
+                </optgroup>
               </select>
             </div>
           </div>
