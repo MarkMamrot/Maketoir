@@ -7984,7 +7984,7 @@ const BRAND_ASSET_CATEGORIES: BrandAssetCategory[] = [
   },
 ];
 
-type BrandAsset = { id: number; category: string; name: string; content: string; notes?: string | null; created_at: string };
+type BrandAsset = { id: number; category: string; name: string; content: string; notes?: string | null; image_data?: string | null; image_mime?: string | null; created_at: string };
 type AssetChatMsg = { role: 'user' | 'assistant'; text: string };
 
 function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: string; databaseId: string }): React.JSX.Element {
@@ -8017,6 +8017,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
   const [pendingWords, setPendingWords] = useState(0);
   const [showContextPreview, setShowContextPreview] = useState(false);
   const [contextPreviewText, setContextPreviewText] = useState('');
+  const [contextSystemPrompt, setContextSystemPrompt] = useState('');
   const [contextPreviewLoading, setContextPreviewLoading] = useState(false);
   const [editingSummary, setEditingSummary] = useState(false);
   const [editSummaryText, setEditSummaryText] = useState('');
@@ -8070,6 +8071,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
     setSavedIdx(null);
     setShowContextPreview(false);
     setContextPreviewText('');
+    setContextSystemPrompt('');
     setEditingSummary(false);
     setAiOpen(true);
     // Fetch creative brief in background
@@ -8106,7 +8108,8 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
         }),
       });
       const data = await res.json();
-      if (data.contextBlock) setContextPreviewText(data.contextBlock);
+      if (data.contextBlock)   setContextPreviewText(data.contextBlock);
+      if (data.systemPrompt)   setContextSystemPrompt(data.systemPrompt);
     } catch {}
     setContextPreviewLoading(false);
   };
@@ -8184,10 +8187,17 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
 
   const confirmSave = async (msgIdx: number) => {
     if (!saveName.trim()) return;
+    const img = generatedImages[msgIdx];
     const res = await fetch('/api/dashboard/brand-assets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category: aiCategory, name: saveName.trim(), content: chatMsgs[msgIdx].text }),
+      body: JSON.stringify({
+        category: aiCategory,
+        name: saveName.trim(),
+        content: chatMsgs[msgIdx].text,
+        imageData: img?.data ?? null,
+        imageMime: img?.mimeType ?? null,
+      }),
     });
     const data = await res.json();
     if (data.success) {
@@ -8228,19 +8238,31 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
               {catAssets.length > 0 && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 12, padding: 16 }}>
                   {catAssets.map(asset => (
-                    <div key={asset.id} style={{ background: 'var(--sv-bg-1, #f9fafb)', border: '1px solid var(--sv-etch, #e5e7eb)', borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                        <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--sv-text-strong, #111827)', lineHeight: 1.3 }}>{asset.name}</span>
-                        <button
-                          onClick={() => deleteAsset(asset.id, cat.id)}
-                          title="Remove asset"
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '2px 4px', borderRadius: 4, fontSize: 15, lineHeight: 1, flexShrink: 0 }}
-                          onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
-                          onMouseLeave={e => (e.currentTarget.style.color = '#9ca3af')}
-                        >×</button>
+                    <div key={asset.id} style={{ background: 'var(--sv-bg-1, #f9fafb)', border: '1px solid var(--sv-etch, #e5e7eb)', borderRadius: 10, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                      {/* Image thumbnail */}
+                      {asset.image_data && (
+                        <img
+                          src={`data:${asset.image_mime ?? 'image/png'};base64,${asset.image_data}`}
+                          alt={asset.name}
+                          style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }}
+                        />
+                      )}
+                      <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                          <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--sv-text-strong, #111827)', lineHeight: 1.3 }}>{asset.name}</span>
+                          <button
+                            onClick={() => deleteAsset(asset.id, cat.id)}
+                            title="Remove asset"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '2px 4px', borderRadius: 4, fontSize: 15, lineHeight: 1, flexShrink: 0 }}
+                            onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+                            onMouseLeave={e => (e.currentTarget.style.color = '#9ca3af')}
+                          >×</button>
+                        </div>
+                        {!asset.image_data && (
+                          <p style={{ fontSize: 11, color: 'var(--sv-text-dim, #6b7280)', lineHeight: 1.5, margin: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' } as any}>{asset.content}</p>
+                        )}
+                        <span style={{ fontSize: 10, color: '#9ca3af' }}>{new Date(asset.created_at).toLocaleDateString()}</span>
                       </div>
-                      <p style={{ fontSize: 11, color: 'var(--sv-text-dim, #6b7280)', lineHeight: 1.5, margin: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' } as any}>{asset.content}</p>
-                      <span style={{ fontSize: 10, color: '#9ca3af' }}>{new Date(asset.created_at).toLocaleDateString()}</span>
                     </div>
                   ))}
                 </div>
@@ -8347,7 +8369,8 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
                         body: JSON.stringify({ databaseId, prompt: '(preview)', category: aiCategory, imageModel, includeBrandProfile: useBrandProfile, includeBusinessInfo: useBusinessInfo, includeExistingAssets: useExisting, includeCreativeHistory: useCreativeHistory, previewOnly: true, history: [] }),
                       });
                       const d = await res.json();
-                      if (d.contextBlock) setContextPreviewText(d.contextBlock);
+                      if (d.contextBlock)  setContextPreviewText(d.contextBlock);
+                      if (d.systemPrompt)  setContextSystemPrompt(d.systemPrompt);
                     } catch {}
                     setContextPreviewLoading(false);
                   }
@@ -8358,13 +8381,22 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
                 View full context being sent to AI
               </button>
               {showContextPreview && (
-                <div style={{ marginTop: 6, position: 'relative' }}>
+                <div style={{ marginTop: 6 }}>
                   {contextPreviewLoading ? (
                     <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>Loading…</p>
                   ) : (
-                    <pre style={{ fontSize: 10, lineHeight: 1.55, background: '#1e293b', color: '#94a3b8', borderRadius: 8, padding: '10px 12px', maxHeight: 200, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>{contextPreviewText || '(no context selected)'}</pre>
+                    <>
+                      {contextSystemPrompt && (
+                        <>
+                          <p style={{ fontSize: 10, fontWeight: 700, color: '#64748b', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>System prompt (AI behaviour)</p>
+                          <pre style={{ fontSize: 10, lineHeight: 1.55, background: '#0f172a', color: '#7dd3fc', borderRadius: 8, padding: '10px 12px', maxHeight: 160, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: '0 0 8px' }}>{contextSystemPrompt}</pre>
+                        </>
+                      )}
+                      <p style={{ fontSize: 10, fontWeight: 700, color: '#64748b', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Brand context (data passed)</p>
+                      <pre style={{ fontSize: 10, lineHeight: 1.55, background: '#1e293b', color: '#94a3b8', borderRadius: 8, padding: '10px 12px', maxHeight: 320, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>{contextPreviewText || '(no context selected — enable toggles above)'}</pre>
+                    </>
                   )}
-                  <button onClick={refreshContextPreview} style={{ marginTop: 4, fontSize: 10, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>↻ Refresh</button>
+                  <button onClick={refreshContextPreview} style={{ marginTop: 5, fontSize: 10, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>↻ Refresh</button>
                 </div>
               )}
             </div>
