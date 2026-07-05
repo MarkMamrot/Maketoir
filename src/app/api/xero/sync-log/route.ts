@@ -137,7 +137,8 @@ export async function GET(req: Request) {
     // ── 4. Build IDs / keys for sync log lookups ──────────────────────────
     const poIds = pos.map((p: any) => p.id as number);
     const soIds = sos.map((s: any) => s.id as number);
-    const onlineBatchKeys = onlineBatches.map((b: any) => batchDateStr(b.batch_date));
+    // Keys must match xero_sync_log.detail format: 'online batch YYYY-MM-DD'
+    const onlineBatchKeys = onlineBatches.map((b: any) => `online batch ${batchDateStr(b.batch_date)}`);
 
     // ── 5. Sync log lookups (main DB) ───────────────────────────────────────────────
     let poLogs: any[] = [];
@@ -218,7 +219,10 @@ export async function GET(req: Request) {
     // ── 6. Index logs ────────────────────────────────────────────────────────────────────────────
     const poLogByRef = new Map(poLogs.map((r: any) => [r.reference_id, r]));
     const soLogByRef = new Map(soLogs.map((r: any) => [r.reference_id, r]));
+    // batchLogByKey is keyed by 'online batch YYYY-MM-DD'; look up by the same format
     const batchLogByKey = new Map(batchLogs.map((r: any) => [r.batch_key, r]));
+    // Helper to get log for a batch date
+    const getBatchLog = (dateStr: string) => batchLogByKey.get(`online batch ${dateStr}`);
     const paysByPo = new Map<number, any[]>();
     for (const p of paymentLogs) {
       const arr = paysByPo.get(p.po_id) ?? [];
@@ -276,7 +280,7 @@ export async function GET(req: Request) {
 
     const onlineBatchEntries = onlineBatches.map((b: any) => {
       const dateStr = batchDateStr(b.batch_date);
-      const log = batchLogByKey.get(dateStr);
+      const log = getBatchLog(dateStr);
       return {
         sync_type: 'online_batch',
         reference_id: null,

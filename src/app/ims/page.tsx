@@ -9507,6 +9507,19 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
     setPushAll(false);
   };
 
+  const syncOnlineBatch = async (date: string, key: string) => {
+    setRetrying(r => ({ ...r, [key]: true }));
+    try {
+      await fetch('/api/xero/sync/daily-sales', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId: getBusinessId(), date, channel: 'online' }),
+      });
+      await loadData();
+    } catch {}
+    setRetrying(r => ({ ...r, [key]: false }));
+  };
+
   const toggleExpand = (id: number) => setExpanded(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const typeLabel = (t: string) => ({ po_bill: 'Purchase Order', so_invoice: 'Wholesale SO', pos_batch: 'POS Sales (Batch)', online_batch: 'Online Sales (Batch)', cogs_journal: 'COGS Journal', eod_reconciliation: 'POS End-of-Day', stocktake_journal: 'Stocktake Journal' }[t] ?? t);
@@ -9676,6 +9689,15 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                             style={{ background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: '#f87171', fontWeight: 600 }}
                           >
                             {retrying[retryKey] ? '…' : '↻ Retry'}
+                          </button>
+                        )}
+                        {entry.sync_type === 'online_batch' && !entry.last_sync_status && entry.item_date && (
+                          <button
+                            onClick={() => syncOnlineBatch(String(entry.item_date).slice(0, 10), retryKey)}
+                            disabled={retrying[retryKey]}
+                            style={{ background: 'rgba(56,189,248,.12)', border: '1px solid rgba(56,189,248,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: '#38bdf8', fontWeight: 600 }}
+                          >
+                            {retrying[retryKey] ? '…' : '↑ Sync Now'}
                           </button>
                         )}
                       </td>
