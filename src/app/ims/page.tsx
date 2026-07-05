@@ -2805,6 +2805,7 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
   const [data, setData] = useState<StockHistoryData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedVariantId, setSelectedVariantId] = useState<string>(''); // '' = all variants
 
   useEffect(() => {
     fetch(`/api/ims/products/${productId}/stock-history`)
@@ -2817,10 +2818,11 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
       .finally(() => setLoading(false));
   }, [productId]);
 
-  // Group stock by location name (aggregate across variants)
+  // Group stock by location — when a variant is selected, show only that variant's stock
   const locationTotals: Record<string, { name: string; qty_on_hand: number; qty_incoming: number; qty_committed: number }> = {};
   if (data) {
     for (const row of data.stockByLocation) {
+      if (selectedVariantId && row.variant_id !== selectedVariantId) continue;
       const k = row.location_name;
       if (!locationTotals[k]) locationTotals[k] = { name: k, qty_on_hand: 0, qty_incoming: 0, qty_committed: 0 };
       locationTotals[k].qty_on_hand   += Number(row.qty_on_hand   ?? 0);
@@ -2830,10 +2832,11 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
   }
   const locationRows = Object.values(locationTotals);
 
-  // Opening balance per variant+location (aggregate to product-level for display)
+  // Opening balance — when a variant is selected, show only that variant's balance (not sum)
   const openingByLoc: Record<string, { name: string; qty: number; date: string; inferred?: boolean }> = {};
   if (data) {
     for (const ob of data.openingBalances) {
+      if (selectedVariantId && ob.variant_id !== selectedVariantId) continue;
       const k = ob.location_name;
       if (!openingByLoc[k]) openingByLoc[k] = { name: k, qty: 0, date: ob.created_at, inferred: !!ob.inferred };
       openingByLoc[k].qty += Number(ob.qty_after_soh ?? 0);
@@ -2842,6 +2845,11 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
     }
   }
   const openingRows = Object.values(openingByLoc).sort((a, b) => a.name.localeCompare(b.name));
+
+  // Movements — filtered by selected variant
+  const filteredMovements = data
+    ? (selectedVariantId ? data.movements.filter((m: any) => m.variant_id === selectedVariantId) : data.movements)
+    : [];
 
   const movementLabel: Record<string, string> = {
     po_approved:    'PO Approved',
@@ -2971,11 +2979,33 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
           <div style={{ height: 1, background: 'var(--sv-etch)', marginBottom: 16 }} />
 
           {/* ── Transaction list ── */}
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8, marginBottom: 8 }}>
-            Transactions — Last 12 Months
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>
+              Transactions — Last 12 Months
+            </div>
+            {data.variants.length > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+                <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Variant:</span>
+                <select
+                  value={selectedVariantId}
+                  onChange={e => setSelectedVariantId(e.target.value)}
+                  style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', fontSize: 12 }}
+                >
+                  <option value="">All variants</option>
+                  {data.variants.map((v: any) => (
+                    <option key={v.variant_id} value={v.variant_id}>
+                      {v.label || v.sku || v.variant_id}
+                    </option>
+                  ))}
+                </select>
+                {selectedVariantId && (
+                  <button onClick={() => setSelectedVariantId('')} style={{ fontSize: 11, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-muted)', padding: 0 }}>✕ All</button>
+                )}
+              </div>
+            )}
           </div>
 
-          {data.movements.length === 0 && Object.keys(openingByLoc).length === 0 ? (
+          {filteredMovements.length === 0 && Object.keys(openingByLoc).length === 0 ? (
             <p style={{ color: 'var(--sv-text-muted)', fontSize: 13 }}>No transactions in the last 12 months.</p>
           ) : (
             <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden', maxHeight: 420, overflowY: 'auto' }}>
@@ -2986,28 +3016,28 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
                     <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Type</th>
                     <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Reference</th>
                     <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Location</th>
-                    {data.variants.length > 1 && <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Variant</th>}
+                    {data.variants.length > 1 && !selectedVariantId && <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Variant</th>}
                     <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Qty</th>
                     <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>SOH After</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {/* Opening balance rows (if any) */}
+                  {/* Opening balance rows — per variant or aggregated depending on filter */}
                   {Object.values(openingByLoc).map(ob => (
                     <tr key={`ob-${ob.name}`} style={{ borderTop: '1px solid var(--sv-etch)', background: 'color-mix(in srgb, var(--sv-amber) 8%, transparent)' }}>
                       <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{String(ob.date).slice(0, 10)}</td>
                       <td style={{ padding: '7px 12px' }}>
                         <span style={{ background: 'color-mix(in srgb, var(--sv-amber) 20%, transparent)', color: 'var(--sv-amber)', borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 700 }}>Opening Balance</span>
                       </td>
-                      <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)' }}>Balance before 12-month window</td>
+                      <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)' }}>{selectedVariantId ? 'Balance before 12-month window (this variant)' : 'Balance before 12-month window'}</td>
                       <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)' }}>{ob.name}</td>
-                      {data.variants.length > 1 && <td style={{ padding: '7px 12px' }} />}
+                      {data.variants.length > 1 && !selectedVariantId && <td style={{ padding: '7px 12px' }} />}
                       <td style={{ padding: '7px 12px', textAlign: 'right' }} />
                       <td style={{ padding: '7px 12px', textAlign: 'right', color: 'var(--sv-amber)', fontWeight: 700 }}>{fmtQty(ob.qty)}</td>
                     </tr>
                   ))}
                   {/* Movement rows */}
-                  {data.movements.map((m, i) => (
+                  {filteredMovements.map((m: any, i: number) => (
                     <tr key={m.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 25%, transparent)' : undefined }}>
                       <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{String(m.created_at).slice(0, 10)}</td>
                       <td style={{ padding: '7px 12px' }}>
@@ -3021,7 +3051,7 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
                       </td>
                       <td style={{ padding: '7px 12px', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>{refLink(m)}</td>
                       <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', fontSize: 12, whiteSpace: 'nowrap' }}>{m.location_name}</td>
-                      {data.variants.length > 1 && <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', fontSize: 12 }}>{m.variant_label}</td>}
+                      {data.variants.length > 1 && !selectedVariantId && <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', fontSize: 12 }}>{m.variant_label}</td>}
                       <td style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 700, color: movementColor(m.movement_type, Number(m.qty_change)) }}>
                         {Number(m.qty_change) > 0 ? '+' : ''}{fmtQty(Number(m.qty_change))}
                       </td>
