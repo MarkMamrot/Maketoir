@@ -7303,6 +7303,17 @@ function OnlineSalesView({ businessId }: { businessId: string }) {
                         <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, fontWeight: 600, background: badge.bg, color: badge.color }}>
                           {badge.label}
                         </span>
+                        {(() => {
+                          const s = order.status as string;
+                          if (!s || s === 'confirmed') return null;
+                          const cfg: Record<string, { bg: string; color: string }> = {
+                            draft:     { bg: 'rgba(107,114,128,.15)',   color: '#9ca3af' },
+                            fulfilled: { bg: 'rgba(16,185,129,.12)',    color: 'var(--sv-mint)' },
+                            cancelled: { bg: 'rgba(239,68,68,.12)',     color: 'var(--sv-red)' },
+                          };
+                          const c = cfg[s] ?? { bg: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)' };
+                          return <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, fontWeight: 600, background: c.bg, color: c.color }}>{s}</span>;
+                        })()}
                         <span style={{ flex: 1, fontSize: 13, color: 'var(--sv-text-main)' }}>
                           {order.customer_name || <span style={{ color: 'var(--sv-text-dim)' }}>—</span>}
                         </span>
