@@ -58,24 +58,27 @@ export async function GET(req: NextRequest) {
     );
 
     // Load Xero sync status for these dates from the main DB.
-    // xero_sync_log.detail = 'YYYY-MM-DD' for online_batch entries.
+    // xero_sync_log.detail = 'online batch YYYY-MM-DD' for online_batch entries.
     const xeroSyncMap: Record<string, 'ok' | 'err'> = {};
     if (rows.length > 0) {
       const dates = rows.map((r: any) => String(r.day).slice(0, 10));
+      const detailKeys = dates.map((d: string) => `online batch ${d}`);
       const syncRows = await query<{ batch_key: string; status: string }>(
         `SELECT detail AS batch_key, status
          FROM xero_sync_log
          WHERE business_id = ? AND sync_type = 'online_batch'
-           AND detail IN (${dates.map(() => '?').join(',')})
+           AND detail IN (${detailKeys.map(() => '?').join(',')})
            AND id IN (
              SELECT MAX(id) FROM xero_sync_log
              WHERE business_id = ? AND sync_type = 'online_batch'
              GROUP BY detail
            )`,
-        [businessId, ...dates, businessId],
+        [businessId, ...detailKeys, businessId],
       ).catch(() => []);
       for (const r of syncRows) {
-        xeroSyncMap[String(r.batch_key).slice(0, 10)] = r.status === 'success' ? 'ok' : 'err';
+        // Strip the 'online batch ' prefix to get the date key
+        const dateKey = String(r.batch_key).replace('online batch ', '').slice(0, 10);
+        xeroSyncMap[dateKey] = r.status === 'success' ? 'ok' : 'err';
       }
     }
 
