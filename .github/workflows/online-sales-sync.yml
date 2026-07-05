@@ -1,0 +1,21 @@
+name: Daily Online Sales Xero Sync
+
+on:
+  schedule:
+    - cron: '0 15 * * *'   # 1am AEST  (UTC+10, Apr–Oct standard time)
+    - cron: '0 14 * * *'   # 1am AEDT  (UTC+11, Oct–Apr daylight time)
+  workflow_dispatch:        # Manual trigger from GitHub Actions UI
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger online sales auto-sync
+        run: |
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "${{ secrets.APP_URL }}/api/ims/online-sales/auto-sync-cron")
+          echo "HTTP status: $RESPONSE"
+          [ "$RESPONSE" = "200" ] || exit 1
