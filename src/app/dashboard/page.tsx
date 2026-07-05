@@ -7978,85 +7978,298 @@ const BRAND_ASSET_CATEGORIES: BrandAssetCategory[] = [
   },
 ];
 
-function BrandAssetsView({ activeCategory }: { activeCategory?: string }) {
+type BrandAsset = { id: number; category: string; name: string; content: string; notes?: string | null; created_at: string };
+type AssetChatMsg = { role: 'user' | 'assistant'; text: string };
+
+function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: string; databaseId: string }) {
   const filteredCategories = activeCategory
     ? BRAND_ASSET_CATEGORIES.filter(c => c.id === activeCategory)
     : BRAND_ASSET_CATEGORIES;
 
+  const [assetsByCategory, setAssetsByCategory] = React.useState<Record<string, BrandAsset[]>>({ models: [], backdrops: [], templates: [] });
+  const [assetsLoading, setAssetsLoading] = React.useState(false);
+
+  // AI panel
+  const [aiOpen, setAiOpen] = React.useState(false);
+  const [aiCategory, setAiCategory] = React.useState('');
+  const [chatMsgs, setChatMsgs] = React.useState<AssetChatMsg[]>([]);
+  const [chatInput, setChatInput] = React.useState('');
+  const [chatLoading, setChatLoading] = React.useState(false);
+  const [chatError, setChatError] = React.useState('');
+
+  // Context toggles
+  const [useBrandProfile, setUseBrandProfile] = React.useState(true);
+  const [useBusinessInfo, setUseBusinessInfo] = React.useState(true);
+  const [useExisting, setUseExisting] = React.useState(false);
+
+  // Save flow
+  const [savingIdx, setSavingIdx] = React.useState<number | null>(null);
+  const [saveName, setSaveName] = React.useState('');
+  const [savedIdx, setSavedIdx] = React.useState<number | null>(null);
+
+  const chatEndRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMsgs, chatLoading]);
+
+  React.useEffect(() => {
+    if (!databaseId) return;
+    loadAssets();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [databaseId]);
+
+  const loadAssets = async () => {
+    setAssetsLoading(true);
+    try {
+      const res = await fetch('/api/dashboard/brand-assets');
+      const data = await res.json();
+      if (data.success) {
+        const grouped: Record<string, BrandAsset[]> = { models: [], backdrops: [], templates: [] };
+        for (const a of (data.assets as BrandAsset[])) {
+          if (grouped[a.category]) grouped[a.category].push(a);
+        }
+        setAssetsByCategory(grouped);
+      }
+    } catch { /* silent */ }
+    setAssetsLoading(false);
+  };
+
+  const openAiPanel = (category: string) => {
+    setAiCategory(category);
+    setChatMsgs([]);
+    setChatInput('');
+    setChatError('');
+    setSavingIdx(null);
+    setSaveName('');
+    setSavedIdx(null);
+    setAiOpen(true);
+  };
+
+  const sendChat = async () => {
+    const msg = chatInput.trim();
+    if (!msg || chatLoading) return;
+    setChatInput('');
+    setChatError('');
+    const nextMsgs: AssetChatMsg[] = [...chatMsgs, { role: 'user', text: msg }];
+    setChatMsgs(nextMsgs);
+    setChatLoading(true);
+    try {
+      const res = await fetch('/api/ai/brand-asset-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          databaseId,
+          prompt: msg,
+          category: aiCategory,
+          includeBrandProfile: useBrandProfile,
+          includeBusinessInfo: useBusinessInfo,
+          includeExistingAssets: useExisting,
+          history: nextMsgs.slice(0, -1).map(m => ({ role: m.role, content: m.text })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'AI error');
+      setChatMsgs(prev => [...prev, { role: 'assistant', text: data.response }]);
+    } catch (e: any) {
+      setChatError(e.message);
+    }
+    setChatLoading(false);
+  };
+
+  const deleteAsset = async (id: number, category: string) => {
+    await fetch(`/api/dashboard/brand-assets/${id}`, { method: 'DELETE' });
+    setAssetsByCategory(prev => ({ ...prev, [category]: (prev[category] ?? []).filter(a => a.id !== id) }));
+  };
+
+  const confirmSave = async (msgIdx: number) => {
+    if (!saveName.trim()) return;
+    const res = await fetch('/api/dashboard/brand-assets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: aiCategory, name: saveName.trim(), content: chatMsgs[msgIdx].text }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      await loadAssets();
+      setSavedIdx(msgIdx);
+      setSavingIdx(null);
+      setSaveName('');
+      setTimeout(() => setSavedIdx(null), 4000);
+    }
+  };
+
+  const catInfo = BRAND_ASSET_CATEGORIES.find(c => c.id === aiCategory);
+
   return (
-    <div>
-      {/* Category card grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-        {filteredCategories.map(cat => (
-          <div
-            key={cat.id}
-            style={{
-              background: 'var(--sv-bg-2, #fff)',
-              border: '1px solid var(--sv-etch, #e5e7eb)',
-              borderRadius: 12,
-              padding: '24px 22px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 14,
-              transition: 'box-shadow .15s, border-color .15s',
-            }}
-            onMouseEnter={e => {
-              (e.currentTarget as HTMLDivElement).style.borderColor = cat.accentColor + '66';
-              (e.currentTarget as HTMLDivElement).style.boxShadow = `0 4px 20px 0 ${cat.accentColor}18`;
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--sv-etch, #e5e7eb)';
-              (e.currentTarget as HTMLDivElement).style.boxShadow = 'none';
-            }}
-          >
-            {/* Icon badge */}
-            <div style={{
-              width: 48,
-              height: 48,
-              borderRadius: 10,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: cat.accentColor + '18',
-              color: cat.accentColor,
-            }} dangerouslySetInnerHTML={{ __html: cat.icon }} />
+    <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+      {/* Left: category sections */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+        {filteredCategories.map(cat => {
+          const catAssets = assetsByCategory[cat.id] ?? [];
+          return (
+            <div key={cat.id} style={{ background: 'var(--sv-bg-2, #fff)', border: '1px solid var(--sv-etch, #e5e7eb)', borderRadius: 14, overflow: 'hidden' }}>
+              {/* Category header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '18px 20px', borderBottom: catAssets.length > 0 ? '1px solid var(--sv-etch, #e5e7eb)' : 'none' }}>
+                <div style={{ width: 40, height: 40, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', background: cat.accentColor + '18', color: cat.accentColor, flexShrink: 0 }} dangerouslySetInnerHTML={{ __html: cat.icon }} />
+                <div style={{ flex: 1 }}>
+                  <h3 style={{ fontWeight: 700, fontSize: 15, color: 'var(--sv-text-strong, #111827)', margin: 0 }}>{cat.label}</h3>
+                  <p style={{ fontSize: 12, color: 'var(--sv-text-dim, #6b7280)', margin: '3px 0 0', lineHeight: 1.4 }}>{cat.description}</p>
+                </div>
+                <button
+                  onClick={() => openAiPanel(cat.id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 8, background: cat.accentColor + '12', border: `1px solid ${cat.accentColor}44`, color: cat.accentColor, fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                >
+                  <span>✨</span> Create with AI
+                </button>
+              </div>
 
-            {/* Label + description */}
-            <div>
-              <h3 style={{ fontWeight: 700, fontSize: 16, color: 'var(--sv-text-strong, #111827)', margin: 0 }}>{cat.label}</h3>
-              <p style={{ fontSize: 13, color: 'var(--sv-text-dim, #6b7280)', margin: '6px 0 0', lineHeight: 1.5 }}>{cat.description}</p>
+              {/* Asset cards */}
+              {catAssets.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 12, padding: 16 }}>
+                  {catAssets.map(asset => (
+                    <div key={asset.id} style={{ background: 'var(--sv-bg-1, #f9fafb)', border: '1px solid var(--sv-etch, #e5e7eb)', borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                        <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--sv-text-strong, #111827)', lineHeight: 1.3 }}>{asset.name}</span>
+                        <button
+                          onClick={() => deleteAsset(asset.id, cat.id)}
+                          title="Remove asset"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '2px 4px', borderRadius: 4, fontSize: 15, lineHeight: 1, flexShrink: 0 }}
+                          onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+                          onMouseLeave={e => (e.currentTarget.style.color = '#9ca3af')}
+                        >×</button>
+                      </div>
+                      <p style={{ fontSize: 11, color: 'var(--sv-text-dim, #6b7280)', lineHeight: 1.5, margin: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' } as React.CSSProperties}>{asset.content}</p>
+                      <span style={{ fontSize: 10, color: '#9ca3af' }}>{new Date(asset.created_at).toLocaleDateString()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {catAssets.length === 0 && !assetsLoading && (
+                <div style={{ padding: '14px 20px' }}>
+                  <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>No {cat.label.toLowerCase()} prompts yet — use AI to create your first.</p>
+                </div>
+              )}
             </div>
+          );
+        })}
+      </div>
 
-            {/* Footer */}
-            <div style={{
-              marginTop: 'auto',
-              paddingTop: 14,
-              borderTop: '1px solid var(--sv-etch, #e5e7eb)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}>
-              <span style={{ fontSize: 12, color: 'var(--sv-text-dim, #9ca3af)' }}>No assets yet</span>
-              <button
-                disabled
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: cat.accentColor,
-                  background: cat.accentColor + '12',
-                  border: 'none',
-                  borderRadius: 6,
-                  padding: '5px 12px',
-                  cursor: 'not-allowed',
-                  opacity: 0.6,
-                }}
-              >
-                Browse
-              </button>
+      {/* Right: AI chat panel */}
+      {aiOpen && catInfo && (
+        <div style={{ width: 420, flexShrink: 0, background: 'var(--sv-bg-2, #fff)', border: '1px solid var(--sv-etch, #e5e7eb)', borderRadius: 14, display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 180px)', position: 'sticky', top: 20 }}>
+          {/* Panel header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: '1px solid var(--sv-etch, #e5e7eb)', flexShrink: 0 }}>
+            <span style={{ color: catInfo.accentColor, fontSize: 18 }}>✨</span>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontWeight: 700, fontSize: 14, margin: 0, color: 'var(--sv-text-strong, #111827)' }}>Create {catInfo.label} Asset</p>
+              <p style={{ fontSize: 11, margin: 0, color: '#9ca3af' }}>AI Creative Director</p>
+            </div>
+            <button onClick={() => setAiOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 18, lineHeight: 1, padding: '2px 6px' }}>×</button>
+          </div>
+
+          {/* Context toggles */}
+          <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--sv-etch, #e5e7eb)', flexShrink: 0 }}>
+            <p style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', margin: '0 0 7px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pass brand context</p>
+            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+              {[
+                { label: 'Brand Profile', value: useBrandProfile, toggle: () => setUseBrandProfile(p => !p), color: '#8b5cf6' },
+                { label: 'Business Info', value: useBusinessInfo, toggle: () => setUseBusinessInfo(p => !p), color: '#0ea5e9' },
+                { label: `Existing ${catInfo.label}`, value: useExisting, toggle: () => setUseExisting(p => !p), color: catInfo.accentColor },
+              ].map(item => (
+                <button key={item.label} onClick={item.toggle} style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 20, border: `1px solid ${item.value ? item.color : '#d1d5db'}`, background: item.value ? item.color + '15' : 'transparent', color: item.value ? item.color : '#6b7280', cursor: 'pointer', transition: 'all .15s' }}>
+                  {item.value ? '✓ ' : ''}{item.label}
+                </button>
+              ))}
             </div>
           </div>
-        ))}
-      </div>
+
+          {/* Messages */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {chatMsgs.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '28px 10px' }}>
+                <p style={{ fontSize: 22, margin: '0 0 10px' }}>✨</p>
+                <p style={{ fontSize: 13, color: '#6b7280', margin: 0, lineHeight: 1.6 }}>
+                  Describe what you need — e.g. <em>"Create a professional model prompt for our summer campaign, woman in her late 20s, natural outdoor lighting"</em>
+                </p>
+              </div>
+            )}
+
+            {chatMsgs.map((msg, i) => (
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                <div style={{ maxWidth: '93%', borderRadius: 12, padding: '10px 14px', background: msg.role === 'user' ? catInfo.accentColor : 'var(--sv-bg-1, #f9fafb)', border: `1px solid ${msg.role === 'user' ? catInfo.accentColor : 'var(--sv-etch, #e5e7eb)'}`, color: msg.role === 'user' ? '#fff' : 'var(--sv-text, #1f2937)' }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, margin: '0 0 5px', opacity: 0.65 }}>{msg.role === 'user' ? 'You' : 'AI Creative Director'}</p>
+                  <div style={{ fontSize: 12, lineHeight: 1.65, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.text}</div>
+                </div>
+
+                {/* Save flow for AI responses */}
+                {msg.role === 'assistant' && (
+                  <div style={{ marginTop: 6, maxWidth: '93%' }}>
+                    {savedIdx === i ? (
+                      <span style={{ fontSize: 11, color: '#10b981', fontWeight: 600 }}>✓ Saved to {catInfo.label}</span>
+                    ) : savingIdx === i ? (
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <input
+                          type="text"
+                          value={saveName}
+                          onChange={e => setSaveName(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') confirmSave(i); if (e.key === 'Escape') setSavingIdx(null); }}
+                          placeholder="Asset name…"
+                          // eslint-disable-next-line jsx-a11y/no-autofocus
+                          autoFocus
+                          style={{ fontSize: 11, padding: '5px 10px', borderRadius: 6, border: `1px solid ${catInfo.accentColor}66`, background: 'var(--sv-bg-2, #fff)', color: 'var(--sv-text-strong, #111827)', outline: 'none', flex: 1 }}
+                        />
+                        <button onClick={() => confirmSave(i)} disabled={!saveName.trim()} style={{ fontSize: 11, fontWeight: 600, padding: '5px 10px', borderRadius: 6, background: catInfo.accentColor, color: '#fff', border: 'none', cursor: 'pointer', opacity: saveName.trim() ? 1 : 0.45 }}>Save</button>
+                        <button onClick={() => setSavingIdx(null)} style={{ fontSize: 11, padding: '5px 8px', borderRadius: 6, background: 'none', border: '1px solid #e5e7eb', cursor: 'pointer', color: '#6b7280' }}>✕</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => { setSavingIdx(i); setSaveName(''); }} style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6, background: 'none', border: `1px solid ${catInfo.accentColor}44`, color: catInfo.accentColor, cursor: 'pointer' }}>
+                        + Save as Asset
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {chatLoading && (
+              <div style={{ display: 'flex' }}>
+                <div style={{ borderRadius: 12, padding: '10px 14px', background: 'var(--sv-bg-1, #f9fafb)', border: '1px solid var(--sv-etch, #e5e7eb)' }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, margin: '0 0 4px', color: '#9ca3af' }}>AI Creative Director</p>
+                  <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>Creating your prompt…</p>
+                </div>
+              </div>
+            )}
+
+            {chatError && (
+              <p style={{ fontSize: 11, color: '#ef4444', padding: '6px 10px', background: '#fef2f2', borderRadius: 6, border: '1px solid #fecaca', margin: 0 }}>⚠️ {chatError}</p>
+            )}
+
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Input */}
+          <div style={{ padding: '12px 16px', borderTop: '1px solid var(--sv-etch, #e5e7eb)', flexShrink: 0 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+              <textarea
+                value={chatInput}
+                onChange={e => setChatInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
+                placeholder={`Describe the ${catInfo.label.toLowerCase()} prompt you need…`}
+                rows={2}
+                style={{ flex: 1, fontSize: 12, padding: '8px 12px', borderRadius: 9, border: '1px solid var(--sv-etch, #e5e7eb)', background: 'var(--sv-bg-1, #f9fafb)', color: 'var(--sv-text-strong, #111827)', outline: 'none', resize: 'none', lineHeight: 1.5 }}
+              />
+              <button
+                onClick={sendChat}
+                disabled={!chatInput.trim() || chatLoading}
+                style={{ padding: '8px 14px', borderRadius: 9, border: 'none', background: chatInput.trim() && !chatLoading ? catInfo.accentColor : '#e5e7eb', color: chatInput.trim() && !chatLoading ? '#fff' : '#9ca3af', fontWeight: 700, fontSize: 14, cursor: chatInput.trim() && !chatLoading ? 'pointer' : 'not-allowed', transition: 'all .15s', flexShrink: 0 }}
+              >↑</button>
+            </div>
+            <p style={{ fontSize: 10, color: '#9ca3af', margin: '5px 0 0' }}>Enter to send · Shift+Enter for new line</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -8267,6 +8480,7 @@ export default function DashboardPage() {
           )}
           {(activeView === 'brand-assets' || activeView === 'brand-assets-models' || activeView === 'brand-assets-backdrops' || activeView === 'brand-assets-templates') && (
             <BrandAssetsView
+              databaseId={databaseId}
               activeCategory={
                 activeView === 'brand-assets' ? undefined
                   : activeView === 'brand-assets-models' ? 'models'
