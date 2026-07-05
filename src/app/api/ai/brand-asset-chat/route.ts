@@ -7,6 +7,10 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { GoogleGenAI } from '@google/genai';
+import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { BrandProfileRepository } from '@/lib/db/BrandProfileRepository';
+import { BusinessInfoRepository } from '@/lib/db/BusinessInfoRepository';
+import { query as dbQuery } from '@/services/MySQLService';
 
 const SYSTEM_PROMPT = `You are a specialist creative director and AI prompt engineer working exclusively for THIS brand.
 
@@ -111,7 +115,7 @@ export async function POST(req: Request) {
         info?.brand_name ? `Brand: ${info.brand_name}` : 'Brand: (not set — add in Setup › Business Info)',
         info?.brand_url  ? `Website: ${info.brand_url}` : '',
       ].filter(Boolean).join('\n'));
-    } catch { sections.push('=== BRAND IDENTITY ===\n(failed to load)'); }
+    } catch (e: any) { sections.push(`=== BRAND IDENTITY ===\n(error: ${e?.message ?? String(e)})`); }
   }
 
   if (includeBrandProfile) {
@@ -136,7 +140,7 @@ export async function POST(req: Request) {
       } else {
         sections.push('=== BRAND PROFILE ===\n(not set up — go to Setup › Brand Profile to generate with AI)');
       }
-    } catch { sections.push('=== BRAND PROFILE ===\n(failed to load)'); }
+    } catch (e: any) { sections.push(`=== BRAND PROFILE ===\n(error: ${e?.message ?? String(e)})`); }
   }
 
   if (includeExistingAssets && category) {
