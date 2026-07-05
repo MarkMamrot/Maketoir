@@ -34,6 +34,21 @@ When generating prompts or templates:
 
 Be concise in your explanations but thorough in the prompts themselves.`;
 
+const IMAGE_MODEL_NOTES: Record<string, string> = {
+  'imagen-4.0-ultra-generate-preview-06-06':
+    'Target: Google Imagen 4 Ultra. Supports highly detailed, photorealistic prompts up to ~480 tokens. Use rich descriptive language, camera settings, lighting details, and stylistic references. Separate concepts with commas.',
+  'imagen-4.0-generate-001':
+    'Target: Google Imagen 4. Supports detailed prompts. Use descriptive natural language covering subject, setting, lighting, style, and mood. Aim for 100-300 words.',
+  'imagen-4.0-fast-generate-001':
+    'Target: Google Imagen 4 Fast (nano). Optimised for speed — keep prompts concise and focused, around 50-100 words. Prioritise the most important visual elements.',
+  'imagen-3.0-generate-001':
+    'Target: Google Imagen 3. Use natural language descriptions. Include subject, environment, lighting, colour palette, and mood. Works well with 80-200 word prompts.',
+  'imagen-3.0-fast-generate-001':
+    'Target: Google Imagen 3 Fast. Concise, clear prompts work best — 40-80 words. Focus on key visual descriptors.',
+  'imagegeneration@006':
+    'Target: Google Imagen 2. Use short-to-medium prompts (30-100 words). Be direct and specific. Style references and lighting descriptors work well.',
+};
+
 export async function POST(req: Request) {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
@@ -45,6 +60,7 @@ export async function POST(req: Request) {
     databaseId,
     prompt,
     category,
+    imageModel = 'imagen-4.0-generate-001',
     includeBrandProfile = true,
     includeBusinessInfo  = true,
     includeExistingAssets = false,
@@ -117,11 +133,13 @@ export async function POST(req: Request) {
   }
 
   // Build prompt with context
-  const contextBlock = sections.length > 0
-    ? `\n\n--- BRAND CONTEXT ---\n${sections.join('\n\n')}\n--- END CONTEXT ---\n`
-    : '';
+  const modelNote = IMAGE_MODEL_NOTES[imageModel] ?? 'Target: a general-purpose AI image generator. Write clear, detailed prompts in natural language.';
+  const contextBlock = [
+    `=== TARGET IMAGE GENERATION MODEL ===\n${modelNote}`,
+    ...sections,
+  ].map(s => s.trim()).filter(Boolean).join('\n\n');
 
-  const fullPrompt = contextBlock + '\n\nUser request:\n' + prompt.trim();
+  const fullPrompt = `--- BRAND CONTEXT ---\n${contextBlock}\n--- END CONTEXT ---\n\nUser request:\n${prompt.trim()}`;
 
   // Build conversation history for Gemini
   const contents: any[] = [];

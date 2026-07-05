@@ -8008,6 +8008,9 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
   const [useBusinessInfo, setUseBusinessInfo] = useState(true);
   const [useExisting, setUseExisting] = useState(false);
 
+  // Target image model
+  const [imageModel, setImageModel] = useState('imagen-4.0-generate-001');
+
   // Save flow
   const [savingIdx, setSavingIdx] = useState<number | null>(null);
   const [saveName, setSaveName] = useState('');
@@ -8068,6 +8071,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
           databaseId,
           prompt: msg,
           category: aiCategory,
+          imageModel,
           includeBrandProfile: useBrandProfile,
           includeBusinessInfo: useBusinessInfo,
           includeExistingAssets: useExisting,
@@ -8175,19 +8179,37 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
             <button onClick={() => setAiOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 18, lineHeight: 1, padding: '2px 6px' }}>×</button>
           </div>
 
-          {/* Context toggles */}
-          <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--sv-etch, #e5e7eb)', flexShrink: 0 }}>
-            <p style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', margin: '0 0 7px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pass brand context</p>
-            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-              {[
-                { label: 'Brand Profile', value: useBrandProfile, toggle: () => setUseBrandProfile(p => !p), color: '#8b5cf6' },
-                { label: 'Business Info', value: useBusinessInfo, toggle: () => setUseBusinessInfo(p => !p), color: '#0ea5e9' },
-                { label: `Existing ${catInfo.label}`, value: useExisting, toggle: () => setUseExisting(p => !p), color: catInfo.accentColor },
-              ].map(item => (
-                <button key={item.label} onClick={item.toggle} style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 20, border: `1px solid ${item.value ? item.color : '#d1d5db'}`, background: item.value ? item.color + '15' : 'transparent', color: item.value ? item.color : '#6b7280', cursor: 'pointer', transition: 'all .15s' }}>
-                  {item.value ? '✓ ' : ''}{item.label}
-                </button>
-              ))}
+          {/* Context toggles + image model */}
+          <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--sv-etch, #e5e7eb)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', margin: '0 0 7px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pass brand context</p>
+              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+                {[
+                  { label: 'Brand Profile', value: useBrandProfile, toggle: () => setUseBrandProfile(p => !p), color: '#8b5cf6' },
+                  { label: 'Business Info', value: useBusinessInfo, toggle: () => setUseBusinessInfo(p => !p), color: '#0ea5e9' },
+                  { label: `Existing ${catInfo.label}`, value: useExisting, toggle: () => setUseExisting(p => !p), color: catInfo.accentColor },
+                ].map(item => (
+                  <button key={item.label} onClick={item.toggle} style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 20, border: `1px solid ${item.value ? item.color : '#d1d5db'}`, background: item.value ? item.color + '15' : 'transparent', color: item.value ? item.color : '#6b7280', cursor: 'pointer', transition: 'all .15s' }}>
+                    {item.value ? '✓ ' : ''}{item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>Target model</p>
+              <select
+                value={imageModel}
+                onChange={e => setImageModel(e.target.value)}
+                style={{ flex: 1, fontSize: 11, padding: '4px 8px', borderRadius: 7, border: '1px solid var(--sv-etch, #e5e7eb)', background: 'var(--sv-bg-1, #f9fafb)', color: 'var(--sv-text-strong, #111827)', cursor: 'pointer', outline: 'none' }}
+              >
+                <option value="imagen-4.0-ultra-generate-preview-06-06">Imagen 4 Ultra</option>
+                <option value="imagen-4.0-generate-001">Imagen 4</option>
+                <option value="imagen-4.0-fast-generate-001">Imagen 4 Fast (nano)</option>
+                <option value="imagen-3.0-generate-001">Imagen 3</option>
+                <option value="imagen-3.0-fast-generate-001">Imagen 3 Fast</option>
+                <option value="imagegeneration@006">Imagen 2</option>
+                <option value="other">Other / Generic</option>
+              </select>
             </div>
           </div>
 

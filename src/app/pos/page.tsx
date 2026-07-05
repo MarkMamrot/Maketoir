@@ -1793,8 +1793,7 @@ function MainPos({
         </button>
         <button
           onClick={() => {
-            const isManager = ['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '');
-            if (isManager) { setPosSettingsOpen(true); }
+            if (['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '')) { setPosSettingsOpen(true); }
           }}
           title={['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '') ? 'POS Settings' : 'POS Manager access required'}
           style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: ['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '') ? 'pointer' : 'default', color: ['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '') ? 'var(--sv-text-dim)' : 'var(--sv-text-muted)', transition: 'background .15s', flexShrink: 0, opacity: ['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '') ? 1 : .45 }}
@@ -1829,6 +1828,7 @@ function MainPos({
                 const mAmb  = '#f59e0b';
                 const mGrn  = '#4ade80';
                 const mRed  = '#ef4444';
+                const isManager = ['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '');
                 const btnStyle = (extra?: React.CSSProperties): React.CSSProperties => ({
                   width: '100%', display: 'flex', alignItems: 'center', gap: 10,
                   padding: '9px 14px', background: 'none', border: 'none',
