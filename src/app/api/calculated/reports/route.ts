@@ -117,8 +117,15 @@ async function calcSlowSellers(inventorySystemId: string, limit = 20): Promise<S
   const cutoff90 = Date.now() - 90 * 86_400_000;
   const results: SlowSellerRow[] = [];
 
+  /** Normalise a DB date value (string | Date | null) to an ISO date string or '' */
+  const toDateStr = (v: unknown): string => {
+    if (!v) return '';
+    if (v instanceof Date) return v.toISOString();
+    return String(v);
+  };
+
   for (const p of products) {
-    const createdStr = p.created_date ?? '';
+    const createdStr = toDateStr(p.created_date);
     if (createdStr) {
       const t = new Date(createdStr).getTime();
       if (isNaN(t) || t > cutoff90) continue;
