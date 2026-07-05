@@ -8018,6 +8018,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
   const [showContextPreview, setShowContextPreview] = useState(false);
   const [contextPreviewText, setContextPreviewText] = useState('');
   const [contextSystemPrompt, setContextSystemPrompt] = useState('');
+  const [contextPreviewDebug, setContextPreviewDebug] = useState<any>(null);
   const [contextPreviewLoading, setContextPreviewLoading] = useState(false);
   const [editingSummary, setEditingSummary] = useState(false);
   const [editSummaryText, setEditSummaryText] = useState('');
@@ -8072,6 +8073,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
     setShowContextPreview(false);
     setContextPreviewText('');
     setContextSystemPrompt('');
+    setContextPreviewDebug(null);
     setEditingSummary(false);
     setAiOpen(true);
     // Fetch creative brief in background
@@ -8110,6 +8112,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
       const data = await res.json();
       if (data.contextBlock)   setContextPreviewText(data.contextBlock);
       if (data.systemPrompt)   setContextSystemPrompt(data.systemPrompt);
+      if (data.debug)          setContextPreviewDebug(data.debug);
     } catch {}
     setContextPreviewLoading(false);
   };
@@ -8360,7 +8363,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
                 onClick={async () => {
                   const next = !showContextPreview;
                   setShowContextPreview(next);
-                  if (next && !contextPreviewText) {
+                  if (next) {
                     setContextPreviewLoading(true);
                     try {
                       const res = await fetch('/api/ai/brand-asset-chat', {
@@ -8371,6 +8374,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
                       const d = await res.json();
                       if (d.contextBlock)  setContextPreviewText(d.contextBlock);
                       if (d.systemPrompt)  setContextSystemPrompt(d.systemPrompt);
+                      if (d.debug)         setContextPreviewDebug(d.debug);
                     } catch {}
                     setContextPreviewLoading(false);
                   }
@@ -8393,6 +8397,14 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
                         </>
                       )}
                       <p style={{ fontSize: 10, fontWeight: 700, color: '#64748b', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Brand context (data passed)</p>
+                      {contextPreviewDebug && (
+                        <pre style={{ fontSize: 9, background: '#fef9c3', color: '#713f12', border: '1px solid #fde047', borderRadius: 6, padding: '6px 10px', margin: '0 0 6px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                          {`databaseId sent: "${contextPreviewDebug.databaseId}"
+session businessId: "${contextPreviewDebug.sessionBusinessId}"
+sections found: ${contextPreviewDebug.sectionsFound}
+toggles: ${JSON.stringify(contextPreviewDebug.toggles)}`}
+                        </pre>
+                      )}
                       <pre style={{ fontSize: 10, lineHeight: 1.55, background: '#1e293b', color: '#94a3b8', borderRadius: 8, padding: '10px 12px', maxHeight: 320, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>{contextPreviewText || '(no context selected — enable toggles above)'}</pre>
                     </>
                   )}

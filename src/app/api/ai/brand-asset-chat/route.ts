@@ -8,21 +8,24 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { GoogleGenAI } from '@google/genai';
 
-const SYSTEM_PROMPT = `You are a specialist creative director and AI prompt engineer for a fashion/lifestyle retail brand.
+const SYSTEM_PROMPT = `You are a specialist creative director and AI prompt engineer working exclusively for THIS brand.
 
-Your role is to create precise, on-brand creative templates — model prompts, backdrop descriptions, and visual style guides — that will be used with AI image generators (Midjourney, DALL-E, Stable Diffusion, Flux) to produce consistent branded imagery.
+Each message you receive begins with a BRAND CONTEXT block containing real data about this specific business — including their brand profile (mission, tone, target demographics, colour palette, visual aesthetic), business identity, existing creative assets, and a creative intelligence brief from past sessions. You MUST read and apply ALL sections of the BRAND CONTEXT to every response. Do not produce generic or off-brand content.
+
+Your role is to create precise, on-brand creative templates — model prompts, backdrop descriptions, and visual style guides — that will be used with AI image generators to produce consistent branded imagery.
 
 When generating prompts or templates:
-- Make them specific, detailed, and immediately usable in an AI image generator
-- Incorporate the brand's visual identity, tone, and target demographics
-- For MODEL prompts: describe pose, expression, styling, lighting, camera angle in vivid detail
-- For BACKDROP prompts: describe environment, lighting, texture, mood, colour palette in detail
+- Ground EVERY output in the brand's actual visual identity, tone, colour palette, and target demographics from the BRAND CONTEXT
+- Reference specific brand colours, aesthetics, and demographics by name where provided
+- For MODEL prompts: describe pose, expression, styling, lighting, camera angle in vivid detail — aligned with the brand's demographics and aesthetic
+- For BACKDROP prompts: describe environment, lighting, texture, mood, colour palette — consistent with the brand's visual style
 - For TEMPLATES: provide a reusable structure with [PRODUCT], [COLOUR], [STYLE] style variables
+- If a Creative Intelligence Brief is provided, use it to maintain consistency with past creative decisions
 - Always stay on-brand and avoid generic clichés
-- Format your output clearly, with the prompt in a code block for easy copying
-- After the main prompt, suggest 2-3 variations
+- Format your output clearly, with the ready-to-use prompt in a code block for easy copying
+- After the main prompt, suggest 2-3 variations that stay within the brand's visual world
 
-Be concise in your explanations but thorough in the prompts themselves.`;
+Be concise in explanations but thorough and specific in the prompts themselves.`;
 
 const IMAGE_MODEL_NOTES: Record<string, string> = {
   // ── Nano Banana family (current / recommended) ──────────────────────────────
@@ -103,14 +106,12 @@ export async function POST(req: Request) {
   if (includeBusinessInfo) {
     try {
       const info = await BusinessInfoRepository.get(databaseId);
-      if (info) {
-        sections.push([
-          '=== BRAND IDENTITY ===',
-          info.brand_name ? `Brand: ${info.brand_name}` : '',
-          info.brand_url  ? `Website: ${info.brand_url}` : '',
-        ].filter(Boolean).join('\n'));
-      }
-    } catch {}
+      sections.push([
+        '=== BRAND IDENTITY ===',
+        info?.brand_name ? `Brand: ${info.brand_name}` : 'Brand: (not set — add in Setup › Business Info)',
+        info?.brand_url  ? `Website: ${info.brand_url}` : '',
+      ].filter(Boolean).join('\n'));
+    } catch { sections.push('=== BRAND IDENTITY ===\n(failed to load)'); }
   }
 
   if (includeBrandProfile) {
@@ -119,10 +120,10 @@ export async function POST(req: Request) {
       if (bp) {
         const lines = [
           '=== BRAND PROFILE ===',
-          bp.mission             ? `Mission: ${bp.mission}` : '',
+          bp.mission             ? `Mission: ${bp.mission}` : 'Mission: (not set)',
           bp.uvp                 ? `Unique Value Proposition: ${bp.uvp}` : '',
-          bp.tone                ? `Brand Tone & Voice: ${bp.tone}` : '',
-          bp.demographics        ? `Target Demographics: ${bp.demographics}` : '',
+          bp.tone                ? `Brand Tone & Voice: ${bp.tone}` : 'Brand Tone: (not set)',
+          bp.demographics        ? `Target Demographics: ${bp.demographics}` : 'Target Demographics: (not set)',
           bp.brand_colours       ? `Brand Colours: ${bp.brand_colours}` : '',
           bp.price_positioning   ? `Price Positioning: ${bp.price_positioning}` : '',
           bp.praises             ? `What customers love: ${bp.praises}` : '',
@@ -131,9 +132,11 @@ export async function POST(req: Request) {
           bp.brand_history       ? `Brand history: ${bp.brand_history}` : '',
           bp.detailed_brand_aesthetic ? `Detailed Brand Aesthetic: ${bp.detailed_brand_aesthetic}` : '',
         ].filter(Boolean);
-        if (lines.length > 1) sections.push(lines.join('\n'));
+        sections.push(lines.join('\n'));
+      } else {
+        sections.push('=== BRAND PROFILE ===\n(not set up — go to Setup › Brand Profile to generate with AI)');
       }
-    } catch {}
+    } catch { sections.push('=== BRAND PROFILE ===\n(failed to load)'); }
   }
 
   if (includeExistingAssets && category) {
@@ -173,7 +176,17 @@ export async function POST(req: Request) {
 
   // previewOnly: return assembled context without calling Gemini
   if (previewOnly) {
-    return NextResponse.json({ success: true, contextBlock, systemPrompt: SYSTEM_PROMPT });
+    return NextResponse.json({
+      success: true,
+      contextBlock,
+      systemPrompt: SYSTEM_PROMPT,
+      debug: {
+        databaseId,
+        sessionBusinessId: session.businessId ?? session.databaseId ?? '(not in session)',
+        sectionsFound: sections.length,
+        toggles: { includeBusinessInfo, includeBrandProfile, includeExistingAssets, includeCreativeHistory },
+      },
+    });
   }
 
   // Build conversation history for Gemini
