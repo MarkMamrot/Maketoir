@@ -1152,7 +1152,7 @@ function PosSettingsModal({
 
 // ─── Main POS Layout ──────────────────────────────────────────────────────────
 
-type MainScreen = 'pos' | 'eod' | 'reports' | 'parked' | 'receive-transfers';
+type MainScreen = 'pos' | 'eod' | 'reports' | 'parked' | 'receive-transfers' | 'branch-transfer';
 
 function MainPos({
   deviceConfig, session, products, paymentMethods, defaultView,
@@ -1209,6 +1209,7 @@ function MainPos({
   // Card terminal session-level toggle (staff can override admin config for this session)
   const [activeRegister, setActiveRegister] = useState<any>(null);
   const [zellerTerminalEnabled, setZellerTerminalEnabled] = useState(false);
+  const [btAccess, setBtAccess] = useState<'disabled' | 'manager' | 'all'>('manager');
   // Pending drain prompt: shown on reconnect when queue has recent items but no open session.
   const [pendingDrain, setPendingDrain] = useState<{ count: number; total: number } | null>(null);
   // Forces EodScreen to open in a specific tab (used when navigating from the pending-drain prompt).
@@ -1240,6 +1241,14 @@ function MainPos({
       })
       .catch(() => {});
   }, [session.location_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load POS permission settings (bt_access etc.)
+  useEffect(() => {
+    fetch('/api/pos/settings/permissions')
+      .then(r => r.json())
+      .then(d => { if (d.bt_access) setBtAccess(d.bt_access); })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-sync unsynced online sales batches to Xero — once per browser session,
   // non-blocking. Works from POS login too (endpoint accepts any valid session).
@@ -1634,6 +1643,7 @@ function MainPos({
   }
 
   if (screen === 'receive-transfers') return <ReceiveTransfersScreen session={session} onBack={() => { setScreen('pos'); setScanFocusTick(t => t + 1); }} />;
+  if (screen === 'branch-transfer') return <PosBranchTransferScreen session={session} onBack={() => { setScreen('pos'); setScanFocusTick(t => t + 1); }} />;
   if (screen === 'eod') return <EodScreen session={session} initialMode={eodInitialMode} onBack={() => {
     // Always re-fetch register session when returning from EOD so mustOpenRegister
     // reflects the latest state (closed or newly opened). Also drain the offline
@@ -1896,6 +1906,17 @@ function MainPos({
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
                       Receive Transfers
                     </button>
+                    {/* Create Branch Transfer */}
+                    {btAccess !== 'disabled' && (btAccess === 'all' || isManager) && (
+                      <button onClick={() => { setScreen('branch-transfer'); setMoreMenuOpen(false); }}
+                        style={btnStyle()}
+                        onMouseEnter={e => (e.currentTarget.style.background = mHov)}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                        Create Transfer
+                      </button>
+                    )}
                   </div>
                 );
               })()}
@@ -5405,6 +5426,189 @@ const tdStyle: React.CSSProperties = {
   verticalAlign: 'middle',
   color: 'var(--sv-text-main)',
 };
+
+// ─── POS Branch Transfer Screen ──────────────────────────────────────────────
+
+function PosBranchTransferScreen({ session, onBack }: { session: PosSession; onBack: () => void }) {
+  const [locations, setLocations]     = useState<{ id: number; name: string }[]>([]);
+  const [toLocationId, setToLocationId] = useState<number | ''>('');
+  const [notes, setNotes]             = useState('');
+  const [items, setItems]             = useState<{ variant_id: string; sku: string; name: string; qty: number; unit_cost: number }[]>([]);
+  const [search, setSearch]           = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searching, setSearching]     = useState(false);
+  const [saving, setSaving]           = useState(false);
+  const [result, setResult]           = useState<{ success: boolean; message: string } | null>(null);
+  const searchRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    fetch('/api/ims/locations').then(r => r.json()).then(d => {
+      if (d.success) setLocations((d.data ?? []).filter((l: any) => l.id !== session.location_id));
+    }).catch(() => {});
+  }, [session.location_id]);
+
+  function doSearch(q: string) {
+    setSearch(q);
+    if (searchRef.current) clearTimeout(searchRef.current);
+    if (q.trim().length < 2) { setSearchResults([]); return; }
+    setSearching(true);
+    searchRef.current = setTimeout(() => {
+      fetch(`/api/ims/variants?q=${encodeURIComponent(q)}`)
+        .then(r => r.json())
+        .then(d => {
+          const all = (d.data ?? d.variants ?? []) as any[];
+          setSearchResults(all.filter((v: any) =>
+            (`${v.product_name ?? ''} ${v.sku ?? ''} ${v.barcode ?? ''} ${v.option1_value ?? ''}`).toLowerCase().includes(q.toLowerCase())
+          ).slice(0, 12));
+        })
+        .catch(() => {})
+        .finally(() => setSearching(false));
+    }, 280);
+  }
+
+  function addItem(v: any) {
+    const existing = items.findIndex(i => i.variant_id === v.variant_id);
+    if (existing >= 0) {
+      setItems(p => p.map((it, i) => i === existing ? { ...it, qty: it.qty + 1 } : it));
+    } else {
+      setItems(p => [...p, { variant_id: v.variant_id, sku: v.sku ?? '', name: `${v.product_name ?? ''}${v.option1_value ? ' · ' + v.option1_value : ''}`, qty: 1, unit_cost: Number(v.cost_aud ?? 0) }]);
+    }
+    setSearch(''); setSearchResults([]);
+  }
+
+  async function createTransfer() {
+    if (!toLocationId || items.length === 0) return;
+    setSaving(true); setResult(null);
+    try {
+      const res = await fetch('/api/ims/branch-transfers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from_location_id: session.location_id,
+          to_location_id: Number(toLocationId),
+          transfer_date: new Date().toISOString().slice(0, 10),
+          notes: notes.trim() || null,
+          items: items.map(it => ({ variant_id: it.variant_id, qty_sent: it.qty, unit_cost: it.unit_cost, notes: '' })),
+        }),
+      });
+      const d = await res.json();
+      if (d.success) {
+        setResult({ success: true, message: `Draft transfer created successfully (${items.length} item${items.length !== 1 ? 's' : ''}).` });
+        setItems([]); setNotes(''); setToLocationId('');
+      } else {
+        setResult({ success: false, message: d.error ?? 'Failed to create transfer.' });
+      }
+    } catch (e: any) { setResult({ success: false, message: e.message ?? 'Network error.' }); }
+    finally { setSaving(false); }
+  }
+
+  const bg = 'var(--sv-bg-0)';
+  const card: React.CSSProperties = { background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: 16, marginBottom: 12 };
+  const inp: React.CSSProperties = { width: '100%', padding: '8px 10px', borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', fontSize: 14, boxSizing: 'border-box' as const };
+  const totalItems = items.reduce((s, i) => s + i.qty, 0);
+
+  return (
+    <div style={{ minHeight: '100vh', background: bg, display: 'flex', flexDirection: 'column', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: 'var(--sv-bg-1)', borderBottom: '1px solid var(--sv-etch)', flexShrink: 0 }}>
+        <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 22, lineHeight: 1, padding: 0 }}>‹</button>
+        <span style={{ fontWeight: 700, fontSize: 17, flex: 1 }}>Create Branch Transfer</span>
+        <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>From: <strong>{session.location_name}</strong></span>
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: 16, maxWidth: 600, width: '100%', margin: '0 auto' }}>
+        {result && (
+          <div style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 8, background: result.success ? 'rgba(16,185,129,.1)' : 'rgba(239,68,68,.1)', color: result.success ? 'var(--sv-mint)' : 'var(--sv-red)', fontSize: 14 }}>
+            {result.success ? '✓' : '✗'} {result.message}
+          </div>
+        )}
+
+        {/* Destination */}
+        <div style={card}>
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>Send To</label>
+          <select value={toLocationId} onChange={e => setToLocationId(e.target.value ? Number(e.target.value) : '')} style={inp}>
+            <option value="">— Select destination —</option>
+            {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+        </div>
+
+        {/* Product search */}
+        <div style={card}>
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>Add Items</label>
+          <div style={{ position: 'relative' }}>
+            <input
+              value={search}
+              onChange={e => doSearch(e.target.value)}
+              placeholder="Search by SKU, barcode, or product name…"
+              style={inp}
+              autoComplete="off"
+            />
+            {(searching || searchResults.length > 0) && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, zIndex: 50, maxHeight: 260, overflowY: 'auto', boxShadow: '0 4px 16px rgba(0,0,0,.3)', marginTop: 2 }}>
+                {searching && <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>Searching…</div>}
+                {searchResults.map((v: any) => (
+                  <div key={v.variant_id} onMouseDown={() => addItem(v)}
+                    style={{ padding: '9px 12px', cursor: 'pointer', borderBottom: '1px solid var(--sv-etch)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--sv-bg-2)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = '')}
+                  >
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{v.product_name}{v.option1_value ? ` · ${v.option1_value}` : ''}</div>
+                      <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{v.sku}</div>
+                    </div>
+                    <span style={{ fontSize: 12, color: 'var(--sv-action)', fontWeight: 600 }}>+ Add</span>
+                  </div>
+                ))}
+                {!searching && searchResults.length === 0 && search.length >= 2 && (
+                  <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>No results</div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Item list */}
+          {items.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              {items.map((it, i) => (
+                <div key={it.variant_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: '1px solid var(--sv-etch)' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{it.sku}</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <button onClick={() => setItems(p => p.map((x, j) => j === i ? { ...x, qty: Math.max(1, x.qty - 1) } : x))} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                    <span style={{ minWidth: 28, textAlign: 'center', fontWeight: 700 }}>{it.qty}</span>
+                    <button onClick={() => setItems(p => p.map((x, j) => j === i ? { ...x, qty: x.qty + 1 } : x))} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                  </div>
+                  <button onClick={() => setItems(p => p.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: 'var(--sv-red)', cursor: 'pointer', fontSize: 18, padding: '0 4px' }}>×</button>
+                </div>
+              ))}
+              <div style={{ marginTop: 8, fontSize: 13, color: 'var(--sv-text-dim)', textAlign: 'right' }}>{totalItems} unit{totalItems !== 1 ? 's' : ''} across {items.length} line{items.length !== 1 ? 's' : ''}</div>
+            </div>
+          )}
+        </div>
+
+        {/* Notes */}
+        <div style={card}>
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>Notes (optional)</label>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. Urgent restock for QVB" rows={2} style={{ ...inp, resize: 'none' as const }} />
+        </div>
+
+        {/* Create button */}
+        <button
+          onClick={createTransfer}
+          disabled={saving || !toLocationId || items.length === 0}
+          style={{ width: '100%', padding: '14px', background: (saving || !toLocationId || items.length === 0) ? 'var(--sv-etch)' : 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 16, cursor: (saving || !toLocationId || items.length === 0) ? 'not-allowed' : 'pointer' }}
+        >
+          {saving ? 'Creating…' : `Create Draft Transfer${items.length ? ` (${totalItems} unit${totalItems !== 1 ? 's' : ''})` : ''}`}
+        </button>
+        <div style={{ marginTop: 8, fontSize: 12, color: 'var(--sv-text-dim)', textAlign: 'center' }}>
+          Creates a draft transfer in IMS. Staff in the warehouse will confirm and send it.
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── POS Help Modal ─────────────────────────────────────────────────────────
 

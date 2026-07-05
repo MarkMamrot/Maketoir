@@ -14321,6 +14321,21 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
             <CollHeader label="🛒 POS Config" open={posConfigOpen} toggle={() => setPosConfigOpen(o => !o)} />
             {posConfigOpen && (
               <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
+
+                {/* Branch Transfer Access */}
+                <div style={{ marginBottom: 20, padding: '14px 16px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
+                  <label style={{ ...labelStyle, display: 'block', fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Branch Transfer Access in POS</label>
+                  <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 10, marginTop: 0 }}>Controls which staff can create branch transfers from the POS terminal.</p>
+                  <select
+                    value={settings['pos_bt_access'] ?? 'manager'}
+                    onChange={async e => { await saveSettings({ pos_bt_access: e.target.value }); }}
+                    style={{ ...inputStyle, maxWidth: 280 }}
+                  >
+                    <option value="disabled">Disabled — not accessible from POS</option>
+                    <option value="manager">Manager &amp; above only (PosManager, StandardUser, Admin)</option>
+                    <option value="all">All POS users (including regular staff)</option>
+                  </select>
+                </div>
                 <div style={{ marginBottom: 16 }}>
                   <label style={labelStyle}>POS Receipt Footer Text</label>
                   <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 8, marginTop: 0 }}>This text appears at the bottom of the POS receipt.</p>
