@@ -14,7 +14,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { imsQuery, getIMSPool } from '@/services/IMSMySQLService';
-import { ImsSalesOrdersRepo } from '@/lib/ims/ImsRepository';
+import { ImsSORepo } from '@/lib/ims/ImsRepository';
 import { toBusinessDate, toBusinessDateTime } from '@/lib/shopifyDate';
 
 export const runtime = 'nodejs';
@@ -130,8 +130,8 @@ export async function POST(req: Request, { params }: { params: { businessId: str
         }
       } finally { conn.release(); }
 
-      await ImsSalesOrdersRepo.changeStatus(soId, 'confirmed');
-      if (payload.fulfillment_status === 'fulfilled') await ImsSalesOrdersRepo.changeStatus(soId, 'fulfilled');
+      await ImsSORepo.changeStatus(soId, 'confirmed');
+      if (payload.fulfillment_status === 'fulfilled') await ImsSORepo.changeStatus(soId, 'fulfilled');
     } catch (e: any) { console.error('[shopify-webhook] order create error:', e.message); }
   }
 
@@ -143,7 +143,7 @@ export async function POST(req: Request, { params }: { params: { businessId: str
       [orderIdStr, businessId],
     );
     if (existing.length && existing[0].status !== 'cancelled') {
-      try { await ImsSalesOrdersRepo.changeStatus(existing[0].id, 'cancelled'); } catch {}
+      try { await ImsSORepo.changeStatus(existing[0].id, 'cancelled'); } catch {}
     }
   }
 
@@ -155,7 +155,7 @@ export async function POST(req: Request, { params }: { params: { businessId: str
       [orderId, businessId],
     );
     if (existing.length && existing[0].status === 'confirmed') {
-      try { await ImsSalesOrdersRepo.changeStatus(existing[0].id, 'fulfilled'); } catch {}
+      try { await ImsSORepo.changeStatus(existing[0].id, 'fulfilled'); } catch {}
     }
   }
 

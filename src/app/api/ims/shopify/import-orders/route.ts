@@ -13,7 +13,7 @@ import { cookies } from 'next/headers';
 import { imsQuery, imsExecute, getIMSPool } from '@/services/IMSMySQLService';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { ShopifyService } from '@/services/ShopifyService';
-import { ImsSalesOrdersRepo } from '@/lib/ims/ImsRepository';
+import { ImsSORepo } from '@/lib/ims/ImsRepository';
 import { decrypt } from '@/lib/encryption';
 import { toBusinessDate, toBusinessDateTime } from '@/lib/shopifyDate';
 
@@ -207,16 +207,16 @@ export async function POST(req: Request) {
       }
 
       // Transition draft → confirmed (commits qty_committed)
-      await ImsSalesOrdersRepo.changeStatus(soId, 'confirmed');
+      await ImsSORepo.changeStatus(soId, 'confirmed');
 
       // If already fulfilled on Shopify → move stock now
       if (order.fulfillment_status === 'fulfilled') {
-        await ImsSalesOrdersRepo.changeStatus(soId, 'fulfilled');
+        await ImsSORepo.changeStatus(soId, 'fulfilled');
       }
 
       // If cancelled on Shopify → cancel it
       if (order.financial_status === 'voided' || order.cancelled_at) {
-        await ImsSalesOrdersRepo.changeStatus(soId, 'cancelled');
+        await ImsSORepo.changeStatus(soId, 'cancelled');
       }
 
       imported++;
