@@ -7987,7 +7987,7 @@ const BRAND_ASSET_CATEGORIES: BrandAssetCategory[] = [
 type BrandAsset = { id: number; category: string; name: string; content: string; notes?: string | null; created_at: string };
 type AssetChatMsg = { role: 'user' | 'assistant'; text: string };
 
-function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: string; databaseId: string }) {
+function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: string; databaseId: string }): React.JSX.Element {
   const filteredCategories = activeCategory
     ? BRAND_ASSET_CATEGORIES.filter(c => c.id === activeCategory)
     : BRAND_ASSET_CATEGORIES;
@@ -8011,10 +8011,26 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
   // Target image model
   const [imageModel, setImageModel] = useState('gemini-3.1-flash-image');
 
+  // Creative Intelligence Brief
+  const [useCreativeHistory, setUseCreativeHistory] = useState(false);
+  const [creativeSummary, setCreativeSummary] = useState('');
+  const [pendingWords, setPendingWords] = useState(0);
+  const [showContextPreview, setShowContextPreview] = useState(false);
+  const [contextPreviewText, setContextPreviewText] = useState('');
+  const [contextPreviewLoading, setContextPreviewLoading] = useState(false);
+  const [editingSummary, setEditingSummary] = useState(false);
+  const [editSummaryText, setEditSummaryText] = useState('');
+  const [savingSummary, setSavingSummary] = useState(false);
+
   // Save flow
   const [savingIdx, setSavingIdx] = useState<number | null>(null);
   const [saveName, setSaveName] = useState('');
   const [savedIdx, setSavedIdx] = useState<number | null>(null);
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  // Image generation
+  const [generatingImageIdx, setGeneratingImageIdx] = useState<number | null>(null);
+  const [generatedImages, setGeneratedImages] = useState<Record<number, { data: string; mimeType: string }>>({});
+  const [imageErrors, setImageErrors] = useState<Record<number, string>>({});
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -8052,7 +8068,61 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
     setSavingIdx(null);
     setSaveName('');
     setSavedIdx(null);
+    setShowContextPreview(false);
+    setContextPreviewText('');
+    setEditingSummary(false);
     setAiOpen(true);
+    // Fetch creative brief in background
+    if (databaseId) {
+      fetch(`/api/dashboard/creative-summary?databaseId=${encodeURIComponent(databaseId)}`)
+        .then(r => r.json())
+        .then(d => {
+          setCreativeSummary(d.summary ?? '');
+          setPendingWords(d.pendingWords ?? 0);
+          setUseCreativeHistory(!!(d.summary?.trim()));
+        })
+        .catch(() => {});
+    }
+  };
+
+  const refreshContextPreview = async () => {
+    if (!showContextPreview) return;
+    setContextPreviewLoading(true);
+    try {
+      const res = await fetch('/api/ai/brand-asset-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          databaseId,
+          prompt: '(preview)',
+          category: aiCategory,
+          imageModel,
+          includeBrandProfile: useBrandProfile,
+          includeBusinessInfo: useBusinessInfo,
+          includeExistingAssets: useExisting,
+          includeCreativeHistory: useCreativeHistory,
+          previewOnly: true,
+          history: [],
+        }),
+      });
+      const data = await res.json();
+      if (data.contextBlock) setContextPreviewText(data.contextBlock);
+    } catch {}
+    setContextPreviewLoading(false);
+  };
+
+  const saveBriefEdit = async () => {
+    setSavingSummary(true);
+    try {
+      await fetch('/api/dashboard/creative-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId, summary: editSummaryText }),
+      });
+      setCreativeSummary(editSummaryText);
+      setEditingSummary(false);
+    } catch {}
+    setSavingSummary(false);
   };
 
   const sendChat = async () => {
@@ -8075,6 +8145,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
           includeBrandProfile: useBrandProfile,
           includeBusinessInfo: useBusinessInfo,
           includeExistingAssets: useExisting,
+          includeCreativeHistory: useCreativeHistory,
           history: nextMsgs.slice(0, -1).map(m => ({ role: m.role, content: m.text })),
         }),
       });
@@ -8090,6 +8161,25 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
   const deleteAsset = async (id: number, category: string) => {
     await fetch(`/api/dashboard/brand-assets/${id}`, { method: 'DELETE' });
     setAssetsByCategory(prev => ({ ...prev, [category]: (prev[category] ?? []).filter(a => a.id !== id) }));
+  };
+
+  const generateImage = async (msgIdx: number) => {
+    const prompt = chatMsgs[msgIdx].text;
+    setGeneratingImageIdx(msgIdx);
+    setImageErrors(prev => { const n = { ...prev }; delete n[msgIdx]; return n; });
+    try {
+      const res = await fetch('/api/ai/brand-asset-generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, imageModel }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error ?? 'Image generation failed');
+      setGeneratedImages(prev => ({ ...prev, [msgIdx]: { data: data.imageData, mimeType: data.mimeType } }));
+    } catch (e: any) {
+      setImageErrors(prev => ({ ...prev, [msgIdx]: e.message }));
+    }
+    setGeneratingImageIdx(null);
   };
 
   const confirmSave = async (msgIdx: number) => {
@@ -8174,9 +8264,22 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
             <span style={{ color: catInfo.accentColor, fontSize: 18 }}>✨</span>
             <div style={{ flex: 1 }}>
               <p style={{ fontWeight: 700, fontSize: 14, margin: 0, color: 'var(--sv-text-strong, #111827)' }}>Create {catInfo.label} Asset</p>
-              <p style={{ fontSize: 11, margin: 0, color: '#9ca3af' }}>AI Creative Director</p>
+              <p style={{ fontSize: 11, margin: 0, color: '#9ca3af' }}>Generates image generation prompts</p>
             </div>
-            <button onClick={() => setAiOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 18, lineHeight: 1, padding: '2px 6px' }}>×</button>
+            <button
+              onClick={() => {
+                setAiOpen(false);
+                // Fire-and-forget: append conversation to pending buffer
+                if (chatMsgs.length >= 2 && databaseId) {
+                  fetch('/api/ai/brand-asset-update-summary', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ databaseId, conversation: chatMsgs.map(m => ({ role: m.role, text: m.text })) }),
+                  }).catch(() => {});
+                }
+              }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 18, lineHeight: 1, padding: '2px 6px' }}
+            >×</button>
           </div>
 
           {/* Context toggles + image model */}
@@ -8188,12 +8291,82 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
                   { label: 'Brand Profile', value: useBrandProfile, toggle: () => setUseBrandProfile(p => !p), color: '#8b5cf6' },
                   { label: 'Business Info', value: useBusinessInfo, toggle: () => setUseBusinessInfo(p => !p), color: '#0ea5e9' },
                   { label: `Existing ${catInfo.label}`, value: useExisting, toggle: () => setUseExisting(p => !p), color: catInfo.accentColor },
+                  { label: 'Creative History', value: useCreativeHistory, toggle: () => setUseCreativeHistory(p => !p), color: '#10b981' },
                 ].map(item => (
                   <button key={item.label} onClick={item.toggle} style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 20, border: `1px solid ${item.value ? item.color : '#d1d5db'}`, background: item.value ? item.color + '15' : 'transparent', color: item.value ? item.color : '#6b7280', cursor: 'pointer', transition: 'all .15s' }}>
                     {item.value ? '✓ ' : ''}{item.label}
                   </button>
                 ))}
               </div>
+              {/* Pending words indicator */}
+              {pendingWords > 0 && (
+                <p style={{ fontSize: 10, color: '#f59e0b', margin: '5px 0 0' }}>⏳ {pendingWords} words queued — brief updates at 500</p>
+              )}
+              {useCreativeHistory && creativeSummary && (
+                <div style={{ marginTop: 8 }}>
+                  {editingSummary ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <textarea
+                        value={editSummaryText}
+                        onChange={e => setEditSummaryText(e.target.value)}
+                        rows={6}
+                        style={{ fontSize: 11, padding: '8px 10px', borderRadius: 7, border: '1px solid #86efac', background: 'var(--sv-bg-1,#f9fafb)', color: 'var(--sv-text-strong,#111827)', resize: 'vertical', outline: 'none', lineHeight: 1.5 }}
+                      />
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={saveBriefEdit} disabled={savingSummary} style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6, background: '#10b981', color: '#fff', border: 'none', cursor: 'pointer', opacity: savingSummary ? 0.6 : 1 }}>{savingSummary ? 'Saving…' : 'Save Brief'}</button>
+                        <button onClick={() => setEditingSummary(false)} style={{ fontSize: 11, padding: '4px 8px', borderRadius: 6, background: 'none', border: '1px solid #e5e7eb', cursor: 'pointer', color: '#6b7280' }}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 7, padding: '8px 10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: '#16a34a' }}>📚 Creative Brief</span>
+                        <button onClick={() => { setEditSummaryText(creativeSummary); setEditingSummary(true); }} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, background: 'none', border: '1px solid #86efac', cursor: 'pointer', color: '#16a34a' }}>✎ Edit</button>
+                      </div>
+                      <p style={{ fontSize: 11, color: '#166534', margin: 0, lineHeight: 1.5, maxHeight: 80, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical' } as any}>{creativeSummary}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+              {useCreativeHistory && !creativeSummary && (
+                <p style={{ fontSize: 10, color: '#9ca3af', marginTop: 5 }}>No brief yet — will be generated after ~500 words of creative conversations.</p>
+              )}
+            </div>
+            {/* View Context expandable */}
+            <div>
+              <button
+                onClick={async () => {
+                  const next = !showContextPreview;
+                  setShowContextPreview(next);
+                  if (next && !contextPreviewText) {
+                    setContextPreviewLoading(true);
+                    try {
+                      const res = await fetch('/api/ai/brand-asset-chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ databaseId, prompt: '(preview)', category: aiCategory, imageModel, includeBrandProfile: useBrandProfile, includeBusinessInfo: useBusinessInfo, includeExistingAssets: useExisting, includeCreativeHistory: useCreativeHistory, previewOnly: true, history: [] }),
+                      });
+                      const d = await res.json();
+                      if (d.contextBlock) setContextPreviewText(d.contextBlock);
+                    } catch {}
+                    setContextPreviewLoading(false);
+                  }
+                }}
+                style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}
+              >
+                <span style={{ transition: 'transform .15s', display: 'inline-block', transform: showContextPreview ? 'rotate(90deg)' : 'rotate(0)' }}>▶</span>
+                View full context being sent to AI
+              </button>
+              {showContextPreview && (
+                <div style={{ marginTop: 6, position: 'relative' }}>
+                  {contextPreviewLoading ? (
+                    <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>Loading…</p>
+                  ) : (
+                    <pre style={{ fontSize: 10, lineHeight: 1.55, background: '#1e293b', color: '#94a3b8', borderRadius: 8, padding: '10px 12px', maxHeight: 200, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>{contextPreviewText || '(no context selected)'}</pre>
+                  )}
+                  <button onClick={refreshContextPreview} style={{ marginTop: 4, fontSize: 10, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>↻ Refresh</button>
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <p style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>Target model</p>
@@ -8225,8 +8398,11 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
             {chatMsgs.length === 0 && (
               <div style={{ textAlign: 'center', padding: '28px 10px' }}>
                 <p style={{ fontSize: 22, margin: '0 0 10px' }}>✨</p>
-                <p style={{ fontSize: 13, color: '#6b7280', margin: 0, lineHeight: 1.6 }}>
-                  Describe what you need — e.g. <em>"Create a professional model prompt for our summer campaign, woman in her late 20s, natural outdoor lighting"</em>
+                <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 8px', lineHeight: 1.6 }}>
+                  Describe what you need and the AI will write a ready-to-use image generation prompt tailored to your brand.
+                </p>
+                <p style={{ fontSize: 11, color: '#9ca3af', margin: 0, lineHeight: 1.5 }}>
+                  Copy the result into <strong>Nano Banana 2</strong>, Midjourney, DALL-E or any other image generator.
                 </p>
               </div>
             )}
@@ -8237,6 +8413,30 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
                   <p style={{ fontSize: 10, fontWeight: 700, margin: '0 0 5px', opacity: 0.65 }}>{msg.role === 'user' ? 'You' : 'AI Creative Director'}</p>
                   <div style={{ fontSize: 12, lineHeight: 1.65, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.text}</div>
                 </div>
+
+                {/* Generated image */}
+                {msg.role === 'assistant' && generatedImages[i] && (
+                  <div style={{ marginTop: 8, maxWidth: '93%' }}>
+                    <img
+                      src={`data:${generatedImages[i].mimeType};base64,${generatedImages[i].data}`}
+                      alt="AI generated"
+                      style={{ width: '100%', borderRadius: 10, border: '1px solid var(--sv-etch, #e5e7eb)', display: 'block' }}
+                    />
+                    <button
+                      onClick={() => {
+                        const a = document.createElement('a');
+                        a.href = `data:${generatedImages[i].mimeType};base64,${generatedImages[i].data}`;
+                        a.download = `brand-asset-${Date.now()}.png`;
+                        a.click();
+                      }}
+                      style={{ marginTop: 6, fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid #d1d5db', background: 'none', color: '#6b7280', cursor: 'pointer' }}
+                    >⤓ Download
+                    </button>
+                  </div>
+                )}
+                {msg.role === 'assistant' && imageErrors[i] && (
+                  <p style={{ marginTop: 6, fontSize: 11, color: '#ef4444', maxWidth: '93%' }}>⚠️ {imageErrors[i]}</p>
+                )}
 
                 {/* Save flow for AI responses */}
                 {msg.role === 'assistant' && (
@@ -8259,9 +8459,29 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
                         <button onClick={() => setSavingIdx(null)} style={{ fontSize: 11, padding: '5px 8px', borderRadius: 6, background: 'none', border: '1px solid #e5e7eb', cursor: 'pointer', color: '#6b7280' }}>✕</button>
                       </div>
                     ) : (
-                      <button onClick={() => { setSavingIdx(i); setSaveName(''); }} style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6, background: 'none', border: `1px solid ${catInfo.accentColor}44`, color: catInfo.accentColor, cursor: 'pointer' }}>
-                        + Save as Asset
-                      </button>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(msg.text).then(() => {
+                              setCopiedIdx(i);
+                              setTimeout(() => setCopiedIdx(null), 2000);
+                            });
+                          }}
+                          style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6, background: copiedIdx === i ? '#f0fdf4' : 'none', border: `1px solid ${copiedIdx === i ? '#86efac' : '#d1d5db'}`, color: copiedIdx === i ? '#16a34a' : '#6b7280', cursor: 'pointer', transition: 'all .15s' }}
+                        >
+                          {copiedIdx === i ? '✓ Copied' : '📋 Copy prompt'}
+                        </button>
+                        <button
+                          onClick={() => generateImage(i)}
+                          disabled={generatingImageIdx === i}
+                          style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6, background: generatingImageIdx === i ? '#f3f4f6' : catInfo.accentColor + '15', border: `1px solid ${catInfo.accentColor}44`, color: generatingImageIdx === i ? '#9ca3af' : catInfo.accentColor, cursor: generatingImageIdx === i ? 'not-allowed' : 'pointer', transition: 'all .15s' }}
+                        >
+                          {generatingImageIdx === i ? '⏳ Generating…' : '🎨 Generate Image'}
+                        </button>
+                        <button onClick={() => { setSavingIdx(i); setSaveName(''); }} style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6, background: 'none', border: `1px solid ${catInfo.accentColor}44`, color: catInfo.accentColor, cursor: 'pointer' }}>
+                          + Save as Asset
+                        </button>
+                      </div>
                     )}
                   </div>
                 )}

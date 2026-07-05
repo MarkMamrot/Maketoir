@@ -76,14 +76,16 @@ export async function POST(req: Request) {
     databaseId,
     prompt,
     category,
-    imageModel = 'imagen-4.0-generate-001',
-    includeBrandProfile = true,
-    includeBusinessInfo  = true,
-    includeExistingAssets = false,
+    imageModel = 'gemini-3.1-flash-image',
+    includeBrandProfile    = true,
+    includeBusinessInfo    = true,
+    includeExistingAssets  = false,
+    includeCreativeHistory = false,
+    previewOnly            = false,
     history = [],
   } = await req.json();
 
-  if (!databaseId || !prompt?.trim()) {
+  if (!databaseId || (!prompt?.trim() && !previewOnly)) {
     return NextResponse.json({ error: 'databaseId and prompt are required' }, { status: 400 });
   }
 
@@ -148,6 +150,17 @@ export async function POST(req: Request) {
     } catch {}
   }
 
+  if (includeCreativeHistory) {
+    try {
+      const rows = await dbQuery<{ summary: string | null }>(
+        'SELECT summary FROM creative_summaries WHERE business_id = ?',
+        [databaseId],
+      );
+      const brief = rows[0]?.summary?.trim();
+      if (brief) sections.push(`=== CREATIVE INTELLIGENCE BRIEF ===\n${brief}`);
+    } catch {}
+  }
+
   // Build prompt with context
   const modelNote = IMAGE_MODEL_NOTES[imageModel] ?? 'Target: a general-purpose AI image generator. Write clear, detailed prompts in natural language.';
   const contextBlock = [
@@ -155,7 +168,12 @@ export async function POST(req: Request) {
     ...sections,
   ].map(s => s.trim()).filter(Boolean).join('\n\n');
 
-  const fullPrompt = `--- BRAND CONTEXT ---\n${contextBlock}\n--- END CONTEXT ---\n\nUser request:\n${prompt.trim()}`;
+  const fullPrompt = `--- BRAND CONTEXT ---\n${contextBlock}\n--- END CONTEXT ---\n\nUser request:\n${(prompt ?? '').trim()}`;
+
+  // previewOnly: return assembled context without calling Gemini
+  if (previewOnly) {
+    return NextResponse.json({ success: true, contextBlock, systemPrompt: SYSTEM_PROMPT });
+  }
 
   // Build conversation history for Gemini
   const contents: any[] = [];
