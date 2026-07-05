@@ -1241,6 +1241,16 @@ function MainPos({
       .catch(() => {});
   }, [session.location_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-sync unsynced online sales batches to Xero — once per browser session,
+  // non-blocking. Works from POS login too (endpoint accepts any valid session).
+  useEffect(() => {
+    const sessionKey = `online_auto_sync_pos_${session.location_id ?? 'x'}`;
+    if (!sessionStorage.getItem(sessionKey)) {
+      sessionStorage.setItem(sessionKey, '1');
+      fetch('/api/ims/online-sales/auto-sync', { method: 'POST' }).catch(() => {});
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Load register config (Zeller terminal settings) — requires authenticated session
   useEffect(() => {
     if (!session.register_id) return;

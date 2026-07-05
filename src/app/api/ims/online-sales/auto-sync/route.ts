@@ -14,18 +14,24 @@ import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 import { syncDailySalesBatch } from '@/services/XeroSyncService';
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
+function getBusinessId(): string | null {
+  // Accept any valid session — POS staff or IMS admin.
+  // The sync only needs businessId; it doesn't operate on behalf of the user.
+  for (const cookieName of ['marketoir_session', 'pos_session']) {
+    const raw = cookies().get(cookieName)?.value;
+    if (!raw) continue;
+    try {
+      const s = JSON.parse(raw);
+      const id = s.businessId ?? s.business_id ?? null;
+      if (id) return String(id);
+    } catch {}
+  }
+  return null;
 }
 
 export async function POST() {
-  const session = getSession();
-  if (!session) return NextResponse.json({ skipped: true, reason: 'unauthenticated' });
-
-  const businessId: string = session.businessId ?? '';
-  if (!businessId) return NextResponse.json({ skipped: true, reason: 'no businessId' });
+  const businessId = getBusinessId();
+  if (!businessId) return NextResponse.json({ skipped: true, reason: 'unauthenticated' });
 
   const tz = process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney';
 
