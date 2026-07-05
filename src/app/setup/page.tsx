@@ -768,6 +768,11 @@ export function BrandProfileTab({ business }: { business: { name: string; userId
           <Section label="Brand History" name="brandHistory" value={formData.brandHistory} onChange={handleChange} placeholder="AI will research your website and social media to summarise your brand's story — founding year, origin, milestones, and key moments that shaped the brand." multiline onRegenerate={() => handleRegenerateField('brandHistory')} isRegenerating={regeneratingField === 'brandHistory'} />
         </div>
 
+        {/* ── Detailed Brand Aesthetic ─────────────────────────────────────── */}
+        <div className="mt-8">
+          <Section label="Detailed Brand Aesthetic" name="detailedBrandAesthetic" value={formData.detailedBrandAesthetic} onChange={handleChange} placeholder="Describe your brand's full visual identity — colour palette usage, typography style, photography aesthetic and mood (e.g. clean studio, editorial lifestyle, moody outdoor), lighting preferences, recurring visual motifs, and how products are typically presented. Write as a creative brief for a photographer or designer." multiline onRegenerate={() => handleRegenerateField('detailedBrandAesthetic')} isRegenerating={regeneratingField === 'detailedBrandAesthetic'} />
+        </div>
+
         {/* ── Physical Branches ────────────────────────────────────────────── */}
         <div className="mt-8">
            <div className="flex items-center justify-between gap-2 mb-3">
