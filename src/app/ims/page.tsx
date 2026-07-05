@@ -7132,7 +7132,15 @@ function OnlineSalesView({ businessId }: { businessId: string }) {
     const qs = locationId ? `?location_id=${locationId}` : '';
     fetch(`/api/ims/online-sales${qs}`)
       .then(r => r.json())
-      .then(d => { if (d.success) setDays(d.days ?? []); })
+      .then(d => {
+        if (d.success) {
+          setDays(d.days ?? []);
+          // Pre-populate Xero sync status from the database so it persists across reloads
+          if (d.xeroSyncStatus && typeof d.xeroSyncStatus === 'object') {
+            setXeroResults(d.xeroSyncStatus);
+          }
+        }
+      })
       .catch(() => {})
       .finally(() => setDaysLoading(false));
   }, [locationId]);

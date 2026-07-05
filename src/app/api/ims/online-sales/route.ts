@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { query } from '@/services/MySQLService';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -56,7 +57,29 @@ export async function GET(req: NextRequest) {
       params,
     );
 
-    return NextResponse.json({ success: true, days: rows });
+    // Load Xero sync status for these dates from the main DB.
+    // xero_sync_log.detail = 'YYYY-MM-DD' for online_batch entries.
+    const xeroSyncMap: Record<string, 'ok' | 'err'> = {};
+    if (rows.length > 0) {
+      const dates = rows.map((r: any) => String(r.day).slice(0, 10));
+      const syncRows = await query<{ batch_key: string; status: string }>(
+        `SELECT detail AS batch_key, status
+         FROM xero_sync_log
+         WHERE business_id = ? AND sync_type = 'online_batch'
+           AND detail IN (${dates.map(() => '?').join(',')})
+           AND id IN (
+             SELECT MAX(id) FROM xero_sync_log
+             WHERE business_id = ? AND sync_type = 'online_batch'
+             GROUP BY detail
+           )`,
+        [businessId, ...dates, businessId],
+      ).catch(() => []);
+      for (const r of syncRows) {
+        xeroSyncMap[String(r.batch_key).slice(0, 10)] = r.status === 'success' ? 'ok' : 'err';
+      }
+    }
+
+    return NextResponse.json({ success: true, days: rows, xeroSyncStatus: xeroSyncMap });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
