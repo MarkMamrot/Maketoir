@@ -6,23 +6,21 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { query } from '@/services/MySQLService';
 
-function getSession() {
-  const raw = cookies().get('marketoir_session')?.value;
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
-}
-
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
-  const session = getSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+  const sessionCookie = cookies().get('marketoir_session');
+  if (!sessionCookie?.value) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+  let session: any;
+  try { session = JSON.parse(sessionCookie.value); } catch { return NextResponse.json({ error: 'Unauthorised' }, { status: 401 }); }
   const biz: string = session.businessId ?? session.databaseId ?? '';
   await query('UPDATE brand_assets SET is_active = 0 WHERE id = ? AND business_id = ?', [Number(params.id), biz]);
   return NextResponse.json({ success: true });
 }
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
-  const session = getSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+  const sessionCookie = cookies().get('marketoir_session');
+  if (!sessionCookie?.value) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+  let session: any;
+  try { session = JSON.parse(sessionCookie.value); } catch { return NextResponse.json({ error: 'Unauthorised' }, { status: 401 }); }
   const biz: string = session.businessId ?? session.databaseId ?? '';
   const { name, content, notes } = await req.json();
   const sets: string[] = [], vals: any[] = [];

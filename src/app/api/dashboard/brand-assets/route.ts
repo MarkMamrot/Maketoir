@@ -6,15 +6,11 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { query } from '@/services/MySQLService';
 
-function getSession() {
-  const raw = cookies().get('marketoir_session')?.value;
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
-}
-
 export async function GET(req: Request) {
-  const session = getSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+  const sessionCookie = cookies().get('marketoir_session');
+  if (!sessionCookie?.value) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+  let session: any;
+  try { session = JSON.parse(sessionCookie.value); } catch { return NextResponse.json({ error: 'Unauthorised' }, { status: 401 }); }
   const biz: string = session.businessId ?? session.databaseId ?? '';
   const category = new URL(req.url).searchParams.get('category') ?? '';
 
@@ -29,8 +25,10 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const session = getSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+  const sessionCookie = cookies().get('marketoir_session');
+  if (!sessionCookie?.value) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+  let session: any;
+  try { session = JSON.parse(sessionCookie.value); } catch { return NextResponse.json({ error: 'Unauthorised' }, { status: 401 }); }
   const biz: string = session.businessId ?? session.databaseId ?? '';
   const { category, name, content, notes } = await req.json();
   if (!category || !name?.trim() || !content?.trim()) {

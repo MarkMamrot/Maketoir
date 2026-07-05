@@ -7,16 +7,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { GoogleGenAI } from '@google/genai';
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { BrandProfileRepository } from '@/lib/db/BrandProfileRepository';
-import { BusinessInfoRepository } from '@/lib/db/BusinessInfoRepository';
-import { query as dbQuery } from '@/services/MySQLService';
-
-function getSession() {
-  const raw = cookies().get('marketoir_session')?.value;
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
-}
 
 const SYSTEM_PROMPT = `You are a specialist creative director and AI prompt engineer for a fashion/lifestyle retail brand.
 
@@ -81,8 +71,10 @@ const IMAGE_MODEL_NOTES: Record<string, string> = {
 };
 
 export async function POST(req: Request) {
-  const session = getSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+  const sessionCookie = cookies().get('marketoir_session');
+  if (!sessionCookie?.value) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+  let session: any;
+  try { session = JSON.parse(sessionCookie.value); } catch { return NextResponse.json({ error: 'Unauthorised' }, { status: 401 }); }
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 });
