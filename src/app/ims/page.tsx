@@ -10568,7 +10568,15 @@ export default function ImsPage() {
 
   useEffect(() => {
     fetch('/api/user/me').then(r => r.json()).then(d => {
-      if (d.name) { setUser(d); }
+      if (d.name) {
+        setUser(d);
+        // Auto-sync unsynced online batch days — once per browser session, non-blocking.
+        const sessionKey = `online_auto_sync_${d.businessId ?? 'x'}`;
+        if (!sessionStorage.getItem(sessionKey)) {
+          sessionStorage.setItem(sessionKey, '1');
+          fetch('/api/ims/online-sales/auto-sync', { method: 'POST' }).catch(() => {});
+        }
+      }
       else router.push('/login');
     }).catch(() => router.push('/login')).finally(() => setAuthChecked(true));
   }, [router]);
