@@ -124,12 +124,12 @@ export async function POST(req: Request) {
           // Apply the CURRENT Shopify state (re-fetched fresh), not the state at first import.
           if (order.cancelled_at || order.financial_status === 'voided') {
             // Cancelled on Shopify since import — mark cancelled (no stock committed from a draft).
-            await ImsSalesOrdersRepo.changeStatus(existing.id, 'cancelled');
+            await ImsSORepo.changeStatus(existing.id, 'cancelled');
           } else {
-            await ImsSalesOrdersRepo.changeStatus(existing.id, 'confirmed');
+            await ImsSORepo.changeStatus(existing.id, 'confirmed');
             // If it has since been fulfilled on Shopify, deduct stock now.
             if (order.fulfillment_status === 'fulfilled') {
-              await ImsSalesOrdersRepo.changeStatus(existing.id, 'fulfilled');
+              await ImsSORepo.changeStatus(existing.id, 'fulfilled');
             }
           }
           confirmedDrafts++;
