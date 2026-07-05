@@ -105,7 +105,7 @@ export async function GET(req: Request) {
         LIMIT ${limit}`,
     );
 
-    // ── 2. Wholesale/B2B SOs only — exclude POS and Online types ──────────
+    // ── 2. Wholesale/B2B SOs only — exclude POS, Online, and historical Cin7 records ──
     const sos = await imsQuery<any>(
       `SELECT so.id, so.so_number, so.total_amount, so.order_date,
               0 AS is_historical, so.xero_sync_status, so.xero_synced_at,
@@ -113,6 +113,7 @@ export async function GET(req: Request) {
          FROM ims_sales_orders so
          LEFT JOIN ims_contacts c ON c.id = so.customer_id
         WHERE (so.so_type IS NULL OR so.so_type NOT IN ('online', 'pos'))
+          AND (so.is_historical = 0 OR so.is_historical IS NULL)
           AND so.status NOT IN ('cancelled','draft')
         ORDER BY so.order_date DESC, so.id DESC
         LIMIT ${limit}`,
@@ -126,6 +127,7 @@ export async function GET(req: Request) {
               SUM(so.total_amount) AS total_amount
          FROM ims_sales_orders so
         WHERE so.so_type = 'online'
+          AND (so.is_historical = 0 OR so.is_historical IS NULL)
           AND so.status NOT IN ('cancelled','draft')
         GROUP BY DATE(so.order_date)
         ORDER BY batch_date DESC
