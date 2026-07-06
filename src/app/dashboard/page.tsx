@@ -8423,7 +8423,6 @@ toggles: ${JSON.stringify(contextPreviewDebug.toggles)}`}
                 </div>
               )}
             </div>
-            </div>
             {/* Image generator model picker */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <p style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>🎨 Image model</p>
