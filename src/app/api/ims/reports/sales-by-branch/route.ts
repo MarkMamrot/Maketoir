@@ -12,13 +12,11 @@ export async function GET(req: Request) {
   if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  // Unified combobox filter (takes precedence over legacy params)
-  const filterType  = searchParams.get('filterType')  ?? '';
-  const filterValue = searchParams.get('filterValue') ?? '';
-  // Legacy params kept for backward compat
-  const brand      = filterType === 'brand'    ? filterValue : (searchParams.get('brand')    ?? '');
-  const supplierId = filterType === 'supplier' ? filterValue : (searchParams.get('supplier') ?? '');
-  const search     = filterType === '' ? (searchParams.get('search') ?? '') : '';
+  // New multi-filter params (can all be active simultaneously)
+  const brand       = searchParams.get('brand')       ?? '';
+  const supplierId  = searchParams.get('supplierId')  ?? '';
+  const productType = searchParams.get('productType') ?? '';
+  const productId   = searchParams.get('productId')   ?? '';  // single variant
   const win        = parseInt(searchParams.get('window') ?? '90');
   const page       = Math.max(1, parseInt(searchParams.get('page') ?? '1'));
   const pageSize   = Math.min(100, Math.max(10, parseInt(searchParams.get('pageSize') ?? '25')));
@@ -30,21 +28,10 @@ export async function GET(req: Request) {
     // Build WHERE clause
     const conds: string[] = ['v.is_active = 1', 'p.is_active = 1'];
     const params: any[]   = [];
-    if (filterType === 'product' && filterValue) {
-      conds.push('v.variant_id = ?');
-      params.push(filterValue);
-    } else if (filterType === 'product_type' && filterValue) {
-      conds.push('p.product_type = ?');
-      params.push(filterValue);
-    } else {
-      if (brand)      { conds.push('p.brand = ?');               params.push(brand); }
-      if (supplierId) { conds.push('p.supplier_contact_id = ?'); params.push(Number(supplierId)); }
-      if (search) {
-        conds.push('(p.name LIKE ? OR v.sku LIKE ? OR p.brand LIKE ?)');
-        const like = `%${search}%`;
-        params.push(like, like, like);
-      }
-    }
+    if (productId)   { conds.push('v.variant_id = ?');           params.push(productId); }
+    if (brand)       { conds.push('p.brand = ?');                params.push(brand); }
+    if (supplierId)  { conds.push('p.supplier_contact_id = ?');  params.push(Number(supplierId)); }
+    if (productType) { conds.push('p.product_type = ?');         params.push(productType); }
     const where = 'WHERE ' + conds.join(' AND ');
 
     // Sales column for the selected window

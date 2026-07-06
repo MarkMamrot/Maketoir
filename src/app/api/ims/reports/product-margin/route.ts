@@ -12,35 +12,26 @@ export async function GET(req: Request) {
   if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const filterType  = searchParams.get('filterType')  ?? '';
-  const filterValue = searchParams.get('filterValue') ?? '';
+  const brand       = searchParams.get('brand')       ?? '';
+  const supplierId  = searchParams.get('supplierId')  ?? '';
+  const productType = searchParams.get('productType') ?? '';
+  const productId   = searchParams.get('productId')   ?? '';
   const win         = parseInt(searchParams.get('window') ?? '365', 10);
   const page        = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10));
   const pageSize    = Math.min(200, Math.max(10, parseInt(searchParams.get('pageSize') ?? '100', 10)));
   const offset      = (page - 1) * pageSize;
 
-  // Pick the right sales column based on window
   const salesCol =
     win <=   7 ? 'sc.sales_qty_7d'   :
     win <=  90 ? 'sc.sales_qty_90d'  :
     win <= 180 ? 'sc.sales_qty_180d' : 'sc.sales_qty_12m';
 
-  // Build filter clause — window filter is on the selected salesCol > 0
   const conds: string[] = ['v.is_active = 1', 'p.is_active = 1', `${salesCol} > 0`];
   const filterParams: any[] = [];
-  if (filterType === 'product' && filterValue) {
-    conds.push('v.variant_id = ?');
-    filterParams.push(filterValue);
-  } else if (filterType === 'brand' && filterValue) {
-    conds.push('p.brand = ?');
-    filterParams.push(filterValue);
-  } else if (filterType === 'supplier' && filterValue) {
-    conds.push('p.supplier_contact_id = ?');
-    filterParams.push(Number(filterValue));
-  } else if (filterType === 'product_type' && filterValue) {
-    conds.push('p.product_type = ?');
-    filterParams.push(filterValue);
-  }
+  if (productId)   { conds.push('v.variant_id = ?');           filterParams.push(productId); }
+  if (brand)       { conds.push('p.brand = ?');                filterParams.push(brand); }
+  if (supplierId)  { conds.push('p.supplier_contact_id = ?');  filterParams.push(Number(supplierId)); }
+  if (productType) { conds.push('p.product_type = ?');         filterParams.push(productType); }
   const where = 'WHERE ' + conds.join(' AND ');
 
   try {

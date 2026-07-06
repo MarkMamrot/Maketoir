@@ -12,25 +12,17 @@ export async function GET(req: Request) {
   if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const filterType  = searchParams.get('filterType')  ?? '';
-  const filterValue = searchParams.get('filterValue') ?? '';
+  const brand       = searchParams.get('brand')       ?? '';
+  const supplierId  = searchParams.get('supplierId')  ?? '';
+  const productType = searchParams.get('productType') ?? '';
+  const productId   = searchParams.get('productId')   ?? '';
 
-  // Build filter clause
   const conds: string[] = ['v.is_active = 1', 'p.is_active = 1'];
   const filterParams: any[] = [];
-  if (filterType === 'product' && filterValue) {
-    conds.push('v.variant_id = ?');
-    filterParams.push(filterValue);
-  } else if (filterType === 'brand' && filterValue) {
-    conds.push('p.brand = ?');
-    filterParams.push(filterValue);
-  } else if (filterType === 'supplier' && filterValue) {
-    conds.push('p.supplier_contact_id = ?');
-    filterParams.push(Number(filterValue));
-  } else if (filterType === 'product_type' && filterValue) {
-    conds.push('p.product_type = ?');
-    filterParams.push(filterValue);
-  }
+  if (productId)   { conds.push('v.variant_id = ?');           filterParams.push(productId); }
+  if (brand)       { conds.push('p.brand = ?');                filterParams.push(brand); }
+  if (supplierId)  { conds.push('p.supplier_contact_id = ?');  filterParams.push(Number(supplierId)); }
+  if (productType) { conds.push('p.product_type = ?');         filterParams.push(productType); }
   const where = 'WHERE ' + conds.join(' AND ');
 
   try {

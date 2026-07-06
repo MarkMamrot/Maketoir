@@ -8121,8 +8121,152 @@ function ReportFilterCombobox({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sales by Branch / Product Report
+// Searchable single-type filter combobox (Supplier / Brand / Product Type)
 // ─────────────────────────────────────────────────────────────────────────────
+function SearchableTypeFilter({
+  filterType,
+  placeholder,
+  selection,
+  onSelect,
+  onClear,
+}: {
+  filterType: 'supplier' | 'brand' | 'product_type';
+  placeholder: string;
+  selection: FilterSelection | null;
+  onSelect: (s: FilterSelection) => void;
+  onClear: () => void;
+}) {
+  const [query, setQuery]             = useState('');
+  const [options, setOptions]         = useState<FilterSuggestion[]>([]);
+  const [open, setOpen]               = useState(false);
+  const [loading, setLoading]         = useState(false);
+  const [activeIdx, setActiveIdx]     = useState(-1);
+  const debounceRef                   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef                  = useRef<HTMLDivElement>(null);
+  const colors                        = TYPE_PILL_COLORS[filterType];
+
+  const fetchOptions = async (q: string) => {
+    setLoading(true);
+    try {
+      const url = `/api/ims/filters/search?only=${filterType}&limit=40${q ? `&q=${encodeURIComponent(q)}` : ''}`;
+      const res = await fetch(url);
+      const d = await res.json();
+      setOptions(d.suggestions ?? []);
+      setOpen(true);
+      setActiveIdx(-1);
+    } catch { /* ignore */ } finally { setLoading(false); }
+  };
+
+  // Pre-load on mount
+  useEffect(() => { fetchOptions(''); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-fetch with debounce on query change
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchOptions(query), 200);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [query]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  const choose = (s: FilterSuggestion) => {
+    onSelect({ type: s.type, value: s.value, label: s.label, meta: s.meta });
+    setQuery('');
+    setOpen(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!open || options.length === 0) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, options.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)); }
+    else if (e.key === 'Enter' && activeIdx >= 0) { e.preventDefault(); choose(options[activeIdx]); }
+    else if (e.key === 'Escape') setOpen(false);
+  };
+
+  const typeLabel = filterType === 'product_type' ? 'Type' : filterType.charAt(0).toUpperCase() + filterType.slice(1);
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', flex: 1, minWidth: 140 }}>
+      {selection ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 8px 0 10px', border: `1px solid ${colors.text}66`, borderRadius: 7, background: colors.bg, cursor: 'default' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: colors.text, flexShrink: 0 }}>{typeLabel}</span>
+          <span style={{ fontSize: 12, color: 'var(--sv-text-strong)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {selection.label.replace(/^(Brand:|Supplier:|Type:|Product Type:)\s*/i, '')}
+          </span>
+          <button onClick={onClear} style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.text, fontSize: 15, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>×</button>
+        </div>
+      ) : (
+        <div style={{ position: 'relative' }}>
+          <div style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 10, fontWeight: 700, color: colors.text, pointerEvents: 'none', whiteSpace: 'nowrap' }}>{typeLabel}</div>
+          <input
+            type="text"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onFocus={() => { if (options.length > 0) setOpen(true); }}
+            placeholder={placeholder}
+            style={{ width: '100%', height: 34, padding: `0 28px 0 ${typeLabel.length * 7 + 16}px`, borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12, boxSizing: 'border-box' }}
+          />
+          {loading ? (
+            <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: 'var(--sv-text-dim)' }}>…</span>
+          ) : query ? (
+            <button onClick={() => { setQuery(''); }} style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 15, lineHeight: 1, padding: 0 }}>×</button>
+          ) : (
+            <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--sv-text-dim)', pointerEvents: 'none' }}>▾</span>
+          )}
+        </div>
+      )}
+      {open && !selection && options.length > 0 && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 3px)', left: 0, right: 0, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 7, boxShadow: '0 6px 18px rgba(0,0,0,.18)', zIndex: 9999, maxHeight: 260, overflowY: 'auto' }}>
+          {options.map((s, i) => (
+            <div key={s.value} onMouseDown={() => choose(s)} onMouseEnter={() => setActiveIdx(i)}
+              style={{ padding: '8px 10px', cursor: 'pointer', background: i === activeIdx ? 'color-mix(in srgb, var(--sv-etch) 40%, transparent)' : 'transparent', borderBottom: '1px solid var(--sv-etch)', fontSize: 12, color: 'var(--sv-text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            >
+              {s.label.replace(/^(Brand:|Supplier:|Type:|Product Type:)\s*/i, '')}
+            </div>
+          ))}
+        </div>
+      )}
+      {open && !selection && options.length === 0 && !loading && query.length > 0 && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 3px)', left: 0, right: 0, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 7, boxShadow: '0 6px 18px rgba(0,0,0,.18)', zIndex: 9999, padding: '10px', fontSize: 12, color: 'var(--sv-text-dim)', textAlign: 'center' }}>No matches</div>
+      )}
+    </div>
+  );
+}
+
+// Multi-filter bar: Supplier + Brand + Type dropdowns
+interface MultiFilter { supplier: FilterSelection | null; brand: FilterSelection | null; type_: FilterSelection | null }
+const EMPTY_MULTI: MultiFilter = { supplier: null, brand: null, type_: null };
+
+function ReportMultiFilter({
+  filters, onChange,
+}: { filters: MultiFilter; onChange: (f: MultiFilter) => void }) {
+  return (
+    <div style={{ display: 'flex', gap: 8, flex: 1, flexWrap: 'wrap' }}>
+      <SearchableTypeFilter filterType="supplier" placeholder="All Suppliers" selection={filters.supplier}
+        onSelect={s => onChange({ ...filters, supplier: s })} onClear={() => onChange({ ...filters, supplier: null })} />
+      <SearchableTypeFilter filterType="brand"    placeholder="All Brands"    selection={filters.brand}
+        onSelect={s => onChange({ ...filters, brand: s })}    onClear={() => onChange({ ...filters, brand: null })} />
+      <SearchableTypeFilter filterType="product_type" placeholder="All Types" selection={filters.type_}
+        onSelect={s => onChange({ ...filters, type_: s })}    onClear={() => onChange({ ...filters, type_: null })} />
+    </div>
+  );
+}
+
+// Helper: turn MultiFilter into URLSearchParams entries
+function multiFilterParams(f: MultiFilter): Record<string, string> {
+  const p: Record<string, string> = {};
+  if (f.supplier) p.supplierId  = f.supplier.value;
+  if (f.brand)    p.brand       = f.brand.value;
+  if (f.type_)    p.productType = f.type_.value;
+  return p;
+}
+
+function hasMultiFilter(f: MultiFilter) { return !!(f.supplier || f.brand || f.type_); }
 
 const WINDOW_OPTS = [
   { value: 7,   label: '7 Days' },
@@ -8138,24 +8282,18 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState('');
 
-  const [filterSelection, setFilterSelection] = useState<FilterSelection | null>(null);
-  const [window_,        setWindow_]        = useState(90);
-  const [page,           setPage]           = useState(1);
-  const [pageSize,       setPageSize]       = useState(25);
+  const [filters, setFilters]  = useState<MultiFilter>(EMPTY_MULTI);
+  const [window_,  setWindow_] = useState(90);
+  const [page,     setPage]    = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const totalPages = Math.ceil(total / pageSize) || 1;
 
-  const load = useCallback(async (pg: number, sel: FilterSelection | null, win: number, ps: number) => {
+  const load = useCallback(async (pg: number, f: MultiFilter, win: number, ps: number) => {
     setLoading(true);
     setError('');
     try {
-      const params = new URLSearchParams({
-        window: String(win), page: String(pg), pageSize: String(ps),
-      });
-      if (sel) {
-        params.set('filterType', sel.type);
-        params.set('filterValue', sel.value);
-      }
+      const params = new URLSearchParams({ window: String(win), page: String(pg), pageSize: String(ps), ...multiFilterParams(f) });
       const data = await apiFetch(`/api/ims/reports/sales-by-branch?${params}`);
       setRows(data.rows ?? []);
       setTotal(data.total ?? 0);
@@ -8167,35 +8305,12 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
     }
   }, []);
 
-  useEffect(() => { load(1, null, 90, 25); }, [load]);
+  useEffect(() => { load(1, EMPTY_MULTI, 90, 25); }, [load]);
 
-  const handleSelect = (sel: FilterSelection) => {
-    setFilterSelection(sel);
-    setPage(1);
-    load(1, sel, window_, pageSize);
-  };
-
-  const handleClear = () => {
-    setFilterSelection(null);
-    setPage(1);
-    load(1, null, window_, pageSize);
-  };
-
-  const goPage = (pg: number) => {
-    setPage(pg);
-    load(pg, filterSelection, window_, pageSize);
-  };
-
-  const changeWindow = (win: number) => {
-    setWindow_(win);
-    load(page, filterSelection, win, pageSize);
-  };
-
-  const changePageSize = (ps: number) => {
-    setPageSize(ps);
-    setPage(1);
-    load(1, filterSelection, window_, ps);
-  };
+  const handleFilterChange = (f: MultiFilter) => { setFilters(f); setPage(1); load(1, f, window_, pageSize); };
+  const goPage      = (pg: number) => { setPage(pg); load(pg, filters, window_, pageSize); };
+  const changeWindow = (win: number) => { setWindow_(win); load(page, filters, win, pageSize); };
+  const changePageSize = (ps: number) => { setPageSize(ps); setPage(1); load(1, filters, window_, ps); };
 
   const salesKey = window_ <= 7 ? 'sales_qty_7d' : window_ <= 90 ? 'sales_qty_90d' : window_ <= 180 ? 'sales_qty_180d' : 'sales_qty_12m';
   const salesLabel = WINDOW_OPTS.find(o => o.value === window_)?.label ?? '90 Days';
@@ -8234,35 +8349,16 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
       </div>
 
       {/* Filters */}
-      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px', marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
-        <ReportFilterCombobox
-          selection={filterSelection}
-          onSelect={handleSelect}
-          onClear={handleClear}
-          placeholder="Filter by product (name/SKU/barcode), brand, supplier or type…"
-        />
-
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+        <ReportMultiFilter filters={filters} onChange={handleFilterChange} />
         <div style={{ display: 'flex', gap: 4 }}>
           {WINDOW_OPTS.map(o => (
-            <button
-              key={o.value}
-              onClick={() => changeWindow(o.value)}
-              style={{
-                height: 36, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)',
-                background: window_ === o.value ? 'var(--sv-action)' : 'var(--sv-bg-0)',
-                color: window_ === o.value ? '#fff' : 'var(--sv-text-main)',
-                fontSize: 12, fontWeight: window_ === o.value ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap',
-              }}
-            >{o.label}</button>
+            <button key={o.value} onClick={() => changeWindow(o.value)} style={{ height: 34, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: window_ === o.value ? 'var(--sv-action)' : 'var(--sv-bg-0)', color: window_ === o.value ? '#fff' : 'var(--sv-text-main)', fontSize: 12, fontWeight: window_ === o.value ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{o.label}</button>
           ))}
         </div>
-
-        {!loading && total > 0 && (
-          <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginLeft: 4 }}>
-            {total.toLocaleString()} variant{total !== 1 ? 's' : ''}
-          </span>
-        )}
-        {loading && <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading…</span>}
+        {!loading && total > 0 && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{total.toLocaleString()} variant{total !== 1 ? 's' : ''}</span>}
+        {loading && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Loading…</span>}
+        {hasMultiFilter(filters) && <button onClick={() => handleFilterChange(EMPTY_MULTI)} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Clear filters</button>}
       </div>
 
       {error && (
@@ -8381,25 +8477,20 @@ function InventoryValuationView({ onBack }: { onBack: () => void }) {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [filterSelection, setFilterSelection] = useState<FilterSelection | null>(null);
+  const [filters, setFilters] = useState<MultiFilter>(EMPTY_MULTI);
 
-  const load = useCallback(async (sel: FilterSelection | null) => {
-    setLoading(true);
-    setError('');
+  const load = useCallback(async (f: MultiFilter) => {
+    setLoading(true); setError('');
     try {
-      const params = new URLSearchParams();
-      if (sel) { params.set('filterType', sel.type); params.set('filterValue', sel.value); }
+      const params = new URLSearchParams(multiFilterParams(f));
       const res = await fetch(`/api/ims/reports/inventory-valuation?${params}`);
       const d = await res.json();
-      if (d.success) setRows(d.data);
-      else setError(d.error);
+      if (d.success) setRows(d.data); else setError(d.error);
     } catch (e: any) { setError(e.message); } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { load(null); }, [load]);
-
-  const handleSelect = (sel: FilterSelection) => { setFilterSelection(sel); load(sel); };
-  const handleClear  = () => { setFilterSelection(null); load(null); };
+  useEffect(() => { load(EMPTY_MULTI); }, [load]);
+  const handleFilterChange = (f: MultiFilter) => { setFilters(f); load(f); };
 
   const downloadCsv = () => {
     const headers = ['SKU', 'Product Name', 'Brand', 'Supplier', 'Cost', 'SOH', 'Total Value'];
@@ -8440,14 +8531,10 @@ function InventoryValuationView({ onBack }: { onBack: () => void }) {
       </div>
 
       {/* Filter */}
-      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
-        <ReportFilterCombobox
-          selection={filterSelection}
-          onSelect={handleSelect}
-          onClear={handleClear}
-          placeholder="Filter by product (name/SKU/barcode), brand, supplier or type…"
-        />
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+        <ReportMultiFilter filters={filters} onChange={handleFilterChange} />
         {loading && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Loading…</span>}
+        {hasMultiFilter(filters) && <button onClick={() => handleFilterChange(EMPTY_MULTI)} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)' }}>Clear filters</button>}
       </div>
       
       {error && <div style={{ color: 'var(--sv-coral)', marginBottom: 16 }}>{error}</div>}
@@ -8503,32 +8590,27 @@ function ProductMarginView({ onBack }: { onBack: () => void }) {
   const [total, setTotal]     = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
-  const [filterSelection, setFilterSelection] = useState<FilterSelection | null>(null);
+  const [filters, setFilters] = useState<MultiFilter>(EMPTY_MULTI);
   const [window_, setWindow_] = useState(365);
   const [page, setPage]       = useState(1);
   const PAGE_SIZE = 100;
 
   const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
 
-  const load = useCallback(async (sel: FilterSelection | null, win: number, pg: number) => {
-    setLoading(true);
-    setError('');
+  const load = useCallback(async (f: MultiFilter, win: number, pg: number) => {
+    setLoading(true); setError('');
     try {
-      const params = new URLSearchParams({ window: String(win), page: String(pg), pageSize: String(PAGE_SIZE) });
-      if (sel) { params.set('filterType', sel.type); params.set('filterValue', sel.value); }
+      const params = new URLSearchParams({ window: String(win), page: String(pg), pageSize: String(PAGE_SIZE), ...multiFilterParams(f) });
       const res = await fetch(`/api/ims/reports/product-margin?${params}`);
       const d = await res.json();
-      if (d.success) { setRows(d.data); setTotal(d.total ?? 0); }
-      else setError(d.error);
+      if (d.success) { setRows(d.data); setTotal(d.total ?? 0); } else setError(d.error);
     } catch (e: any) { setError(e.message); } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { load(null, 365, 1); }, [load]);
-
-  const handleSelect = (sel: FilterSelection) => { setFilterSelection(sel); setPage(1); load(sel, window_, 1); };
-  const handleClear  = () => { setFilterSelection(null); setPage(1); load(null, window_, 1); };
-  const changeWindow = (win: number) => { setWindow_(win); setPage(1); load(filterSelection, win, 1); };
-  const goPage = (pg: number) => { setPage(pg); load(filterSelection, window_, pg); };
+  useEffect(() => { load(EMPTY_MULTI, 365, 1); }, [load]);
+  const handleFilterChange = (f: MultiFilter) => { setFilters(f); setPage(1); load(f, window_, 1); };
+  const changeWindow = (win: number) => { setWindow_(win); setPage(1); load(filters, win, 1); };
+  const goPage = (pg: number) => { setPage(pg); load(filters, window_, pg); };
 
   const winLabel = WINDOW_OPTS.find(o => o.value === window_)?.label ?? '12 Months';
 
@@ -8585,12 +8667,7 @@ function ProductMarginView({ onBack }: { onBack: () => void }) {
 
       {/* ── Filter + Window bar ── */}
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 12, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
-        <ReportFilterCombobox
-          selection={filterSelection}
-          onSelect={handleSelect}
-          onClear={handleClear}
-          placeholder="Filter by product (name/SKU/barcode), brand, supplier or type…"
-        />
+        <ReportMultiFilter filters={filters} onChange={handleFilterChange} />
         <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
           {WINDOW_OPTS.map(o => (
             <button key={o.value} onClick={() => changeWindow(o.value)} style={{
@@ -8603,6 +8680,7 @@ function ProductMarginView({ onBack }: { onBack: () => void }) {
         </div>
         {loading && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Loading…</span>}
         {!loading && total > 0 && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{total.toLocaleString()} results</span>}
+        {hasMultiFilter(filters) && <button onClick={() => handleFilterChange(EMPTY_MULTI)} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Clear filters</button>}
       </div>
 
       {error && <div style={{ color: 'var(--sv-coral)', marginBottom: 12, fontSize: 13 }}>{error}</div>}
