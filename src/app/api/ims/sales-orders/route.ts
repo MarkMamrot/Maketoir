@@ -26,10 +26,8 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (session.tier === 'Advisor') return NextResponse.json({ error: 'Advisor accounts are read-only.' }, { status: 403 });
   const businessId = session.businessId as string;
-  try {
-    const body = await req.json();
-    const { items, ...soData } = body;
     const id = await ImsSORepo.create(soData, items ?? [], businessId);
 
     // EVENT-DRIVEN CACHE UPDATE (Creation affects committed stock)

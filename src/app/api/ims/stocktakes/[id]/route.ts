@@ -18,7 +18,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 export async function PUT(req: NextRequest, { params }: Params) {
   try {
-    await getImportSession();
+    const session = getImportSession();
+    if (session?.tier === 'Advisor') return NextResponse.json({ error: 'Advisor accounts are read-only.' }, { status: 403 });
     const id = parseInt(params.id, 10);
     const body = await req.json();
 

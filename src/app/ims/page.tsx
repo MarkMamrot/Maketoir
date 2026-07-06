@@ -755,7 +755,7 @@ function RecentTable({ title, rows, columns }: { title: string; rows: any[]; col
 
 const BLANK_CONTACT = { type: 'supplier' as const, name: '', company: '', email: '', phone: '', address: '', city: '', state: '', postcode: '', country: 'Australia', notes: '', is_active: 1, price_tier: 'retail', order_frequency_days: 45, charges_tax: 1, prices_include_tax: 0, tax_rate: '' };
 
-function ContactsView() {
+function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
   const [contacts, setContacts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
@@ -1933,7 +1933,7 @@ function ImportProductsModal({
 }
 
 
-function ProductsView({ onNavigateToPO, onNavigateToSO }: { onNavigateToPO?: (id: number) => void; onNavigateToSO?: (id: number) => void } = {}) {
+function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false }: { onNavigateToPO?: (id: number) => void; onNavigateToSO?: (id: number) => void; isAdvisor?: boolean } = {}) {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
@@ -3637,7 +3637,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
 // Purchase Orders View
 // ─────────────────────────────────────────────────────────────────────────────
 
-function PurchaseOrdersView({ pendingOpenId, onPendingHandled }: { pendingOpenId?: number | null; onPendingHandled?: () => void } = {}) {
+function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false }: { pendingOpenId?: number | null; onPendingHandled?: () => void; isAdvisor?: boolean } = {}) {
   const [pos, setPos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -5388,7 +5388,7 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
 // Credit Notes View
 // ─────────────────────────────────────────────────────────────────────────────
 
-function CreditNotesView() {
+function CreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
   const [cns, setCns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -5829,7 +5829,7 @@ function CreditNotesView() {
 // Sales Orders View
 // ─────────────────────────────────────────────────────────────────────────────
 
-function SalesOrdersView({ pendingOpenId, onPendingHandled }: { pendingOpenId?: number | null; onPendingHandled?: () => void } = {}) {
+function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false }: { pendingOpenId?: number | null; onPendingHandled?: () => void; isAdvisor?: boolean } = {}) {
   const [sos, setSos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -9118,9 +9118,9 @@ function PaymentMethodsManageSection({ type }: { type: 'po' | 'so' }) {
               <tbody>
                 {methods.map(m => (
                   <tr key={m.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-                    {editForm?.id === m.id ? (
+                    {editForm && editForm.id === m.id ? (
                       <>
-                        <td style={{ padding: '6px 8px' }}><input value={editForm.name} onChange={e => setEditForm(f => f ? { ...f, name: e.target.value } : f)} style={{ ...inputSt, width: 200 }} autoFocus /></td>
+                        <td style={{ padding: '6px 8px' }}><input value={editForm?.name ?? ''} onChange={e => setEditForm(f => f ? { ...f, name: e.target.value } : f)} style={{ ...inputSt, width: 200 }} autoFocus /></td>
                         <td />
                         <td style={{ padding: '6px 8px', whiteSpace: 'nowrap' }}>
                           <button onClick={handleUpdate} disabled={saving} style={{ marginRight: 6, fontSize: 12, padding: '3px 8px', borderRadius: 4, background: 'var(--sv-mint,#0c9)', color: '#fff', border: 'none', cursor: 'pointer' }}>Save</button>
@@ -10582,7 +10582,7 @@ export default function ImsPage() {
         // If Advisor, fetch sync permission setting
         if (d.tier === 'Advisor') {
           fetch('/api/ims/settings').then(r => r.ok ? r.json() : {}).then(s => {
-            setAdvisorSyncEnabled(s?.advisor_sync_enabled === true || s?.advisor_sync_enabled === '1' || s?.advisor_sync_enabled === 'true');
+            setAdvisorSyncEnabled((s as any)?.advisor_sync_enabled === true || (s as any)?.advisor_sync_enabled === '1' || (s as any)?.advisor_sync_enabled === 'true');
           }).catch(() => {});
         }
       }
@@ -10818,7 +10818,7 @@ export default function ImsPage() {
           {view === 'brands'           && <BrandsView />}
           {view === 'pos-sales'        && <PosSalesView />}
           {view === 'online-sales'     && <OnlineSalesView businessId={user?.businessId ?? ''} />}
-          {view === 'stocktakes'        && <StocktakesView businessId={user?.businessId ?? ''} />}
+          {view === 'stocktakes'        && <StocktakesView isAdvisor={isAdvisor} businessId={user?.businessId ?? ''} />}
           {view === 'reports'           && <ReportsView onNav={setView} />}
           {view === 'report-sales-by-branch' && <SalesByBranchView onBack={() => setView('reports')} />}
           {view === 'report-inventory-valuation' && <InventoryValuationView onBack={() => setView('reports')} />}
@@ -11065,7 +11065,7 @@ function ReceiveBranchTransferModal({ bt, onClose, onDone }: { bt: any; onClose:
 // Branch Transfers View
 // ─────────────────────────────────────────────────────────────────────────────
 
-function BranchTransfersView() {
+function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
   const [transfers, setTransfers]   = useState<any[]>([]);
   const [locations, setLocations]   = useState<any[]>([]);
   const [variants, setVariants]     = useState<any[]>([]);
@@ -12591,7 +12591,7 @@ function StocktakeVariantSearch({ stocktakeId, locationId, onAdd }: {
   );
 }
 
-function StocktakesView({ businessId }: { businessId: string }) {
+function StocktakesView({ businessId, isAdvisor = false }: { businessId: string; isAdvisor?: boolean }) {
   const [list, setList]         = useState<any[]>([]);
   const [loading, setLoading]   = useState(true);
   const [locations, setLocations] = useState<any[]>([]);
