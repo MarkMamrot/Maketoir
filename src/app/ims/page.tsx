@@ -10808,6 +10808,12 @@ export default function ImsPage() {
           <a href="/dashboard" style={{ fontSize: 13, color: 'var(--sv-text-dim)', textDecoration: 'none', fontWeight: 500, opacity: .6, transition: 'opacity .15s' }} onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '.6')}>Foresight</a>
           <span style={{ color: 'var(--sv-text-muted)', margin: '0 8px', fontSize: 13, opacity: .4 }}>|</span>
           <a href="/pos" target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: 'var(--sv-text-dim)', textDecoration: 'none', fontWeight: 500, opacity: .6, transition: 'opacity .15s' }} onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '.6')}>POS</a>
+          {user && (user as any).tier === 'SuperAdmin' && (
+            <>
+              <span style={{ color: 'var(--sv-text-muted)', margin: '0 8px', fontSize: 13, opacity: .4 }}>|</span>
+              <a href="/admin" style={{ fontSize: 13, color: '#f87171', textDecoration: 'none', fontWeight: 700, transition: 'opacity .15s' }} onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '.85')}>Admin</a>
+            </>
+          )}
         </div>
         <div style={{ flex: 1 }} />
         {(user.company || user.name) && (

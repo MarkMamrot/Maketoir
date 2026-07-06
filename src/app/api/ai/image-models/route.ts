@@ -25,19 +25,32 @@ export async function GET() {
     const imageModels = allModels
       .filter(m => m.name.toLowerCase().includes('image'))
       .map(m => ({
-        // name is like "models/gemini-3.1-flash-image" — strip the "models/" prefix
         id:          m.name.replace(/^models\//, ''),
         displayName: m.displayName ?? m.name.replace(/^models\//, ''),
         description: m.description ?? '',
-      }))
+      }));
+
+    // Deduplicate: prefer the undated canonical version (no trailing date like -0709).
+    // Group by base name (strip trailing -MMYY or -YYYYMMDD suffixes), keep canonical first.
+    const seen = new Map<string, { id: string; displayName: string; description: string }>();
+    for (const m of imageModels) {
+      const base = m.id.replace(/-\d{4,8}$/, ''); // strip date suffix
+      if (!seen.has(base) || m.id === base) {
+        // prefer the exact canonical id (no date) over a dated variant
+        if (!seen.has(base) || (!m.id.match(/-\d{4,8}$/) && seen.get(base)!.id.match(/-\d{4,8}$/))) {
+          seen.set(base, m);
+        }
+      }
+    }
+
+    const deduped = Array.from(seen.values())
       .sort((a, b) => {
-        // Nano Banana 2 (recommended) first, then the rest alphabetically
         if (a.id === 'gemini-3.1-flash-image') return -1;
         if (b.id === 'gemini-3.1-flash-image') return  1;
         return a.displayName.localeCompare(b.displayName);
       });
 
-    return NextResponse.json({ models: imageModels });
+    return NextResponse.json({ models: deduped });
   } catch (e: any) {
     // On error return a safe static fallback so the UI doesn't break
     return NextResponse.json({

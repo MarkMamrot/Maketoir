@@ -8585,6 +8585,7 @@ export default function DashboardPage() {
   const [businessInfoDone, setBusinessInfoDone] = useState(false);
   const [databaseId, setDatabaseId] = useState('');
   const [userName, setUserName] = useState('');
+  const [userTier, setUserTier]   = useState('');
   const [businessName, setBusinessName] = useState('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -8610,7 +8611,7 @@ export default function DashboardPage() {
         if (r.status === 401) { window.location.href = '/login'; return null; }
         return r.json();
       })
-      .then(d => { if (d?.name) setUserName(d.name); })
+      .then(d => { if (d?.name) { setUserName(d.name); setUserTier(d.tier ?? ''); } })
       .catch(() => {});
   }, []);
 
@@ -8680,6 +8681,13 @@ export default function DashboardPage() {
           <a href="/ims" style={{ fontSize: 13, color: 'rgba(255,255,255,.45)', textDecoration: 'none', fontWeight: 500, transition: 'color .15s' }} onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,.85)')} onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,.45)')}>IMS</a>
           <span style={{ color: 'rgba(255,255,255,.25)', margin: '0 8px', fontSize: 13 }}>|</span>
           <a href="/pos" target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: 'rgba(255,255,255,.45)', textDecoration: 'none', fontWeight: 500, transition: 'color .15s' }} onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,.85)')} onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,.45)')}>POS</a>
+          {/* SuperAdmin-only Admin link */}
+          {userTier === 'SuperAdmin' && (
+            <>
+              <span style={{ color: 'rgba(255,255,255,.25)', margin: '0 8px', fontSize: 13 }}>|</span>
+              <a href="/admin" style={{ fontSize: 13, color: 'rgba(224,82,82,.8)', textDecoration: 'none', fontWeight: 700, transition: 'color .15s' }} onMouseEnter={e => (e.currentTarget.style.color = '#fca5a5')} onMouseLeave={e => (e.currentTarget.style.color = 'rgba(224,82,82,.8)')}>Admin</a>
+            </>
+          )}
         </div>
         <div className="relative flex items-center gap-2">
           {businessName && (
