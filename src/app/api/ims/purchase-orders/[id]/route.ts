@@ -29,6 +29,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   if (session.tier === 'Advisor') return NextResponse.json({ error: 'Advisor accounts are read-only.' }, { status: 403 });
   const businessId = session.businessId as string;
+  try {
+    const body = await req.json();
+    const { items, status, ...poData } = body;
 
     // Handle status transition
     let xeroWarning: string | null = null;

@@ -223,8 +223,6 @@ export async function GET(req: Request) {
     `, businessId ? [businessId, like, like, like] : [like, like, like]);
 
     productSuggestions = productRows.map(r => {
-
-    productSuggestions = productRows.map(r => {
       const nameParts = [r.product_name, r.option_label].filter(Boolean);
       const label = `Product: ${nameParts.join(' — ')}  ·  Brand: ${r.brand ?? '—'}`;
       const metaParts: string[] = [];

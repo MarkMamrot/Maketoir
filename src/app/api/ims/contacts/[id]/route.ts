@@ -26,6 +26,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   if (session.tier === 'Advisor') return NextResponse.json({ error: 'Advisor accounts are read-only.' }, { status: 403 });
   const businessId = session.businessId as string;
+  try {
+    const existing = await ImsContactsRepo.get(Number(params.id), businessId);
     if (!existing) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
     const body = await req.json();
     await ImsContactsRepo.update(Number(params.id), body);
