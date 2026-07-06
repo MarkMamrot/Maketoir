@@ -149,9 +149,6 @@ export async function GET(req: Request) {
   return NextResponse.json({ suggestions });
 }
 
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-export interface FilterSuggestion {
   /** Determines how the consuming report applies this filter */
   type: 'product' | 'brand' | 'supplier' | 'product_type';
   /** Stable identifier used as query param value */
