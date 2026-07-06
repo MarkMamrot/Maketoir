@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type UserTier = 'SuperAdmin' | 'Admin' | 'StandardUser' | 'PosManager' | 'PosUser';
+export type UserTier = 'SuperAdmin' | 'Admin' | 'StandardUser' | 'PosManager' | 'PosUser' | 'Advisor';
 
 export interface AdminSession {
   name: string;
@@ -89,6 +89,7 @@ function hasTierAccess(userTier: UserTier, requiredTier: UserTier): boolean {
     'StandardUser': 3,
     'PosManager': 2,
     'PosUser': 1,
+    'Advisor': 0,  // read-only; not in the write hierarchy
   };
   return tierHierarchy[userTier] >= tierHierarchy[requiredTier];
 }
@@ -164,3 +165,21 @@ export function requireAnyTier():
   }
   return { user };
 }
+
+/**
+ * Block write operations for Advisor tier (read-only role).
+ * Returns { user } if allowed, or { response } (403) if Advisor tries to write.
+ */
+export function requireWriteAccess():
+  | { user: AdminSession; response?: never }
+  | { user?: never; response: NextResponse } {
+  const user = getAdminSession();
+  if (!user) {
+    return { response: NextResponse.json({ error: 'Not authenticated.' }, { status: 401 }) };
+  }
+  if (user.tier === 'Advisor') {
+    return { response: NextResponse.json({ error: 'Advisor accounts are read-only.' }, { status: 403 }) };
+  }
+  return { user };
+}
+

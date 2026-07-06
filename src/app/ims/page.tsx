@@ -19,7 +19,7 @@ type ImsView =
   | 'reports' | 'report-sales-by-branch' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers'
   | 'xero' | 'shopify';
 
-interface User { name: string; email: string; company: string; businessId: string }
+interface User { name: string; email: string; company: string; businessId: string; tier?: string }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Nav structure
@@ -809,7 +809,7 @@ function ContactsView() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Contacts</h1>
-        <button onClick={openNew} style={btnStyle('action')}>+ New Contact</button>
+        {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New Contact</button>}
       </div>
       <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
         <input placeholder="Search…" value={filter} onChange={e => setFilter(e.target.value)} style={{ ...inputStyle, width: 240 }} />
@@ -2337,7 +2337,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO }: { onNavigateToPO?: (id
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Products</h1>
         <button onClick={() => setImportProductsOpen(true)} style={btnStyle('ghost')}>⬆ Import Products</button>
-        <button onClick={openNew} style={btnStyle('action')}>+ New Product</button>
+        {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New Product</button>}
       </div>
       {/* ── Filter bar ── */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
@@ -3988,7 +3988,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled }: { pendingOpenId
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Purchase Orders</h1>
-        <button onClick={openNew} style={btnStyle('action')}>+ New PO</button>
+        {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New PO</button>}
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
         {['','draft','confirmed','partially_received','received','cancelled'].map(s => (
@@ -5550,7 +5550,7 @@ function CreditNotesView() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Credit Notes / Returns</h1>
-        <button onClick={openNew} style={btnStyle('action')}>+ New Credit Note</button>
+        {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New Credit Note</button>}
       </div>
 
       {/* Filters */}
@@ -6054,7 +6054,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled }: { pendingOpenId?: 
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Sales Orders</h1>
-        <button onClick={openNew} style={btnStyle('action')}>+ New SO</button>
+        {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New SO</button>}
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
         {['','draft','confirmed','fulfilled','cancelled'].map(s => (
@@ -10311,6 +10311,7 @@ const TIER_COLORS: Record<string, string> = {
   StandardUser: '#4a9ede',
   PosManager: '#c084fc',
   PosUser: '#6dba8a',
+  Advisor: '#f59e0b',
 };
 
 function UsersListView() {
@@ -10366,10 +10367,10 @@ function UsersListView() {
   };
 
   const availableTiers = myTier === 'SuperAdmin'
-    ? ['SuperAdmin', 'Admin', 'StandardUser', 'PosManager', 'PosUser']
-    : ['Admin', 'StandardUser', 'PosManager', 'PosUser'];
+    ? ['SuperAdmin', 'Admin', 'StandardUser', 'Advisor', 'PosManager', 'PosUser']
+    : ['Admin', 'StandardUser', 'Advisor', 'PosManager', 'PosUser'];
 
-  const tierLabel = (t: string) => ({ SuperAdmin: 'Super Admin', Admin: 'Admin', StandardUser: 'Standard User', PosManager: 'POS Manager', PosUser: 'POS User' }[t] ?? t);
+  const tierLabel = (t: string) => ({ SuperAdmin: 'Super Admin', Admin: 'Admin', StandardUser: 'Standard User', Advisor: 'Advisor (Read-only)', PosManager: 'POS Manager', PosUser: 'POS User' }[t] ?? t);
 
   if (loading) return <p style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>Loading…</p>;
 
@@ -10499,6 +10500,8 @@ export default function ImsPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [advisorSyncEnabled, setAdvisorSyncEnabled] = useState(false);
+  const isAdvisor = user?.tier === 'Advisor';
   const [view, setView] = useState<ImsView>('dashboard');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -10575,6 +10578,12 @@ export default function ImsPage() {
         if (!sessionStorage.getItem(sessionKey)) {
           sessionStorage.setItem(sessionKey, '1');
           fetch('/api/ims/online-sales/auto-sync', { method: 'POST' }).catch(() => {});
+        }
+        // If Advisor, fetch sync permission setting
+        if (d.tier === 'Advisor') {
+          fetch('/api/ims/settings').then(r => r.ok ? r.json() : {}).then(s => {
+            setAdvisorSyncEnabled(s?.advisor_sync_enabled === true || s?.advisor_sync_enabled === '1' || s?.advisor_sync_enabled === 'true');
+          }).catch(() => {});
         }
       }
       else router.push('/login');
@@ -10660,11 +10669,25 @@ export default function ImsPage() {
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17" strokeLinecap="round" strokeWidth="2.5"/></svg>
         </button>
+        {isAdvisor && advisorSyncEnabled && (
+          <button
+            onClick={() => handleSync('latest', ['products', 'stock'])}
+            disabled={syncing}
+            title="Sync latest products &amp; stock"
+            style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 6, cursor: syncing ? 'not-allowed' : 'pointer', color: 'var(--sv-text-dim)', fontSize: 12, opacity: syncing ? 0.6 : 1, transition: 'background .15s' }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--sv-bg-2)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+            {syncing ? 'Syncing…' : 'Sync'}
+          </button>
+        )}
         <button
-          onClick={() => { setSettingsSection(sectionFromView(view)); setSettingsOpen(true); }}
-          title="Settings"
-          style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--sv-text-dim)', transition: 'background .15s' }}
-          onMouseEnter={e => (e.currentTarget.style.background = 'var(--sv-bg-2)')}
+          onClick={() => { if (!isAdvisor) { setSettingsSection(sectionFromView(view)); setSettingsOpen(true); } }}
+          title={isAdvisor ? 'Settings not available for Advisor accounts' : 'Settings'}
+          disabled={isAdvisor}
+          style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: isAdvisor ? 'not-allowed' : 'pointer', color: isAdvisor ? 'var(--sv-etch)' : 'var(--sv-text-dim)', transition: 'background .15s', opacity: isAdvisor ? 0.35 : 1 }}
+          onMouseEnter={e => { if (!isAdvisor) e.currentTarget.style.background = 'var(--sv-bg-2)'; }}
           onMouseLeave={e => (e.currentTarget.style.background = 'none')}
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
@@ -11396,7 +11419,7 @@ function BranchTransfersView() {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={openReplenish} style={btnStyle('secondary')}>⟳ Replenish from Warehouse</button>
-          <button onClick={openNew} style={btnStyle('action')}>+ New Transfer</button>
+          {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New Transfer</button>}
         </div>
       </div>
 
@@ -12891,7 +12914,7 @@ function StocktakesView({ businessId }: { businessId: string }) {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Stocktakes</h1>
-        <button onClick={openCreate} style={btnStyle('action')}>+ New Stocktake</button>
+        {!isAdvisor && <button onClick={openCreate} style={btnStyle('action')}>+ New Stocktake</button>}
       </div>
 
       {/* Filters */}
@@ -14334,6 +14357,20 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                     <option value="disabled">Disabled — not accessible from POS</option>
                     <option value="manager">Manager &amp; above only (PosManager, StandardUser, Admin)</option>
                     <option value="all">All POS users (including regular staff)</option>
+                  </select>
+                </div>
+
+                {/* Advisor Sync Access */}
+                <div style={{ marginBottom: 20, padding: '14px 16px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
+                  <label style={{ ...labelStyle, display: 'block', fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Advisor Sync Access</label>
+                  <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 10, marginTop: 0 }}>Allow Advisor (read-only) users to trigger a latest products &amp; stock sync from IMS.</p>
+                  <select
+                    value={settings['advisor_sync_enabled'] ?? 'false'}
+                    onChange={async e => { await saveSettings({ advisor_sync_enabled: e.target.value }); }}
+                    style={{ ...inputStyle, maxWidth: 280 }}
+                  >
+                    <option value="false">Disabled — Advisors cannot trigger syncs</option>
+                    <option value="true">Enabled — Advisors can sync latest products &amp; stock</option>
                   </select>
                 </div>
                 <div style={{ marginBottom: 16 }}>

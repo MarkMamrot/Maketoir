@@ -36,20 +36,45 @@ export async function POST(req: Request) {
     const interaction = await (ai as any).interactions.create({
       model,
       input: prompt.trim(),
-      response_format: { type: 'image' },
     });
 
+    // Primary: convenience property
     const img = interaction?.output_image;
-    if (!img?.data) {
-      return NextResponse.json({ error: 'No image returned by the model. Try a different or more specific prompt.' }, { status: 500 });
+    if (img?.data) {
+      return NextResponse.json({
+        success: true,
+        imageData: img.data,
+        mimeType: img.mimeType ?? 'image/jpeg',
+        model,
+      });
     }
 
+    // Fallback: iterate steps for image content blocks
+    for (const step of (interaction?.steps ?? [])) {
+      if (step?.type === 'model_output') {
+        for (const block of (step?.content ?? [])) {
+          if (block?.type === 'image' && block?.data) {
+            return NextResponse.json({
+              success: true,
+              imageData: block.data,
+              mimeType: block.mimeType ?? 'image/jpeg',
+              model,
+            });
+          }
+        }
+      }
+    }
+
+    // Nothing found — return debug info so we can see what came back
     return NextResponse.json({
-      success: true,
-      imageData: img.data,           // base64 string
-      mimeType: img.mimeType ?? 'image/png',
-      model,
-    });
+      error: 'No image returned by the model.',
+      debug: {
+        hasOutputImage: !!interaction?.output_image,
+        outputText: interaction?.output_text?.slice(0, 200) ?? null,
+        stepTypes: (interaction?.steps ?? []).map((s: any) => s?.type),
+      },
+    }, { status: 500 });
+
   } catch (e: any) {
     const msg = e?.message ?? String(e);
     return NextResponse.json({

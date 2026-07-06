@@ -2,7 +2,7 @@
  * Tier-based access control utilities for frontend
  */
 
-export type UserTier = 'SuperAdmin' | 'Admin' | 'StandardUser' | 'PosManager' | 'PosUser';
+export type UserTier = 'SuperAdmin' | 'Admin' | 'StandardUser' | 'PosManager' | 'PosUser' | 'Advisor';
 
 export interface TierPermissions {
   canAccessSettings: boolean;
@@ -13,6 +13,7 @@ export interface TierPermissions {
   canAccessConnections: boolean;
   canManageUsers: boolean;
   canAccessAnalytics: boolean;
+  isReadOnly: boolean;
 }
 
 /**
@@ -23,54 +24,28 @@ export function getTierPermissions(tier: UserTier | undefined): TierPermissions 
 
   const permissions: Record<UserTier, TierPermissions> = {
     SuperAdmin: {
-      canAccessSettings: true,
-      canAccessSetup: true,
-      canAccessIMS: true,
-      canAccessPOS: true,
-      canAccessDashboard: true,
-      canAccessConnections: true,
-      canManageUsers: true,
-      canAccessAnalytics: true,
+      canAccessSettings: true, canAccessSetup: true, canAccessIMS: true, canAccessPOS: true,
+      canAccessDashboard: true, canAccessConnections: true, canManageUsers: true, canAccessAnalytics: true, isReadOnly: false,
     },
     Admin: {
-      canAccessSettings: true,
-      canAccessSetup: true,
-      canAccessIMS: true,
-      canAccessPOS: true,
-      canAccessDashboard: true,
-      canAccessConnections: true,
-      canManageUsers: true,
-      canAccessAnalytics: true,
+      canAccessSettings: true, canAccessSetup: true, canAccessIMS: true, canAccessPOS: true,
+      canAccessDashboard: true, canAccessConnections: true, canManageUsers: true, canAccessAnalytics: true, isReadOnly: false,
     },
     StandardUser: {
-      canAccessSettings: false,
-      canAccessSetup: false,
-      canAccessIMS: true,
-      canAccessPOS: true,
-      canAccessDashboard: true,
-      canAccessConnections: true,
-      canManageUsers: false,
-      canAccessAnalytics: true,
+      canAccessSettings: false, canAccessSetup: false, canAccessIMS: true, canAccessPOS: true,
+      canAccessDashboard: true, canAccessConnections: true, canManageUsers: false, canAccessAnalytics: true, isReadOnly: false,
     },
     PosManager: {
-      canAccessSettings: false,
-      canAccessSetup: false,
-      canAccessIMS: false,
-      canAccessPOS: true,
-      canAccessDashboard: false,
-      canAccessConnections: false,
-      canManageUsers: false,
-      canAccessAnalytics: false,
+      canAccessSettings: false, canAccessSetup: false, canAccessIMS: false, canAccessPOS: true,
+      canAccessDashboard: false, canAccessConnections: false, canManageUsers: false, canAccessAnalytics: false, isReadOnly: false,
     },
     PosUser: {
-      canAccessSettings: false,
-      canAccessSetup: false,
-      canAccessIMS: false,
-      canAccessPOS: true,
-      canAccessDashboard: false,
-      canAccessConnections: false,
-      canManageUsers: false,
-      canAccessAnalytics: false,
+      canAccessSettings: false, canAccessSetup: false, canAccessIMS: false, canAccessPOS: true,
+      canAccessDashboard: false, canAccessConnections: false, canManageUsers: false, canAccessAnalytics: false, isReadOnly: false,
+    },
+    Advisor: {
+      canAccessSettings: false, canAccessSetup: false, canAccessIMS: true, canAccessPOS: false,
+      canAccessDashboard: false, canAccessConnections: false, canManageUsers: false, canAccessAnalytics: false, isReadOnly: true,
     },
   };
 
@@ -84,11 +59,7 @@ export function hasTierAccess(userTier: UserTier | undefined, requiredTier: User
   if (!userTier) return false;
 
   const tierHierarchy: Record<UserTier, number> = {
-    'SuperAdmin': 5,
-    'Admin': 4,
-    'StandardUser': 3,
-    'PosManager': 2,
-    'PosUser': 1,
+    'SuperAdmin': 5, 'Admin': 4, 'StandardUser': 3, 'PosManager': 2, 'PosUser': 1, 'Advisor': 0,
   };
 
   return tierHierarchy[userTier] >= tierHierarchy[requiredTier];
@@ -99,11 +70,8 @@ export function hasTierAccess(userTier: UserTier | undefined, requiredTier: User
  */
 export function getTierLabel(tier: UserTier | undefined): string {
   const labels: Record<UserTier, string> = {
-    SuperAdmin: 'Super Admin',
-    Admin: 'Admin',
-    StandardUser: 'Standard User',
-    PosManager: 'POS Manager',
-    PosUser: 'POS User',
+    SuperAdmin: 'Super Admin', Admin: 'Admin', StandardUser: 'Standard User',
+    PosManager: 'POS Manager', PosUser: 'POS User', Advisor: 'Advisor',
   };
 
   return labels[tier ?? 'StandardUser'];
@@ -119,7 +87,7 @@ export function getTierDescription(tier: UserTier | undefined): string {
     StandardUser: 'Access everything except settings',
     PosManager: 'POS access with ability to change POS settings and appearance',
     PosUser: 'POS system access only',
+    Advisor: 'Read-only IMS access — no create, edit, or delete. Sync access configurable.',
   };
-
   return descriptions[tier ?? 'StandardUser'];
 }

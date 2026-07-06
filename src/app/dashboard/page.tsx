@@ -8180,7 +8180,10 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
         body: JSON.stringify({ prompt, imageModel }),
       });
       const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error ?? 'Image generation failed');
+      if (!res.ok || !data.success) {
+        const debugSuffix = data.debug ? ` [debug: ${JSON.stringify(data.debug)}]` : '';
+        throw new Error((data.error ?? 'Image generation failed') + debugSuffix);
+      }
       setGeneratedImages(prev => ({ ...prev, [msgIdx]: { data: data.imageData, mimeType: data.mimeType } }));
     } catch (e: any) {
       setImageErrors(prev => ({ ...prev, [msgIdx]: e.message }));
