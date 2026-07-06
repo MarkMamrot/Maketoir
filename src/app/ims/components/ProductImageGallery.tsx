@@ -48,10 +48,19 @@ export default function ProductImageGallery({ productId, productName = 'Product'
       body: JSON.stringify({ action: 'set_primary', image_id: id }),
     });
     await fetchImages();
+    // Shopify sync happens server-side automatically
   };
 
   const deleteImage = async (id: number) => {
-    await fetch(`/api/ims/products/${productId}/images?imageId=${id}`, { method: 'DELETE' });
+    const img = images.find(i => i.id === id);
+    let deleteFromShopify = false;
+    if (img?.source === 'shopify') {
+      const choice = window.confirm(
+        'This image is synced with Shopify.\n\nClick OK to also DELETE it from Shopify.\nClick Cancel to remove from IMS only (keeps it in Shopify).'
+      );
+      deleteFromShopify = choice;
+    }
+    await fetch(`/api/ims/products/${productId}/images?imageId=${id}&deleteFromShopify=${deleteFromShopify}`, { method: 'DELETE' });
     await fetchImages();
   };
 

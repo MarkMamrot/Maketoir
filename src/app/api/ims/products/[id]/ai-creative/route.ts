@@ -52,6 +52,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     prompt = '',
     imageModel  = 'gemini-3.1-flash-image',
     videoModel  = 'veo-3.1-generate-preview',
+    aspectRatio = '1:1',
     referenceImages = [],   // [{ data: base64, mimeType, label }]
     includeBrandProfile = true,
     includeBusinessInfo = true,
@@ -153,6 +154,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       const interaction = await (ai as any).interactions.create({
         model: imageModel,
         input: input.length === 1 ? cleanPrompt : input,
+        response_format: { type: 'image', aspect_ratio: aspectRatio },
       });
       const imgOut = interaction?.output_image;
       if (!imgOut?.data) {

@@ -21,7 +21,17 @@ interface RefImage     { data: string; mimeType: string; label: string; thumbnai
 type ChatMsg = { role: 'user' | 'assistant'; text: string }
 
 const LS_IMAGE_MODEL = 'pos_ai_creative_img_model';
-const LS_VIDEO_MODEL = 'pos_ai_creative_vid_model';
+const LS_VIDEO_MODEL    = 'pos_ai_creative_vid_model';
+const LS_ASPECT_RATIO   = 'pos_ai_creative_aspect_ratio';
+
+const ASPECT_RATIOS = [
+  { value: '1:1',  label: '1:1 Square' },
+  { value: '3:4',  label: '3:4 Portrait' },
+  { value: '4:5',  label: '4:5 Portrait' },
+  { value: '9:16', label: '9:16 Story / Reel' },
+  { value: '4:3',  label: '4:3 Landscape' },
+  { value: '16:9', label: '16:9 Wide' },
+];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 async function urlToBase64(url: string): Promise<{ data: string; mimeType: string } | null> {
@@ -72,6 +82,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
   const [imageModels, setImageModels]   = useState<{ id: string; displayName: string }[]>([]);
   const [imageModel, setImageModel]     = useModelPicker(LS_IMAGE_MODEL, 'gemini-3.1-flash-image');
   const [videoModel, setVideoModel]     = useModelPicker(LS_VIDEO_MODEL, 'veo-3.1-generate-preview');
+  const [aspectRatio, setAspectRatio]   = useModelPicker(LS_ASPECT_RATIO, '1:1');
   const [videoModels]                   = useState([
     { id: 'veo-3.1-generate-preview',      displayName: 'Veo 3.1 (Preview)' },
     { id: 'veo-3.1-lite-generate-preview', displayName: 'Veo 3.1 Lite (Preview)' },
@@ -181,7 +192,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
         body: JSON.stringify({
           mode: tab,
           prompt: promptToUse,
-          imageModel, videoModel,
+          imageModel, videoModel, aspectRatio,
           referenceImages: selectedRefs.map(r => ({ data: r.data, mimeType: r.mimeType, label: r.label })),
         }),
       });
@@ -488,7 +499,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
             </p>
 
             {/* Model selector */}
-            <div style={{ marginBottom: 12 }}>
+            <div style={{ marginBottom: 10 }}>
               <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 5px' }}>
                 {tab === 'image' ? 'Image Model' : 'Video Model'}
               </p>
@@ -500,6 +511,21 @@ export default function ProductAICreativePanel({ productId, productName, busines
                 ))}
               </select>
             </div>
+
+            {/* Aspect ratio selector */}
+            {tab === 'image' && (
+              <div style={{ marginBottom: 12 }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 5px' }}>Aspect Ratio</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                  {ASPECT_RATIOS.map(ar => (
+                    <button key={ar.value} onClick={() => setAspectRatio(ar.value)}
+                      style={{ padding: '4px 8px', borderRadius: 6, border: `1px solid ${aspectRatio === ar.value ? action : etch}`, background: aspectRatio === ar.value ? action + '25' : 'transparent', color: aspectRatio === ar.value ? action : textDim, fontSize: 11, cursor: 'pointer', fontWeight: aspectRatio === ar.value ? 700 : 400 }}>
+                      {ar.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Requires prompt */}
             {chatMsgs.filter(m => m.role === 'assistant').length === 0 && (
