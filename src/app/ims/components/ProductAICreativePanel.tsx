@@ -125,15 +125,20 @@ export default function ProductAICreativePanel({ productId, productName, busines
   const addRefFromProductImage = useCallback(async (img: ProductImage) => {
     setLoadingRefs(String(img.id));
     try {
-      const b64 = await urlToBase64(img.url);
-      if (b64) {
+      // Fetch server-side to avoid CORS issues with Shopify/CDN URLs
+      const res = await fetch(`/api/ims/products/${productId}/ai-creative`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'fetch-ref-image', url: img.url }),
+      });
+      const d = await res.json();
+      if (d.success && d.data) {
         setSelectedRefs(p => {
           if (p.some(r => r.label === `Product #${img.id}`)) return p;
-          return [...p, { data: b64.data, mimeType: b64.mimeType, label: `Product #${img.id}`, thumbnail: img.url }];
+          return [...p, { data: d.data, mimeType: d.mimeType, label: `Product #${img.id}`, thumbnail: img.url }];
         });
       }
     } finally { setLoadingRefs(null); }
-  }, []);
+  }, [productId]);
 
   const removeRef = (label: string) => setSelectedRefs(p => p.filter(r => r.label !== label));
 
@@ -162,10 +167,11 @@ export default function ProductAICreativePanel({ productId, productName, busines
     setChatLoading(false);
   };
 
-  // ── Generate ────────────────────────────────────────────────────────────────
-  const generate = async () => {
+  // ── Generate (accepts optional direct prompt, bypasses chat history) ─────
+  const generate = async (directPrompt?: string) => {
     const lastAI = [...chatMsgs].reverse().find(m => m.role === 'assistant');
-    if (!lastAI) { setGenError('Generate a prompt in the chat first.'); return; }
+    const promptToUse = directPrompt ?? lastAI?.text ?? '';
+    if (!promptToUse) { setGenError('Select references and use Quick Improve or write a prompt first.'); return; }
     setGenerating(true); setGenError(''); setGeneratedImage(null); setGeneratedVideo(null);
 
     try {
@@ -173,7 +179,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mode: tab,
-          prompt: lastAI.text,
+          prompt: promptToUse,
           imageModel, videoModel,
           referenceImages: selectedRefs.map(r => ({ data: r.data, mimeType: r.mimeType, label: r.label })),
         }),
@@ -184,6 +190,33 @@ export default function ProductAICreativePanel({ productId, productName, busines
       else setGeneratedVideo({ data: d.videoData, uri: d.videoUri, mimeType: d.mimeType });
     } catch (e: any) { setGenError(e.message); }
     setGenerating(false);
+  };
+
+  // ── Quick Improve: build compositing prompt and go straight to image ───────
+  const quickImprove = async () => {
+    if (selectedRefs.length === 0) { setGenError('Select at least one reference image first.'); return; }
+    const productRefs  = selectedRefs.filter(r => r.label.startsWith('Product'));
+    const templateRefs = selectedRefs.filter(r => !r.label.startsWith('Product'));
+    const userExtra    = chatInput.trim();
+    const templates    = templateRefs.map(r => r.label).join(', ');
+
+    const autoPrompt = [
+      productRefs.length > 0
+        ? `Composite the provided product image with the provided template reference${templateRefs.length > 0 ? ` (${templates})` : ''}.`
+        : `Create an on-brand product image using the provided template reference${templates ? ` (${templates})` : ''}.`,
+      templateRefs.some(r => r.label.toLowerCase().includes('model') || r.label.toLowerCase().includes('Model'))
+        ? `If the product is wearable (clothing, accessory, jewellery), show the model from the reference wearing or holding it naturally at correct scale and proportion. Match the lighting from the template.`
+        : ``,
+      templateRefs.some(r => r.label.toLowerCase().includes('backdrop') || r.label.toLowerCase().includes('Backdrop'))
+        ? `Place the product from the product reference within the backdrop scene in a visually compelling, natural position. Match the lighting, shadows, and perspective of the scene.`
+        : ``,
+      `Maintain photographic realism throughout: accurate product colours, textures and scale. Do not alter or invent the product or model — both are provided in the reference images.`,
+      `Produce a clean, premium, on-brand result suitable for product photography.`,
+      userExtra ? `Additional instruction: ${userExtra}` : ``,
+    ].filter(Boolean).join(' ');
+
+    setChatInput('');
+    await generate(autoPrompt);
   };
 
   // ── Save ────────────────────────────────────────────────────────────────────
@@ -360,27 +393,11 @@ export default function ProductAICreativePanel({ productId, productName, busines
             <div style={{ background: `rgba(139,92,246,.1)`, borderBottom: `1px solid rgba(139,92,246,.25)`, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
               <span style={{ fontSize: 12, color: '#a78bfa', flex: 1 }}>References selected — use Quick Improve or write your own prompt below</span>
               <button
-                onClick={() => {
-                  const productRefs = selectedRefs.filter(r => r.label.startsWith('Product'));
-                  const templateRefs = selectedRefs.filter(r => !r.label.startsWith('Product'));
-                  const hasProduct = productRefs.length > 0;
-                  const templates = templateRefs.map(r => r.label).join(', ');
-                  const autoPrompt = hasProduct
-                    ? `Using the provided reference images, create a high-quality composite product photo. ` +
-                      (templateRefs.length > 0
-                        ? `Place the product from the product reference image onto/with the template scene (${templates}). ` +
-                          `If the template shows a model, have them wearing or naturally holding the product at correct scale. ` +
-                          `If it is a backdrop or scene, place the product within it in a visually appealing, natural position. `
-                        : `Enhance the product photo with professional lighting, clean background, and editorial-quality composition. `) +
-                      `Maintain photographic realism: correct lighting direction, natural shadows, accurate product colours and textures. ` +
-                      `Do not invent or alter the product — it is shown in the reference image. Keep the brand aesthetic clean and premium.`
-                    : `Using the provided template reference image${templates ? ` (${templates})` : ''}, create an on-brand product lifestyle image. ` +
-                      `Describe a visually compelling scene that would work well as product photography for this brand.`;
-                  setChatInput(autoPrompt);
-                }}
-                style={{ ...panelBtn(true), fontSize: 12, padding: '5px 12px', background: '#8b5cf6', whiteSpace: 'nowrap' }}
+                onClick={quickImprove}
+                disabled={generating || selectedRefs.length === 0}
+                style={{ ...panelBtn(true), fontSize: 12, padding: '5px 12px', background: '#8b5cf6', whiteSpace: 'nowrap', opacity: (generating || selectedRefs.length === 0) ? .5 : 1 }}
               >
-                ⚡ Quick Improve
+                {generating ? '⏳ Generating…' : '⚡ Quick Improve → Image'}
               </button>
             </div>
           )}
@@ -428,17 +445,25 @@ export default function ProductAICreativePanel({ productId, productName, busines
 
           {/* Input */}
           <div style={{ padding: '12px 16px', borderTop: `1px solid ${etch}`, flexShrink: 0 }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-              <textarea value={chatInput} onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
-                placeholder="Describe how to combine the references — e.g. 'Show the jacket worn by the model, outdoors, adjust lighting to match the golden-hour backdrop'"
-                rows={2}
-                style={{ flex: 1, fontSize: 13, padding: '8px 12px', borderRadius: 9, border: `1px solid ${etch}`, background: bg2, color: textMain, resize: 'none', outline: 'none', lineHeight: 1.5 }}
-              />
-              <button onClick={sendChat} disabled={!chatInput.trim() || chatLoading}
-                style={{ ...panelBtn(!!chatInput.trim() && !chatLoading), padding: '8px 14px', borderRadius: 9, opacity: chatInput.trim() && !chatLoading ? 1 : .4 }}>↑</button>
+            <textarea value={chatInput} onChange={e => setChatInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
+              placeholder={selectedRefs.length > 0 ? 'Optional: add extra instructions (e.g. outdoor setting, golden light) then Quick Improve, or write a full prompt and Make Prompt' : 'Describe the creative you need — the AI will write a detailed generation prompt'}
+              rows={2}
+              style={{ width: '100%', fontSize: 13, padding: '8px 12px', borderRadius: 9, border: `1px solid ${etch}`, background: bg2, color: textMain, resize: 'none', outline: 'none', lineHeight: 1.5, boxSizing: 'border-box' as const }}
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 7 }}>
+              <button onClick={quickImprove}
+                disabled={generating || selectedRefs.length === 0}
+                style={{ ...panelBtn(true), flex: 1, padding: '7px', background: '#8b5cf6', fontSize: 12, opacity: (generating || selectedRefs.length === 0) ? .4 : 1 }}>
+                {generating ? '⏳ Generating…' : '⚡ Quick Improve → Image'}
+              </button>
+              <button onClick={sendChat}
+                disabled={!chatInput.trim() || chatLoading}
+                style={{ ...panelBtn(chatLoading ? false : !!chatInput.trim()), flex: 1, padding: '7px', fontSize: 12, opacity: chatInput.trim() && !chatLoading ? 1 : .4 }}>
+                {chatLoading ? 'Writing…' : '✍ Make Detailed Prompt'}
+              </button>
             </div>
-            <p style={{ fontSize: 10, color: textDim, margin: '5px 0 0' }}>Enter to send · Shift+Enter new line</p>
+            <p style={{ fontSize: 10, color: textDim, margin: '5px 0 0' }}>⚡ Quick Improve uses your text as extra context and generates the image immediately · ✍ Make Prompt refines with AI first</p>
           </div>
         </div>
 
@@ -465,11 +490,11 @@ export default function ProductAICreativePanel({ productId, productName, busines
 
             {/* Requires prompt */}
             {chatMsgs.filter(m => m.role === 'assistant').length === 0 && (
-              <p style={{ fontSize: 12, color: textDim, marginBottom: 12 }}>← Generate a prompt in the chat first, then click Generate.</p>
+              <p style={{ fontSize: 12, color: textDim, marginBottom: 12 }}>← Use ⚡ Quick Improve or generate a prompt in the chat, then click Generate.</p>
             )}
 
             {/* Generate button */}
-            <button onClick={generate}
+            <button onClick={() => generate()}
               disabled={generating || chatMsgs.filter(m => m.role === 'assistant').length === 0}
               style={{ width: '100%', padding: '10px', borderRadius: 9, border: 'none', cursor: 'pointer', background: action, color: '#fff', fontWeight: 700, fontSize: 14, opacity: generating || chatMsgs.filter(m => m.role === 'assistant').length === 0 ? .4 : 1, marginBottom: 6 }}>
               {generating ? (tab === 'image' ? 'Generating image…' : 'Generating video… (may take 30–60s)') : `Generate ${tab === 'image' ? 'Image' : 'Video'}`}

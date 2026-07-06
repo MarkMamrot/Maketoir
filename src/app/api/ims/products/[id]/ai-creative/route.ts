@@ -58,6 +58,21 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     history = [],
   } = body;
   const businessId = session.businessId as string;
+
+  // ── FETCH-REF-IMAGE: server-side image proxy (bypasses browser CORS) ───────
+  if (mode === 'fetch-ref-image') {
+    const { url } = body;
+    if (!url) return NextResponse.json({ error: 'url required' }, { status: 400 });
+    try {
+      const res = await fetch(url, { headers: { 'User-Agent': 'Marketoir/1.0' } });
+      if (!res.ok) return NextResponse.json({ error: `Fetch failed: ${res.status}` }, { status: 400 });
+      const mime = res.headers.get('content-type')?.split(';')[0] ?? 'image/jpeg';
+      const buf  = Buffer.from(await res.arrayBuffer());
+      return NextResponse.json({ success: true, data: buf.toString('base64'), mimeType: mime });
+    } catch (e: any) {
+      return NextResponse.json({ error: e.message ?? 'Failed to fetch image' }, { status: 500 });
+    }
+  }
   const productId  = params.id;
   const ai = new GoogleGenAI({ apiKey });
 
