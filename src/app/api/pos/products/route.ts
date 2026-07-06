@@ -54,6 +54,8 @@ export async function GET(req: Request) {
     discount_end_date:   string | null;
     qty_on_hand:   string | null;
     qty_on_hand_all: string | null;
+    qty_available:   string | null;
+    qty_available_all: string | null;
     is_active:     number;
     image_url:     string | null;
   }>(
@@ -77,6 +79,8 @@ export async function GET(req: Request) {
        v.discount_end_date,
        COALESCE(s.qty_on_hand, 0) AS qty_on_hand,
        COALESCE((SELECT SUM(s2.qty_on_hand) FROM ims_stock s2 WHERE s2.variant_id = v.variant_id), 0) AS qty_on_hand_all,
+       COALESCE(s.qty_on_hand, 0) - COALESCE(s.qty_committed, 0) AS qty_available,
+       COALESCE((SELECT SUM(s2.qty_on_hand - COALESCE(s2.qty_committed,0)) FROM ims_stock s2 WHERE s2.variant_id = v.variant_id), 0) AS qty_available_all,
        v.is_active,
        (SELECT url FROM ims_product_images WHERE product_id = p.product_id COLLATE utf8mb4_general_ci ORDER BY is_primary DESC, sort_order ASC LIMIT 1) AS image_url
      FROM ims_product_variants v
@@ -120,6 +124,8 @@ export async function GET(req: Request) {
       cost:             r.cost != null ? Number(r.cost) : null,
       soh:              Number(r.qty_on_hand ?? 0),
       soh_all:          Number(r.qty_on_hand_all ?? 0),
+      available:        Number(r.qty_available ?? 0),
+      available_all:    Number(r.qty_available_all ?? 0),
       image_url:        r.image_url ?? null,
     };
   });

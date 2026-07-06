@@ -113,6 +113,7 @@ export interface ImsVariant {
 export interface ImsStock {
   id: number; variant_id: string; location_id: number;
   qty_on_hand: number; qty_incoming: number; qty_committed: number;
+  available?: number; // computed: qty_on_hand - qty_committed
   min_qty: number; reorder_qty: number; avg_cost?: number; updated_at?: string;
   // joined
   sku?: string; product_name?: string; variant_label?: string; location_name?: string;
@@ -632,6 +633,7 @@ export const ImsStockRepo = {
     try {
       return await imsQuery<ImsStock>(
         `SELECT s.*,
+                (s.qty_on_hand - s.qty_committed) AS available,
                 v.sku, p.name AS product_name,
                 p.brand AS brand,
                 p.zone AS zone,
@@ -657,6 +659,7 @@ export const ImsStockRepo = {
     } catch {
       return imsQuery<ImsStock>(
         `SELECT s.*,
+                (s.qty_on_hand - s.qty_committed) AS available,
                 v.sku, p.name AS product_name,
                 p.brand AS brand,
                 l.name AS location_name,

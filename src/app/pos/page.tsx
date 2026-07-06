@@ -3113,7 +3113,7 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
   // Main grid products: browse = smart-sorted full list; search = filtered
   // Uses deferredSearch/deferredMode so the grid update is low-priority — keystrokes stay instant
   const filtered = useMemo(() => {
-    let list = inStockOnly ? sortedProducts.filter(p => p.soh > 0) : sortedProducts;
+    let list = inStockOnly ? sortedProducts.filter(p => (p.available ?? p.soh) > 0) : sortedProducts;
     if (brand) list = list.filter(p => p.brand === brand);
     // In browse mode, if specific variants are pinned, restrict to those only
     if (deferredMode === 'browse' && !deferredSearch.trim() && pinnedIds) {
@@ -3251,9 +3251,9 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
                     <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[p.brand, p.code].filter(Boolean).join(' · ')}</div>
                   </div>
                   <span style={{ fontWeight: 700, color: 'var(--sv-action)', fontSize: '.85rem', flexShrink: 0 }}>${fmt(p.price)}</span>
-                  <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '2px 6px', borderRadius: 5, background: p.soh > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: p.soh > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', flexShrink: 0, border: 'none', cursor: 'pointer', fontWeight: 700 }} title="Stock at this store — click for breakdown">{p.soh > 0 ? p.soh : 'OOS'}</button>
-                  {p.soh_all !== undefined && p.soh_all !== p.soh && (
-                    <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '2px 5px', borderRadius: 5, background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', flexShrink: 0, border: '1px solid var(--sv-etch)', cursor: 'pointer' }} title="Total across all locations — click for breakdown">all:{p.soh_all}</button>
+                  <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '2px 6px', borderRadius: 5, background: (p.available ?? p.soh) > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: (p.available ?? p.soh) > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', flexShrink: 0, border: 'none', cursor: 'pointer', fontWeight: 700 }} title="Available to sell at this store (SOH minus committed) — click for breakdown">{(p.available ?? p.soh) > 0 ? (p.available ?? p.soh) : 'OOS'}</button>
+                  {p.available_all !== undefined && p.available_all !== (p.available ?? p.soh) && (
+                    <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '2px 5px', borderRadius: 5, background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', flexShrink: 0, border: '1px solid var(--sv-etch)', cursor: 'pointer' }} title="Available across all locations — click for breakdown">all:{p.available_all}</button>
                   )}
                 </div>
               ))}
@@ -3352,8 +3352,8 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
               <div style={{ fontSize: '.88rem', fontWeight: 700, lineHeight: 1.3, color: 'var(--sv-text-strong)', maxHeight: '2.6em', overflow: 'hidden', marginBottom: '.3rem' }}>{p.name}</div>
               {/* Stock info */}
               <div style={{ fontSize: '.73rem', lineHeight: 1.6, color: 'var(--sv-text-dim)' }}>
-                <div><span style={{ color: p.soh > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 600 }}>In Store: {p.soh}</span></div>
-                <div>Other Stores: {p.soh_all - p.soh}</div>
+                <div><span style={{ color: (p.available ?? p.soh) > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 600 }}>Available: {p.available ?? p.soh}</span> <span style={{ color: 'var(--sv-text-dim)' }}>· SOH: {p.soh}</span></div>
+                <div>Other Stores: {(p.available_all ?? p.soh_all) - (p.available ?? p.soh)}</div>
               </div>
               {/* SKU */}
               {p.code && <div style={{ fontSize: '.68rem', color: 'var(--sv-text-muted)', marginTop: '.25rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.code}</div>}
@@ -5982,7 +5982,7 @@ export default function PosPage() {
             const updated = prev.map(p => {
               const item = sale.items.find(i => i.variant_id === p.variant_id);
               if (!item) return p;
-              return { ...p, soh: Math.max(0, p.soh - item.qty), soh_all: Math.max(0, p.soh_all - item.qty) };
+              return { ...p, soh: Math.max(0, p.soh - item.qty), soh_all: Math.max(0, p.soh_all - item.qty), available: Math.max(0, (p.available ?? p.soh) - item.qty), available_all: Math.max(0, (p.available_all ?? p.soh_all) - item.qty) };
             });
             saveProductsCache(updated);
             return updated;
@@ -5993,7 +5993,7 @@ export default function PosPage() {
             const updated = prev.map(p => {
               const item = sale.items.find(i => i.variant_id === p.variant_id);
               if (!item) return p;
-              return { ...p, soh: p.soh + item.qty, soh_all: p.soh_all + item.qty };
+              return { ...p, soh: p.soh + item.qty, soh_all: p.soh_all + item.qty, available: (p.available ?? p.soh) + item.qty, available_all: (p.available_all ?? p.soh_all) + item.qty };
             });
             saveProductsCache(updated);
             return updated;

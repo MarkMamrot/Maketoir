@@ -31,6 +31,8 @@ export interface CachedProduct {
   cost:           number | null;
   soh:            number;
   soh_all:        number;
+  available:      number;
+  available_all:  number;
   image_url:      string | null;
 }
 

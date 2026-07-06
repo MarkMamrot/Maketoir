@@ -73,6 +73,8 @@ export async function POST(req: Request) {
        s.location_id,
        l.name AS location_name,
        s.qty_on_hand,
+       s.qty_committed,
+       (s.qty_on_hand - COALESCE(s.qty_committed,0)) AS available,
        s.min_qty,
        s.reorder_qty,
        s.avg_cost,
@@ -89,7 +91,7 @@ export async function POST(req: Request) {
      JOIN ims_product_variants v ON v.variant_id = s.variant_id AND v.is_active = 1
      JOIN ims_products p ON p.product_id = v.product_id AND p.is_active = 1
      WHERE s.location_id IN (${branchPlaceholders})
-       AND s.qty_on_hand ${trigger === 'at_or_below' ? '<=' : '<'} s.min_qty
+       AND (s.qty_on_hand - COALESCE(s.qty_committed,0)) ${trigger === 'at_or_below' ? '<=' : '<'} s.min_qty
        AND s.min_qty > 0`,
     filteredBranchIds
   );
@@ -123,12 +125,12 @@ export async function POST(req: Request) {
   const needsByVariant = new Map<string, BranchNeed[]>();
 
   for (const row of branchNeedsRaw) {
-    const qty_on_hand = Number(row.qty_on_hand);
+    const available   = Number((row as any).available ?? (Number(row.qty_on_hand) - Number((row as any).qty_committed ?? 0)));
     const min_qty     = Number(row.min_qty);
     const reorder_qty = Number(row.reorder_qty);
     const need = reorder_qty > 0
       ? reorder_qty
-      : Math.max(0, min_qty - qty_on_hand);
+      : Math.max(0, min_qty - available);
     if (need <= 0) continue;
 
     const unitCost = Number(row.avg_cost ?? 0);
@@ -139,7 +141,7 @@ export async function POST(req: Request) {
       need,
       min_qty,
       reorder_qty: Number(row.reorder_qty),
-      branch_soh: Number(row.qty_on_hand),
+      branch_soh: available,
       unit_cost: unitCost,
       sku: row.sku,
       brand_name: row.brand_name,
