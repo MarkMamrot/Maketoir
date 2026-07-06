@@ -2617,7 +2617,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false }: { o
                 <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
               </div>
               <div style={{ marginBottom: 20 }}>
-                <ProductImageGallery productId={modal.edit.product_id} />
+                <ProductImageGallery productId={modal.edit.product_id} productName={modal.edit.name ?? ''} businessId={user?.businessId ?? ''} />
               </div>
             </>
           )}

@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import ProductAICreativePanel from './ProductAICreativePanel';
 
 interface ProductImage {
   id: number;
@@ -11,16 +12,19 @@ interface ProductImage {
 }
 
 interface Props {
-  productId: string;
+  productId:   string;
+  productName?: string;
+  businessId?: string;
 }
 
-export default function ProductImageGallery({ productId }: Props) {
+export default function ProductImageGallery({ productId, productName = 'Product', businessId = '' }: Props) {
   const [images, setImages]       = useState<ProductImage[]>([]);
   const [loading, setLoading]     = useState(true);
   const [uploading, setUploading] = useState(false);
   const [urlInput, setUrlInput]   = useState('');
   const [showUrl, setShowUrl]     = useState(false);
   const [error, setError]         = useState<string | null>(null);
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const fetchImages = async () => {
@@ -52,8 +56,7 @@ export default function ProductImageGallery({ productId }: Props) {
   };
 
   const uploadFile = async (file: File) => {
-    if (images.length >= 5) { setError('Maximum 5 images per product.'); return; }
-    setUploading(true); setError(null);
+    if (images.length >= 8) { setError('Maximum 8 media items per product.'); return; }
     try {
       const fd = new FormData();
       fd.append('file', file);
@@ -69,8 +72,7 @@ export default function ProductImageGallery({ productId }: Props) {
   const addUrl = async () => {
     const url = urlInput.trim();
     if (!url) return;
-    if (images.length >= 5) { setError('Maximum 5 images per product.'); return; }
-    setError(null);
+    if (images.length >= 8) { setError('Maximum 8 media items per product.'); return; }
     try {
       const r = await fetch(`/api/ims/products/${productId}/images`, {
         method: 'POST',
@@ -91,6 +93,15 @@ export default function ProductImageGallery({ productId }: Props) {
 
   return (
     <div>
+      {aiPanelOpen && (
+        <ProductAICreativePanel
+          productId={productId}
+          productName={productName}
+          businessId={businessId}
+          onClose={() => setAiPanelOpen(false)}
+          onImageAdded={() => { fetchImages(); }}
+        />
+      )}
       {/* Primary image */}
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
         <div style={{
@@ -175,10 +186,20 @@ export default function ProductImageGallery({ productId }: Props) {
           </div>
 
           {/* Action buttons */}
-          <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+          <div style={{ display: 'flex', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setAiPanelOpen(true)}
+              style={{
+                padding: '4px 12px', fontSize: 12, border: '1px solid #8b5cf666',
+                borderRadius: 5, cursor: 'pointer',
+                background: 'rgba(139,92,246,.12)', color: '#a78bfa', fontWeight: 600,
+              }}
+            >
+              ✨ AI Creative
+            </button>
             <button
               onClick={() => fileRef.current?.click()}
-              disabled={uploading || images.length >= 5}
+              disabled={uploading || images.length >= 8}
               style={{
                 padding: '4px 10px', fontSize: 12, border: '1px solid var(--sv-etch)',
                 borderRadius: 5, cursor: 'pointer', background: 'var(--sv-bg-2)',
@@ -189,7 +210,7 @@ export default function ProductImageGallery({ productId }: Props) {
             </button>
             <button
               onClick={() => setShowUrl(v => !v)}
-              disabled={images.length >= 5}
+              disabled={images.length >= 8}
               style={{
                 padding: '4px 10px', fontSize: 12, border: '1px solid var(--sv-etch)',
                 borderRadius: 5, cursor: 'pointer', background: 'var(--sv-bg-2)',
