@@ -113,7 +113,9 @@ export default function ProductImageGallery({ productId, productName = 'Product'
         }}>
           {primary ? (
             <>
-              <img src={primary.url} alt={primary.alt_text ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              {primary.url.match(/\.(mp4|mov|webm)$/i)
+                ? <video src={primary.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted playsInline />
+                : <img src={primary.url} alt={primary.alt_text ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
               <button
                 onClick={() => deleteImage(primary.id)}
                 title="Remove"
@@ -146,10 +148,14 @@ export default function ProductImageGallery({ productId, productName = 'Product'
               }}>
                 <img
                   src={img.url} alt={img.alt_text ?? ''}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: img.url.match(/\.(mp4|mov|webm)$/i) ? 'none' : 'block' }}
                   onClick={() => setPrimary(img.id)}
                   title="Click to set as primary"
                 />
+                {img.url.match(/\.(mp4|mov|webm)$/i) && (
+                  <div onClick={() => setPrimary(img.id)} title="Click to set as primary"
+                    style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, cursor: 'pointer', background: 'var(--sv-bg-2)' }}>🎬</div>
+                )}
                 <button
                   onClick={() => deleteImage(img.id)}
                   title="Remove"
@@ -167,7 +173,7 @@ export default function ProductImageGallery({ productId, productName = 'Product'
               </div>
             ))}
 
-            {/* Add placeholder if < 5 */}
+            {/* Add placeholder if < 8 */}
             {images.length < 5 && (
               <div
                 onClick={() => fileRef.current?.click()}
@@ -256,7 +262,7 @@ export default function ProductImageGallery({ productId, productName = 'Product'
 
       {/* Hidden file input */}
       <input
-        ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif"
+        ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm"
         style={{ display: 'none' }}
         onChange={e => { const f = e.target.files?.[0]; if (f) uploadFile(f); e.target.value = ''; }}
       />
