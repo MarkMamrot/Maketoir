@@ -39,7 +39,6 @@ Core rules:
 - Keep the brand's visual identity, tone, and colour palette
 
 Format: Write a single, detailed, ready-to-use generation prompt in a code block. Be specific about how the product and template relate — lighting direction, product placement, pose adjustments. The AI generator will receive all reference images alongside your prompt.`;
-Format your final ready-to-use prompt clearly in a code block.`;
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = getSession();
