@@ -705,7 +705,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
                 {savedUrl && <p style={{ fontSize: 11, color: '#22c55e', marginTop: 8, textAlign: 'center' }}>✓ Added to product</p>}
               </div>
             )}
-            </div> {/* end tab !== 'text' wrapper */}
+            </div>
             )}
           </div>
         </div>
