@@ -82,7 +82,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
   const [savingText, setSavingText]     = useState(false);
   const [savedTextFields, setSavedTextFields] = useState<Set<string>>(new Set());
   const [freshCreativesExpanded, setFreshCreativesExpanded] = useState(false);
-  const [includeExistingText, setIncludeExistingText] = useState(false);
+  const [includeExistingText, setIncludeExistingText] = useState(true);
   const [savedUrl, setSavedUrl]         = useState<string | null>(null);
   const [imageModels, setImageModels]   = useState<{ id: string; displayName: string }[]>([]);
   const [imageModel, setImageModel]     = useModelPicker(LS_IMAGE_MODEL, 'gemini-3.1-flash-image');
@@ -131,8 +131,8 @@ export default function ProductAICreativePanel({ productId, productName, busines
       }
       if (data) {
         setSelectedRefs(p => {
-          if (p.some(r => r.label === asset.name)) return p;
-          // Use full data URL — truncated base64 produces broken images
+          // Toggle: deselect if already selected
+          if (p.some(r => r.label === asset.name)) return p.filter(r => r.label !== asset.name);
           return [...p, { data, mimeType: mime, label: asset.name, thumbnail: `data:${mime};base64,${data}` }];
         });
       }
@@ -150,7 +150,8 @@ export default function ProductAICreativePanel({ productId, productName, busines
       const d = await res.json();
       if (d.success && d.data) {
         setSelectedRefs(p => {
-          if (p.some(r => r.label === `Product #${img.id}`)) return p;
+          // Toggle: deselect if already selected
+          if (p.some(r => r.label === `Product #${img.id}`)) return p.filter(r => r.label !== `Product #${img.id}`);
           return [...p, { data: d.data, mimeType: d.mimeType, label: `Product #${img.id}`, thumbnail: img.url }];
         });
       }
@@ -456,11 +457,12 @@ export default function ProductAICreativePanel({ productId, productName, busines
         </div>
 
         {/* ── CENTRE: AI Chat (narrower) ── */}
-        <div style={{ flex: '0 0 360px', display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+        <div style={{ flex: '1 1 auto', minWidth: 280, maxWidth: 520, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
           {/* Context toggles */}
           <div style={{ background: bg1, borderBottom: `1px solid ${etch}`, padding: '8px 14px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
             <button style={toggleStyle(includeBrandProfile, '#8b5cf6')} onClick={() => setIncludeBrandProfile(p => !p)}>{includeBrandProfile ? '✓ ' : ''}Brand Profile</button>
             <button style={toggleStyle(includeBusinessInfo,  '#0ea5e9')} onClick={() => setIncludeBusinessInfo(p => !p)} >{includeBusinessInfo  ? '✓ ' : ''}Business Info</button>
+            <button style={toggleStyle(includeExistingText,  '#f59e0b')} onClick={() => setIncludeExistingText(p => !p)}>{includeExistingText  ? '✓ ' : ''}Existing Title/Desc/Tags</button>
             {selectedRefs.length > 0 && <span style={{ fontSize: 11, color: '#22c55e' }}>📎 {selectedRefs.length} reference{selectedRefs.length !== 1 ? 's' : ''} attached</span>}
           </div>
 
@@ -558,21 +560,20 @@ export default function ProductAICreativePanel({ productId, productName, busines
             {tab === 'text' && (
               <div>
                 <p style={{ fontSize: 11, color: textDim, marginBottom: 10, lineHeight: 1.6 }}>
-                  Select <strong>product photos</strong> from the left as references. The AI analyses them with your brand context to generate a title, description and tags.
+                  Select product photos and/or enable <strong>Existing Title/Desc/Tags</strong> (in the context bar) as references. The AI analyses them with your brand context.
                 </p>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: textDim, cursor: 'pointer', marginBottom: 12 }}>
-                  <input type="checkbox" checked={includeExistingText} onChange={e => setIncludeExistingText(e.target.checked)} />
-                  Pass existing title / description / tags as context
-                </label>
+                {(() => { const hasProductRef = selectedRefs.filter(r => r.label.startsWith('Product')).length > 0; const canGenerate = hasProductRef || includeExistingText; return (
+                <>
                 <button onClick={() => generate()}
-                  disabled={generating || selectedRefs.filter(r => r.label.startsWith('Product')).length === 0}
+                  disabled={generating || !canGenerate}
                   style={{ width: '100%', padding: '10px', borderRadius: 9, border: 'none', cursor: 'pointer', background: '#f59e0b', color: '#fff', fontWeight: 700, fontSize: 14,
-                    opacity: generating || selectedRefs.filter(r => r.label.startsWith('Product')).length === 0 ? .4 : 1, marginBottom: 8 }}>
+                    opacity: generating || !canGenerate ? .4 : 1, marginBottom: 8 }}>
                   {generating ? 'Generating text\u2026' : '\ud83d\udcdd Generate Title, Description & Tags'}
                 </button>
-                {selectedRefs.filter(r => r.label.startsWith('Product')).length === 0 && (
-                  <p style={{ fontSize: 11, color: textDim }}>\u2190 Select at least one product photo first.</p>
+                {!canGenerate && (
+                  <p style={{ fontSize: 11, color: textDim, marginBottom: 8 }}>Select a product photo or enable Existing Title/Desc/Tags in the context bar above.</p>
                 )}
+                </>); })()}
                 {genError && <p style={{ fontSize: 11, color: red, background: '#ef444415', padding: '6px 8px', borderRadius: 6 }}>\u26a0\ufe0f {genError}</p>}
                 {generatedText && (
                   <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>

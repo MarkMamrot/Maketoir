@@ -339,8 +339,17 @@ The JSON must have exactly these keys:
         systemInstruction: textSystemPrompt,
         contents: [{ role: 'user', parts }],
       });
-      const raw = (result.text ?? '').trim().replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
-      const parsed = JSON.parse(raw);
+      const raw = (result.text ?? '').trim();
+      // 1. Try to extract from a fenced code block (```json ... ``` or ``` ... ```)
+      const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+      let jsonStr = fenceMatch ? fenceMatch[1].trim() : raw;
+      // 2. If still not a JSON object, grab from first { to last }
+      if (!jsonStr.startsWith('{')) {
+        const start = jsonStr.indexOf('{');
+        const end   = jsonStr.lastIndexOf('}');
+        if (start !== -1 && end > start) jsonStr = jsonStr.slice(start, end + 1);
+      }
+      const parsed = JSON.parse(jsonStr);
       return NextResponse.json({ success: true, title: parsed.title, description: parsed.description, tags: parsed.tags, imagePrompt: parsed.imagePrompt });
     } catch (e: any) {
       return NextResponse.json({ error: e?.message?.slice(0, 300) ?? 'Text generation failed' }, { status: 500 });
