@@ -1933,7 +1933,7 @@ function ImportProductsModal({
 }
 
 
-function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false }: { onNavigateToPO?: (id: number) => void; onNavigateToSO?: (id: number) => void; isAdvisor?: boolean } = {}) {
+function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, businessId = '' }: { onNavigateToPO?: (id: number) => void; onNavigateToSO?: (id: number) => void; isAdvisor?: boolean; businessId?: string } = {}) {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
@@ -2617,7 +2617,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false }: { o
                 <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
               </div>
               <div style={{ marginBottom: 20 }}>
-                <ProductImageGallery productId={modal.edit.product_id} productName={modal.edit.name ?? ''} businessId={user?.businessId ?? ''} />
+                <ProductImageGallery productId={modal.edit.product_id} productName={modal.edit.name ?? ''} businessId={businessId} />
               </div>
             </>
           )}
@@ -10966,7 +10966,7 @@ export default function ImsPage() {
         <Sidebar active={view} onSelect={(v) => { if (v === 'smart-device-receive') { window.open('/receive', '_blank'); return; } setView(v); }} />
         <main style={{ flex: 1, overflow: 'auto', padding: 28 }}>
           {view === 'dashboard'        && <DashboardView onNav={setView} />}
-          {view === 'products'         && <ProductsView onNavigateToPO={id => { setView('purchase-orders'); setPendingOpenPO(id); }} onNavigateToSO={id => { setView('sales-orders'); setPendingOpenSO(id); }} />}
+          {view === 'products'         && <ProductsView isAdvisor={isAdvisor} businessId={user?.businessId ?? ''} onNavigateToPO={id => { setView('purchase-orders'); setPendingOpenPO(id); }} onNavigateToSO={id => { setView('sales-orders'); setPendingOpenSO(id); }} />}
           {view === 'stock'            && <StockView />}
           {view === 'bulk-edit'        && <BulkEditView />}
           {view === 'contacts'         && <ContactsView />}
