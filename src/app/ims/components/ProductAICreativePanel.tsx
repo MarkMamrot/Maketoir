@@ -214,7 +214,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
     }
 
     if (!promptToUse) { setGenError('Select references and use Quick Improve or write a prompt first.'); return; }
-    setGenerating(true); setGenError(''); setGeneratedImage(null); setGeneratedVideo(null);
+    setGenerating(true); setGenError(''); setGeneratedImage(null); setGeneratedVideo(null); setSavedUrl(null);
 
     try {
       const res = await fetch(`/api/ims/products/${productId}/ai-creative`, {
