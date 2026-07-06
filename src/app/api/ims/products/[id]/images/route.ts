@@ -77,17 +77,30 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         const shopify = await getShopifyClient(session.businessId);
         if (shopifyProductId && shopify) {
           const record = await ImsImagesRepo.get(Number(body.image_id));
-          // Extract Shopify image ID from drive_file_id or URL
-          const shopifyImageId = record?.drive_file_id ?? record?.url?.match(/\/images\/(\d+)\?/)?.[1];
-          if (shopifyImageId) {
-            await fetch(
-              `https://${shopify.shop}.myshopify.com/admin/api/2024-01/products/${shopifyProductId}.json`,
-              {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': shopify.token },
-                body: JSON.stringify({ product: { id: shopifyProductId, image: { id: shopifyImageId } } }),
-              },
+          if (record) {
+            // Find the Shopify image ID by looking up images list and matching URL
+            const listRes = await fetch(
+              `https://${shopify.shop}.myshopify.com/admin/api/2024-01/products/${shopifyProductId}/images.json`,
+              { headers: { 'X-Shopify-Access-Token': shopify.token } },
             );
+            if (listRes.ok) {
+              const listData = await listRes.json();
+              const shopifyImages: { id: number; src: string }[] = listData.images ?? [];
+              const recordUrlBase = (record.url ?? '').split('?')[0];
+              const matched = shopifyImages.find(si => si.src.split('?')[0] === recordUrlBase);
+              if (matched) {
+                // Set as the product's first (featured) image by reordering
+                const orderedIds = [matched.id, ...shopifyImages.filter(si => si.id !== matched.id).map(si => si.id)];
+                await fetch(
+                  `https://${shopify.shop}.myshopify.com/admin/api/2024-01/products/${shopifyProductId}/images/reorder.json`,
+                  {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': shopify.token },
+                    body: JSON.stringify({ image: orderedIds.map((id, pos) => ({ id, position: pos + 1 })) }),
+                  },
+                );
+              }
+            }
           }
         }
       } catch { /* Shopify sync failure is non-fatal */ }
@@ -122,12 +135,23 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
         const shopifyProductId = await getProductShopifyId(params.id);
         const shopify = await getShopifyClient(session.businessId);
         if (shopifyProductId && shopify) {
-          const shopifyImageId = record.drive_file_id ?? record.url?.match(/\/images\/(\d+)\?/)?.[1];
-          if (shopifyImageId) {
-            await fetch(
-              `https://${shopify.shop}.myshopify.com/admin/api/2024-01/products/${shopifyProductId}/images/${shopifyImageId}.json`,
-              { method: 'DELETE', headers: { 'X-Shopify-Access-Token': shopify.token } },
-            );
+          // The Shopify image ID isn't stored locally — look it up by matching URL
+          const listRes = await fetch(
+            `https://${shopify.shop}.myshopify.com/admin/api/2024-01/products/${shopifyProductId}/images.json`,
+            { headers: { 'X-Shopify-Access-Token': shopify.token } },
+          );
+          if (listRes.ok) {
+            const listData = await listRes.json();
+            const shopifyImages: { id: number; src: string }[] = listData.images ?? [];
+            // Match by URL — compare without query string since CDN adds ?v= params
+            const recordUrlBase = (record.url ?? '').split('?')[0];
+            const matched = shopifyImages.find(si => si.src.split('?')[0] === recordUrlBase);
+            if (matched) {
+              await fetch(
+                `https://${shopify.shop}.myshopify.com/admin/api/2024-01/products/${shopifyProductId}/images/${matched.id}.json`,
+                { method: 'DELETE', headers: { 'X-Shopify-Access-Token': shopify.token } },
+              );
+            }
           }
         }
       } catch { /* Shopify delete failure is non-fatal — still remove from IMS */ }

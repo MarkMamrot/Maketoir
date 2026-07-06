@@ -532,7 +532,15 @@ function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
                   </thead>
                   <tbody>
                     {(data.posRegisters as any[]).map((r: any, i: number) => {
-                      const fmtDt = (v: string | null) => v ? new Date(v.includes('T') ? v : v.replace(' ', 'T') + 'Z').toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+                      const fmtDt = (v: string | null) => {
+                        if (!v) return '—';
+                        // Stored as AEST by localNow() — display directly, no Date conversion
+                        const [datePart = '', timePart = ''] = v.replace('T', ' ').split(' ');
+                        const [y = '', m = '', d = ''] = datePart.split('-');
+                        const [h = '0', min = '00'] = timePart.split(':');
+                        const hour = parseInt(h, 10);
+                        return `${d}/${m}/${y}, ${hour % 12 || 12}:${min} ${hour >= 12 ? 'pm' : 'am'}`;
+                      };
                       const isOpen = r.status === 'open';
                       const totals: { payment_method: string; counted_amount: string }[] = r.close_totals ?? [];
                       return (
@@ -6911,8 +6919,12 @@ function PosSalesView() {
     return new Date(s + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   };
   const fmtTime  = (dt: any) => {
-    const s = dt instanceof Date ? dt.toISOString() : String(dt).replace(' ', 'T');
-    return new Date(s).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true });
+    // Stored as AEST — extract time portion directly without timezone conversion
+    const s = String(dt instanceof Date ? dt.toISOString() : dt).replace('T', ' ');
+    const timePart = s.split(' ')[1] ?? '';
+    const [h = '0', min = '00'] = timePart.split(':');
+    const hour = parseInt(h, 10);
+    return `${hour % 12 || 12}:${min} ${hour >= 12 ? 'pm' : 'am'}`;
   };
 
   const selStyle: React.CSSProperties = { padding: '6px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'inherit', fontSize: 13 };
@@ -7680,7 +7692,12 @@ function PosRegistersReportView({ onBack }: { onBack: () => void }) {
 
   const fmtDt = (v: string | null) => {
     if (!v) return '—';
-    return new Date(v).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' });
+    // Stored as AEST by localNow() — display directly, no Date conversion
+    const [datePart = '', timePart = ''] = v.replace('T', ' ').split(' ');
+    const [y = '', m = '', d = ''] = datePart.split('-');
+    const [h = '0', min = '00'] = timePart.split(':');
+    const hour = parseInt(h, 10);
+    return `${d}/${m}/${y}, ${hour % 12 || 12}:${min} ${hour >= 12 ? 'pm' : 'am'}`;
   };
 
   const varColor = (v: number | null) => {
