@@ -116,7 +116,8 @@ export default function ProductAICreativePanel({ productId, productName, busines
       if (data) {
         setSelectedRefs(p => {
           if (p.some(r => r.label === asset.name)) return p;
-          return [...p, { data, mimeType: mime, label: asset.name, thumbnail: `data:${mime};base64,${data.slice(0, 200)}` }];
+          // Use full data URL — truncated base64 produces broken images
+          return [...p, { data, mimeType: mime, label: asset.name, thumbnail: `data:${mime};base64,${data}` }];
         });
       }
     } finally { setLoadingRefs(null); }
@@ -296,66 +297,78 @@ export default function ProductAICreativePanel({ productId, productName, busines
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', gap: 0 }}>
 
         {/* ── LEFT: Template & photo picker ── */}
-        <div style={{ width: 260, background: bg1, borderRight: `1px solid ${etch}`, overflow: 'auto', padding: 14, flexShrink: 0 }}>
-          <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .6, margin: '0 0 10px' }}>Reference Images</p>
+        <div style={{ width: 340, background: bg1, borderRight: `1px solid ${etch}`, overflow: 'auto', padding: '12px 12px 16px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-          {/* Selected refs */}
+          {/* Selected refs strip */}
           {selectedRefs.length > 0 && (
-            <div style={{ marginBottom: 14 }}>
-              <p style={{ fontSize: 11, color: textDim, margin: '0 0 6px' }}>Selected ({selectedRefs.length}):</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 700, color: '#22c55e', textTransform: 'uppercase', letterSpacing: .6, margin: '0 0 7px' }}>✓ Selected ({selectedRefs.length})</p>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {selectedRefs.map(r => (
-                  <div key={r.label} style={{ position: 'relative' }}>
-                    <img src={r.thumbnail.startsWith('data:') ? r.thumbnail : r.thumbnail} alt={r.label}
-                      style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 6, border: `2px solid ${action}` }} />
-                    <button onClick={() => removeRef(r.label)}
-                      style={{ position: 'absolute', top: -4, right: -4, background: red, border: 'none', borderRadius: '50%', width: 16, height: 16, cursor: 'pointer', fontSize: 10, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>×</button>
+                  <div key={r.label} title={r.label}
+                    style={{ position: 'relative', width: 56, cursor: 'pointer' }}
+                    onClick={() => removeRef(r.label)}>
+                    <img src={r.thumbnail} alt={r.label}
+                      style={{ width: 56, height: 74, objectFit: 'cover', borderRadius: 6, border: `2px solid #22c55e`, display: 'block' }} />
+                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.45)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'opacity .15s' }}
+                      onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                      onMouseLeave={e => (e.currentTarget.style.opacity = '0')}>
+                      <span style={{ color: '#ef4444', fontSize: 18, fontWeight: 700 }}>×</span>
+                    </div>
+                    <div style={{ fontSize: 9, color: '#94a3b8', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.label}</div>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Brand asset templates */}
-          {assetModels.length > 0 && (
-            <div style={{ marginBottom: 14 }}>
-              <p style={{ fontSize: 10, fontWeight: 700, color: '#0ea5e9', textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 6px' }}>Model Templates</p>
-              {assetModels.map(a => (
-                <div key={a.id} onClick={() => addRefFromAsset(a)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 7, cursor: 'pointer', marginBottom: 4, background: selectedRefs.some(r => r.label === a.name) ? '#0ea5e920' : 'transparent', border: `1px solid ${selectedRefs.some(r => r.label === a.name) ? '#0ea5e9' : etch}` }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#0ea5e915')}
-                  onMouseLeave={e => (e.currentTarget.style.background = selectedRefs.some(r => r.label === a.name) ? '#0ea5e920' : 'transparent')}
-                >
-                  {a.image_data
-                    ? <img src={`data:${a.image_mime ?? 'image/jpeg'};base64,${a.image_data.slice(0, 2000)}`} alt={a.name} style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 5, flexShrink: 0 }} />
-                    : <div style={{ width: 32, height: 32, borderRadius: 5, background: bg2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>👤</div>}
-                  <span style={{ fontSize: 12, color: textMain, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{a.name}</span>
-                  {loadingRefs === a.name && <span style={{ fontSize: 10, color: textDim }}>…</span>}
+          {/* Helper component for a portrait-grid template section */}
+          {(['models', 'backdrops'] as const).map(cat => {
+            const catAssets = cat === 'models' ? assetModels : assetBackdrops;
+            if (catAssets.length === 0) return null;
+            const accentColor = cat === 'models' ? '#0ea5e9' : '#8b5cf6';
+            const icon = cat === 'models' ? '👤' : '🌅';
+            const label = cat === 'models' ? 'Model Templates' : 'Backdrop Templates';
+            return (
+              <div key={cat}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: accentColor, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 8px' }}>{label}</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+                  {catAssets.map(a => {
+                    const sel = selectedRefs.some(r => r.label === a.name);
+                    const loading = loadingRefs === a.name;
+                    return (
+                      <div key={a.id} onClick={() => !loading && addRefFromAsset(a)} title={a.name}
+                        style={{ position: 'relative', cursor: loading ? 'wait' : 'pointer', borderRadius: 8, overflow: 'hidden',
+                          border: `2px solid ${sel ? accentColor : 'transparent'}`,
+                          boxShadow: sel ? `0 0 0 1px ${accentColor}` : 'none' }}>
+                        <div style={{ aspectRatio: '3/4', background: bg2, overflow: 'hidden' }}>
+                          {a.image_data ? (
+                            <img src={`data:${a.image_mime ?? 'image/jpeg'};base64,${a.image_data}`}
+                              alt={a.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                          ) : (
+                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>{icon}</div>
+                          )}
+                          {loading && (
+                            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#fff' }}>Loading…</div>
+                          )}
+                          {sel && (
+                            <div style={{ position: 'absolute', top: 5, right: 5, width: 20, height: 20, background: accentColor, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#fff', fontWeight: 700 }}>✓</div>
+                          )}
+                          {!a.image_data && (
+                            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,.6)', padding: '3px 5px', fontSize: 9, color: '#fbbf24' }}>No image yet</div>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 10, color: sel ? accentColor : textDim, padding: '4px 2px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: sel ? 700 : 400 }}>{a.name}</div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
-          )}
-
-          {assetBackdrops.length > 0 && (
-            <div style={{ marginBottom: 14 }}>
-              <p style={{ fontSize: 10, fontWeight: 700, color: '#8b5cf6', textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 6px' }}>Backdrop Templates</p>
-              {assetBackdrops.map(a => (
-                <div key={a.id} onClick={() => addRefFromAsset(a)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 7, cursor: 'pointer', marginBottom: 4, background: selectedRefs.some(r => r.label === a.name) ? '#8b5cf620' : 'transparent', border: `1px solid ${selectedRefs.some(r => r.label === a.name) ? '#8b5cf6' : etch}` }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#8b5cf615')}
-                  onMouseLeave={e => (e.currentTarget.style.background = selectedRefs.some(r => r.label === a.name) ? '#8b5cf620' : 'transparent')}
-                >
-                  {a.image_data
-                    ? <img src={`data:${a.image_mime ?? 'image/jpeg'};base64,${a.image_data.slice(0, 2000)}`} alt={a.name} style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 5, flexShrink: 0 }} />
-                    : <div style={{ width: 32, height: 32, borderRadius: 5, background: bg2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🌅</div>}
-                  <span style={{ fontSize: 12, color: textMain, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{a.name}</span>
-                </div>
-              ))}
-            </div>
-          )}
+              </div>
+            );
+          })}
 
           {assetModels.length === 0 && assetBackdrops.length === 0 && (
-            <p style={{ fontSize: 12, color: textDim, lineHeight: 1.6 }}>No brand asset templates yet. Create models and backdrops in <strong>Foresight → Brand Assets</strong> first.</p>
+            <p style={{ fontSize: 12, color: textDim, lineHeight: 1.6, margin: 0 }}>No brand asset templates yet. Create models and backdrops in <strong>Foresight → Brand Assets</strong> first.</p>
           )}
 
           {/* Existing product photos */}
