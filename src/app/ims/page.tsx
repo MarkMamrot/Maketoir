@@ -6988,7 +6988,7 @@ function PosSalesView() {
                     {sale.register_name && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', padding: '1px 7px', borderRadius: 99, border: '1px solid var(--sv-etch)', fontFamily: 'inherit' }}>🖥 {sale.register_name}</span>}
                     {sale.cashier_name && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{sale.cashier_name}</span>}
                     <span style={{ flex: 1, fontSize: 13, color: 'var(--sv-text-main)' }}>{sale.customer_name || <span style={{ color: 'var(--sv-text-dim)' }}>Walk-in</span>}</span>
-                    <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{sale.items.length} item{sale.items.length !== 1 ? 's' : ''}</span>
+                    <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{sale.items.reduce((s: number, i: any) => s + Math.abs(Number(i.qty ?? 1)), 0)} item{sale.items.reduce((s: number, i: any) => s + Math.abs(Number(i.qty ?? 1)), 0) !== 1 ? 's' : ''}</span>
                     <span style={{ fontSize: 13, fontWeight: 600, color: isReturn ? 'var(--sv-red)' : 'var(--sv-text-strong)', minWidth: 72, textAlign: 'right' }}>{isReturn ? '−' : ''}{fmtMoney(sale.total)}</span>
                     <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginLeft: 4 }}>{saleOpen ? '▲' : '▼'}</span>
                   </div>

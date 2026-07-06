@@ -25,8 +25,13 @@ export async function POST(req: Request) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 });
 
-  const { prompt, imageModel = 'gemini-3.1-flash-image' } = await req.json();
-  if (!prompt?.trim()) return NextResponse.json({ error: 'prompt is required' }, { status: 400 });
+  const { prompt: rawPrompt, imageModel = 'gemini-3.1-flash-image' } = await req.json();
+  if (!rawPrompt?.trim()) return NextResponse.json({ error: 'prompt is required' }, { status: 400 });
+
+  // The AI response may contain explanatory text around the actual image prompt.
+  // Extract content from the FIRST code block if present — that's the clean prompt.
+  const codeBlockMatch = rawPrompt.match(/```(?:[^\n]*)?\n([\s\S]+?)```/);
+  const prompt = codeBlockMatch ? codeBlockMatch[1].trim() : rawPrompt.trim();
 
   const model = IMAGE_MODELS.has(imageModel) ? imageModel : 'gemini-3.1-flash-image';
 

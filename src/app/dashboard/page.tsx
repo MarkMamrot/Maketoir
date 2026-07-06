@@ -8010,6 +8010,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
 
   // Target image model
   const [imageModel, setImageModel] = useState('gemini-3.1-flash-image');
+  const [availableImageModels, setAvailableImageModels] = useState<{ id: string; displayName: string }[]>([]);
 
   // Creative Intelligence Brief
   const [useCreativeHistory, setUseCreativeHistory] = useState(false);
@@ -8085,6 +8086,13 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
           setPendingWords(d.pendingWords ?? 0);
           setUseCreativeHistory(!!(d.summary?.trim()));
         })
+        .catch(() => {});
+    }
+    // Fetch available image models (live from Google API)
+    if (availableImageModels.length === 0) {
+      fetch('/api/ai/image-models')
+        .then(r => r.json())
+        .then(d => { if (d.models?.length) setAvailableImageModels(d.models); })
         .catch(() => {});
     }
   };
@@ -8415,27 +8423,22 @@ toggles: ${JSON.stringify(contextPreviewDebug.toggles)}`}
                 </div>
               )}
             </div>
+            </div>
+            {/* Image generator model picker */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <p style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>Target model</p>
+              <p style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>🎨 Image model</p>
               <select
                 value={imageModel}
                 onChange={e => setImageModel(e.target.value)}
                 style={{ flex: 1, fontSize: 11, padding: '4px 8px', borderRadius: 7, border: '1px solid var(--sv-etch, #e5e7eb)', background: 'var(--sv-bg-1, #f9fafb)', color: 'var(--sv-text-strong, #111827)', cursor: 'pointer', outline: 'none' }}
               >
-                <optgroup label="Nano Banana (recommended)">
-                  <option value="gemini-3.1-flash-image">Nano Banana 2 — Gemini 3.1 Flash Image</option>
-                  <option value="gemini-3-pro-image">Nano Banana Pro — Gemini 3 Pro Image</option>
-                  <option value="gemini-3.1-flash-lite-image">Nano Banana 2 Lite — Gemini 3.1 Flash Lite Image</option>
-                  <option value="gemini-2.5-flash-image">Nano Banana (legacy) — Gemini 2.5 Flash Image</option>
-                </optgroup>
-                <optgroup label="Imagen 4 (deprecated Aug 2026)">
-                  <option value="imagen-4.0-generate-001">Imagen 4 Standard ⚠️</option>
-                  <option value="imagen-4.0-ultra-generate-001">Imagen 4 Ultra ⚠️</option>
-                  <option value="imagen-4.0-fast-generate-001">Imagen 4 Fast ⚠️</option>
-                </optgroup>
-                <optgroup label="Other">
-                  <option value="other">Other / Generic</option>
-                </optgroup>
+                {availableImageModels.length > 0 ? (
+                  availableImageModels.map(m => (
+                    <option key={m.id} value={m.id}>{m.displayName}</option>
+                  ))
+                ) : (
+                  <option value={imageModel}>{imageModel} (loading…)</option>
+                )}
               </select>
             </div>
           </div>

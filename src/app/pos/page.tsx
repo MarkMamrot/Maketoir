@@ -4845,8 +4845,12 @@ function ReceiveTransfersScreen({ session, onBack }: { session: PosSession; onBa
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/ims/branch-transfers?status=sent`).then(r => r.json());
-      const all: any[] = res.data ?? [];
+      // Fetch both 'sent' (not started) and 'partial' (in progress) transfers
+      const [r1, r2] = await Promise.all([
+        fetch(`/api/ims/branch-transfers?status=sent`).then(r => r.json()),
+        fetch(`/api/ims/branch-transfers?status=partial`).then(r => r.json()),
+      ]);
+      const all: any[] = [...(r1.data ?? []), ...(r2.data ?? [])];
       setTransfers(all.filter((bt: any) => Number(bt.to_location_id) === session.location_id));
     } catch {}
     setLoading(false);
@@ -4887,14 +4891,19 @@ function ReceiveTransfersScreen({ session, onBack }: { session: PosSession; onBa
             {transfers.map((bt: any) => (
               <div key={bt.id} style={{ background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--sv-text-strong)', marginBottom: 2 }}>{bt.transfer_number}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: '1rem', color: 'var(--sv-text-strong)', marginBottom: 2 }}>
+                    {bt.transfer_number}
+                    {bt.status === 'partial' && (
+                      <span style={{ fontSize: '.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: 'rgba(245,158,11,.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,.3)' }}>IN PROGRESS</span>
+                    )}
+                  </div>
                   <div style={{ fontSize: '.85rem', color: 'var(--sv-text-dim)' }}>From: <strong style={{ color: 'var(--sv-text-main)' }}>{bt.from_location_name}</strong> · Date: {bt.transfer_date?.slice(0,10)} · Value: ${Number(bt.total_value).toFixed(2)}</div>
                 </div>
                 <button
                   onClick={() => openReceive(bt)}
-                  style={{ padding: '.55rem 1.2rem', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--sv-mint,#0c9)', color: '#fff', fontWeight: 700, fontSize: '.9rem', whiteSpace: 'nowrap' }}
+                  style={{ padding: '.55rem 1.2rem', borderRadius: 8, border: 'none', cursor: 'pointer', background: bt.status === 'partial' ? '#f59e0b' : 'var(--sv-mint,#0c9)', color: '#fff', fontWeight: 700, fontSize: '.9rem', whiteSpace: 'nowrap' }}
                 >
-                  Receive
+                  {bt.status === 'partial' ? 'Continue Receiving' : 'Receive'}
                 </button>
               </div>
             ))}
@@ -4908,7 +4917,10 @@ function ReceiveTransfersScreen({ session, onBack }: { session: PosSession; onBa
 function ReceiveBtInline({ bt, onBack, onDone }: { bt: any; onBack: () => void; onDone: () => void }) {
   const [receiveQtys, setReceiveQtys] = useState<Record<number, number>>(() => {
     const init: Record<number, number> = {};
-    for (const item of bt.items ?? []) init[item.id] = 0;
+    for (const item of bt.items ?? []) {
+      // Pre-populate from saved qty_received for partial (in-progress) transfers
+      init[item.id] = bt.status === 'partial' ? Number(item.qty_received ?? 0) : 0;
+    }
     return init;
   });
   const [scanInput, setScanInput]     = useState('');
@@ -4994,16 +5006,36 @@ function ReceiveBtInline({ bt, onBack, onDone }: { bt: any; onBack: () => void; 
     finally { setSubmitting(false); }
   };
 
+  async function _doSubmit(status: string) {
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/ims/branch-transfers/${bt.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status,
+          receivedItems: Object.entries(receiveQtys).map(([id, qty]) => ({ item_id: Number(id), qty_received: qty })),
+        }),
+      });
+      if (!res.ok) { const d = await res.json(); alert(d.error ?? 'Failed'); return; }
+      onDone();
+    } catch (e: any) { alert(e.message); }
+    finally { setSubmitting(false); }
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', padding: '1.5rem', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)' }}>
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.25rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
           <button onClick={onBack} style={smallBtn}>← Back</button>
           <h1 style={{ margin: 0, color: 'var(--sv-text-strong)', flex: 1, fontSize: '1.2rem' }}>
             📦 {bt.transfer_number} — from {bt.from_location_name}
           </h1>
           <button onClick={handleReceiveAll} style={{ ...smallBtn, color: 'var(--sv-text-main)' }}>Receive All</button>
+          <button onClick={handleSaveLater} disabled={submitting} style={{ padding: '.55rem 1.2rem', borderRadius: 8, border: '1px solid var(--sv-etch)', cursor: 'pointer', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', fontWeight: 600, fontSize: '.9rem', opacity: submitting ? .6 : 1 }}>
+            💾 Save & Continue Later
+          </button>
           <button onClick={handleSubmit} disabled={submitting} style={{ padding: '.55rem 1.4rem', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--sv-mint,#0c9)', color: '#fff', fontWeight: 700, fontSize: '.9rem', opacity: submitting ? .6 : 1 }}>
             {submitting ? 'Processing…' : 'Confirm Receipt & Move Stock'}
           </button>
