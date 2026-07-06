@@ -8130,7 +8130,7 @@ function SearchableTypeFilter({
   onSelect,
   onClear,
 }: {
-  filterType: 'supplier' | 'brand' | 'product_type';
+  filterType: 'product' | 'supplier' | 'brand' | 'product_type';
   placeholder: string;
   selection: FilterSelection | null;
   onSelect: (s: FilterSelection) => void;
@@ -8146,6 +8146,8 @@ function SearchableTypeFilter({
   const colors                        = TYPE_PILL_COLORS[filterType];
 
   const fetchOptions = async (q: string) => {
+    // Products require a query (too many to list); others pre-load all
+    if (filterType === 'product' && !q) { setOptions([]); return; }
     setLoading(true);
     try {
       const url = `/api/ims/filters/search?only=${filterType}&limit=40${q ? `&q=${encodeURIComponent(q)}` : ''}`;
@@ -8157,8 +8159,8 @@ function SearchableTypeFilter({
     } catch { /* ignore */ } finally { setLoading(false); }
   };
 
-  // Pre-load on mount
-  useEffect(() => { fetchOptions(''); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Pre-load on mount (skip for product type)
+  useEffect(() => { if (filterType !== 'product') fetchOptions(''); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Re-fetch with debounce on query change
   useEffect(() => {
@@ -8187,15 +8189,15 @@ function SearchableTypeFilter({
     else if (e.key === 'Escape') setOpen(false);
   };
 
-  const typeLabel = filterType === 'product_type' ? 'Type' : filterType.charAt(0).toUpperCase() + filterType.slice(1);
+  const typeLabel = filterType === 'product_type' ? 'Type' : filterType === 'product' ? 'Product' : filterType.charAt(0).toUpperCase() + filterType.slice(1);
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', flex: 1, minWidth: 140 }}>
+    <div ref={containerRef} style={{ position: 'relative', flex: filterType === 'product' ? 1.6 : 1, minWidth: filterType === 'product' ? 200 : 140 }}>
       {selection ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 8px 0 10px', border: `1px solid ${colors.text}66`, borderRadius: 7, background: colors.bg, cursor: 'default' }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: colors.text, flexShrink: 0 }}>{typeLabel}</span>
           <span style={{ fontSize: 12, color: 'var(--sv-text-strong)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {selection.label.replace(/^(Brand:|Supplier:|Type:|Product Type:)\s*/i, '')}
+            {selection.label.replace(/^(Product:|Brand:|Supplier:|Type:|Product Type:)\s*/i, '')}
           </span>
           <button onClick={onClear} style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.text, fontSize: 15, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>×</button>
         </div>
@@ -8226,7 +8228,7 @@ function SearchableTypeFilter({
             <div key={s.value} onMouseDown={() => choose(s)} onMouseEnter={() => setActiveIdx(i)}
               style={{ padding: '8px 10px', cursor: 'pointer', background: i === activeIdx ? 'color-mix(in srgb, var(--sv-etch) 40%, transparent)' : 'transparent', borderBottom: '1px solid var(--sv-etch)', fontSize: 12, color: 'var(--sv-text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
             >
-              {s.label.replace(/^(Brand:|Supplier:|Type:|Product Type:)\s*/i, '')}
+              {s.label.replace(/^(Product:|Brand:|Supplier:|Type:|Product Type:)\s*/i, '')}
             </div>
           ))}
         </div>
@@ -8238,15 +8240,17 @@ function SearchableTypeFilter({
   );
 }
 
-// Multi-filter bar: Supplier + Brand + Type dropdowns
-interface MultiFilter { supplier: FilterSelection | null; brand: FilterSelection | null; type_: FilterSelection | null }
-const EMPTY_MULTI: MultiFilter = { supplier: null, brand: null, type_: null };
+// Multi-filter bar: Product + Supplier + Brand + Type dropdowns
+interface MultiFilter { product: FilterSelection | null; supplier: FilterSelection | null; brand: FilterSelection | null; type_: FilterSelection | null }
+const EMPTY_MULTI: MultiFilter = { product: null, supplier: null, brand: null, type_: null };
 
 function ReportMultiFilter({
   filters, onChange,
 }: { filters: MultiFilter; onChange: (f: MultiFilter) => void }) {
   return (
     <div style={{ display: 'flex', gap: 8, flex: 1, flexWrap: 'wrap' }}>
+      <SearchableTypeFilter filterType="product"  placeholder="Product name / SKU…" selection={filters.product}
+        onSelect={s => onChange({ ...filters, product: s })}  onClear={() => onChange({ ...filters, product: null })} />
       <SearchableTypeFilter filterType="supplier" placeholder="All Suppliers" selection={filters.supplier}
         onSelect={s => onChange({ ...filters, supplier: s })} onClear={() => onChange({ ...filters, supplier: null })} />
       <SearchableTypeFilter filterType="brand"    placeholder="All Brands"    selection={filters.brand}
@@ -8260,13 +8264,14 @@ function ReportMultiFilter({
 // Helper: turn MultiFilter into URLSearchParams entries
 function multiFilterParams(f: MultiFilter): Record<string, string> {
   const p: Record<string, string> = {};
+  if (f.product)  p.productId   = f.product.value;
   if (f.supplier) p.supplierId  = f.supplier.value;
   if (f.brand)    p.brand       = f.brand.value;
   if (f.type_)    p.productType = f.type_.value;
   return p;
 }
 
-function hasMultiFilter(f: MultiFilter) { return !!(f.supplier || f.brand || f.type_); }
+function hasMultiFilter(f: MultiFilter) { return !!(f.product || f.supplier || f.brand || f.type_); }
 
 const WINDOW_OPTS = [
   { value: 7,   label: '7 Days' },
