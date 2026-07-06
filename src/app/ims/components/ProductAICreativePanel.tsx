@@ -65,7 +65,7 @@ interface Props {
 
 export default function ProductAICreativePanel({ productId, productName, businessId, onClose, onImageAdded }: Props) {
   // ── State ──────────────────────────────────────────────────────────────────
-  const [tab, setTab]                   = useState<'image' | 'video'>('image');
+  const [tab, setTab]                   = useState<'image' | 'video' | 'text'>('image');
   const [assets, setAssets]             = useState<BrandAsset[]>([]);
   const [productImages, setProductImages] = useState<ProductImage[]>([]);
   const [selectedRefs, setSelectedRefs] = useState<RefImage[]>([]);
@@ -75,9 +75,14 @@ export default function ProductAICreativePanel({ productId, productName, busines
   const [chatError, setChatError]       = useState('');
   const [generatedImage, setGeneratedImage] = useState<{ data: string; mimeType: string } | null>(null);
   const [generatedVideo, setGeneratedVideo] = useState<{ data?: string; uri?: string; mimeType: string } | null>(null);
+  const [generatedText, setGeneratedText] = useState<{ title?: string; description?: string; tags?: string[]; imagePrompt?: string } | null>(null);
   const [generating, setGenerating]     = useState(false);
   const [genError, setGenError]         = useState('');
   const [saving, setSaving]             = useState(false);
+  const [savingText, setSavingText]     = useState(false);
+  const [savedTextFields, setSavedTextFields] = useState<Set<string>>(new Set());
+  const [freshCreativesExpanded, setFreshCreativesExpanded] = useState(false);
+  const [includeExistingText, setIncludeExistingText] = useState(false);
   const [savedUrl, setSavedUrl]         = useState<string | null>(null);
   const [imageModels, setImageModels]   = useState<{ id: string; displayName: string }[]>([]);
   const [imageModel, setImageModel]     = useModelPicker(LS_IMAGE_MODEL, 'gemini-3.1-flash-image');
@@ -179,10 +184,35 @@ export default function ProductAICreativePanel({ productId, productName, busines
     setChatLoading(false);
   };
 
-  // ── Generate (accepts optional direct prompt, bypasses chat history) ─────
+  // ── Generate (handles image / video / text) ──────────────────────────────
   const generate = async (directPrompt?: string) => {
     const lastAI = [...chatMsgs].reverse().find(m => m.role === 'assistant');
     const promptToUse = directPrompt ?? lastAI?.text ?? '';
+
+    if (tab === 'text') {
+      // Text generation: uses product images + brand context, no prompt required
+      setGenerating(true); setGenError(''); setGeneratedText(null);
+      try {
+        const res = await fetch(`/api/ims/products/${productId}/ai-creative`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'text',
+            referenceImages: selectedRefs.map(r => ({ data: r.data, mimeType: r.mimeType, label: r.label })),
+            includeExistingText,
+            existingTitle: (window as any).__aiProductTitle ?? '',
+            existingDescription: (window as any).__aiProductDesc ?? '',
+            existingTags: (window as any).__aiProductTags ?? '',
+            includeBrandProfile: true, includeBusinessInfo: true,
+          }),
+        });
+        const d = await res.json();
+        if (!res.ok || !d.success) throw new Error(d.error ?? 'Text generation failed');
+        setGeneratedText({ title: d.title, description: d.description, tags: d.tags, imagePrompt: d.imagePrompt });
+      } catch (e: any) { setGenError(e.message); }
+      setGenerating(false);
+      return;
+    }
+
     if (!promptToUse) { setGenError('Select references and use Quick Improve or write a prompt first.'); return; }
     setGenerating(true); setGenError(''); setGeneratedImage(null); setGeneratedVideo(null);
 
@@ -202,6 +232,28 @@ export default function ProductAICreativePanel({ productId, productName, busines
       else setGeneratedVideo({ data: d.videoData, uri: d.videoUri, mimeType: d.mimeType });
     } catch (e: any) { setGenError(e.message); }
     setGenerating(false);
+  };
+
+  // ── Save text field to product ─────────────────────────────────────────────
+  const saveTextField = async (field: 'title' | 'description' | 'tags' | 'all') => {
+    if (!generatedText) return;
+    setSavingText(true);
+    const payload: any = {};
+    if (field === 'title' || field === 'all')       payload.title       = generatedText.title;
+    if (field === 'description' || field === 'all') payload.description = generatedText.description;
+    if (field === 'tags' || field === 'all')        payload.tags        = generatedText.tags;
+    try {
+      const res = await fetch(`/api/ims/products/${productId}/ai-creative`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'save-text', ...payload }),
+      });
+      const d = await res.json();
+      if (d.success) {
+        setSavedTextFields(p => new Set([...p, field]));
+        setTimeout(() => setSavedTextFields(p => { const n = new Set(p); n.delete(field); return n; }), 3000);
+      }
+    } catch {}
+    setSavingText(false);
   };
 
   // ── Quick Improve: build compositing prompt and go straight to image ───────
@@ -297,9 +349,9 @@ export default function ProductAICreativePanel({ productId, productName, busines
         <span style={{ fontSize: 12, color: textDim }}>— {productName}</span>
         <div style={{ flex: 1 }} />
         {/* Image/Video tabs */}
-        {(['image', 'video'] as const).map(t => (
+        {(['image', 'video', 'text'] as const).map(t => (
           <button key={t} onClick={() => { setTab(t); setGenError(''); }} style={{ ...panelBtn(tab === t), textTransform: 'capitalize' }}>
-            {t === 'image' ? '🖼 Image' : '🎬 Video'}
+            {t === 'image' ? '🖼️ Image' : t === 'video' ? '🎬 Video' : '📝 Text Content'}
           </button>
         ))}
       </div>
@@ -308,7 +360,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', gap: 0 }}>
 
         {/* ── LEFT: Template & photo picker ── */}
-        <div style={{ width: 340, background: bg1, borderRight: `1px solid ${etch}`, overflow: 'auto', padding: '12px 12px 16px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ width: 380, background: bg1, borderRight: `1px solid ${etch}`, overflow: 'auto', padding: '12px 12px 16px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
 
           {/* Selected refs strip */}
           {selectedRefs.length > 0 && (
@@ -403,8 +455,8 @@ export default function ProductAICreativePanel({ productId, productName, busines
           )}
         </div>
 
-        {/* ── CENTRE: AI Chat ── */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+        {/* ── CENTRE: AI Chat (narrower) ── */}
+        <div style={{ flex: '0 0 360px', display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
           {/* Context toggles */}
           <div style={{ background: bg1, borderBottom: `1px solid ${etch}`, padding: '8px 14px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
             <button style={toggleStyle(includeBrandProfile, '#8b5cf6')} onClick={() => setIncludeBrandProfile(p => !p)}>{includeBrandProfile ? '✓ ' : ''}Brand Profile</button>
@@ -491,13 +543,88 @@ export default function ProductAICreativePanel({ productId, productName, busines
           </div>
         </div>
 
-        {/* ── RIGHT: Generate & preview ── */}
-        <div style={{ width: 300, background: bg1, borderLeft: `1px solid ${etch}`, display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'auto' }}>
+        {/* ── RIGHT: Fresh Creatives (wider, expandable) ── */}
+        <div style={{ flex: freshCreativesExpanded ? '1 1 auto' : '0 0 380px', background: bg1, borderLeft: `1px solid ${etch}`, display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'auto', transition: 'flex .2s' }}>
           <div style={{ padding: 14 }}>
-            <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .6, margin: '0 0 12px' }}>
-              {tab === 'image' ? '🖼 Image Generation' : '🎬 Video Generation'}
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .6, margin: 0 }}>✨ Fresh Creatives</p>
+              <button onClick={() => setFreshCreativesExpanded(p => !p)}
+                style={{ background: 'none', border: `1px solid ${etch}`, borderRadius: 5, cursor: 'pointer', fontSize: 11, color: textDim, padding: '2px 8px' }}>
+                {freshCreativesExpanded ? '⊙ Shrink' : '⊞ Expand'}
+              </button>
+            </div>
 
+            {/* ── Text Content tab ── */}
+            {tab === 'text' && (
+              <div>
+                <p style={{ fontSize: 11, color: textDim, marginBottom: 10, lineHeight: 1.6 }}>
+                  Select <strong>product photos</strong> from the left as references. The AI analyses them with your brand context to generate a title, description and tags.
+                </p>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: textDim, cursor: 'pointer', marginBottom: 12 }}>
+                  <input type="checkbox" checked={includeExistingText} onChange={e => setIncludeExistingText(e.target.checked)} />
+                  Pass existing title / description / tags as context
+                </label>
+                <button onClick={() => generate()}
+                  disabled={generating || selectedRefs.filter(r => r.label.startsWith('Product')).length === 0}
+                  style={{ width: '100%', padding: '10px', borderRadius: 9, border: 'none', cursor: 'pointer', background: '#f59e0b', color: '#fff', fontWeight: 700, fontSize: 14,
+                    opacity: generating || selectedRefs.filter(r => r.label.startsWith('Product')).length === 0 ? .4 : 1, marginBottom: 8 }}>
+                  {generating ? 'Generating text\u2026' : '\ud83d\udcdd Generate Title, Description & Tags'}
+                </button>
+                {selectedRefs.filter(r => r.label.startsWith('Product')).length === 0 && (
+                  <p style={{ fontSize: 11, color: textDim }}>\u2190 Select at least one product photo first.</p>
+                )}
+                {genError && <p style={{ fontSize: 11, color: red, background: '#ef444415', padding: '6px 8px', borderRadius: 6 }}>\u26a0\ufe0f {genError}</p>}
+                {generatedText && (
+                  <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {generatedText.title && (
+                      <div style={{ background: bg2, borderRadius: 8, padding: '10px 12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: .5 }}>Title</span>
+                          <button onClick={() => saveTextField('title')} disabled={savingText} style={{ ...panelBtn(true), fontSize: 10, padding: '2px 8px', background: savedTextFields.has('title') ? '#22c55e' : action }}>{savedTextFields.has('title') ? '\u2713 Saved' : '+ Apply'}</button>
+                        </div>
+                        <p style={{ fontSize: 13, color: textMain, margin: 0, fontWeight: 600 }}>{generatedText.title}</p>
+                      </div>
+                    )}
+                    {generatedText.tags && (
+                      <div style={{ background: bg2, borderRadius: 8, padding: '10px 12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: '#8b5cf6', textTransform: 'uppercase', letterSpacing: .5 }}>Tags</span>
+                          <button onClick={() => saveTextField('tags')} disabled={savingText} style={{ ...panelBtn(true), fontSize: 10, padding: '2px 8px', background: savedTextFields.has('tags') ? '#22c55e' : action }}>{savedTextFields.has('tags') ? '\u2713 Saved' : '+ Apply'}</button>
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                          {(generatedText.tags ?? []).map((t, i) => <span key={i} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: 'rgba(139,92,246,.2)', color: '#c4b5fd' }}>{t}</span>)}
+                        </div>
+                      </div>
+                    )}
+                    {generatedText.description && (
+                      <div style={{ background: bg2, borderRadius: 8, padding: '10px 12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: '#0ea5e9', textTransform: 'uppercase', letterSpacing: .5 }}>Description</span>
+                          <button onClick={() => saveTextField('description')} disabled={savingText} style={{ ...panelBtn(true), fontSize: 10, padding: '2px 8px', background: savedTextFields.has('description') ? '#22c55e' : action }}>{savedTextFields.has('description') ? '\u2713 Saved' : '+ Apply'}</button>
+                        </div>
+                        <div style={{ fontSize: 12, color: textMain, maxHeight: 200, overflow: 'auto', lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: generatedText.description }} />
+                      </div>
+                    )}
+                    {generatedText.imagePrompt && (
+                      <div style={{ background: bg2, borderRadius: 8, padding: '10px 12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5 }}>Suggested Image Prompt</span>
+                          <button onClick={() => { setTab('image'); setGenError(''); }} style={{ ...panelBtn(false), fontSize: 10, padding: '2px 8px' }}>\u2192 Generate Image</button>
+                        </div>
+                        <p style={{ fontSize: 11, color: textDim, margin: 0, fontFamily: 'monospace', lineHeight: 1.5 }}>{generatedText.imagePrompt}</p>
+                      </div>
+                    )}
+                    <button onClick={() => saveTextField('all')} disabled={savingText} style={{ ...panelBtn(true), width: '100%', padding: '8px', background: '#22c55e', fontSize: 13 }}>
+                      {savedTextFields.has('all') ? '\u2713 All Saved to Product' : '\u2705 Apply All to Product'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Image / Video generation ── */}
+            {tab !== 'text' && (
+            <div>
             {/* Model selector */}
             <div style={{ marginBottom: 10 }}>
               <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 5px' }}>
@@ -577,6 +704,8 @@ export default function ProductAICreativePanel({ productId, productName, busines
                 )}
                 {savedUrl && <p style={{ fontSize: 11, color: '#22c55e', marginTop: 8, textAlign: 'center' }}>✓ Added to product</p>}
               </div>
+            )}
+            </div> {/* end tab !== 'text' wrapper */}
             )}
           </div>
         </div>

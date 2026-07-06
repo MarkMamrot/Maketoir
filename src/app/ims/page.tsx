@@ -1959,6 +1959,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const [stockAvail, setStockAvail] = useState<Record<string, number>>({});
   const [stockSohLoading, setStockSohLoading] = useState(false);
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
+  const [descHtmlMode, setDescHtmlMode] = useState<'source' | 'preview'>('source');
   const [form, setForm] = useState<any>({ ...BLANK_PRODUCT });
   const [productPrices, setProductPrices] = useState({ price_rrp: '', price_wholesale: '', price_rrp_sale: '', discount_start_date: '', discount_end_date: '' });
   const [optionSets, setOptionSets] = useState<OptionSet[]>([{ name: 'Size', values: '' }, { name: 'Colour', values: '' }]);
@@ -2611,9 +2612,26 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                 ))}
               </select>
             </Field>
-            <Field label="Description">
-              <textarea value={form.description} onChange={sf('description') as any} rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
-            </Field>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)' }}>Description</label>
+                <div style={{ display: 'flex', gap: 2 }}>
+                  {(['source', 'preview'] as const).map(m => (
+                    <button key={m} type="button" onClick={() => setDescHtmlMode(m)}
+                      style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--sv-etch)', background: descHtmlMode === m ? 'var(--sv-action)' : 'transparent', color: descHtmlMode === m ? '#fff' : 'var(--sv-text-dim)', cursor: 'pointer', textTransform: 'capitalize' }}>
+                      {m === 'source' ? 'HTML' : 'Preview'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {descHtmlMode === 'source' ? (
+                <textarea value={form.description ?? ''} onChange={sf('description') as any} rows={5}
+                  style={{ ...inputStyle, resize: 'vertical', fontFamily: 'monospace', fontSize: 12, width: '100%', boxSizing: 'border-box' }} />
+              ) : (
+                <div style={{ ...inputStyle, minHeight: 100, overflow: 'auto', lineHeight: 1.6, fontSize: 13 }}
+                  dangerouslySetInnerHTML={{ __html: form.description || '<em style="opacity:.5">No description</em>' }} />
+              )}
+            </div>
           </div>
 
           {/* ── Photos ── */}

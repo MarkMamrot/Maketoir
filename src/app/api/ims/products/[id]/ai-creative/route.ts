@@ -74,6 +74,26 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ error: e.message ?? 'Failed to fetch image' }, { status: 500 });
     }
   }
+
+  // ── SAVE-TEXT: apply generated title/description/tags to product ───────────
+  if (mode === 'save-text') {
+    const { title, description, tags } = body;
+    try {
+      const updates: string[] = [];
+      const vals: any[] = [];
+      if (title       !== undefined) { updates.push('name = ?');        vals.push(title); }
+      if (description !== undefined) { updates.push('description = ?'); vals.push(description); }
+      if (tags        !== undefined) { updates.push('tags = ?');        vals.push(Array.isArray(tags) ? tags.join(', ') : tags); }
+      if (!updates.length) return NextResponse.json({ error: 'Nothing to save' }, { status: 400 });
+      vals.push(params.id);
+      const { imsExecute } = await import('@/services/IMSMySQLService');
+      await imsExecute(`UPDATE ims_products SET ${updates.join(', ')}, updated_at = NOW() WHERE product_id = ?`, vals);
+      return NextResponse.json({ success: true });
+    } catch (e: any) {
+      return NextResponse.json({ error: e?.message ?? 'Save failed' }, { status: 500 });
+    }
+  }
+
   const productId  = params.id;
   const ai = new GoogleGenAI({ apiKey });
 
@@ -249,6 +269,81 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ success: true, url: publicUrl, source: 'volume' });
     } catch (e: any) {
       return NextResponse.json({ error: e?.message ?? 'Save failed' }, { status: 500 });
+    }
+  }
+
+  // ── TEXT: generate title + description + tags + image prompt ────────────────
+  if (mode === 'text') {
+    const {
+      existingTitle = '', existingDescription = '', existingTags = '',
+      includeExistingText = false,
+    } = body;
+    let textModelId = 'gemini-2.5-flash';
+    try {
+      const conn = await ConnectionsRepository.get(businessId) as any;
+      if (conn?.gemini_model) textModelId = conn.gemini_model;
+    } catch {}
+
+    const sections: string[] = [];
+
+    // Brand context
+    try {
+      const info = await BusinessInfoRepository.get(businessId);
+      if (info?.brand_name) sections.push(`Brand: ${info.brand_name}${info.brand_url ? ` (${info.brand_url})` : ''}`);
+    } catch {}
+    try {
+      const bp = await BrandProfileRepository.get(businessId);
+      if (bp) {
+        const lines = [
+          bp.tone           && `Writing Tone: ${bp.tone}`,
+          bp.demographics   && `Target Audience: ${bp.demographics}`,
+          bp.uvp            && `Brand UVP: ${bp.uvp}`,
+          bp.brand_colours  && `Brand Colours: ${bp.brand_colours}`,
+          bp.detailed_brand_aesthetic && `Visual Aesthetic: ${bp.detailed_brand_aesthetic}`,
+          bp.praises        && `What customers love: ${bp.praises}`,
+        ].filter(Boolean) as string[];
+        if (lines.length) sections.push(lines.join('\n'));
+      }
+    } catch {}
+
+    // Existing product text (if requested)
+    if (includeExistingText && (existingTitle || existingDescription || existingTags)) {
+      const existing = [
+        existingTitle       && `Existing Title: ${existingTitle}`,
+        existingTags        && `Existing Tags: ${existingTags}`,
+        existingDescription && `Existing Description (HTML):\n${existingDescription}`,
+      ].filter(Boolean).join('\n');
+      if (existing) sections.push(`=== EXISTING PRODUCT CONTENT ===\n${existing}`);
+    }
+
+    const contextBlock = sections.join('\n\n');
+    const textSystemPrompt = `You are an expert e-commerce product content writer for a retail brand. 
+Analyse the provided product reference images and brand context to write compelling, SEO-optimised product content.
+Use the brand's tone, visual aesthetic, and target audience to guide the writing.
+Respond ONLY with valid JSON — no markdown, no preamble.
+The JSON must have exactly these keys:
+- "title": concise, keyword-rich product title (max 70 chars)
+- "description": full HTML product description using <h3>, <p>, <ul>, <li> tags; 150-300 words; highlight key features, benefits, materials
+- "tags": array of 10-15 SEO keyword strings
+- "imagePrompt": a ready-to-use image generation prompt (for the brand's image model) that would produce an ideal hero shot for this product`;
+
+    const parts: any[] = [];
+    for (const img of referenceImages) {
+      parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
+    }
+    parts.push({ text: contextBlock ? `${contextBlock}\n\nGenerate compelling product content for the product shown in the reference image(s).` : 'Generate compelling product content for the product shown in the reference image(s).' });
+
+    try {
+      const result = await (ai as any).models.generateContent({
+        model: textModelId,
+        systemInstruction: textSystemPrompt,
+        contents: [{ role: 'user', parts }],
+      });
+      const raw = (result.text ?? '').trim().replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+      const parsed = JSON.parse(raw);
+      return NextResponse.json({ success: true, title: parsed.title, description: parsed.description, tags: parsed.tags, imagePrompt: parsed.imagePrompt });
+    } catch (e: any) {
+      return NextResponse.json({ error: e?.message?.slice(0, 300) ?? 'Text generation failed' }, { status: 500 });
     }
   }
 
