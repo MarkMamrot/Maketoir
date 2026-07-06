@@ -2379,6 +2379,9 @@ function PosAvatarBar({
   const [dmUnread,   setDmUnread]   = useState<Record<number, number>>({});
   const dmLastReadRef = useRef<Record<number, number>>({});
   const dmListRef     = useRef<HTMLDivElement>(null);
+  // Tracks every message id already processed by the SSE stream, so replays on
+  // reconnect (the stream closes ~every 25s) never double-count DM unread badges.
+  const seenMsgIdsRef = useRef<Set<number>>(new Set());
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
   function showBubble(type: 'thought' | 'speech', text: string) {
@@ -2527,9 +2530,15 @@ function PosAvatarBar({
           const data = JSON.parse(e.data);
           if (!data.messages?.length) return;
 
+          // Global dedup across reconnects/replays — the stream re-sends messages
+          // with id > since on every reconnect; only process each id once.
+          const fresh: ChatMessage[] = data.messages.filter((m: ChatMessage) => !seenMsgIdsRef.current.has(m.id));
+          if (!fresh.length) return;
+          for (const m of fresh) seenMsgIdsRef.current.add(m.id);
+
           // Split group vs DM messages
-          const groupMsgs: ChatMessage[] = data.messages.filter((m: ChatMessage) => !m.to_location_id);
-          const dmMsgsArr: ChatMessage[] = data.messages.filter((m: ChatMessage) => !!m.to_location_id);
+          const groupMsgs: ChatMessage[] = fresh.filter((m: ChatMessage) => !m.to_location_id);
+          const dmMsgsArr: ChatMessage[] = fresh.filter((m: ChatMessage) => !!m.to_location_id);
 
           // Route group messages
           if (groupMsgs.length > 0) {
@@ -3553,10 +3562,12 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
     setPayments(newPayments);
     setAmount('');
     setReference('');
-    if (newPaid >= absTotal - 0.001) {
+    // For cash, the rounding adjustment (negative when rounded down) closes the sub-5c gap,
+    // so the sale is satisfied once paid + |adjustment| covers the true total.
+    const roundingAdj = isCashMethod ? cashRoundAdj : 0;
+    if (newPaid - roundingAdj >= absTotal - 0.001) {
       const changeAmt = Math.round((tendered - contribution) * 100) / 100;
-      const rounding = isCashMethod ? cashRoundAdj : 0;
-      onComplete(isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments, changeAmt > 0.004 ? changeAmt : 0, rounding !== 0 ? rounding : undefined);
+      onComplete(isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments, changeAmt > 0.004 ? changeAmt : 0, roundingAdj !== 0 ? roundingAdj : undefined);
     }
   }
 
@@ -5439,7 +5450,7 @@ function PosBranchTransferScreen({ session, onBack }: { session: PosSession; onB
   const [searching, setSearching]     = useState(false);
   const [saving, setSaving]           = useState(false);
   const [result, setResult]           = useState<{ success: boolean; message: string } | null>(null);
-  const searchRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     fetch('/api/ims/locations').then(r => r.json()).then(d => {

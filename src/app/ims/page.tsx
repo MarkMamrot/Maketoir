@@ -2509,7 +2509,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false }: { o
                             <span style={{ color: 'var(--sv-text-dim)' }}>{fmtCurrency(v.price_rrp)} sell</span>
                           )}
                         </td>
-                        <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 500 }}>
+                        <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
                           {stockSoh === null
                             ? (stockSohLoading ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>loading…</span> : '—')
                             : (
