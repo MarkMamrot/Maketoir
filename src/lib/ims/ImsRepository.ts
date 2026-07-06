@@ -2716,7 +2716,7 @@ export const ImsImagesRepo = {
       `SELECT COUNT(*) AS cnt FROM ims_product_images WHERE product_id = ?`,
       [productId],
     );
-    if ((rows[0]?.cnt ?? 0) >= 5) throw new Error('Maximum of 5 images per product.');
+    if ((rows[0]?.cnt ?? 0) >= 8) throw new Error('Maximum of 8 media items per product.');
 
     // If this is marked primary, demote any existing primary
     if (opts?.isPrimary) {
