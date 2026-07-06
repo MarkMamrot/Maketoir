@@ -355,16 +355,54 @@ export default function ProductAICreativePanel({ productId, productName, busines
             {selectedRefs.length > 0 && <span style={{ fontSize: 11, color: '#22c55e' }}>📎 {selectedRefs.length} reference{selectedRefs.length !== 1 ? 's' : ''} attached</span>}
           </div>
 
+          {/* Quick Improve bar */}
+          {selectedRefs.length > 0 && chatMsgs.length === 0 && (
+            <div style={{ background: `rgba(139,92,246,.1)`, borderBottom: `1px solid rgba(139,92,246,.25)`, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+              <span style={{ fontSize: 12, color: '#a78bfa', flex: 1 }}>References selected — use Quick Improve or write your own prompt below</span>
+              <button
+                onClick={() => {
+                  const productRefs = selectedRefs.filter(r => r.label.startsWith('Product'));
+                  const templateRefs = selectedRefs.filter(r => !r.label.startsWith('Product'));
+                  const hasProduct = productRefs.length > 0;
+                  const templates = templateRefs.map(r => r.label).join(', ');
+                  const autoPrompt = hasProduct
+                    ? `Using the provided reference images, create a high-quality composite product photo. ` +
+                      (templateRefs.length > 0
+                        ? `Place the product from the product reference image onto/with the template scene (${templates}). ` +
+                          `If the template shows a model, have them wearing or naturally holding the product at correct scale. ` +
+                          `If it is a backdrop or scene, place the product within it in a visually appealing, natural position. `
+                        : `Enhance the product photo with professional lighting, clean background, and editorial-quality composition. `) +
+                      `Maintain photographic realism: correct lighting direction, natural shadows, accurate product colours and textures. ` +
+                      `Do not invent or alter the product — it is shown in the reference image. Keep the brand aesthetic clean and premium.`
+                    : `Using the provided template reference image${templates ? ` (${templates})` : ''}, create an on-brand product lifestyle image. ` +
+                      `Describe a visually compelling scene that would work well as product photography for this brand.`;
+                  setChatInput(autoPrompt);
+                }}
+                style={{ ...panelBtn(true), fontSize: 12, padding: '5px 12px', background: '#8b5cf6', whiteSpace: 'nowrap' }}
+              >
+                ⚡ Quick Improve
+              </button>
+            </div>
+          )}
+
           {/* Messages */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
             {chatMsgs.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '40px 20px', color: textDim }}>
+              <div style={{ textAlign: 'center', padding: selectedRefs.length > 0 ? '24px 20px' : '40px 20px', color: textDim }}>
                 <p style={{ fontSize: 22, margin: '0 0 12px' }}>✨</p>
-                <p style={{ fontSize: 14, margin: '0 0 8px', color: textMain }}>AI Creative Studio</p>
-                <p style={{ fontSize: 13, margin: 0, lineHeight: 1.7 }}>
-                  Select model/backdrop templates from the left, then describe the creative you need.<br />
-                  The AI will write an on-brand image or video generation prompt.
-                </p>
+                <p style={{ fontSize: 14, margin: '0 0 8px', color: textMain }}>AI Product Creative Studio</p>
+                {selectedRefs.length === 0 ? (
+                  <p style={{ fontSize: 13, margin: 0, lineHeight: 1.7 }}>
+                    <strong style={{ color: textMain }}>Step 1:</strong> Select your product photo from the left panel (add it as a reference).<br />
+                    <strong style={{ color: textMain }}>Step 2:</strong> Add a model or backdrop template.<br />
+                    <strong style={{ color: textMain }}>Step 3:</strong> Hit <strong style={{ color: '#8b5cf6' }}>⚡ Quick Improve</strong> or write your own prompt.
+                  </p>
+                ) : (
+                  <p style={{ fontSize: 13, margin: 0, lineHeight: 1.7, color: textDim }}>
+                    References ready. Use <strong style={{ color: '#8b5cf6' }}>⚡ Quick Improve</strong> above for an auto-generated compositing prompt,<br />
+                    or write your own below to customise.
+                  </p>
+                )}
               </div>
             )}
             {chatMsgs.map((m, i) => (
@@ -393,7 +431,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
               <textarea value={chatInput} onChange={e => setChatInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
-                placeholder="Describe the creative you need — e.g. 'Show the jacket on a model outdoors, natural light, lifestyle mood'"
+                placeholder="Describe how to combine the references — e.g. 'Show the jacket worn by the model, outdoors, adjust lighting to match the golden-hour backdrop'"
                 rows={2}
                 style={{ flex: 1, fontSize: 13, padding: '8px 12px', borderRadius: 9, border: `1px solid ${etch}`, background: bg2, color: textMain, resize: 'none', outline: 'none', lineHeight: 1.5 }}
               />
