@@ -128,6 +128,11 @@ export default function ProductAICreativePanel({ productId, productName, busines
   const [includeWebTemplates, setIncludeWebTemplates] = useState(true);
   const [additionalInstructions, setAdditionalInstructions] = useState('');
   const [showMakePrompt, setShowMakePrompt] = useState(false);
+  const [similarQuery, setSimilarQuery]     = useState('');
+  const [similarResults, setSimilarResults] = useState<{ product_id: string; name: string }[]>([]);
+  const [selectedSimilar, setSelectedSimilar] = useState<{ product_id: string; name: string }[]>([]);
+  const [similarBrand, setSimilarBrand]     = useState('');
+  const [similarOpen, setSimilarOpen]       = useState(false);
   const [loadingRefs, setLoadingRefs]   = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -242,6 +247,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
             includeExistingText,
             includeWebTemplates,
             additionalInstructions,
+            similarProductIds: selectedSimilar.map(s => s.product_id),
             existingTitle: productTitle,
             existingDescription: productDescription,
             existingTags: productTags,
@@ -268,11 +274,8 @@ export default function ProductAICreativePanel({ productId, productName, busines
     // Image / video generation. Prompt priority:
     //  1. a manually-refined prompt (from "Make detailed prompt")
     //  2. otherwise an auto compositing prompt built from the selected references
-    // Additional instructions are always appended.
-    let basePrompt = promptToUse || buildAutoPrompt();
-    if (additionalInstructions.trim()) {
-      basePrompt += `\n\nAdditional instructions (must be factored in): ${additionalInstructions.trim()}`;
-    }
+    // Brand context, additional instructions and similar products are added server-side.
+    const basePrompt = promptToUse || buildAutoPrompt();
     if (!basePrompt.trim()) { setGenError('Select references (or write a prompt) first.'); return; }
     setGenerating(true); setGenError(''); setGeneratedImage(null); setGeneratedVideo(null); setSavedUrl(null);
 
@@ -283,6 +286,9 @@ export default function ProductAICreativePanel({ productId, productName, busines
           mode: tab,
           prompt: basePrompt,
           imageModel, videoModel, aspectRatio,
+          additionalInstructions,
+          similarProductIds: selectedSimilar.map(s => s.product_id),
+          includeBrandProfile, includeBusinessInfo,
           referenceImages: selectedRefs.map(r => ({ data: r.data, mimeType: r.mimeType, label: r.label })),
         }),
       });
@@ -294,25 +300,56 @@ export default function ProductAICreativePanel({ productId, productName, busines
     setGenerating(false);
   };
 
+  // ── Similar products search (same brand, type-to-filter) ───────────────────
+  const searchSimilar = useCallback(async (q: string) => {
+    try {
+      const res = await fetch(`/api/ims/products/${productId}/ai-creative`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'search-products', query: q }),
+      });
+      const d = await parseJsonResponse(res);
+      if (d.success) { setSimilarResults(d.products ?? []); setSimilarBrand(d.brand ?? ''); }
+    } catch {}
+  }, [productId]);
+
+  useEffect(() => {
+    if (!similarOpen) return;
+    const t = setTimeout(() => searchSimilar(similarQuery), 250);
+    return () => clearTimeout(t);
+  }, [similarQuery, similarOpen, searchSimilar]);
+
+  // Clear a stale prompt preview when switching creative type
+  useEffect(() => { setPromptPreview(null); setShowPromptPreview(false); }, [tab]);
+
+  const toggleSimilar = (p: { product_id: string; name: string }) => {
+    setSelectedSimilar(prev => prev.some(x => x.product_id === p.product_id)
+      ? prev.filter(x => x.product_id !== p.product_id)
+      : [...prev, p]);
+  };
+
   // ── Fetch the assembled prompt (preview without generating) ─────────────────
   const fetchPromptPreview = async () => {
     setLoadingPreview(true);
     try {
+      const similarProductIds = selectedSimilar.map(s => s.product_id);
+      const body: any = tab === 'text'
+        ? {
+            mode: 'text', previewOnly: true, textModel,
+            referenceImages: selectedRefs.map(r => ({ mimeType: r.mimeType, label: r.label })),
+            includeExistingText, includeWebTemplates, additionalInstructions,
+            existingTitle: productTitle, existingDescription: productDescription, existingTags: productTags,
+            includeBrandProfile, includeBusinessInfo, similarProductIds,
+          }
+        : {
+            mode: tab, previewOnly: true,
+            prompt: ([...chatMsgs].reverse().find(m => m.role === 'assistant')?.text) || buildAutoPrompt(),
+            imageModel, videoModel, aspectRatio,
+            referenceImages: selectedRefs.map(r => ({ mimeType: r.mimeType, label: r.label })),
+            includeBrandProfile, includeBusinessInfo, additionalInstructions, similarProductIds,
+          };
       const res = await fetch(`/api/ims/products/${productId}/ai-creative`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mode: 'text',
-          previewOnly: true,
-          textModel,
-          referenceImages: selectedRefs.map(r => ({ mimeType: r.mimeType, label: r.label })),
-          includeExistingText,
-          includeWebTemplates,
-          additionalInstructions,
-          existingTitle: productTitle,
-          existingDescription: productDescription,
-          existingTags: productTags,
-          includeBrandProfile, includeBusinessInfo,
-        }),
+        body: JSON.stringify(body),
       });
       const d = await parseJsonResponse(res);
       if (d.success && d.preview) setPromptPreview(d.preview);
@@ -325,9 +362,15 @@ export default function ProductAICreativePanel({ productId, productName, busines
     if (!generatedText) return;
     setSavingText(true);
     const payload: any = {};
-    if (field === 'title' || field === 'all')       payload.title       = generatedText.title;
-    if (field === 'description' || field === 'all') payload.description = generatedText.description;
-    if (field === 'tags' || field === 'all')        payload.tags        = generatedText.tags;
+    // Only include NON-EMPTY fields so we never overwrite/delete existing content with blanks.
+    if ((field === 'title' || field === 'all')       && generatedText.title?.trim())        payload.title       = generatedText.title;
+    if ((field === 'description' || field === 'all') && generatedText.description?.trim())  payload.description = generatedText.description;
+    if ((field === 'tags' || field === 'all')        && Array.isArray(generatedText.tags) && generatedText.tags.length) payload.tags = generatedText.tags;
+    if (Object.keys(payload).length === 0) {
+      setGenError('Nothing to apply — the AI did not return content for that field.');
+      setSavingText(false);
+      return;
+    }
     // Update the product edit form so the user sees the change and a later form
     // save won't overwrite it with stale values.
     if (onApplyText) {
@@ -579,6 +622,78 @@ export default function ProductAICreativePanel({ productId, productName, busines
                 style={{ width: '100%', fontSize: 12, padding: '8px 10px', borderRadius: 8, border: `1px solid ${etch}`, background: bg2, color: textMain, resize: 'vertical', outline: 'none', lineHeight: 1.5, boxSizing: 'border-box' as const }} />
             </div>
 
+            {/* Similar products (same brand) — searchable multi-select */}
+            <div style={{ marginBottom: 12 }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 5px' }}>
+                Similar Products {similarBrand ? `· ${similarBrand}` : ''} {selectedSimilar.length > 0 ? `(${selectedSimilar.length} selected)` : ''}
+              </p>
+              {selectedSimilar.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 6 }}>
+                  {selectedSimilar.map(s => (
+                    <span key={s.product_id} onClick={() => toggleSimilar(s)}
+                      style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: 'rgba(14,165,233,.2)', color: '#7dd3fc', cursor: 'pointer' }} title="Remove">
+                      {s.name} ×
+                    </span>
+                  ))}
+                </div>
+              )}
+              <input value={similarQuery}
+                onFocus={() => { setSimilarOpen(true); if (similarResults.length === 0) searchSimilar(''); }}
+                onChange={e => { setSimilarQuery(e.target.value); setSimilarOpen(true); }}
+                placeholder="Search same-brand products to match style…"
+                style={{ width: '100%', fontSize: 12, padding: '7px 10px', borderRadius: 8, border: `1px solid ${etch}`, background: bg2, color: textMain, outline: 'none', boxSizing: 'border-box' as const }} />
+              {similarOpen && similarResults.length > 0 && (
+                <div style={{ marginTop: 4, background: bg0, border: `1px solid ${etch}`, borderRadius: 8, maxHeight: 180, overflow: 'auto' }}>
+                  {similarResults.map(p => {
+                    const sel = selectedSimilar.some(x => x.product_id === p.product_id);
+                    return (
+                      <div key={p.product_id} onClick={() => toggleSimilar(p)}
+                        style={{ padding: '6px 10px', fontSize: 12, cursor: 'pointer', color: sel ? '#7dd3fc' : textMain, background: sel ? 'rgba(14,165,233,.12)' : 'transparent', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                        <span style={{ flexShrink: 0 }}>{sel ? '✓' : '+'}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {similarOpen && (
+                <button onClick={() => setSimilarOpen(false)} style={{ ...panelBtn(false), fontSize: 10, padding: '3px 8px', marginTop: 4 }}>Close list</button>
+              )}
+            </div>
+
+            {/* Prompt preview — all modes */}
+            <div style={{ marginBottom: 12 }}>
+              <button onClick={() => { const next = !showPromptPreview; setShowPromptPreview(next); if (next) fetchPromptPreview(); }}
+                style={{ width: '100%', textAlign: 'left', background: bg2, border: `1px solid ${etch}`, borderRadius: 7, padding: '7px 10px', cursor: 'pointer', color: textDim, fontSize: 11, fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>🔍 Preview full prompt {promptPreview?.templatesIncluded ? '· ✓ brand templates' : ''}</span>
+                <span>{showPromptPreview ? '▾' : '▸'}</span>
+              </button>
+              {showPromptPreview && (
+                <div style={{ marginTop: 8, background: bg0, border: `1px solid ${etch}`, borderRadius: 7, padding: '10px 12px', maxHeight: 320, overflow: 'auto' }}>
+                  {loadingPreview && <p style={{ fontSize: 11, color: textDim, margin: 0 }}>Loading…</p>}
+                  {promptPreview && (
+                    <>
+                      <p style={{ fontSize: 9, fontWeight: 700, color: '#0ea5e9', textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 4px' }}>Model</p>
+                      <p style={{ fontSize: 11, color: textMain, margin: '0 0 10px', fontFamily: 'monospace' }}>{promptPreview.model}</p>
+                      <p style={{ fontSize: 9, fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 4px' }}>Reference Images ({promptPreview.referenceImages?.length ?? 0})</p>
+                      <p style={{ fontSize: 11, color: textDim, margin: '0 0 10px' }}>{promptPreview.referenceImages?.length ? promptPreview.referenceImages.join(', ') : 'None selected'}</p>
+                      {promptPreview.userMessage && (
+                        <>
+                          <p style={{ fontSize: 9, fontWeight: 700, color: '#22c55e', textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 4px' }}>Generation Prompt</p>
+                          <pre style={{ fontSize: 10, color: textMain, margin: '0 0 10px', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'monospace', lineHeight: 1.5 }}>{promptPreview.userMessage}</pre>
+                        </>
+                      )}
+                      <p style={{ fontSize: 9, fontWeight: 700, color: '#8b5cf6', textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 4px' }}>Brand Context {tab === 'text' ? (promptPreview.templatesIncluded ? '(includes website templates ✓)' : '(no templates found)') : ''}</p>
+                      <pre style={{ fontSize: 10, color: textMain, margin: '0 0 10px', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'monospace', lineHeight: 1.5 }}>{promptPreview.contextBlock || '(empty)'}</pre>
+                      <p style={{ fontSize: 9, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 4px' }}>System Instruction</p>
+                      <pre style={{ fontSize: 10, color: textDim, margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'monospace', lineHeight: 1.5 }}>{promptPreview.systemPrompt}</pre>
+                    </>
+                  )}
+                  <button onClick={fetchPromptPreview} style={{ ...panelBtn(false), fontSize: 10, padding: '4px 10px', marginTop: 8 }}>↻ Refresh preview</button>
+                </div>
+              )}
+            </div>
+
             {/* Make detailed prompt — optional dropdown, image/video only */}
             {tab !== 'text' && (
               <div style={{ marginBottom: 12 }}>
@@ -647,32 +762,6 @@ export default function ProductAICreativePanel({ productId, productName, busines
                       <option key={m.id} value={m.id}>{m.displayName}</option>
                     ))}
                   </select>
-                </div>
-                {/* Prompt preview dropdown */}
-                <div style={{ marginBottom: 12 }}>
-                  <button onClick={() => { const next = !showPromptPreview; setShowPromptPreview(next); if (next && !promptPreview) fetchPromptPreview(); }}
-                    style={{ width: '100%', textAlign: 'left', background: bg2, border: `1px solid ${etch}`, borderRadius: 7, padding: '7px 10px', cursor: 'pointer', color: textDim, fontSize: 11, fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>🔍 Preview full prompt {promptPreview?.templatesIncluded ? '· ✓ brand templates' : ''}</span>
-                    <span>{showPromptPreview ? '▾' : '▸'}</span>
-                  </button>
-                  {showPromptPreview && (
-                    <div style={{ marginTop: 8, background: bg0, border: `1px solid ${etch}`, borderRadius: 7, padding: '10px 12px', maxHeight: 320, overflow: 'auto' }}>
-                      {loadingPreview && <p style={{ fontSize: 11, color: textDim, margin: 0 }}>Loading…</p>}
-                      {promptPreview && (
-                        <>
-                          <p style={{ fontSize: 9, fontWeight: 700, color: '#0ea5e9', textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 4px' }}>Model</p>
-                          <p style={{ fontSize: 11, color: textMain, margin: '0 0 10px', fontFamily: 'monospace' }}>{promptPreview.model}</p>
-                          <p style={{ fontSize: 9, fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 4px' }}>Reference Images ({promptPreview.referenceImages?.length ?? 0})</p>
-                          <p style={{ fontSize: 11, color: textDim, margin: '0 0 10px' }}>{promptPreview.referenceImages?.length ? promptPreview.referenceImages.join(', ') : 'None selected'}</p>
-                          <p style={{ fontSize: 9, fontWeight: 700, color: '#8b5cf6', textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 4px' }}>Brand Context {promptPreview.templatesIncluded ? '(includes website templates ✓)' : '(no templates found)'}</p>
-                          <pre style={{ fontSize: 10, color: textMain, margin: '0 0 10px', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'monospace', lineHeight: 1.5 }}>{promptPreview.contextBlock || '(empty)'}</pre>
-                          <p style={{ fontSize: 9, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 4px' }}>System Instruction</p>
-                          <pre style={{ fontSize: 10, color: textDim, margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'monospace', lineHeight: 1.5 }}>{promptPreview.systemPrompt}</pre>
-                        </>
-                      )}
-                      <button onClick={fetchPromptPreview} style={{ ...panelBtn(false), fontSize: 10, padding: '4px 10px', marginTop: 8 }}>↻ Refresh preview</button>
-                    </div>
-                  )}
                 </div>
                 {genError && <p style={{ fontSize: 11, color: red, background: '#ef444415', padding: '6px 8px', borderRadius: 6 }}>\u26a0\ufe0f {genError}</p>}
                 {generatedText && (

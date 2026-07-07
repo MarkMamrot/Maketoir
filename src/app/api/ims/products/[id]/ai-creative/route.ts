@@ -111,6 +111,63 @@ function buildTemplateHtmlRules(tmpl: any): string {
   return rules.length ? `\nHTML RULES (mandatory):\n${rules.join('\n')}` : '';
 }
 
+// ── Reusable brand / product context builders (shared across image, video, text) ──
+
+// Brand identity + brand profile as a formatted text block.
+async function fetchBrandBlock(businessId: string, includeBusinessInfo: boolean, includeBrandProfile: boolean): Promise<string> {
+  const sections: string[] = [];
+  if (includeBusinessInfo) {
+    try {
+      const info = await BusinessInfoRepository.get(businessId);
+      if (info?.brand_name) {
+        sections.push(`=== BRAND IDENTITY ===\nBrand: ${info.brand_name}${info.brand_url ? `\nWebsite: ${info.brand_url}` : ''}`);
+      }
+    } catch {}
+  }
+  if (includeBrandProfile) {
+    try {
+      const bp = await BrandProfileRepository.get(businessId);
+      if (bp) {
+        const lines = [
+          bp.tone           && `Tone: ${bp.tone}`,
+          bp.demographics   && `Target Audience: ${bp.demographics}`,
+          bp.uvp            && `Brand UVP: ${bp.uvp}`,
+          bp.brand_colours  && `Brand Colours: ${bp.brand_colours}`,
+          bp.detailed_brand_aesthetic && `Visual Aesthetic: ${bp.detailed_brand_aesthetic}`,
+          bp.praises        && `What customers love: ${bp.praises}`,
+        ].filter(Boolean) as string[];
+        if (lines.length) sections.push(`=== BRAND PROFILE ===\n${lines.join('\n')}`);
+      }
+    } catch {}
+  }
+  return sections.join('\n\n');
+}
+
+// Similar products on the site (same brand) — their text as a style reference.
+async function fetchSimilarProductsBlock(similarProductIds: string[]): Promise<string> {
+  if (!Array.isArray(similarProductIds) || similarProductIds.length === 0) return '';
+  try {
+    const ids = similarProductIds.slice(0, 6);
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = await imsQuery<any>(
+      `SELECT name, description, tags FROM ims_products WHERE product_id IN (${placeholders})`,
+      ids,
+    );
+    if (!rows.length) return '';
+    const blocks = rows.map((r: any, i: number) => {
+      const plainDesc = String(r.description ?? '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 600);
+      return `Sibling ${i + 1}: ${r.name}\nTags: ${r.tags ?? ''}\nDescription: ${plainDesc}`;
+    });
+    return `=== SIMILAR PRODUCTS ON SITE (same brand — match their voice, structure, formatting and style; DO NOT copy their specific facts, designs or dimensions) ===\n${blocks.join('\n\n')}`;
+  } catch { return ''; }
+}
+
+const IMAGE_SYSTEM_FRAMING = `You are a professional product photographer and retoucher creating a single on-brand product image.
+Follow the brand's visual identity, colour palette and aesthetic provided in the context.
+Reproduce the product from the PRODUCT reference exactly — never invent or alter the product's design, colours, graphics or shape.
+Take only the scene (person / backdrop) from any TEMPLATE reference — never keep the template's own products/garments.
+No watermarks, no invented text or logos, no distortion. Photographic realism, correct scale and natural lighting.`;
+
 const SYSTEM_PROMPT = `You are an expert AI image prompt engineer specialising in product photography compositing.
 
 Your task is to write precise prompts for an AI image generator (Nano Banana / Gemini image model) that will composite the actual provided reference images — you are NOT inventing anything. The images fall into two roles:
@@ -144,6 +201,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     includeBrandProfile = true,
     includeBusinessInfo = true,
     textModel = 'gemini-2.5-flash',
+    additionalInstructions = '',
+    similarProductIds = [],
+    previewOnly = false,
     history = [],
   } = body;
   const businessId = session.businessId as string;
@@ -166,13 +226,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   // ── SAVE-TEXT: apply generated title/description/tags to product ───────────
   if (mode === 'save-text') {
     const { title, description, tags } = body;
+    // Guard: never overwrite an existing field with a blank value.
+    const nonEmpty = (v: any) => Array.isArray(v) ? v.length > 0 : (typeof v === 'string' ? v.trim().length > 0 : v != null);
     try {
       const updates: string[] = [];
       const vals: any[] = [];
-      if (title       !== undefined) { updates.push('name = ?');        vals.push(title); }
-      if (description !== undefined) { updates.push('description = ?'); vals.push(description); }
-      if (tags        !== undefined) { updates.push('tags = ?');        vals.push(Array.isArray(tags) ? tags.join(', ') : tags); }
-      if (!updates.length) return NextResponse.json({ error: 'Nothing to save' }, { status: 400 });
+      if (nonEmpty(title))       { updates.push('name = ?');        vals.push(title); }
+      if (nonEmpty(description)) { updates.push('description = ?'); vals.push(description); }
+      if (nonEmpty(tags))        { updates.push('tags = ?');        vals.push(Array.isArray(tags) ? tags.join(', ') : tags); }
+      if (!updates.length) return NextResponse.json({ error: 'Nothing to save (all provided fields were empty).' }, { status: 400 });
       vals.push(params.id);
       const { imsExecute } = await import('@/services/IMSMySQLService');
       await imsExecute(`UPDATE ims_products SET ${updates.join(', ')}, updated_at = NOW() WHERE product_id = ?`, vals);
@@ -185,7 +247,30 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const productId  = params.id;
   const ai = new GoogleGenAI({ apiKey });
 
-  // ── CHAT ──────────────────────────────────────────────────────────────────
+  // ── SEARCH-PRODUCTS: type-to-filter list of same-brand products ────────────
+  if (mode === 'search-products') {
+    const q = String(body.query ?? '').trim();
+    try {
+      // Resolve this product's brand
+      const cur = await imsQuery<{ brand: string | null }>(
+        'SELECT brand FROM ims_products WHERE product_id = ? LIMIT 1', [productId],
+      );
+      const brand = cur[0]?.brand ?? '';
+      const params2: any[] = [businessId, productId];
+      let where = 'business_id = ? AND product_id <> ? AND is_active = 1';
+      if (brand) { where += ' AND brand = ?'; params2.push(brand); }
+      if (q) { where += ' AND (name LIKE ? OR tags LIKE ?)'; params2.push(`%${q}%`, `%${q}%`); }
+      const rows = await imsQuery<any>(
+        `SELECT product_id, name, brand FROM ims_products WHERE ${where} ORDER BY name LIMIT 30`,
+        params2,
+      );
+      return NextResponse.json({ success: true, brand, products: rows });
+    } catch (e: any) {
+      return NextResponse.json({ success: false, error: e?.message ?? 'Search failed' }, { status: 500 });
+    }
+  }
+
+
   if (mode === 'chat') {
     let modelId = 'gemini-2.5-flash';
     try {
@@ -252,8 +337,34 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (mode === 'image') {
     const codeMatch = prompt.match(/```(?:[^\n]*)?\n([\s\S]+?)```/);
     const cleanPrompt = codeMatch ? codeMatch[1].trim() : prompt.trim();
+
+    // Assemble on-brand context (system framing + brand profile + similar products + additional instructions)
+    const brandBlock   = await fetchBrandBlock(businessId, includeBusinessInfo, includeBrandProfile);
+    const siblingBlock = await fetchSimilarProductsBlock(similarProductIds);
+    const contextParts = [brandBlock, siblingBlock].filter(Boolean).join('\n\n');
+    const addl = typeof additionalInstructions === 'string' && additionalInstructions.trim()
+      ? `\n\n=== ADDITIONAL INSTRUCTIONS (must be factored in) ===\n${additionalInstructions.trim()}` : '';
+    const framing = `${IMAGE_SYSTEM_FRAMING}${contextParts ? `\n\n${contextParts}` : ''}${addl}`;
+
+    // Preview-only: return the assembled prompt without generating
+    if (previewOnly) {
+      return NextResponse.json({
+        success: true,
+        preview: {
+          model: imageModel,
+          systemPrompt: IMAGE_SYSTEM_FRAMING,
+          contextBlock: `${contextParts}${addl}`.trim(),
+          referenceImages: referenceImages.map((r: any) => r.label ?? 'image'),
+          userMessage: cleanPrompt,
+          templatesIncluded: false,
+        },
+      });
+    }
+
     try {
       const input: any[] = [];
+      // Lead with the brand framing + context so the model factors it in
+      input.push({ type: 'text', text: framing });
       for (const img of referenceImages) {
         // Label each reference so the model knows its role (product vs template)
         const isProduct = typeof img.label === 'string' && img.label.toLowerCase().startsWith('product');
@@ -267,7 +378,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
       const interaction = await (ai as any).interactions.create({
         model: imageModel,
-        input: input.length === 1 ? cleanPrompt : input,
+        input,
         response_format: { type: 'image', aspect_ratio: aspectRatio },
       });
       const imgOut = interaction?.output_image;
@@ -284,8 +395,31 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (mode === 'video') {
     const codeMatch = prompt.match(/```(?:[^\n]*)?\n([\s\S]+?)```/);
     const cleanPrompt = codeMatch ? codeMatch[1].trim() : prompt.trim();
+
+    const brandBlock   = await fetchBrandBlock(businessId, includeBusinessInfo, includeBrandProfile);
+    const siblingBlock = await fetchSimilarProductsBlock(similarProductIds);
+    const contextParts = [brandBlock, siblingBlock].filter(Boolean).join('\n\n');
+    const addl = typeof additionalInstructions === 'string' && additionalInstructions.trim()
+      ? `\n\n=== ADDITIONAL INSTRUCTIONS (must be factored in) ===\n${additionalInstructions.trim()}` : '';
+    const framing = `${IMAGE_SYSTEM_FRAMING}${contextParts ? `\n\n${contextParts}` : ''}${addl}`;
+
+    if (previewOnly) {
+      return NextResponse.json({
+        success: true,
+        preview: {
+          model: videoModel,
+          systemPrompt: IMAGE_SYSTEM_FRAMING,
+          contextBlock: `${contextParts}${addl}`.trim(),
+          referenceImages: referenceImages.map((r: any) => r.label ?? 'image'),
+          userMessage: cleanPrompt,
+          templatesIncluded: false,
+        },
+      });
+    }
+
     try {
       const parts: any[] = [];
+      parts.push({ text: framing });
       for (const img of referenceImages) {
         parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
       }
@@ -372,8 +506,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       existingTitle = '', existingDescription = '', existingTags = '',
       includeExistingText = false,
       includeWebTemplates = true,
-      additionalInstructions = '',
-      previewOnly = false,
     } = body;
     let textModelId = textModel || 'gemini-2.5-flash';
     try {
@@ -383,25 +515,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     const sections: string[] = [];
 
-    // Brand context
-    try {
-      const info = await BusinessInfoRepository.get(businessId);
-      if (info?.brand_name) sections.push(`Brand: ${info.brand_name}${info.brand_url ? ` (${info.brand_url})` : ''}`);
-    } catch {}
-    try {
-      const bp = await BrandProfileRepository.get(businessId);
-      if (bp) {
-        const lines = [
-          bp.tone           && `Writing Tone: ${bp.tone}`,
-          bp.demographics   && `Target Audience: ${bp.demographics}`,
-          bp.uvp            && `Brand UVP: ${bp.uvp}`,
-          bp.brand_colours  && `Brand Colours: ${bp.brand_colours}`,
-          bp.detailed_brand_aesthetic && `Visual Aesthetic: ${bp.detailed_brand_aesthetic}`,
-          bp.praises        && `What customers love: ${bp.praises}`,
-        ].filter(Boolean) as string[];
-        if (lines.length) sections.push(lines.join('\n'));
-      }
-    } catch {}
+    // Brand context (shared builder)
+    const brandBlock = await fetchBrandBlock(businessId, includeBusinessInfo, includeBrandProfile);
+    if (brandBlock) sections.push(brandBlock);
 
     // Foresight Web Field Templates (title / description / tags schemas from Google Sheets)
     let templatesFound = false;
@@ -434,6 +550,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       ].filter(Boolean).join('\n');
       if (existing) sections.push(`=== EXISTING PRODUCT CONTENT (use as a factual source — it often contains real product details like materials, dimensions, brand and features. Improve and rewrite it to fit the templates; preserve accurate facts, do not invent new specs) ===\n${existing}`);
     }
+
+    // Similar products on the site (same brand) — style reference
+    const siblingBlock = await fetchSimilarProductsBlock(similarProductIds);
+    if (siblingBlock) sections.push(siblingBlock);
 
     // Additional user instructions — must be factored in
     if (typeof additionalInstructions === 'string' && additionalInstructions.trim()) {
