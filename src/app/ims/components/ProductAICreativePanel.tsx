@@ -22,6 +22,7 @@ type ChatMsg = { role: 'user' | 'assistant'; text: string }
 
 const LS_IMAGE_MODEL = 'pos_ai_creative_img_model';
 const LS_VIDEO_MODEL    = 'pos_ai_creative_vid_model';
+const LS_TEXT_MODEL     = 'pos_ai_creative_txt_model';
 const LS_ASPECT_RATIO   = 'pos_ai_creative_aspect_ratio';
 
 const ASPECT_RATIOS = [
@@ -87,6 +88,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
   const [imageModels, setImageModels]   = useState<{ id: string; displayName: string }[]>([]);
   const [imageModel, setImageModel]     = useModelPicker(LS_IMAGE_MODEL, 'gemini-3.1-flash-image');
   const [videoModel, setVideoModel]     = useModelPicker(LS_VIDEO_MODEL, 'veo-3.1-generate-preview');
+  const [textModel,  setTextModel]      = useModelPicker(LS_TEXT_MODEL,  'gemini-2.5-flash');
   const [aspectRatio, setAspectRatio]   = useModelPicker(LS_ASPECT_RATIO, '1:1');
   const [videoModels]                   = useState([
     { id: 'veo-3.1-generate-preview',      displayName: 'Veo 3.1 (Preview)' },
@@ -199,6 +201,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
           body: JSON.stringify({
             mode: 'text',
             referenceImages: selectedRefs.map(r => ({ data: r.data, mimeType: r.mimeType, label: r.label })),
+            textModel,
             includeExistingText,
             existingTitle: (window as any).__aiProductTitle ?? '',
             existingDescription: (window as any).__aiProductDesc ?? '',
@@ -457,7 +460,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
         </div>
 
         {/* ── CENTRE: AI Chat (narrower) ── */}
-        <div style={{ flex: '1 1 auto', minWidth: 280, maxWidth: 520, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+        <div style={{ flex: '1 1 auto', minWidth: 280, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
           {/* Context toggles */}
           <div style={{ background: bg1, borderBottom: `1px solid ${etch}`, padding: '8px 14px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
             <button style={toggleStyle(includeBrandProfile, '#8b5cf6')} onClick={() => setIncludeBrandProfile(p => !p)}>{includeBrandProfile ? '✓ ' : ''}Brand Profile</button>
@@ -573,7 +576,18 @@ export default function ProductAICreativePanel({ productId, productName, busines
                 {!canGenerate && (
                   <p style={{ fontSize: 11, color: textDim, marginBottom: 8 }}>Select a product photo or enable Existing Title/Desc/Tags in the context bar above.</p>
                 )}
-                </>); })()}
+                </>) })()}
+                {/* Text model selector */}
+                <div style={{ marginBottom: 12 }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 5px' }}>Text Model</p>
+                  <select value={textModel} onChange={e => setTextModel(e.target.value)}
+                    style={{ width: '100%', padding: '6px 8px', borderRadius: 7, border: `1px solid ${etch}`, background: bg2, color: textMain, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
+                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                    <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                    <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                    <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                  </select>
+                </div>
                 {genError && <p style={{ fontSize: 11, color: red, background: '#ef444415', padding: '6px 8px', borderRadius: 6 }}>\u26a0\ufe0f {genError}</p>}
                 {generatedText && (
                   <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>

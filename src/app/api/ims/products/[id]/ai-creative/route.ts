@@ -56,6 +56,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     referenceImages = [],   // [{ data: base64, mimeType, label }]
     includeBrandProfile = true,
     includeBusinessInfo = true,
+    textModel = 'gemini-2.5-flash',
     history = [],
   } = body;
   const businessId = session.businessId as string;
@@ -278,10 +279,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       existingTitle = '', existingDescription = '', existingTags = '',
       includeExistingText = false,
     } = body;
-    let textModelId = 'gemini-2.5-flash';
+    let textModelId = textModel || 'gemini-2.5-flash';
     try {
       const conn = await ConnectionsRepository.get(businessId) as any;
-      if (conn?.gemini_model) textModelId = conn.gemini_model;
+      if (conn?.gemini_model) textModelId = textModel || conn.gemini_model;
     } catch {}
 
     const sections: string[] = [];
@@ -338,12 +339,12 @@ The JSON must have exactly these keys:
         model: textModelId,
         systemInstruction: textSystemPrompt,
         contents: [{ role: 'user', parts }],
+        generationConfig: { responseMimeType: 'application/json' },
       });
       const raw = (result.text ?? '').trim();
-      // 1. Try to extract from a fenced code block (```json ... ``` or ``` ... ```)
+      // Gemini may still wrap in code fences despite responseMimeType — handle both
       const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
       let jsonStr = fenceMatch ? fenceMatch[1].trim() : raw;
-      // 2. If still not a JSON object, grab from first { to last }
       if (!jsonStr.startsWith('{')) {
         const start = jsonStr.indexOf('{');
         const end   = jsonStr.lastIndexOf('}');
