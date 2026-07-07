@@ -1941,6 +1941,86 @@ function ImportProductsModal({
 }
 
 
+function OnlineStoreSection({ productId, isReadOnly = false }: { productId: string; isReadOnly?: boolean }) {
+  const [status, setStatus] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [pushing, setPushing] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(`/api/ims/products/${productId}/shopify-sync`);
+      const d = await r.json();
+      if (d.success) setStatus(d);
+    } catch {}
+    setLoading(false);
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [productId]);
+
+  const push = async () => {
+    if (!window.confirm("Push this product's Title, Description, Tags, Price and IMS images to the online shop?\n\nMake sure you have saved your changes (Save All) first — the push uses the last saved data.")) return;
+    setPushing(true); setMsg('');
+    try {
+      const r = await fetch(`/api/ims/products/${productId}/shopify-sync`, { method: 'POST' });
+      const d = await r.json();
+      if (d.success) { setMsg(d.created ? '✓ Created on the online shop' : `✓ Pushed — prices updated: ${d.pricesUpdated}, images added: ${d.imagesAdded}`); await load(); }
+      else setMsg(`⚠️ ${d.error || 'Push failed'}`);
+    } catch (e: any) { setMsg(`⚠️ ${e.message}`); }
+    setPushing(false);
+  };
+
+  const chip = (text: string, bg: string, color: string) => (
+    <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 9px', borderRadius: 99, background: bg, color }}>{text}</span>
+  );
+
+  return (
+    <>
+      {/* ── Section divider ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Online Store</span>
+        <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+      </div>
+
+      <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
+        {loading ? (
+          <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Checking online store status…</span>
+        ) : !status?.connected ? (
+          <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Shopify is not connected for this business.</span>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)' }}>Sync status:</span>
+              {status.linked
+                ? chip('🛍 Linked to Shopify', 'rgba(16,185,129,.15)', '#10b981')
+                : chip('Not on the online shop yet', 'rgba(248,113,113,.15)', '#f87171')}
+              {status.linked && (status.published
+                ? chip('Published', 'rgba(16,185,129,.15)', '#10b981')
+                : chip('Draft / Unpublished', 'rgba(251,191,36,.15)', '#fbbf24'))}
+              {status.linked && status.storefrontUrl && (
+                <a href={status.storefrontUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--sv-action)', fontWeight: 600 }}>View listing ↗</a>
+              )}
+              {status.linked && status.adminUrl && (
+                <a href={status.adminUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Open in Shopify admin ↗</a>
+              )}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <button type="button" onClick={push} disabled={pushing || isReadOnly}
+                style={{ padding: '7px 16px', borderRadius: 8, border: 'none', cursor: pushing || isReadOnly ? 'default' : 'pointer', background: 'var(--sv-action)', color: '#fff', fontWeight: 700, fontSize: 13, opacity: pushing || isReadOnly ? .5 : 1 }}>
+                {pushing ? 'Pushing…' : status.linked ? '⬆ Push to Online Shop' : '⬆ Create on Online Shop'}
+              </button>
+              <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Pushes title, description, tags, price and saved IMS images. Save your changes first.</span>
+              {msg && <span style={{ fontSize: 12, color: msg.startsWith('✓') ? '#10b981' : '#f87171', fontWeight: 600 }}>{msg}</span>}
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+
 function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, businessId = '' }: { onNavigateToPO?: (id: number) => void; onNavigateToSO?: (id: number) => void; isAdvisor?: boolean; businessId?: string } = {}) {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2773,6 +2853,11 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             </div>
           ) : (
             <p style={{ color: 'var(--sv-text-dim)', fontSize: 13, marginBottom: 16 }}>No variants yet — define options above and click ⚡ Generate Variants, or add a Blank Row.</p>
+          )}
+
+          {/* ── Online Store ── */}
+          {modal.edit?.product_id && (
+            <OnlineStoreSection productId={modal.edit.product_id} isReadOnly={isAdvisor} />
           )}
 
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>

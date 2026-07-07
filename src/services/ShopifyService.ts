@@ -131,6 +131,16 @@ export class ShopifyService {
     await this.shopify.product.update(Number(id), updates);
   }
 
+  /** Fetch a single product (with variants + images) by id. */
+  async getProduct(id: number | string): Promise<any> {
+    return (this.shopify as any).product.get(Number(id));
+  }
+
+  /** Create a product image from a source URL. */
+  async createProductImage(productId: number | string, image: { src: string; alt?: string; position?: number }): Promise<any> {
+    return (this.shopify as any).productImage.create(Number(productId), image);
+  }
+
   async updateVariant(id: number | string, updates: Record<string, any>): Promise<void> {
     await (this.shopify as any).productVariant.update(Number(id), updates);
   }

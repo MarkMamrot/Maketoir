@@ -87,9 +87,36 @@ function extractFirstJsonObject(input: string): string | null {
   return null;
 }
 
+// Ensure every prose paragraph is wrapped in <p>…</p> so spacing renders correctly.
+// Models often return bare text between <h3> headings; the website generator wraps
+// prose in <p>. This normalises the AI-creative output to match.
+function wrapBareParagraphs(html: string): string {
+  if (!html || typeof html !== 'string') return html;
+  const lines = html.split('\n');
+  const out: string[] = [];
+  let inList = false;
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue; // block tags provide the spacing; drop blank lines
+    const lower = line.toLowerCase();
+    if (lower.startsWith('<ul') || lower.startsWith('<ol')) inList = true;
+    // Any line that begins with a tag (heading, list, list-item, closing tag, already-<p>) is left as-is
+    if (line.startsWith('<')) {
+      out.push(line);
+      if (lower.startsWith('</ul') || lower.startsWith('</ol')) inList = false;
+      continue;
+    }
+    // Bare prose — wrap it (unless we're inside a list, where stray text is rare)
+    out.push(inList ? line : `<p>${line}</p>`);
+  }
+  return out.join('\n');
+}
+
 function buildTemplateHtmlRules(tmpl: any): string {
   if (!tmpl) return '';
   const rules: string[] = [];
+  // Always require prose paragraphs to be wrapped in <p> tags (matches the website generator's output/spacing)
+  rules.push(`- Wrap EVERY paragraph of prose in <p>…</p> tags. Never leave bare text between headings — each intro/body paragraph must be inside its own <p> element.`);
   const headingTag: string | undefined = tmpl?.headingTag;
   const headingColour: string | undefined = tmpl?.headingColour;
   const bulletChar: string | undefined = tmpl?.bulletChar;
@@ -625,7 +652,7 @@ Rules:
       const parsed = JSON.parse(jsonStr);
       // Normalise key names — models sometimes use alternatives
       const title       = parsed.title       ?? parsed.product_title   ?? parsed.name          ?? '';
-      const description = parsed.description ?? parsed.product_description ?? parsed.body_html ?? '';
+      const description = wrapBareParagraphs(parsed.description ?? parsed.product_description ?? parsed.body_html ?? '');
       const rawTags     = parsed.tags        ?? parsed.product_tags    ?? parsed.keywords      ?? [];
       // Tags must always be an array of strings — models sometimes return a comma-separated string.
       const tags = Array.isArray(rawTags)
