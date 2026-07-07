@@ -5023,6 +5023,8 @@ function ReceiveBtInline({ bt, onBack, onDone }: { bt: any; onBack: () => void; 
     finally { setSubmitting(false); }
   }
 
+  const handleSaveLater = () => _doSubmit('partial');
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', padding: '1.5rem', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)' }}>
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
