@@ -2862,7 +2862,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
 
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
             <button type="button" onClick={() => setModal({ open: false, edit: null })} style={btnStyle('ghost')}>Cancel</button>
-            <button type="button" onClick={handleSaveAll} disabled={saving} style={btnStyle('action')}>{saving ? 'Saving\u2026' : 'Save All'}</button>
+            {!isAdvisor && <button type="button" onClick={handleSaveAll} disabled={saving} style={btnStyle('action')}>{saving ? 'Saving\u2026' : 'Save All'}</button>}
           </div>
         </Modal>
       )}
@@ -11104,9 +11104,9 @@ export default function ImsPage() {
           {view === 'bulk-edit'        && <BulkEditView />}
           {view === 'contacts'         && <ContactsView />}
           {view === 'locations'        && <LocationsView />}
-          {view === 'purchase-orders'  && <PurchaseOrdersView pendingOpenId={pendingOpenPO} onPendingHandled={() => setPendingOpenPO(null)} />}
-          {view === 'sales-orders'     && <SalesOrdersView pendingOpenId={pendingOpenSO} onPendingHandled={() => setPendingOpenSO(null)} />}
-          {view === 'credit-notes'     && <CreditNotesView />}
+          {view === 'purchase-orders'  && <PurchaseOrdersView isAdvisor={isAdvisor} pendingOpenId={pendingOpenPO} onPendingHandled={() => setPendingOpenPO(null)} />}
+          {view === 'sales-orders'     && <SalesOrdersView isAdvisor={isAdvisor} pendingOpenId={pendingOpenSO} onPendingHandled={() => setPendingOpenSO(null)} />}
+          {view === 'credit-notes'     && <CreditNotesView isAdvisor={isAdvisor} />}
           {view === 'branch-transfers' && <BranchTransfersView />}
           {view === 'receive-transfers' && <ReceiveTransfersView />}
           {view === 'brands'           && <BrandsView />}
