@@ -54,6 +54,34 @@ async function getWebFieldTemplates(databaseId: string): Promise<{ description: 
   } catch { return empty; }
 }
 
+// Extract the first complete, balanced JSON object from a string that may contain
+// code fences, prose, or trailing content after the closing brace. Brace-depth
+// scan that respects string literals and escapes — robust against trailing text.
+function extractFirstJsonObject(input: string): string | null {
+  let s = (input ?? '').trim();
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) s = fence[1].trim();
+  const start = s.indexOf('{');
+  if (start === -1) return null;
+  let depth = 0, inStr = false, escaped = false;
+  for (let i = start; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) return s.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
 function buildTemplateHtmlRules(tmpl: any): string {
   if (!tmpl) return '';
   const rules: string[] = [];
@@ -454,13 +482,11 @@ Rules:
         config: { responseMimeType: 'application/json' },
       });
       const raw = (result.text ?? '').trim();
-      // Gemini may still wrap in code fences despite responseMimeType — handle both
-      const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
-      let jsonStr = fenceMatch ? fenceMatch[1].trim() : raw;
-      if (!jsonStr.startsWith('{')) {
-        const start = jsonStr.indexOf('{');
-        const end   = jsonStr.lastIndexOf('}');
-        if (start !== -1 && end > start) jsonStr = jsonStr.slice(start, end + 1);
+      // Extract the first complete JSON object — robust against code fences,
+      // preamble prose, and trailing content after the closing brace.
+      const jsonStr = extractFirstJsonObject(raw);
+      if (!jsonStr) {
+        return NextResponse.json({ error: `AI did not return JSON. Response started with: ${raw.slice(0, 80)}` }, { status: 500 });
       }
       const parsed = JSON.parse(jsonStr);
       // Normalise key names — models sometimes use alternatives
