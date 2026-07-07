@@ -332,14 +332,14 @@ The JSON must have exactly these keys:
     for (const img of referenceImages) {
       parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
     }
-    parts.push({ text: contextBlock ? `${contextBlock}\n\nGenerate compelling product content for the product shown in the reference image(s).` : 'Generate compelling product content for the product shown in the reference image(s).' });
+    parts.push({ text: (contextBlock ? `${contextBlock}\n\n` : '') + `Generate compelling product content for the product shown in the reference image(s).\n\nIMPORTANT: Your entire response must be a single raw JSON object. Start with { and end with }. No markdown, no explanation, no code fences.` });
 
     try {
       const result = await (ai as any).models.generateContent({
         model: textModelId,
         systemInstruction: textSystemPrompt,
         contents: [{ role: 'user', parts }],
-        generationConfig: { responseMimeType: 'application/json' },
+        config: { responseMimeType: 'application/json' },
       });
       const raw = (result.text ?? '').trim();
       // Gemini may still wrap in code fences despite responseMimeType — handle both

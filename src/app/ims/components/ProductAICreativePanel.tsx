@@ -86,6 +86,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
   const [includeExistingText, setIncludeExistingText] = useState(true);
   const [savedUrl, setSavedUrl]         = useState<string | null>(null);
   const [imageModels, setImageModels]   = useState<{ id: string; displayName: string }[]>([]);
+  const [textModels,  setTextModels]    = useState<{ id: string; displayName: string }[]>([]);
   const [imageModel, setImageModel]     = useModelPicker(LS_IMAGE_MODEL, 'gemini-3.1-flash-image');
   const [videoModel, setVideoModel]     = useModelPicker(LS_VIDEO_MODEL, 'veo-3.1-generate-preview');
   const [textModel,  setTextModel]      = useModelPicker(LS_TEXT_MODEL,  'gemini-2.5-flash');
@@ -115,6 +116,11 @@ export default function ProductAICreativePanel({ productId, productName, busines
     fetch('/api/ai/image-models')
       .then(r => r.json())
       .then(d => { if (d.models?.length) setImageModels(d.models); })
+      .catch(() => {});
+    // Text models
+    fetch('/api/ai/text-models')
+      .then(r => r.json())
+      .then(d => { if (d.models?.length) setTextModels(d.models); })
       .catch(() => {});
   }, [productId]);
 
@@ -582,10 +588,13 @@ export default function ProductAICreativePanel({ productId, productName, busines
                   <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 5px' }}>Text Model</p>
                   <select value={textModel} onChange={e => setTextModel(e.target.value)}
                     style={{ width: '100%', padding: '6px 8px', borderRadius: 7, border: `1px solid ${etch}`, background: bg2, color: textMain, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
-                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                    <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-                    <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-                    <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                    {(textModels.length > 0 ? textModels : [
+                      { id: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' },
+                      { id: 'gemini-2.5-pro',   displayName: 'Gemini 2.5 Pro' },
+                      { id: 'gemini-2.0-flash', displayName: 'Gemini 2.0 Flash' },
+                    ]).map(m => (
+                      <option key={m.id} value={m.id}>{m.displayName}</option>
+                    ))}
                   </select>
                 </div>
                 {genError && <p style={{ fontSize: 11, color: red, background: '#ef444415', padding: '6px 8px', borderRadius: 6 }}>\u26a0\ufe0f {genError}</p>}
