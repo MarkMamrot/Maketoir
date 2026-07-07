@@ -14,7 +14,7 @@ import { BrandProfileRepository }from '@/lib/db/BrandProfileRepository';
 import { BusinessInfoRepository }from '@/lib/db/BusinessInfoRepository';
 import { ImsImagesRepo }         from '@/lib/ims/ImsRepository';
 import { imsQuery }              from '@/services/IMSMySQLService';
-import { query as mainQuery }    from '@/services/MySQLService';
+import { GoogleSheetsService }   from '@/services/GoogleSheetsService';
 import { decrypt }               from '@/lib/encryption';
 import fs   from 'fs';
 import path from 'path';
@@ -23,6 +23,59 @@ function getSession() {
   const c = cookies().get('marketoir_session');
   if (!c?.value) return null;
   try { return JSON.parse(c.value); } catch { return null; }
+}
+
+// ── Web Field Templates (from Foresight Google Sheets) ───────────────────────
+async function getWebFieldTemplates(databaseId: string): Promise<{ description: any; title: any; tags: any }> {
+  const empty = { description: null, title: null, tags: null };
+  try {
+    const sheets = new GoogleSheetsService();
+    const config = await sheets.getData(databaseId, 'Config!A:B') as string[][];
+    const websiteSheetId = config?.find(r => r[0] === 'WebsiteSheetId')?.[1];
+    if (!websiteSheetId) return empty;
+    const rows = await sheets.getData(websiteSheetId, 'ProductDescTemplate') as string[][];
+    if (!rows || rows.length < 2) return empty;
+    const headerRow = rows[0];
+    // Old single-row format
+    if (headerRow[0]?.trim() === 'Timestamp') {
+      const jsonStr = rows[1]?.[1]?.trim();
+      if (jsonStr) { try { return { ...empty, description: JSON.parse(jsonStr) }; } catch {} }
+      return empty;
+    }
+    const result: any = { description: null, title: null, tags: null };
+    for (const row of rows.slice(1)) {
+      const key = row[0]?.trim();
+      const val = row[1]?.trim();
+      if (key && ['description', 'title', 'tags'].includes(key) && val) {
+        try { result[key] = JSON.parse(val); } catch { result[key] = val; }
+      }
+    }
+    return result;
+  } catch { return empty; }
+}
+
+function buildTemplateHtmlRules(tmpl: any): string {
+  if (!tmpl) return '';
+  const rules: string[] = [];
+  const headingTag: string | undefined = tmpl?.headingTag;
+  const headingColour: string | undefined = tmpl?.headingColour;
+  const bulletChar: string | undefined = tmpl?.bulletChar;
+  const bulletColour: string | undefined = tmpl?.bulletColour;
+  if (headingTag || headingColour) {
+    const tag = headingTag ?? 'h3';
+    const style = headingColour ? ` style="color:${headingColour};"` : '';
+    rules.push(`- Section headings: always use <${tag}${style}>Heading Text</${tag}>`);
+  }
+  if (bulletColour || bulletChar) {
+    const char = bulletChar ?? '✓';
+    if (bulletColour) {
+      rules.push(`- Bullet lists: <ul style="list-style:none;padding:0;margin:0 0 14px 0;"><li style="display:flex;gap:8px;align-items:flex-start;margin-bottom:6px;"><span style="color:${bulletColour};font-weight:bold;flex-shrink:0;">${char}</span><span>Item text here</span></li></ul>`);
+      rules.push(`- No CSS classes. Inline styles only.`);
+    } else {
+      rules.push(`- Every list item MUST start with "${char}" — e.g. <li>${char} Feature text here</li>`);
+    }
+  }
+  return rules.length ? `\nHTML RULES (mandatory):\n${rules.join('\n')}` : '';
 }
 
 const SYSTEM_PROMPT = `You are an expert AI image prompt engineer specialising in product photography compositing.
@@ -315,20 +368,23 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       }
     } catch {}
 
-    // Foresight website/content templates (category 'templates' — NOT model/backdrop image templates)
+    // Foresight Web Field Templates (title / description / tags schemas from Google Sheets)
+    let templatesFound = false;
     try {
-      const templateRows = await mainQuery<any>(
-        `SELECT name, content, notes FROM brand_assets
-         WHERE business_id = ? AND category = 'templates' AND is_active = 1
-         ORDER BY created_at DESC LIMIT 10`,
-        [businessId],
-      );
-      if (templateRows.length) {
-        const tpl = templateRows
-          .map((t: any) => `• ${t.name}${t.notes ? ` (${t.notes})` : ''}:\n${(t.content ?? '').trim()}`)
-          .filter(Boolean)
-          .join('\n\n');
-        if (tpl.trim()) sections.push(`=== BRAND WEBSITE / CONTENT TEMPLATES (follow this structure, tone and formatting) ===\n${tpl}`);
+      const tmpl = await getWebFieldTemplates(businessId);
+      const blocks: string[] = [];
+      if (tmpl.title) {
+        blocks.push(`TITLE TEMPLATE (follow this structure/rules):\n${typeof tmpl.title === 'string' ? tmpl.title : JSON.stringify(tmpl.title, null, 2)}`);
+      }
+      if (tmpl.description) {
+        blocks.push(`DESCRIPTION TEMPLATE (follow this structure/rules):\n${typeof tmpl.description === 'string' ? tmpl.description : JSON.stringify(tmpl.description, null, 2)}${buildTemplateHtmlRules(tmpl.description)}`);
+      }
+      if (tmpl.tags) {
+        blocks.push(`TAGS TEMPLATE (follow this structure/rules):\n${typeof tmpl.tags === 'string' ? tmpl.tags : JSON.stringify(tmpl.tags, null, 2)}`);
+      }
+      if (blocks.length) {
+        templatesFound = true;
+        sections.push(`=== BRAND WEB FIELD TEMPLATES (match these structures, formatting and tone exactly) ===\n${blocks.join('\n\n')}`);
       }
     } catch {}
 
@@ -376,7 +432,7 @@ Rules:
           contextBlock,
           userMessage,
           referenceImages: referenceImages.map((r: any) => r.label ?? 'image'),
-          templatesIncluded: contextBlock.includes('BRAND WEBSITE / CONTENT TEMPLATES'),
+          templatesIncluded: templatesFound,
         },
       });
     }
@@ -409,7 +465,7 @@ Rules:
       const description = parsed.description ?? parsed.product_description ?? parsed.body_html ?? '';
       const tags        = parsed.tags        ?? parsed.product_tags    ?? parsed.keywords      ?? [];
       const imagePrompt = parsed.imagePrompt ?? parsed.image_prompt    ?? parsed.imageGenerationPrompt ?? parsed.suggested_prompt ?? '';
-      return NextResponse.json({ success: true, title, description, tags, imagePrompt, templatesIncluded: contextBlock.includes('BRAND WEBSITE / CONTENT TEMPLATES') });
+      return NextResponse.json({ success: true, title, description, tags, imagePrompt, templatesIncluded: templatesFound });
     } catch (e: any) {
       return NextResponse.json({ error: e?.message?.slice(0, 300) ?? 'Text generation failed' }, { status: 500 });
     }
