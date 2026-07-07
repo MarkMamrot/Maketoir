@@ -278,17 +278,23 @@ export default function ProductAICreativePanel({ productId, productName, busines
     const userExtra    = chatInput.trim();
     const templates    = templateRefs.map(r => r.label).join(', ');
 
+    const hasModel    = templateRefs.some(r => r.label.toLowerCase().includes('model'));
+    const hasBackdrop = templateRefs.some(r => r.label.toLowerCase().includes('backdrop'));
+
     const autoPrompt = [
       productRefs.length > 0
-        ? `Composite the provided product image with the provided template reference${templateRefs.length > 0 ? ` (${templates})` : ''}.`
+        ? `You are given TWO kinds of reference images. The PRODUCT reference image(s) [${productRefs.map(r => r.label).join(', ')}] contain the ACTUAL product that must appear in the output — exactly as shown, with its real design, colours, textures, print/graphics and shape unchanged. The TEMPLATE reference image(s) [${templates}] provide ONLY the scene: the person (face, body, pose, skin) and/or the backdrop.`
         : `Create an on-brand product image using the provided template reference${templates ? ` (${templates})` : ''}.`,
-      templateRefs.some(r => r.label.toLowerCase().includes('model') || r.label.toLowerCase().includes('Model'))
-        ? `If the product is wearable (clothing, accessory, jewellery), show the model from the reference wearing or holding it naturally at correct scale and proportion. Match the lighting from the template.`
+      productRefs.length > 0
+        ? `CRITICAL: Take the product ONLY from the PRODUCT reference image. NEVER take, copy, or keep any product, garment, or item that appears in the template reference — the template's clothing/products must be completely replaced by the product from the PRODUCT reference.`
         : ``,
-      templateRefs.some(r => r.label.toLowerCase().includes('backdrop') || r.label.toLowerCase().includes('Backdrop'))
-        ? `Place the product from the product reference within the backdrop scene in a visually compelling, natural position. Match the lighting, shadows, and perspective of the scene.`
+      hasModel
+        ? `This is a wearable/clothing item: dress the model (using the model's exact face, body, pose and skin from the template reference) in the product from the PRODUCT reference image. The model must be wearing the ACTUAL product from the product reference — not the garment shown in the template. Fit it naturally with correct scale, drape and proportion, matching the template's lighting.`
         : ``,
-      `Maintain photographic realism throughout: accurate product colours, textures and scale. Do not alter or invent the product or model — both are provided in the reference images.`,
+      hasBackdrop
+        ? `Place the product from the PRODUCT reference within the backdrop scene from the template reference, in a natural, compelling position. Match the backdrop's lighting, shadows and perspective. Do not import any product from the backdrop template.`
+        : ``,
+      `Maintain photographic realism: the product's colours, materials, graphics and scale must match the PRODUCT reference exactly. Do not invent or alter the product.`,
       `Produce a clean, premium, on-brand result suitable for product photography.`,
       userExtra ? `Additional instruction: ${userExtra}` : ``,
     ].filter(Boolean).join(' ');

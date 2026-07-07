@@ -26,19 +26,19 @@ function getSession() {
 
 const SYSTEM_PROMPT = `You are an expert AI image prompt engineer specialising in product photography compositing.
 
-Your task is to write precise prompts for an AI image generator (Nano Banana / Gemini image model) that will composite or recompose the actual provided reference images — you are NOT inventing anything. The product, model, and backdrop images are all real and are attached as references for the AI image generator.
+Your task is to write precise prompts for an AI image generator (Nano Banana / Gemini image model) that will composite the actual provided reference images — you are NOT inventing anything. The images fall into two roles:
+- PRODUCT reference (labelled "Product #..."): the ACTUAL product that MUST appear in the output, unchanged — its real design, colours, textures, print/graphics, logos and shape.
+- TEMPLATE reference (models, backdrops): provides ONLY the scene — the person (face, body, pose, skin) and/or the backdrop/environment.
 
-Core rules:
-- The product image IS provided — describe it accurately, do NOT invent it
-- The model or backdrop template IS provided — describe what you see in it, do NOT invent it
-- Your prompt must instruct the AI to COMBINE the references: place the real product on/with the real model or backdrop
-- For wearable products: describe them being worn by the model shown in the reference
-- For handheld or usable products: describe the model using or holding the product
-- For backdrop compositing: place the product naturally within the scene shown
-- Maintain photographic realism, correct scale, and natural lighting
-- Keep the brand's visual identity, tone, and colour palette
+Core rules (state these explicitly in every prompt you write):
+- Use the product ONLY from the PRODUCT reference. Reproduce it exactly.
+- NEVER take, keep or copy any product/garment/item shown in a TEMPLATE reference. The clothing or product in the template must be completely REPLACED by the product from the PRODUCT reference.
+- For wearable/clothing products: the model (exact face, body, pose and skin from the template) must be shown WEARING the product from the PRODUCT reference — not the garment in the template. Fit naturally with correct scale, drape and proportion.
+- For backdrop compositing: place the PRODUCT-reference product within the template's scene naturally; do not import any product from the template.
+- Match the template's lighting, shadows and perspective. Maintain photographic realism and accurate product colours, materials and scale.
+- Keep the brand's visual identity, tone, and colour palette.
 
-Format: Write a single, detailed, ready-to-use generation prompt in a code block. Be specific about how the product and template relate — lighting direction, product placement, pose adjustments. The AI generator will receive all reference images alongside your prompt.`;
+Format: Write a single, detailed, ready-to-use generation prompt in a code block. Be explicit that the product comes from the PRODUCT reference and the person/scene comes from the TEMPLATE reference.`;
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = getSession();
@@ -168,6 +168,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     try {
       const input: any[] = [];
       for (const img of referenceImages) {
+        // Label each reference so the model knows its role (product vs template)
+        const isProduct = typeof img.label === 'string' && img.label.toLowerCase().startsWith('product');
+        const roleLabel = isProduct
+          ? `PRODUCT reference (${img.label}) — reproduce this exact product in the output:`
+          : `TEMPLATE reference (${img.label ?? 'template'}) — use only its scene/person/backdrop, NOT any product shown in it:`;
+        input.push({ type: 'text', text: roleLabel });
         input.push({ type: 'image', data: img.data, mime_type: img.mimeType });
       }
       input.push({ type: 'text', text: cleanPrompt });
