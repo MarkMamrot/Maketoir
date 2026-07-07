@@ -41,6 +41,123 @@ function parseMoney(v: unknown): number {
 }
 
 import { query as mysqlQuery } from '@/services/MySQLService';
+import { imsQuery } from '@/services/IMSMySQLService';
+import { getInventorySource } from '@/lib/dataProvider';
+
+// ── IMS (Solvantis) data-source report calculations ──────────────────────────
+// These query the IMS database directly (readyedu_MonsterthreadsIMS) via imsQuery,
+// keyed by the IMS `business_id` which equals the Foresight databaseId.
+// Revenue is GST-EXCLUSIVE: sales orders use `subtotal` (= SUM of line_total),
+// POS uses `(total - tax_total)`. POS is scoped via ims_locations.business_id
+// because pos_sales.business_id is not reliably populated.
+
+// Sales by Month — ALL channels (online + b2b SOs + POS), GST exc, last 12 months.
+async function calcSalesByMonthIMS(bizId: string): Promise<MonthRow[]> {
+  const [soRows, posRows] = await Promise.all([
+    imsQuery<any>(
+      `SELECT DATE_FORMAT(so.order_date, '%Y-%m') AS month, SUM(so.subtotal) AS revenue
+       FROM ims_sales_orders so
+       WHERE so.business_id = ? AND so.status = 'fulfilled'
+         AND so.order_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+       GROUP BY month`,
+      [bizId],
+    ),
+    imsQuery<any>(
+      `SELECT DATE_FORMAT(ps.completed_at, '%Y-%m') AS month, SUM(ps.total - ps.tax_total) AS revenue
+       FROM pos_sales ps
+       JOIN ims_locations l ON l.id = ps.location_id AND l.business_id = ?
+       WHERE ps.status = 'completed' AND ps.sale_type = 'sale'
+         AND ps.completed_at >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+       GROUP BY month`,
+      [bizId],
+    ),
+  ]);
+  const map = new Map<string, number>();
+  for (const r of [...soRows, ...posRows]) {
+    const m = String(r.month ?? '');
+    if (!m) continue;
+    map.set(m, (map.get(m) ?? 0) + Number(r.revenue ?? 0));
+  }
+  return Array.from(map.entries()).map(([month, revenue]) => ({ month, revenue })).sort((a, b) => a.month.localeCompare(b.month));
+}
+
+// Online Sales by Month — Shopify (so_type='online') only, GST exc, last 12 months.
+async function calcOnlineSalesByMonthIMS(bizId: string): Promise<MonthRow[]> {
+  const rows = await imsQuery<any>(
+    `SELECT DATE_FORMAT(so.order_date, '%Y-%m') AS month, SUM(so.subtotal) AS revenue
+     FROM ims_sales_orders so
+     WHERE so.business_id = ? AND so.so_type = 'online' AND so.status = 'fulfilled'
+       AND so.order_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+     GROUP BY month ORDER BY month`,
+    [bizId],
+  );
+  return rows.map((r: any) => ({ month: String(r.month ?? ''), revenue: Number(r.revenue ?? 0) }));
+}
+
+// Online Top Brands — Shopify only, by brand, GST exc, last 12 months.
+async function calcOnlineTopBrandsIMS(bizId: string, limit = 20): Promise<OnlineBrandRow[]> {
+  const rows = await imsQuery<any>(
+    `SELECT COALESCE(p.brand, '(Unknown)') AS brand,
+            SUM(i.line_total)             AS revenue,
+            SUM(i.qty_ordered)            AS qty,
+            COUNT(DISTINCT so.id)         AS orders
+     FROM ims_sales_orders so
+     JOIN ims_sales_order_items i ON i.so_id = so.id
+     LEFT JOIN ims_product_variants v1 ON v1.variant_id = i.variant_id
+     LEFT JOIN ims_product_variants v2 ON v2.sku = i.code AND i.variant_id IS NULL
+     LEFT JOIN ims_products p ON p.product_id = COALESCE(v1.product_id, v2.product_id)
+     WHERE so.business_id = ? AND so.so_type = 'online' AND so.status = 'fulfilled'
+       AND so.order_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+     GROUP BY COALESCE(p.brand, '(Unknown)')
+     ORDER BY revenue DESC
+     LIMIT ?`,
+    [bizId, limit],
+  );
+  return rows.map((r: any) => ({
+    brand:   String(r.brand ?? '(Unknown)'),
+    revenue: Number(r.revenue ?? 0),
+    qty:     Math.round(Number(r.qty ?? 0)),
+    orders:  Math.round(Number(r.orders ?? 0)),
+  }));
+}
+
+// Revenue per Branch (IMS) — GST exc, last 90/180/365 days.
+// Buckets: online SOs → 'Online'; b2b SOs & POS → physical location name.
+async function calcRevByBranchIMS(bizId: string): Promise<BranchRow[]> {
+  const [soRows, posRows] = await Promise.all([
+    imsQuery<any>(
+      `SELECT CASE WHEN so.so_type = 'online' THEN 'Online' ELSE COALESCE(l.name, 'Unknown') END AS branch,
+              so.subtotal AS revenue,
+              DATEDIFF(CURDATE(), so.order_date) AS age_days
+       FROM ims_sales_orders so
+       LEFT JOIN ims_locations l ON l.id = so.location_id
+       WHERE so.business_id = ? AND so.status = 'fulfilled'
+         AND so.order_date >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)`,
+      [bizId],
+    ),
+    imsQuery<any>(
+      `SELECT COALESCE(l.name, 'Unknown') AS branch,
+              (ps.total - ps.tax_total) AS revenue,
+              DATEDIFF(CURDATE(), DATE(ps.completed_at)) AS age_days
+       FROM pos_sales ps
+       JOIN ims_locations l ON l.id = ps.location_id AND l.business_id = ?
+       WHERE ps.status = 'completed' AND ps.sale_type = 'sale'
+         AND ps.completed_at >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)`,
+      [bizId],
+    ),
+  ]);
+  const rev: Record<string, BranchRow> = {};
+  for (const r of [...soRows, ...posRows]) {
+    const branch = String(r.branch ?? 'Unknown');
+    const total = Number(r.revenue ?? 0);
+    const age = Number(r.age_days ?? 999);
+    if (!rev[branch]) rev[branch] = { branch, revenue90: 0, revenue180: 0, revenue365: 0 };
+    rev[branch].revenue365 += total;
+    if (age <= 180) rev[branch].revenue180 += total;
+    if (age <= 90)  rev[branch].revenue90  += total;
+  }
+  return Object.values(rev).sort((a, b) => b.revenue365 - a.revenue365);
+}
 
 // getWebsiteSheetId removed � online reports now read from sales table (source = Shopify)
 
@@ -347,16 +464,21 @@ export async function POST(req: Request) {
     const savedAt = new Date().toISOString();
     const thresholds = await readMarginThresholds(databaseId);
 
+    // When the business uses the Solvantis IMS as its inventory source, sales-based
+    // reports must read from the IMS database (live online + POS + b2b), not the
+    // stale cached `sales` table. Product-based reports still use ProductsRepository.
+    const useIms = (await getInventorySource(databaseId).catch(() => 'cin7')) === 'solvantis';
+
     const [brandRows, revRows, yearlyRows, slowRows, monthRows, onlineMonthRows, onlineTopBrandRows, onlinePerf, monthlyRetentionRows] = await Promise.all([
       calcBrandSummary(inventorySystemId),
-      calcRevByBranch(inventorySystemId),
+      useIms ? calcRevByBranchIMS(databaseId)        : calcRevByBranch(inventorySystemId),
       readYearlyRevenue(inventorySystemId),
       calcSlowSellers(inventorySystemId, 100),
-      calcSalesByMonth(inventorySystemId),
-      calcOnlineSalesByMonth(inventorySystemId),
-      calcOnlineTopBrands(inventorySystemId, 20),
+      useIms ? calcSalesByMonthIMS(databaseId)       : calcSalesByMonth(inventorySystemId),
+      useIms ? calcOnlineSalesByMonthIMS(databaseId) : calcOnlineSalesByMonth(inventorySystemId),
+      useIms ? calcOnlineTopBrandsIMS(databaseId, 20): calcOnlineTopBrands(inventorySystemId, 20),
       calcOnlinePerformance(databaseId),
-      calcMonthlyRetention(inventorySystemId),
+      useIms ? Promise.resolve([] as MonthlyRetentionRow[]) : calcMonthlyRetention(inventorySystemId),
     ]);
 
     // Save each report type to MySQL
