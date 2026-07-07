@@ -222,9 +222,14 @@ export default function ProductAICreativePanel({ productId, productName, busines
         });
         const d = await res.json();
         if (!res.ok || !d.success) throw new Error(d.error ?? 'Text generation failed');
-        setGeneratedText({ title: d.title, description: d.description, tags: d.tags, imagePrompt: d.imagePrompt });
+        const safeTags = Array.isArray(d.tags)
+          ? d.tags
+          : typeof d.tags === 'string'
+            ? d.tags.split(',').map((t: string) => t.trim()).filter(Boolean)
+            : [];
+        setGeneratedText({ title: d.title, description: d.description, tags: safeTags, imagePrompt: d.imagePrompt });
         setFreshCreativesExpanded(true);
-        if (!d.title && !d.description && !d.imagePrompt && (!d.tags || d.tags.length === 0)) {
+        if (!d.title && !d.description && !d.imagePrompt && safeTags.length === 0) {
           setGenError('AI returned no content. Try a different model or add a product photo.');
         }
       } catch (e: any) { setGenError(e.message); }
@@ -676,7 +681,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
                         <p style={{ fontSize: 13, color: textMain, margin: 0, fontWeight: 600 }}>{generatedText.title}</p>
                       </div>
                     )}
-                    {generatedText.tags && (
+                    {Array.isArray(generatedText.tags) && generatedText.tags.length > 0 && (
                       <div style={{ background: bg2, borderRadius: 8, padding: '10px 12px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                           <span style={{ fontSize: 10, fontWeight: 700, color: '#8b5cf6', textTransform: 'uppercase', letterSpacing: .5 }}>Tags</span>

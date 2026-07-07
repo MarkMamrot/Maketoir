@@ -466,7 +466,13 @@ Rules:
       // Normalise key names — models sometimes use alternatives
       const title       = parsed.title       ?? parsed.product_title   ?? parsed.name          ?? '';
       const description = parsed.description ?? parsed.product_description ?? parsed.body_html ?? '';
-      const tags        = parsed.tags        ?? parsed.product_tags    ?? parsed.keywords      ?? [];
+      const rawTags     = parsed.tags        ?? parsed.product_tags    ?? parsed.keywords      ?? [];
+      // Tags must always be an array of strings — models sometimes return a comma-separated string.
+      const tags = Array.isArray(rawTags)
+        ? rawTags.map((t: any) => String(t).trim()).filter(Boolean)
+        : typeof rawTags === 'string'
+          ? rawTags.split(',').map(t => t.trim()).filter(Boolean)
+          : [];
       const imagePrompt = parsed.imagePrompt ?? parsed.image_prompt    ?? parsed.imageGenerationPrompt ?? parsed.suggested_prompt ?? '';
       return NextResponse.json({ success: true, title, description, tags, imagePrompt, templatesIncluded: templatesFound });
     } catch (e: any) {

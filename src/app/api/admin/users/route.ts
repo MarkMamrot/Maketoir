@@ -107,9 +107,9 @@ export async function POST(req: Request) {
     const effectiveTier = await resolveEffectiveTier();
     let validTiers: UserTier[] = ['StandardUser', 'PosManager', 'PosUser'];
     if (effectiveTier === 'SuperAdmin') {
-      validTiers = ['SuperAdmin', 'Admin', 'StandardUser', 'PosManager', 'PosUser'];
+      validTiers = ['SuperAdmin', 'Admin', 'Advisor', 'StandardUser', 'PosManager', 'PosUser'];
     } else if (effectiveTier === 'Admin') {
-      validTiers = ['Admin', 'StandardUser', 'PosManager', 'PosUser'];
+      validTiers = ['Admin', 'Advisor', 'StandardUser', 'PosManager', 'PosUser'];
     }
     
     const userTier = (tier && validTiers.includes(tier)) ? tier : 'StandardUser';
@@ -174,9 +174,9 @@ export async function PATCH(req: Request) {
     const effectiveTier = await resolveEffectiveTier();
     let validUpdateTiers: UserTier[] = ['StandardUser', 'PosManager', 'PosUser'];
     if (effectiveTier === 'SuperAdmin') {
-      validUpdateTiers = ['SuperAdmin', 'Admin', 'StandardUser', 'PosManager', 'PosUser'];
+      validUpdateTiers = ['SuperAdmin', 'Admin', 'Advisor', 'StandardUser', 'PosManager', 'PosUser'];
     } else if (effectiveTier === 'Admin') {
-      validUpdateTiers = ['Admin', 'StandardUser', 'PosManager', 'PosUser'];
+      validUpdateTiers = ['Admin', 'Advisor', 'StandardUser', 'PosManager', 'PosUser'];
     }
 
     if (tier && validUpdateTiers.includes(tier)) {
