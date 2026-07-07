@@ -100,6 +100,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
   ]);
   const [includeBrandProfile, setIncludeBrandProfile] = useState(true);
   const [includeBusinessInfo, setIncludeBusinessInfo] = useState(true);
+  const [includeWebTemplates, setIncludeWebTemplates] = useState(true);
   const [loadingRefs, setLoadingRefs]   = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -212,6 +213,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
             referenceImages: selectedRefs.map(r => ({ data: r.data, mimeType: r.mimeType, label: r.label })),
             textModel,
             includeExistingText,
+            includeWebTemplates,
             existingTitle: (window as any).__aiProductTitle ?? '',
             existingDescription: (window as any).__aiProductDesc ?? '',
             existingTags: (window as any).__aiProductTags ?? '',
@@ -263,6 +265,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
           textModel,
           referenceImages: selectedRefs.map(r => ({ mimeType: r.mimeType, label: r.label })),
           includeExistingText,
+          includeWebTemplates,
           existingTitle: (window as any).__aiProductTitle ?? '',
           existingDescription: (window as any).__aiProductDesc ?? '',
           existingTags: (window as any).__aiProductTags ?? '',
@@ -509,6 +512,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
             <button style={toggleStyle(includeBrandProfile, '#8b5cf6')} onClick={() => setIncludeBrandProfile(p => !p)}>{includeBrandProfile ? '✓ ' : ''}Brand Profile</button>
             <button style={toggleStyle(includeBusinessInfo,  '#0ea5e9')} onClick={() => setIncludeBusinessInfo(p => !p)} >{includeBusinessInfo  ? '✓ ' : ''}Business Info</button>
             <button style={toggleStyle(includeExistingText,  '#f59e0b')} onClick={() => setIncludeExistingText(p => !p)}>{includeExistingText  ? '✓ ' : ''}Existing Title/Desc/Tags</button>
+            <button style={toggleStyle(includeWebTemplates,  '#10b981')} onClick={() => setIncludeWebTemplates(p => !p)}>{includeWebTemplates  ? '✓ ' : ''}Website Templates</button>
             {selectedRefs.length > 0 && <span style={{ fontSize: 11, color: '#22c55e' }}>📎 {selectedRefs.length} reference{selectedRefs.length !== 1 ? 's' : ''} attached</span>}
           </div>
 

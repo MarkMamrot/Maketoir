@@ -338,6 +338,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const {
       existingTitle = '', existingDescription = '', existingTags = '',
       includeExistingText = false,
+      includeWebTemplates = true,
       previewOnly = false,
     } = body;
     let textModelId = textModel || 'gemini-2.5-flash';
@@ -370,6 +371,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     // Foresight Web Field Templates (title / description / tags schemas from Google Sheets)
     let templatesFound = false;
+    if (includeWebTemplates) {
     try {
       const tmpl = await getWebFieldTemplates(businessId);
       const blocks: string[] = [];
@@ -387,6 +389,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         sections.push(`=== BRAND WEB FIELD TEMPLATES (match these structures, formatting and tone exactly) ===\n${blocks.join('\n\n')}`);
       }
     } catch {}
+    } // end includeWebTemplates
 
     // Existing product text (if requested)
     if (includeExistingText && (existingTitle || existingDescription || existingTags)) {

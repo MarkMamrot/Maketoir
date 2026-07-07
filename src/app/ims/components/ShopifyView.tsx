@@ -573,7 +573,7 @@ function ShopifyOrdersTab({ businessId }: { businessId: string }) {
               : 'Sync is off. Webhook calls will be accepted but silently ignored. Manual import is also blocked.'}
           </div>
         </div>
-      </div>}
+      </div>
       <div style={card}>
         <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Order Sync Configuration</h3>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
