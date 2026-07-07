@@ -218,6 +218,10 @@ export default function ProductAICreativePanel({ productId, productName, busines
         const d = await res.json();
         if (!res.ok || !d.success) throw new Error(d.error ?? 'Text generation failed');
         setGeneratedText({ title: d.title, description: d.description, tags: d.tags, imagePrompt: d.imagePrompt });
+        setFreshCreativesExpanded(true);
+        if (!d.title && !d.description && !d.imagePrompt && (!d.tags || d.tags.length === 0)) {
+          setGenError('AI returned no content. Try a different model or add a product photo.');
+        }
       } catch (e: any) { setGenError(e.message); }
       setGenerating(false);
       return;

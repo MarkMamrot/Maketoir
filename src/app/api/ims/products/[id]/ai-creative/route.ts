@@ -64,15 +64,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   // ── FETCH-REF-IMAGE: server-side image proxy (bypasses browser CORS) ───────
   if (mode === 'fetch-ref-image') {
     const { url } = body;
-    if (!url) return NextResponse.json({ error: 'url required' }, { status: 400 });
+    if (!url) return NextResponse.json({ success: false, error: 'url required' });
     try {
       const res = await fetch(url, { headers: { 'User-Agent': 'Marketoir/1.0' } });
-      if (!res.ok) return NextResponse.json({ error: `Fetch failed: ${res.status}` }, { status: 400 });
+      if (!res.ok) return NextResponse.json({ success: false, error: `Fetch failed: ${res.status}` });
       const mime = res.headers.get('content-type')?.split(';')[0] ?? 'image/jpeg';
       const buf  = Buffer.from(await res.arrayBuffer());
       return NextResponse.json({ success: true, data: buf.toString('base64'), mimeType: mime });
     } catch (e: any) {
-      return NextResponse.json({ error: e.message ?? 'Failed to fetch image' }, { status: 500 });
+      return NextResponse.json({ success: false, error: e.message ?? 'Failed to fetch image' });
     }
   }
 
@@ -318,15 +318,25 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
 
     const contextBlock = sections.join('\n\n');
-    const textSystemPrompt = `You are an expert e-commerce product content writer for a retail brand. 
+    const textSystemPrompt = `You are an expert e-commerce product content writer for a retail brand.
 Analyse the provided product reference images and brand context to write compelling, SEO-optimised product content.
 Use the brand's tone, visual aesthetic, and target audience to guide the writing.
-Respond ONLY with valid JSON — no markdown, no preamble.
-The JSON must have exactly these keys:
-- "title": concise, keyword-rich product title (max 70 chars)
-- "description": full HTML product description using <h3>, <p>, <ul>, <li> tags; 150-300 words; highlight key features, benefits, materials
-- "tags": array of 10-15 SEO keyword strings
-- "imagePrompt": a ready-to-use image generation prompt (for the brand's image model) that would produce an ideal hero shot for this product`;
+
+You MUST respond with ONLY a single valid JSON object. No markdown. No prose. No code fences. No extra keys. Start immediately with { and end with }.
+
+Required JSON structure (all four keys are MANDATORY):
+{
+  "title": "concise keyword-rich product title, max 70 characters",
+  "description": "<h3>Feature Heading</h3><p>Opening sentence about the product.</p><ul><li>Key feature 1</li><li>Key feature 2</li></ul><p>Closing brand-aligned sentence.</p>",
+  "tags": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5", "keyword6", "keyword7", "keyword8", "keyword9", "keyword10"],
+  "imagePrompt": "A ready-to-use image generation prompt for an ideal hero shot of this product"
+}
+
+Rules:
+- title: max 70 chars, keyword-rich, no brand name
+- description: valid HTML using only h3, p, ul, li tags; 150-300 words total; highlight features, benefits, materials
+- tags: 10-15 SEO keyword strings as a JSON array
+- imagePrompt: single string, photographic realism, suitable for an AI image generator`;
 
     const parts: any[] = [];
     for (const img of referenceImages) {
@@ -351,7 +361,12 @@ The JSON must have exactly these keys:
         if (start !== -1 && end > start) jsonStr = jsonStr.slice(start, end + 1);
       }
       const parsed = JSON.parse(jsonStr);
-      return NextResponse.json({ success: true, title: parsed.title, description: parsed.description, tags: parsed.tags, imagePrompt: parsed.imagePrompt });
+      // Normalise key names — models sometimes use alternatives
+      const title       = parsed.title       ?? parsed.product_title   ?? parsed.name          ?? '';
+      const description = parsed.description ?? parsed.product_description ?? parsed.body_html ?? '';
+      const tags        = parsed.tags        ?? parsed.product_tags    ?? parsed.keywords      ?? [];
+      const imagePrompt = parsed.imagePrompt ?? parsed.image_prompt    ?? parsed.imageGenerationPrompt ?? parsed.suggested_prompt ?? '';
+      return NextResponse.json({ success: true, title, description, tags, imagePrompt });
     } catch (e: any) {
       return NextResponse.json({ error: e?.message?.slice(0, 300) ?? 'Text generation failed' }, { status: 500 });
     }
