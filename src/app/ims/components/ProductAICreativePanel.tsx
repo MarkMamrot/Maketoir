@@ -84,6 +84,9 @@ export default function ProductAICreativePanel({ productId, productName, busines
   const [savedTextFields, setSavedTextFields] = useState<Set<string>>(new Set());
   const [freshCreativesExpanded, setFreshCreativesExpanded] = useState(false);
   const [includeExistingText, setIncludeExistingText] = useState(true);
+  const [promptPreview, setPromptPreview] = useState<any | null>(null);
+  const [showPromptPreview, setShowPromptPreview] = useState(false);
+  const [loadingPreview, setLoadingPreview] = useState(false);
   const [savedUrl, setSavedUrl]         = useState<string | null>(null);
   const [imageModels, setImageModels]   = useState<{ id: string; displayName: string }[]>([]);
   const [textModels,  setTextModels]    = useState<{ id: string; displayName: string }[]>([]);
@@ -246,6 +249,30 @@ export default function ProductAICreativePanel({ productId, productName, busines
       else setGeneratedVideo({ data: d.videoData, uri: d.videoUri, mimeType: d.mimeType });
     } catch (e: any) { setGenError(e.message); }
     setGenerating(false);
+  };
+
+  // ── Fetch the assembled prompt (preview without generating) ─────────────────
+  const fetchPromptPreview = async () => {
+    setLoadingPreview(true);
+    try {
+      const res = await fetch(`/api/ims/products/${productId}/ai-creative`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'text',
+          previewOnly: true,
+          textModel,
+          referenceImages: selectedRefs.map(r => ({ mimeType: r.mimeType, label: r.label })),
+          includeExistingText,
+          existingTitle: (window as any).__aiProductTitle ?? '',
+          existingDescription: (window as any).__aiProductDesc ?? '',
+          existingTags: (window as any).__aiProductTags ?? '',
+          includeBrandProfile: true, includeBusinessInfo: true,
+        }),
+      });
+      const d = await res.json();
+      if (d.success && d.preview) setPromptPreview(d.preview);
+    } catch {}
+    setLoadingPreview(false);
   };
 
   // ── Save text field to product ─────────────────────────────────────────────
@@ -606,6 +633,32 @@ export default function ProductAICreativePanel({ productId, productName, busines
                       <option key={m.id} value={m.id}>{m.displayName}</option>
                     ))}
                   </select>
+                </div>
+                {/* Prompt preview dropdown */}
+                <div style={{ marginBottom: 12 }}>
+                  <button onClick={() => { const next = !showPromptPreview; setShowPromptPreview(next); if (next && !promptPreview) fetchPromptPreview(); }}
+                    style={{ width: '100%', textAlign: 'left', background: bg2, border: `1px solid ${etch}`, borderRadius: 7, padding: '7px 10px', cursor: 'pointer', color: textDim, fontSize: 11, fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>🔍 Preview full prompt {promptPreview?.templatesIncluded ? '· ✓ brand templates' : ''}</span>
+                    <span>{showPromptPreview ? '▾' : '▸'}</span>
+                  </button>
+                  {showPromptPreview && (
+                    <div style={{ marginTop: 8, background: bg0, border: `1px solid ${etch}`, borderRadius: 7, padding: '10px 12px', maxHeight: 320, overflow: 'auto' }}>
+                      {loadingPreview && <p style={{ fontSize: 11, color: textDim, margin: 0 }}>Loading…</p>}
+                      {promptPreview && (
+                        <>
+                          <p style={{ fontSize: 9, fontWeight: 700, color: '#0ea5e9', textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 4px' }}>Model</p>
+                          <p style={{ fontSize: 11, color: textMain, margin: '0 0 10px', fontFamily: 'monospace' }}>{promptPreview.model}</p>
+                          <p style={{ fontSize: 9, fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 4px' }}>Reference Images ({promptPreview.referenceImages?.length ?? 0})</p>
+                          <p style={{ fontSize: 11, color: textDim, margin: '0 0 10px' }}>{promptPreview.referenceImages?.length ? promptPreview.referenceImages.join(', ') : 'None selected'}</p>
+                          <p style={{ fontSize: 9, fontWeight: 700, color: '#8b5cf6', textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 4px' }}>Brand Context {promptPreview.templatesIncluded ? '(includes website templates ✓)' : '(no templates found)'}</p>
+                          <pre style={{ fontSize: 10, color: textMain, margin: '0 0 10px', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'monospace', lineHeight: 1.5 }}>{promptPreview.contextBlock || '(empty)'}</pre>
+                          <p style={{ fontSize: 9, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 4px' }}>System Instruction</p>
+                          <pre style={{ fontSize: 10, color: textDim, margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'monospace', lineHeight: 1.5 }}>{promptPreview.systemPrompt}</pre>
+                        </>
+                      )}
+                      <button onClick={fetchPromptPreview} style={{ ...panelBtn(false), fontSize: 10, padding: '4px 10px', marginTop: 8 }}>↻ Refresh preview</button>
+                    </div>
+                  )}
                 </div>
                 {genError && <p style={{ fontSize: 11, color: red, background: '#ef444415', padding: '6px 8px', borderRadius: 6 }}>\u26a0\ufe0f {genError}</p>}
                 {generatedText && (

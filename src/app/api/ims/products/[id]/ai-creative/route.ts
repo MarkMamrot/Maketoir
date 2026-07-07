@@ -14,6 +14,7 @@ import { BrandProfileRepository }from '@/lib/db/BrandProfileRepository';
 import { BusinessInfoRepository }from '@/lib/db/BusinessInfoRepository';
 import { ImsImagesRepo }         from '@/lib/ims/ImsRepository';
 import { imsQuery }              from '@/services/IMSMySQLService';
+import { query as mainQuery }    from '@/services/MySQLService';
 import { decrypt }               from '@/lib/encryption';
 import fs   from 'fs';
 import path from 'path';
@@ -284,6 +285,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const {
       existingTitle = '', existingDescription = '', existingTags = '',
       includeExistingText = false,
+      previewOnly = false,
     } = body;
     let textModelId = textModel || 'gemini-2.5-flash';
     try {
@@ -313,6 +315,23 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       }
     } catch {}
 
+    // Foresight website/content templates (category 'templates' — NOT model/backdrop image templates)
+    try {
+      const templateRows = await mainQuery<any>(
+        `SELECT name, content, notes FROM brand_assets
+         WHERE business_id = ? AND category = 'templates' AND is_active = 1
+         ORDER BY created_at DESC LIMIT 10`,
+        [businessId],
+      );
+      if (templateRows.length) {
+        const tpl = templateRows
+          .map((t: any) => `• ${t.name}${t.notes ? ` (${t.notes})` : ''}:\n${(t.content ?? '').trim()}`)
+          .filter(Boolean)
+          .join('\n\n');
+        if (tpl.trim()) sections.push(`=== BRAND WEBSITE / CONTENT TEMPLATES (follow this structure, tone and formatting) ===\n${tpl}`);
+      }
+    } catch {}
+
     // Existing product text (if requested)
     if (includeExistingText && (existingTitle || existingDescription || existingTags)) {
       const existing = [
@@ -327,6 +346,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const textSystemPrompt = `You are an expert e-commerce product content writer for a retail brand.
 Analyse the provided product reference images and brand context to write compelling, SEO-optimised product content.
 Use the brand's tone, visual aesthetic, and target audience to guide the writing.
+When brand website/content templates are provided, MATCH their structure, formatting, tone and style closely.
 
 You MUST respond with ONLY a single valid JSON object. No markdown. No prose. No code fences. No extra keys. Start immediately with { and end with }.
 
@@ -344,11 +364,28 @@ Rules:
 - tags: 10-15 SEO keyword strings as a JSON array
 - imagePrompt: single string, photographic realism, suitable for an AI image generator`;
 
+    const userMessage = (contextBlock ? `${contextBlock}\n\n` : '') + `Generate compelling product content for the product shown in the reference image(s).\n\nIMPORTANT: Your entire response must be a single raw JSON object. Start with { and end with }. No markdown, no explanation, no code fences.`;
+
+    // Preview-only: return the assembled prompt without calling the AI
+    if (previewOnly) {
+      return NextResponse.json({
+        success: true,
+        preview: {
+          model: textModelId,
+          systemPrompt: textSystemPrompt,
+          contextBlock,
+          userMessage,
+          referenceImages: referenceImages.map((r: any) => r.label ?? 'image'),
+          templatesIncluded: contextBlock.includes('BRAND WEBSITE / CONTENT TEMPLATES'),
+        },
+      });
+    }
+
     const parts: any[] = [];
     for (const img of referenceImages) {
       parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
     }
-    parts.push({ text: (contextBlock ? `${contextBlock}\n\n` : '') + `Generate compelling product content for the product shown in the reference image(s).\n\nIMPORTANT: Your entire response must be a single raw JSON object. Start with { and end with }. No markdown, no explanation, no code fences.` });
+    parts.push({ text: userMessage });
 
     try {
       const result = await (ai as any).models.generateContent({
@@ -372,7 +409,7 @@ Rules:
       const description = parsed.description ?? parsed.product_description ?? parsed.body_html ?? '';
       const tags        = parsed.tags        ?? parsed.product_tags    ?? parsed.keywords      ?? [];
       const imagePrompt = parsed.imagePrompt ?? parsed.image_prompt    ?? parsed.imageGenerationPrompt ?? parsed.suggested_prompt ?? '';
-      return NextResponse.json({ success: true, title, description, tags, imagePrompt });
+      return NextResponse.json({ success: true, title, description, tags, imagePrompt, templatesIncluded: contextBlock.includes('BRAND WEBSITE / CONTENT TEMPLATES') });
     } catch (e: any) {
       return NextResponse.json({ error: e?.message?.slice(0, 300) ?? 'Text generation failed' }, { status: 500 });
     }
