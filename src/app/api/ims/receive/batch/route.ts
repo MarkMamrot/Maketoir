@@ -260,7 +260,7 @@ export async function POST(req: Request) {
           for (const sf of shortfallItems) {
             const origItem = origItems.find((i: any) => i.variant_id === sf.variant_id);
             if (!origItem) continue;
-            const lineTotal = sf.shortfall * Number(origItem.unit_cost) * (1 - Number(origItem.discount_pct ?? 0));
+            const lineTotal = sf.shortfall * Number(origItem.unit_cost) * (1 - Number(origItem.discount_pct ?? 0) / 100);
             const lineTax = lineTotal * Number(origItem.tax_rate ?? 0);
             bkSubtotal += lineTotal;
             bkTax += lineTax;

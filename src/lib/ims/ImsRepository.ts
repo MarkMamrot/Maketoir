@@ -1600,7 +1600,7 @@ export const ImsSORepo = {
     const so_number = data.so_number || await nextSONumber();
     let subtotal = 0, tax_amount = 0;
     for (const item of items) {
-      const disc  = 1 - Number(item.discount_pct ?? 0);
+      const disc  = 1 - Number(item.discount_pct ?? 0) / 100;
       const line  = Number(item.qty_ordered) * Number(item.unit_price) * disc;
       subtotal   += line;
       tax_amount += line * Number(item.tax_rate ?? 0);
@@ -1620,7 +1620,7 @@ export const ImsSORepo = {
     );
     const so_id = res.insertId;
     for (const item of items) {
-      const disc      = 1 - Number(item.discount_pct ?? 0);
+      const disc      = 1 - Number(item.discount_pct ?? 0) / 100;
       const line_total = Number(item.qty_ordered) * Number(item.unit_price) * disc;
       await imsExecute(
         `INSERT INTO ims_sales_order_items
@@ -1662,7 +1662,7 @@ export const ImsSORepo = {
         await conn.execute(`DELETE FROM ims_sales_order_items WHERE so_id = ?`, [id]);
         let subtotal = 0, tax_amount = 0;
         for (const item of items) {
-          const disc      = 1 - Number(item.discount_pct ?? 0);
+          const disc      = 1 - Number(item.discount_pct ?? 0) / 100;
           const line_total = Number(item.qty_ordered) * Number(item.unit_price) * disc;
           subtotal   += line_total;
           tax_amount += line_total * Number(item.tax_rate ?? 0);
