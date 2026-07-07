@@ -128,6 +128,8 @@ export default function ProductAICreativePanel({ productId, productName, busines
   const [includeWebTemplates, setIncludeWebTemplates] = useState(true);
   const [additionalInstructions, setAdditionalInstructions] = useState('');
   const [showMakePrompt, setShowMakePrompt] = useState(false);
+  const [varyExpression, setVaryExpression] = useState(false);
+  const [varyGaze, setVaryGaze]             = useState(false);
   const [similarQuery, setSimilarQuery]     = useState('');
   const [similarResults, setSimilarResults] = useState<{ product_id: string; name: string }[]>([]);
   const [selectedSimilar, setSelectedSimilar] = useState<{ product_id: string; name: string }[]>([]);
@@ -411,6 +413,12 @@ export default function ProductAICreativePanel({ productId, productName, busines
         : ``,
       hasModel
         ? `This is a wearable/clothing item: dress the model (using the model's exact face, body, pose and skin from the template reference) in the product from the PRODUCT reference image. The model must be wearing the ACTUAL product from the product reference — not the garment shown in the template. Fit it naturally with correct scale, drape and proportion, matching the template's lighting.`
+        : ``,
+      hasModel && varyExpression
+        ? `Give the model a fresh, natural facial expression that differs subtly from the template (e.g. a soft genuine smile or a relaxed, warm look) while keeping the SAME person's identity, features and skin exactly.`
+        : ``,
+      hasModel && varyGaze
+        ? `Introduce a subtle, natural variation to the model's head tilt and gaze so they are NOT looking straight into the camera — a gentle off-camera glance or a slight head turn. Keep it subtle (a small, flattering adjustment), never a full turn or profile.`
         : ``,
       hasBackdrop
         ? `Place the product from the PRODUCT reference within the backdrop scene from the template reference, in a natural, compelling position. Match the backdrop's lighting, shadows and perspective. Do not import any product from the backdrop template.`
@@ -841,6 +849,18 @@ export default function ProductAICreativePanel({ productId, productName, busines
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Model variation quick options — only when a model reference is selected */}
+            {selectedRefs.some(r => r.label.toLowerCase().includes('model')) && (
+              <div style={{ marginBottom: 12 }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 5px' }}>Model Variations <span style={{ fontWeight: 400, textTransform: 'none' }}>(subtle)</span></p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  <button onClick={() => setVaryExpression(p => !p)} style={toggleStyle(varyExpression, '#ec4899')}>{varyExpression ? '✓ ' : ''}Vary Expression</button>
+                  <button onClick={() => setVaryGaze(p => !p)} style={toggleStyle(varyGaze, '#14b8a6')}>{varyGaze ? '✓ ' : ''}Vary Head Tilt & Gaze</button>
+                </div>
+                <p style={{ fontSize: 10, color: textDim, margin: '5px 0 0', lineHeight: 1.4 }}>Adds a subtle, natural change to the model's expression or off-camera glance so shots don't all look identical.</p>
               </div>
             )}
 
