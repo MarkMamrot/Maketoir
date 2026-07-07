@@ -35,6 +35,27 @@ const ASPECT_RATIOS = [
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+// Parse a fetch Response as JSON, but degrade gracefully when the server returns
+// an HTML error page (e.g. a 502/504 gateway timeout) instead of JSON. Prevents
+// the "Unexpected token '<', <!DOCTYPE..." crash and surfaces a clean message.
+async function parseJsonResponse(res: Response): Promise<any> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    const looksHtml = /^\s*</.test(text);
+    if (res.status === 504 || res.status === 502 || res.status === 408) {
+      throw new Error('The request timed out. Try a faster text model (e.g. Gemini 2.5 Flash) or fewer reference images.');
+    }
+    throw new Error(
+      looksHtml
+        ? `Server error (HTTP ${res.status}). Try a faster text model or try again.`
+        : (text.slice(0, 160) || `Request failed (HTTP ${res.status}).`),
+    );
+  }
+}
+
 async function urlToBase64(url: string): Promise<{ data: string; mimeType: string } | null> {
   try {
     const res = await fetch(url);
@@ -159,7 +180,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: 'fetch-ref-image', url: img.url }),
       });
-      const d = await res.json();
+      const d = await parseJsonResponse(res);
       if (d.success && d.data) {
         setSelectedRefs(p => {
           // Toggle: deselect if already selected
@@ -190,7 +211,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
           history: newMsgs.slice(0, -1).map(m => ({ role: m.role, content: m.text })),
         }),
       });
-      const d = await res.json();
+      const d = await parseJsonResponse(res);
       if (!res.ok) throw new Error(d.error ?? 'Chat error');
       setChatMsgs(p => [...p, { role: 'assistant', text: d.response }]);
     } catch (e: any) { setChatError(e.message); }
@@ -220,7 +241,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
             includeBrandProfile: true, includeBusinessInfo: true,
           }),
         });
-        const d = await res.json();
+        const d = await parseJsonResponse(res);
         if (!res.ok || !d.success) throw new Error(d.error ?? 'Text generation failed');
         const safeTags = Array.isArray(d.tags)
           ? d.tags
@@ -250,7 +271,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
           referenceImages: selectedRefs.map(r => ({ data: r.data, mimeType: r.mimeType, label: r.label })),
         }),
       });
-      const d = await res.json();
+      const d = await parseJsonResponse(res);
       if (!res.ok || !d.success) throw new Error(d.error ?? `${tab} generation failed`);
       if (tab === 'image') setGeneratedImage({ data: d.imageData, mimeType: d.mimeType });
       else setGeneratedVideo({ data: d.videoData, uri: d.videoUri, mimeType: d.mimeType });
@@ -277,7 +298,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
           includeBrandProfile: true, includeBusinessInfo: true,
         }),
       });
-      const d = await res.json();
+      const d = await parseJsonResponse(res);
       if (d.success && d.preview) setPromptPreview(d.preview);
     } catch {}
     setLoadingPreview(false);
@@ -296,7 +317,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: 'save-text', ...payload }),
       });
-      const d = await res.json();
+      const d = await parseJsonResponse(res);
       if (d.success) {
         setSavedTextFields(p => new Set([...p, field]));
         setTimeout(() => setSavedTextFields(p => { const n = new Set(p); n.delete(field); return n; }), 3000);
@@ -354,7 +375,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
           altText: `AI creative — ${productName}`,
         }),
       });
-      const d = await res.json();
+      const d = await parseJsonResponse(res);
       if (!res.ok || !d.success) throw new Error(d.error ?? 'Save failed');
       setSavedUrl(d.url);
       onImageAdded();

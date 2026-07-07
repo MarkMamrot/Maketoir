@@ -19,6 +19,11 @@ import { decrypt }               from '@/lib/encryption';
 import fs   from 'fs';
 import path from 'path';
 
+// Allow long-running AI generations (pro models with large prompts can take a while)
+// before the platform kills the request.
+export const maxDuration = 300;
+export const dynamic = 'force-dynamic';
+
 function getSession() {
   const c = cookies().get('marketoir_session');
   if (!c?.value) return null;
