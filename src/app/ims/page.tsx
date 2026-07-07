@@ -2643,7 +2643,20 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                 <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
               </div>
               <div style={{ marginBottom: 20 }}>
-                <ProductImageGallery productId={modal.edit.product_id} productName={modal.edit.name ?? ''} businessId={businessId} />
+                <ProductImageGallery
+                  productId={modal.edit.product_id}
+                  productName={modal.edit.name ?? ''}
+                  businessId={businessId}
+                  productTitle={form.name ?? ''}
+                  productDescription={form.description ?? ''}
+                  productTags={form.tags ?? ''}
+                  onApplyText={(f) => setForm((p: any) => ({
+                    ...p,
+                    ...(f.title       !== undefined ? { name: f.title } : {}),
+                    ...(f.description !== undefined ? { description: f.description } : {}),
+                    ...(f.tags        !== undefined ? { tags: f.tags } : {}),
+                  }))}
+                />
               </div>
             </>
           )}

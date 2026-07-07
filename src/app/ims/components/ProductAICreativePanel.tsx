@@ -81,11 +81,15 @@ interface Props {
   productId:        string;
   productName:      string;
   businessId:       string;
+  productTitle?:       string;
+  productDescription?: string;
+  productTags?:        string;
+  onApplyText?:     (fields: { title?: string; description?: string; tags?: string }) => void;
   onClose:          () => void;
   onImageAdded:     () => void;
 }
 
-export default function ProductAICreativePanel({ productId, productName, businessId, onClose, onImageAdded }: Props) {
+export default function ProductAICreativePanel({ productId, productName, businessId, productTitle = '', productDescription = '', productTags = '', onApplyText, onClose, onImageAdded }: Props) {
   // ── State ──────────────────────────────────────────────────────────────────
   const [tab, setTab]                   = useState<'image' | 'video' | 'text'>('image');
   const [assets, setAssets]             = useState<BrandAsset[]>([]);
@@ -122,6 +126,8 @@ export default function ProductAICreativePanel({ productId, productName, busines
   const [includeBrandProfile, setIncludeBrandProfile] = useState(true);
   const [includeBusinessInfo, setIncludeBusinessInfo] = useState(true);
   const [includeWebTemplates, setIncludeWebTemplates] = useState(true);
+  const [additionalInstructions, setAdditionalInstructions] = useState('');
+  const [showMakePrompt, setShowMakePrompt] = useState(false);
   const [loadingRefs, setLoadingRefs]   = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -235,10 +241,11 @@ export default function ProductAICreativePanel({ productId, productName, busines
             textModel,
             includeExistingText,
             includeWebTemplates,
-            existingTitle: (window as any).__aiProductTitle ?? '',
-            existingDescription: (window as any).__aiProductDesc ?? '',
-            existingTags: (window as any).__aiProductTags ?? '',
-            includeBrandProfile: true, includeBusinessInfo: true,
+            additionalInstructions,
+            existingTitle: productTitle,
+            existingDescription: productDescription,
+            existingTags: productTags,
+            includeBrandProfile, includeBusinessInfo,
           }),
         });
         const d = await parseJsonResponse(res);
@@ -258,7 +265,15 @@ export default function ProductAICreativePanel({ productId, productName, busines
       return;
     }
 
-    if (!promptToUse) { setGenError('Select references and use Quick Improve or write a prompt first.'); return; }
+    // Image / video generation. Prompt priority:
+    //  1. a manually-refined prompt (from "Make detailed prompt")
+    //  2. otherwise an auto compositing prompt built from the selected references
+    // Additional instructions are always appended.
+    let basePrompt = promptToUse || buildAutoPrompt();
+    if (additionalInstructions.trim()) {
+      basePrompt += `\n\nAdditional instructions (must be factored in): ${additionalInstructions.trim()}`;
+    }
+    if (!basePrompt.trim()) { setGenError('Select references (or write a prompt) first.'); return; }
     setGenerating(true); setGenError(''); setGeneratedImage(null); setGeneratedVideo(null); setSavedUrl(null);
 
     try {
@@ -266,7 +281,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mode: tab,
-          prompt: promptToUse,
+          prompt: basePrompt,
           imageModel, videoModel, aspectRatio,
           referenceImages: selectedRefs.map(r => ({ data: r.data, mimeType: r.mimeType, label: r.label })),
         }),
@@ -292,10 +307,11 @@ export default function ProductAICreativePanel({ productId, productName, busines
           referenceImages: selectedRefs.map(r => ({ mimeType: r.mimeType, label: r.label })),
           includeExistingText,
           includeWebTemplates,
-          existingTitle: (window as any).__aiProductTitle ?? '',
-          existingDescription: (window as any).__aiProductDesc ?? '',
-          existingTags: (window as any).__aiProductTags ?? '',
-          includeBrandProfile: true, includeBusinessInfo: true,
+          additionalInstructions,
+          existingTitle: productTitle,
+          existingDescription: productDescription,
+          existingTags: productTags,
+          includeBrandProfile, includeBusinessInfo,
         }),
       });
       const d = await parseJsonResponse(res);
@@ -312,6 +328,15 @@ export default function ProductAICreativePanel({ productId, productName, busines
     if (field === 'title' || field === 'all')       payload.title       = generatedText.title;
     if (field === 'description' || field === 'all') payload.description = generatedText.description;
     if (field === 'tags' || field === 'all')        payload.tags        = generatedText.tags;
+    // Update the product edit form so the user sees the change and a later form
+    // save won't overwrite it with stale values.
+    if (onApplyText) {
+      onApplyText({
+        ...(payload.title       !== undefined ? { title: payload.title } : {}),
+        ...(payload.description !== undefined ? { description: payload.description } : {}),
+        ...(payload.tags        !== undefined ? { tags: Array.isArray(payload.tags) ? payload.tags.join(', ') : payload.tags } : {}),
+      });
+    }
     try {
       const res = await fetch(`/api/ims/products/${productId}/ai-creative`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -326,18 +351,15 @@ export default function ProductAICreativePanel({ productId, productName, busines
     setSavingText(false);
   };
 
-  // ── Quick Improve: build compositing prompt and go straight to image ───────
-  const quickImprove = async () => {
-    if (selectedRefs.length === 0) { setGenError('Select at least one reference image first.'); return; }
+  // ── Build an auto compositing prompt from the selected references ──────────
+  const buildAutoPrompt = (): string => {
     const productRefs  = selectedRefs.filter(r => r.label.startsWith('Product'));
     const templateRefs = selectedRefs.filter(r => !r.label.startsWith('Product'));
-    const userExtra    = chatInput.trim();
     const templates    = templateRefs.map(r => r.label).join(', ');
-
     const hasModel    = templateRefs.some(r => r.label.toLowerCase().includes('model'));
     const hasBackdrop = templateRefs.some(r => r.label.toLowerCase().includes('backdrop'));
 
-    const autoPrompt = [
+    return [
       productRefs.length > 0
         ? `You are given TWO kinds of reference images. The PRODUCT reference image(s) [${productRefs.map(r => r.label).join(', ')}] contain the ACTUAL product that must appear in the output — exactly as shown, with its real design, colours, textures, print/graphics and shape unchanged. The TEMPLATE reference image(s) [${templates}] provide ONLY the scene: the person (face, body, pose, skin) and/or the backdrop.`
         : `Create an on-brand product image using the provided template reference${templates ? ` (${templates})` : ''}.`,
@@ -352,11 +374,14 @@ export default function ProductAICreativePanel({ productId, productName, busines
         : ``,
       `Maintain photographic realism: the product's colours, materials, graphics and scale must match the PRODUCT reference exactly. Do not invent or alter the product.`,
       `Produce a clean, premium, on-brand result suitable for product photography.`,
-      userExtra ? `Additional instruction: ${userExtra}` : ``,
     ].filter(Boolean).join(' ');
+  };
 
+  // ── Quick Improve: build compositing prompt and go straight to image ───────
+  const quickImprove = async () => {
+    if (selectedRefs.length === 0) { setGenError('Select at least one reference image first.'); return; }
     setChatInput('');
-    await generate(autoPrompt);
+    await generate(buildAutoPrompt());
   };
 
   // ── Save ────────────────────────────────────────────────────────────────────
@@ -432,11 +457,11 @@ export default function ProductAICreativePanel({ productId, productName, busines
         ))}
       </div>
 
-      {/* ── Body: 3 columns ── */}
+      {/* ── Body: 2 equal columns ── */}
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', gap: 0 }}>
 
         {/* ── LEFT: Template & photo picker ── */}
-        <div style={{ width: 380, background: bg1, borderRight: `1px solid ${etch}`, overflow: 'auto', padding: '12px 12px 16px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ flex: 1, background: bg1, borderRight: `1px solid ${etch}`, overflow: 'auto', padding: '12px 12px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
           {/* Selected refs strip */}
           {selectedRefs.length > 0 && (
@@ -531,112 +556,71 @@ export default function ProductAICreativePanel({ productId, productName, busines
           )}
         </div>
 
-        {/* ── CENTRE: AI Chat (narrower) ── */}
-        <div style={{ flex: '1 1 auto', minWidth: 280, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-          {/* Context toggles */}
-          <div style={{ background: bg1, borderBottom: `1px solid ${etch}`, padding: '8px 14px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
-            <button style={toggleStyle(includeBrandProfile, '#8b5cf6')} onClick={() => setIncludeBrandProfile(p => !p)}>{includeBrandProfile ? '✓ ' : ''}Brand Profile</button>
-            <button style={toggleStyle(includeBusinessInfo,  '#0ea5e9')} onClick={() => setIncludeBusinessInfo(p => !p)} >{includeBusinessInfo  ? '✓ ' : ''}Business Info</button>
-            <button style={toggleStyle(includeExistingText,  '#f59e0b')} onClick={() => setIncludeExistingText(p => !p)}>{includeExistingText  ? '✓ ' : ''}Existing Title/Desc/Tags</button>
-            <button style={toggleStyle(includeWebTemplates,  '#10b981')} onClick={() => setIncludeWebTemplates(p => !p)}>{includeWebTemplates  ? '✓ ' : ''}Website Templates</button>
-            {selectedRefs.length > 0 && <span style={{ fontSize: 11, color: '#22c55e' }}>📎 {selectedRefs.length} reference{selectedRefs.length !== 1 ? 's' : ''} attached</span>}
-          </div>
+        {/* ── RIGHT: Fresh Creatives (equal width) ── */}
+        <div style={{ flex: 1, background: bg1, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+          <div style={{ padding: 14 }}>
+            <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .6, margin: '0 0 10px' }}>✨ Fresh Creatives</p>
 
-          {/* Quick Improve bar */}
-          {selectedRefs.length > 0 && chatMsgs.length === 0 && (
-            <div style={{ background: `rgba(139,92,246,.1)`, borderBottom: `1px solid rgba(139,92,246,.25)`, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-              <span style={{ fontSize: 12, color: '#a78bfa', flex: 1 }}>References selected — use Quick Improve or write your own prompt below</span>
-              <button
-                onClick={quickImprove}
-                disabled={generating || selectedRefs.length === 0}
-                style={{ ...panelBtn(true), fontSize: 12, padding: '5px 12px', background: '#8b5cf6', whiteSpace: 'nowrap', opacity: (generating || selectedRefs.length === 0) ? .5 : 1 }}
-              >
-                {generating ? '⏳ Generating…' : '⚡ Quick Improve → Image'}
-              </button>
+            {/* Context selectors */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${etch}` }}>
+              <button style={toggleStyle(includeBrandProfile, '#8b5cf6')} onClick={() => setIncludeBrandProfile(p => !p)}>{includeBrandProfile ? '✓ ' : ''}Brand Profile</button>
+              <button style={toggleStyle(includeBusinessInfo,  '#0ea5e9')} onClick={() => setIncludeBusinessInfo(p => !p)} >{includeBusinessInfo  ? '✓ ' : ''}Business Info</button>
+              <button style={toggleStyle(includeExistingText,  '#f59e0b')} onClick={() => setIncludeExistingText(p => !p)}>{includeExistingText  ? '✓ ' : ''}Existing Title/Desc/Tags</button>
+              <button style={toggleStyle(includeWebTemplates,  '#10b981')} onClick={() => setIncludeWebTemplates(p => !p)}>{includeWebTemplates  ? '✓ ' : ''}Website Templates</button>
+              {selectedRefs.length > 0 && <span style={{ fontSize: 11, color: '#22c55e' }}>📎 {selectedRefs.length} reference{selectedRefs.length !== 1 ? 's' : ''} attached</span>}
             </div>
-          )}
 
-          {/* Messages */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {chatMsgs.length === 0 && (
-              <div style={{ textAlign: 'center', padding: selectedRefs.length > 0 ? '24px 20px' : '40px 20px', color: textDim }}>
-                <p style={{ fontSize: 22, margin: '0 0 12px' }}>✨</p>
-                <p style={{ fontSize: 14, margin: '0 0 8px', color: textMain }}>AI Product Creative Studio</p>
-                {selectedRefs.length === 0 ? (
-                  <p style={{ fontSize: 13, margin: 0, lineHeight: 1.7 }}>
-                    <strong style={{ color: textMain }}>Step 1:</strong> Select your product photo from the left panel (add it as a reference).<br />
-                    <strong style={{ color: textMain }}>Step 2:</strong> Add a model or backdrop template.<br />
-                    <strong style={{ color: textMain }}>Step 3:</strong> Hit <strong style={{ color: '#8b5cf6' }}>⚡ Quick Improve</strong> or write your own prompt.
-                  </p>
-                ) : (
-                  <p style={{ fontSize: 13, margin: 0, lineHeight: 1.7, color: textDim }}>
-                    References ready. Use <strong style={{ color: '#8b5cf6' }}>⚡ Quick Improve</strong> above for an auto-generated compositing prompt,<br />
-                    or write your own below to customise.
-                  </p>
+            {/* Additional instructions — always shown, all creative types */}
+            <div style={{ marginBottom: 12 }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 5px' }}>Additional Instructions for AI</p>
+              <textarea value={additionalInstructions} onChange={e => setAdditionalInstructions(e.target.value)}
+                placeholder={tab === 'text' ? 'e.g. emphasise sustainability, mention it ships gift-wrapped…' : 'e.g. golden-hour light, outdoor setting, minimal props…'}
+                rows={2}
+                style={{ width: '100%', fontSize: 12, padding: '8px 10px', borderRadius: 8, border: `1px solid ${etch}`, background: bg2, color: textMain, resize: 'vertical', outline: 'none', lineHeight: 1.5, boxSizing: 'border-box' as const }} />
+            </div>
+
+            {/* Make detailed prompt — optional dropdown, image/video only */}
+            {tab !== 'text' && (
+              <div style={{ marginBottom: 12 }}>
+                <button onClick={() => setShowMakePrompt(p => !p)}
+                  style={{ width: '100%', textAlign: 'left', background: bg2, border: `1px solid ${etch}`, borderRadius: 8, padding: '8px 10px', cursor: 'pointer', color: textDim, fontSize: 11, fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>✍ Make detailed prompt (optional){chatMsgs.some(m => m.role === 'assistant') ? ' · ✓ prompt ready' : ''}</span>
+                  <span>{showMakePrompt ? '▾' : '▸'}</span>
+                </button>
+                {showMakePrompt && (
+                  <div style={{ marginTop: 8, background: bg0, border: `1px solid ${etch}`, borderRadius: 8, padding: 10 }}>
+                    <p style={{ fontSize: 11, color: textDim, margin: '0 0 8px', lineHeight: 1.5 }}>
+                      Describe the shot and let the AI craft a full generation prompt. If you make one, it becomes the prompt used (together with your selected context and additional instructions).
+                    </p>
+                    <textarea value={chatInput} onChange={e => setChatInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
+                      placeholder="Describe the creative you need…"
+                      rows={2}
+                      style={{ width: '100%', fontSize: 12, padding: '8px 10px', borderRadius: 8, border: `1px solid ${etch}`, background: bg2, color: textMain, resize: 'vertical', outline: 'none', lineHeight: 1.5, boxSizing: 'border-box' as const }} />
+                    <button onClick={sendChat} disabled={!chatInput.trim() || chatLoading}
+                      style={{ ...panelBtn(!!chatInput.trim() && !chatLoading), width: '100%', marginTop: 7, padding: '7px', fontSize: 12, opacity: chatInput.trim() && !chatLoading ? 1 : .4 }}>
+                      {chatLoading ? 'Writing…' : '✍ Make Detailed Prompt'}
+                    </button>
+                    {chatError && <p style={{ fontSize: 11, color: red, margin: '6px 0 0' }}>⚠️ {chatError}</p>}
+                    {chatMsgs.filter(m => m.role === 'assistant').slice(-1).map((m, i) => (
+                      <div key={i} style={{ marginTop: 8, background: bg2, borderRadius: 8, padding: '8px 10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                          <span style={{ fontSize: 9, fontWeight: 700, color: action, textTransform: 'uppercase', letterSpacing: .5 }}>Generated prompt (will be used)</span>
+                          <button onClick={() => setChatMsgs([])} style={{ background: 'none', border: 'none', color: textDim, cursor: 'pointer', fontSize: 11 }}>Clear</button>
+                        </div>
+                        <p style={{ fontSize: 11, color: textMain, margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{m.text}</p>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
-            {chatMsgs.map((m, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                <div style={{ maxWidth: '85%', borderRadius: 12, padding: '10px 14px',
-                  background: m.role === 'user' ? action : bg2,
-                  color: '#fff', fontSize: 13, lineHeight: 1.65, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, opacity: .7, marginBottom: 5 }}>
-                    {m.role === 'user' ? 'You' : 'AI Creative Director'}
-                  </div>
-                  {m.text}
-                </div>
-              </div>
-            ))}
-            {chatLoading && (
-              <div style={{ display: 'flex' }}>
-                <div style={{ borderRadius: 12, padding: '10px 14px', background: bg2, color: textDim, fontSize: 13 }}>Writing prompt…</div>
-              </div>
-            )}
-            {chatError && <p style={{ fontSize: 12, color: red, background: '#ef444415', padding: '6px 10px', borderRadius: 6, margin: 0 }}>⚠️ {chatError}</p>}
-            <div ref={chatEndRef} />
-          </div>
-
-          {/* Input */}
-          <div style={{ padding: '12px 16px', borderTop: `1px solid ${etch}`, flexShrink: 0 }}>
-            <textarea value={chatInput} onChange={e => setChatInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
-              placeholder={selectedRefs.length > 0 ? 'Optional: add extra instructions (e.g. outdoor setting, golden light) then Quick Improve, or write a full prompt and Make Prompt' : 'Describe the creative you need — the AI will write a detailed generation prompt'}
-              rows={2}
-              style={{ width: '100%', fontSize: 13, padding: '8px 12px', borderRadius: 9, border: `1px solid ${etch}`, background: bg2, color: textMain, resize: 'none', outline: 'none', lineHeight: 1.5, boxSizing: 'border-box' as const }}
-            />
-            <div style={{ display: 'flex', gap: 8, marginTop: 7 }}>
-              <button onClick={quickImprove}
-                disabled={generating || selectedRefs.length === 0}
-                style={{ ...panelBtn(true), flex: 1, padding: '7px', background: '#8b5cf6', fontSize: 12, opacity: (generating || selectedRefs.length === 0) ? .4 : 1 }}>
-                {generating ? '⏳ Generating…' : '⚡ Quick Improve → Image'}
-              </button>
-              <button onClick={sendChat}
-                disabled={!chatInput.trim() || chatLoading}
-                style={{ ...panelBtn(chatLoading ? false : !!chatInput.trim()), flex: 1, padding: '7px', fontSize: 12, opacity: chatInput.trim() && !chatLoading ? 1 : .4 }}>
-                {chatLoading ? 'Writing…' : '✍ Make Detailed Prompt'}
-              </button>
-            </div>
-            <p style={{ fontSize: 10, color: textDim, margin: '5px 0 0' }}>⚡ Quick Improve uses your text as extra context and generates the image immediately · ✍ Make Prompt refines with AI first</p>
-          </div>
-        </div>
-
-        {/* ── RIGHT: Fresh Creatives (wider, expandable) ── */}
-        <div style={{ flex: freshCreativesExpanded ? '1 1 auto' : '0 0 380px', background: bg1, borderLeft: `1px solid ${etch}`, display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'auto', transition: 'flex .2s' }}>
-          <div style={{ padding: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .6, margin: 0 }}>✨ Fresh Creatives</p>
-              <button onClick={() => setFreshCreativesExpanded(p => !p)}
-                style={{ background: 'none', border: `1px solid ${etch}`, borderRadius: 5, cursor: 'pointer', fontSize: 11, color: textDim, padding: '2px 8px' }}>
-                {freshCreativesExpanded ? '⊙ Shrink' : '⊞ Expand'}
-              </button>
-            </div>
 
             {/* ── Text Content tab ── */}
             {tab === 'text' && (
               <div>
                 <p style={{ fontSize: 11, color: textDim, marginBottom: 10, lineHeight: 1.6 }}>
-                  Select product photos and/or enable <strong>Existing Title/Desc/Tags</strong> (in the context bar) as references. The AI analyses them with your brand context.
+                  Select product photos and/or enable <strong>Existing Title/Desc/Tags</strong> above. The AI analyses them with your brand context and website templates.
                 </p>
                 {(() => { const hasProductRef = selectedRefs.filter(r => r.label.startsWith('Product')).length > 0; const canGenerate = hasProductRef || includeExistingText; return (
                 <>
@@ -771,15 +755,15 @@ export default function ProductAICreativePanel({ productId, productName, busines
               </div>
             )}
 
-            {/* Requires prompt */}
-            {chatMsgs.filter(m => m.role === 'assistant').length === 0 && (
-              <p style={{ fontSize: 12, color: textDim, marginBottom: 12 }}>← Use ⚡ Quick Improve or generate a prompt in the chat, then click Generate.</p>
+            {/* Requires references or a prompt */}
+            {selectedRefs.length === 0 && chatMsgs.filter(m => m.role === 'assistant').length === 0 && (
+              <p style={{ fontSize: 12, color: textDim, marginBottom: 12 }}>Select references on the left (and optionally make a detailed prompt) to generate.</p>
             )}
 
             {/* Generate button */}
             <button onClick={() => generate()}
-              disabled={generating || chatMsgs.filter(m => m.role === 'assistant').length === 0}
-              style={{ width: '100%', padding: '10px', borderRadius: 9, border: 'none', cursor: 'pointer', background: action, color: '#fff', fontWeight: 700, fontSize: 14, opacity: generating || chatMsgs.filter(m => m.role === 'assistant').length === 0 ? .4 : 1, marginBottom: 6 }}>
+              disabled={generating || (selectedRefs.length === 0 && chatMsgs.filter(m => m.role === 'assistant').length === 0)}
+              style={{ width: '100%', padding: '10px', borderRadius: 9, border: 'none', cursor: 'pointer', background: action, color: '#fff', fontWeight: 700, fontSize: 14, opacity: generating || (selectedRefs.length === 0 && chatMsgs.filter(m => m.role === 'assistant').length === 0) ? .4 : 1, marginBottom: 6 }}>
               {generating ? (tab === 'image' ? 'Generating image…' : 'Generating video… (may take 30–60s)') : `Generate ${tab === 'image' ? 'Image' : 'Video'}`}
             </button>
 

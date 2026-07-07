@@ -15,9 +15,13 @@ interface Props {
   productId:   string;
   productName?: string;
   businessId?: string;
+  productTitle?: string;
+  productDescription?: string;
+  productTags?: string;
+  onApplyText?: (fields: { title?: string; description?: string; tags?: string }) => void;
 }
 
-export default function ProductImageGallery({ productId, productName = 'Product', businessId = '' }: Props) {
+export default function ProductImageGallery({ productId, productName = 'Product', businessId = '', productTitle = '', productDescription = '', productTags = '', onApplyText }: Props) {
   const [images, setImages]       = useState<ProductImage[]>([]);
   const [loading, setLoading]     = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -107,6 +111,10 @@ export default function ProductImageGallery({ productId, productName = 'Product'
           productId={productId}
           productName={productName}
           businessId={businessId}
+          productTitle={productTitle}
+          productDescription={productDescription}
+          productTags={productTags}
+          onApplyText={onApplyText}
           onClose={() => setAiPanelOpen(false)}
           onImageAdded={() => { fetchImages(); }}
         />

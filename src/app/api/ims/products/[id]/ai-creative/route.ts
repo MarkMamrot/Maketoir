@@ -372,6 +372,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       existingTitle = '', existingDescription = '', existingTags = '',
       includeExistingText = false,
       includeWebTemplates = true,
+      additionalInstructions = '',
       previewOnly = false,
     } = body;
     let textModelId = textModel || 'gemini-2.5-flash';
@@ -431,7 +432,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         existingTags        && `Existing Tags: ${existingTags}`,
         existingDescription && `Existing Description (HTML):\n${existingDescription}`,
       ].filter(Boolean).join('\n');
-      if (existing) sections.push(`=== EXISTING PRODUCT CONTENT ===\n${existing}`);
+      if (existing) sections.push(`=== EXISTING PRODUCT CONTENT (use as a factual source — it often contains real product details like materials, dimensions, brand and features. Improve and rewrite it to fit the templates; preserve accurate facts, do not invent new specs) ===\n${existing}`);
+    }
+
+    // Additional user instructions — must be factored in
+    if (typeof additionalInstructions === 'string' && additionalInstructions.trim()) {
+      sections.push(`=== ADDITIONAL INSTRUCTIONS (must be factored in) ===\n${additionalInstructions.trim()}`);
     }
 
     const contextBlock = sections.join('\n\n');
@@ -439,8 +445,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 Analyse the provided product reference images and brand context to write compelling, SEO-optimised product content.
 Use the brand's tone, visual aesthetic, and target audience to guide the writing.
 When brand website/content templates are provided, MATCH their structure, formatting, tone and style closely.
+When ADDITIONAL INSTRUCTIONS are provided, you MUST factor them into every field you generate.
 
 You MUST respond with ONLY a single valid JSON object. No markdown. No prose. No code fences. No extra keys. Start immediately with { and end with }.
+ALL FOUR keys (title, description, tags, imagePrompt) are MANDATORY and must be non-empty in every response — never omit the description.
+When EXISTING PRODUCT CONTENT is provided, treat it as the primary factual source: reuse its accurate product details (materials, dimensions, brand, features) when writing the new title, description and tags, and improve the wording to match the templates.
 
 Required JSON structure (all four keys are MANDATORY):
 {
