@@ -159,24 +159,43 @@ export async function pushInventoryForBusiness(
 
   const availByVariant = await computeAvailable(pickLocs, linkRows.map(r => r.variant_id), buffer);
 
-  for (const row of linkRows) {
-    const available = availByVariant.get(row.variant_id) ?? 0;
+  // Push in bulk GraphQL batches (up to 250 inventory items per API call).
+  // This replaces the old one-REST-call-per-variant loop, which was ~600ms per
+  // variant and hit proxy timeouts. A 250-item batch is a single round-trip.
+  const BULK = 250;
+  for (let i = 0; i < linkRows.length; i += BULK) {
+    const chunk = linkRows.slice(i, i + BULK);
+    const items = chunk.map(row => ({
+      inventoryItemId: row.shopify_inventory_item_id,
+      available: availByVariant.get(row.variant_id) ?? 0,
+    }));
     try {
-      await shopify.setInventoryLevel(row.shopify_inventory_item_id, shopifyLocationId, available);
-      result.pushed++;
+      const { userErrors } = await shopify.setInventoryLevelsBulk(items, shopifyLocationId);
+      if (userErrors.length) {
+        // Scope/permission problems surface here as user errors — same for the
+        // whole batch, so bail out with a clear message rather than repeating.
+        const joined = userErrors.map(e => e.message).join('; ');
+        if (/write_inventory|forbidden|access|scope|permission/i.test(joined)) {
+          result.errors.push('Shopify token is missing the "write_inventory" scope. Add it to your Shopify custom app (Configuration → Admin API access scopes), reinstall the app, and paste the new access token into Setup → Connections.');
+          result.skipped += linkRows.length - result.pushed;
+          return result;
+        }
+        result.errors.push(joined);
+        result.skipped += chunk.length;
+      } else {
+        result.pushed += chunk.length;
+      }
     } catch (e: any) {
-      const msg = e?.message ?? 'push failed';
-      // A 403 is a scope problem — the same for every variant. Bail out with a
-      // clear message rather than repeating 403 thousands of times.
-      if (/403|forbidden/i.test(msg)) {
+      const msg = e?.message ?? 'bulk push failed';
+      if (/403|forbidden|write_inventory|access denied/i.test(msg)) {
         result.errors.push('Shopify token is missing the "write_inventory" scope. Add it to your Shopify custom app (Configuration → Admin API access scopes), reinstall the app, and paste the new access token into Setup → Connections.');
         result.skipped += linkRows.length - result.pushed;
         return result;
       }
-      result.errors.push(`${row.variant_id}: ${msg}`);
-      result.skipped++;
+      result.errors.push(`batch @${i}: ${msg}`);
+      result.skipped += chunk.length;
     }
-    await sleep(350); // ~3/s — stays within Shopify's REST leaky bucket (2/s sustained, 40 burst)
+    await sleep(500); // gentle pacing between GraphQL calls
   }
   return result;
 }

@@ -176,6 +176,43 @@ export class ShopifyService {
   }
 
   /**
+   * Set absolute "available" quantities for MANY inventory items at one location
+   * in a single GraphQL call (up to 250 per call). Far faster than looping the
+   * REST endpoint — a 250-item batch is one round-trip instead of 250.
+   * Requires the write_inventory scope. Returns { count, userErrors }.
+   */
+  async setInventoryLevelsBulk(
+    items: Array<{ inventoryItemId: number | string; available: number }>,
+    locationId: number | string,
+  ): Promise<{ count: number; userErrors: Array<{ field?: string[]; message: string }> }> {
+    if (!items.length) return { count: 0, userErrors: [] };
+    const locGid = `gid://shopify/Location/${Number(locationId)}`;
+    const quantities = items.map(it => ({
+      inventoryItemId: `gid://shopify/InventoryItem/${Number(it.inventoryItemId)}`,
+      locationId: locGid,
+      quantity: Math.round(it.available),
+    }));
+
+    const query = `mutation inventorySetQuantities($input: InventorySetQuantitiesInput!) {
+      inventorySetQuantities(input: $input) {
+        userErrors { field message }
+      }
+    }`;
+    const variables = {
+      input: {
+        name: 'available',
+        reason: 'correction',
+        ignoreCompareQuantity: true,
+        quantities,
+      },
+    };
+
+    const res: any = await (this.shopify as any).graphql(query, variables);
+    const userErrors = res?.inventorySetQuantities?.userErrors ?? [];
+    return { count: items.length, userErrors };
+  }
+
+  /**
    * Get location IDs where an inventory item is tracked.
    * Uses inventory_levels endpoint — requires write_inventory scope only
    * (no read_locations needed). Returns an empty array if the item isn't tracked.

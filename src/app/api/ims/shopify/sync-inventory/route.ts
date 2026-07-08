@@ -135,8 +135,9 @@ async function handlePost(req: Request) {
     }
 
     // Push a bounded first batch inline (keeps the request well under proxy timeouts);
-    // enqueue the remainder for the 15-minute background cron.
-    const BATCH = 120;
+    // enqueue the remainder for the 15-minute background cron. Bulk GraphQL pushes
+    // 250 variants per call (~1.5s), so a few thousand inline stays under the limit.
+    const BATCH = 2000;
     const firstBatch = allIds.slice(0, BATCH);
     const remainder  = allIds.slice(BATCH);
 

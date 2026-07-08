@@ -15,7 +15,7 @@ jobs:
             -X POST \
             -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \
-            -d '{"mode":"queue","limit":500}' \
+            -d '{"mode":"queue","limit":4000}' \
             "${{ secrets.APP_URL }}/api/ims/shopify/sync-inventory")
           echo "HTTP status: $RESPONSE"
           [ "$RESPONSE" = "200" ] || exit 1
