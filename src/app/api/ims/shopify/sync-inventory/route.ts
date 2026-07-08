@@ -38,15 +38,30 @@ export async function GET() {
 
   const rows = await imsQuery<{ key: string; value: string }>(
     `SELECT \`key\`, value FROM ims_settings WHERE business_id = ?
-       AND \`key\` IN ('shopify_inventory_sync_enabled','shopify_inventory_location_id')`,
+       AND \`key\` IN ('shopify_inventory_sync_enabled','shopify_inventory_location_id',
+                        'online_pick_priority','shopify_inventory_buffer')`,
     [businessId],
   );
   const get = (k: string) => rows.find(r => r.key === k)?.value ?? '';
 
+  // Shopify locations (destination)
   let locations: Array<{ id: number; name: string; active: boolean }> = [];
   try {
     const shopify = await getShopifyForBusiness(businessId);
     if (shopify) locations = await shopify.listLocations();
+  } catch {}
+
+  // IMS locations (stock-counting source)
+  const imsLocs = await imsQuery<{ id: number; name: string }>(
+    `SELECT id, name FROM ims_locations WHERE business_id = ? ORDER BY name`,
+    [businessId],
+  ).catch(() => [] as { id: number; name: string }[]);
+
+  // Resolve configured pick location ids
+  let pickLocationIds: number[] = [];
+  try {
+    const arr = JSON.parse(get('online_pick_priority') || '[]');
+    if (Array.isArray(arr) && arr.length) pickLocationIds = arr.map(Number).filter(Boolean);
   } catch {}
 
   const queued = await imsQuery<{ n: number }>(
@@ -62,6 +77,9 @@ export async function GET() {
     enabled: get('shopify_inventory_sync_enabled') === '1',
     locationId: Number(get('shopify_inventory_location_id') || 0) || null,
     locations,
+    imsLocations: imsLocs,
+    pickLocationIds,
+    buffer: parseInt(get('shopify_inventory_buffer') || '0', 10) || 0,
     queuedCount: queued[0]?.n ?? 0,
   });
 }
@@ -100,6 +118,12 @@ export async function POST(req: Request) {
     if (!shopify) return NextResponse.json({ success: false, error: 'Shopify not connected' });
     const pickLocs = await getOnlinePickLocationIds(businessId);
     const shopifyLocationId = await getShopifyInventoryLocationId(businessId, shopify);
+    const buffer = parseInt(
+      (await imsQuery<{ value: string }>(
+        `SELECT value FROM ims_settings WHERE business_id = ? AND \`key\` = 'shopify_inventory_buffer' LIMIT 1`,
+        [businessId],
+      ).catch(() => []))[0]?.value || '0', 10) || 0;
+
     const linked = await imsQuery<{ n: number }>(
       `SELECT COUNT(*) AS n FROM ims_product_variants v
          JOIN ims_products p ON p.product_id = v.product_id
@@ -107,7 +131,8 @@ export async function POST(req: Request) {
       [businessId],
     );
     const sample = await imsQuery<{ sku: string; name: string; available: number }>(
-      `SELECT v.sku, p.name, SUM(GREATEST(0, s.qty_on_hand - s.qty_committed)) AS available
+      `SELECT v.sku, p.name,
+              GREATEST(0, SUM(GREATEST(0, s.qty_on_hand - s.qty_committed)) - ${Math.max(0, buffer)}) AS available
          FROM ims_product_variants v
          JOIN ims_products p ON p.product_id = v.product_id
          LEFT JOIN ims_stock s ON s.variant_id = v.variant_id AND s.location_id IN (${pickLocs.length ? pickLocs.map(() => '?').join(',') : 'NULL'})
@@ -120,6 +145,7 @@ export async function POST(req: Request) {
       pickLocationIds: pickLocs,
       shopifyLocationId,
       linkedVariants: linked[0]?.n ?? 0,
+      buffer,
       sample,
     });
   }

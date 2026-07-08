@@ -801,13 +801,16 @@ function WebhookStatusChecker({ btn }: { btn: (p?: boolean) => React.CSSProperti
 
 // ─── Inventory Sync Card (IMS → Shopify) ──────────────────────────────────────
 function InventorySyncCard({ card, label, input, btn }: { card: React.CSSProperties; label: React.CSSProperties; input: React.CSSProperties; btn: (p?: boolean) => React.CSSProperties }) {
-  const [enabled, setEnabled]       = useState(false);
-  const [locationId, setLocationId] = useState<number | ''>('');
-  const [locations, setLocations]   = useState<{ id: number; name: string; active: boolean }[]>([]);
-  const [queued, setQueued]         = useState(0);
-  const [busy, setBusy]             = useState<string | null>(null);
-  const [msg, setMsg]               = useState<string | null>(null);
-  const [preview, setPreview]       = useState<any>(null);
+  const [enabled, setEnabled]             = useState(false);
+  const [locationId, setLocationId]       = useState<number | ''>('');
+  const [locations, setLocations]         = useState<{ id: number; name: string; active: boolean }[]>([]);
+  const [imsLocations, setImsLocations]   = useState<{ id: number; name: string }[]>([]);
+  const [pickLocationIds, setPickIds]     = useState<number[]>([]);
+  const [buffer, setBuffer]               = useState<number>(0);
+  const [queued, setQueued]               = useState(0);
+  const [busy, setBusy]                   = useState<string | null>(null);
+  const [msg, setMsg]                     = useState<string | null>(null);
+  const [preview, setPreview]             = useState<any>(null);
 
   const load = () => {
     fetch('/api/ims/shopify/sync-inventory').then(r => r.json()).then(d => {
@@ -815,6 +818,9 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
         setEnabled(!!d.enabled);
         setLocationId(d.locationId ?? '');
         setLocations(d.locations ?? []);
+        setImsLocations(d.imsLocations ?? []);
+        setPickIds(d.pickLocationIds ?? []);
+        setBuffer(d.buffer ?? 0);
         setQueued(d.queuedCount ?? 0);
       }
     }).catch(() => {});
@@ -823,6 +829,14 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
 
   const saveSetting = async (patch: Record<string, string>) => {
     await fetch('/api/ims/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: patch }) }).catch(() => {});
+  };
+
+  const togglePickLocation = async (id: number) => {
+    const next = pickLocationIds.includes(id)
+      ? pickLocationIds.filter(x => x !== id)
+      : [...pickLocationIds, id];
+    setPickIds(next);
+    await saveSetting({ online_pick_priority: JSON.stringify(next) });
   };
 
   const run = async (mode: 'preview' | 'all' | 'queue') => {
@@ -847,10 +861,11 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
     <div style={card}>
       <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Inventory Sync → Shopify</h3>
       <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
-        Pushes IMS available stock (sum of your Online Pick Locations, minus committed) to Shopify so the online store never oversells. Every stock movement (sales, POs, POS, stocktakes, transfers, returns) is queued and synced automatically.
+        Pushes available stock to Shopify. Select which branches contribute to the total, set a safety buffer, and pick the Shopify location to update.
       </p>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+      {/* Enable toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
         <div onClick={async () => { const next = !enabled; setEnabled(next); await saveSetting({ shopify_inventory_sync_enabled: next ? '1' : '0' }); }}
           style={{ width: 46, height: 25, borderRadius: 99, background: enabled ? '#10b981' : 'var(--sv-etch)', position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
           <div style={{ position: 'absolute', top: 3, left: enabled ? 24 : 3, width: 19, height: 19, borderRadius: '50%', background: '#fff', transition: 'left .2s' }} />
@@ -858,14 +873,74 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
         <span style={{ fontSize: 13, fontWeight: 600, color: enabled ? '#10b981' : 'var(--sv-text-dim)' }}>{enabled ? 'Auto-sync enabled' : 'Auto-sync disabled'}</span>
       </div>
 
-      <div style={{ marginBottom: 14 }}>
-        <label style={label}>Shopify Inventory Location</label>
+      {/* Stock-counting branches */}
+      <div style={{ marginBottom: 18 }}>
+        <label style={{ ...label, marginBottom: 6, display: 'block' }}>
+          Branches to count for available stock
+          <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 400, color: 'var(--sv-text-dim)' }}>additive — sum of selected branches</span>
+        </label>
+        {imsLocations.length === 0 && (
+          <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>No locations found.</div>
+        )}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {imsLocations.map(loc => {
+            const checked = pickLocationIds.includes(loc.id);
+            return (
+              <label key={loc.id} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 12px', borderRadius: 20, border: `1px solid ${checked ? '#10b981' : 'var(--sv-etch)'}`, background: checked ? 'rgba(16,185,129,.1)' : 'var(--sv-bg-1)', cursor: 'pointer', fontSize: 13, fontWeight: checked ? 600 : 400, color: checked ? '#34d399' : 'var(--sv-text-main)', userSelect: 'none' }}>
+                <input type="checkbox" checked={checked} onChange={() => togglePickLocation(loc.id)} style={{ display: 'none' }} />
+                <span style={{ width: 14, height: 14, borderRadius: 3, border: `2px solid ${checked ? '#10b981' : 'var(--sv-text-dim)'}`, background: checked ? '#10b981' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {checked && <span style={{ color: '#fff', fontSize: 10, lineHeight: 1 }}>✓</span>}
+                </span>
+                {loc.name}
+              </label>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 6, lineHeight: 1.5 }}>
+          Tick all branches that can supply online orders — their stock is summed. Orders are always picked from the <strong>dispatch location</strong> set in IMS Settings.
+        </div>
+      </div>
+
+      {/* Buffer qty */}
+      <div style={{ marginBottom: 18, display: 'flex', alignItems: 'flex-end', gap: 14 }}>
+        <div style={{ flex: '0 0 auto' }}>
+          <label style={{ ...label, marginBottom: 4, display: 'block' }}>Safety buffer (units)</label>
+          <input
+            type="number" min="0" step="1" value={buffer}
+            onChange={e => setBuffer(Math.max(0, parseInt(e.target.value || '0', 10)))}
+            onBlur={async () => saveSetting({ shopify_inventory_buffer: String(buffer) })}
+            style={{ ...input, width: 90 }}
+          />
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', lineHeight: 1.5, paddingBottom: 2 }}>
+          Deducted from total before pushing. Use e.g. 2–5 to guard against<br/>counting discrepancies or in-transit stock.
+        </div>
+      </div>
+
+      {/* Shopify destination location */}
+      <div style={{ marginBottom: 18 }}>
+        <label style={{ ...label, marginBottom: 4, display: 'block' }}>Shopify inventory location (destination)</label>
         <select value={locationId} onChange={async e => { const v = e.target.value ? Number(e.target.value) : ''; setLocationId(v); await saveSetting({ shopify_inventory_location_id: String(v || '') }); }} style={input}>
           <option value="">Auto (primary active location)</option>
           {locations.map(l => <option key={l.id} value={l.id}>{l.name}{l.active ? '' : ' (inactive)'}</option>)}
         </select>
-        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 4 }}>The Shopify location whose inventory represents your online store. {queued > 0 && <strong style={{ color: '#fbbf24' }}>{queued} variant(s) queued for sync.</strong>}</div>
+        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 4 }}>
+          The Shopify location whose inventory number is updated. {queued > 0 && <strong style={{ color: '#fbbf24' }}>{queued} variant(s) queued for sync.</strong>}
+        </div>
       </div>
+
+      {/* Formula summary */}
+      {pickLocationIds.length > 0 && (
+        <div style={{ marginBottom: 16, padding: '8px 12px', background: 'rgba(96,165,250,.07)', borderRadius: 6, fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.7 }}>
+          <strong style={{ color: 'var(--sv-text-main)' }}>Formula: </strong>
+          SUM(on_hand − committed) across{' '}
+          <strong style={{ color: '#60a5fa' }}>
+            {pickLocationIds.map(id => imsLocations.find(l => l.id === id)?.name ?? `#${id}`).join(' + ')}
+          </strong>
+          {buffer > 0 && <> − <strong style={{ color: '#f59e0b' }}>{buffer} buffer</strong></>}
+          {' '}= available pushed to Shopify
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <button onClick={() => run('preview')} disabled={!!busy} style={btn()}>{busy === 'preview' ? 'Loading…' : '🔍 Preview'}</button>
@@ -877,11 +952,18 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
 
       {preview && (
         <div style={{ marginTop: 14, padding: 14, background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)', fontSize: 13 }}>
-          <div style={{ marginBottom: 8, color: 'var(--sv-text-main)' }}>
-            Linked variants: <strong>{preview.linkedVariants}</strong> · Shopify location: <strong>{preview.shopifyLocationId ?? '—'}</strong> · Pick locations: <strong>{(preview.pickLocationIds ?? []).join(', ') || 'none'}</strong>
+          <div style={{ marginBottom: 8, color: 'var(--sv-text-main)', lineHeight: 1.7 }}>
+            Linked variants: <strong>{preview.linkedVariants}</strong>
+            {' · '}Shopify location: <strong>{preview.shopifyLocationId ?? '—'}</strong>
+            {' · '}Counting: <strong>{(preview.pickLocationIds ?? []).map((id: number) => imsLocations.find(l => l.id === id)?.name ?? `#${id}`).join(' + ') || 'none'}</strong>
+            {(preview.buffer ?? 0) > 0 && <> · Buffer: <strong style={{ color: '#f59e0b' }}>−{preview.buffer}</strong></>}
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-            <thead><tr style={{ color: 'var(--sv-text-dim)', textAlign: 'left' }}><th style={{ padding: '4px 6px' }}>SKU</th><th style={{ padding: '4px 6px' }}>Product</th><th style={{ padding: '4px 6px', textAlign: 'right' }}>Available → Shopify</th></tr></thead>
+            <thead><tr style={{ color: 'var(--sv-text-dim)', textAlign: 'left' }}>
+              <th style={{ padding: '4px 6px' }}>SKU</th>
+              <th style={{ padding: '4px 6px' }}>Product</th>
+              <th style={{ padding: '4px 6px', textAlign: 'right' }}>Available → Shopify</th>
+            </tr></thead>
             <tbody>
               {(preview.sample ?? []).map((s: any, i: number) => (
                 <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
