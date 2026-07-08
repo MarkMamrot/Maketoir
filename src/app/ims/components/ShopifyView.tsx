@@ -683,8 +683,9 @@ function ShopifyOrdersTab({ businessId }: { businessId: string }) {
 
 // ─── Webhook Status Checker ───────────────────────────────────────────────────
 function WebhookStatusChecker({ btn }: { btn: (p?: boolean) => React.CSSProperties }) {
-  const [checking, setChecking] = useState(false);
-  const [result, setResult]     = useState<any>(null);
+  const [checking, setChecking]     = useState(false);
+  const [registering, setRegistering] = useState(false);
+  const [result, setResult]         = useState<any>(null);
 
   const check = async () => {
     setChecking(true); setResult(null);
@@ -695,56 +696,101 @@ function WebhookStatusChecker({ btn }: { btn: (p?: boolean) => React.CSSProperti
     setChecking(false);
   };
 
+  const register = async () => {
+    setRegistering(true); setResult(null);
+    try {
+      const r = await fetch('/api/ims/shopify/webhook-status', { method: 'POST' });
+      const d = await r.json();
+      if (!d.success) throw new Error(d.error);
+      // After registration, re-check so the status table refreshes
+      const r2 = await fetch('/api/ims/shopify/webhook-status');
+      setResult({ ...(await r2.json()), registerResults: d.results });
+    } catch (e: any) { setResult({ success: false, error: e.message }); }
+    setRegistering(false);
+  };
+
   const statusIcon = (s: string) =>
     s === 'ok'        ? <span style={{ color: '#34d399', fontWeight: 700 }}>✓</span>
     : s === 'wrong_url' ? <span style={{ color: '#f59e0b', fontWeight: 700 }}>⚠</span>
     :                    <span style={{ color: '#f87171', fontWeight: 700 }}>✗</span>;
 
+  const actionColor = (a: string) =>
+    a === 'created' ? '#34d399' : a === 'updated' ? '#60a5fa' : a === 'error' ? '#f87171' : 'var(--sv-text-dim)';
+
   return (
     <div style={{ marginTop: 14 }}>
-      <button onClick={check} disabled={checking} style={btn()}>
-        {checking ? 'Checking…' : '🔍 Check webhook registration'}
-      </button>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button onClick={check} disabled={checking || registering} style={btn()}>
+          {checking ? 'Checking…' : '🔍 Check webhook registration'}
+        </button>
+        <button onClick={register} disabled={checking || registering} style={btn(true)}>
+          {registering ? 'Registering…' : '⚡ Register webhooks via API'}
+        </button>
+      </div>
+      <div style={{ marginTop: 6, fontSize: 11, color: 'var(--sv-text-dim)', lineHeight: 1.5 }}>
+        <strong>Tip:</strong> Use <em>Register webhooks via API</em> — it's simpler than adding them manually in Shopify, and the check will then show their status correctly. Webhooks added through the Shopify Admin UI aren't visible to the API check (a Shopify platform limitation).
+      </div>
+
       {result && !result.success && (
         <div style={{ marginTop: 10, fontSize: 12, color: 'var(--sv-red)' }}>⚠ {result.error}</div>
       )}
+
       {result?.success && (
         <div style={{ marginTop: 12, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden', fontSize: 12 }}>
-          {/* Summary row */}
+          {/* Summary */}
           <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--sv-etch)', display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{ fontWeight: 600, color: 'var(--sv-text-strong)' }}>Webhook check</span>
+            <span style={{ fontWeight: 600, color: 'var(--sv-text-strong)' }}>
+              {result.allOk ? '✅ All webhooks registered' : 'Webhook status'}
+            </span>
             <span style={{ color: result.hasSecret ? '#34d399' : '#f87171' }}>
-              {result.hasSecret ? '✓ Signing secret saved' : '✗ Signing secret missing — save it in Settings above'}
+              {result.hasSecret ? '✓ Signing secret saved' : '✗ Signing secret missing — paste it into Settings above'}
             </span>
             <span style={{ color: result.syncEnabled ? '#34d399' : '#fbbf24' }}>
               {result.syncEnabled ? '✓ Order sync enabled' : '⚠ Order sync disabled'}
             </span>
           </div>
+
+          {/* Registration action results */}
+          {result.registerResults && (
+            <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--sv-etch)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              {result.registerResults.map((r: any) => (
+                <span key={r.topic} style={{ fontSize: 11, color: actionColor(r.action) }}>
+                  {r.action === 'created' ? '+ ' : r.action === 'updated' ? '↻ ' : r.action === 'error' ? '✗ ' : '✓ '}{r.topic}
+                  {r.error ? ` (${r.error})` : ''}
+                </span>
+              ))}
+            </div>
+          )}
+
           {/* Per-topic rows */}
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <tbody>
               {result.topics.map((t: any) => (
                 <tr key={t.topic} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
                   <td style={{ padding: '7px 14px', width: 24 }}>{statusIcon(t.status)}</td>
-                  <td style={{ padding: '7px 6px', fontFamily: 'monospace', color: 'var(--sv-mint)' }}>{t.topic}</td>
+                  <td style={{ padding: '7px 6px', fontFamily: 'monospace', color: 'var(--sv-mint)', whiteSpace: 'nowrap' }}>{t.topic}</td>
                   <td style={{ padding: '7px 6px 7px 12px', color: 'var(--sv-text-dim)' }}>
                     {t.status === 'ok'
-                      ? <span style={{ color: '#34d399' }}>Registered correctly</span>
+                      ? <span style={{ color: '#34d399' }}>Registered via API ✓</span>
                       : t.status === 'wrong_url'
-                      ? <span style={{ color: '#f59e0b' }}>Registered but pointing to a different URL — update it in Shopify to: <code style={{ fontSize: 10, background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>{result.expectedUrl}</code></span>
-                      : <span style={{ color: '#f87171' }}>Not registered — add it in Shopify pointing to the URL above</span>}
+                      ? <span style={{ color: '#f59e0b' }}>Registered but wrong URL — click Register to fix</span>
+                      : <span style={{ color: '#f87171' }}>Not registered via API — click Register, or check Shopify Admin if you added it there</span>}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {/* Expected URL */}
-          <div style={{ padding: '8px 14px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 11 }}>
+
+          <div style={{ padding: '8px 14px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 11, lineHeight: 1.5 }}>
             Expected URL: <code style={{ fontSize: 10, background: 'var(--sv-bg-0)', padding: '1px 6px', borderRadius: 3, color: 'var(--sv-mint)' }}>{result.expectedUrl}</code>
+            {result.allRegisteredViaApi === 0 && !result.registerResults && (
+              <span style={{ marginLeft: 12, color: '#fbbf24' }}>⚠ No API-registered webhooks found. If you added them via the Shopify Admin UI, click <em>Register webhooks via API</em> — the UI ones won't conflict (Shopify fires both).</span>
+            )}
           </div>
+
           {result.otherTopicsAtOurUrl?.length > 0 && (
             <div style={{ padding: '8px 14px', borderTop: '1px solid var(--sv-etch)', fontSize: 11, color: '#fbbf24' }}>
-              ⚠ Extra topics registered at this URL (not required, but harmless): {result.otherTopicsAtOurUrl.join(', ')}
+              ⚠ Other topics at this URL: {result.otherTopicsAtOurUrl.join(', ')} (not required, harmless)
             </div>
           )}
         </div>
