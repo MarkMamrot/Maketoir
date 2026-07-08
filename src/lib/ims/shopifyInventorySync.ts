@@ -57,8 +57,12 @@ export async function getShopifyInventoryLocationId(businessId: string, shopify:
   } catch { return null; }
 }
 
-/** Available-to-sell per variant across the online pick locations. */
-async function computeAvailable(pickLocationIds: number[], variantIds: string[]): Promise<Map<string, number>> {
+/** Available-to-sell per variant across the counting locations, minus optional buffer. */
+async function computeAvailable(
+  pickLocationIds: number[],
+  variantIds: string[],
+  buffer = 0,
+): Promise<Map<string, number>> {
   const map = new Map<string, number>();
   if (!pickLocationIds.length || !variantIds.length) return map;
   const locPh = pickLocationIds.map(() => '?').join(',');
@@ -70,7 +74,8 @@ async function computeAvailable(pickLocationIds: number[], variantIds: string[])
       GROUP BY variant_id`,
     [...pickLocationIds, ...variantIds],
   );
-  for (const r of rows) map.set(r.variant_id, Number(r.available ?? 0));
+  const buf = Math.max(0, Math.floor(buffer));
+  for (const r of rows) map.set(r.variant_id, Math.max(0, Number(r.available ?? 0) - buf));
   return map;
 }
 
@@ -94,7 +99,9 @@ export async function pushInventoryForBusiness(
   if (!shopify) { result.errors.push('Shopify not connected'); return result; }
 
   const pickLocs = await getOnlinePickLocationIds(businessId);
-  if (!pickLocs.length) { result.errors.push('No online pick locations configured'); return result; }
+  if (!pickLocs.length) { result.errors.push('No stock counting locations configured'); return result; }
+
+  const buffer = Math.max(0, parseInt(await getSetting(businessId, 'shopify_inventory_buffer') || '0', 10));
 
   const shopifyLocationId = await getShopifyInventoryLocationId(businessId, shopify);
   if (!shopifyLocationId) { result.errors.push('No Shopify inventory location'); return result; }
@@ -125,7 +132,7 @@ export async function pushInventoryForBusiness(
   }
   if (!linkRows.length) return result;
 
-  const availByVariant = await computeAvailable(pickLocs, linkRows.map(r => r.variant_id));
+  const availByVariant = await computeAvailable(pickLocs, linkRows.map(r => r.variant_id), buffer);
 
   for (const row of linkRows) {
     const available = availByVariant.get(row.variant_id) ?? 0;
