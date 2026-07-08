@@ -165,7 +165,15 @@ export async function pushInventoryForBusiness(
       await shopify.setInventoryLevel(row.shopify_inventory_item_id, shopifyLocationId, available);
       result.pushed++;
     } catch (e: any) {
-      result.errors.push(`${row.variant_id}: ${e?.message ?? 'push failed'}`);
+      const msg = e?.message ?? 'push failed';
+      // A 403 is a scope problem — the same for every variant. Bail out with a
+      // clear message rather than repeating 403 thousands of times.
+      if (/403|forbidden/i.test(msg)) {
+        result.errors.push('Shopify token is missing the "write_inventory" scope. Add it to your Shopify custom app (Configuration → Admin API access scopes), reinstall the app, and paste the new access token into Setup → Connections.');
+        result.skipped += linkRows.length - result.pushed;
+        return result;
+      }
+      result.errors.push(`${row.variant_id}: ${msg}`);
       result.skipped++;
     }
     await sleep(350); // ~3/s — stays within Shopify's REST leaky bucket (2/s sustained, 40 burst)

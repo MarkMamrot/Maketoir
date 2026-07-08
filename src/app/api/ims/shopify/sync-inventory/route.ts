@@ -129,8 +129,12 @@ async function handlePost(req: Request) {
 
     const res = await pushInventoryForBusiness(businessId, { variantIds: firstBatch, force: true });
 
+    // If the first batch failed with a scope/permission error, don't queue the rest —
+    // they'd all fail too. Surface the error immediately.
+    const hadScopeError = res.errors.some(e => /write_inventory|forbidden|403/i.test(e));
+
     let queuedRemainder = 0;
-    if (remainder.length) {
+    if (remainder.length && !hadScopeError) {
       // INSERT IGNORE into the dirty queue so the cron drains them.
       const values = remainder.map(() => '(?, NOW())').join(',');
       await imsExecute(
@@ -141,7 +145,7 @@ async function handlePost(req: Request) {
     }
 
     return NextResponse.json({
-      success: res.errors.length === 0 || res.pushed > 0,
+      success: res.pushed > 0,
       ...res,
       totalLinked: allIds.length,
       queuedRemainder,
