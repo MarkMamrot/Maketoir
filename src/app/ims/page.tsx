@@ -10939,9 +10939,9 @@ export default function ImsPage() {
           <span style={{ color: 'var(--sv-action)', fontWeight: 700, fontSize: 16, letterSpacing: -.3 }}>Solvantis</span>
           <span style={{ fontWeight: 700, fontSize: 16, letterSpacing: -.3, color: 'var(--sv-text-strong)', marginLeft: 4 }}>IMS</span>
           <span style={{ color: 'var(--sv-text-muted)', margin: '0 8px', fontSize: 13, opacity: .4 }}>|</span>
-          <a href="/dashboard" style={{ fontSize: 13, color: 'var(--sv-text-dim)', textDecoration: 'none', fontWeight: 500, opacity: .6, transition: 'opacity .15s' }} onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '.6')}>Foresight</a>
-          <span style={{ color: 'var(--sv-text-muted)', margin: '0 8px', fontSize: 13, opacity: .4 }}>|</span>
-          <a href="/pos" target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: 'var(--sv-text-dim)', textDecoration: 'none', fontWeight: 500, opacity: .6, transition: 'opacity .15s' }} onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '.6')}>POS</a>
+          {!isAdvisor && <a href="/dashboard" style={{ fontSize: 13, color: 'var(--sv-text-dim)', textDecoration: 'none', fontWeight: 500, opacity: .6, transition: 'opacity .15s' }} onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '.6')}>Foresight</a>}
+          {!isAdvisor && <span style={{ color: 'var(--sv-text-muted)', margin: '0 8px', fontSize: 13, opacity: .4 }}>|</span>}
+          {!isAdvisor && <a href="/pos" target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: 'var(--sv-text-dim)', textDecoration: 'none', fontWeight: 500, opacity: .6, transition: 'opacity .15s' }} onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '.6')}>POS</a>}
           {user && (user as any).tier === 'SuperAdmin' && (
             <>
               <span style={{ color: 'var(--sv-text-muted)', margin: '0 8px', fontSize: 13, opacity: .4 }}>|</span>
