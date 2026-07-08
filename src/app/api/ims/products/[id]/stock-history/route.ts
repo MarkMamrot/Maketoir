@@ -8,6 +8,17 @@ function getSession() {
   try { return JSON.parse(c.value); } catch { return null; }
 }
 
+// Movement types whose qty_change does NOT affect qty_on_hand — they move
+// qty_incoming (on-order) or qty_committed (reserved) instead. Excluded from
+// any on-hand balance math (e.g. inferring opening stock).
+const NON_ONHAND_MOVEMENT_TYPES = new Set<string>([
+  'po_approved',    // → qty_incoming (on order)
+  'so_confirmed',   // → qty_committed (reserved)
+  'so_committed',   // → qty_committed
+  'so_unconfirmed', // → qty_committed (released)
+  'so_uncommitted', // → qty_committed
+]);
+
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
@@ -151,6 +162,12 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
 
     const movementDeltaByKey = new Map<string, number>();
     for (const m of movements) {
+      // Only movements that actually change qty_on_hand may be used to infer the
+      // opening on-hand balance. po_approved (on-order → qty_incoming) and the
+      // SO commit/uncommit types (→ qty_committed) carry a qty_change but never
+      // touch qty_on_hand, so including them understates/overstates the opening
+      // balance (e.g. a +12 po_approved made the opening show as -12).
+      if (NON_ONHAND_MOVEMENT_TYPES.has(m.movement_type)) continue;
       const key = `${m.variant_id}::${m.location_id}`;
       movementDeltaByKey.set(key, (movementDeltaByKey.get(key) ?? 0) + Number(m.qty_change ?? 0));
     }
@@ -178,6 +195,8 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
     let online_in = 0;
     let online_out = 0;
     for (const m of movements) {
+      // Skip on-order/committed movements — they aren't real stock in/out.
+      if (NON_ONHAND_MOVEMENT_TYPES.has(m.movement_type)) continue;
       const delta = Number(m.qty_change);
       const isPos = m.reference_type === 'pos_sale' || m.movement_type.startsWith('pos_');
       const isOnline = m.reference_type === 'sales_order' && !!m.shopify_order_id;

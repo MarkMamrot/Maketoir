@@ -113,12 +113,13 @@ export async function POST(req: Request) {
         const oldQty = currentStock?.qty_on_hand ?? 0;
         const newQty = oldQty + qty_received;
 
-        // Increment qty_on_hand
+        // Increment qty_on_hand (set business_id so newly-created rows are
+        // visible in the business-scoped Stock Levels view)
         await conn.execute(
-          `INSERT INTO ims_stock (variant_id, location_id, qty_on_hand)
-           VALUES (?, ?, ?)
+          `INSERT INTO ims_stock (variant_id, location_id, business_id, qty_on_hand)
+           VALUES (?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE qty_on_hand = qty_on_hand + VALUES(qty_on_hand)`,
-          [variant_id, location_id, qty_received]
+          [variant_id, location_id, businessId, qty_received]
         );
 
         // Decrement qty_incoming by the amount now received

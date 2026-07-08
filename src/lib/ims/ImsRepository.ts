@@ -1115,10 +1115,10 @@ export const ImsPORepo = {
       if (from === 'draft' && to === 'confirmed') {
         for (const item of items) {
           await conn.execute(
-            `INSERT INTO ims_stock (variant_id, location_id, qty_incoming)
-             VALUES (?, ?, ?)
+            `INSERT INTO ims_stock (variant_id, location_id, business_id, qty_incoming)
+             VALUES (?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE qty_incoming = qty_incoming + VALUES(qty_incoming)`,
-            [item.variant_id, po.location_id, item.qty_ordered]
+            [item.variant_id, po.location_id, po.business_id, item.qty_ordered]
           );
           const [[s]] = await conn.execute<any[]>(
             `SELECT qty_on_hand FROM ims_stock WHERE variant_id=? AND location_id=?`,
@@ -1199,8 +1199,8 @@ export const ImsPORepo = {
           }
 
           await conn.execute(
-            `INSERT IGNORE INTO ims_stock (variant_id, location_id) VALUES (?, ?)`,
-            [item.variant_id, po.location_id]
+            `INSERT IGNORE INTO ims_stock (variant_id, location_id, business_id) VALUES (?, ?, ?)`,
+            [item.variant_id, po.location_id, po.business_id]
           );
           const [[s]] = await conn.execute<any[]>(
             `SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id=? AND location_id=?`,
@@ -1287,8 +1287,8 @@ export const ImsPORepo = {
           if (remaining <= 0) continue; // already fully received via device
 
           await conn.execute(
-            `INSERT IGNORE INTO ims_stock (variant_id, location_id) VALUES (?, ?)`,
-            [item.variant_id, po.location_id]
+            `INSERT IGNORE INTO ims_stock (variant_id, location_id, business_id) VALUES (?, ?, ?)`,
+            [item.variant_id, po.location_id, po.business_id]
           );
           const [[s]] = await conn.execute<any[]>(
             `SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id=? AND location_id=?`,
@@ -1729,10 +1729,10 @@ export const ImsSORepo = {
       if (from === 'draft' && to === 'confirmed') {
         for (const item of items) {
           await conn.execute(
-            `INSERT INTO ims_stock (variant_id, location_id, qty_committed)
-             VALUES (?, ?, ?)
+            `INSERT INTO ims_stock (variant_id, location_id, business_id, qty_committed)
+             VALUES (?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE qty_committed = qty_committed + VALUES(qty_committed)`,
-            [item.variant_id, so.location_id, item.qty_ordered]
+            [item.variant_id, so.location_id, so.business_id, item.qty_ordered]
           );
           const [[s]] = await conn.execute<any[]>(
             `SELECT qty_on_hand FROM ims_stock WHERE variant_id=? AND location_id=?`,
@@ -1772,8 +1772,8 @@ export const ImsSORepo = {
       if (from === 'confirmed' && to === 'fulfilled') {
         for (const item of items) {
           await conn.execute(
-            `INSERT IGNORE INTO ims_stock (variant_id, location_id) VALUES (?, ?)`,
-            [item.variant_id, so.location_id]
+            `INSERT IGNORE INTO ims_stock (variant_id, location_id, business_id) VALUES (?, ?, ?)`,
+            [item.variant_id, so.location_id, so.business_id]
           );
           const [[s]] = await conn.execute<any[]>(
             `SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id=? AND location_id=?`,
