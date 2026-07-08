@@ -12,7 +12,7 @@
  */
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { imsQuery } from '@/services/IMSMySQLService';
+import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import {
   drainInventoryQueue,
   pushInventoryForBusiness,
@@ -75,6 +75,15 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  try {
+    return await handlePost(req);
+  } catch (e: any) {
+    console.error('[sync-inventory] POST error:', e?.message, e?.stack);
+    return NextResponse.json({ success: false, error: e?.message ?? 'Internal error' }, { status: 500 });
+  }
+}
+
+async function handlePost(req: Request) {
   const body = await req.json().catch(() => ({}));
   const mode = body?.mode ?? 'queue';
 
@@ -99,8 +108,44 @@ export async function POST(req: Request) {
   }
 
   if (mode === 'all') {
-    const res = await pushInventoryForBusiness(businessId, { all: true, force: true });
-    return NextResponse.json({ success: res.errors.length === 0 || res.pushed > 0, ...res });
+    // Fetch every Shopify-linked variant for this business.
+    const linked = await imsQuery<{ variant_id: string }>(
+      `SELECT v.variant_id
+         FROM ims_product_variants v
+         JOIN ims_products p ON p.product_id = v.product_id
+        WHERE p.business_id = ? AND v.shopify_inventory_item_id IS NOT NULL AND v.shopify_inventory_item_id <> ''`,
+      [businessId],
+    );
+    const allIds = linked.map(r => r.variant_id);
+    if (!allIds.length) {
+      return NextResponse.json({ success: false, error: 'No Shopify-linked variants found. Run Reconcile Products first.' });
+    }
+
+    // Push a bounded first batch inline (keeps the request well under proxy timeouts);
+    // enqueue the remainder for the 15-minute background cron.
+    const BATCH = 120;
+    const firstBatch = allIds.slice(0, BATCH);
+    const remainder  = allIds.slice(BATCH);
+
+    const res = await pushInventoryForBusiness(businessId, { variantIds: firstBatch, force: true });
+
+    let queuedRemainder = 0;
+    if (remainder.length) {
+      // INSERT IGNORE into the dirty queue so the cron drains them.
+      const values = remainder.map(() => '(?, NOW())').join(',');
+      await imsExecute(
+        `INSERT IGNORE INTO ims_shopify_inventory_queue (variant_id, queued_at) VALUES ${values}`,
+        remainder,
+      ).catch(() => {});
+      queuedRemainder = remainder.length;
+    }
+
+    return NextResponse.json({
+      success: res.errors.length === 0 || res.pushed > 0,
+      ...res,
+      totalLinked: allIds.length,
+      queuedRemainder,
+    });
   }
 
   if (mode === 'preview') {

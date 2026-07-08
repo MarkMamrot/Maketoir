@@ -168,7 +168,7 @@ export async function pushInventoryForBusiness(
       result.errors.push(`${row.variant_id}: ${e?.message ?? 'push failed'}`);
       result.skipped++;
     }
-    await sleep(250); // stay within Shopify REST rate limit
+    await sleep(350); // ~3/s — stays within Shopify's REST leaky bucket (2/s sustained, 40 burst)
   }
   return result;
 }

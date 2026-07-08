@@ -848,7 +848,11 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
         if (!d.success) throw new Error(d.error ?? 'Preview failed');
         setPreview(d);
       } else if (mode === 'all') {
-        setMsg(d.errors?.length ? `Pushed ${d.pushed}, ${d.errors.length} error(s): ${d.errors.slice(0, 2).join('; ')}` : `✓ Pushed ${d.pushed} variants to Shopify`);
+        const q = d.queuedRemainder > 0 ? `, ${d.queuedRemainder} queued for background sync (drains every 15 min)` : '';
+        setMsg(d.errors?.length
+          ? `Pushed ${d.pushed}, ${d.errors.length} error(s): ${d.errors.slice(0, 2).join('; ')}${q}`
+          : `✓ Pushed ${d.pushed} of ${d.totalLinked ?? d.pushed} variants${q}`);
+        load();
       } else {
         setMsg(`✓ Drained queue: ${d.pushed} pushed of ${d.processed} processed`);
         load();
