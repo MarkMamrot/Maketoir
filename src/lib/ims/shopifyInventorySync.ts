@@ -88,7 +88,7 @@ export interface PushResult { pushed: number; skipped: number; errors: string[];
  */
 export async function pushInventoryForBusiness(
   businessId: string,
-  opts: { variantIds?: string[]; all?: boolean; force?: boolean } = {},
+  opts: { variantIds?: string[]; all?: boolean; force?: boolean; shopifyLocationId?: number | null } = {},
 ): Promise<PushResult> {
   const result: PushResult = { pushed: 0, skipped: 0, errors: [], locationId: null };
 
@@ -103,7 +103,8 @@ export async function pushInventoryForBusiness(
 
   const buffer = Math.max(0, parseInt(await getSetting(businessId, 'shopify_inventory_buffer') || '0', 10));
 
-  const shopifyLocationId = await getShopifyInventoryLocationId(businessId, shopify);
+  // Use a pre-resolved location if passed (avoids an extra API call that needs read_locations scope).
+  const shopifyLocationId = opts.shopifyLocationId ?? await getShopifyInventoryLocationId(businessId, shopify);
   if (!shopifyLocationId) { result.errors.push('No Shopify inventory location'); return result; }
   result.locationId = shopifyLocationId;
 

@@ -841,8 +841,20 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
 
   const run = async (mode: 'preview' | 'all' | 'queue') => {
     setBusy(mode); setMsg(null); if (mode !== 'preview') setPreview(null);
+    // Resolve the Shopify location ID to pass to the API — prefer the saved setting,
+    // fall back to the first active Shopify location from the already-loaded list.
+    // This avoids an extra Shopify API call inside the push (which needs read_locations scope).
+    const resolvedShopifyLocationId =
+      locationId ||
+      locations.find(l => l.active)?.id ||
+      locations[0]?.id ||
+      null;
     try {
-      const r = await fetch('/api/ims/shopify/sync-inventory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }) });
+      const r = await fetch('/api/ims/shopify/sync-inventory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode, shopifyLocationId: resolvedShopifyLocationId }),
+      });
       const d = await r.json();
       if (mode === 'preview') {
         if (!d.success) throw new Error(d.error ?? 'Preview failed');
