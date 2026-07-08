@@ -302,6 +302,10 @@ export async function triggerCNXeroSync(businessId: string, cnId: number): Promi
   if (!(await isXeroConnected(businessId))) return;
   const cn = await ImsCNRepo.get(cnId, businessId);
   if (!cn || cn.status !== 'complete') return;
+  // Shopify-sourced returns are accounted for via the Shopify Payments payout
+  // reconciliation (refunds net the payout) — posting a Xero credit note here
+  // would double-reduce revenue.
+  if (cn.source === 'shopify') return;
 
   await withRetry(
     () => syncCNAsCreditNote(businessId, {

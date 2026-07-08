@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { query } from '@/services/MySQLService';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -142,7 +143,19 @@ export async function GET(req: NextRequest) {
       const has_missing = its.some((it: any) => it.missing);
       return { ...o, items: its, has_missing };
     });
-    return NextResponse.json({ success: true, orders: result });
+
+    // Shop domain for building Shopify admin order links (returns are initiated there).
+    let shopDomain: string | null = null;
+    try {
+      const conn = await query<{ shopify_shop_id: string | null }>(
+        `SELECT shopify_shop_id FROM connections WHERE business_id = ? LIMIT 1`,
+        [businessId ?? ''],
+      );
+      const raw = conn[0]?.shopify_shop_id;
+      if (raw) shopDomain = String(raw).replace(/\.myshopify\.com$/, '') + '.myshopify.com';
+    } catch {}
+
+    return NextResponse.json({ success: true, orders: result, shopDomain });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

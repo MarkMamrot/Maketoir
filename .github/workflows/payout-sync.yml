@@ -1,0 +1,22 @@
+name: Shopify Payout → Xero Sync
+
+on:
+  schedule:
+    - cron: '0 1 * * *'    # 11am AEST  (UTC+10, Apr–Oct standard time)
+    - cron: '0 0 * * *'    # 11am AEDT  (UTC+11, Oct–Apr daylight time)
+  workflow_dispatch:        # Manual trigger from GitHub Actions UI
+
+jobs:
+  payout-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post confirmed Shopify Payments payouts to Xero
+        run: |
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"lookbackDays":14}' \
+            "${{ secrets.APP_URL }}/api/ims/shopify/payout-sync")
+          echo "HTTP status: $RESPONSE"
+          [ "$RESPONSE" = "200" ] || exit 1

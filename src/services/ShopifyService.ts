@@ -141,6 +141,67 @@ export class ShopifyService {
     return (this.shopify as any).productImage.create(Number(productId), image);
   }
 
+  /** Fetch human order names (e.g. "#47497") for a set of Shopify order ids. */
+  async getOrderNames(ids: (string | number)[]): Promise<Map<string, string>> {
+    const map = new Map<string, string>();
+    const unique = Array.from(new Set(ids.map(String))).filter(Boolean);
+    for (let i = 0; i < unique.length; i += 250) {
+      const batch = unique.slice(i, i + 250);
+      const orders = await (this.shopify as any).order.list({
+        ids: batch.join(','),
+        fields: 'id,name,order_number',
+        status: 'any',
+        limit: 250,
+      });
+      for (const o of (orders ?? [])) {
+        map.set(String(o.id), String(o.name ?? (o.order_number ? `#${o.order_number}` : '')));
+      }
+    }
+    return map;
+  }
+
+  /** List all Shopify locations (id, name, active). */
+  async listLocations(): Promise<Array<{ id: number; name: string; active: boolean }>> {
+    const locs = await (this.shopify as any).location.list();
+    return (locs ?? []).map((l: any) => ({ id: Number(l.id), name: String(l.name ?? ''), active: !!l.active }));
+  }
+
+  /** Set the absolute available quantity for an inventory item at a location. */
+  async setInventoryLevel(inventoryItemId: number | string, locationId: number | string, available: number): Promise<void> {
+    await (this.shopify as any).inventoryLevel.set({
+      inventory_item_id: Number(inventoryItemId),
+      location_id: Number(locationId),
+      available: Math.round(available),
+    });
+  }
+
+  // ── Shopify Payments payouts (requires read_shopify_payments_payouts scope) ──
+
+  /**
+   * List Shopify Payments payouts, newest first.
+   * @param params e.g. { limit, status: 'paid', date_min, date_max, since_id }
+   */
+  async listPayouts(params: Record<string, any> = {}): Promise<any[]> {
+    const list = await (this.shopify as any).payout.list({ limit: 50, ...params });
+    return (list ?? []) as any[];
+  }
+
+  /** Get a single payout by id (includes the summary breakdown). */
+  async getPayout(id: number | string): Promise<any> {
+    return (this.shopify as any).payout.get(Number(id));
+  }
+
+  /**
+   * List balance transactions (charges/refunds/fees/adjustments) that make up a
+   * payout. Filter by { payout_id } to reconcile a payout to individual orders.
+   * Each row: { id, type, amount, fee, net, source_type, source_id,
+   * source_order_id, source_order_transaction_id, payout_id, payout_status }.
+   */
+  async listBalanceTransactions(params: Record<string, any> = {}): Promise<any[]> {
+    const rows = await (this.shopify as any).balance.transactions({ limit: 250, ...params });
+    return (rows ?? []) as any[];
+  }
+
   async updateVariant(id: number | string, updates: Record<string, any>): Promise<void> {
     await (this.shopify as any).productVariant.update(Number(id), updates);
   }

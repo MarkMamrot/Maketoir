@@ -5554,7 +5554,7 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
 // Credit Notes View
 // ─────────────────────────────────────────────────────────────────────────────
 
-function CreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
+function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed }: { isAdvisor?: boolean; prefill?: any; onPrefillConsumed?: () => void } = {}) {
   const [cns, setCns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -5563,7 +5563,7 @@ function CreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
   const [customers, setCustomers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [variants, setVariants] = useState<any[]>([]);
-  const [form, setForm] = useState<any>({ customer_id: '', location_id: '', cn_date: today(), reference: '', tax_treatment: 'ex_tax', tax_code: '', notes: '', price_basis: 'custom' });
+  const [form, setForm] = useState<any>({ customer_id: '', so_id: '', original_so_number: '', location_id: '', cn_date: today(), reference: '', tax_treatment: 'ex_tax', tax_code: '', notes: '', price_basis: 'custom' });
   const [lineItems, setLineItems] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [completing, setCompleting] = useState(false);
@@ -5584,13 +5584,40 @@ function CreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
     fetch('/api/ims/variants').then(r => r.json()).then(d => { if (d.success) setVariants(d.data); });
   }, []);
 
+  // Prefill from a Sales Order "Return / Refund" action.
+  useEffect(() => {
+    if (!prefill) return;
+    const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
+    const defaultTaxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
+    setForm({
+      customer_id: prefill.customer_id ? String(prefill.customer_id) : '',
+      so_id: prefill.so_id ?? '',
+      original_so_number: prefill.original_so_number ?? '',
+      location_id: prefill.location_id ?? '',
+      cn_date: today(),
+      reference: prefill.original_so_number ? `Return of ${prefill.original_so_number}` : '',
+      tax_treatment: prefill.tax_treatment ?? 'inc_tax',
+      tax_code: settings?.sales_tax_code ?? '',
+      notes: '',
+      price_basis: 'custom',
+    });
+    setLineItems((prefill.items ?? []).map((i: any) => ({
+      variant_id: i.variant_id ?? '', code: i.code ?? '', name: i.name ?? '',
+      qty: i.qty ?? 1, unit_price: i.unit_price ?? 0, price_basis: 'custom',
+      tax_rate: i.tax_rate ?? defaultTaxRate, restock: true,
+    })));
+    setModal({ open: true, edit: null });
+    onPrefillConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill]);
+
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((p: any) => ({ ...p, [k]: e.target.value }));
 
   const addLine = () => {
     const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
     const taxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
-    setLineItems(p => [...p, { variant_id: '', code: '', name: '', qty: 1, unit_price: 0, price_basis: form.price_basis ?? 'custom', tax_rate: taxRate }]);
+    setLineItems(p => [...p, { variant_id: '', code: '', name: '', qty: 1, unit_price: 0, price_basis: form.price_basis ?? 'custom', tax_rate: taxRate, restock: true }]);
   };
   const removeLine = (i: number) => setLineItems(p => p.filter((_, idx) => idx !== i));
   const updateLine = (i: number, k: string, v: any) => setLineItems(p => p.map((item, idx) => idx === i ? { ...item, [k]: v } : item));
@@ -5636,16 +5663,16 @@ function CreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
   const openNew = () => {
     const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
     const defaultTaxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
-    setForm({ customer_id: '', location_id: '', cn_date: today(), reference: '', tax_treatment: 'ex_tax', tax_code: settings?.sales_tax_code ?? '', notes: '', price_basis: 'custom' });
-    setLineItems([{ variant_id: '', code: '', name: '', qty: 1, unit_price: 0, price_basis: 'custom', tax_rate: defaultTaxRate }]);
+    setForm({ customer_id: '', so_id: '', original_so_number: '', location_id: '', cn_date: today(), reference: '', tax_treatment: 'ex_tax', tax_code: settings?.sales_tax_code ?? '', notes: '', price_basis: 'custom' });
+    setLineItems([{ variant_id: '', code: '', name: '', qty: 1, unit_price: 0, price_basis: 'custom', tax_rate: defaultTaxRate, restock: true }]);
     setModal({ open: true, edit: null });
   };
 
   const openEdit = async (cn: any) => {
     const d = await apiFetch(`/api/ims/credit-notes/${cn.id}`);
     const savedBasis = d.data.items?.[0]?.price_basis ?? 'custom';
-    setForm({ customer_id: d.data.customer_id ?? '', location_id: d.data.location_id, cn_date: d.data.cn_date?.slice(0, 10), reference: d.data.reference ?? '', tax_treatment: d.data.tax_treatment ?? 'ex_tax', tax_code: d.data.tax_code ?? '', notes: d.data.notes ?? '', price_basis: savedBasis });
-    setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id ?? '', code: i.code ?? '', name: i.name ?? i.product_name ?? '', qty: i.qty, unit_price: i.unit_price, price_basis: i.price_basis ?? savedBasis, tax_rate: i.tax_rate })));
+    setForm({ customer_id: d.data.customer_id ?? '', so_id: d.data.so_id ?? '', original_so_number: d.data.original_so_number ?? '', location_id: d.data.location_id, cn_date: d.data.cn_date?.slice(0, 10), reference: d.data.reference ?? '', tax_treatment: d.data.tax_treatment ?? 'ex_tax', tax_code: d.data.tax_code ?? '', notes: d.data.notes ?? '', price_basis: savedBasis });
+    setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id ?? '', code: i.code ?? '', name: i.name ?? i.product_name ?? '', qty: i.qty, unit_price: i.unit_price, price_basis: i.price_basis ?? savedBasis, tax_rate: i.tax_rate, restock: i.restock === undefined ? true : !!Number(i.restock) })));
     setModal({ open: true, edit: d.data });
   };
 
@@ -5663,8 +5690,10 @@ function CreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
       const body = {
         ...form,
         customer_id: form.customer_id ? Number(form.customer_id) : null,
+        so_id: form.so_id ? Number(form.so_id) : null,
+        original_so_number: form.original_so_number || null,
         location_id: Number(form.location_id),
-        items: lineItems.map(i => ({ ...i, price_basis: form.price_basis ?? 'custom', qty: Number(i.qty), unit_price: Number(i.unit_price), tax_rate: Number(i.tax_rate) })),
+        items: lineItems.map(i => ({ ...i, price_basis: form.price_basis ?? 'custom', qty: Number(i.qty), unit_price: Number(i.unit_price), tax_rate: Number(i.tax_rate), restock: i.restock === undefined ? true : !!i.restock })),
       };
       if (modal.edit) {
         await apiFetch(`/api/ims/credit-notes/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -5687,7 +5716,7 @@ function CreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
   };
 
   const handleComplete = async (cn: any) => {
-    if (!confirm(`Complete ${cn.cn_number}? This will return stock for all line items with a variant. The status cannot be changed after this.`)) return;
+    if (!confirm(`Complete ${cn.cn_number}? Stock will be returned for lines marked "Restock". The status cannot be changed after this.`)) return;
     setCompleting(true);
     try {
       const d = await apiFetch(`/api/ims/credit-notes/${cn.id}/complete`, { method: 'POST' });
@@ -5700,15 +5729,30 @@ function CreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
     }
   };
 
+  const handleAwaiting = async (cn: any) => {
+    try {
+      await apiFetch(`/api/ims/credit-notes/${cn.id}/awaiting`, { method: 'POST' });
+      load();
+    } catch (err: any) {
+      alert(err.message || 'Failed to set awaiting');
+    }
+  };
+
   const filtered = cns.filter(cn => !statusFilter || cn.status === statusFilter);
 
   const statusBadge = (status: string) => {
     const map: Record<string, { label: string; color: string; bg: string }> = {
-      draft:    { label: 'Draft',    color: '#fbbf24', bg: 'rgba(251,191,36,.12)' },
-      complete: { label: 'Complete', color: '#34d399', bg: 'rgba(52,211,153,.12)' },
+      draft:            { label: 'Draft',            color: '#fbbf24', bg: 'rgba(251,191,36,.12)' },
+      awaiting_product: { label: 'Awaiting product', color: '#60a5fa', bg: 'rgba(96,165,250,.12)' },
+      complete:         { label: 'Complete',         color: '#34d399', bg: 'rgba(52,211,153,.12)' },
     };
     const s = map[status] ?? { label: status, color: 'var(--sv-text-dim)', bg: 'var(--sv-bg-1)' };
     return <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 12, background: s.bg, color: s.color }}>{s.label}</span>;
+  };
+
+  const sourceBadge = (source: string) => {
+    if (source !== 'shopify') return null;
+    return <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 10, background: 'rgba(16,185,129,.1)', color: 'var(--sv-mint)', marginLeft: 6 }}>Shopify</span>;
   };
 
   return (
@@ -5743,25 +5787,34 @@ function CreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
             <tbody>
               {filtered.map((cn, ri) => (
                 <tr key={cn.id} style={{ borderBottom: ri < filtered.length - 1 ? '1px solid var(--sv-etch)' : 'none', cursor: 'pointer' }}
-                  onClick={() => cn.status === 'complete' ? openView(cn) : openEdit(cn)}>
-                  <td style={{ padding: '10px 12px', fontWeight: 600, color: 'var(--sv-mint)' }}>{cn.cn_number}</td>
+                  onClick={() => cn.status === 'draft' ? openEdit(cn) : openView(cn)}>
+                  <td style={{ padding: '10px 12px', fontWeight: 600, color: 'var(--sv-mint)' }}>
+                    {cn.cn_number}{sourceBadge(cn.source)}
+                    {cn.original_so_number && <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', fontWeight: 400 }}>↩ {cn.original_so_number}</div>}
+                  </td>
                   <td style={{ padding: '10px 12px' }}>{cn.cn_date?.slice(0, 10)}</td>
                   <td style={{ padding: '10px 12px' }}>{cn.customer_name ?? <span style={{ color: 'var(--sv-text-dim)' }}>—</span>}</td>
                   <td style={{ padding: '10px 12px' }}>{cn.location_name}</td>
                   <td style={{ padding: '10px 12px' }}>{statusBadge(cn.status)}</td>
                   <td style={{ padding: '10px 12px', fontWeight: 600 }}>{fmtCurrency(cn.total_amount)}</td>
                   <td style={{ padding: '10px 12px' }}>
-                    {cn.xero_sync_status === 'synced' ? <span style={{ color: '#34d399', fontSize: 11 }}>✓ Synced</span>
+                    {cn.source === 'shopify' ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }} title="Accounted via Shopify payout">via payout</span>
+                      : cn.xero_sync_status === 'synced' ? <span style={{ color: '#34d399', fontSize: 11 }}>✓ Synced</span>
                       : cn.xero_sync_status === 'queued' ? <span style={{ color: '#fbbf24', fontSize: 11 }}>⚠ Queued</span>
                       : cn.xero_sync_status === 'error' ? <span style={{ color: '#f87171', fontSize: 11 }}>✕ Error</span>
                       : <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>—</span>}
                   </td>
                   <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
-                    {cn.status === 'draft' && !isAdvisor && (
+                    {!isAdvisor && cn.status === 'draft' && (
                       <div style={{ display: 'flex', gap: 4 }}>
                         <button onClick={() => openEdit(cn)} style={{ ...btnStyle('ghost'), padding: '3px 8px', fontSize: 11 }}>Edit</button>
+                        <button onClick={() => handleAwaiting(cn)} style={{ ...btnStyle('ghost'), padding: '3px 8px', fontSize: 11, color: '#60a5fa' }}>Awaiting</button>
+                        <button onClick={() => handleComplete(cn)} style={{ ...btnStyle('ghost'), padding: '3px 8px', fontSize: 11, color: '#34d399' }}>Complete</button>
                         <button onClick={() => handleDelete(cn)} style={{ ...btnStyle('ghost'), padding: '3px 8px', fontSize: 11, color: '#f87171' }}>Delete</button>
                       </div>
+                    )}
+                    {!isAdvisor && cn.status === 'awaiting_product' && (
+                      <button onClick={() => handleComplete(cn)} style={{ ...btnStyle('ghost'), padding: '3px 8px', fontSize: 11, color: '#34d399' }}>Complete (received)</button>
                     )}
                   </td>
                 </tr>
@@ -5775,6 +5828,11 @@ function CreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
       {modal.open && (
         <Modal title={modal.edit ? `Edit CN ${modal.edit.cn_number}` : 'New Credit Note'} onClose={() => setModal({ open: false, edit: null })} wide>
           <form onSubmit={handleSave}>
+            {form.so_id && (
+              <div style={{ marginBottom: 12, padding: '8px 12px', background: 'rgba(96,165,250,.08)', border: '1px solid rgba(96,165,250,.25)', borderRadius: 8, fontSize: 12, color: 'var(--sv-text-main)' }}>
+                ↩ Linked to order <strong>{form.original_so_number || `#${form.so_id}`}</strong> — items pre-filled from the order. Untick <strong>Restock</strong> for anything not returned or returned broken.
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
               <Field label="CN Date *">
                 <input type="date" value={form.cn_date} onChange={sf('cn_date')} required style={inputStyle} />
@@ -5823,12 +5881,13 @@ function CreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
                 <thead>
                   <tr style={{ background: 'var(--sv-bg-1)', borderBottom: '1px solid var(--sv-etch)' }}>
                     <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '32%' }}>Product</th>
-                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '12%' }}>Code</th>
-                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '9%' }}>Qty</th>
-                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '13%' }}>Unit Price</th>
-                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '9%' }}>Tax %</th>
-                    <th style={{ padding: '7px 8px', textAlign: 'right', color: 'var(--sv-text-dim)', fontWeight: 600, width: '13%' }}>Line Total</th>
-                    <th style={{ width: '6%' }} />
+                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '11%' }}>Code</th>
+                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '8%' }}>Qty</th>
+                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '12%' }}>Unit Price</th>
+                    <th style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600, width: '8%' }}>Tax %</th>
+                    <th style={{ padding: '7px 8px', textAlign: 'center', color: 'var(--sv-text-dim)', fontWeight: 600, width: '9%' }} title="Return this item to sellable stock">Restock</th>
+                    <th style={{ padding: '7px 8px', textAlign: 'right', color: 'var(--sv-text-dim)', fontWeight: 600, width: '12%' }}>Line Total</th>
+                    <th style={{ width: '5%' }} />
                   </tr>
                 </thead>
                 <tbody>
@@ -5851,6 +5910,9 @@ function CreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
                       </td>
                       <td style={{ padding: '6px 8px' }}>
                         <input type="number" min="0" max="1" step="0.01" value={item.tax_rate} onChange={e => updateLine(i, 'tax_rate', e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: '4px 6px', width: 60 }} />
+                      </td>
+                      <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                        <input type="checkbox" checked={item.restock === undefined ? true : !!item.restock} onChange={e => updateLine(i, 'restock', e.target.checked)} disabled={!item.variant_id} title={item.variant_id ? 'Return to stock' : 'No variant — cannot restock'} style={{ cursor: item.variant_id ? 'pointer' : 'not-allowed', width: 16, height: 16 }} />
                       </td>
                       <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600 }}>{fmtCurrency(lineTotal(item))}</td>
                       <td style={{ padding: '6px 8px', textAlign: 'center' }}>
@@ -5995,7 +6057,7 @@ function CreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
 // Sales Orders View
 // ─────────────────────────────────────────────────────────────────────────────
 
-function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false }: { pendingOpenId?: number | null; onPendingHandled?: () => void; isAdvisor?: boolean } = {}) {
+function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, onReturnOrder }: { pendingOpenId?: number | null; onPendingHandled?: () => void; isAdvisor?: boolean; onReturnOrder?: (prefill: any) => void } = {}) {
   const [sos, setSos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -6192,6 +6254,36 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false }:
     }
   };
 
+  const handleReturn = async (so: any) => {
+    // Shopify orders must be refunded in Shopify (auto-restocks + payout handles Xero).
+    if (so.shopify_order_id) {
+      alert('This order originated in Shopify. Returns and refunds must be initiated in Shopify — they sync back into IMS automatically.');
+      return;
+    }
+    try {
+      const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);
+      const detail = d.data ?? d;
+      const items = (detail.items ?? []).map((it: any) => ({
+        variant_id: it.variant_id ?? '',
+        code: it.sku ?? it.code ?? '',
+        name: it.product_name ?? it.name ?? '',
+        qty: Number(it.qty_ordered ?? it.qty ?? 0),
+        unit_price: Number(it.unit_price ?? 0),
+        tax_rate: Number(it.tax_rate ?? 0),
+      }));
+      onReturnOrder?.({
+        so_id: detail.id,
+        original_so_number: detail.so_number,
+        customer_id: detail.customer_id ?? null,
+        location_id: detail.location_id,
+        tax_treatment: 'inc_tax',
+        items,
+      });
+    } catch (e: any) {
+      alert(e.message || 'Failed to load order for return');
+    }
+  };
+
   const customerOptions = [...new Set(sos.map((s: any) => s.customer_name).filter(Boolean))].sort() as string[];
   const filteredSOs = sos.filter((s: any) => {
     if (statusFilter && s.status !== statusFilter) return false;
@@ -6276,7 +6368,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false }:
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{so.order_date?.slice(0, 10)}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(so.total_amount)}</td>
                   <td style={{ padding: '10px 12px' }}><StatusBadge status={so.status} /></td>
-                  <td style={{ padding: '10px 12px' }}><SOActions isAdvisor={isAdvisor} so={so} onEdit={() => editSoWithWarn(so)} onDelete={() => deleteSoWithWarn(so)} onStatus={changeStatus} /></td>
+                  <td style={{ padding: '10px 12px' }}><SOActions isAdvisor={isAdvisor} so={so} onEdit={() => editSoWithWarn(so)} onDelete={() => deleteSoWithWarn(so)} onStatus={changeStatus} onReturn={() => handleReturn(so)} /></td>
                 </tr>
               ))}
             </tbody>
@@ -6466,7 +6558,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false }:
       {viewModal.open && viewModal.so && (
         <Modal title={`${viewModal.so.so_number} — ${viewModal.so.status}`} onClose={() => { setViewModal({ open: false, so: null }); setSoPayForm(null); }} wide>
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <SOActions isAdvisor={isAdvisor} so={viewModal.so} onEdit={() => editSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onDelete={() => deleteSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onStatus={changeStatus} />
+            <SOActions isAdvisor={isAdvisor} so={viewModal.so} onEdit={() => editSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onDelete={() => deleteSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onStatus={changeStatus} onReturn={() => { setViewModal({ open: false, so: null }); handleReturn(viewModal.so); }} />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <button
                 onClick={() => { window.open(`/api/ims/sales-orders/${viewModal.so.id}/pdf`, '_blank'); }}
@@ -6663,7 +6755,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false }:
   );
 }
 
-function SOActions({ so, onEdit, onDelete, onStatus, isAdvisor = false }: { so: any; onEdit: () => void; onDelete: () => void; onStatus: (so: any, s: string) => void; isAdvisor?: boolean }) {
+function SOActions({ so, onEdit, onDelete, onStatus, onReturn, isAdvisor = false }: { so: any; onEdit: () => void; onDelete: () => void; onStatus: (so: any, s: string) => void; onReturn?: () => void; isAdvisor?: boolean }) {
   if (so.is_historical) {
     return <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>Historical (Cin7)</span>;
   }
@@ -6684,6 +6776,10 @@ function SOActions({ so, onEdit, onDelete, onStatus, isAdvisor = false }: { so: 
   }
   if (so.status === 'cancelled' || so.status === 'draft') {
     if (!isAdvisor) { btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>); }
+  }
+  // Return / Refund — available on any sold order (confirmed or fulfilled).
+  if (!isAdvisor && onReturn && (so.status === 'confirmed' || so.status === 'fulfilled')) {
+    btns.push(<button key="r" onClick={onReturn} style={btnStyle('ghost', 'xs')} title="Create a credit note / return for this order">↩ Return</button>);
   }
   return <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{btns}</div>;
 }
@@ -7278,13 +7374,14 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
 // Online Sales View — sales orders from Cin7, grouped by day
 // ─────────────────────────────────────────────────────────────────────────────
 
-function OnlineSalesView({ businessId }: { businessId: string }) {
+function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; onReturnOrder?: (prefill: any) => void }) {
   const [locationId, setLocationId] = useState<number | ''>('');
   const [locations, setLocations]   = useState<{ id: number; name: string }[]>([]);
   const [days, setDays]             = useState<any[]>([]);
   const [daysLoading, setDaysLoading] = useState(false);
   const [expandedDays, setExpandedDays]     = useState<Set<string>>(new Set());
   const [dayData, setDayData]               = useState<Record<string, any[]>>({});
+  const [shopDomain, setShopDomain]         = useState<string | null>(null);
   const [dayLoading, setDayLoading]         = useState<Set<string>>(new Set());
   const [expandedOrders, setExpandedOrders] = useState<Set<number>>(new Set());
   const [osStockModal, setOsStockModal] = useState<{ productId: string; productName: string } | null>(null);
@@ -7334,7 +7431,7 @@ function OnlineSalesView({ businessId }: { businessId: string }) {
       const qs = locationId ? `&location_id=${locationId}` : '';
       try {
         const d = await fetch(`/api/ims/online-sales/day?date=${date}${qs}`).then(r => r.json());
-        if (d.success) setDayData(prev => ({ ...prev, [date]: d.orders ?? [] }));
+        if (d.success) { setDayData(prev => ({ ...prev, [date]: d.orders ?? [] })); if (d.shopDomain) setShopDomain(d.shopDomain); }
       } catch {}
       setDayLoading(prev => { const s = new Set(prev); s.delete(date); return s; });
     }
@@ -7345,6 +7442,33 @@ function OnlineSalesView({ businessId }: { businessId: string }) {
       const s = new Set(prev);
       s.has(id) ? s.delete(id) : s.add(id);
       return s;
+    });
+  };
+
+  const handleOnlineReturn = (order: any) => {
+    if (order.shopify_order_id) {
+      const url = shopDomain ? `https://${shopDomain}/admin/orders/${order.shopify_order_id}` : null;
+      const msg = 'This order originated in Shopify. Returns & refunds must be initiated in Shopify — they sync back into IMS automatically (stock is restocked and the refund is recorded).';
+      if (url && confirm(`${msg}\n\nOpen this order in Shopify now?`)) window.open(url, '_blank', 'noopener');
+      else if (!url) alert(msg);
+      return;
+    }
+    // Manual (non-Shopify) online order → credit note prefill.
+    const items = (order.items ?? []).map((it: any) => ({
+      variant_id: it.variant_id ?? '',
+      code: it.sku ?? it.code ?? '',
+      name: it.product_name ?? it.name ?? '',
+      qty: Number(it.qty_ordered ?? 0),
+      unit_price: Number(it.unit_price ?? 0),
+      tax_rate: Number(it.tax_rate ?? 0),
+    }));
+    onReturnOrder?.({
+      so_id: order.id,
+      original_so_number: order.so_number,
+      customer_id: order.customer_id ?? null,
+      location_id: order.location_id,
+      tax_treatment: 'inc_tax',
+      items,
     });
   };
 
@@ -7395,6 +7519,19 @@ function OnlineSalesView({ businessId }: { businessId: string }) {
       {importResult && (
         <div style={{ marginBottom: 14, padding: '8px 14px', borderRadius: 6, background: importResult.startsWith('✓') ? 'rgba(16,185,129,.1)' : 'rgba(239,68,68,.1)', color: importResult.startsWith('✓') ? 'var(--sv-mint)' : 'var(--sv-red)', fontSize: 13 }}>{importResult}</div>
       )}
+
+      {/* Xero sync info banner */}
+      <div style={{ marginBottom: 18, padding: '9px 14px', borderRadius: 8, background: 'rgba(96,165,250,.07)', border: '1px solid rgba(96,165,250,.15)', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.7 }}>
+        <strong style={{ color: 'var(--sv-text-main)' }}>How online sales reach Xero</strong>
+        {' · '}
+        <strong style={{ color: '#34d399' }}>Shopify Payments</strong>: one invoice per confirmed payout (~11am daily), net of processing fees. Enable in{' '}
+        <span style={{ fontStyle: 'italic' }}>Shopify tab → Orders → Shopify Payments → Xero</span>.
+        {' · '}
+        <strong style={{ color: '#60a5fa' }}>Other gateways</strong> (PayPal, Afterpay, etc.): nightly batch, split by gateway if clearing accounts are configured in{' '}
+        <span style={{ fontStyle: 'italic' }}>Xero → Mapping → Online Gateway Clearing Accounts</span>.
+        {' · '}
+        <strong style={{ color: '#fbbf24' }}>Returns</strong>: initiate in Shopify — they sync back automatically.
+      </div>
 
       {/* Summary strip */}
       {!daysLoading && days.length > 0 && (
@@ -7480,6 +7617,7 @@ function OnlineSalesView({ businessId }: { businessId: string }) {
                     setXeroSyncing(null);
                   }}
                   disabled={xeroSyncing === day.day}
+                  title="Post this day's non-Shopify-Payments orders to Xero as a daily sales invoice. Shopify Payments orders are automatically handled via the payout sync (~11am daily)."
                   style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: xeroResults[day.day] === 'ok' ? 'rgba(16,185,129,.1)' : 'none', color: xeroResults[day.day] === 'ok' ? 'var(--sv-mint)' : xeroResults[day.day] === 'err' ? 'var(--sv-red)' : 'var(--sv-text-muted)', fontSize: 11, fontWeight: 600, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
                 >{xeroSyncing === day.day ? 'Syncing…' : xeroResults[day.day] === 'ok' ? '✓ Xero' : xeroResults[day.day] === 'err' ? '✗ Xero' : 'Sync Xero'}</button>
               ) : (
@@ -7503,7 +7641,10 @@ function OnlineSalesView({ businessId }: { businessId: string }) {
                         onClick={() => toggleOrder(order.id)}
                         style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 20px', cursor: 'pointer', background: orderOpen ? 'rgba(255,255,255,.02)' : 'transparent' }}
                       >
-                        <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 100, fontFamily: 'monospace' }}>{order.so_number}</span>
+                        <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 100, fontFamily: 'monospace' }}>
+                          {order.so_number}
+                          {order.shopify_order_name && <span style={{ color: 'var(--sv-mint)', marginLeft: 6 }}>{order.shopify_order_name}</span>}
+                        </span>
                         {(() => {
                           // order_date is an AEST wall-clock string 'YYYY-MM-DD HH:mm:ss' (dateStrings:true).
                           const t = String(order.order_date ?? '').slice(11, 16);
@@ -7536,6 +7677,15 @@ function OnlineSalesView({ businessId }: { businessId: string }) {
                         )}
                         <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{(order.items?.length ?? 0)} item{(order.items?.length ?? 0) !== 1 ? 's' : ''}</span>
                         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)', minWidth: 72, textAlign: 'right' }}>{fmtMoney(order.total_amount)}</span>
+                        {(order.status === 'confirmed' || order.status === 'fulfilled') && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleOnlineReturn(order); }}
+                            title={order.shopify_order_id
+                              ? 'Returns for Shopify orders must be initiated in Shopify Admin. Click to open the order in Shopify.'
+                              : 'Create a credit note / return for this order'}
+                            style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer' }}
+                          >↩ Return</button>
+                        )}
                         <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginLeft: 4 }}>{orderOpen ? '▲' : '▼'}</span>
                       </div>
 
@@ -9308,9 +9458,14 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
         <div style={{ fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 2 }}>
           <div>• POs → Xero Bills <span style={{ color: 'var(--sv-text-dim)' }}>(on create/payment/receive)</span></div>
           <div>• SOs → Xero Invoices <span style={{ color: 'var(--sv-text-dim)' }}>(wholesale: individual)</span></div>
-          <div>• POS Sales → Xero <span style={{ color: 'var(--sv-text-dim)' }}>(daily batch per location)</span></div>
-          <div>• Online Sales → Xero <span style={{ color: 'var(--sv-text-dim)' }}>(daily batch)</span></div>
-          <div>• Monthly COGS Journal <span style={{ color: 'var(--sv-text-dim)' }}>(end of month)</span></div>
+          <div>• POS Sales → Xero <span style={{ color: 'var(--sv-text-dim)' }}>(daily batch per location, ~1am)</span></div>
+          <div>• Online Sales — Shopify Payments → Xero <span style={{ color: 'var(--sv-text-dim)' }}>(one invoice per confirmed payout, ~11am)</span></div>
+          <div>• Online Sales — other gateways → Xero <span style={{ color: 'var(--sv-text-dim)' }}>(daily batch ~1am, split by gateway if clearing accounts configured)</span></div>
+          <div>• Credit Notes (manual) → Xero Credit Note <span style={{ color: 'var(--sv-text-dim)' }}>(on CN completion; Shopify refunds handled via payout)</span></div>
+          <div>• Monthly COGS Journal <span style={{ color: 'var(--sv-text-dim)' }}>(manual, end of month)</span></div>
+        </div>
+        <div style={{ marginTop: 10, fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6, padding: '8px 10px', background: 'rgba(96,165,250,.07)', borderRadius: 6 }}>
+          💡 Shopify Payments orders are excluded from the nightly batch when payout sync is active — to prevent double-counting. Other gateways (PayPal, Afterpay) continue through the nightly batch unless you assign them a clearing account in <strong>Mapping → Online Gateway Clearing Accounts</strong>.
         </div>
       </div>
 
@@ -9541,6 +9696,8 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
     { key: 'credit_note', label: 'Credit Notes', desc: 'Account for credit note lines (defaults to Sales Revenue if not set)', filter: (a: any) => a.class === 'REVENUE' },
     { key: 'freight', label: 'Freight / Shipping', desc: 'Freight Paid expense account (P&L). Only used when PO Freight Treatment = Expense.', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'stock_adjustment', label: 'Stock Adjustment / Shrinkage', desc: 'Stocktake variance expense account (P&L) — used for stock write-offs and surpluses', filter: (a: any) => a.class === 'EXPENSE' },
+    { key: 'merchant_fees', label: 'Merchant / Payment Fees', desc: 'Shopify Payments processing fees expense (P&L)', filter: (a: any) => a.class === 'EXPENSE' },
+    { key: 'shopify_clearing', label: 'Shopify Payments Clearing', desc: 'Bank/clearing account that receives each payout; reconciles against the actual deposit', filter: (a: any) => a.type === 'BANK' },
   ].filter(r => !(r.key === 'freight' && freightTreatment === 'capitalise'));
 
   useEffect(() => {
@@ -9707,6 +9864,152 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
       {/* Payment Methods */}
       <XeroPaymentMappingSection type="po" label="PO Payment Methods — Xero Bank Accounts" accounts={accounts} />
       <XeroPaymentMappingSection type="so" label="SO Payment Methods — Xero Bank Accounts" accounts={accounts} />
+
+      {/* Online Gateway Clearing Accounts */}
+      <XeroGatewayClearingSection accounts={accounts} getBusinessId={getBusinessId} />
+    </div>
+  );
+}
+
+// ─── Online gateway clearing accounts (per-payment-gateway Xero mapping) ─────
+
+function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any[]; getBusinessId: () => string }) {
+  const [mappings, setMappings] = useState<any[]>([]);
+  const [adding, setAdding]     = useState(false);
+  const [newForm, setNewForm]   = useState({ gateway_name: '', display_name: '', clearing_account_code: '', clearing_account_name: '', fee_account_code: '', fee_account_name: '' });
+  const [saving, setSaving]     = useState(false);
+  const [detectedGateways, setDetectedGateways] = useState<string[]>([]);
+
+  const bid = getBusinessId();
+  const bankAccounts = accounts.filter((a: any) => a.type === 'BANK' || a.class === 'ASSET');
+  const expenseAccounts = accounts.filter((a: any) => a.class === 'EXPENSE');
+
+  const load = () => {
+    if (!bid) return;
+    fetch(`/api/xero/gateway-mappings?databaseId=${encodeURIComponent(bid)}`).then(r => r.json()).then(d => { if (d.success) setMappings(d.mappings ?? []); }).catch(() => {});
+  };
+  useEffect(() => { load(); }, []);
+
+  // Auto-detect gateway names already in the orders DB for convenience.
+  useEffect(() => {
+    if (!bid) return;
+    fetch(`/api/ims/online-sales/day?date=${new Date().toISOString().slice(0, 10)}&limit=0&_gateways=1`).catch(() => {});
+    // Quick heuristic: load last day's orders and collect gateways shown.
+    fetch(`/api/ims/online-sales?databaseId=${encodeURIComponent(bid)}`).then(r => r.json()).then(d => {
+      const days: any[] = d.days ?? [];
+      if (!days.length) return;
+      // We don't have a gateway-list endpoint; provide common AU defaults instead.
+      setDetectedGateways(['paypal', 'afterpay', 'zip', 'stripe', 'braintree', 'square']);
+    }).catch(() => {});
+  }, [bid]);
+
+  const save = async () => {
+    if (!newForm.gateway_name || !newForm.clearing_account_code) return alert('Gateway name and clearing account are required.');
+    setSaving(true);
+    try {
+      await fetch('/api/xero/gateway-mappings', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...newForm }),
+      });
+      setAdding(false);
+      setNewForm({ gateway_name: '', display_name: '', clearing_account_code: '', clearing_account_name: '', fee_account_code: '', fee_account_name: '' });
+      load();
+    } catch (e: any) { alert(e.message); }
+    setSaving(false);
+  };
+
+  const del = async (gateway_name: string, label: string) => {
+    if (!confirm(`Remove gateway mapping for "${label}"?`)) return;
+    await fetch(`/api/xero/gateway-mappings?gateway_name=${encodeURIComponent(gateway_name)}`, { method: 'DELETE' }).catch(() => {});
+    load();
+  };
+
+  const selectAcc = (field: 'clearing' | 'fee', code: string) => {
+    const acc = accounts.find((a: any) => a.code === code);
+    if (field === 'clearing') setNewForm(f => ({ ...f, clearing_account_code: code, clearing_account_name: acc?.name ?? '' }));
+    else setNewForm(f => ({ ...f, fee_account_code: code, fee_account_name: acc?.name ?? '' }));
+  };
+
+  return (
+    <div style={{ marginTop: 28 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Online Gateway Clearing Accounts</h3>
+        <button onClick={() => setAdding(p => !p)} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer' }}>+ Add gateway</button>
+      </div>
+      <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
+        Maps each online payment gateway (PayPal, Afterpay, etc.) to a dedicated Xero bank/clearing account. When configured, the nightly batch posts a <strong>separate invoice per gateway per day</strong> and immediately applies a payment to the clearing account — ready for bank reconciliation. Gateways with no mapping still post to the combined daily invoice. Shopify Payments is handled separately via the payout sync.
+      </p>
+
+      {mappings.length > 0 && (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 10, border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden' }}>
+          <thead>
+            <tr style={{ background: 'var(--sv-bg-1)', borderBottom: '1px solid var(--sv-etch)' }}>
+              {['Gateway (match pattern)', 'Clearing account', 'Fee account', ''].map(h => (
+                <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', textTransform: 'uppercase' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {mappings.map((m: any) => (
+              <tr key={m.gateway_name} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                <td style={{ padding: '8px 12px' }}>
+                  <span style={{ fontWeight: 600, color: 'var(--sv-text-strong)' }}>{m.display_name}</span>
+                  <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--sv-text-dim)', fontFamily: 'monospace' }}>{m.gateway_name}</span>
+                </td>
+                <td style={{ padding: '8px 12px', color: m.clearing_account_code ? 'var(--sv-text-main)' : 'var(--sv-red)', fontSize: 12 }}>
+                  {m.clearing_account_name ?? m.clearing_account_code ?? <span style={{ color: 'var(--sv-red)' }}>Not mapped</span>}
+                </td>
+                <td style={{ padding: '8px 12px', color: 'var(--sv-text-dim)', fontSize: 12 }}>{m.fee_account_name ?? m.fee_account_code ?? '— manual'}</td>
+                <td style={{ padding: '8px 12px' }}>
+                  <button onClick={() => del(m.gateway_name, m.display_name)} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--sv-etch)', background: 'transparent', color: '#f87171', cursor: 'pointer' }}>Remove</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {mappings.length === 0 && !adding && (
+        <div style={{ padding: '14px 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>No gateway mappings configured. Add one to split the nightly batch by gateway.</div>
+      )}
+
+      {adding && (
+        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 14, marginTop: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Gateway name (match pattern) *</label>
+              <input list="gateways-list" value={newForm.gateway_name} onChange={e => setNewForm(f => ({ ...f, gateway_name: e.target.value.toLowerCase(), display_name: f.display_name || e.target.value }))}
+                placeholder="e.g. paypal" style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12 }} />
+              <datalist id="gateways-list">{detectedGateways.map(g => <option key={g} value={g} />)}</datalist>
+              <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginTop: 2 }}>Matched using LIKE against payment_gateway column (lowercase). E.g. "paypal" matches "PayPal Express", "paypal".</div>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Display name</label>
+              <input value={newForm.display_name} onChange={e => setNewForm(f => ({ ...f, display_name: e.target.value }))}
+                placeholder="PayPal" style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12 }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Clearing account (bank) *</label>
+              <select value={newForm.clearing_account_code} onChange={e => selectAcc('clearing', e.target.value)}
+                style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12 }}>
+                <option value="">Select account…</option>
+                {bankAccounts.map((a: any) => <option key={a.accountId} value={a.code}>{a.code} — {a.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Fee expense account (optional)</label>
+              <select value={newForm.fee_account_code} onChange={e => selectAcc('fee', e.target.value)}
+                style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12 }}>
+                <option value="">Leave blank — handle fees manually</option>
+                {expenseAccounts.map((a: any) => <option key={a.accountId} value={a.code}>{a.code} — {a.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={save} disabled={saving} style={{ fontSize: 12, padding: '5px 14px', borderRadius: 6, background: 'var(--sv-action)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600 }}>{saving ? 'Saving…' : 'Add Mapping'}</button>
+            <button onClick={() => setAdding(false)} style={{ fontSize: 12, padding: '5px 12px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer' }}>Cancel</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -10581,13 +10884,14 @@ function BulkEditView() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings — section type and context helper
 // ─────────────────────────────────────────────────────────────────────────────
-type SettingsSection = 'general' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'xero' | 'sync';
+type SettingsSection = 'general' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'xero' | 'sync' | 'shopify';
 
 function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'purchase-orders') return 'purchase-orders';
   if (v === 'sales-orders')    return 'sales-orders';
   if (v === 'xero')            return 'xero';
   if (v === 'pos-sales')       return 'pos';
+  if (v === 'online-sales')    return 'shopify';
   return 'general';
 }
 
@@ -10806,6 +11110,7 @@ export default function ImsPage() {
   const [xeroQueuedCount, setXeroQueuedCount] = useState(0);
   const [pendingOpenPO, setPendingOpenPO] = useState<number | null>(null);
   const [pendingOpenSO, setPendingOpenSO] = useState<number | null>(null);
+  const [cnPrefill, setCnPrefill] = useState<any>(null);
 
   useEffect(() => {
     fetch('/api/ims/xero/queued').then(r => r.ok ? r.json() : { count: 0 }).then(d => setXeroQueuedCount(d.count ?? 0)).catch(() => {});
@@ -11106,13 +11411,13 @@ export default function ImsPage() {
           {view === 'contacts'         && <ContactsView />}
           {view === 'locations'        && <LocationsView isAdvisor={isAdvisor} />}
           {view === 'purchase-orders'  && <PurchaseOrdersView isAdvisor={isAdvisor} pendingOpenId={pendingOpenPO} onPendingHandled={() => setPendingOpenPO(null)} />}
-          {view === 'sales-orders'     && <SalesOrdersView isAdvisor={isAdvisor} pendingOpenId={pendingOpenSO} onPendingHandled={() => setPendingOpenSO(null)} />}
-          {view === 'credit-notes'     && <CreditNotesView isAdvisor={isAdvisor} />}
+          {view === 'sales-orders'     && <SalesOrdersView isAdvisor={isAdvisor} pendingOpenId={pendingOpenSO} onPendingHandled={() => setPendingOpenSO(null)} onReturnOrder={(p: any) => { setCnPrefill(p); setView('credit-notes'); }} />}
+          {view === 'credit-notes'     && <CreditNotesView isAdvisor={isAdvisor} prefill={cnPrefill} onPrefillConsumed={() => setCnPrefill(null)} />}
           {view === 'branch-transfers' && <BranchTransfersView />}
           {view === 'receive-transfers' && <ReceiveTransfersView />}
           {view === 'brands'           && <BrandsView />}
           {view === 'pos-sales'        && <PosSalesView />}
-          {view === 'online-sales'     && <OnlineSalesView businessId={user?.businessId ?? ''} />}
+          {view === 'online-sales'     && <OnlineSalesView businessId={user?.businessId ?? ''} onReturnOrder={(p: any) => { setCnPrefill(p); setView('credit-notes'); }} />}
           {view === 'stocktakes'        && <StocktakesView isAdvisor={isAdvisor} businessId={user?.businessId ?? ''} />}
           {view === 'reports'           && <ReportsView onNav={setView} />}
           {view === 'report-sales-by-branch' && <SalesByBranchView onBack={() => setView('reports')} />}
@@ -14960,6 +15265,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
     { id: 'purchase-orders', label: 'Purchase Orders', icon: '📦' },
     { id: 'sales-orders',    label: 'Sales Orders',    icon: '🧾' },
     { id: 'pos',             label: 'Point of Sale',   icon: '🖥' },
+    { id: 'shopify',         label: 'Shopify',         icon: '🛒' },
     { id: 'xero',            label: 'Xero',            icon: '🔗' },
     { id: 'sync',            label: 'Sync & Import',   icon: '🔄' },
     { id: 'users',           label: 'Users',           icon: '👥' },
@@ -15191,7 +15497,9 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           { trigger: 'SO fulfilled — edit or delete', object: 'Invoice (ACCREC)',     status: 'Manual',       notes: '⚠️ Xero invoice is AUTHORISED — changes do not auto-sync. A warning with a bookkeeper draft message is shown.' },
           { trigger: 'SO reverted or cancelled',      object: 'Invoice (ACCREC)',     status: 'VOIDED',       notes: 'Voided automatically if no payments applied; warning shown if payments exist (manual action required)' },
           { trigger: 'Payment added to SO',           object: 'Payment',              status: 'Applied',      notes: 'Applied to the Xero invoice' },
-          { trigger: 'Daily batch (manual/scheduled)',object: 'Invoice (ACCREC)',     status: 'AUTHORISED',   notes: 'One invoice per location per day for POS; one per day for online' },
+          { trigger: 'Daily batch (manual/scheduled)',object: 'Invoice (ACCREC)',     status: 'AUTHORISED',   notes: 'One invoice per location per day for POS; one per day for online (non-Shopify-Payments). If gateway clearing accounts are configured, one invoice per (day × gateway) with payment into clearing account.' },
+          { trigger: 'Shopify Payments payout',       object: 'Invoice (ACCREC)',     status: 'PAID',         notes: 'One invoice per confirmed payout (~11am daily). Revenue − fees − refunds = bank deposit. Payment applied to shopify_clearing bank account. Fee line posts ex-GST with claimable INPUT tax.' },
+          { trigger: 'Credit note completed',         object: 'Credit Note (ACCREC)', status: 'AUTHORISED',   notes: 'Shopify-sourced returns do NOT post a credit note (accounted via payout). Manual/wholesale returns post an ACCREC credit note.' },
           { trigger: 'Monthly COGS (manual)',         object: 'Manual Journal',       status: 'Posted',       notes: 'DR Cost of Goods Sold / CR Inventory Asset; one journal per branch' },
         ]} />
 
@@ -15204,8 +15512,12 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           { role: 'inventory_asset',       type: 'Asset',   description: 'Stock on hand — used for PO bill lines and inventory journals', required: true },
           { role: 'inventory_in_transit',  type: 'Asset',   description: 'Goods ordered but not yet received — used when a PO has deposits/prepayments', required: true },
           { role: 'cogs',                  type: 'Expense', description: 'Cost of goods sold — debited in monthly COGS journals', required: true },
-          { role: 'sales_revenue',         type: 'Revenue', description: 'Sales income — used for SO and batch POS invoice lines', required: true },
+          { role: 'sales_revenue',         type: 'Revenue', description: 'Sales income — used for SO and batch POS/online invoice lines', required: true },
+          { role: 'merchant_fees',         type: 'Expense', description: 'Shopify payment processing fees — posted as a negative ex-GST line on each payout invoice (GST claimable as INPUT tax)', required: false },
+          { role: 'shopify_clearing',      type: 'Bank',    description: 'Shopify Payments bank/clearing account — payout invoice payments are applied here, matching the actual bank deposit', required: false },
           { role: 'freight',               type: 'Expense', description: 'Freight / shipping expense — used when freight treatment is set to "Expense"', required: false },
+          { role: 'credit_note',           type: 'Revenue', description: 'Account for manual credit note lines — defaults to sales_revenue if not set', required: false },
+          { role: 'stock_adjustment',      type: 'Expense', description: 'Stocktake variance account — debited on write-offs, credited on surpluses', required: false },
         ]} />
 
         <h3 style={h3}>Tracking categories</h3>
@@ -15270,6 +15582,92 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           <li>Tracking category applied per branch if mapped</li>
         </ul>
         <p style={p}>Run this once per month after closing your month-end. It is safe to run multiple times — each run creates a new journal; duplicate detection and reversal must be managed in Xero if needed.</p>
+      </div>
+    );
+
+    // ── Shopify ───────────────────────────────────────────────────────────────
+    if (active === 'shopify') return (
+      <div style={{ padding: 32, maxWidth: 820 }}>
+        <h2 style={h2}>Shopify Integration</h2>
+        <p style={{ ...p, color: 'var(--sv-text-dim)', fontSize: 13 }}>
+          The Shopify integration is a <strong>three-way sync</strong>: orders and refunds flow <em>Shopify → IMS</em>, stock levels flow <em>IMS → Shopify</em>, and financial summaries flow <em>IMS → Xero</em> via two separate paths depending on how the customer paid.
+        </p>
+
+        <h3 style={h3}>Before you start — setup checklist</h3>
+        <ul style={ul}>
+          <li>✅ Enter your Shopify Store URL and Access Token in <strong>Setup → Connections</strong>. The token needs scopes: <span style={code}>read_orders</span>, <span style={code}>read_products</span>, <span style={code}>write_inventory</span>, <span style={code}>read_fulfillments</span>, <span style={code}>read_shopify_payments_payouts</span>.</li>
+          <li>✅ Run <strong>Reconcile products</strong> in the Shopify tab to link your IMS product catalog to Shopify variants by SKU.</li>
+          <li>✅ Register the following webhook topics in <strong>Shopify Admin → Settings → Notifications → Webhooks</strong>. Use the URL shown in the Shopify → Orders tab. All webhooks must share the same signing secret, which you then paste into Settings → IMS Settings → Shopify webhook secret.
+            <div style={{ marginTop: 8, background: 'var(--sv-bg-0)', borderRadius: 6, padding: '8px 12px', fontFamily: 'monospace', fontSize: 11, color: 'var(--sv-mint)', lineHeight: 1.9 }}>
+              orders/create<br/>orders/updated<br/>orders/cancelled<br/>fulfillments/create<br/>refunds/create<br/>returns/approve<br/>returns/close
+            </div>
+          </li>
+          <li>✅ Set the <strong>Online pick location</strong> in Settings → IMS Settings — the warehouse location orders are picked from.</li>
+          <li>✅ To push stock back to Shopify, go to Shopify → Orders → Inventory Sync, enable the toggle, and select the Shopify inventory location.</li>
+          <li>✅ For Shopify Payments payout-to-Xero, map three Xero accounts in Xero → Mapping: <span style={code}>sales_revenue</span>, <span style={code}>merchant_fees</span>, <span style={code}>shopify_clearing</span> (a bank account).</li>
+        </ul>
+
+        <h3 style={h3}>1 — Orders: Shopify → IMS</h3>
+        <p style={p}>Orders arrive in IMS in real time (webhook) or via the manual <strong>Import from Shopify</strong> button, which is useful for a first-time backfill or catching any missed events.</p>
+        <TriggerTable rows={[
+          { trigger: 'New order placed',        object: 'IMS Sales Order',     status: 'Confirmed',  notes: 'Linked variants are matched by shopify_variant_id. Unmatched line items are silently skipped (run Reconcile if variants are missing). Stock is committed (qty_committed) immediately.' },
+          { trigger: 'Order edited',            object: 'IMS Sales Order',     status: 'Updated',    notes: 'Financial totals (price, tax, freight, discount) updated immediately. Line items re-synced only if the SO is still Draft.' },
+          { trigger: 'Order fulfilled',         object: 'IMS Sales Order',     status: 'Fulfilled',  notes: 'Stock moved from committed → on hand via a fulfilled movement. Occurs on fulfillments/create or orders/fulfilled topic.' },
+          { trigger: 'Order cancelled/voided',  object: 'IMS Sales Order',     status: 'Cancelled',  notes: 'Committed stock released. Triggered by orders/cancelled or financial_status = voided.' },
+          { trigger: 'Refund (with return)',    object: 'IMS Credit Note',     status: 'Awaiting',   notes: 'returns/approve creates an awaiting_product credit note with line items pre-filled. No stock movement yet.' },
+          { trigger: 'Refund issued',           object: 'IMS Credit Note',     status: 'Complete',   notes: 'refunds/create completes the CN (updates amounts, restocks flagged lines). If linked to an approved return, that awaiting CN is completed. No Xero credit note — handled by payout.' },
+          { trigger: 'Refund — no return',      object: 'IMS Credit Note',     status: 'Complete',   notes: 'restock_type = no_restock — credit note created, no stock movement. Useful for goodwill refunds.' },
+        ]} />
+
+        <h3 style={h3}>2 — Returns & refunds in detail</h3>
+        <p style={p}><strong>Rule:</strong> All returns for Shopify orders must be initiated in Shopify Admin, not in IMS. The Return button in IMS Online Sales will show you a link to the order in Shopify if you try to initiate one here. There are three scenarios:</p>
+        <ul style={ul}>
+          <li><strong>Instant refund (no physical return)</strong> — e.g. a goodwill refund. Shopify fires <span style={code}>refunds/create</span>. IMS creates a completed credit note linked to the original order. Stock is NOT restocked (it never came back).</li>
+          <li><strong>Return approved, waiting for goods</strong> — Shopify fires <span style={code}>returns/approve</span>. IMS creates a credit note in <em>Awaiting product</em> status — no stock movement yet. When goods arrive and you issue the refund in Shopify (<span style={code}>refunds/create</span>), IMS updates the credit note with the actual refund amount and restocks the returned items.</li>
+          <li><strong>Return + refund simultaneously</strong> — Common for click-and-collect returns. <span style={code}>refunds/create</span> fires with a restock_type of <span style={code}>return</span> or <span style={code}>cancel</span>. IMS creates and immediately completes a credit note, restocking those lines. Lines marked <span style={code}>no_restock</span> are credited financially but not restocked.</li>
+        </ul>
+        <p style={p}>All returns — both Shopify-sourced and manual — appear in <strong>IMS → Credit Notes / Returns</strong>. Shopify-sourced credit notes are read-only and show a Shopify badge. Manual returns (for wholesale or non-Shopify online orders) are created directly in IMS.</p>
+
+        <h3 style={h3}>3 — Stock levels: IMS → Shopify</h3>
+        <p style={p}>IMS is the source of truth for stock. Every stock movement (PO received, order fulfilled, POS sale, stocktake, return, transfer) automatically queues the affected variant for a Shopify stock update. The sync then drains that queue every 15 minutes.</p>
+        <ul style={ul}>
+          <li><strong>What's pushed:</strong> Available stock = sum of <span style={code}>qty_on_hand − qty_committed</span> across all configured <em>Online Pick Locations</em>. Negative values are floored to 0.</li>
+          <li><strong>How it works:</strong> IMS <em>sets</em> the absolute number (not adjusts by delta), so it self-corrects on every sync — no drift, no compounding errors.</li>
+          <li><strong>Lag:</strong> Up to 15 minutes between a stock movement and the Shopify storefront reflecting it. In most cases it's under 8 minutes (average of the 15-minute cycle).</li>
+          <li><strong>Opt-in:</strong> The sync is disabled by default. Enable it in Shopify → Orders → <em>Inventory Sync → Auto-sync enabled</em>.</li>
+          <li><strong>Preview first:</strong> Use the Preview button to see exactly what IMS would push before enabling, to verify the pick-location stock is correct.</li>
+        </ul>
+
+        <h3 style={h3}>4 — Money: Shopify → Xero</h3>
+        <p style={p}>Revenue flows to Xero via two different paths depending on how the customer paid:</p>
+        <p style={{ ...p, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 4 }}>Path A — Shopify Payments (card payments Shopify settles)</p>
+        <ul style={ul}>
+          <li>Shopify holds funds and releases them as a <strong>Payout</strong> every business day at ~10am Sydney time.</li>
+          <li>IMS checks for confirmed payouts each morning (~11am) and posts one Xero invoice per payout.</li>
+          <li>The invoice equals the exact bank deposit: <em>sales (ex-GST) + GST − processing fees (ex-GST, with claimable INPUT tax) ± adjustments</em>. A payment is immediately applied to your <span style={code}>shopify_clearing</span> bank account, ready for bank reconciliation.</li>
+          <li>Refunds within the payout period reduce the deposit and are netted into the payout invoice — no separate Xero credit note is posted for Shopify refunds.</li>
+          <li>Enable in Shopify → Orders → <em>Shopify Payments → Xero (payouts)</em> toggle, and choose <em>Cash basis</em> (recommended) or <em>Accrual</em>.</li>
+        </ul>
+        <p style={{ ...p, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 4 }}>Path B — Other gateways (PayPal, Afterpay, etc.)</p>
+        <ul style={ul}>
+          <li>Each gateway that IS NOT Shopify Payments posts via the <strong>nightly sales batch</strong> (1am AEST).</li>
+          <li>If you've configured a clearing account for a gateway in <em>Xero → Mapping → Online Gateway Clearing Accounts</em>, that gateway gets its own invoice per day and a payment is applied to its clearing account.</li>
+          <li>Gateways with no clearing account mapped still post as a combined daily invoice to your Sales Revenue account (no payment applied — bookkeeper reconciles manually).</li>
+          <li>Shopify Payments orders are automatically excluded from this batch when payout sync is active, to prevent double-counting.</li>
+        </ul>
+
+        <h3 style={h3}>5 — The Xero sync log</h3>
+        <p style={p}>Every payout posted to Xero is recorded in the Xero sync log (IMS → Xero → Sync History tab). If a sync fails (e.g. missing account mapping, Xero API issue), it appears there with the error detail and can be retried.</p>
+
+        <h3 style={h3}>Common issues</h3>
+        <ul style={ul}>
+          <li><strong>"No linked variants" / order has 0 items</strong> — The Shopify variants aren't linked to IMS products yet. Run <em>Shopify → Reconcile Products</em> to link them by SKU, then re-import the affected order.</li>
+          <li><strong>Stock not updating in Shopify</strong> — Check that: (1) Inventory Sync is enabled, (2) a Shopify inventory location is selected, and (3) your pick location has stock. Use Preview to diagnose.</li>
+          <li><strong>Payout sync skipped</strong> — Check that all three Xero account roles (<span style={code}>sales_revenue</span>, <span style={code}>merchant_fees</span>, <span style={code}>shopify_clearing</span>) are mapped in Xero → Mapping.</li>
+          <li><strong>Duplicate revenue</strong> — If you see the same day's sales appearing twice in Xero, Shopify Payments orders may be in both the payout invoice and the daily batch. Ensure payout sync is enabled and set to Cash basis — IMS will then exclude those orders from the nightly batch.</li>
+          <li><strong>Return shows as a manual return in IMS</strong> — This is correct if the return was initiated in IMS rather than in Shopify. Shopify-sourced returns show a green "Shopify" badge. Manual returns show a "Manual" badge and do post a separate Xero credit note.</li>
+          <li><strong>Webhook not firing</strong> — Verify the webhook URL and signing secret match exactly. Check Shopify Admin → Settings → Notifications → Webhooks for delivery failures.</li>
+        </ul>
       </div>
     );
 

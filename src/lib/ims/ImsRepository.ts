@@ -188,6 +188,7 @@ export interface ImsSO {
 
 export interface ImsSOItem {
   id: number; so_id: number; variant_id: string | null;
+  shopify_line_item_id?: number | string | null;
   code?: string; name?: string;
   qty_ordered: number;
   qty_fulfilled: number; unit_price: number; unit_cost?: number;
@@ -1820,11 +1821,210 @@ export const ImsSORepo = {
   async delete(id: number): Promise<void> {
     await imsExecute(`DELETE FROM ims_sales_orders WHERE id = ?`, [id]);
   },
+
+  /**
+   * Process a Shopify refund against an existing sales order.
+   * Idempotent (keyed on shopify_refund_id). Restocks returned line items into
+   * the SO's location and records the refunded $ against the order.
+   *
+   * `restockLines[].shopifyVariantId` maps back to the IMS variant via
+   * ims_product_variants.shopify_variant_id. Lines with restock=false (Shopify
+   * restock_type 'no_restock') are money-only and do NOT touch stock.
+   */
+  async processShopifyRefund(
+    businessId: string,
+    opts: {
+      soId: number;
+      shopifyRefundId: string;
+      shopifyReturnId?: string | null;  // if present, complete an existing awaiting_product CN
+      gateway?: string | null;
+      amount: number;
+      taxAmount?: number;
+      note?: string;
+      restockLines: {
+        shopifyVariantId: string;
+        quantity: number;
+        restock: boolean;
+        unitPrice?: number;
+        taxAmount?: number;
+        name?: string | null;
+        sku?: string | null;
+      }[];
+    },
+  ): Promise<{ processed: boolean; restocked: number }> {
+    // A Shopify refund becomes a source='shopify', status='complete' credit note
+    // linked to the sales order. Idempotent on shopify_refund_id (unique key).
+    // Xero is intentionally NOT posted here — Shopify Payments refunds are
+    // accounted for via the payout reconciliation (net of refunds).
+    const pool = getIMSPool();
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      const [[so]] = await conn.execute<any[]>(
+        `SELECT id, location_id, so_type, so_number, customer_id FROM ims_sales_orders WHERE id = ? AND business_id = ?`,
+        [opts.soId, businessId],
+      );
+      if (!so) { await conn.rollback(); return { processed: false, restocked: 0 }; }
+
+      // Resolve Shopify variants → IMS variants and build credit-note line items.
+      const cnItems: {
+        variant_id: string | null; code: string | null; name: string | null;
+        qty: number; unit_price: number; tax_rate: number; restock: number;
+      }[] = [];
+      for (const line of opts.restockLines ?? []) {
+        const qty = Number(line.quantity);
+        if (!(qty > 0)) continue;
+        let variantId: string | null = null;
+        let sku: string | null = line.sku ?? null;
+        if (line.shopifyVariantId) {
+          const [[v]] = await conn.execute<any[]>(
+            `SELECT v.variant_id, v.sku FROM ims_product_variants v
+               JOIN ims_products p ON p.product_id = v.product_id
+             WHERE p.business_id = ? AND v.shopify_variant_id = ? LIMIT 1`,
+            [businessId, String(line.shopifyVariantId)],
+          );
+          if (v) { variantId = v.variant_id; sku = sku ?? v.sku; }
+        }
+        const unitPrice = Number(line.unitPrice ?? 0);
+        const lineBase = unitPrice * qty;
+        const taxRate = lineBase > 0 ? Number(line.taxAmount ?? 0) / lineBase : 0;
+        cnItems.push({
+          variant_id: variantId,
+          code: sku,
+          name: line.name ?? null,
+          qty,
+          unit_price: Math.round(unitPrice * 10000) / 10000,
+          tax_rate: Math.round(taxRate * 10000) / 10000,
+          restock: line.restock ? 1 : 0,
+        });
+      }
+
+      // Totals from the refund (authoritative money figures).
+      const total = Math.round((opts.amount ?? 0) * 100) / 100;
+      const tax   = Math.round((opts.taxAmount ?? 0) * 100) / 100;
+      const subtotal = Math.round((total - tax) * 100) / 100;
+
+      // If Shopify sent no itemised lines, record a single summary line.
+      if (cnItems.length === 0) {
+        const taxRate = subtotal > 0 ? tax / subtotal : 0;
+        cnItems.push({
+          variant_id: null,
+          code: null,
+          name: `Shopify refund ${opts.shopifyRefundId}`,
+          qty: 1,
+          unit_price: subtotal,
+          tax_rate: Math.round(taxRate * 10000) / 10000,
+          restock: 0,
+        });
+      }
+
+      // ── Case A: this refund is linked to an approved return in Shopify ──────
+      // If there's an awaiting_product CN created from a returns/approve webhook,
+      // complete it with the actual refund amounts rather than creating a duplicate.
+      if (opts.shopifyReturnId) {
+        const [pending] = await conn.execute<any[]>(
+          `SELECT id, location_id FROM ims_credit_notes
+            WHERE business_id = ? AND shopify_return_id = ? AND status = 'awaiting_product' LIMIT 1`,
+          [businessId, String(opts.shopifyReturnId)],
+        );
+        const existingCn = (pending as any[])[0];
+        if (existingCn) {
+          // Update the CN amounts from the refund (authoritative), link to refund id, and complete.
+          const total = Math.round((opts.amount ?? 0) * 100) / 100;
+          const tax   = Math.round((opts.taxAmount ?? 0) * 100) / 100;
+          const subtotal = Math.round((total - tax) * 100) / 100;
+          await conn.execute(
+            `UPDATE ims_credit_notes
+                SET shopify_refund_id = ?, subtotal = ?, tax_amount = ?, total_amount = ?,
+                    status = 'complete', completed_at = NOW()
+              WHERE id = ?`,
+            [String(opts.shopifyRefundId), subtotal, tax, total, existingCn.id],
+          );
+          // Delete old items and re-insert from actual refund data.
+          await conn.execute(`DELETE FROM ims_credit_note_items WHERE cn_id = ?`, [existingCn.id]);
+          for (const it of cnItems) {
+            const lt = Math.round(it.qty * it.unit_price * 100) / 100;
+            await conn.execute(
+              `INSERT INTO ims_credit_note_items (cn_id,variant_id,code,name,qty,unit_price,price_basis,restock,tax_rate,line_total) VALUES (?,?,?,?,?,?,'custom',?,?,?)`,
+              [existingCn.id, it.variant_id, it.code, it.name, it.qty, it.unit_price, it.restock, it.tax_rate, lt],
+            );
+          }
+          const existingItems: ImsCNItem[] = cnItems.map(it => ({ ...it, id: 0, cn_id: existingCn.id, price_basis: 'custom' as const, line_total: Math.round(it.qty * it.unit_price * 100) / 100 }));
+          const channel = so.so_type === 'online' ? 'online' : 'wholesale';
+          await restockCreditNoteItemsTx(conn, existingCn.id, so.location_id, existingItems, channel);
+          const restocked = existingItems.reduce((s, it) => s + (Number(it.restock) ? Number(it.qty) : 0), 0);
+          await conn.execute(
+            `UPDATE ims_sales_orders SET refunded_amount = COALESCE(refunded_amount,0)+?, returned_at = CASE WHEN ?> 0 THEN NOW() ELSE returned_at END WHERE id = ?`,
+            [total, restocked, opts.soId],
+          );
+          await conn.commit();
+          return { processed: true, restocked };
+        }
+      }
+
+      // ── Case B: no linked return — create and complete a new CN ──────────────
+      const [[mx]] = await conn.execute<any[]>(
+        `SELECT MAX(CAST(REGEXP_REPLACE(cn_number,'[^0-9]','') AS UNSIGNED)) AS m FROM ims_credit_notes WHERE business_id = ?`,
+        [businessId],
+      );
+      const cnNumber = `CN-${String(Number(mx?.m ?? 0) + 1).padStart(5, '0')}`;
+      const cnDate = new Date().toISOString().slice(0, 10);
+
+      // Idempotency: INSERT IGNORE on the unique (business_id, shopify_refund_id).
+      const [ins] = await conn.execute<any>(
+        `INSERT IGNORE INTO ims_credit_notes
+           (business_id, cn_number, customer_id, so_id, original_so_number, location_id,
+            status, source, shopify_refund_id, cn_date, completed_at, reference,
+            tax_treatment, subtotal, tax_amount, total_amount, notes)
+         VALUES (?,?,?,?,?,?, 'complete','shopify',?, ?, NOW(), ?, 'inc_tax', ?, ?, ?, ?)`,
+        [businessId, cnNumber, so.customer_id ?? null, so.id, so.so_number ?? null, so.location_id,
+         String(opts.shopifyRefundId), cnDate,
+         `Shopify refund ${opts.shopifyRefundId}`, subtotal, tax, total,
+         opts.note ?? `Shopify refund${opts.gateway ? ` via ${opts.gateway}` : ''}`],
+      );
+      if (!ins.affectedRows) { await conn.rollback(); return { processed: false, restocked: 0 }; }
+      const cnId = ins.insertId;
+
+      const cnItemRows: ImsCNItem[] = [];
+      for (const it of cnItems) {
+        const lineTotal = Math.round(it.qty * it.unit_price * 100) / 100;
+        await conn.execute(
+          `INSERT INTO ims_credit_note_items
+             (cn_id,variant_id,code,name,qty,unit_price,price_basis,restock,tax_rate,line_total)
+           VALUES (?,?,?,?,?,?, 'custom', ?,?,?)`,
+          [cnId, it.variant_id, it.code, it.name, it.qty, it.unit_price, it.restock, it.tax_rate, lineTotal],
+        );
+        cnItemRows.push({ ...it, id: 0, cn_id: cnId, price_basis: 'custom', line_total: lineTotal } as ImsCNItem);
+      }
+
+      // Restock the returnable lines.
+      const channel = so.so_type === 'online' ? 'online' : 'wholesale';
+      await restockCreditNoteItemsTx(conn, cnId, so.location_id, cnItemRows, channel);
+      const restocked = cnItemRows.reduce((s, it) => s + (Number(it.restock) ? Number(it.qty) : 0), 0);
+
+      // Reflect the refund on the sales order.
+      await conn.execute(
+        `UPDATE ims_sales_orders
+           SET refunded_amount = COALESCE(refunded_amount, 0) + ?,
+               returned_at = CASE WHEN ? > 0 THEN NOW() ELSE returned_at END
+         WHERE id = ?`,
+        [total, restocked, opts.soId],
+      );
+
+      await conn.commit();
+      return { processed: true, restocked };
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Dashboard stats
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const ImsDashboardRepo = {
   async getStats(businessId?: string) {
@@ -3023,15 +3223,20 @@ export const ImsPaymentMethodsRepo = {
 // Credit Notes
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type CNStatus = 'draft' | 'complete';
+export type CNStatus = 'draft' | 'awaiting_product' | 'complete';
 
 export interface ImsCN {
   id: number;
   business_id: string;
   cn_number: string;
   customer_id?: number | null;
+  so_id?: number | null;
+  original_so_number?: string | null;
   location_id: number;
   status: CNStatus;
+  source?: 'manual' | 'shopify';
+  shopify_refund_id?: string | null;
+  shopify_return_id?: string | null;   // Shopify Returns API id (links return approval to refund)
   cn_date: string;
   completed_at?: string | null;
   reference?: string | null;
@@ -3062,6 +3267,7 @@ export interface ImsCNItem {
   qty: number;
   unit_price: number;
   price_basis: 'cost' | 'wholesale' | 'rrp' | 'custom';
+  restock?: boolean | number;
   tax_rate: number;
   line_total: number;
   // joined from variant / product
@@ -3079,6 +3285,47 @@ async function nextCNNumber(businessId: string): Promise<string> {
   );
   const next = (Number(rows[0]?.max_num ?? 0) + 1).toString().padStart(5, '0');
   return `CN-${next}`;
+}
+
+/**
+ * Restock the returnable lines of a credit note within an open transaction.
+ * Only items flagged restock=1 (and with a variant) put stock back; broken /
+ * not-returned lines are credit-only. Writes a 'cn_returned' stock movement
+ * referencing the credit note.
+ */
+async function restockCreditNoteItemsTx(
+  conn: any,
+  cnId: number,
+  locationId: number,
+  items: ImsCNItem[],
+  channel: string | null,
+): Promise<void> {
+  for (const item of items) {
+    if (!item.variant_id) continue;
+    const doRestock = item.restock === undefined || item.restock === null ? true : !!Number(item.restock);
+    if (!doRestock) continue;
+    const qty = Number(item.qty);
+    if (!(qty > 0)) continue;
+    await conn.execute(
+      `INSERT IGNORE INTO ims_stock (variant_id, location_id) VALUES (?, ?)`,
+      [item.variant_id, locationId],
+    );
+    await conn.execute(
+      `UPDATE ims_stock SET qty_on_hand = qty_on_hand + ? WHERE variant_id = ? AND location_id = ?`,
+      [qty, item.variant_id, locationId],
+    );
+    const [rows] = await conn.execute(
+      `SELECT qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ?`,
+      [item.variant_id, locationId],
+    );
+    const s = (rows as any[])[0];
+    await conn.execute(
+      `INSERT INTO ims_stock_movements
+         (variant_id,location_id,movement_type,channel,reference_type,reference_id,qty_change,qty_after_soh)
+       VALUES (?,?,'cn_returned',?,'credit_note',?,?,?)`,
+      [item.variant_id, locationId, channel, cnId, qty, s?.qty_on_hand ?? 0],
+    );
+  }
 }
 
 export const ImsCNRepo = {
@@ -3133,8 +3380,9 @@ export const ImsCNRepo = {
   },
 
   async create(
-    data: Pick<ImsCN, 'location_id' | 'cn_date' | 'reference' | 'tax_treatment' | 'tax_code' | 'notes' | 'customer_id'>,
-    items: Omit<ImsCNItem, 'id' | 'cn_id' | 'line_total' | 'sku' | 'product_name' | 'variant_label' | 'avg_cost'>[],
+    data: Pick<ImsCN, 'location_id' | 'cn_date' | 'reference' | 'tax_treatment' | 'tax_code' | 'notes' | 'customer_id'> &
+      Partial<Pick<ImsCN, 'so_id' | 'original_so_number' | 'source' | 'shopify_refund_id'>>,
+    items: (Omit<ImsCNItem, 'id' | 'cn_id' | 'line_total' | 'sku' | 'product_name' | 'variant_label' | 'avg_cost'>)[],
     businessId: string,
     createdBy?: string,
   ): Promise<number> {
@@ -3147,10 +3395,11 @@ export const ImsCNRepo = {
     }
     const res = await imsExecute(
       `INSERT INTO ims_credit_notes
-         (business_id,cn_number,customer_id,location_id,status,cn_date,reference,
+         (business_id,cn_number,customer_id,so_id,original_so_number,location_id,status,source,shopify_refund_id,cn_date,reference,
           tax_treatment,tax_code,subtotal,tax_amount,total_amount,notes,created_by)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [businessId, cn_number, data.customer_id ?? null, data.location_id, 'draft',
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [businessId, cn_number, data.customer_id ?? null, data.so_id ?? null, data.original_so_number ?? null,
+       data.location_id, 'draft', data.source ?? 'manual', data.shopify_refund_id ?? null,
        data.cn_date, data.reference ?? null, data.tax_treatment, data.tax_code ?? null,
        subtotal, tax_amount, subtotal + tax_amount,
        data.notes ?? null, createdBy ?? null],
@@ -3160,10 +3409,11 @@ export const ImsCNRepo = {
       const line_total = Number(item.qty) * Number(item.unit_price);
       await imsExecute(
         `INSERT INTO ims_credit_note_items
-           (cn_id,variant_id,code,name,qty,unit_price,price_basis,tax_rate,line_total)
-         VALUES (?,?,?,?,?,?,?,?,?)`,
+           (cn_id,variant_id,code,name,qty,unit_price,price_basis,restock,tax_rate,line_total)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`,
         [cn_id, item.variant_id ?? null, item.code ?? null, item.name ?? null,
          item.qty, item.unit_price, item.price_basis ?? 'custom',
+         item.restock === undefined ? 1 : (item.restock ? 1 : 0),
          item.tax_rate ?? 0, line_total],
       );
     }
@@ -3173,10 +3423,10 @@ export const ImsCNRepo = {
   async update(
     id: number,
     businessId: string,
-    data: Partial<Pick<ImsCN, 'location_id' | 'cn_date' | 'customer_id' | 'reference' | 'tax_treatment' | 'tax_code' | 'notes'>>,
-    items?: Omit<ImsCNItem, 'id' | 'cn_id' | 'line_total' | 'sku' | 'product_name' | 'variant_label' | 'avg_cost'>[],
+    data: Partial<Pick<ImsCN, 'location_id' | 'cn_date' | 'customer_id' | 'so_id' | 'original_so_number' | 'reference' | 'tax_treatment' | 'tax_code' | 'notes'>>,
+    items?: (Omit<ImsCNItem, 'id' | 'cn_id' | 'line_total' | 'sku' | 'product_name' | 'variant_label' | 'avg_cost'>)[],
   ): Promise<void> {
-    const allowed = ['location_id','cn_date','customer_id','reference','tax_treatment','tax_code','notes'];
+    const allowed = ['location_id','cn_date','customer_id','so_id','original_so_number','reference','tax_treatment','tax_code','notes'];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of allowed) {
@@ -3209,49 +3459,48 @@ export const ImsCNRepo = {
         const line_total = Number(item.qty) * Number(item.unit_price);
         await imsExecute(
           `INSERT INTO ims_credit_note_items
-             (cn_id,variant_id,code,name,qty,unit_price,price_basis,tax_rate,line_total)
-           VALUES (?,?,?,?,?,?,?,?,?)`,
+             (cn_id,variant_id,code,name,qty,unit_price,price_basis,restock,tax_rate,line_total)
+           VALUES (?,?,?,?,?,?,?,?,?,?)`,
           [id, item.variant_id ?? null, item.code ?? null, item.name ?? null,
            item.qty, item.unit_price, item.price_basis ?? 'custom',
+           item.restock === undefined ? 1 : (item.restock ? 1 : 0),
            item.tax_rate ?? 0, line_total],
         );
       }
     }
   },
 
-  /** Complete a draft CN: return stock, insert movements, mark complete. Atomic transaction. */
+  /** draft → awaiting_product (goods not yet received; refund pending). */
+  async setAwaiting(id: number, businessId: string): Promise<void> {
+    await imsExecute(
+      `UPDATE ims_credit_notes SET status = 'awaiting_product'
+        WHERE id = ? AND business_id = ? AND status = 'draft'`,
+      [id, businessId],
+    );
+  },
+
+  /** Complete a draft/awaiting CN: return stock for restock lines, insert movements, mark complete. Atomic. */
   async complete(id: number, businessId: string): Promise<void> {
     const cn = await ImsCNRepo.get(id, businessId);
     if (!cn) throw new Error('Credit note not found');
-    if (cn.status !== 'draft') throw new Error('Only draft credit notes can be completed');
+    if (cn.status === 'complete') throw new Error('Credit note is already complete');
+    if (cn.status !== 'draft' && cn.status !== 'awaiting_product') throw new Error('Only draft or awaiting credit notes can be completed');
+
+    // Determine the return channel from the linked SO (for stock movement reporting).
+    let channel: string | null = null;
+    if (cn.so_id) {
+      const soRows = await imsQuery<{ so_type: string }>(
+        `SELECT so_type FROM ims_sales_orders WHERE id = ? AND business_id = ?`,
+        [cn.so_id, businessId],
+      );
+      channel = soRows[0]?.so_type === 'online' ? 'online' : soRows[0] ? 'wholesale' : null;
+    }
 
     const pool = getIMSPool();
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
-
-      for (const item of cn.items ?? []) {
-        if (!item.variant_id) continue;
-        await conn.execute(
-          `INSERT IGNORE INTO ims_stock (variant_id, location_id) VALUES (?, ?)`,
-          [item.variant_id, cn.location_id],
-        );
-        await conn.execute(
-          `UPDATE ims_stock SET qty_on_hand = qty_on_hand + ? WHERE variant_id = ? AND location_id = ?`,
-          [item.qty, item.variant_id, cn.location_id],
-        );
-        const [[s]] = await conn.execute<any[]>(
-          `SELECT qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ?`,
-          [item.variant_id, cn.location_id],
-        );
-        await conn.execute(
-          `INSERT INTO ims_stock_movements
-             (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh)
-           VALUES (?,?,'cn_returned','credit_note',?,?,?)`,
-          [item.variant_id, cn.location_id, id, item.qty, s?.qty_on_hand ?? 0],
-        );
-      }
-
+      await restockCreditNoteItemsTx(conn, cn.id, cn.location_id, cn.items ?? [], channel);
       await conn.execute(
         `UPDATE ims_credit_notes SET status = 'complete', completed_at = NOW() WHERE id = ?`,
         [id],
@@ -3270,5 +3519,111 @@ export const ImsCNRepo = {
       `DELETE FROM ims_credit_notes WHERE id = ? AND business_id = ? AND status = 'draft'`,
       [id, businessId],
     );
+  },
+
+  /**
+   * Create an awaiting_product credit note when Shopify approves a return
+   * (returns/approve webhook). The return has been agreed but goods aren't
+   * back yet — no stock movement, no Xero. When the matching refund arrives
+   * via refunds/create, processShopifyRefund updates and completes this CN.
+   *
+   * Idempotent on (business_id, shopify_return_id).
+   */
+  async createFromShopifyReturn(
+    businessId: string,
+    opts: {
+      soId: number;
+      shopifyReturnId: string;
+      lineItems: {
+        shopifyVariantId: string;
+        shopifyLineItemId?: number | string | null;
+        quantity: number;
+        unitPrice: number;
+        name?: string | null;
+        sku?: string | null;
+      }[];
+    },
+  ): Promise<{ created: boolean; cnId: number | null }> {
+    // Idempotency check.
+    const existing = await imsQuery<{ id: number }>(
+      `SELECT id FROM ims_credit_notes WHERE business_id = ? AND shopify_return_id = ? LIMIT 1`,
+      [businessId, String(opts.shopifyReturnId)],
+    );
+    if (existing[0]) return { created: false, cnId: existing[0].id };
+
+    const [soRows] = await Promise.all([
+      imsQuery<{ id: number; location_id: number; so_type: string; so_number: string; customer_id: number | null; tax_rate: number }>(
+        `SELECT so.id, so.location_id, so.so_type, so.so_number, so.customer_id,
+                COALESCE(AVG(i.tax_rate), 0.1) AS tax_rate
+           FROM ims_sales_orders so
+           LEFT JOIN ims_sales_order_items i ON i.so_id = so.id
+          WHERE so.id = ? AND so.business_id = ? LIMIT 1`,
+        [opts.soId, businessId],
+      ),
+    ]);
+    const so = soRows[0];
+    if (!so) return { created: false, cnId: null };
+
+    const variantRows = await imsQuery<{ variant_id: string; shopify_variant_id: string; sku: string | null }>(
+      `SELECT v.variant_id, v.shopify_variant_id, v.sku
+         FROM ims_product_variants v JOIN ims_products p ON p.product_id = v.product_id
+        WHERE p.business_id = ?`,
+      [businessId],
+    );
+    const variantMap = new Map(variantRows.map(r => [String(r.shopify_variant_id), r]));
+
+    const cnItemsData: Omit<ImsCNItem, 'id' | 'cn_id' | 'line_total' | 'sku' | 'product_name' | 'variant_label' | 'avg_cost'>[] = [];
+    for (const li of opts.lineItems) {
+      const qty = Number(li.quantity);
+      if (!(qty > 0)) continue;
+      const v = variantMap.get(String(li.shopifyVariantId));
+      const variantId = v?.variant_id ?? null;
+      cnItemsData.push({
+        variant_id: variantId,
+        code: li.sku ?? v?.sku ?? null,
+        name: li.name ?? null,
+        qty,
+        unit_price: Math.round(Number(li.unitPrice ?? 0) * 10000) / 10000,
+        price_basis: 'custom',
+        restock: 1,
+        tax_rate: Number(so.tax_rate ?? 0.1),
+      });
+    }
+
+    let subtotal = 0, taxAmount = 0;
+    for (const it of cnItemsData) {
+      const base = it.qty * it.unit_price;
+      subtotal += base;
+      taxAmount += base * Number(it.tax_rate);
+    }
+    subtotal  = Math.round(subtotal * 100) / 100;
+    taxAmount = Math.round(taxAmount * 100) / 100;
+
+    const cn_number = await nextCNNumber(businessId);
+    const cnDate = new Date().toISOString().slice(0, 10);
+
+    const res = await imsExecute(
+      `INSERT IGNORE INTO ims_credit_notes
+         (business_id, cn_number, customer_id, so_id, original_so_number, location_id,
+          status, source, shopify_return_id, cn_date, reference,
+          tax_treatment, subtotal, tax_amount, total_amount)
+       VALUES (?,?,?,?,?,?, 'awaiting_product','shopify',?, ?, ?, 'inc_tax',?,?,?)`,
+      [businessId, cn_number, so.customer_id ?? null, so.id, so.so_number ?? null, so.location_id,
+       String(opts.shopifyReturnId), cnDate,
+       `Shopify return ${opts.shopifyReturnId} (awaiting goods)`,
+       subtotal, taxAmount, subtotal + taxAmount],
+    );
+    if (!(res as any).affectedRows) return { created: false, cnId: null };
+    const cnId = (res as any).insertId;
+
+    for (const it of cnItemsData) {
+      const lt = Math.round(it.qty * it.unit_price * 100) / 100;
+      await imsExecute(
+        `INSERT INTO ims_credit_note_items (cn_id,variant_id,code,name,qty,unit_price,price_basis,restock,tax_rate,line_total)
+         VALUES (?,?,?,?,?,?,'custom',?,?,?)`,
+        [cnId, it.variant_id, it.code, it.name, it.qty, it.unit_price, it.restock ? 1 : 0, it.tax_rate, lt],
+      );
+    }
+    return { created: true, cnId };
   },
 };

@@ -1,0 +1,188 @@
+/**
+ * IMS → Shopify inventory sync.
+ *
+ * The online store's available quantity = SUM over the configured Online Pick
+ * Location(s) of GREATEST(0, qty_on_hand - qty_committed). This is pushed to
+ * Shopify as an absolute "available" level (set, not adjust) so it self-corrects
+ * and never double-counts against Shopify's own order decrements.
+ *
+ * A DB trigger on ims_stock_movements queues every touched variant into
+ * ims_shopify_inventory_queue; drainInventoryQueue() processes that queue.
+ */
+import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
+import { ShopifyService } from '@/services/ShopifyService';
+import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { decrypt } from '@/lib/encryption';
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+async function getSetting(businessId: string, key: string): Promise<string> {
+  const rows = await imsQuery<{ value: string }>(
+    `SELECT value FROM ims_settings WHERE business_id = ? AND \`key\` = ? LIMIT 1`,
+    [businessId, key],
+  );
+  return rows[0]?.value ?? '';
+}
+
+/** Online pick location ids (priority list, else the single online sales location). */
+export async function getOnlinePickLocationIds(businessId: string): Promise<number[]> {
+  const pri = await getSetting(businessId, 'online_pick_priority');
+  try {
+    const arr = JSON.parse(pri || '[]');
+    if (Array.isArray(arr) && arr.length) return arr.map(Number).filter(Boolean);
+  } catch {}
+  const single = Number(await getSetting(businessId, 'online_sales_location_id') || 0);
+  return single ? [single] : [];
+}
+
+/** Build a Shopify service for a business, or null if not connected. */
+export async function getShopifyForBusiness(businessId: string): Promise<ShopifyService | null> {
+  const conn = await ConnectionsRepository.get(businessId) as any;
+  const rawShopId = conn?.shopify_shop_id ?? '';
+  const encToken  = conn?.shopify_access_token ?? '';
+  if (!rawShopId || !encToken) return null;
+  const shopName = rawShopId.replace(/\.myshopify\.com$/, '');
+  if (!/^[a-zA-Z0-9-]+$/.test(shopName)) return null;
+  return new ShopifyService(shopName, decrypt(encToken));
+}
+
+/** Resolve the Shopify location used for online inventory (setting or primary active). */
+export async function getShopifyInventoryLocationId(businessId: string, shopify: ShopifyService): Promise<number | null> {
+  const configured = Number(await getSetting(businessId, 'shopify_inventory_location_id') || 0);
+  if (configured) return configured;
+  try {
+    const locs = await shopify.listLocations();
+    const active = locs.find(l => l.active) ?? locs[0];
+    return active ? active.id : null;
+  } catch { return null; }
+}
+
+/** Available-to-sell per variant across the online pick locations. */
+async function computeAvailable(pickLocationIds: number[], variantIds: string[]): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (!pickLocationIds.length || !variantIds.length) return map;
+  const locPh = pickLocationIds.map(() => '?').join(',');
+  const varPh = variantIds.map(() => '?').join(',');
+  const rows = await imsQuery<{ variant_id: string; available: number }>(
+    `SELECT variant_id, SUM(GREATEST(0, qty_on_hand - qty_committed)) AS available
+       FROM ims_stock
+      WHERE location_id IN (${locPh}) AND variant_id IN (${varPh})
+      GROUP BY variant_id`,
+    [...pickLocationIds, ...variantIds],
+  );
+  for (const r of rows) map.set(r.variant_id, Number(r.available ?? 0));
+  return map;
+}
+
+export interface PushResult { pushed: number; skipped: number; errors: string[]; locationId: number | null }
+
+/**
+ * Push inventory for a business. Pass explicit variantIds, or all=true to push
+ * every Shopify-linked variant (initial reconcile). Respects the
+ * shopify_inventory_sync_enabled setting unless force=true.
+ */
+export async function pushInventoryForBusiness(
+  businessId: string,
+  opts: { variantIds?: string[]; all?: boolean; force?: boolean } = {},
+): Promise<PushResult> {
+  const result: PushResult = { pushed: 0, skipped: 0, errors: [], locationId: null };
+
+  const enabled = (await getSetting(businessId, 'shopify_inventory_sync_enabled')) === '1';
+  if (!enabled && !opts.force) { result.errors.push('Inventory sync disabled'); return result; }
+
+  const shopify = await getShopifyForBusiness(businessId);
+  if (!shopify) { result.errors.push('Shopify not connected'); return result; }
+
+  const pickLocs = await getOnlinePickLocationIds(businessId);
+  if (!pickLocs.length) { result.errors.push('No online pick locations configured'); return result; }
+
+  const shopifyLocationId = await getShopifyInventoryLocationId(businessId, shopify);
+  if (!shopifyLocationId) { result.errors.push('No Shopify inventory location'); return result; }
+  result.locationId = shopifyLocationId;
+
+  // Resolve the variants to push (must be Shopify-linked with an inventory_item_id)
+  let linkRows: { variant_id: string; shopify_inventory_item_id: string }[];
+  if (opts.all) {
+    linkRows = await imsQuery(
+      `SELECT v.variant_id, v.shopify_inventory_item_id
+         FROM ims_product_variants v
+         JOIN ims_products p ON p.product_id = v.product_id
+        WHERE p.business_id = ? AND v.shopify_inventory_item_id IS NOT NULL AND v.shopify_inventory_item_id <> ''`,
+      [businessId],
+    );
+  } else {
+    const ids = opts.variantIds ?? [];
+    if (!ids.length) return result;
+    const ph = ids.map(() => '?').join(',');
+    linkRows = await imsQuery(
+      `SELECT v.variant_id, v.shopify_inventory_item_id
+         FROM ims_product_variants v
+         JOIN ims_products p ON p.product_id = v.product_id
+        WHERE p.business_id = ? AND v.variant_id IN (${ph})
+          AND v.shopify_inventory_item_id IS NOT NULL AND v.shopify_inventory_item_id <> ''`,
+      [businessId, ...ids],
+    );
+  }
+  if (!linkRows.length) return result;
+
+  const availByVariant = await computeAvailable(pickLocs, linkRows.map(r => r.variant_id));
+
+  for (const row of linkRows) {
+    const available = availByVariant.get(row.variant_id) ?? 0;
+    try {
+      await shopify.setInventoryLevel(row.shopify_inventory_item_id, shopifyLocationId, available);
+      result.pushed++;
+    } catch (e: any) {
+      result.errors.push(`${row.variant_id}: ${e?.message ?? 'push failed'}`);
+      result.skipped++;
+    }
+    await sleep(250); // stay within Shopify REST rate limit
+  }
+  return result;
+}
+
+/**
+ * Drain the dirty-variant queue across all businesses. Processes up to `limit`
+ * variants. Variants that can't be pushed (no Shopify link, business not
+ * connected, sync disabled) are removed from the queue so it doesn't back up.
+ */
+export async function drainInventoryQueue(limit = 250): Promise<{ processed: number; pushed: number; businesses: number }> {
+  const queued = await imsQuery<{ variant_id: string; business_id: string; inv: string | null }>(
+    `SELECT q.variant_id, p.business_id, v.shopify_inventory_item_id AS inv
+       FROM ims_shopify_inventory_queue q
+       JOIN ims_product_variants v ON v.variant_id = q.variant_id
+       JOIN ims_products p ON p.product_id = v.product_id
+      ORDER BY q.queued_at ASC
+      LIMIT ?`,
+    [limit],
+  );
+  if (!queued.length) return { processed: 0, pushed: 0, businesses: 0 };
+
+  // Group by business
+  const byBiz = new Map<string, string[]>();
+  const allVariantIds: string[] = [];
+  for (const q of queued) {
+    allVariantIds.push(q.variant_id);
+    if (!q.inv) continue; // not linked — will just be cleared
+    if (!byBiz.has(q.business_id)) byBiz.set(q.business_id, []);
+    byBiz.get(q.business_id)!.push(q.variant_id);
+  }
+
+  let pushed = 0;
+  for (const [businessId, variantIds] of byBiz) {
+    try {
+      const res = await pushInventoryForBusiness(businessId, { variantIds });
+      pushed += res.pushed;
+    } catch (e: any) {
+      console.error('[inventory-sync] business', businessId, e?.message);
+    }
+  }
+
+  // Clear all processed variants from the queue (even unlinked ones)
+  if (allVariantIds.length) {
+    const ph = allVariantIds.map(() => '?').join(',');
+    await imsExecute(`DELETE FROM ims_shopify_inventory_queue WHERE variant_id IN (${ph})`, allVariantIds);
+  }
+
+  return { processed: queued.length, pushed, businesses: byBiz.size };
+}

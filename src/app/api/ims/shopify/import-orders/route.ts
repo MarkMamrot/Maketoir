@@ -16,6 +16,7 @@ import { ShopifyService } from '@/services/ShopifyService';
 import { ImsSORepo } from '@/lib/ims/ImsRepository';
 import { decrypt } from '@/lib/encryption';
 import { toBusinessDate, toBusinessDateTime } from '@/lib/shopifyDate';
+import { parseShopifyRefund } from '@/lib/shopifyRefund';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -147,15 +148,16 @@ export async function POST(req: Request) {
     if (orderDate < syncFrom) { skippedPreTransition++; continue; }
 
     // Map line items to IMS variants
-    const items: { variant_id: string; qty_ordered: number; unit_price: number; tax_rate: number; notes: string }[] = [];
+    const items: { variant_id: string; shopify_line_item_id: string; qty_ordered: number; unit_price: number; tax_rate: number; notes: string }[] = [];
     for (const li of order.line_items ?? []) {
       const imsVariantId = shopifyToIms.get(String(li.variant_id ?? ''));
       if (!imsVariantId) continue;
       items.push({
         variant_id:  imsVariantId,
+        shopify_line_item_id: String(li.id ?? ''),
         qty_ordered: Number(li.quantity ?? 1),
         unit_price:  parseFloat(li.price ?? '0'),
-        tax_rate:    0.1, // Australian GST — prices from Shopify are usually inc-tax; we'll treat as ex-tax for simplicity
+        tax_rate:    0.1, // Australian GST
         notes:       li.name ?? '',
       });
     }
@@ -179,14 +181,16 @@ export async function POST(req: Request) {
         const subtotal    = parseFloat(order.subtotal_price ?? '0');
         const taxAmount   = parseFloat(order.total_tax ?? '0');
         const totalAmount = parseFloat(order.total_price ?? '0');
+        const gateway     = Array.isArray(order.payment_gateway_names) ? order.payment_gateway_names.join(', ') : null;
         const [result] = await poolConn.execute<any>(
           `INSERT INTO ims_sales_orders
              (business_id, so_number, so_type, location_id, status, order_date, freight, discount,
-              subtotal, tax_amount, total_amount, shopify_order_id, notes)
-           VALUES (?, ?, 'online', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)`,
+              subtotal, tax_amount, total_amount, shopify_order_id, shopify_order_name, payment_gateway, financial_status, notes)
+           VALUES (?, ?, 'online', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             businessId, soNumber, locationId, orderDateTime, freight, discount,
-            subtotal, taxAmount, totalAmount, orderIdStr,
+            subtotal, taxAmount, totalAmount, orderIdStr, order.name ?? null,
+            gateway, order.financial_status ?? null,
             `Shopify order ${order.name ?? ''}`.trim(),
           ],
         );
@@ -197,9 +201,9 @@ export async function POST(req: Request) {
           const lineTotal = it.qty_ordered * it.unit_price;
           await poolConn.execute(
             `INSERT INTO ims_sales_order_items
-               (so_id, variant_id, qty_ordered, qty_fulfilled, unit_price, discount_pct, tax_rate, line_total, notes)
-             VALUES (?, ?, ?, 0, ?, 0, ?, ?, ?)`,
-            [soId, it.variant_id, it.qty_ordered, it.unit_price, it.tax_rate, lineTotal, it.notes],
+               (so_id, shopify_line_item_id, variant_id, qty_ordered, qty_fulfilled, unit_price, discount_pct, tax_rate, line_total, notes)
+             VALUES (?, ?, ?, ?, 0, ?, 0, ?, ?, ?)`,
+            [soId, it.shopify_line_item_id || null, it.variant_id, it.qty_ordered, it.unit_price, it.tax_rate, lineTotal, it.notes],
           );
         }
       } finally {
@@ -217,6 +221,36 @@ export async function POST(req: Request) {
       // If cancelled on Shopify → cancel it
       if (order.financial_status === 'voided' || order.cancelled_at) {
         await ImsSORepo.changeStatus(soId, 'cancelled');
+      }
+
+      // Process any refunds already recorded on the order (restock + record $).
+      if (Array.isArray(order.refunds) && order.refunds.length > 0) {
+        const orderGateway = Array.isArray(order.payment_gateway_names) ? order.payment_gateway_names.join(', ') : null;
+        for (const refund of order.refunds) {
+          try {
+            const norm = parseShopifyRefund(refund, orderGateway);
+            if (norm.shopifyRefundId) {
+              await ImsSORepo.processShopifyRefund(businessId, {
+                soId,
+                shopifyRefundId: norm.shopifyRefundId,
+                gateway: norm.gateway,
+                amount: norm.amount,
+                taxAmount: norm.taxAmount,
+                note: 'Shopify refund (import backfill)',
+                restockLines: norm.restockLines,
+              });
+            }
+          } catch (e: any) { errors.push(`Order ${order.name} refund: ${e.message}`); }
+        }
+        // Reflect financial status once all refunds applied.
+        await imsExecute(
+          `UPDATE ims_sales_orders SET financial_status = CASE
+              WHEN refunded_amount >= total_amount THEN 'refunded'
+              WHEN refunded_amount > 0 THEN 'partially_refunded'
+              ELSE financial_status END
+            WHERE id = ?`,
+          [soId],
+        );
       }
 
       imported++;

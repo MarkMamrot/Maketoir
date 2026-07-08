@@ -606,20 +606,42 @@ function ShopifyOrdersTab({ businessId }: { businessId: string }) {
       <div style={card}>
         <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Webhook URL</h3>
         <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
-          Add this URL in <strong>Shopify Admin → Settings → Notifications → Webhooks</strong> for the following events: <code>orders/create</code>, <code>orders/cancelled</code>, <code>fulfillments/create</code>
+          Add this URL in <strong>Shopify Admin → Settings → Notifications → Webhooks</strong> for <strong>each</strong> of the following events. All should use the same URL and the same signing secret.
         </p>
+        <div style={{ marginBottom: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 16px', fontSize: 12 }}>
+          {[
+            ['orders/create',      'New order placed — imports the order into IMS'],
+            ['orders/updated',     'Order edited — updates prices/totals in IMS'],
+            ['orders/cancelled',   'Order cancelled — releases committed stock'],
+            ['fulfillments/create','Order fulfilled — moves stock to fulfilled'],
+            ['refunds/create',     'Refund issued — creates/completes a credit note'],
+            ['returns/approve',    'Return approved — creates an "Awaiting product" credit note'],
+            ['returns/close',      'Return closed — logged for visibility'],
+          ].map(([topic, desc]) => (
+            <div key={topic} style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+              <code style={{ flexShrink: 0, padding: '1px 6px', background: 'var(--sv-bg-0)', borderRadius: 4, fontSize: 11, color: 'var(--sv-mint)', border: '1px solid var(--sv-etch)' }}>{topic}</code>
+              <span style={{ color: 'var(--sv-text-dim)', fontSize: 11, lineHeight: 1.5 }}>{desc}</span>
+            </div>
+          ))}
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <code style={{ flex: 1, padding: '8px 12px', background: 'var(--sv-bg-1)', borderRadius: 6, border: '1px solid var(--sv-etch)', fontSize: 12, color: 'var(--sv-mint)', overflowX: 'auto' as const }}>{webhookUrl}</code>
           <button onClick={() => navigator.clipboard?.writeText(webhookUrl)} style={btn()}>Copy</button>
+        </div>
+        <div style={{ marginTop: 8, fontSize: 11, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
+          After adding each webhook in Shopify, paste the <strong>Signing secret</strong> (shown per-webhook in Shopify) into the Settings field above. All webhooks registered at the same URL share one secret.
         </div>
       </div>
 
       {/* Manual import */}
       <div style={card}>
         <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Manual Order Import</h3>
-        <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
-          Pulls all Shopify orders from the transition date to now and imports them into IMS. Safe to run multiple times — existing orders are skipped.
+        <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
+          Pulls all Shopify orders from the transition date to now and imports them into IMS. Safe to run multiple times — existing orders are skipped. Also backfills any refunds already recorded on those orders.
         </p>
+        <div style={{ marginBottom: 14, padding: '8px 12px', background: 'rgba(96,165,250,.07)', borderRadius: 6, fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
+          💡 <strong>When to use:</strong> Run once to seed IMS with historical Shopify orders, or after a webhook outage to catch any missed events. Webhooks handle day-to-day sync automatically.
+        </div>
         <button onClick={runImport} disabled={importing} style={btn(true)}>{importing ? 'Importing…' : '📦 Import Orders from Shopify'}</button>
 
         {importError && (
@@ -645,6 +667,188 @@ function ShopifyOrdersTab({ businessId }: { businessId: string }) {
           </div>
         )}
       </div>
+
+      {/* Inventory → Shopify sync */}
+      <InventorySyncCard card={card} label={label} input={input} btn={btn} />
+
+      {/* Shopify Payments payout → Xero */}
+      <PayoutSyncCard card={card} label={label} input={input} btn={btn} />
+    </div>
+  );
+}
+
+// ─── Inventory Sync Card (IMS → Shopify) ──────────────────────────────────────
+function InventorySyncCard({ card, label, input, btn }: { card: React.CSSProperties; label: React.CSSProperties; input: React.CSSProperties; btn: (p?: boolean) => React.CSSProperties }) {
+  const [enabled, setEnabled]       = useState(false);
+  const [locationId, setLocationId] = useState<number | ''>('');
+  const [locations, setLocations]   = useState<{ id: number; name: string; active: boolean }[]>([]);
+  const [queued, setQueued]         = useState(0);
+  const [busy, setBusy]             = useState<string | null>(null);
+  const [msg, setMsg]               = useState<string | null>(null);
+  const [preview, setPreview]       = useState<any>(null);
+
+  const load = () => {
+    fetch('/api/ims/shopify/sync-inventory').then(r => r.json()).then(d => {
+      if (d.success) {
+        setEnabled(!!d.enabled);
+        setLocationId(d.locationId ?? '');
+        setLocations(d.locations ?? []);
+        setQueued(d.queuedCount ?? 0);
+      }
+    }).catch(() => {});
+  };
+  useEffect(() => { load(); }, []);
+
+  const saveSetting = async (patch: Record<string, string>) => {
+    await fetch('/api/ims/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: patch }) }).catch(() => {});
+  };
+
+  const run = async (mode: 'preview' | 'all' | 'queue') => {
+    setBusy(mode); setMsg(null); if (mode !== 'preview') setPreview(null);
+    try {
+      const r = await fetch('/api/ims/shopify/sync-inventory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }) });
+      const d = await r.json();
+      if (mode === 'preview') {
+        if (!d.success) throw new Error(d.error ?? 'Preview failed');
+        setPreview(d);
+      } else if (mode === 'all') {
+        setMsg(d.errors?.length ? `Pushed ${d.pushed}, ${d.errors.length} error(s): ${d.errors.slice(0, 2).join('; ')}` : `✓ Pushed ${d.pushed} variants to Shopify`);
+      } else {
+        setMsg(`✓ Drained queue: ${d.pushed} pushed of ${d.processed} processed`);
+        load();
+      }
+    } catch (e: any) { setMsg(`⚠️ ${e.message}`); }
+    setBusy(null);
+  };
+
+  return (
+    <div style={card}>
+      <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Inventory Sync → Shopify</h3>
+      <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
+        Pushes IMS available stock (sum of your Online Pick Locations, minus committed) to Shopify so the online store never oversells. Every stock movement (sales, POs, POS, stocktakes, transfers, returns) is queued and synced automatically.
+      </p>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+        <div onClick={async () => { const next = !enabled; setEnabled(next); await saveSetting({ shopify_inventory_sync_enabled: next ? '1' : '0' }); }}
+          style={{ width: 46, height: 25, borderRadius: 99, background: enabled ? '#10b981' : 'var(--sv-etch)', position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
+          <div style={{ position: 'absolute', top: 3, left: enabled ? 24 : 3, width: 19, height: 19, borderRadius: '50%', background: '#fff', transition: 'left .2s' }} />
+        </div>
+        <span style={{ fontSize: 13, fontWeight: 600, color: enabled ? '#10b981' : 'var(--sv-text-dim)' }}>{enabled ? 'Auto-sync enabled' : 'Auto-sync disabled'}</span>
+      </div>
+
+      <div style={{ marginBottom: 14 }}>
+        <label style={label}>Shopify Inventory Location</label>
+        <select value={locationId} onChange={async e => { const v = e.target.value ? Number(e.target.value) : ''; setLocationId(v); await saveSetting({ shopify_inventory_location_id: String(v || '') }); }} style={input}>
+          <option value="">Auto (primary active location)</option>
+          {locations.map(l => <option key={l.id} value={l.id}>{l.name}{l.active ? '' : ' (inactive)'}</option>)}
+        </select>
+        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 4 }}>The Shopify location whose inventory represents your online store. {queued > 0 && <strong style={{ color: '#fbbf24' }}>{queued} variant(s) queued for sync.</strong>}</div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <button onClick={() => run('preview')} disabled={!!busy} style={btn()}>{busy === 'preview' ? 'Loading…' : '🔍 Preview'}</button>
+        <button onClick={() => run('queue')} disabled={!!busy} style={btn()}>{busy === 'queue' ? 'Syncing…' : '↻ Sync Queue Now'}</button>
+        <button onClick={() => run('all')} disabled={!!busy} style={btn(true)}>{busy === 'all' ? 'Pushing…' : '⬆ Push All to Shopify'}</button>
+      </div>
+
+      {msg && <div style={{ marginTop: 12, fontSize: 13, color: msg.startsWith('✓') ? '#34d399' : 'var(--sv-red)' }}>{msg}</div>}
+
+      {preview && (
+        <div style={{ marginTop: 14, padding: 14, background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)', fontSize: 13 }}>
+          <div style={{ marginBottom: 8, color: 'var(--sv-text-main)' }}>
+            Linked variants: <strong>{preview.linkedVariants}</strong> · Shopify location: <strong>{preview.shopifyLocationId ?? '—'}</strong> · Pick locations: <strong>{(preview.pickLocationIds ?? []).join(', ') || 'none'}</strong>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead><tr style={{ color: 'var(--sv-text-dim)', textAlign: 'left' }}><th style={{ padding: '4px 6px' }}>SKU</th><th style={{ padding: '4px 6px' }}>Product</th><th style={{ padding: '4px 6px', textAlign: 'right' }}>Available → Shopify</th></tr></thead>
+            <tbody>
+              {(preview.sample ?? []).map((s: any, i: number) => (
+                <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                  <td style={{ padding: '4px 6px', fontFamily: 'monospace' }}>{s.sku || '—'}</td>
+                  <td style={{ padding: '4px 6px' }}>{s.name}</td>
+                  <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 600 }}>{Number(s.available ?? 0)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Payout Sync Card (Shopify Payments → Xero) ───────────────────────────────
+function PayoutSyncCard({ card, label, input, btn }: { card: React.CSSProperties; label: React.CSSProperties; input: React.CSSProperties; btn: (p?: boolean) => React.CSSProperties }) {
+  const [enabled, setEnabled] = useState(false);
+  const [basis, setBasis]     = useState<'cash' | 'accrual'>('cash');
+  const [busy, setBusy]       = useState(false);
+  const [msg, setMsg]         = useState<string | null>(null);
+  const [results, setResults] = useState<any[] | null>(null);
+
+  useEffect(() => {
+    fetch('/api/ims/settings').then(r => r.ok ? r.json() : null).then(d => {
+      const s = d?.data ?? d?.settings ?? d ?? {};
+      setEnabled(s.shopify_payments_payout_sync_enabled === '1' || s.shopify_payments_payout_sync_enabled === 1);
+      if (s.shopify_revenue_basis === 'accrual') setBasis('accrual');
+    }).catch(() => {});
+  }, []);
+
+  const save = async (patch: Record<string, string>) => {
+    await fetch('/api/ims/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: patch }) }).catch(() => {});
+  };
+
+  const runNow = async () => {
+    setBusy(true); setMsg(null); setResults(null);
+    try {
+      const r = await fetch('/api/ims/shopify/payout-sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lookbackDays: 14 }) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error ?? 'Sync failed');
+      setResults(d.results ?? []);
+      setMsg(`✓ Posted ${d.posted} payout(s) to Xero`);
+    } catch (e: any) { setMsg(`⚠️ ${e.message}`); }
+    setBusy(false);
+  };
+
+  return (
+    <div style={card}>
+      <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Shopify Payments → Xero (payouts)</h3>
+      <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
+        Posts each confirmed Shopify Payments payout to Xero as one invoice whose total equals the bank deposit — net of processing fees and refunds — with a payment into your Shopify clearing account. Runs automatically each morning (~11am) after Shopify releases the payout. Other gateways (PayPal etc.) keep using the nightly sales batch.
+      </p>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+        <div onClick={async () => { const next = !enabled; setEnabled(next); await save({ shopify_payments_payout_sync_enabled: next ? '1' : '0' }); }}
+          style={{ width: 46, height: 25, borderRadius: 99, background: enabled ? '#10b981' : 'var(--sv-etch)', position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
+          <div style={{ position: 'absolute', top: 3, left: enabled ? 24 : 3, width: 19, height: 19, borderRadius: '50%', background: '#fff', transition: 'left .2s' }} />
+        </div>
+        <span style={{ fontSize: 13, fontWeight: 600, color: enabled ? '#10b981' : 'var(--sv-text-dim)' }}>{enabled ? 'Payout sync enabled' : 'Payout sync disabled'}</span>
+      </div>
+
+      <div style={{ marginBottom: 14 }}>
+        <label style={label}>Revenue recognition</label>
+        <select value={basis} onChange={async e => { const v = e.target.value as 'cash' | 'accrual'; setBasis(v); await save({ shopify_revenue_basis: v }); }} style={input}>
+          <option value="cash">Cash basis — recognise revenue on the payout date (recommended)</option>
+          <option value="accrual">Accrual — recognise on order date (uses the nightly sales batch)</option>
+        </select>
+        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 4 }}>
+          Requires Xero account roles <strong>Sales Revenue</strong>, <strong>Merchant / Payment Fees</strong> and <strong>Shopify Payments Clearing</strong> (a bank account) to be mapped in the Xero integration settings.
+        </div>
+      </div>
+
+      <button onClick={runNow} disabled={busy || !enabled} style={btn(true)}>{busy ? 'Syncing…' : '⬆ Sync Payouts Now'}</button>
+      {basis === 'accrual' && <div style={{ marginTop: 10, fontSize: 12, color: '#fbbf24' }}>Accrual mode posts via the nightly sales batch — the payout-based posting only runs on cash basis.</div>}
+
+      {msg && <div style={{ marginTop: 12, fontSize: 13, color: msg.startsWith('✓') ? '#34d399' : 'var(--sv-red)' }}>{msg}</div>}
+
+      {results && results.length > 0 && (
+        <div style={{ marginTop: 12, padding: 12, background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)', fontSize: 12 }}>
+          {results.map((r: any, i: number) => (
+            <div key={i} style={{ padding: '3px 0', color: r.posted ? '#34d399' : r.error ? 'var(--sv-red)' : 'var(--sv-text-dim)' }}>
+              Payout {r.payoutId} ({r.date}): {r.posted ? 'posted ✓' : r.skipped ? r.skipped : r.error ? `error — ${r.error}` : 'not posted'}
+            </div>
+          ))}
+        </div>
+      )}
+      {results && results.length === 0 && <div style={{ marginTop: 12, fontSize: 12, color: 'var(--sv-text-dim)' }}>No new confirmed payouts to post.</div>}
     </div>
   );
 }

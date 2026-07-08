@@ -31,6 +31,8 @@ interface AccountMapping {
   stock_adjustment?: string;
   credit_note?: string;
   rounding?: string; // Optional dedicated account for cash rounding adjustments
+  merchant_fees?: string;      // Shopify/payment processing fees (expense)
+  shopify_clearing?: string;   // Shopify Payments clearing bank account
 }
 
 interface TrackingMapping {
@@ -933,6 +935,8 @@ interface DailySalesBatch {
   totalSales: number;
   totalTax: number;
   lineDescription: string;
+  gateway?: string;            // payment gateway label (for description + dedup key)
+  clearingAccountCode?: string; // if set, a Xero payment is applied into this bank/clearing account
 }
 
 /**
@@ -954,7 +958,7 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
     Contact: { Name: batch.channel === 'pos' ? 'POS Sales (Summary)' : 'Online Sales (Summary)' },
     Date: batch.date,
     DueDate: batch.date,
-    Reference: `${batch.channel.toUpperCase()}-${batch.date}${batch.locationId ? `-L${batch.locationId}` : ''}`,
+    Reference: `${batch.channel.toUpperCase()}-${batch.date}${batch.locationId ? `-L${batch.locationId}` : ''}${batch.gateway ? `-${batch.gateway.replace(/\s+/g, '').toUpperCase().slice(0, 12)}` : ''}`,
     Status: 'AUTHORISED',
     LineAmountTypes: 'Exclusive',
     CurrencyCode: 'AUD',
@@ -968,16 +972,186 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
     }],
   };
 
+  // Derive the dedup key used in xero_sync_log (includes gateway when split by gateway).
+  const batchKey = batch.gateway
+    ? `${batch.channel} batch ${batch.date}|${batch.gateway.toLowerCase()}`
+    : `${batch.channel} batch ${batch.date}`;
+  const syncType = batch.channel === 'pos' ? 'pos_batch' : 'online_batch';
+
   try {
     const result = await xeroApiFetch(businessId, '/Invoices', { method: 'POST', body: { Invoices: [invoice] } });
     const batchInv = result.Invoices?.[0];
     const xeroId = batchInv?.InvoiceID ?? null;
-    const syncType = batch.channel === 'pos' ? 'pos_batch' : 'online_batch';
-    await logSync(businessId, syncType, null, xeroId, 'success', `${batch.channel} batch ${batch.date}`, batchInv?.Status ?? 'AUTHORISED');
+
+    // If a clearing account is configured, immediately apply a payment.
+    // This marks the invoice as PAID and routes the funds to the clearing account
+    // for bank reconciliation — the bookkeeper matches the actual deposit there.
+    if (xeroId && batch.clearingAccountCode) {
+      try {
+        const paymentAmount = Math.round((batch.totalSales + batch.totalTax) * 100) / 100;
+        await xeroApiFetch(businessId, '/Payments', {
+          method: 'POST',
+          body: { Payments: [{
+            Invoice: { InvoiceID: xeroId },
+            Account: { Code: batch.clearingAccountCode },
+            Date: batch.date,
+            Amount: paymentAmount,
+            Reference: `${batch.channel.toUpperCase()} clearing ${batch.date}${batch.gateway ? ` (${batch.gateway})` : ''}`,
+          }] },
+        });
+      } catch (payErr: any) {
+        // Invoice posted but payment failed — log separately; bookkeeper can apply manually.
+        await logSync(businessId, syncType, null, xeroId, 'error',
+          `Invoice ok but clearing payment failed: ${payErr.message}`, batchInv?.Status);
+        return xeroId;
+      }
+    }
+
+    await logSync(businessId, syncType, null, xeroId, 'success', batchKey, batchInv?.Status ?? 'AUTHORISED');
     return xeroId;
   } catch (err: any) {
-    const syncType = batch.channel === 'pos' ? 'pos_batch' : 'online_batch';
-    await logSync(businessId, syncType, null, null, 'error', err.message);
+    await logSync(businessId, syncType, null, null, 'error', `${batchKey}: ${err.message}`);
+    return null;
+  }
+}
+
+// ─── Shopify Payments Payout → Xero (cash-basis reconciliation) ───────────────
+
+export interface ShopifyPayoutSync {
+  payoutId: number;        // Shopify payout id
+  date: string;            // YYYY-MM-DD (payout/deposit date)
+  currency: string;        // e.g. 'AUD'
+  netInclTax: number;      // charges_gross − refunds_gross (money customers paid, incl tax)
+  totalTax: number;        // GST on charges − GST on refunds (from IMS orders)
+  totalFees: number;       // charges_fee + refunds_fee + adjustments_fee (all positive)
+  adjustmentsGross: number;// disputes/other adjustments gross (usually 0)
+  netAmount: number;       // payout.amount — the actual bank deposit (for validation)
+  orderCount: number;      // number of charge orders in the payout (for the description)
+}
+
+/**
+ * Post one confirmed Shopify Payments payout to Xero as a single ACCREC invoice
+ * whose total equals the bank deposit, then apply a payment into the configured
+ * Shopify clearing (bank) account. The real bank deposit is later reconciled
+ * against the clearing account, which nets to zero.
+ *
+ *   Line 1  Online sales (net of refunds, ex-tax)      → sales_revenue   (+GST)
+ *   Line 2  Shopify payment fees ex-GST (negative)      → merchant_fees   (INPUT tax — AU GST claimable)
+ *   Line 3  Adjustments ex-GST (negative, only if ≠0)  → merchant_fees   (INPUT tax)
+ *   Total = netInclTax − totalFees − adjustmentsGross = netAmount (deposit)
+ *
+ * Shopify AU processing fees include 10% GST — we post the ex-GST amount and let
+ * Xero calculate the claimable INPUT tax (GST on Expenses) automatically.
+ *
+ * Requires account roles: sales_revenue, merchant_fees, shopify_clearing (BANK).
+ * Idempotency is handled by the caller (ims_shopify_payouts + xero_sync_log).
+ */
+export async function syncShopifyPayout(businessId: string, p: ShopifyPayoutSync): Promise<string | null> {
+  const accounts = await getAccountMappings(businessId);
+  const trackingMappings = await getTrackingMappings(businessId);
+
+  if (!accounts.sales_revenue) {
+    await logSync(businessId, 'shopify_payout', null, null, 'skipped', `No sales_revenue account mapped — payout ${p.payoutId}`);
+    return null;
+  }
+  if (!accounts.merchant_fees) {
+    await logSync(businessId, 'shopify_payout', null, null, 'skipped', `No merchant_fees account mapped — payout ${p.payoutId}`);
+    return null;
+  }
+  if (!accounts.shopify_clearing) {
+    await logSync(businessId, 'shopify_payout', null, null, 'skipped', `No shopify_clearing (bank) account mapped — payout ${p.payoutId}`);
+    return null;
+  }
+
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const tracking = getTrackingForLocation(trackingMappings, null, 'online');
+  const salesExTax = round2(p.netInclTax - p.totalTax);
+  const totalFees  = round2(p.totalFees);
+  const adjustments = round2(p.adjustmentsGross);
+
+  const lineItems: any[] = [{
+    Description: `Online sales via Shopify Payments — payout ${p.date} (${p.orderCount} order${p.orderCount === 1 ? '' : 's'}${adjustments ? ', incl. adjustments' : ''})`,
+    Quantity: 1,
+    UnitAmount: salesExTax,
+    AccountCode: accounts.sales_revenue,
+    TaxAmount: round2(p.totalTax),
+    Tracking: tracking,
+  }];
+
+  // Shopify AU fees are GST-inclusive — post ex-GST amount so Xero can claim the INPUT tax credit.
+  const feeExGst = round2(totalFees / 1.1);
+
+  if (totalFees > 0) {
+    lineItems.push({
+      Description: 'Shopify payment processing fees (incl. GST)',
+      Quantity: 1,
+      UnitAmount: -feeExGst,
+      AccountCode: accounts.merchant_fees,
+      TaxType: 'INPUT',
+      Tracking: tracking,
+    });
+  }
+
+  if (adjustments !== 0) {
+    // Adjustments = disputes / chargebacks / reserves — money movements, no GST.
+    // Sign: adjustments from Shopify is negative when a dispute deduction reduces the payout,
+    // so we pass it through directly (positive adds, negative subtracts from invoice total).
+    lineItems.push({
+      Description: 'Shopify payout adjustments (disputes / reserves)',
+      Quantity: 1,
+      UnitAmount: adjustments,
+      AccountCode: accounts.merchant_fees,
+      TaxType: 'NONE',
+      TaxAmount: 0,
+      Tracking: tracking,
+    });
+  }
+
+  const invoice: any = {
+    Type: 'ACCREC',
+    Contact: { Name: 'Shopify Payments' },
+    Date: p.date,
+    DueDate: p.date,
+    Reference: `SP-PAYOUT-${p.payoutId}`,
+    Status: 'AUTHORISED',
+    LineAmountTypes: 'Exclusive',
+    CurrencyCode: p.currency || 'AUD',
+    LineItems: lineItems,
+  };
+
+  try {
+    const invRes = await xeroApiFetch(businessId, '/Invoices', { method: 'POST', body: { Invoices: [invoice] } });
+    const inv = invRes.Invoices?.[0];
+    const xeroId = inv?.InvoiceID ?? null;
+    if (!xeroId) {
+      await logSync(businessId, 'shopify_payout', null, null, 'error', `No InvoiceID returned for payout ${p.payoutId}`);
+      return null;
+    }
+
+    // Apply payment for the net deposit into the clearing (bank) account.
+    if (p.netAmount > 0) {
+      try {
+        await xeroApiFetch(businessId, '/Payments', {
+          method: 'POST',
+          body: { Payments: [{
+            Invoice: { InvoiceID: xeroId },
+            Account: { Code: accounts.shopify_clearing },
+            Date: p.date,
+            Amount: round2(p.netAmount),
+            Reference: `Shopify payout ${p.payoutId}`,
+          }] },
+        });
+      } catch (payErr: any) {
+        // Invoice posted but payment failed — surface it; invoice can be paid manually.
+        await logSync(businessId, 'shopify_payout', null, xeroId, 'error', `Invoice ok but payment failed for payout ${p.payoutId}: ${payErr.message}`);
+        return xeroId;
+      }
+    }
+
+    await logSync(businessId, 'shopify_payout', null, xeroId, 'success', `payout ${p.payoutId} ${p.date}: net $${p.netAmount.toFixed(2)}`, inv?.Status ?? 'AUTHORISED');
+    return xeroId;
+  } catch (err: any) {
+    await logSync(businessId, 'shopify_payout', null, null, 'error', `payout ${p.payoutId}: ${err.message}`);
     return null;
   }
 }
