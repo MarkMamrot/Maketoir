@@ -14,7 +14,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { imsQuery, imsExecute, getIMSPool } from '@/services/IMSMySQLService';
-import { ImsSORepo, ImsCNRepo } from '@/lib/ims/ImsRepository';
+import { ImsSORepo } from '@/lib/ims/ImsRepository';
 import { toBusinessDate, toBusinessDateTime } from '@/lib/shopifyDate';
 import { parseShopifyRefund } from '@/lib/shopifyRefund';
 
@@ -260,49 +260,14 @@ export async function POST(req: Request, { params }: { params: { businessId: str
     }
   }
 
-  // ── returns/approve ──────────────────────────────────────────────────────────
-  // Shopify Returns API — store approved a return request. The goods haven't
-  // arrived yet, so we create an awaiting_product CN. No stock, no Xero yet.
-  // When the matching refund fires (refunds/create with return.id), we complete it.
-  if (topic === 'returns/approve') {
+  // ── returns/update ──────────────────────────────────────────────────────────
+  // REST API only fires returns/update (not returns/approve or returns/close).
+  // The payload is a diff object linked to the return by admin_graphql_api_id.
+  // We log it for visibility; the refunds/create webhook handles the actual
+  // stock restock and credit note creation when money moves.
+  if (topic === 'returns/update') {
     const ret = payload.return ?? payload;
-    const orderId = String(ret.order_id ?? '');
-    const returnId = String(ret.id ?? '');
-    if (orderId && returnId) {
-      const existing = await imsQuery<{ id: number }>(
-        `SELECT id FROM ims_sales_orders WHERE shopify_order_id = ? AND business_id = ? LIMIT 1`,
-        [orderId, businessId],
-      );
-      if (existing.length) {
-        try {
-          const lineItems = (ret.return_line_items ?? []).map((rli: any) => ({
-            shopifyVariantId: String(rli.line_item?.variant_id ?? rli.variant_id ?? ''),
-            shopifyLineItemId: rli.line_item_id ?? null,
-            quantity: Number(rli.quantity ?? 1),
-            unitPrice: parseFloat(rli.line_item?.price ?? '0'),
-            name: rli.line_item?.title ?? rli.line_item?.name ?? null,
-            sku: rli.line_item?.sku ?? null,
-          })).filter((l: any) => l.shopifyVariantId && l.quantity > 0);
-
-          await ImsCNRepo.createFromShopifyReturn(businessId, {
-            soId: existing[0].id,
-            shopifyReturnId: returnId,
-            lineItems,
-          });
-        } catch (e: any) { console.error('[shopify-webhook] returns/approve error:', e.message); }
-      }
-    }
-  }
-
-  // ── returns/close ────────────────────────────────────────────────────────────
-  // Return lifecycle complete. If the CN is still awaiting (refund was issued
-  // separately and already completed the CN), this is a no-op. If the return
-  // was closed without a matching refund record (unusual), leave it awaiting —
-  // the bookkeeper can complete it manually.
-  if (topic === 'returns/close') {
-    // Nothing to do — completion is driven by refunds/create. Logged for visibility.
-    const ret = payload.return ?? payload;
-    console.info(`[shopify-webhook] returns/close: return ${ret.id} order ${ret.order_id} — CN handled by refund flow`);
+    console.info(`[shopify-webhook] returns/update: return ${ret.admin_graphql_api_id ?? ret.id} — use refunds/create for CN creation`);
   }
 
   return respond();

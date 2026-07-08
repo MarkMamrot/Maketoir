@@ -15599,7 +15599,10 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           <li>✅ Run <strong>Reconcile products</strong> in the Shopify tab to link your IMS product catalog to Shopify variants by SKU.</li>
           <li>✅ Register the following webhook topics in <strong>Shopify Admin → Settings → Notifications → Webhooks</strong>. Use the URL shown in the Shopify → Orders tab. All webhooks must share the same signing secret, which you then paste into Settings → IMS Settings → Shopify webhook secret.
             <div style={{ marginTop: 8, background: 'var(--sv-bg-0)', borderRadius: 6, padding: '8px 12px', fontFamily: 'monospace', fontSize: 11, color: 'var(--sv-mint)', lineHeight: 1.9 }}>
-              orders/create<br/>orders/updated<br/>orders/cancelled<br/>fulfillments/create<br/>refunds/create<br/>returns/approve<br/>returns/close
+              orders/create<br/>orders/updated<br/>orders/cancelled<br/>fulfillments/create<br/>refunds/create
+            </div>
+            <div style={{ marginTop: 6, fontSize: 11, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
+              <strong>Note:</strong> Shopify's <code style={code}>returns/*</code> webhooks require the <code style={code}>returns</code> access scope and Shopify/Advanced/Plus plan, and must be registered via the API (not the UI). <code style={code}>refunds/create</code> covers all refund + return scenarios without them.
             </div>
           </li>
           <li>✅ Set the <strong>Online pick location</strong> in Settings → IMS Settings — the warehouse location orders are picked from.</li>
@@ -15614,18 +15617,17 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           { trigger: 'Order edited',            object: 'IMS Sales Order',     status: 'Updated',    notes: 'Financial totals (price, tax, freight, discount) updated immediately. Line items re-synced only if the SO is still Draft.' },
           { trigger: 'Order fulfilled',         object: 'IMS Sales Order',     status: 'Fulfilled',  notes: 'Stock moved from committed → on hand via a fulfilled movement. Occurs on fulfillments/create or orders/fulfilled topic.' },
           { trigger: 'Order cancelled/voided',  object: 'IMS Sales Order',     status: 'Cancelled',  notes: 'Committed stock released. Triggered by orders/cancelled or financial_status = voided.' },
-          { trigger: 'Refund (with return)',    object: 'IMS Credit Note',     status: 'Awaiting',   notes: 'returns/approve creates an awaiting_product credit note with line items pre-filled. No stock movement yet.' },
-          { trigger: 'Refund issued',           object: 'IMS Credit Note',     status: 'Complete',   notes: 'refunds/create completes the CN (updates amounts, restocks flagged lines). If linked to an approved return, that awaiting CN is completed. No Xero credit note — handled by payout.' },
-          { trigger: 'Refund — no return',      object: 'IMS Credit Note',     status: 'Complete',   notes: 'restock_type = no_restock — credit note created, no stock movement. Useful for goodwill refunds.' },
+          { trigger: 'Refund issued (refunds/create)', object: 'IMS Credit Note', status: 'Complete', notes: 'Handles all three scenarios: (1) goodwill/no-restock, (2) return + immediate refund, (3) deferred refund after return. Lines with restock_type = return/cancel are restocked; no_restock lines credit value only. No Xero credit note — accounted via payout.' },
         ]} />
 
         <h3 style={h3}>2 — Returns & refunds in detail</h3>
-        <p style={p}><strong>Rule:</strong> All returns for Shopify orders must be initiated in Shopify Admin, not in IMS. The Return button in IMS Online Sales will show you a link to the order in Shopify if you try to initiate one here. There are three scenarios:</p>
+        <p style={p}><strong>Rule:</strong> All returns for Shopify orders must be initiated in Shopify Admin. The Return button in IMS Online Sales will link you to the Shopify order. Everything is driven by the <span style={code}>refunds/create</span> webhook — Shopify sends this whenever a refund is issued, and it includes per-line <span style={code}>restock_type</span> flags:</p>
         <ul style={ul}>
-          <li><strong>Instant refund (no physical return)</strong> — e.g. a goodwill refund. Shopify fires <span style={code}>refunds/create</span>. IMS creates a completed credit note linked to the original order. Stock is NOT restocked (it never came back).</li>
-          <li><strong>Return approved, waiting for goods</strong> — Shopify fires <span style={code}>returns/approve</span>. IMS creates a credit note in <em>Awaiting product</em> status — no stock movement yet. When goods arrive and you issue the refund in Shopify (<span style={code}>refunds/create</span>), IMS updates the credit note with the actual refund amount and restocks the returned items.</li>
-          <li><strong>Return + refund simultaneously</strong> — Common for click-and-collect returns. <span style={code}>refunds/create</span> fires with a restock_type of <span style={code}>return</span> or <span style={code}>cancel</span>. IMS creates and immediately completes a credit note, restocking those lines. Lines marked <span style={code}>no_restock</span> are credited financially but not restocked.</li>
+          <li><strong>Instant refund, no physical return</strong> (e.g. goodwill refund, damaged goods) — <span style={code}>restock_type: no_restock</span>. IMS creates a completed credit note. Money is credited but stock is NOT restocked.</li>
+          <li><strong>Return + refund at the same time</strong> — <span style={code}>restock_type: return</span> or <span style={code}>cancel</span>. IMS creates a completed credit note and immediately restocks the returned items.</li>
+          <li><strong>Wait for goods before refunding</strong> — Shopify doesn't fire <span style={code}>refunds/create</span> until you process the refund. Once you do (after receiving the goods), IMS creates and completes the credit note, restocking the items. To track the physical return in IMS before money moves, you can manually open a draft credit note in <strong>IMS → Credit Notes / Returns</strong> and set it to <em>Awaiting product</em> status.</li>
         </ul>
+        <p style={p}><strong>Note on Returns webhooks:</strong> Shopify's <span style={code}>returns/*</span> webhook topics (which would enable automatic "Awaiting product" tracking) require the separate <span style={code}>returns</span> access scope, a Shopify/Advanced/Plus plan, and must be registered via the Shopify Admin API rather than the UI. For now, <span style={code}>refunds/create</span> covers all scenarios and the awaiting state is set manually when needed.</p>
         <p style={p}>All returns — both Shopify-sourced and manual — appear in <strong>IMS → Credit Notes / Returns</strong>. Shopify-sourced credit notes are read-only and show a Shopify badge. Manual returns (for wholesale or non-Shopify online orders) are created directly in IMS.</p>
 
         <h3 style={h3}>3 — Stock levels: IMS → Shopify</h3>

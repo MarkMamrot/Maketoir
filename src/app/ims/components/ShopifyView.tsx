@@ -614,15 +614,16 @@ function ShopifyOrdersTab({ businessId }: { businessId: string }) {
             ['orders/updated',     'Order edited — updates prices/totals in IMS'],
             ['orders/cancelled',   'Order cancelled — releases committed stock'],
             ['fulfillments/create','Order fulfilled — moves stock to fulfilled'],
-            ['refunds/create',     'Refund issued — creates/completes a credit note'],
-            ['returns/approve',    'Return approved — creates an "Awaiting product" credit note'],
-            ['returns/close',      'Return closed — logged for visibility'],
+            ['refunds/create',     'Refund issued — covers all refund + restock scenarios'],
           ].map(([topic, desc]) => (
             <div key={topic} style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
               <code style={{ flexShrink: 0, padding: '1px 6px', background: 'var(--sv-bg-0)', borderRadius: 4, fontSize: 11, color: 'var(--sv-mint)', border: '1px solid var(--sv-etch)' }}>{topic}</code>
               <span style={{ color: 'var(--sv-text-dim)', fontSize: 11, lineHeight: 1.5 }}>{desc}</span>
             </div>
           ))}
+        </div>
+        <div style={{ marginBottom: 10, padding: '7px 10px', background: 'rgba(251,191,36,.07)', borderRadius: 6, fontSize: 11, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
+          <strong style={{ color: '#fbbf24' }}>ℹ Returns webhooks</strong> — Shopify's <code style={{ fontFamily: 'monospace', fontSize: 10 }}>returns/*</code> topics require the <code style={{ fontFamily: 'monospace', fontSize: 10 }}>returns</code> access scope, a Shopify/Advanced/Plus plan, and must be registered via the Shopify Admin API (they don't appear in the UI dropdown). <strong>You don't need them</strong> — <code style={{ fontFamily: 'monospace', fontSize: 10 }}>refunds/create</code> already handles every refund and restock scenario. If you want to track a physical return before money is refunded, you can mark a credit note as <em>Awaiting product</em> manually in IMS → Credit Notes / Returns.
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <code style={{ flex: 1, padding: '8px 12px', background: 'var(--sv-bg-1)', borderRadius: 6, border: '1px solid var(--sv-etch)', fontSize: 12, color: 'var(--sv-mint)', overflowX: 'auto' as const }}>{webhookUrl}</code>
@@ -631,6 +632,9 @@ function ShopifyOrdersTab({ businessId }: { businessId: string }) {
         <div style={{ marginTop: 8, fontSize: 11, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
           After adding each webhook in Shopify, paste the <strong>Signing secret</strong> (shown per-webhook in Shopify) into the Settings field above. All webhooks registered at the same URL share one secret.
         </div>
+
+        {/* Webhook status checker */}
+        <WebhookStatusChecker btn={btn} />
       </div>
 
       {/* Manual import */}
@@ -673,6 +677,78 @@ function ShopifyOrdersTab({ businessId }: { businessId: string }) {
 
       {/* Shopify Payments payout → Xero */}
       <PayoutSyncCard card={card} label={label} input={input} btn={btn} />
+    </div>
+  );
+}
+
+// ─── Webhook Status Checker ───────────────────────────────────────────────────
+function WebhookStatusChecker({ btn }: { btn: (p?: boolean) => React.CSSProperties }) {
+  const [checking, setChecking] = useState(false);
+  const [result, setResult]     = useState<any>(null);
+
+  const check = async () => {
+    setChecking(true); setResult(null);
+    try {
+      const r = await fetch('/api/ims/shopify/webhook-status');
+      setResult(await r.json());
+    } catch (e: any) { setResult({ success: false, error: e.message }); }
+    setChecking(false);
+  };
+
+  const statusIcon = (s: string) =>
+    s === 'ok'        ? <span style={{ color: '#34d399', fontWeight: 700 }}>✓</span>
+    : s === 'wrong_url' ? <span style={{ color: '#f59e0b', fontWeight: 700 }}>⚠</span>
+    :                    <span style={{ color: '#f87171', fontWeight: 700 }}>✗</span>;
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      <button onClick={check} disabled={checking} style={btn()}>
+        {checking ? 'Checking…' : '🔍 Check webhook registration'}
+      </button>
+      {result && !result.success && (
+        <div style={{ marginTop: 10, fontSize: 12, color: 'var(--sv-red)' }}>⚠ {result.error}</div>
+      )}
+      {result?.success && (
+        <div style={{ marginTop: 12, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden', fontSize: 12 }}>
+          {/* Summary row */}
+          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--sv-etch)', display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontWeight: 600, color: 'var(--sv-text-strong)' }}>Webhook check</span>
+            <span style={{ color: result.hasSecret ? '#34d399' : '#f87171' }}>
+              {result.hasSecret ? '✓ Signing secret saved' : '✗ Signing secret missing — save it in Settings above'}
+            </span>
+            <span style={{ color: result.syncEnabled ? '#34d399' : '#fbbf24' }}>
+              {result.syncEnabled ? '✓ Order sync enabled' : '⚠ Order sync disabled'}
+            </span>
+          </div>
+          {/* Per-topic rows */}
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <tbody>
+              {result.topics.map((t: any) => (
+                <tr key={t.topic} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                  <td style={{ padding: '7px 14px', width: 24 }}>{statusIcon(t.status)}</td>
+                  <td style={{ padding: '7px 6px', fontFamily: 'monospace', color: 'var(--sv-mint)' }}>{t.topic}</td>
+                  <td style={{ padding: '7px 6px 7px 12px', color: 'var(--sv-text-dim)' }}>
+                    {t.status === 'ok'
+                      ? <span style={{ color: '#34d399' }}>Registered correctly</span>
+                      : t.status === 'wrong_url'
+                      ? <span style={{ color: '#f59e0b' }}>Registered but pointing to a different URL — update it in Shopify to: <code style={{ fontSize: 10, background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>{result.expectedUrl}</code></span>
+                      : <span style={{ color: '#f87171' }}>Not registered — add it in Shopify pointing to the URL above</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {/* Expected URL */}
+          <div style={{ padding: '8px 14px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 11 }}>
+            Expected URL: <code style={{ fontSize: 10, background: 'var(--sv-bg-0)', padding: '1px 6px', borderRadius: 3, color: 'var(--sv-mint)' }}>{result.expectedUrl}</code>
+          </div>
+          {result.otherTopicsAtOurUrl?.length > 0 && (
+            <div style={{ padding: '8px 14px', borderTop: '1px solid var(--sv-etch)', fontSize: 11, color: '#fbbf24' }}>
+              ⚠ Extra topics registered at this URL (not required, but harmless): {result.otherTopicsAtOurUrl.join(', ')}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
