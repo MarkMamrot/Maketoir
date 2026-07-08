@@ -46,15 +46,39 @@ export async function getShopifyForBusiness(businessId: string): Promise<Shopify
   return new ShopifyService(shopName, decrypt(encToken));
 }
 
-/** Resolve the Shopify location used for online inventory (setting or primary active). */
+/** Resolve the Shopify location used for online inventory.
+ *  Infers it from an existing inventory level (write_inventory scope only).
+ *  Caches the result in ims_settings so subsequent calls are instant.
+ */
 export async function getShopifyInventoryLocationId(businessId: string, shopify: ShopifyService): Promise<number | null> {
-  const configured = Number(await getSetting(businessId, 'shopify_inventory_location_id') || 0);
-  if (configured) return configured;
+  // Use cached value if present.
+  const cached = Number(await getSetting(businessId, 'shopify_inventory_location_id') || 0);
+  if (cached) return cached;
+
+  // Discover from the first linked variant's existing inventory level.
+  // This only needs write_inventory scope — no read_locations required.
   try {
-    const locs = await shopify.listLocations();
-    const active = locs.find(l => l.active) ?? locs[0];
-    return active ? active.id : null;
-  } catch { return null; }
+    const rows = await imsQuery<{ shopify_inventory_item_id: string }>(
+      `SELECT v.shopify_inventory_item_id
+         FROM ims_product_variants v JOIN ims_products p ON p.product_id = v.product_id
+        WHERE p.business_id = ? AND v.shopify_inventory_item_id IS NOT NULL AND v.shopify_inventory_item_id <> ''
+        LIMIT 1`,
+      [businessId],
+    );
+    if (rows[0]?.shopify_inventory_item_id) {
+      const locationIds = await shopify.getInventoryLocationsForItem(rows[0].shopify_inventory_item_id);
+      if (locationIds.length) {
+        // Cache so we don't re-discover on every push.
+        await imsExecute(
+          `INSERT INTO ims_settings (business_id, \`key\`, value) VALUES (?, 'shopify_inventory_location_id', ?)
+             ON DUPLICATE KEY UPDATE value = VALUES(value)`,
+          [businessId, String(locationIds[0])],
+        );
+        return locationIds[0];
+      }
+    }
+  } catch {}
+  return null;
 }
 
 /** Available-to-sell per variant across the counting locations, minus optional buffer. */
@@ -88,7 +112,7 @@ export interface PushResult { pushed: number; skipped: number; errors: string[];
  */
 export async function pushInventoryForBusiness(
   businessId: string,
-  opts: { variantIds?: string[]; all?: boolean; force?: boolean; shopifyLocationId?: number | null } = {},
+  opts: { variantIds?: string[]; all?: boolean; force?: boolean } = {},
 ): Promise<PushResult> {
   const result: PushResult = { pushed: 0, skipped: 0, errors: [], locationId: null };
 
@@ -104,7 +128,7 @@ export async function pushInventoryForBusiness(
   const buffer = Math.max(0, parseInt(await getSetting(businessId, 'shopify_inventory_buffer') || '0', 10));
 
   // Use a pre-resolved location if passed (avoids an extra API call that needs read_locations scope).
-  const shopifyLocationId = opts.shopifyLocationId ?? await getShopifyInventoryLocationId(businessId, shopify);
+  const shopifyLocationId = await getShopifyInventoryLocationId(businessId, shopify);
   if (!shopifyLocationId) { result.errors.push('No Shopify inventory location'); return result; }
   result.locationId = shopifyLocationId;
 

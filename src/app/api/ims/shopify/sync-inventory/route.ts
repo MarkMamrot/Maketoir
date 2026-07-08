@@ -30,7 +30,7 @@ function getSession() {
   try { return JSON.parse(c.value); } catch { return null; }
 }
 
-/** GET — Shopify locations + current inventory-sync settings for the UI. */
+/** GET — inventory-sync settings + IMS pick locations for the UI. */
 export async function GET() {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -38,26 +38,18 @@ export async function GET() {
 
   const rows = await imsQuery<{ key: string; value: string }>(
     `SELECT \`key\`, value FROM ims_settings WHERE business_id = ?
-       AND \`key\` IN ('shopify_inventory_sync_enabled','shopify_inventory_location_id',
-                        'online_pick_priority','shopify_inventory_buffer')`,
+       AND \`key\` IN ('shopify_inventory_sync_enabled','online_pick_priority','shopify_inventory_buffer')`,
     [businessId],
   );
   const get = (k: string) => rows.find(r => r.key === k)?.value ?? '';
 
-  // Shopify locations (destination)
-  let locations: Array<{ id: number; name: string; active: boolean }> = [];
-  try {
-    const shopify = await getShopifyForBusiness(businessId);
-    if (shopify) locations = await shopify.listLocations();
-  } catch {}
-
-  // IMS locations (stock-counting source)
+  // IMS locations for display (active only)
   const imsLocs = await imsQuery<{ id: number; name: string }>(
-    `SELECT id, name FROM ims_locations WHERE business_id = ? ORDER BY name`,
+    `SELECT id, name FROM ims_locations WHERE business_id = ? AND is_active = 1 ORDER BY name`,
     [businessId],
   ).catch(() => [] as { id: number; name: string }[]);
 
-  // Resolve configured pick location ids
+  // Resolve configured pick location ids from setting
   let pickLocationIds: number[] = [];
   try {
     const arr = JSON.parse(get('online_pick_priority') || '[]');
@@ -75,8 +67,6 @@ export async function GET() {
   return NextResponse.json({
     success: true,
     enabled: get('shopify_inventory_sync_enabled') === '1',
-    locationId: Number(get('shopify_inventory_location_id') || 0) || null,
-    locations,
     imsLocations: imsLocs,
     pickLocationIds,
     buffer: parseInt(get('shopify_inventory_buffer') || '0', 10) || 0,
@@ -87,8 +77,6 @@ export async function GET() {
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const mode = body?.mode ?? 'queue';
-  // Pre-resolved Shopify location ID from the UI (avoids re-fetching with read_locations scope).
-  const resolvedShopifyLocationId: number | null = body?.shopifyLocationId ? Number(body.shopifyLocationId) : null;
 
   // ── Cron path: drain the queue for all businesses ──────────────────────────
   const cronSecret = req.headers.get('x-cron-secret');
@@ -111,7 +99,7 @@ export async function POST(req: Request) {
   }
 
   if (mode === 'all') {
-    const res = await pushInventoryForBusiness(businessId, { all: true, force: true, shopifyLocationId: resolvedShopifyLocationId });
+    const res = await pushInventoryForBusiness(businessId, { all: true, force: true });
     return NextResponse.json({ success: res.errors.length === 0 || res.pushed > 0, ...res });
   }
 
@@ -119,7 +107,7 @@ export async function POST(req: Request) {
     const shopify = await getShopifyForBusiness(businessId);
     if (!shopify) return NextResponse.json({ success: false, error: 'Shopify not connected' });
     const pickLocs = await getOnlinePickLocationIds(businessId);
-    const shopifyLocationId = resolvedShopifyLocationId ?? await getShopifyInventoryLocationId(businessId, shopify);
+    const shopifyLocationId = await getShopifyInventoryLocationId(businessId, shopify);
     const buffer = parseInt(
       (await imsQuery<{ value: string }>(
         `SELECT value FROM ims_settings WHERE business_id = ? AND \`key\` = 'shopify_inventory_buffer' LIMIT 1`,

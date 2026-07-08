@@ -175,6 +175,21 @@ export class ShopifyService {
     });
   }
 
+  /**
+   * Get location IDs where an inventory item is tracked.
+   * Uses inventory_levels endpoint — requires write_inventory scope only
+   * (no read_locations needed). Returns an empty array if the item isn't tracked.
+   */
+  async getInventoryLocationsForItem(inventoryItemId: number | string): Promise<number[]> {
+    try {
+      const levels = await (this.shopify as any).inventoryLevel.list({
+        inventory_item_ids: String(inventoryItemId),
+        limit: 50,
+      });
+      return (levels ?? []).map((l: any) => Number(l.location_id)).filter(Boolean);
+    } catch { return []; }
+  }
+
   // ── Shopify Payments payouts (requires read_shopify_payments_payouts scope) ──
 
   /**
