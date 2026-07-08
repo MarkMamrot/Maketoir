@@ -61,7 +61,7 @@ export default function ShopifyView({ businessId }: { businessId?: string }) {
       </div>
 
       {!status?.connected ? (
-        <div style={{ padding: 24, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', maxWidth: 520 }}>
+        <div style={{ padding: 24, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
           <p style={{ color: 'var(--sv-text-main)', margin: '0 0 16px', lineHeight: 1.6 }}>
             Shopify credentials are not configured. Go to <strong>Setup → Connections</strong> and enter your Shopify Store URL and Access Token.
           </p>
@@ -127,7 +127,7 @@ function ShopifyOverviewTab({ status, onReload }: { status: any; onReload: () =>
   const value: React.CSSProperties = { fontSize: 24, fontWeight: 700, color: 'var(--sv-text-strong)' };
 
   return (
-    <div style={{ maxWidth: 860 }}>
+    <div>
       {/* Stat cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
         <div style={card}>
@@ -550,7 +550,7 @@ function ShopifyOrdersTab({ businessId }: { businessId: string }) {
   const webhookUrl = (typeof window !== 'undefined' ? window.location.origin : '') + `/api/webhooks/shopify/orders/${businessId}`;
 
   return (
-    <div style={{ maxWidth: 680 }}>
+    <div>
       {/* Enable/Disable toggle */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20, padding: '14px 18px', background: syncEnabled ? 'rgba(16,185,129,.08)' : 'var(--sv-bg-2)', border: `1px solid ${syncEnabled ? 'rgba(16,185,129,.3)' : 'var(--sv-etch)'}`, borderRadius: 10 }}>
         <div
