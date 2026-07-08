@@ -850,6 +850,7 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
         body: JSON.stringify(mode === 'queue' ? { mode, limit: 5000 } : { mode }),
       });
       const d = await r.json();
+      if (!d.success && d.error && mode !== 'preview') throw new Error(d.error);
       if (mode === 'preview') {
         if (!d.success) throw new Error(d.error ?? 'Preview failed');
         setPreview(d); setSearch('');
@@ -860,7 +861,13 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
           : `✓ Pushed ${d.pushed} of ${d.totalLinked ?? d.pushed} variants${q}`);
         load();
       } else {
-        setMsg(`✓ Drained queue: ${d.pushed} pushed of ${d.processed} processed`);
+        if (!d.success && d.error) throw new Error(d.error);
+        const pushed = d.pushed ?? 0;
+        const processed = d.processed ?? 0;
+        const errs = d.errors?.length ? ` — ${d.errors.slice(0, 2).join('; ')}` : '';
+        setMsg(pushed === 0 && processed === 0
+          ? '✓ Queue is empty — nothing to drain'
+          : `✓ Drained queue: ${pushed} pushed of ${processed} processed${errs}`);
         load();
       }
     } catch (e: any) { setMsg(`⚠️ ${e.message}`); }

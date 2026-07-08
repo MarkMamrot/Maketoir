@@ -205,7 +205,7 @@ export async function pushInventoryForBusiness(
  * variants. Variants that can't be pushed (no Shopify link, business not
  * connected, sync disabled) are removed from the queue so it doesn't back up.
  */
-export async function drainInventoryQueue(limit = 250): Promise<{ processed: number; pushed: number; businesses: number }> {
+export async function drainInventoryQueue(limit = 250): Promise<{ processed: number; pushed: number; businesses: number; errors: string[] }> {
   const queued = await imsQuery<{ variant_id: string; business_id: string; inv: string | null }>(
     `SELECT q.variant_id, p.business_id, v.shopify_inventory_item_id AS inv
        FROM ims_shopify_inventory_queue q
@@ -228,20 +228,29 @@ export async function drainInventoryQueue(limit = 250): Promise<{ processed: num
   }
 
   let pushed = 0;
+  const drainErrors: string[] = [];
   for (const [businessId, variantIds] of byBiz) {
     try {
-      const res = await pushInventoryForBusiness(businessId, { variantIds });
+      // force:true so queued items always push regardless of the 'enabled' toggle.
+      const res = await pushInventoryForBusiness(businessId, { variantIds, force: true });
       pushed += res.pushed;
+      if (res.errors.length) drainErrors.push(...res.errors.slice(0, 3));
     } catch (e: any) {
       console.error('[inventory-sync] business', businessId, e?.message);
+      drainErrors.push(e?.message ?? 'unknown error');
     }
   }
 
-  // Clear all processed variants from the queue (even unlinked ones)
-  if (allVariantIds.length) {
-    const ph = allVariantIds.map(() => '?').join(',');
-    await imsExecute(`DELETE FROM ims_shopify_inventory_queue WHERE variant_id IN (${ph})`, allVariantIds);
+  // Delete processed variants from the queue in chunks (avoids huge IN() clauses).
+  const DEL_CHUNK = 500;
+  for (let i = 0; i < allVariantIds.length; i += DEL_CHUNK) {
+    const chunk = allVariantIds.slice(i, i + DEL_CHUNK);
+    const ph = chunk.map(() => '?').join(',');
+    await imsExecute(
+      `DELETE FROM ims_shopify_inventory_queue WHERE variant_id IN (${ph})`,
+      chunk,
+    ).catch(err => console.error('[inventory-sync] delete chunk error:', err?.message));
   }
 
-  return { processed: queued.length, pushed, businesses: byBiz.size };
+  return { processed: queued.length, pushed, businesses: byBiz.size, errors: drainErrors };
 }

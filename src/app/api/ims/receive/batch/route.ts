@@ -70,6 +70,25 @@ export async function POST(req: Request) {
     try {
       await conn.beginTransaction();
 
+      // Guard: never receive stock into an already-completed PO (prevents the
+      // double-count that happens if the receive is submitted/retried twice).
+      const [[poRow]] = await conn.execute<any[]>(
+        `SELECT status, is_historical FROM ims_purchase_orders WHERE id = ? FOR UPDATE`,
+        [po_id]
+      );
+      if (!poRow) {
+        await conn.rollback();
+        return NextResponse.json({ error: 'Purchase order not found' }, { status: 404 });
+      }
+      if (poRow.is_historical) {
+        await conn.rollback();
+        return NextResponse.json({ error: 'Cannot receive a historical Cin7 record' }, { status: 409 });
+      }
+      if (poRow.status === 'complete') {
+        await conn.rollback();
+        return NextResponse.json({ error: 'This purchase order is already fully received.' }, { status: 409 });
+      }
+
       let productUpdatesCount = 0;
       let stockUpdatesCount = 0;
       let variantUpdatesCount = 0;

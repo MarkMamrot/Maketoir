@@ -1186,6 +1186,18 @@ export const ImsPORepo = {
         }
 
         for (const item of items) {
+          // Guard against double-receiving: only receive the outstanding quantity.
+          // If items were already (partially) received via the device receive flow,
+          // qty_received > 0 — never add the full qty_ordered again on top of it.
+          const alreadyRcvd = Number(item.qty_received ?? 0);
+          if (alreadyRcvd >= Number(item.qty_ordered)) {
+            await conn.execute(
+              `UPDATE ims_purchase_order_items SET qty_received = qty_ordered WHERE id = ?`,
+              [item.id]
+            );
+            continue; // already fully received — nothing more to add
+          }
+
           await conn.execute(
             `INSERT IGNORE INTO ims_stock (variant_id, location_id) VALUES (?, ?)`,
             [item.variant_id, po.location_id]
@@ -1209,7 +1221,7 @@ export const ImsPORepo = {
 
           const old_soh   = Number(s?.qty_on_hand ?? 0);
           const old_avg   = Number(s?.avg_cost ?? item.unit_cost);
-          const qty_rcvd  = Number(item.qty_ordered);
+          const qty_rcvd  = Number(item.qty_ordered) - alreadyRcvd; // outstanding only
           const lcpu      = landedPerUnit.get(item.id) ?? 0;
           // unit_cost is in PO currency → convert to AUD first, then add landed cost (already AUD)
           const true_cost_aud = Number(item.unit_cost) * effective_rate + lcpu;
