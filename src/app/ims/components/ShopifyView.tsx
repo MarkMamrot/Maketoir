@@ -846,14 +846,15 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
       const r = await fetch('/api/ims/shopify/sync-inventory', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode }),
+        // Manual "Sync Queue Now" drains a big batch on demand (bulk GraphQL is fast).
+        body: JSON.stringify(mode === 'queue' ? { mode, limit: 5000 } : { mode }),
       });
       const d = await r.json();
       if (mode === 'preview') {
         if (!d.success) throw new Error(d.error ?? 'Preview failed');
         setPreview(d); setSearch('');
       } else if (mode === 'all') {
-        const q = d.queuedRemainder > 0 ? `, ${d.queuedRemainder} queued for background sync (drains every 15 min)` : '';
+        const q = d.queuedRemainder > 0 ? `, ${d.queuedRemainder} queued — click “Sync Queue Now” to push them immediately (or they drain every 15 min)` : '';
         setMsg(d.errors?.length
           ? `Pushed ${d.pushed}, ${d.errors.length} error(s): ${d.errors.slice(0, 2).join('; ')}${q}`
           : `✓ Pushed ${d.pushed} of ${d.totalLinked ?? d.pushed} variants${q}`);

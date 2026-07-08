@@ -195,7 +195,7 @@ export async function pushInventoryForBusiness(
       result.errors.push(`batch @${i}: ${msg}`);
       result.skipped += chunk.length;
     }
-    await sleep(500); // gentle pacing between GraphQL calls
+    await sleep(250); // gentle pacing between GraphQL calls
   }
   return result;
 }
