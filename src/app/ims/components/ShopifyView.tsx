@@ -802,13 +802,16 @@ function WebhookStatusChecker({ btn }: { btn: (p?: boolean) => React.CSSProperti
 // ─── Inventory Sync Card (IMS → Shopify) ──────────────────────────────────────
 function InventorySyncCard({ card, label, input, btn }: { card: React.CSSProperties; label: React.CSSProperties; input: React.CSSProperties; btn: (p?: boolean) => React.CSSProperties }) {
   const [enabled, setEnabled]           = useState(false);
+  const [loaded, setLoaded]             = useState(false);
   const [imsLocations, setImsLocations] = useState<{ id: number; name: string }[]>([]);
   const [pickLocationIds, setPickIds]   = useState<number[]>([]);
   const [buffer, setBuffer]             = useState<number>(0);
   const [queued, setQueued]             = useState(0);
+  const [linkedCount, setLinkedCount]   = useState(0);
   const [busy, setBusy]                 = useState<string | null>(null);
   const [msg, setMsg]                   = useState<string | null>(null);
   const [preview, setPreview]           = useState<any>(null);
+  const [search, setSearch]             = useState('');
 
   const load = () => {
     fetch('/api/ims/shopify/sync-inventory').then(r => r.json()).then(d => {
@@ -818,8 +821,10 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
         setPickIds(d.pickLocationIds ?? []);
         setBuffer(d.buffer ?? 0);
         setQueued(d.queuedCount ?? 0);
+        setLinkedCount(d.linkedVariants ?? 0);
       }
-    }).catch(() => {});
+      setLoaded(true);
+    }).catch(() => setLoaded(true));
   };
   useEffect(() => { load(); }, []);
 
@@ -846,7 +851,7 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
       const d = await r.json();
       if (mode === 'preview') {
         if (!d.success) throw new Error(d.error ?? 'Preview failed');
-        setPreview(d);
+        setPreview(d); setSearch('');
       } else if (mode === 'all') {
         const q = d.queuedRemainder > 0 ? `, ${d.queuedRemainder} queued for background sync (drains every 15 min)` : '';
         setMsg(d.errors?.length
@@ -860,6 +865,14 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
     } catch (e: any) { setMsg(`⚠️ ${e.message}`); }
     setBusy(null);
   };
+
+  const branchNames = (ids: number[]) => ids.map(id => imsLocations.find(l => l.id === id)?.name ?? `#${id}`).join(' + ');
+
+  const previewRows = (preview?.rows ?? []).filter((r: any) => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    return (r.sku ?? '').toLowerCase().includes(q) || (r.name ?? '').toLowerCase().includes(q);
+  });
 
   return (
     <div style={card}>
@@ -882,7 +895,8 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
         <label style={{ ...label, display: 'block', marginBottom: 8 }}>
           Branches to include in available stock count
         </label>
-        {imsLocations.length === 0 && <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Loading…</div>}
+        {!loaded && <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Loading branches…</div>}
+        {loaded && imsLocations.length === 0 && <div style={{ fontSize: 12, color: '#fbbf24' }}>No active branches found in IMS. Add locations in the Locations view.</div>}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {imsLocations.map(loc => {
             const checked = pickLocationIds.includes(loc.id);
@@ -919,49 +933,86 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
         <div style={{ marginBottom: 14, padding: '7px 12px', background: 'rgba(96,165,250,.07)', borderRadius: 6, fontSize: 12, color: 'var(--sv-text-dim)' }}>
           <strong style={{ color: 'var(--sv-text-main)' }}>Pushes: </strong>
           SUM(on_hand − committed) from{' '}
-          <strong style={{ color: '#60a5fa' }}>
-            {pickLocationIds.map(id => imsLocations.find(l => l.id === id)?.name ?? `#${id}`).join(' + ')}
-          </strong>
+          <strong style={{ color: '#60a5fa' }}>{branchNames(pickLocationIds)}</strong>
           {buffer > 0 && <> − <strong style={{ color: '#f59e0b' }}>{buffer} buffer</strong></>}
-          {' '}→ Shopify
+          {' '}→ Shopify · <strong>{linkedCount}</strong> linked variants
         </div>
       )}
-      {pickLocationIds.length === 0 && imsLocations.length > 0 && (
+      {loaded && pickLocationIds.length === 0 && imsLocations.length > 0 && (
         <div style={{ marginBottom: 14, fontSize: 12, color: '#fbbf24' }}>⚠ No branches selected — tick at least one branch above.</div>
       )}
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <button onClick={() => run('preview')} disabled={!!busy} style={btn()}>{busy === 'preview' ? 'Loading…' : '🔍 Preview'}</button>
+        <button onClick={() => run('preview')} disabled={!!busy || pickLocationIds.length === 0} style={btn()}>{busy === 'preview' ? 'Loading…' : '🔍 Preview what will be pushed'}</button>
         <button onClick={() => run('queue')} disabled={!!busy} style={btn()}>{busy === 'queue' ? 'Syncing…' : '↻ Sync Queue Now'}</button>
-        <button onClick={() => run('all')} disabled={!!busy} style={btn(true)}>{busy === 'all' ? 'Pushing…' : '⬆ Push All to Shopify'}</button>
+        <button onClick={() => run('all')} disabled={!!busy || pickLocationIds.length === 0} style={btn(true)}>{busy === 'all' ? 'Pushing…' : '⬆ Push All to Shopify'}</button>
       </div>
 
       {queued > 0 && !msg && <div style={{ marginTop: 8, fontSize: 12, color: '#fbbf24' }}>{queued} variant(s) queued for next sync.</div>}
       {msg && <div style={{ marginTop: 10, fontSize: 13, color: msg.startsWith('✓') ? '#34d399' : 'var(--sv-red)' }}>{msg}</div>}
 
+      {/* Preview modal */}
       {preview && (
-        <div style={{ marginTop: 14, padding: 14, background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)', fontSize: 12 }}>
-          <div style={{ marginBottom: 8, color: 'var(--sv-text-main)', lineHeight: 1.7 }}>
-            <strong>{preview.linkedVariants}</strong> linked variants ·{' '}
-            counting: <strong>{(preview.pickLocationIds ?? []).map((id: number) => imsLocations.find(l => l.id === id)?.name ?? `#${id}`).join(' + ') || '—'}</strong>
-            {(preview.buffer ?? 0) > 0 && <> · buffer: <strong style={{ color: '#f59e0b' }}>−{preview.buffer}</strong></>}
+        <div onClick={() => setPreview(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 12, width: 'min(720px, 100%)', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {/* Header */}
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--sv-etch)', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Preview — stock that will be pushed to Shopify</div>
+                <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 4, lineHeight: 1.6 }}>
+                  Counting <strong style={{ color: '#60a5fa' }}>{branchNames(preview.pickLocationIds ?? [])}</strong>
+                  {(preview.buffer ?? 0) > 0 && <> − buffer <strong style={{ color: '#f59e0b' }}>{preview.buffer}</strong></>}
+                  {' · '}Shopify location: <strong>{preview.shopifyLocationId ?? 'auto (resolves on first push)'}</strong>
+                </div>
+              </div>
+              <button onClick={() => setPreview(null)} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>×</button>
+            </div>
+
+            {/* Stat strip */}
+            <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--sv-etch)', display: 'flex', gap: 20, fontSize: 12 }}>
+              <span><strong style={{ color: 'var(--sv-text-strong)', fontSize: 15 }}>{preview.linkedVariants ?? 0}</strong> <span style={{ color: 'var(--sv-text-dim)' }}>linked variants</span></span>
+              <span><strong style={{ color: '#34d399', fontSize: 15 }}>{preview.inStock ?? 0}</strong> <span style={{ color: 'var(--sv-text-dim)' }}>in stock</span></span>
+              <span><strong style={{ color: '#f87171', fontSize: 15 }}>{preview.zeroStock ?? 0}</strong> <span style={{ color: 'var(--sv-text-dim)' }}>will show 0</span></span>
+            </div>
+
+            {/* Search */}
+            <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search SKU or product…" style={{ ...input, width: '100%' }} />
+            </div>
+
+            {/* Table */}
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead style={{ position: 'sticky', top: 0, background: 'var(--sv-bg-1)' }}>
+                  <tr style={{ color: 'var(--sv-text-dim)', textAlign: 'left' }}>
+                    <th style={{ padding: '8px 20px' }}>SKU</th>
+                    <th style={{ padding: '8px 6px' }}>Product</th>
+                    <th style={{ padding: '8px 6px' }}>Variant</th>
+                    <th style={{ padding: '8px 20px', textAlign: 'right' }}>→ Shopify</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewRows.map((s: any, i: number) => (
+                    <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                      <td style={{ padding: '6px 20px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{s.sku || '—'}</td>
+                      <td style={{ padding: '6px 6px' }}>{s.name}</td>
+                      <td style={{ padding: '6px 6px', color: 'var(--sv-text-dim)' }}>{s.variant_label || '—'}</td>
+                      <td style={{ padding: '6px 20px', textAlign: 'right', fontWeight: 700, color: Number(s.available) > 0 ? '#34d399' : 'var(--sv-text-dim)' }}>{Number(s.available ?? 0)}</td>
+                    </tr>
+                  ))}
+                  {previewRows.length === 0 && (
+                    <tr><td colSpan={4} style={{ padding: 24, textAlign: 'center', color: 'var(--sv-text-dim)' }}>No matching variants.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '12px 20px', borderTop: '1px solid var(--sv-etch)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Showing {previewRows.length} of {(preview.rows ?? []).length}{(preview.rows ?? []).length >= 500 ? '+ (capped at 500)' : ''}</span>
+              <button onClick={() => setPreview(null)} style={btn()}>Close</button>
+            </div>
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead><tr style={{ color: 'var(--sv-text-dim)', textAlign: 'left' }}>
-              <th style={{ padding: '3px 6px' }}>SKU</th>
-              <th style={{ padding: '3px 6px' }}>Product</th>
-              <th style={{ padding: '3px 6px', textAlign: 'right' }}>→ Shopify</th>
-            </tr></thead>
-            <tbody>
-              {(preview.sample ?? []).map((s: any, i: number) => (
-                <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                  <td style={{ padding: '3px 6px', fontFamily: 'monospace' }}>{s.sku || '—'}</td>
-                  <td style={{ padding: '3px 6px' }}>{s.name}</td>
-                  <td style={{ padding: '3px 6px', textAlign: 'right', fontWeight: 600 }}>{Number(s.available ?? 0)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       )}
     </div>

@@ -4157,9 +4157,9 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
         {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New PO</button>}
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-        {['','draft','confirmed','partially_received','received','cancelled'].map(s => (
+        {['','draft','confirmed','partially_received','complete','cancelled'].map(s => (
           <button key={s} onClick={() => { setStatusFilter(s); setPage(1); }} style={btnStyle(statusFilter === s ? 'action' : 'ghost', 'sm')}>
-            {s || 'All'}
+            {s === 'partially_received' ? 'partially received' : (s || 'All')}
           </button>
         ))}
         <input
