@@ -7,8 +7,8 @@
  */
 
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { ImsPORepo, ImsSORepo, ImsCNRepo } from '@/lib/ims/ImsRepository';
-import { syncPOAsDraftBill, updateXeroDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOPayment, syncSOAsInvoice, updateXeroDraftInvoice, approveInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice, syncCNAsCreditNote, markCNXeroStatus } from '@/services/XeroSyncService';
+import { ImsPORepo, ImsSORepo, ImsCNRepo, ImsSupplierCNRepo } from '@/lib/ims/ImsRepository';
+import { syncPOAsDraftBill, updateXeroDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOPayment, syncSOAsInvoice, updateXeroDraftInvoice, approveInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice, syncCNAsCreditNote, markCNXeroStatus, syncSupplierCNAsCreditNote, markSupplierCNXeroStatus } from '@/services/XeroSyncService';
 import { imsQuery } from '@/services/IMSMySQLService';
 
 /**
@@ -328,5 +328,36 @@ export async function triggerCNXeroSync(businessId: string, cnId: number): Promi
       })),
     }),
     () => markCNXeroStatus(cnId, 'queued'),
+  );
+}
+/** Triggered when a supplier credit note is completed → post ACCPAY credit note. */
+export async function triggerSupplierCNXeroSync(businessId: string, scnId: number): Promise<void> {
+  if (!(await isXeroConnected(businessId))) return;
+  const scn = await ImsSupplierCNRepo.get(scnId, businessId);
+  if (!scn || scn.status !== 'complete') return;
+
+  await withRetry(
+    () => syncSupplierCNAsCreditNote(businessId, {
+      id: scn.id,
+      scn_number: scn.scn_number,
+      supplier_id: scn.supplier_id,
+      supplier_name: scn.supplier_name,
+      location_id: scn.location_id,
+      scn_date: scn.scn_date,
+      reference: scn.reference,
+      supplier_credit_ref: scn.supplier_credit_ref,
+      tax_treatment: scn.tax_treatment,
+      total_amount: scn.total_amount,
+      items: (scn.items ?? []).map(i => ({
+        code: i.code,
+        name: i.name ?? i.product_name,
+        qty: i.qty,
+        unit_cost: i.unit_cost,
+        restock: i.restock,
+        tax_rate: i.tax_rate,
+        line_total: i.line_total,
+      })),
+    }),
+    () => markSupplierCNXeroStatus(scnId, 'queued'),
   );
 }

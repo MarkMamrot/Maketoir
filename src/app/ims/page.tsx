@@ -13,7 +13,7 @@ import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 type ImsView =
   | 'dashboard' | 'products' | 'stock' | 'brands' | 'bulk-edit'
   | 'contacts' | 'locations'
-  | 'purchase-orders' | 'sales-orders' | 'credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
+  | 'purchase-orders' | 'sales-orders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
   | 'reports' | 'report-sales-by-branch' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers'
@@ -37,6 +37,7 @@ const NAV = [
     { id: 'purchase-orders',  label: 'Purchase Orders' },
     { id: 'sales-orders',     label: 'Sales Orders' },
     { id: 'credit-notes',     label: 'Credit Notes / Returns' },
+    { id: 'supplier-credit-notes', label: 'Supplier Credit Notes' },
     { id: 'smart-device-receive', label: '📱 Smart Device Receive' },
     { id: 'pos-sales',            label: 'POS Sales' },
     { id: 'online-sales',     label: 'Online Sales' },
@@ -6057,6 +6058,255 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
 // Sales Orders View
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── Supplier Credit Notes View (credits received FROM suppliers → Xero ACCPAY) ──
+function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
+  const [scns, setScns] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
+  const [viewModal, setViewModal] = useState<{ open: boolean; scn: any | null }>({ open: false, scn: null });
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
+  const [variants, setVariants] = useState<any[]>([]);
+  const [form, setForm] = useState<any>({ supplier_id: '', po_id: '', location_id: '', scn_date: today(), reference: '', supplier_credit_ref: '', tax_treatment: 'ex_tax', notes: '' });
+  const [lineItems, setLineItems] = useState<any[]>([]);
+  const [saving, setSaving] = useState(false);
+  const { settings } = useImsSettings();
+
+  const defaultTaxRate = () => ((settings?.sales_tax_on_sales ?? 'yes') === 'yes' ? Number(settings?.sales_tax_rate ?? 0.1) : 0);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch('/api/ims/supplier-credit-notes').then(r => r.json()).then(d => { if (d.success) setScns(d.data); }).finally(() => setLoading(false));
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    fetch('/api/ims/contacts?type=supplier&active=1').then(r => r.json()).then(d => { if (d.success) setSuppliers(d.data); });
+    fetch('/api/ims/locations').then(r => r.json()).then(d => { if (d.success) setLocations(d.data); });
+    fetch('/api/ims/variants').then(r => r.json()).then(d => { if (d.success) setVariants(d.data); });
+  }, []);
+
+  const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((p: any) => ({ ...p, [k]: e.target.value }));
+  const addLine = () => setLineItems(p => [...p, { variant_id: '', code: '', name: '', qty: 1, unit_cost: 0, tax_rate: defaultTaxRate(), restock: true }]);
+  const removeLine = (i: number) => setLineItems(p => p.filter((_, idx) => idx !== i));
+  const updateLine = (i: number, k: string, v: any) => setLineItems(p => p.map((item, idx) => idx === i ? { ...item, [k]: v } : item));
+  const selectVariant = (i: number, variant_id: string) => {
+    const v = variants.find((x: any) => x.variant_id === variant_id);
+    setLineItems(p => p.map((item, j) => j === i ? { ...item, variant_id, code: v?.sku ?? '', unit_cost: Number(v?.avg_cost ?? v?.cost_aud ?? item.unit_cost ?? 0) } : item));
+  };
+
+  const lineTotal = (item: any) => Number(item.qty || 0) * Number(item.unit_cost || 0);
+  const subtotal = lineItems.reduce((s, i) => s + lineTotal(i), 0);
+  const taxTotal = lineItems.reduce((s, i) => s + lineTotal(i) * Number(i.tax_rate || 0), 0);
+  const grandTotal = subtotal + taxTotal;
+
+  const openNew = () => {
+    setForm({ supplier_id: '', po_id: '', location_id: locations[0]?.id ? String(locations[0].id) : '', scn_date: today(), reference: '', supplier_credit_ref: '', tax_treatment: 'ex_tax', notes: '' });
+    setLineItems([{ variant_id: '', code: '', name: '', qty: 1, unit_cost: 0, tax_rate: defaultTaxRate(), restock: true }]);
+    setModal({ open: true, edit: null });
+  };
+  const openEdit = async (scn: any) => {
+    const d = await apiFetch(`/api/ims/supplier-credit-notes/${scn.id}`);
+    setForm({ supplier_id: d.data.supplier_id ?? '', po_id: d.data.po_id ?? '', location_id: String(d.data.location_id), scn_date: d.data.scn_date?.slice(0, 10), reference: d.data.reference ?? '', supplier_credit_ref: d.data.supplier_credit_ref ?? '', tax_treatment: d.data.tax_treatment ?? 'ex_tax', notes: d.data.notes ?? '' });
+    setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id ?? '', code: i.code ?? '', name: i.name ?? i.product_name ?? '', qty: i.qty, unit_cost: i.unit_cost, tax_rate: i.tax_rate, restock: i.restock === undefined ? true : !!Number(i.restock) })));
+    setModal({ open: true, edit: d.data });
+  };
+  const openView = async (scn: any) => { const d = await apiFetch(`/api/ims/supplier-credit-notes/${scn.id}`); setViewModal({ open: true, scn: d.data }); };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.location_id) return alert('Please select a location.');
+    if (!form.supplier_id) return alert('Please select a supplier.');
+    if (!lineItems.length) return alert('Please add at least one line item.');
+    setSaving(true);
+    try {
+      const body = {
+        supplier_id: form.supplier_id ? Number(form.supplier_id) : null,
+        po_id: form.po_id ? Number(form.po_id) : null,
+        location_id: Number(form.location_id),
+        scn_date: form.scn_date, reference: form.reference || null, supplier_credit_ref: form.supplier_credit_ref || null,
+        tax_treatment: form.tax_treatment, notes: form.notes || null,
+        items: lineItems.map(i => ({ variant_id: i.variant_id || null, code: i.code || null, name: i.name || null, qty: Number(i.qty), unit_cost: Number(i.unit_cost), tax_rate: Number(i.tax_rate), restock: i.restock === undefined ? true : !!i.restock })),
+      };
+      if (modal.edit) await apiFetch(`/api/ims/supplier-credit-notes/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      else await apiFetch('/api/ims/supplier-credit-notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      setModal({ open: false, edit: null });
+      load();
+    } catch (err: any) { alert(err.message || 'Save failed'); }
+    finally { setSaving(false); }
+  };
+  const handleDelete = async (scn: any) => {
+    if (!confirm(`Delete ${scn.scn_number}? This cannot be undone.`)) return;
+    await apiFetch(`/api/ims/supplier-credit-notes/${scn.id}`, { method: 'DELETE' }); load();
+  };
+  const handleComplete = async (scn: any) => {
+    if (!confirm(`Complete ${scn.scn_number}? Stock will be REDUCED for lines marked "Return stock" (goods going back to the supplier). This cannot be undone.`)) return;
+    try { const d = await apiFetch(`/api/ims/supplier-credit-notes/${scn.id}/complete`, { method: 'POST' }); setViewModal({ open: true, scn: d.data }); load(); }
+    catch (err: any) { alert(err.message || 'Complete failed'); }
+  };
+
+  const filtered = scns.filter(s => !statusFilter || s.status === statusFilter);
+  const statusBadge = (status: string) => {
+    const map: Record<string, { label: string; color: string; bg: string }> = {
+      draft:     { label: 'Draft',     color: '#fbbf24', bg: 'rgba(251,191,36,.12)' },
+      complete:  { label: 'Complete',  color: '#34d399', bg: 'rgba(52,211,153,.12)' },
+      cancelled: { label: 'Cancelled', color: '#f87171', bg: 'rgba(248,113,113,.12)' },
+    };
+    const s = map[status] ?? { label: status, color: 'var(--sv-text-dim)', bg: 'var(--sv-bg-1)' };
+    return <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 12, background: s.bg, color: s.color }}>{s.label}</span>;
+  };
+  const money = (n: any) => `$${Number(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  return (
+    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Supplier Credit Notes</h1>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--sv-text-dim)' }}>Credits received from suppliers (returns, damaged goods, rebates) → Xero supplier (ACCPAY) credit notes.</p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ ...inputStyle, width: 'auto' }}>
+            <option value="">All statuses</option>
+            <option value="draft">Draft</option>
+            <option value="complete">Complete</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+          {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New Supplier Credit Note</button>}
+        </div>
+      </div>
+
+      {loading ? <Spinner /> : filtered.length === 0 ? <EmptyState text="No supplier credit notes yet." /> : (
+        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr>{['Number','Supplier','Date','Total','Status','Xero','Actions'].map(h => <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .5, borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>{h}</th>)}</tr>
+            </thead>
+            <tbody>
+              {filtered.map(scn => (
+                <tr key={scn.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                  <td style={{ padding: '10px 12px', fontWeight: 600, color: 'var(--sv-text-strong)' }}>{scn.scn_number}</td>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-main)' }}>{scn.supplier_name ?? '—'}</td>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)' }}>{scn.scn_date?.slice(0, 10)}</td>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-main)' }}>{money(scn.total_amount)}</td>
+                  <td style={{ padding: '10px 12px' }}>{statusBadge(scn.status)}</td>
+                  <td style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)' }}>{scn.xero_sync_status ?? '—'}</td>
+                  <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => openView(scn)} style={btnStyle('ghost', 'xs')}>View</button>
+                      {!isAdvisor && scn.status === 'draft' && <>
+                        <button onClick={() => openEdit(scn)} style={btnStyle('ghost', 'xs')}>Edit</button>
+                        <button onClick={() => handleComplete(scn)} style={btnStyle('mint', 'xs')}>Complete</button>
+                        <button onClick={() => handleDelete(scn)} style={btnStyle('danger', 'xs')}>Delete</button>
+                      </>}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Create / Edit modal */}
+      {modal.open && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 300, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 24, overflowY: 'auto' }}>
+          <form onSubmit={handleSave} style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, width: 900, maxWidth: '98vw', padding: 24 }}>
+            <h2 style={{ margin: '0 0 16px', fontSize: 17, color: 'var(--sv-text-strong)' }}>{modal.edit ? `Edit ${modal.edit.scn_number}` : 'New Supplier Credit Note'}</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 12 }}>
+              <div><label style={labelStyle}>Supplier *</label><select value={form.supplier_id} onChange={sf('supplier_id')} style={inputStyle}><option value="">— select —</option>{suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+              <div><label style={labelStyle}>Location *</label><select value={form.location_id} onChange={sf('location_id')} style={inputStyle}><option value="">— select —</option>{locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></div>
+              <div><label style={labelStyle}>Date</label><input type="date" value={form.scn_date} onChange={sf('scn_date')} style={inputStyle} /></div>
+              <div><label style={labelStyle}>Supplier's Credit Ref</label><input value={form.supplier_credit_ref} onChange={sf('supplier_credit_ref')} placeholder="their CN number" style={inputStyle} /></div>
+              <div><label style={labelStyle}>Reference (PO/Bill)</label><input value={form.reference} onChange={sf('reference')} style={inputStyle} /></div>
+              <div><label style={labelStyle}>Tax Treatment</label><select value={form.tax_treatment} onChange={sf('tax_treatment')} style={inputStyle}><option value="ex_tax">Tax exclusive</option><option value="inc_tax">Tax inclusive</option><option value="no_tax">No tax</option></select></div>
+            </div>
+
+            <div style={{ marginBottom: 8, fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)' }}>Line Items</div>
+            <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden', marginBottom: 12 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead><tr style={{ background: 'var(--sv-bg-2)' }}>{['Product','Qty','Unit Cost','Tax %','Return stock','Line',''].map(h => <th key={h} style={{ padding: '6px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600 }}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {lineItems.map((item, i) => (
+                    <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                      <td style={{ padding: '4px 8px', minWidth: 240 }}>
+                        <select value={item.variant_id} onChange={e => selectVariant(i, e.target.value)} style={{ ...inputStyle, fontSize: 12 }}>
+                          <option value="">— select product —</option>
+                          {variants.map((v: any) => <option key={v.variant_id} value={v.variant_id}>{v.sku} — {v.product_name}{v.variant_label ? ` (${v.variant_label})` : ''}</option>)}
+                        </select>
+                      </td>
+                      <td style={{ padding: '4px 8px' }}><input type="number" step="any" value={item.qty} onChange={e => updateLine(i, 'qty', e.target.value)} style={{ ...inputStyle, width: 70, fontSize: 12 }} /></td>
+                      <td style={{ padding: '4px 8px' }}><input type="number" step="any" value={item.unit_cost} onChange={e => updateLine(i, 'unit_cost', e.target.value)} style={{ ...inputStyle, width: 90, fontSize: 12 }} /></td>
+                      <td style={{ padding: '4px 8px' }}><input type="number" step="any" value={item.tax_rate} onChange={e => updateLine(i, 'tax_rate', e.target.value)} style={{ ...inputStyle, width: 70, fontSize: 12 }} /></td>
+                      <td style={{ padding: '4px 8px', textAlign: 'center' }}><input type="checkbox" checked={!!item.restock} onChange={e => updateLine(i, 'restock', e.target.checked)} title="Goods physically returned to supplier — reduces stock" /></td>
+                      <td style={{ padding: '4px 8px', color: 'var(--sv-text-main)' }}>{money(lineTotal(item))}</td>
+                      <td style={{ padding: '4px 8px' }}><button type="button" onClick={() => removeLine(i)} style={btnStyle('danger', 'xs')}>×</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <button type="button" onClick={addLine} style={{ ...btnStyle('ghost', 'sm'), marginBottom: 12 }}>+ Add line</button>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 }}>
+              <div style={{ flex: 1 }}><label style={labelStyle}>Notes</label><textarea value={form.notes} onChange={sf('notes')} style={{ ...inputStyle, minHeight: 40 }} /></div>
+              <div style={{ textAlign: 'right', fontSize: 13, color: 'var(--sv-text-main)', minWidth: 180 }}>
+                <div>Subtotal: {money(subtotal)}</div>
+                <div>Tax: {money(taxTotal)}</div>
+                <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--sv-text-strong)' }}>Total: {money(grandTotal)}</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18 }}>
+              <button type="button" onClick={() => setModal({ open: false, edit: null })} style={btnStyle('ghost')}>Cancel</button>
+              <button type="submit" disabled={saving} style={{ ...btnStyle('action'), opacity: saving ? .6 : 1 }}>{saving ? 'Saving…' : (modal.edit ? 'Save' : 'Create Draft')}</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* View modal */}
+      {viewModal.open && viewModal.scn && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 300, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 24, overflowY: 'auto' }}>
+          <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, width: 720, maxWidth: '96vw', padding: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h2 style={{ margin: 0, fontSize: 17, color: 'var(--sv-text-strong)' }}>{viewModal.scn.scn_number} {statusBadge(viewModal.scn.status)}</h2>
+              <button onClick={() => setViewModal({ open: false, scn: null })} style={btnStyle('ghost', 'sm')}>Close</button>
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.9, marginBottom: 12 }}>
+              <div><strong>Supplier:</strong> {viewModal.scn.supplier_name ?? '—'}</div>
+              <div><strong>Location:</strong> {viewModal.scn.location_name}</div>
+              <div><strong>Date:</strong> {viewModal.scn.scn_date?.slice(0, 10)}</div>
+              {viewModal.scn.supplier_credit_ref && <div><strong>Supplier Ref:</strong> {viewModal.scn.supplier_credit_ref}</div>}
+              {viewModal.scn.reference && <div><strong>Reference:</strong> {viewModal.scn.reference}</div>}
+              {viewModal.scn.xero_credit_note_id && <div><strong>Xero:</strong> synced ({viewModal.scn.xero_sync_status})</div>}
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 12 }}>
+              <thead><tr style={{ background: 'var(--sv-bg-2)' }}>{['Product','Qty','Unit Cost','Return stock','Line'].map(h => <th key={h} style={{ padding: '6px 8px', textAlign: 'left', color: 'var(--sv-text-dim)' }}>{h}</th>)}</tr></thead>
+              <tbody>
+                {(viewModal.scn.items ?? []).map((it: any) => (
+                  <tr key={it.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                    <td style={{ padding: '6px 8px', color: 'var(--sv-text-main)' }}>{it.sku} {it.product_name}{it.variant_label ? ` (${it.variant_label})` : ''}</td>
+                    <td style={{ padding: '6px 8px' }}>{Number(it.qty)}</td>
+                    <td style={{ padding: '6px 8px' }}>{money(it.unit_cost)}</td>
+                    <td style={{ padding: '6px 8px' }}>{Number(it.restock) ? 'Yes' : 'No'}</td>
+                    <td style={{ padding: '6px 8px' }}>{money(it.line_total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ textAlign: 'right', fontWeight: 700, color: 'var(--sv-text-strong)' }}>Total: {money(viewModal.scn.total_amount)}</div>
+            {!isAdvisor && viewModal.scn.status === 'draft' && (
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
+                <button onClick={() => { setViewModal({ open: false, scn: null }); openEdit(viewModal.scn); }} style={btnStyle('ghost')}>Edit</button>
+                <button onClick={() => handleComplete(viewModal.scn)} style={btnStyle('mint')}>Complete &amp; Post to Xero</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, onReturnOrder }: { pendingOpenId?: number | null; onPendingHandled?: () => void; isAdvisor?: boolean; onReturnOrder?: (prefill: any) => void } = {}) {
   const [sos, setSos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -9775,11 +10025,12 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
     { key: 'inventory_in_transit', label: 'Inventory in Transit', desc: 'Goods ordered but not received', filter: (a: any) => a.class === 'ASSET' },
     { key: 'cogs', label: 'Cost of Goods Sold', desc: 'COGS expense (P&L)', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'sales_revenue', label: 'Sales Revenue', desc: 'Income from sales (P&L)', filter: (a: any) => a.class === 'REVENUE' },
-    { key: 'credit_note', label: 'Credit Notes', desc: 'Account for credit note lines (defaults to Sales Revenue if not set)', filter: (a: any) => a.class === 'REVENUE' },
+    { key: 'credit_note', label: 'Credit Notes (Customer Returns)', desc: 'Revenue/contra-revenue account for customer credit note lines (returns & refunds). Defaults to Sales Revenue if not set.', filter: (a: any) => a.class === 'REVENUE' },
     { key: 'freight', label: 'Freight / Shipping', desc: 'Freight Paid expense account (P&L). Only used when PO Freight Treatment = Expense.', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'stock_adjustment', label: 'Stock Adjustment / Shrinkage', desc: 'Stocktake variance expense account (P&L) — used for stock write-offs and surpluses', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'merchant_fees', label: 'Merchant / Payment Fees', desc: 'Shopify Payments processing fees expense (P&L)', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'shopify_clearing', label: 'Shopify Payments Clearing', desc: 'Bank/clearing account that receives each payout; reconciles against the actual deposit', filter: (a: any) => a.type === 'BANK' },
+    { key: 'supplier_credit_note', label: 'Supplier Credit Notes', desc: 'Account for non-stock supplier credit lines (rebates / overcharges). Returned-stock lines post to Inventory Asset. Defaults to COGS if unset.', filter: (a: any) => a.class === 'EXPENSE' || a.class === 'ASSET' },
   ].filter(r => !(r.key === 'freight' && freightTreatment === 'capitalise'));
 
   useEffect(() => {
@@ -9814,16 +10065,27 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
   async function saveAccountMapping(roleKey: string, accountId: string) {
     const acc = accounts.find(a => a.accountId === accountId);
     if (!acc) return;
+    const prev = mappings[roleKey];
     setSaving(roleKey);
+    // Optimistic update
+    setMappings(p => ({ ...p, [roleKey]: { xero_account_id: acc.accountId, xero_account_code: acc.code, xero_account_name: acc.name } }));
     try {
-      await fetch('/api/xero/accounts', {
+      const res = await fetch('/api/xero/accounts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ databaseId: getBusinessId(), roleKey, xeroAccountId: acc.accountId, xeroAccountCode: acc.code, xeroAccountName: acc.name }),
       });
-      setMappings(prev => ({ ...prev, [roleKey]: { xero_account_id: acc.accountId, xero_account_code: acc.code, xero_account_name: acc.name } }));
-    } catch {}
-    setSaving(null);
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.error || `Save failed (${res.status})`);
+      }
+    } catch (e: any) {
+      // Revert the optimistic change so the UI reflects what's actually saved.
+      setMappings(p => { const n = { ...p }; if (prev) n[roleKey] = prev; else delete n[roleKey]; return n; });
+      alert(`Could not save "${roleKey}" mapping: ${e.message}`);
+    } finally {
+      setSaving(null);
+    }
   }
 
   async function saveTrackingMapping(locationId: number | null, channel: string | null, optionId: string, categoryId: string) {
@@ -9872,6 +10134,13 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
           {ROLE_DEFS.map(role => {
             const filtered = accounts.filter(role.filter);
             const current = mappings[role.key];
+            // Always keep the currently-mapped account selectable, even if the live
+            // Xero account list is empty/incomplete (token refreshing) or the account
+            // was archived — otherwise a saved mapping would render blank on reload.
+            const options = [...filtered];
+            if (current?.xero_account_id && !filtered.some(a => a.accountId === current.xero_account_id)) {
+              options.unshift({ accountId: current.xero_account_id, code: current.xero_account_code, name: current.xero_account_name, type: '', class: '' } as any);
+            }
             return (
               <div key={role.key}>
                 <label style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 4, display: 'block' }}>{role.label}</label>
@@ -9882,7 +10151,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
                   style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: 13 }}
                 >
                   <option value="">— Select account —</option>
-                  {filtered.map(a => (
+                  {options.map(a => (
                     <option key={a.accountId} value={a.accountId}>{a.code} — {a.name}</option>
                   ))}
                 </select>
@@ -11499,6 +11768,7 @@ export default function ImsPage() {
           {view === 'purchase-orders'  && <PurchaseOrdersView isAdvisor={isAdvisor} pendingOpenId={pendingOpenPO} onPendingHandled={() => setPendingOpenPO(null)} />}
           {view === 'sales-orders'     && <SalesOrdersView isAdvisor={isAdvisor} pendingOpenId={pendingOpenSO} onPendingHandled={() => setPendingOpenSO(null)} onReturnOrder={(p: any) => { setCnPrefill(p); setView('credit-notes'); }} />}
           {view === 'credit-notes'     && <CreditNotesView isAdvisor={isAdvisor} prefill={cnPrefill} onPrefillConsumed={() => setCnPrefill(null)} />}
+          {view === 'supplier-credit-notes' && <SupplierCreditNotesView isAdvisor={isAdvisor} />}
           {view === 'branch-transfers' && <BranchTransfersView />}
           {view === 'receive-transfers' && <ReceiveTransfersView />}
           {view === 'brands'           && <BrandsView />}

@@ -3639,3 +3639,294 @@ export const ImsCNRepo = {
     return { created: true, cnId };
   },
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Supplier Credit Notes (credits RECEIVED FROM suppliers → Xero ACCPAY)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type SupplierCNStatus = 'draft' | 'complete' | 'cancelled';
+
+export interface ImsSupplierCN {
+  id: number;
+  business_id: string;
+  scn_number: string;
+  supplier_id?: number | null;
+  po_id?: number | null;
+  location_id: number;
+  status: SupplierCNStatus;
+  scn_date: string;
+  completed_at?: string | null;
+  reference?: string | null;
+  supplier_credit_ref?: string | null;
+  currency_code?: string;
+  exchange_rate?: number;
+  tax_treatment: 'ex_tax' | 'inc_tax' | 'no_tax';
+  subtotal: number;
+  tax_amount: number;
+  total_amount: number;
+  notes?: string | null;
+  xero_credit_note_id?: string | null;
+  xero_synced_at?: string | null;
+  xero_sync_status?: 'synced' | 'queued' | 'error' | null;
+  created_by?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  // joined
+  supplier_name?: string | null;
+  location_name?: string | null;
+  po_number?: string | null;
+  items?: ImsSupplierCNItem[];
+}
+
+export interface ImsSupplierCNItem {
+  id: number;
+  scn_id: number;
+  variant_id?: string | null;
+  code?: string | null;
+  name?: string | null;
+  qty: number;
+  unit_cost: number;
+  restock?: boolean | number;
+  tax_rate: number;
+  line_total: number;
+  // joined
+  sku?: string | null;
+  product_name?: string | null;
+  variant_label?: string | null;
+}
+
+async function nextSCNNumber(businessId: string): Promise<string> {
+  const rows = await imsQuery<{ max_num: string | null }>(
+    `SELECT MAX(CAST(REGEXP_REPLACE(scn_number, '[^0-9]', '') AS UNSIGNED)) AS max_num
+     FROM ims_supplier_credit_notes WHERE business_id = ?`,
+    [businessId],
+  );
+  const next = (Number(rows[0]?.max_num ?? 0) + 1).toString().padStart(5, '0');
+  return `SCN-${next}`;
+}
+
+/**
+ * Reduce stock for the restockable lines of a supplier credit note (goods
+ * physically returned to the supplier) within an open transaction. Non-restock
+ * lines (rebates / overcharges) are money-only. Writes a 'scn_returned' stock
+ * movement. Removing units at the current avg cost does not change avg cost.
+ */
+async function returnStockToSupplierTx(
+  conn: any,
+  scnId: number,
+  locationId: number,
+  items: ImsSupplierCNItem[],
+): Promise<void> {
+  for (const item of items) {
+    if (!item.variant_id) continue;
+    const doRestock = item.restock === undefined || item.restock === null ? true : !!Number(item.restock);
+    if (!doRestock) continue;
+    const qty = Number(item.qty);
+    if (!(qty > 0)) continue;
+    await conn.execute(
+      `INSERT IGNORE INTO ims_stock (variant_id, location_id) VALUES (?, ?)`,
+      [item.variant_id, locationId],
+    );
+    const [rows] = await conn.execute(
+      `SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id = ? AND location_id = ?`,
+      [item.variant_id, locationId],
+    );
+    const s = (rows as any[])[0];
+    const newSoh = Number(s?.qty_on_hand ?? 0) - qty; // goods leave
+    const unitCost = Number(s?.avg_cost ?? item.unit_cost ?? 0);
+    await conn.execute(
+      `UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id = ? AND location_id = ?`,
+      [newSoh, item.variant_id, locationId],
+    );
+    await refreshVariantAvgCost(conn, item.variant_id);
+    await conn.execute(
+      `INSERT INTO ims_stock_movements
+         (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
+       VALUES (?,?,'scn_returned','supplier_credit_note',?,?,?,?)`,
+      [item.variant_id, locationId, scnId, -qty, newSoh, unitCost],
+    );
+  }
+}
+
+export const ImsSupplierCNRepo = {
+  async list(businessId: string, status?: SupplierCNStatus): Promise<ImsSupplierCN[]> {
+    const wheres: string[] = ['scn.business_id = ?'];
+    const params: any[] = [businessId];
+    if (status) { wheres.push('scn.status = ?'); params.push(status); }
+    return imsQuery<ImsSupplierCN>(
+      `SELECT scn.*,
+              c.name  AS supplier_name,
+              l.name  AS location_name,
+              po.po_number AS po_number
+       FROM ims_supplier_credit_notes scn
+       LEFT JOIN ims_contacts c ON c.id = scn.supplier_id
+       JOIN ims_locations l ON l.id = scn.location_id
+       LEFT JOIN ims_purchase_orders po ON po.id = scn.po_id
+       WHERE ${wheres.join(' AND ')}
+       ORDER BY scn.created_at DESC`,
+      params,
+    );
+  },
+
+  async get(id: number, businessId: string): Promise<ImsSupplierCN | null> {
+    const rows = await imsQuery<ImsSupplierCN>(
+      `SELECT scn.*,
+              c.name  AS supplier_name,
+              c.email AS supplier_email,
+              l.name  AS location_name,
+              po.po_number AS po_number
+       FROM ims_supplier_credit_notes scn
+       LEFT JOIN ims_contacts c ON c.id = scn.supplier_id
+       JOIN ims_locations l ON l.id = scn.location_id
+       LEFT JOIN ims_purchase_orders po ON po.id = scn.po_id
+       WHERE scn.id = ? AND scn.business_id = ?`,
+      [id, businessId],
+    );
+    if (!rows[0]) return null;
+    await ensureVariantAvgCost();
+    const items = await imsQuery<ImsSupplierCNItem>(
+      `SELECT i.*,
+              COALESCE(v.sku, i.code) AS sku,
+              COALESCE(p.name, i.name) AS product_name,
+              CONCAT_WS(' / ',
+                NULLIF(v.option1_value,''),
+                NULLIF(v.option2_value,''),
+                NULLIF(v.option3_value,'')
+              ) AS variant_label
+       FROM ims_supplier_credit_note_items i
+       LEFT JOIN ims_product_variants v ON v.variant_id = i.variant_id
+       LEFT JOIN ims_products p ON p.product_id = v.product_id
+       WHERE i.scn_id = ?`,
+      [id],
+    );
+    return { ...rows[0], items };
+  },
+
+  async create(
+    data: Pick<ImsSupplierCN, 'location_id' | 'scn_date' | 'tax_treatment'> &
+      Partial<Pick<ImsSupplierCN, 'supplier_id' | 'po_id' | 'reference' | 'supplier_credit_ref' | 'currency_code' | 'exchange_rate' | 'notes'>>,
+    items: Omit<ImsSupplierCNItem, 'id' | 'scn_id' | 'line_total' | 'sku' | 'product_name' | 'variant_label'>[],
+    businessId: string,
+    createdBy?: string,
+  ): Promise<number> {
+    const scn_number = await nextSCNNumber(businessId);
+    let subtotal = 0, tax_amount = 0;
+    for (const item of items) {
+      const line = Number(item.qty) * Number(item.unit_cost);
+      subtotal   += line;
+      tax_amount += line * Number(item.tax_rate ?? 0);
+    }
+    const res = await imsExecute(
+      `INSERT INTO ims_supplier_credit_notes
+         (business_id,scn_number,supplier_id,po_id,location_id,status,scn_date,reference,supplier_credit_ref,
+          currency_code,exchange_rate,tax_treatment,subtotal,tax_amount,total_amount,notes,created_by)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [businessId, scn_number, data.supplier_id ?? null, data.po_id ?? null, data.location_id, 'draft',
+       data.scn_date, data.reference ?? null, data.supplier_credit_ref ?? null,
+       data.currency_code ?? 'AUD', data.exchange_rate ?? 1, data.tax_treatment,
+       subtotal, tax_amount, subtotal + tax_amount, data.notes ?? null, createdBy ?? null],
+    );
+    const scn_id = (res as any).insertId;
+    for (const item of items) {
+      const line_total = Number(item.qty) * Number(item.unit_cost);
+      await imsExecute(
+        `INSERT INTO ims_supplier_credit_note_items
+           (scn_id,variant_id,code,name,qty,unit_cost,restock,tax_rate,line_total)
+         VALUES (?,?,?,?,?,?,?,?,?)`,
+        [scn_id, item.variant_id ?? null, item.code ?? null, item.name ?? null,
+         item.qty, item.unit_cost,
+         item.restock === undefined ? 1 : (item.restock ? 1 : 0),
+         item.tax_rate ?? 0, line_total],
+      );
+    }
+    return scn_id;
+  },
+
+  async update(
+    id: number,
+    businessId: string,
+    data: Partial<Pick<ImsSupplierCN, 'location_id' | 'scn_date' | 'supplier_id' | 'po_id' | 'reference' | 'supplier_credit_ref' | 'currency_code' | 'exchange_rate' | 'tax_treatment' | 'notes'>>,
+    items?: Omit<ImsSupplierCNItem, 'id' | 'scn_id' | 'line_total' | 'sku' | 'product_name' | 'variant_label'>[],
+  ): Promise<void> {
+    const allowed = ['location_id','scn_date','supplier_id','po_id','reference','supplier_credit_ref','currency_code','exchange_rate','tax_treatment','notes'];
+    const sets: string[] = [];
+    const vals: any[] = [];
+    for (const f of allowed) {
+      if (data[f as keyof typeof data] !== undefined) {
+        sets.push(`${f} = ?`);
+        vals.push(data[f as keyof typeof data] ?? null);
+      }
+    }
+    if (items !== undefined) {
+      let subtotal = 0, tax_amount = 0;
+      for (const item of items) {
+        const line = Number(item.qty) * Number(item.unit_cost);
+        subtotal   += line;
+        tax_amount += line * Number(item.tax_rate ?? 0);
+      }
+      sets.push('subtotal = ?', 'tax_amount = ?', 'total_amount = ?');
+      vals.push(subtotal, tax_amount, subtotal + tax_amount);
+    }
+    if (sets.length) {
+      vals.push(id, businessId);
+      await imsExecute(
+        `UPDATE ims_supplier_credit_notes SET ${sets.join(', ')} WHERE id = ? AND business_id = ? AND status = 'draft'`,
+        vals,
+      );
+    }
+    if (items !== undefined) {
+      await imsExecute(`DELETE FROM ims_supplier_credit_note_items WHERE scn_id = ?`, [id]);
+      for (const item of items) {
+        const line_total = Number(item.qty) * Number(item.unit_cost);
+        await imsExecute(
+          `INSERT INTO ims_supplier_credit_note_items
+             (scn_id,variant_id,code,name,qty,unit_cost,restock,tax_rate,line_total)
+           VALUES (?,?,?,?,?,?,?,?,?)`,
+          [id, item.variant_id ?? null, item.code ?? null, item.name ?? null,
+           item.qty, item.unit_cost,
+           item.restock === undefined ? 1 : (item.restock ? 1 : 0),
+           item.tax_rate ?? 0, line_total],
+        );
+      }
+    }
+  },
+
+  /** Complete a draft SCN: reduce stock for restock lines, mark complete. Atomic. */
+  async complete(id: number, businessId: string): Promise<void> {
+    const scn = await ImsSupplierCNRepo.get(id, businessId);
+    if (!scn) throw new Error('Supplier credit note not found');
+    if (scn.status === 'complete') throw new Error('Supplier credit note is already complete');
+    if (scn.status !== 'draft') throw new Error('Only draft supplier credit notes can be completed');
+
+    const pool = getIMSPool();
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      await returnStockToSupplierTx(conn, scn.id, scn.location_id, scn.items ?? []);
+      await conn.execute(
+        `UPDATE ims_supplier_credit_notes SET status = 'complete', completed_at = NOW() WHERE id = ?`,
+        [id],
+      );
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  },
+
+  async cancel(id: number, businessId: string): Promise<void> {
+    await imsExecute(
+      `UPDATE ims_supplier_credit_notes SET status = 'cancelled' WHERE id = ? AND business_id = ? AND status = 'draft'`,
+      [id, businessId],
+    );
+  },
+
+  async delete(id: number, businessId: string): Promise<void> {
+    await imsExecute(
+      `DELETE FROM ims_supplier_credit_notes WHERE id = ? AND business_id = ? AND status = 'draft'`,
+      [id, businessId],
+    );
+  },
+};

@@ -33,6 +33,7 @@ interface AccountMapping {
   rounding?: string; // Optional dedicated account for cash rounding adjustments
   merchant_fees?: string;      // Shopify/payment processing fees (expense)
   shopify_clearing?: string;   // Shopify Payments clearing bank account
+  supplier_credit_note?: string; // Non-stock supplier credit lines (rebates/overcharges)
 }
 
 interface TrackingMapping {
@@ -1446,6 +1447,112 @@ export async function syncCNAsCreditNote(businessId: string, cn: CNForSync): Pro
     return xeroId;
   } catch (err: any) {
     await logSync(businessId, 'cn_credit_note', cn.id, null, 'error', err.message);
+    return null;
+  }
+}
+
+// ─── Supplier Credit Notes (ACCPAY) ──────────────────────────────────
+interface SupplierCNForSync {
+  id: number;
+  scn_number: string;
+  supplier_id?: number | null;
+  supplier_name?: string | null;
+  location_id: number;
+  scn_date: string;
+  reference?: string | null;
+  supplier_credit_ref?: string | null;
+  tax_treatment?: 'ex_tax' | 'inc_tax' | 'no_tax';
+  total_amount: number;
+  items?: {
+    code?: string | null;
+    name?: string | null;
+    qty: number;
+    unit_cost: number;
+    restock?: boolean | number;
+    tax_rate: number;
+    line_total: number;
+  }[];
+}
+
+/** Write Xero sync status back to the supplier credit note row. Silent — never throws. */
+export async function markSupplierCNXeroStatus(
+  scnId: number,
+  status: 'synced' | 'queued' | 'error',
+  xeroId?: string | null,
+): Promise<void> {
+  try {
+    await imsExecute(
+      `UPDATE ims_supplier_credit_notes
+         SET xero_sync_status = ?, xero_synced_at = NOW()
+             ${xeroId !== undefined ? ', xero_credit_note_id = ?' : ''}
+         WHERE id = ?`,
+      xeroId !== undefined ? [status, xeroId, scnId] : [status, scnId],
+    );
+  } catch { /* non-critical */ }
+}
+
+/**
+ * Post an AUTHORISED Xero Credit Note (ACCPAY) for a completed supplier credit
+ * note. Restock lines (goods returned) post to Inventory Asset (reverses stock
+ * value); non-stock lines (rebates/overcharges) post to the supplier_credit_note
+ * account (falls back to COGS). Returns the Xero CreditNoteID, or null on failure.
+ */
+export async function syncSupplierCNAsCreditNote(businessId: string, scn: SupplierCNForSync): Promise<string | null> {
+  const accounts = await getAccountMappings(businessId);
+  const trackingMappings = await getTrackingMappings(businessId);
+  const taxTypes = getTaxTypes(businessId);
+
+  const restockAccount  = accounts.inventory_asset;
+  const nonStockAccount = accounts.supplier_credit_note || accounts.cogs;
+  if (!restockAccount && !nonStockAccount) {
+    await logSync(businessId, 'scn_credit_note', scn.id, null, 'skipped', 'No inventory_asset / supplier_credit_note / cogs account mapped');
+    return null;
+  }
+
+  const tracking = getTrackingForLocation(trackingMappings, scn.location_id, 'wholesale');
+  const lineAmountType = scn.tax_treatment === 'inc_tax' ? 'Inclusive' : 'Exclusive';
+
+  const lineItems = (scn.items ?? []).map(item => {
+    const restock = item.restock === undefined || item.restock === null ? true : !!Number(item.restock);
+    const acct = restock ? (restockAccount || nonStockAccount) : (nonStockAccount || restockAccount);
+    const taxed = Number(item.tax_rate) > 0 && scn.tax_treatment !== 'no_tax';
+    return {
+      Description: `${item.code || ''} ${item.name || ''}`.trim() || 'Supplier credit',
+      Quantity: item.qty,
+      UnitAmount: item.unit_cost,
+      AccountCode: acct,
+      TaxType: taxed ? taxTypes.purchases : taxTypes.exempt,
+      Tracking: tracking,
+    };
+  });
+
+  if (!lineItems.length) {
+    await logSync(businessId, 'scn_credit_note', scn.id, null, 'skipped', 'No line items');
+    return null;
+  }
+
+  const creditNote: any = {
+    Type: 'ACCPAY',
+    Contact: { Name: scn.supplier_name || `Supplier #${scn.supplier_id}` },
+    Date: scn.scn_date,
+    CreditNoteNumber: scn.scn_number,
+    Reference: scn.supplier_credit_ref || scn.reference || scn.scn_number,
+    Status: 'AUTHORISED',
+    LineAmountTypes: lineAmountType,
+    LineItems: lineItems,
+  };
+
+  try {
+    const result = await xeroApiFetch(businessId, '/CreditNotes', {
+      method: 'POST',
+      body: { CreditNotes: [creditNote] },
+    });
+    const xeroId = result.CreditNotes?.[0]?.CreditNoteID ?? null;
+    await logSync(businessId, 'scn_credit_note', scn.id, xeroId, 'success', `Supplier credit note created: ${scn.scn_number}`, result.CreditNotes?.[0]?.Status ?? 'AUTHORISED');
+    await markSupplierCNXeroStatus(scn.id, 'synced', xeroId);
+    return xeroId;
+  } catch (err: any) {
+    await logSync(businessId, 'scn_credit_note', scn.id, null, 'error', err.message);
     return null;
   }
 }

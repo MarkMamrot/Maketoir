@@ -57,9 +57,13 @@ export async function POST(req: Request) {
   const denied = assertBusinessAccess(user, databaseId);
   if (denied) return denied;
 
-  const validRoles = ['inventory_asset', 'inventory_in_transit', 'cogs', 'sales_revenue', 'freight', 'stock_adjustment'];
+  const validRoles = [
+    'inventory_asset', 'inventory_in_transit', 'cogs', 'sales_revenue',
+    'credit_note', 'freight', 'stock_adjustment', 'merchant_fees', 'shopify_clearing',
+    'supplier_credit_note',
+  ];
   if (!validRoles.includes(roleKey)) {
-    return NextResponse.json({ error: 'Invalid role_key.' }, { status: 400 });
+    return NextResponse.json({ error: `Invalid role_key: ${roleKey}` }, { status: 400 });
   }
 
   try {
