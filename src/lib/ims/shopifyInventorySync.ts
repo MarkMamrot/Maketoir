@@ -215,7 +215,7 @@ export async function drainInventoryQueue(limit = 250): Promise<{ processed: num
       LIMIT ?`,
     [limit],
   );
-  if (!queued.length) return { processed: 0, pushed: 0, businesses: 0 };
+  if (!queued.length) return { processed: 0, pushed: 0, businesses: 0, errors: [] };
 
   // Group by business
   const byBiz = new Map<string, string[]>();

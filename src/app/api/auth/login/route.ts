@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { UsersRepository } from '@/lib/db/UsersRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
+import { primeImsDbMap } from '@/lib/db/BusinessRegistry';
 
 export async function POST(req: Request) {
   try {
@@ -38,6 +39,10 @@ export async function POST(req: Request) {
     // EVENT-DRIVEN CACHE UPDATE: Refresh all variants on login to ensure data is clean for the day.
     // Fire and forget (don't await) so we don't block the login response.
     refreshVariantCache().catch(err => console.error('Failed background cache refresh on login:', err));
+
+    // Warm the business → IMS schema map so tenant routing is correct from the
+    // user's first IMS request (fire and forget).
+    primeImsDbMap().catch(() => {});
 
     return NextResponse.json({ success: true, message: 'Login successful.', user: userData });
   } catch (error: any) {

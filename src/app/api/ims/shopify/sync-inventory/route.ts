@@ -13,6 +13,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
+import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
 import {
   drainInventoryQueue,
   pushInventoryForBusiness,
@@ -37,6 +38,7 @@ export async function GET() {
   const businessId = session.businessId as string;
 
   try {
+    await enterImsForBusiness(businessId);
     const rows = await imsQuery<{ key: string; value: string }>(
       `SELECT \`key\`, value FROM ims_settings WHERE business_id = ?
          AND \`key\` IN ('shopify_inventory_sync_enabled','online_pick_priority','shopify_inventory_buffer')`,
@@ -114,6 +116,7 @@ async function handlePost(req: Request) {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = session.businessId as string;
+  await enterImsForBusiness(businessId);
 
   if (mode === 'queue') {
     const res = await drainInventoryQueue(Number(body?.limit ?? 250));

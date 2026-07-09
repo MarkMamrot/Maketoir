@@ -4,6 +4,7 @@ import { getIMSPool, imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { triggerPOXeroSync } from '@/lib/ims/xeroHooks';
 import { ImsPORepo } from '@/lib/ims/ImsRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
+import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -41,6 +42,7 @@ export async function POST(req: Request) {
   const businessId = session.businessId as string;
 
   try {
+    await enterImsForBusiness(businessId);
     const body = await req.json();
     const {
       po_id,

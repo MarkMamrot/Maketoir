@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -20,8 +21,10 @@ const NON_ONHAND_MOVEMENT_TYPES = new Set<string>([
 ]);
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = getSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
+    await enterImsForBusiness(session.businessId as string);
     const productId = params.id;
     const cutoff = new Date();
     cutoff.setFullYear(cutoff.getFullYear() - 1);

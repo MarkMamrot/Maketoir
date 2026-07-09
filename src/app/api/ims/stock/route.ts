@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { ImsStockRepo } from '@/lib/ims/ImsRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
+import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -14,6 +15,7 @@ export async function GET(req: Request) {
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = session.businessId as string;
   try {
+    await enterImsForBusiness(businessId);
     const { searchParams } = new URL(req.url);
     const variantId  = searchParams.get('variant_id') ?? undefined;
     const locationId = searchParams.get('location_id') ? Number(searchParams.get('location_id')) : undefined;
@@ -25,8 +27,10 @@ export async function GET(req: Request) {
 }
 
 export async function PUT(req: Request) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = getSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
+    await enterImsForBusiness(session.businessId as string);
     const body = await req.json();
     const { variant_id, location_id, ...rest } = body;
     await ImsStockRepo.upsert(variant_id, Number(location_id), rest);
