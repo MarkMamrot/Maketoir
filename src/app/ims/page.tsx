@@ -9288,10 +9288,10 @@ function SettingsView() {
   );
 }
 
-function XeroView({ businessId }: { businessId: string }) {
+function XeroView({ businessId, isAdvisor = false, advisorMappingEnabled = false }: { businessId: string; isAdvisor?: boolean; advisorMappingEnabled?: boolean }) {
   const [status, setStatus] = useState<{ connected: boolean; tenantName?: string; tokenExpiry?: number; envConfigured?: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'overview' | 'mapping' | 'sync'>('overview');
+  const [tab, setTab] = useState<'overview' | 'mapping' | 'sync'>(isAdvisor ? 'mapping' : 'overview');
 
   useEffect(() => {
     if (!businessId) { setLoading(false); return; }
@@ -9313,6 +9313,45 @@ function XeroView({ businessId }: { businessId: string }) {
   });
 
   if (loading) return <div style={{ padding: 40, color: 'var(--sv-text-dim)' }}>Loading Xero status...</div>;
+
+  // Advisor accounts are restricted to the Account & Tracking Mapping tab, and
+  // only when an administrator has granted access in Xero → Overview.
+  if (isAdvisor) {
+    const titleBar = (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero — Account &amp; Tracking Mapping</h1>
+        {status?.connected && (
+          <span style={{ padding: '3px 10px', borderRadius: 99, fontSize: 12, fontWeight: 600, background: 'rgba(16,185,129,.15)', color: '#34d399' }}>Connected — {status.tenantName}</span>
+        )}
+      </div>
+    );
+    if (!advisorMappingEnabled) {
+      return (
+        <div>
+          {titleBar}
+          <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', maxWidth: 560, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
+            🔒 Your account doesn&apos;t have access to Xero settings. Ask an administrator to enable <strong>Advisor access to Account &amp; Tracking Mapping</strong> in Xero → Overview.
+          </div>
+        </div>
+      );
+    }
+    if (!status?.connected) {
+      return (
+        <div>
+          {titleBar}
+          <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', maxWidth: 560, color: 'var(--sv-text-main)' }}>
+            Xero is not connected. Ask an administrator to connect Xero before configuring mappings.
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div>
+        {titleBar}
+        <XeroMappingTab getBusinessId={getBusinessId} />
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -9367,6 +9406,26 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
   );
   const [testing, setTesting] = React.useState(false);
   const [testResult, setTestResult] = React.useState<{ ok: boolean; message: string } | null>(null);
+
+  // Advisor access to the Account & Tracking Mapping (stored in ims_settings).
+  const [advisorMapping, setAdvisorMapping] = React.useState<boolean | null>(null);
+  const [savingAdvisor, setSavingAdvisor] = React.useState(false);
+  React.useEffect(() => {
+    fetch('/api/ims/settings').then(r => r.ok ? r.json() : null).then(j => {
+      const v = j?.data?.advisor_xero_mapping_enabled;
+      setAdvisorMapping(v === 'true' || v === '1' || v === true);
+    }).catch(() => setAdvisorMapping(false));
+  }, []);
+  const saveAdvisorMapping = async (enabled: boolean) => {
+    setSavingAdvisor(true);
+    setAdvisorMapping(enabled);
+    try {
+      await fetch('/api/ims/settings', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ advisor_xero_mapping_enabled: enabled ? 'true' : 'false' }),
+      });
+    } finally { setSavingAdvisor(false); }
+  };
 
   const lastRefreshed = tokenExpiry ? tokenExpiry.toLocaleString() : null;
 
@@ -9486,6 +9545,29 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
         <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>
           Actions will be enabled once account mapping is configured below.
         </p>
+      </div>
+
+      {/* Advisor access to Account & Tracking Mapping */}
+      <div style={{ gridColumn: '1 / -1', padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
+        <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Advisor Access</h3>
+        <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6, maxWidth: 620 }}>
+          Allow <strong>Advisor</strong> (read-only) users to view and edit the <strong>Account &amp; Tracking Mapping</strong>. When enabled, Advisors see <em>only</em> this mapping page in the Xero section — no other Xero settings, sync actions, or connection controls.
+        </p>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: advisorMapping === null || savingAdvisor ? 'default' : 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={!!advisorMapping}
+            disabled={advisorMapping === null || savingAdvisor}
+            onChange={e => saveAdvisorMapping(e.target.checked)}
+            style={{ width: 16, height: 16, cursor: 'inherit' }}
+          />
+          <span style={{ fontSize: 13, color: 'var(--sv-text-main)' }}>
+            {advisorMapping === null ? 'Loading…' : advisorMapping
+              ? 'Enabled — Advisors can manage Account & Tracking Mapping'
+              : 'Disabled — Advisors cannot access Xero mappings'}
+          </span>
+          {savingAdvisor && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>saving…</span>}
+        </label>
       </div>
     </div>
   );
@@ -11094,6 +11176,7 @@ export default function ImsPage() {
   const [user, setUser] = useState<User | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [advisorSyncEnabled, setAdvisorSyncEnabled] = useState(false);
+  const [advisorXeroMappingEnabled, setAdvisorXeroMappingEnabled] = useState(false);
   const isAdvisor = user?.tier === 'Advisor';
   const [view, setView] = useState<ImsView>('dashboard');
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -11173,10 +11256,13 @@ export default function ImsPage() {
           sessionStorage.setItem(sessionKey, '1');
           fetch('/api/ims/online-sales/auto-sync', { method: 'POST' }).catch(() => {});
         }
-        // If Advisor, fetch sync permission setting
+        // If Advisor, fetch sync + Xero-mapping permission settings
         if (d.tier === 'Advisor') {
           fetch('/api/ims/settings').then(r => r.ok ? r.json() : {}).then(s => {
-            setAdvisorSyncEnabled((s as any)?.advisor_sync_enabled === true || (s as any)?.advisor_sync_enabled === '1' || (s as any)?.advisor_sync_enabled === 'true');
+            const data = (s as any)?.data ?? s;
+            const truthy = (v: any) => v === true || v === '1' || v === 'true';
+            setAdvisorSyncEnabled(truthy(data?.advisor_sync_enabled));
+            setAdvisorXeroMappingEnabled(truthy(data?.advisor_xero_mapping_enabled));
           }).catch(() => {});
         }
       }
@@ -11425,7 +11511,7 @@ export default function ImsPage() {
           {view === 'report-product-margin' && <ProductMarginView onBack={() => setView('reports')} />}
           {view === 'report-pos-price-changes' && <PosPriceChangesView onBack={() => setView('reports')} />}
           {view === 'report-pos-registers'    && <PosRegistersReportView onBack={() => setView('reports')} />}
-          {view === 'xero'              && <XeroView businessId={user?.businessId ?? ''} />}
+          {view === 'xero'              && <XeroView businessId={user?.businessId ?? ''} isAdvisor={isAdvisor} advisorMappingEnabled={advisorXeroMappingEnabled} />}
           {view === 'shopify'           && <ShopifyView businessId={user?.businessId ?? ''} />}
           {view === 'order-planner'     && <OrderPlannerView databaseId={user?.businessId ?? ''} />}
         </main>
