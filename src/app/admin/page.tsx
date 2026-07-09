@@ -170,6 +170,127 @@ function BusinessSettingsModal({ biz, onClose, onSaved }: { biz: Business; onClo
   );
 }
 
+// ── Onboard Business Modal ────────────────────────────────────────────────────
+function OnboardBusinessModal({ onClose, onDone }: { onClose: () => void; onDone: (msg: string) => void }) {
+  const [form, setForm] = useState({
+    name: '', hasForesight: true, hasIms: true, hasPos: true,
+    imsDbName: '', imsDbEdited: false,
+    ownerEmail: '', ownerPassword: '', ownerName: '',
+  });
+  const [working, setWorking] = useState(false);
+  const [err, setErr] = useState('');
+  const [steps, setSteps] = useState<string[]>([]);
+
+  // Auto-derive the IMS schema name from the business name until the user edits it.
+  const derived = form.name ? `readyedu_${form.name.replace(/[^a-zA-Z0-9]/g, '')}IMS` : '';
+  const imsDbValue = form.imsDbEdited ? form.imsDbName : derived;
+
+  const set = (k: string, v: any) => setForm(p => ({ ...p, [k]: v }));
+  const toggle = (k: 'hasForesight' | 'hasIms' | 'hasPos') => setForm(p => ({ ...p, [k]: !p[k] }));
+
+  const submit = async () => {
+    setErr(''); setSteps([]);
+    if (!form.name.trim()) { setErr('Business name is required.'); return; }
+    if (form.ownerEmail && !form.ownerPassword) { setErr('Owner password is required when an owner email is given.'); return; }
+    setWorking(true);
+    try {
+      const r = await fetch('/api/admin/onboard', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          hasForesight: form.hasForesight, hasIms: form.hasIms, hasPos: form.hasPos,
+          imsDbName: form.hasIms ? (imsDbValue || undefined) : undefined,
+          ownerEmail: form.ownerEmail.trim() || undefined,
+          ownerPassword: form.ownerPassword || undefined,
+          ownerName: form.ownerName.trim() || undefined,
+        }),
+      });
+      const d = await r.json();
+      if (d.success) {
+        setSteps(d.steps ?? []);
+        onDone(`✓ Onboarded "${form.name.trim()}"${d.imsDbName ? ` · IMS: ${d.imsDbName}` : ''}`);
+        setTimeout(onClose, 1200);
+      } else {
+        setSteps(d.steps ?? []);
+        setErr(d.error ?? 'Onboarding failed.');
+        setWorking(false);
+      }
+    } catch (e: any) {
+      setErr(e?.message ?? 'Network error.');
+      setWorking(false);
+    }
+  };
+
+  const Toggle = ({ label, field }: { label: string; field: 'hasForesight' | 'hasIms' | 'hasPos' }) => (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '8px 0' }}>
+      <div onClick={() => toggle(field)} style={{ width: 20, height: 20, borderRadius: 5, border: '2px solid', borderColor: form[field] ? 'var(--sv-action,#3b82f6)' : 'var(--sv-etch,rgba(255,255,255,.3))', background: form[field] ? 'var(--sv-action,#3b82f6)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        {form[field] && <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+      </div>
+      <span style={{ fontSize: 13, color: 'var(--sv-text-main,#e2e8f0)' }}>{label}</span>
+    </label>
+  );
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ background: 'var(--sv-bg-1,#1e293b)', border: '1px solid var(--sv-etch,rgba(255,255,255,.1))', borderRadius: 12, padding: 28, maxWidth: 500, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
+        <h2 style={{ margin: '0 0 4px', fontSize: 18, color: 'var(--sv-text-main,#e2e8f0)' }}>🚀 Onboard New Business</h2>
+        <p style={{ margin: '0 0 18px', fontSize: 12, color: 'var(--sv-text-dim,#94a3b8)', lineHeight: 1.6 }}>
+          Creates the business, provisions its dedicated IMS database schema (with integrity triggers), and optionally seeds an owner account.
+        </p>
+
+        <label style={S.label}>Business Name *</label>
+        <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="Acme Trading Co" style={{ ...S.input, marginBottom: 16 }} />
+
+        <label style={S.label}>Module Access</label>
+        <div style={{ marginBottom: 12 }}>
+          <Toggle label="Foresight (BI Dashboard)" field="hasForesight" />
+          <Toggle label="IMS (Inventory Management)" field="hasIms" />
+          <Toggle label="POS (Point of Sale)" field="hasPos" />
+        </div>
+
+        {form.hasIms && (
+          <div style={{ marginBottom: 16 }}>
+            <label style={S.label}>IMS Schema Name</label>
+            <input
+              value={imsDbValue}
+              onChange={e => setForm(p => ({ ...p, imsDbName: e.target.value, imsDbEdited: true }))}
+              style={{ ...S.input, fontFamily: 'monospace', fontSize: 12 }}
+            />
+            <p style={{ margin: '5px 0 0', fontSize: 11, color: 'var(--sv-text-dim,#94a3b8)' }}>
+              A new schema created on the shared MySQL server. Auto-derived from the name; edit if needed.
+            </p>
+          </div>
+        )}
+
+        <details style={{ marginBottom: 16 }}>
+          <summary style={{ ...S.label, cursor: 'pointer', marginBottom: 10 }}>Owner Account (optional)</summary>
+          <label style={S.label}>Owner Email</label>
+          <input type="email" value={form.ownerEmail} onChange={e => set('ownerEmail', e.target.value)} style={{ ...S.input, marginBottom: 10 }} />
+          <label style={S.label}>Owner Password</label>
+          <input type="password" value={form.ownerPassword} onChange={e => set('ownerPassword', e.target.value)} style={{ ...S.input, marginBottom: 10 }} />
+          <label style={S.label}>Owner Name</label>
+          <input value={form.ownerName} onChange={e => set('ownerName', e.target.value)} style={{ ...S.input }} />
+          <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--sv-text-dim,#94a3b8)' }}>Creates an <strong>Admin</strong>-tier user bound to this business.</p>
+        </details>
+
+        {steps.length > 0 && (
+          <div style={{ marginBottom: 14, padding: '10px 12px', background: 'rgba(59,130,246,.1)', border: '1px solid rgba(59,130,246,.25)', borderRadius: 8 }}>
+            {steps.map((s, i) => <div key={i} style={{ fontSize: 12, color: '#93c5fd', padding: '2px 0' }}>✓ {s}</div>)}
+          </div>
+        )}
+        {err && <p style={{ color: '#ef4444', fontSize: 12, margin: '0 0 12px' }}>{err}</p>}
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} disabled={working} style={S.btn('ghost')}>Cancel</button>
+          <button onClick={submit} disabled={working || !form.name.trim()} style={{ ...S.btn('action'), opacity: working || !form.name.trim() ? .5 : 1 }}>
+            {working ? 'Onboarding…' : 'Onboard Business'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Businesses View ───────────────────────────────────────────────────────────
 function BusinessesView() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -177,6 +298,7 @@ function BusinessesView() {
   const [showDeleted, setShowDeleted] = useState(false);
   const [deletingBiz, setDeletingBiz] = useState<Business | null>(null);
   const [settingsBiz, setSettingsBiz] = useState<Business | null>(null);
+  const [onboarding, setOnboarding]   = useState(false);
   const [flash, setFlash]           = useState('');
 
   const load = useCallback(async () => {
@@ -203,6 +325,7 @@ function BusinessesView() {
             <input type="checkbox" checked={showDeleted} onChange={e => setShowDeleted(e.target.checked)} />
             Show deleted
           </label>
+          <button onClick={() => setOnboarding(true)} style={S.btn('action')}>🚀 Onboard Business</button>
         </div>
       </div>
 
@@ -270,6 +393,12 @@ function BusinessesView() {
           biz={settingsBiz}
           onClose={() => setSettingsBiz(null)}
           onSaved={() => { load(); showFlash('✓ Settings saved.'); }}
+        />
+      )}
+      {onboarding && (
+        <OnboardBusinessModal
+          onClose={() => setOnboarding(false)}
+          onDone={(msg) => { load(); showFlash(msg); }}
         />
       )}
     </div>
