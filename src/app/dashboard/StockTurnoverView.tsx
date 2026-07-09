@@ -474,7 +474,7 @@ export function StockTurnoverView({ databaseId }: { databaseId: string }) {
                 <Th field="excessStock" right>Excess Qty</Th>
                 <Th field="excessCapital" right>Excess Cap.</Th>
                 <Th field="daysToClearExcess" right>Clear In</Th>
-                <Th field="deadCapitalYears" right>Deadweight</Th>
+                <Th field="deadCapitalYears" right>Priority Score</Th>
                 <th className="text-center font-semibold px-3 py-2 border-b border-gray-200 w-20">Priority</th>
               </tr>
             </thead>
@@ -517,7 +517,11 @@ export function StockTurnoverView({ databaseId }: { databaseId: string }) {
                     {row.excessStock > 0 || !isFinite(row.daysToClearRaw) ? `${fmtClear(row.daysToClearExcess, row.daysToClearRaw)}d` : <span className="text-gray-400">—</span>}
                   </td>
                   <td className="px-3 py-2 text-right font-semibold text-gray-700">
-                    {row.deadCapitalYears > 0 ? fmt$(row.deadCapitalYears) : <span className="font-normal text-gray-400">—</span>}
+                    {row.deadCapitalYears > 0
+                      ? <span title={`Excess $${row.excessCapital.toLocaleString(undefined,{maximumFractionDigits:0})} × ${isFinite(row.daysToClearRaw) ? Math.round(row.daysToClearRaw) + 'd' : '999+d'} to clear ÷ 365`}>
+                          {Math.round(row.deadCapitalYears).toLocaleString()}
+                        </span>
+                      : <span className="font-normal text-gray-400">—</span>}
                   </td>
                   <td className="px-3 py-2 text-center">
                     <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${RATING_COLORS[row.rating] ?? 'bg-gray-100 text-gray-500'}`}>
@@ -544,8 +548,8 @@ export function StockTurnoverView({ databaseId }: { databaseId: string }) {
       {rows.length > 0 && (
         <div className="grid md:grid-cols-3 gap-3">
           <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Deadweight (Dead Capital-Years)</p>
-            <p className="text-sm text-gray-700">Excess Capital × (Days to Clear ÷ 365). The dollar-years of cash stuck in stock beyond the supplier's order window. Sort by this to find the most important stock to clear for cashflow.</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Priority Score</p>
+            <p className="text-sm text-gray-700">Excess Capital ($) × Days to Clear ÷ 365. A dimensionless score — higher means more cash stuck for longer. Water Bottle with $5k excess taking 2,700d scores much higher than a Music Box with $9k excess clearing in 259d. Sort by this to find the most important stock to clear for cashflow.</p>
           </div>
           <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Excess Qty &amp; Clear In</p>
