@@ -36,27 +36,33 @@ export async function refreshVariantCache(variantIds?: string[]): Promise<number
         SUM(CASE WHEN s.sale_date >= DATE_SUB(CURDATE(), INTERVAL 180 DAY) THEN s.qty ELSE 0 END) AS sales_qty_180d,
         SUM(s.qty) AS sales_qty_12m
        FROM (
-         -- 1. Complete Cin7 history (all channels). Resolve variant by id → SKU → cin7_option_id.
-         SELECT COALESCE(h.variant_id, hsku.variant_id, hopt.variant_id) AS variant_id,
+         -- 1. Complete Cin7 history (all channels). Resolve variant by a VALID own id, then SKU,
+         --    then cin7_option_id. (variant_id may be stale — ids are regenerated on product
+         --    re-sync — so a null-only fallback would drop these rows at the final JOIN.)
+         SELECT COALESCE(hvid.variant_id, hsku.variant_id, hopt.variant_id) AS variant_id,
                 h.invoice_date AS sale_date,
                 h.qty AS qty
          FROM   ims_sales_history h
+         LEFT JOIN ims_product_variants hvid
+                ON hvid.variant_id = h.variant_id
          LEFT JOIN ims_product_variants hsku
-                ON h.variant_id IS NULL AND hsku.sku = h.sku
+                ON hvid.variant_id IS NULL AND hsku.sku = h.sku
          LEFT JOIN ims_product_variants hopt
-                ON h.variant_id IS NULL AND hsku.variant_id IS NULL AND hopt.cin7_option_id = h.cin7_option_id
+                ON hvid.variant_id IS NULL AND hsku.variant_id IS NULL AND hopt.cin7_option_id = h.cin7_option_id
          WHERE  h.invoice_date >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
 
          UNION ALL
 
          -- 2. Live POS sales created in-app (not mirrored from Cin7).
-         SELECT COALESCE(psi.variant_id, psku.variant_id) AS variant_id,
+         SELECT COALESCE(pvid.variant_id, psku.variant_id) AS variant_id,
                 DATE(ps.completed_at) AS sale_date,
                 psi.qty AS qty
          FROM   pos_sale_items psi
          JOIN   pos_sales      ps ON ps.id = psi.sale_id
+         LEFT JOIN ims_product_variants pvid
+                ON pvid.variant_id = psi.variant_id
          LEFT JOIN ims_product_variants psku
-                ON psi.variant_id IS NULL AND psku.sku = psi.code
+                ON pvid.variant_id IS NULL AND psku.sku = psi.code
          WHERE  ps.status    = 'completed'
            AND  ps.sale_type = 'sale'
            AND  ps.is_historical = 0
@@ -65,13 +71,15 @@ export async function refreshVariantCache(variantIds?: string[]): Promise<number
          UNION ALL
 
          -- 3. Live / in-app Sales Orders (Shopify webhooks, manual SOs). Ordered qty = the sale.
-         SELECT COALESCE(soi.variant_id, ssku.variant_id) AS variant_id,
+         SELECT COALESCE(svid.variant_id, ssku.variant_id) AS variant_id,
                 so.order_date AS sale_date,
                 soi.qty_ordered AS qty
          FROM   ims_sales_order_items soi
          JOIN   ims_sales_orders      so ON so.id = soi.so_id
+         LEFT JOIN ims_product_variants svid
+                ON svid.variant_id = soi.variant_id
          LEFT JOIN ims_product_variants ssku
-                ON soi.variant_id IS NULL AND ssku.sku = soi.code
+                ON svid.variant_id IS NULL AND ssku.sku = soi.code
          WHERE  so.status NOT IN ('draft', 'cancelled')
            AND  so.cin7_order_id IS NULL
            AND  so.order_date >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
