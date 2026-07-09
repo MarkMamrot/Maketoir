@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { v4 as uuidv4 } from 'uuid';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { getCin7Credentials, cin7FetchAllPages, cin7ForEachPage } from '@/lib/cin7Helpers';
+import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -929,28 +930,10 @@ export async function POST(req: Request) {
           }); // end cin7ForEachPage
 
           send({ step: 'sales', status: 'running', message: 'Rebuilding sales cache...' });
-          await imsExecute(
-            `INSERT INTO ims_sales_cache
-               (variant_id, sales_qty_7d, sales_qty_90d, sales_qty_180d, sales_qty_12m, updated_at)
-             SELECT
-               variant_id,
-               SUM(CASE WHEN invoice_date >= DATE_SUB(CURDATE(), INTERVAL 7   DAY) THEN qty ELSE 0 END),
-               SUM(CASE WHEN invoice_date >= DATE_SUB(CURDATE(), INTERVAL 90  DAY) THEN qty ELSE 0 END),
-               SUM(CASE WHEN invoice_date >= DATE_SUB(CURDATE(), INTERVAL 180 DAY) THEN qty ELSE 0 END),
-               SUM(CASE WHEN invoice_date >= DATE_SUB(CURDATE(), INTERVAL 365 DAY) THEN qty ELSE 0 END),
-               NOW()
-             FROM ims_sales_history
-             WHERE invoice_date >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
-               AND variant_id IS NOT NULL
-             GROUP BY variant_id
-             ON DUPLICATE KEY UPDATE
-               sales_qty_7d   = VALUES(sales_qty_7d),
-               sales_qty_90d  = VALUES(sales_qty_90d),
-               sales_qty_180d = VALUES(sales_qty_180d),
-               sales_qty_12m  = VALUES(sales_qty_12m),
-               updated_at     = VALUES(updated_at)`,
-            [],
-          );
+          // Rebuild the cache from the canonical sales source (POS + Sales Orders) via the same
+          // helper used by live/login refreshes, so the sync and runtime never disagree.
+          // `ims_sales_history` is still written above for reference but is no longer a cache source.
+          await refreshVariantCache();
 
           const histRows  = await imsQuery<{ cnt: number }>('SELECT COUNT(*) AS cnt FROM ims_sales_history', []);
           const cacheRows = await imsQuery<{ cnt: number }>('SELECT COUNT(*) AS cnt FROM ims_sales_cache', []);

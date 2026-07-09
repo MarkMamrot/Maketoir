@@ -10,10 +10,12 @@ import { imsVariantToStandard, imsSOItemToSaleLine, imsPOSSaleToLine, type ImsPo
 import type { StandardizedVariant, StandardizedVariantWithSales, StandardizedLocation, StandardizedContact, StandardizedSaleLine, VariantBranchStock } from '@/types/StandardizedData';
 
 // ─── resolve which source to use ─────────────────────────────────────────────
+// The Cin7 main-DB inventory source has been retired: IMS/Solvantis is now the only
+// inventory source. The `source` parameter is kept on the public functions for
+// backwards compatibility but is always resolved to 'solvantis'.
 
-async function resolveSource(businessId: string, source?: string): Promise<string> {
-  if (source) return source;
-  return (await ConfigRepository.get(businessId, 'inventory_source').catch(() => null)) ?? 'cin7';
+async function resolveSource(_businessId: string, _source?: string): Promise<string> {
+  return 'solvantis';
 }
 
 // ─── products ─────────────────────────────────────────────────────────────────

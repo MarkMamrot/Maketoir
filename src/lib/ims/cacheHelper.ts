@@ -6,7 +6,22 @@ import { imsQuery, getIMSPool } from '@/services/IMSMySQLService';
  * @returns The number of variants updated.
  */
 export async function refreshVariantCache(variantIds?: string[]): Promise<number> {
-  let salesQuery = `
+  const salesParams: any[] = [];
+  const stockParams: any[] = [];
+  const hasFilter    = !!(variantIds && variantIds.length > 0);
+  const placeholders = hasFilter ? variantIds!.map(() => '?').join(',') : '';
+  const salesFilter  = hasFilter ? ` AND variant_id IN (${placeholders})`   : '';
+  const stockFilter  = hasFilter ? ` WHERE s.variant_id IN (${placeholders})` : '';
+  if (hasFilter) {
+    salesParams.push(...variantIds!);
+    stockParams.push(...variantIds!);
+  }
+
+  // Canonical sales source: POS (pos_sale_items) + Sales Orders (ims_sales_order_items),
+  // covering retail, wholesale/B2B and online in one place. `ims_sales_history` is deliberately
+  // NOT read here: every Cin7-synced order is also written to pos_sales / ims_sales_orders, so
+  // combining the two would double-count. All three item tables key on the IMS variant_id (VARCHAR).
+  const salesQuery = `
       SELECT
         variant_id,
         SUM(CASE WHEN sale_date >= DATE_SUB(CURDATE(), INTERVAL 7   DAY) THEN qty ELSE 0 END) AS sales_qty_7d,
@@ -14,55 +29,43 @@ export async function refreshVariantCache(variantIds?: string[]): Promise<number
         SUM(CASE WHEN sale_date >= DATE_SUB(CURDATE(), INTERVAL 180 DAY) THEN qty ELSE 0 END) AS sales_qty_180d,
         SUM(qty) AS sales_qty_12m
        FROM (
-         -- IMS wholesale/B2B sales orders (variant_id is null on items; join via SKU)
-         SELECT v.variant_id, so.order_date AS sale_date, soi.qty_fulfilled AS qty
+         -- Sales Orders: wholesale/B2B + online. Count every order that isn't a draft or cancelled.
+         -- An online order is a sale at the point of order, so use qty_ordered; wholesale counts
+         -- qty_fulfilled (what actually shipped).
+         SELECT soi.variant_id,
+                so.order_date AS sale_date,
+                CASE WHEN so.so_type = 'online' THEN soi.qty_ordered ELSE soi.qty_fulfilled END AS qty
          FROM   ims_sales_order_items soi
-         JOIN   ims_sales_orders      so  ON so.id = soi.so_id
-         JOIN   ims_product_variants  v   ON v.sku = soi.code
-         WHERE  so.status = 'fulfilled'
+         JOIN   ims_sales_orders      so ON so.id = soi.so_id
+         WHERE  so.status NOT IN ('draft', 'cancelled')
            AND  so.order_date >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
-           AND  soi.code IS NOT NULL
-           AND  soi.qty_fulfilled > 0
+           AND  soi.variant_id IS NOT NULL
 
          UNION ALL
 
-         -- POS retail sales (pos_sale_items.variant_id stores cin7_option_id integer)
-         SELECT vpv.variant_id, DATE(ps.completed_at) AS sale_date, psi.qty AS qty
+         -- POS retail sales (live + historical). pos_sale_items.variant_id is the IMS variant_id.
+         SELECT psi.variant_id,
+                DATE(ps.completed_at) AS sale_date,
+                psi.qty AS qty
          FROM   pos_sale_items psi
-         JOIN   pos_sales      ps  ON ps.id = psi.sale_id
-         JOIN   ims_product_variants vpv ON vpv.cin7_option_id = psi.variant_id
+         JOIN   pos_sales      ps ON ps.id = psi.sale_id
          WHERE  ps.status    = 'completed'
            AND  ps.sale_type = 'sale'
            AND  ps.completed_at >= DATE_SUB(NOW(), INTERVAL 365 DAY)
            AND  psi.variant_id IS NOT NULL
        ) all_sales
-       WHERE variant_id IS NOT NULL
-  `;
-  
-  let stockQuery = `
+       WHERE variant_id IS NOT NULL${salesFilter}
+       GROUP BY variant_id`;
+
+  const stockQuery = `
       SELECT
         s.variant_id,
-        SUM(s.qty_on_hand)                       AS global_soh,
-        SUM(s.qty_on_hand - s.qty_committed)     AS global_available,
-        SUM(s.qty_incoming)                      AS global_incoming
+        SUM(s.qty_on_hand)                   AS global_soh,
+        SUM(s.qty_on_hand - s.qty_committed) AS global_available,
+        SUM(s.qty_incoming)                  AS global_incoming
        FROM ims_stock s
-       JOIN ims_product_variants vpv ON vpv.variant_id = s.variant_id
-  `;
-
-  let salesParams: any[] = [];
-  let stockParams: any[] = [];
-
-  if (variantIds && variantIds.length > 0) {
-    const placeholders = variantIds.map(() => '?').join(',');
-    salesQuery += ` WHERE variant_id IN (${placeholders}) `;
-    salesParams.push(...variantIds);
-
-    stockQuery += ` WHERE s.variant_id IN (${placeholders}) `;
-    stockParams.push(...variantIds);
-  }
-
-  salesQuery += ` GROUP BY variant_id`;
-  stockQuery += ` GROUP BY s.variant_id`;
+       JOIN ims_product_variants vpv ON vpv.variant_id = s.variant_id${stockFilter}
+       GROUP BY s.variant_id`;
 
   const salesRows = await imsQuery<{
     variant_id: string;
