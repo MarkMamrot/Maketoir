@@ -22,11 +22,15 @@ interface TurnoverRow {
   turnRate:      number;
   capitalTied:   number;
   capitalEff:    number | null;
-  excessCapital: number;
-  targetDosUsed: number;
-  grade:         string;
-  stars:         number;
-  label:         string;
+  orderWindowDays:   number;
+  excessStock:       number;
+  excessCapital:     number;
+  daysToClearExcess: number;
+  daysToClearRaw:    number;
+  deadCapitalYears:  number;
+  rating:            string;
+  ratingRank:        number;
+  label:             string;
 }
 
 interface TurnoverResponse {
@@ -39,29 +43,33 @@ interface TurnoverResponse {
     movingProducts:   number;
     noMovementCount:  number;
     totalCapitalTied: number;
+    totalExcessCapital: number;
     totalSales:       number;
     avgDos:           number;
     avgTurnRate:      number;
     worstName:        string;
     worstExcessCapital: number;
+    worstDaysToClear: number;
   };
 }
 
-type SortField = 'excessCapital' | 'capitalTied' | 'dos' | 'turnRate' | 'capitalEff' | 'soh' | 'salesQty' | 'name';
+type SortField = 'deadCapitalYears' | 'excessCapital' | 'excessStock' | 'daysToClearExcess' | 'capitalTied' | 'dos' | 'turnRate' | 'capitalEff' | 'soh' | 'salesQty' | 'name';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const GRADE_COLORS: Record<string, string> = {
-  A: 'bg-emerald-100 text-emerald-800',
-  B: 'bg-green-100 text-green-800',
-  C: 'bg-yellow-100 text-yellow-800',
-  D: 'bg-orange-100 text-orange-800',
-  E: 'bg-red-100 text-red-800',
-  '?': 'bg-gray-100 text-gray-500',
+// Clearance-priority rating buckets (worst → best).
+const RATING_ORDER = ['critical', 'high', 'moderate', 'low', 'healthy'] as const;
+
+const RATING_COLORS: Record<string, string> = {
+  critical: 'bg-red-100 text-red-800',
+  high:     'bg-orange-100 text-orange-800',
+  moderate: 'bg-yellow-100 text-yellow-800',
+  low:      'bg-green-100 text-green-800',
+  healthy:  'bg-emerald-100 text-emerald-800',
 };
 
-const GRADE_LABELS: Record<string, string> = {
-  A: 'Fast Mover', B: 'Good', C: 'Average', D: 'Slow', E: 'Dead Stock', '?': 'No Movement',
+const RATING_LABELS: Record<string, string> = {
+  critical: 'Critical', high: 'High', moderate: 'Moderate', low: 'Low', healthy: 'Healthy',
 };
 
 function fmt$(v: number): string {
@@ -75,15 +83,22 @@ function fmtDos(dos: number, raw: number): string {
   return dos.toFixed(0);
 }
 
+function fmtClear(days: number, raw: number): string {
+  if (!isFinite(raw) || raw >= 999) return '999+';
+  return days.toFixed(0);
+}
+
 const WINDOW_OPTIONS = [7, 90, 180, 365] as const;
 
 function downloadCsv(rows: TurnoverRow[]) {
-  const headers = ['Code','Name','Brand','Supplier','SOH','Cost','Capital Tied','Sales Qty','Avg Daily Sales','DOS','Turn Rate','Capital Efficiency','Target DOS Used','Excess Capital','Grade'];
+  const headers = ['Code','Name','Brand','Supplier','SOH','Cost','Capital Tied','Sales Qty','Avg Daily Sales','DOS','Turn Rate','Capital Efficiency','Order Freq (days)','Excess Qty','Excess Capital','Days to Clear','Dead Capital-Years','Rating'];
   const lines = [headers.join(','), ...rows.map(r => [
     r.code, `"${r.name.replace(/"/g, '""')}"`, r.brand, `"${r.supplierName.replace(/"/g, '""')}"`,
     r.soh, r.cost, r.capitalTied, r.salesQty, r.avgDailySales,
     isFinite(r.dosRaw) && r.dosRaw < 999 ? r.dos : '999+',
-    r.turnRate, r.capitalEff ?? '', r.targetDosUsed, r.excessCapital, r.grade,
+    r.turnRate, r.capitalEff ?? '', r.orderWindowDays, r.excessStock, r.excessCapital,
+    isFinite(r.daysToClearRaw) && r.daysToClearRaw < 999 ? r.daysToClearExcess : '999+',
+    r.deadCapitalYears, RATING_LABELS[r.rating] ?? r.rating,
   ].join(','))];
   const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
@@ -108,9 +123,9 @@ export function StockTurnoverView({ databaseId }: { databaseId: string }) {
   const [summary, setSummary]               = useState<TurnoverResponse['summary'] | null>(null);
   const [brandOptions, setBrandOptions]     = useState<string[]>([]);
   const [supplierOptions, setSupplierOptions] = useState<{ id: string; label: string }[]>([]);
-  const [sortField, setSortField]           = useState<SortField>('excessCapital');
+  const [sortField, setSortField]           = useState<SortField>('deadCapitalYears');
   const [sortDir, setSortDir]               = useState<'desc' | 'asc'>('desc');
-  const [gradeFilter, setGradeFilter]       = useState('');
+  const [ratingFilter, setRatingFilter]     = useState('');
   const [hideNoMovement, setHideNoMovement] = useState(false);
   const [hideZeroSoh, setHideZeroSoh]       = useState(true);
 
@@ -126,9 +141,9 @@ export function StockTurnoverView({ databaseId }: { databaseId: string }) {
     return opts.slice(0, 25);
   }, [currentOptions, filterQuery]);
 
-  const gradeCounts = useMemo(() => {
-    const counts: Record<string, number> = { A: 0, B: 0, C: 0, D: 0, E: 0, '?': 0 };
-    rows.forEach(r => { if (counts[r.grade] !== undefined) counts[r.grade]++; });
+  const ratingCounts = useMemo(() => {
+    const counts: Record<string, number> = { critical: 0, high: 0, moderate: 0, low: 0, healthy: 0 };
+    rows.forEach(r => { if (counts[r.rating] !== undefined) counts[r.rating]++; });
     return counts;
   }, [rows]);
 
@@ -136,7 +151,7 @@ export function StockTurnoverView({ databaseId }: { databaseId: string }) {
     let r = rows;
     if (hideNoMovement) r = r.filter(row => row.avgDailySales > 0);
     if (hideZeroSoh) r = r.filter(row => row.soh > 0);
-    if (gradeFilter) r = r.filter(row => row.grade === gradeFilter);
+    if (ratingFilter) r = r.filter(row => row.rating === ratingFilter);
     return [...r].sort((a, b) => {
       const dir = sortDir === 'asc' ? 1 : -1;
       if (sortField === 'name')       return dir * a.name.localeCompare(b.name);
@@ -147,7 +162,7 @@ export function StockTurnoverView({ databaseId }: { databaseId: string }) {
       }
       return dir * ((b[sortField] as number) - (a[sortField] as number));
     });
-  }, [rows, hideNoMovement, gradeFilter, sortField, sortDir]);
+  }, [rows, hideNoMovement, hideZeroSoh, ratingFilter, sortField, sortDir]);
 
   const runAnalysis = useCallback(async () => {
     if (!databaseId) return;
@@ -216,7 +231,7 @@ export function StockTurnoverView({ databaseId }: { databaseId: string }) {
       <div>
         <h2 className="text-xl font-bold text-gray-900">Stock Turnover Efficiency</h2>
         <p className="text-sm text-gray-500 mt-0.5">
-          Identify products hogging capital — ranked by Excess Capital (cost of stock beyond Target DOS).
+          Identify products hogging capital — ranked by Clearance Priority (excess cash tied up × how long it stays stuck).
         </p>
       </div>
 
@@ -329,12 +344,12 @@ export function StockTurnoverView({ databaseId }: { databaseId: string }) {
             </p>
             <p className="text-xs text-gray-400 mt-0.5">{summary.totalProducts} variants</p>
           </div>
-          <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Total Sales</p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">
-              {summary.totalSales.toLocaleString()}
+          <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
+            <p className="text-xs font-semibold text-amber-500 uppercase tracking-wide">Excess Capital</p>
+            <p className="text-2xl font-bold text-amber-700 mt-1">
+              ${summary.totalExcessCapital.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </p>
-            <p className="text-xs text-gray-400 mt-0.5">qty in period</p>
+            <p className="text-xs text-amber-500 mt-0.5">beyond order window</p>
           </div>
           <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Avg Days of Stock</p>
@@ -347,26 +362,26 @@ export function StockTurnoverView({ databaseId }: { databaseId: string }) {
             <p className="text-xs text-gray-400 mt-0.5">{summary.noMovementCount} with no movement</p>
           </div>
           <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3">
-            <p className="text-xs font-semibold text-red-400 uppercase tracking-wide">Worst Offender</p>
+            <p className="text-xs font-semibold text-red-400 uppercase tracking-wide">Top Priority</p>
             <p className="text-sm font-bold text-red-700 mt-1 truncate">{summary.worstName || '—'}</p>
             <p className="text-xs text-red-400 mt-0.5">
-              Excess Cap: ${summary.worstExcessCapital.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              ${summary.worstExcessCapital.toLocaleString(undefined, { maximumFractionDigits: 0 })} excess ·{' '}
+              {isFinite(summary.worstDaysToClear) && summary.worstDaysToClear < 999 ? `${Math.round(summary.worstDaysToClear)}d to clear` : '999+d to clear'}
             </p>
           </div>
         </div>
       )}
 
-      {/* ── Grade bar ── */}
+      {/* ── Rating bar ── */}
       {rows.length > 0 && (
         <div className="flex flex-wrap gap-2 items-center">
-          {['A','B','C','D','E','?'].map(g => (
-            <button key={g} onClick={() => setGradeFilter(f => f === g ? '' : g)}
+          {RATING_ORDER.map(g => (
+            <button key={g} onClick={() => setRatingFilter(f => f === g ? '' : g)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors
-                ${gradeFilter === g ? 'ring-2 ring-offset-1 ring-blue-400' : ''}
-                ${GRADE_COLORS[g] ?? 'bg-gray-100 text-gray-600'}`}>
-              <span>{g}</span>
-              <span className="opacity-70">{GRADE_LABELS[g]}</span>
-              <span className="ml-1 font-bold">{gradeCounts[g] ?? 0}</span>
+                ${ratingFilter === g ? 'ring-2 ring-offset-1 ring-blue-400' : ''}
+                ${RATING_COLORS[g] ?? 'bg-gray-100 text-gray-600'}`}>
+              <span>{RATING_LABELS[g]}</span>
+              <span className="ml-1 font-bold">{ratingCounts[g] ?? 0}</span>
             </button>
           ))}
           <div className="flex items-center gap-4 ml-auto">
@@ -398,16 +413,17 @@ export function StockTurnoverView({ databaseId }: { databaseId: string }) {
                 <Th field="salesQty" right>Sold</Th>
                 <Th field="capitalTied" right>Capital Tied</Th>
                 <Th field="dos" right>DOS</Th>
-                <Th field="turnRate" right>Turn/yr</Th>
-                <Th field="capitalEff" right>Cap. Eff.</Th>
-                <th className="px-3 py-2 font-semibold text-right border-b border-gray-200" title="Values mapped from Supplier Order Frequency">Target DOS</th>
+                <th className="px-3 py-2 font-semibold text-right border-b border-gray-200" title="Supplier Order Frequency (days), or Target DOS fallback">Order Freq</th>
+                <Th field="excessStock" right>Excess Qty</Th>
                 <Th field="excessCapital" right>Excess Cap.</Th>
-                <th className="text-center font-semibold px-3 py-2 border-b border-gray-200 w-16">Grade</th>
+                <Th field="daysToClearExcess" right>Clear In</Th>
+                <Th field="deadCapitalYears" right>Deadweight</Th>
+                <th className="text-center font-semibold px-3 py-2 border-b border-gray-200 w-20">Priority</th>
               </tr>
             </thead>
             <tbody>
               {displayedRows.map((row, i) => (
-                <tr key={row.optionId} className={`border-b border-gray-100 hover:bg-blue-50 ${row.grade === 'E' ? 'bg-red-50/40' : row.grade === 'A' ? 'bg-emerald-50/30' : ''}`}>
+                <tr key={row.optionId} className={`border-b border-gray-100 hover:bg-blue-50 ${row.rating === 'critical' ? 'bg-red-50/40' : row.rating === 'healthy' ? 'bg-emerald-50/30' : ''}`}>
                   <td className="px-3 py-2 text-gray-400">{i + 1}</td>
                   <td className="px-3 py-2 max-w-[220px]">
                     <div className="font-medium text-gray-800 truncate">{row.name}</div>
@@ -423,21 +439,24 @@ export function StockTurnoverView({ databaseId }: { databaseId: string }) {
                   <td className={`px-3 py-2 text-right font-mono ${row.dos >= 365 ? 'text-red-600 font-bold' : row.dos >= 90 ? 'text-orange-500' : 'text-gray-700'}`}>
                     {fmtDos(row.dos, row.dosRaw)}d
                   </td>
-                  <td className={`px-3 py-2 text-right ${row.turnRate >= 4 ? 'text-emerald-600 font-semibold' : row.turnRate > 0 ? 'text-gray-700' : 'text-gray-400'}`}>
-                    {row.turnRate > 0 ? `${row.turnRate}×` : '—'}
-                  </td>
-                  <td className="px-3 py-2 text-right text-gray-600 font-mono text-[11px]">
-                    {row.capitalEff != null ? row.capitalEff.toFixed(3) : <span className="text-gray-300">—</span>}
-                  </td>
                   <td className="px-3 py-2 text-right text-gray-500 text-[11px]">
-                    {row.targetDosUsed}d
+                    {row.orderWindowDays}d
+                  </td>
+                  <td className="px-3 py-2 text-right text-gray-700">
+                    {row.excessStock > 0 ? row.excessStock.toLocaleString(undefined, { maximumFractionDigits: 1 }) : <span className="text-gray-400">—</span>}
                   </td>
                   <td className={`px-3 py-2 text-right font-bold ${row.excessCapital > 50000 ? 'text-red-600' : row.excessCapital > 10000 ? 'text-orange-500' : 'text-gray-700'}`}>
                     {row.excessCapital > 0 ? fmt$(row.excessCapital) : <span className="font-normal text-gray-400">—</span>}
                   </td>
+                  <td className={`px-3 py-2 text-right font-mono ${row.daysToClearExcess >= 365 ? 'text-red-600 font-bold' : row.daysToClearExcess >= 90 ? 'text-orange-500' : 'text-gray-700'}`}>
+                    {row.excessStock > 0 || !isFinite(row.daysToClearRaw) ? `${fmtClear(row.daysToClearExcess, row.daysToClearRaw)}d` : <span className="text-gray-400">—</span>}
+                  </td>
+                  <td className="px-3 py-2 text-right font-semibold text-gray-700">
+                    {row.deadCapitalYears > 0 ? fmt$(row.deadCapitalYears) : <span className="font-normal text-gray-400">—</span>}
+                  </td>
                   <td className="px-3 py-2 text-center">
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${GRADE_COLORS[row.grade] ?? 'bg-gray-100 text-gray-500'}`}>
-                      {row.grade}
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${RATING_COLORS[row.rating] ?? 'bg-gray-100 text-gray-500'}`}>
+                      {RATING_LABELS[row.rating] ?? row.rating}
                     </span>
                   </td>
                 </tr>
@@ -451,7 +470,7 @@ export function StockTurnoverView({ databaseId }: { databaseId: string }) {
         <div className="text-center py-16 text-gray-400">
           <div className="text-5xl mb-3">📦</div>
           <p className="text-sm font-medium">Click <strong>Run Analysis</strong> to see stock turnover results.</p>
-          <p className="text-xs mt-1">Products are ranked by Excess Capital — stock beyond Target DOS × cost.</p>
+          <p className="text-xs mt-1">Products are ranked by Clearance Priority — excess cash tied up beyond the supplier's order window × how long it stays stuck.</p>
           <p className="text-[10px] mt-1 italic max-w-md mx-auto">The "Target DOS (fallback)" input above is only applied when the product's supplier lacks a defined Order Frequency.</p>
         </div>
       )}
@@ -460,16 +479,16 @@ export function StockTurnoverView({ databaseId }: { databaseId: string }) {
       {rows.length > 0 && (
         <div className="grid md:grid-cols-3 gap-3">
           <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Deadweight Score</p>
-            <p className="text-sm text-gray-700">Capital Tied ($) × Days of Stock. The higher the score, the more this product is locking up your cash over time. Sort by this column to find your worst offenders.</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Deadweight (Dead Capital-Years)</p>
+            <p className="text-sm text-gray-700">Excess Capital × (Days to Clear ÷ 365). The dollar-years of cash stuck in stock beyond the supplier's order window. Sort by this to find the most important stock to clear for cashflow.</p>
           </div>
           <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Days of Stock (DOS)</p>
-            <p className="text-sm text-gray-700">SOH ÷ avg daily sales. Red = 365+ days (over a year of stock). Green grades mean the product turns fast relative to peers.</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Excess Qty &amp; Clear In</p>
+            <p className="text-sm text-gray-700">Excess Qty is stock beyond what sells within the supplier's Order Freq window. "Clear In" is how many extra days it takes to sell that excess through. A huge excess that clears in days is fine; a modest one taking months is not.</p>
           </div>
           <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Capital Efficiency</p>
-            <p className="text-sm text-gray-700">(Daily sales × price) ÷ capital tied. How much revenue each dollar of tied capital generates daily. Higher = better use of capital.</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Priority Rating</p>
+            <p className="text-sm text-gray-700">Critical → Healthy, weighing both how much cash is locked and how long it stays stuck. Cheap or fast-clearing excess is never flagged urgent; no-sales stock with SOH is always Critical.</p>
           </div>
         </div>
       )}

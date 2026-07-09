@@ -6,39 +6,82 @@ import type { StandardizedVariantWithSales, StandardizedContact } from '@/types/
 // ── Stock Turnover Efficiency ─────────────────────────────────────────────────
 //
 // Metrics per variant:
-//   avgDailySales  = salesQty / salesWindowDays
-//   dos            = qty_on_hand / avgDailySales   (Days of Stock; Infinity if no sales)
-//   turnRate       = 365 / dos                     (annual turns)
-//   capitalTied    = qty_on_hand * cost
-//   capitalEff     = (avgDailySales * price) / capitalTied  (revenue/$ tied)
-//   idealSoh       = avgDailySales * targetDos
-//   excessStock    = max(0, soh - idealSoh)
-//   excessCapital  = excessStock * cost
+//   avgDailySales     = salesQty / salesWindowDays
+//   dos               = qty_on_hand / avgDailySales  (Days of Stock; Infinity if no sales)
+//   turnRate          = 365 / dos                    (annual turns)
+//   capitalTied       = qty_on_hand * cost
+//   capitalEff        = (avgDailySales * price) / capitalTied  (revenue/$ tied)
 //
-// Products are percentile-ranked by turnRate within the filtered set:
-//   Top 20%    → A  Fast Mover
-//   60–80th pc → B  Good
-//   40–60th pc → C  Average
-//   20–40th pc → D  Slow
-//   Bottom 20% → E  Dead Stock
+// Excess is measured against the supplier's Order Frequency window — the stock we
+// need to carry to last until the next order. Anything beyond that is excess:
+//   orderWindow       = supplier order_frequency_days (if > 0) else targetDos fallback
+//   idealSoh          = avgDailySales * orderWindow
+//   excessStock       = max(0, soh - idealSoh)                  (units of dead weight)
+//   excessCapital     = excessStock * cost                      ($ locked beyond window)
+//   daysToClearExcess = excessStock / avgDailySales             (= dosRaw - orderWindow)
+//   deadCapitalYears  = excessCapital * (daysToClearExcess / 365)
+//                       → dollar-years of dead capital; the clearance-priority driver.
 //
-// Zero-sales products: dos = 999 (capped for display), grade '?' No Movement.
+// The rating weighs both magnitude ($) and how long the capital stays stuck:
+//   huge excess clearing in 2 days  → tiny deadCapitalYears → low priority
+//   moderate excess taking 6 months → large                 → high priority
+//   6 months to clear but 1-2 cheap items → tiny            → low priority
+//
+// Zero-sales products with stock are dead weight by definition → Critical.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DOS_CAP = 999;
+const CLEAR_CAP = 999; // display cap for daysToClearExcess
+
+// ── Clearance-priority rating ─────────────────────────────────────────────────
+// Absolute thresholds on deadCapitalYears ($ of capital tied up for a year-equivalent),
+// with a low-value floor so trivial/cheap items are never flagged as urgent.
+const RATING_LOW_VALUE_FLOOR = 200;    // excessCapital below this can't rank worse than 'Low'
+const RATING_CRITICAL = 4000;          // deadCapitalYears bands
+const RATING_HIGH     = 1200;
+const RATING_MODERATE = 300;
+const RATING_LOW      = 40;
 
 function round(v: number, p = 2): number {
   const f = 10 ** p;
   return Math.round(v * f) / f;
 }
 
-function percentileGrade(rank: number, total: number): { grade: string; stars: number; label: string } {
-  const pct = rank / total;
-  if (pct < 0.2) return { grade: 'A', stars: 5, label: 'Fast Mover'   };
-  if (pct < 0.4) return { grade: 'B', stars: 4, label: 'Good'         };
-  if (pct < 0.6) return { grade: 'C', stars: 3, label: 'Average'      };
-  if (pct < 0.8) return { grade: 'D', stars: 2, label: 'Slow'         };
-  return               { grade: 'E', stars: 1, label: 'Dead Stock'   };
+function computeRating(opts: {
+  excessStock: number;
+  excessCapital: number;
+  deadCapitalYears: number;
+  hasSales: boolean;
+  soh: number;
+}): { rating: string; ratingRank: number; label: string } {
+  const { excessStock, excessCapital, deadCapitalYears, hasSales, soh } = opts;
+
+  // No sales but holding stock → capital fully stuck, nothing clearing it.
+  if (!hasSales) {
+    return soh > 0
+      ? { rating: 'critical', ratingRank: 4, label: 'Critical' }
+      : { rating: 'healthy',  ratingRank: 0, label: 'Healthy'  };
+  }
+
+  // Stock is within the order-frequency window — nothing excess.
+  if (excessStock <= 0) {
+    return { rating: 'healthy', ratingRank: 0, label: 'Healthy' };
+  }
+
+  // Cheap excess never ranks urgent regardless of how slowly it clears.
+  const cappedByValue = excessCapital < RATING_LOW_VALUE_FLOOR;
+
+  let rating: string, ratingRank: number, label: string;
+  if      (deadCapitalYears >= RATING_CRITICAL) { rating = 'critical'; ratingRank = 4; label = 'Critical'; }
+  else if (deadCapitalYears >= RATING_HIGH)     { rating = 'high';     ratingRank = 3; label = 'High';     }
+  else if (deadCapitalYears >= RATING_MODERATE) { rating = 'moderate'; ratingRank = 2; label = 'Moderate'; }
+  else if (deadCapitalYears >= RATING_LOW)      { rating = 'low';      ratingRank = 1; label = 'Low';      }
+  else                                          { rating = 'healthy';  ratingRank = 0; label = 'Healthy';  }
+
+  if (cappedByValue && ratingRank > 1) {
+    return { rating: 'low', ratingRank: 1, label: 'Low' };
+  }
+  return { rating, ratingRank, label };
 }
 
 export interface TurnoverRow {
@@ -59,11 +102,15 @@ export interface TurnoverRow {
   turnRate:       number;
   capitalTied:    number;
   capitalEff:     number | null; // null when capitalTied = 0
-  excessCapital:  number;
-  targetDosUsed:  number;
-  grade:          string;
-  stars:          number;
-  label:          string;
+  orderWindowDays:   number;     // supplier order frequency, or Target DOS fallback
+  excessStock:       number;     // units beyond the order-frequency window
+  excessCapital:     number;     // cost of the excess units
+  daysToClearExcess: number;     // capped at CLEAR_CAP for display
+  daysToClearRaw:    number;     // raw value for sorting (may be Infinity)
+  deadCapitalYears:  number;     // excessCapital × daysToClear/365 — priority driver
+  rating:            string;     // healthy | low | moderate | high | critical
+  ratingRank:        number;     // 0..4 for sorting
+  label:             string;
 }
 
 const SALES_WINDOW_FIELDS: Record<number, keyof StandardizedVariantWithSales> = {
@@ -95,19 +142,20 @@ export async function POST(req: Request) {
   let suppliers: StandardizedContact[];
   try {
     [products, suppliers] = await Promise.all([
-      getProductsWithSales(databaseId),
-      getSuppliers(databaseId).catch(() => [] as StandardizedContact[]),
+      getProductsWithSales(databaseId, 'solvantis'),
+      getSuppliers(databaseId, 'solvantis').catch(() => [] as StandardizedContact[]),
     ]);
   } catch (e: any) {
     return NextResponse.json({ success: false, error: `Failed to load data: ${e.message}` }, { status: 500 });
   }
 
-  // Build supplier name map
+  // Build supplier name map + order-frequency map (only positive frequencies are usable;
+  // 0/negative/unset fall back to the Target DOS input).
   const supplierNameMap = new Map<string, string>();
   const supplierFreqMap = new Map<string, number>();
   for (const s of suppliers) {
     supplierNameMap.set(s.source_id, s.company || s.name || `Supplier ${s.source_id}`);
-    if (s.order_frequency_days != null) {
+    if (s.order_frequency_days != null && s.order_frequency_days > 0) {
       supplierFreqMap.set(s.source_id, s.order_frequency_days);
     }
   }
@@ -162,11 +210,34 @@ export async function POST(req: Request) {
     const capitalEff   = capitalTied > 0 && price != null
       ? round((avgDailySales * price) / capitalTied, 4)
       : null;
-      
-    const effectiveTargetDos = supplierFreqMap.get(supplierId) ?? targetDos;
-    const idealSoh = avgDailySales * effectiveTargetDos;
-    const excessStock = Math.max(0, soh - idealSoh);
-    const excessCapital = round(excessStock * cost, 2);
+
+    // Excess is measured against the supplier's order-frequency window (stock needed to
+    // last until the next order). Suppliers without a positive frequency fall back to Target DOS.
+    const orderWindowDays = supplierFreqMap.get(supplierId) ?? targetDos;
+    const idealSoh        = avgDailySales * orderWindowDays;
+    const excessStock     = round(Math.max(0, soh - idealSoh), 2);
+    const excessCapital   = round(excessStock * cost, 2);
+
+    // Time to sell through the excess *beyond* the order window.
+    const daysToClearRaw = avgDailySales > 0
+      ? (excessStock > 0 ? excessStock / avgDailySales : 0)
+      : (soh > 0 ? Infinity : 0);
+    const daysToClearExcess = Number.isFinite(daysToClearRaw)
+      ? round(Math.min(daysToClearRaw, CLEAR_CAP), 1)
+      : CLEAR_CAP;
+
+    // Dollar-years of dead capital: how much cash is stuck and for how long.
+    const deadCapitalYears = Number.isFinite(daysToClearRaw)
+      ? round(excessCapital * (daysToClearRaw / 365), 2)
+      : round(capitalTied, 2); // no-sales: whole holding is dead for the foreseeable future
+
+    const { rating, ratingRank, label } = computeRating({
+      excessStock,
+      excessCapital,
+      deadCapitalYears,
+      hasSales: avgDailySales > 0,
+      soh,
+    });
 
     allRows.push({
       optionId:      p.source_id,
@@ -186,23 +257,20 @@ export async function POST(req: Request) {
       turnRate,
       capitalTied,
       capitalEff,
+      orderWindowDays,
+      excessStock,
       excessCapital,
-      targetDosUsed: effectiveTargetDos,
-      grade: '', stars: 0, label: '',
+      daysToClearExcess,
+      daysToClearRaw,
+      deadCapitalYears,
+      rating,
+      ratingRank,
+      label,
     });
   }
 
-  // Separate movers (has sales) from no-movers (zero avgDailySales)
-  const movers   = allRows.filter(r => r.avgDailySales > 0).sort((a, b) => b.turnRate - a.turnRate);
+  // Rating is computed per-row above. Split movers/no-movers only for summary stats.
   const noMovers = allRows.filter(r => r.avgDailySales <= 0);
-
-  movers.forEach((row, i) => {
-    const { grade, stars, label } = percentileGrade(i, movers.length || 1);
-    row.grade = grade;
-    row.stars = stars;
-    row.label = label;
-  });
-  noMovers.forEach(row => { row.grade = '?'; row.stars = 0; row.label = 'No Movement'; });
 
   const options = {
     brands:    [...brandSet].sort((a, b) => a.localeCompare(b)),
@@ -217,21 +285,20 @@ export async function POST(req: Request) {
           .sort((a, b) => a.label.localeCompare(b.label)),
   };
 
-  // Default sort: excessCapital descending (worst offenders first)
-  const resultRows = [...movers.sort((a, b) => b.excessCapital - a.excessCapital), ...noMovers.sort((a, b) => b.excessCapital - a.excessCapital)];
+  // Default sort: highest clearance priority first (dead capital-years desc).
+  const resultRows = [...allRows].sort((a, b) => b.deadCapitalYears - a.deadCapitalYears);
 
-  const totalCapitalTied = round(resultRows.reduce((s, r) => s + r.capitalTied, 0), 2);
-  const movingRows       = resultRows.filter(r => r.avgDailySales > 0);
-  const avgDos           = movingRows.length > 0
+  const totalCapitalTied  = round(resultRows.reduce((s, r) => s + r.capitalTied, 0), 2);
+  const totalExcessCapital = round(resultRows.reduce((s, r) => s + r.excessCapital, 0), 2);
+  const movingRows        = resultRows.filter(r => r.avgDailySales > 0);
+  const avgDos            = movingRows.length > 0
     ? round(movingRows.reduce((s, r) => s + r.dos, 0) / movingRows.length, 1)
     : 0;
-  const avgTurnRate      = movingRows.length > 0
+  const avgTurnRate       = movingRows.length > 0
     ? round(movingRows.reduce((s, r) => s + r.turnRate, 0) / movingRows.length, 2)
     : 0;
-  // Worst offender = highest excessCapital with meaningful capital tied (>$0)
-  const worstOffender = [...resultRows]
-    .filter(r => r.capitalTied > 0)
-    .sort((a, b) => b.excessCapital - a.excessCapital)[0] ?? resultRows[0] ?? null;
+  // Worst offender = highest dead capital-years (most cash stuck for longest).
+  const worstOffender = resultRows.find(r => r.deadCapitalYears > 0) ?? resultRows[0] ?? null;
 
   return NextResponse.json({
     success: true,
@@ -242,11 +309,13 @@ export async function POST(req: Request) {
       movingProducts:   movingRows.length,
       noMovementCount:  noMovers.length,
       totalCapitalTied,
+      totalExcessCapital,
       totalSales:       round(totalSalesOverPeriod, 0),
       avgDos,
       avgTurnRate,
-      worstName:        worstOffender?.name ?? '',
+      worstName:          worstOffender?.name ?? '',
       worstExcessCapital: worstOffender?.excessCapital ?? 0,
+      worstDaysToClear:   worstOffender?.daysToClearExcess ?? 0,
     },
   });
 }
