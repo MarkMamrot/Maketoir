@@ -636,11 +636,9 @@ export function StockTurnoverView({ databaseId }: { databaseId: string }) {
                             <td className="px-3 py-1.5 text-gray-500">{r.status}{r.linkedBy === 'sku' && <span className="text-amber-600"> · via SKU</span>}</td>
                             <td className="px-3 py-1.5 text-gray-500 max-w-[160px] truncate">{r.reference}</td>
                             <td className="px-3 py-1.5">
-                              {r.channel === 'history'
-                                ? <span className="text-gray-400" title={r.note}>ref only</span>
-                                : r.counted
-                                  ? <span className="text-emerald-600 font-semibold" title={r.note || 'counted'}>✓</span>
-                                  : <span className="text-orange-500" title={r.note}>✕ {r.note.replace(/^excluded: /, '')}</span>}
+                              {r.counted
+                                ? <span className="text-emerald-600 font-semibold" title={r.note || 'counted'}>✓</span>
+                                : <span className="text-gray-400" title={r.note}>✕ {r.note.replace(/^excluded: /, '').replace(/^counted /, '')}</span>}
                             </td>
                           </tr>
                         ))}
@@ -648,8 +646,9 @@ export function StockTurnoverView({ databaseId }: { databaseId: string }) {
                     </table>
                   </div>
                   <p className="text-[10px] text-gray-400 mt-2 italic">
-                    Counted rows feed the sales cache (POS completed sales + non-draft/cancelled orders, last 365 days).
-                    "Cin7 history" is shown for reference only and is not double-counted. Rows linked "via SKU" had a missing variant link and are recovered by SKU match.
+                    Counted rows feed the sales cache: the complete Cin7 history (all channels), plus live in-app POS
+                    and Sales Orders, over the last 365 days. Cin7-synced POS/orders show as counted via history so
+                    they are never double-counted. Rows linked "via SKU" had a missing variant link recovered by SKU match.
                   </p>
                 </>
               )}

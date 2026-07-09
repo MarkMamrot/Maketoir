@@ -79,10 +79,10 @@ export async function POST(req: Request) {
     // 3. Sales-order lines (wholesale + online).
     const soRows = await imsQuery<{
       order_date: string | null; qty_ordered: number; qty_fulfilled: number; status: string;
-      so_type: string; is_historical: number; so_number: string | null; own_variant: string | null;
+      so_type: string; is_historical: number; so_number: string | null; cin7_order_id: string | null; own_variant: string | null;
     }>(
       `SELECT so.order_date, soi.qty_ordered, soi.qty_fulfilled, so.status, so.so_type,
-              so.is_historical, so.so_number, soi.variant_id AS own_variant
+              so.is_historical, so.so_number, so.cin7_order_id, soi.variant_id AS own_variant
          FROM ims_sales_order_items soi
          JOIN ims_sales_orders so ON so.id = soi.so_id
         WHERE soi.variant_id = ?
@@ -113,11 +113,15 @@ export async function POST(req: Request) {
     );
 
     // ── Shape rows + compute the counted flag to match cacheHelper logic ──
+    // The cache counts: complete Cin7 history (all channels), plus LIVE POS (is_historical=0) and
+    // LIVE sales orders (cin7_order_id IS NULL). Cin7-synced POS/SO rows are counted via history, so
+    // here they are shown as excluded ("via history") to avoid implying a double count.
     const rows: SaleRow[] = [];
 
     for (const r of posRows) {
       const linkedBy: SaleRow['linkedBy'] = r.own_variant ? 'variant_id' : 'sku';
-      const counted = r.status === 'completed' && r.sale_type === 'sale' && within365(r.completed_at);
+      const isLive  = Number(r.is_historical) === 0;
+      const counted = isLive && r.status === 'completed' && r.sale_type === 'sale' && within365(r.completed_at);
       rows.push({
         channel: 'pos',
         date: r.completed_at ? String(r.completed_at).slice(0, 10) : null,
@@ -126,16 +130,17 @@ export async function POST(req: Request) {
         reference: r.ref || r.location || 'POS',
         linkedBy,
         counted,
-        note: !counted
-          ? (r.sale_type !== 'sale' ? 'excluded: not a sale' : r.status !== 'completed' ? `excluded: status ${r.status}` : 'excluded: older than 365d')
-          : (linkedBy === 'sku' ? 'counted via SKU fallback' : ''),
+        note: counted
+          ? (linkedBy === 'sku' ? 'counted via SKU fallback' : '')
+          : (r.is_historical ? 'counted via Cin7 history' : r.sale_type !== 'sale' ? 'excluded: not a sale' : r.status !== 'completed' ? `excluded: status ${r.status}` : 'excluded: older than 365d'),
       });
     }
 
     for (const r of soRows) {
       const linkedBy: SaleRow['linkedBy'] = r.own_variant ? 'variant_id' : 'sku';
       const isSale = !['draft', 'cancelled'].includes((r.status || '').toLowerCase());
-      const counted = isSale && within365(r.order_date);
+      const isLive = r.cin7_order_id == null;
+      const counted = isLive && isSale && within365(r.order_date);
       rows.push({
         channel: r.so_type === 'online' ? 'online' : 'wholesale',
         date: r.order_date ? String(r.order_date).slice(0, 10) : null,
@@ -144,14 +149,15 @@ export async function POST(req: Request) {
         reference: r.so_number || '—',
         linkedBy,
         counted,
-        note: !counted
-          ? (!isSale ? `excluded: status ${r.status}` : 'excluded: older than 365d')
-          : (linkedBy === 'sku' ? 'counted via SKU fallback' : ''),
+        note: counted
+          ? (linkedBy === 'sku' ? 'counted via SKU fallback' : '')
+          : (!isLive ? 'counted via Cin7 history' : !isSale ? `excluded: status ${r.status}` : 'excluded: older than 365d'),
       });
     }
 
     for (const r of histRows) {
       const linkedBy: SaleRow['linkedBy'] = r.own_variant ? 'variant_id' : (sku ? 'sku' : 'cin7_option_id');
+      const counted = within365(r.invoice_date);
       rows.push({
         channel: 'history',
         date: r.invoice_date ? String(r.invoice_date).slice(0, 10) : null,
@@ -159,8 +165,8 @@ export async function POST(req: Request) {
         status: `${r.stage || r.source || 'Cin7'}`,
         reference: r.reference || '—',
         linkedBy,
-        counted: false, // ims_sales_history is reference-only; the cache reads POS + SO
-        note: 'reference only (not a cache source)',
+        counted,
+        note: counted ? 'counted (Cin7 history)' : 'excluded: older than 365d',
       });
     }
 
@@ -171,7 +177,7 @@ export async function POST(req: Request) {
     const wholesaleTotal = sum(r => r.channel === 'wholesale');
     const onlineTotal    = sum(r => r.channel === 'online');
     const historyTotal   = sum(r => r.channel === 'history');
-    const uncounted      = sum(r => !r.counted && r.channel !== 'history');
+    const uncounted      = sum(r => !r.counted);
 
     return NextResponse.json({
       success: true,
