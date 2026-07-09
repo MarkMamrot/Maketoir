@@ -20,7 +20,9 @@ export async function refreshVariantCache(variantIds?: string[]): Promise<number
   // Canonical sales source: POS (pos_sale_items) + Sales Orders (ims_sales_order_items),
   // covering retail, wholesale/B2B and online in one place. `ims_sales_history` is deliberately
   // NOT read here: every Cin7-synced order is also written to pos_sales / ims_sales_orders, so
-  // combining the two would double-count. All three item tables key on the IMS variant_id (VARCHAR).
+  // combining the two would double-count. All three item tables key on the IMS variant_id (VARCHAR),
+  // but historical lines can have a NULL variant_id when the SKU didn't resolve at sync time — so we
+  // fall back to matching on the line's SKU (`code`) to avoid dropping those sales.
   const salesQuery = `
       SELECT
         variant_id,
@@ -29,30 +31,32 @@ export async function refreshVariantCache(variantIds?: string[]): Promise<number
         SUM(CASE WHEN sale_date >= DATE_SUB(CURDATE(), INTERVAL 180 DAY) THEN qty ELSE 0 END) AS sales_qty_180d,
         SUM(qty) AS sales_qty_12m
        FROM (
-         -- Sales Orders: wholesale/B2B + online. Count every order that isn't a draft or cancelled.
-         -- An online order is a sale at the point of order, so use qty_ordered; wholesale counts
-         -- qty_fulfilled (what actually shipped).
-         SELECT soi.variant_id,
+         -- Sales Orders: wholesale/B2B + online. Count every order that isn't a draft or cancelled,
+         -- using the ordered quantity (the customer's purchase) so confirmed/unfulfilled and
+         -- historical orders with qty_fulfilled = 0 are still counted.
+         SELECT COALESCE(soi.variant_id, vsku.variant_id) AS variant_id,
                 so.order_date AS sale_date,
-                CASE WHEN so.so_type = 'online' THEN soi.qty_ordered ELSE soi.qty_fulfilled END AS qty
+                soi.qty_ordered AS qty
          FROM   ims_sales_order_items soi
          JOIN   ims_sales_orders      so ON so.id = soi.so_id
+         LEFT JOIN ims_product_variants vsku
+                ON soi.variant_id IS NULL AND vsku.sku = soi.code
          WHERE  so.status NOT IN ('draft', 'cancelled')
            AND  so.order_date >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
-           AND  soi.variant_id IS NOT NULL
 
          UNION ALL
 
-         -- POS retail sales (live + historical). pos_sale_items.variant_id is the IMS variant_id.
-         SELECT psi.variant_id,
+         -- POS retail sales (live + historical). variant_id is the IMS variant_id; fall back to SKU.
+         SELECT COALESCE(psi.variant_id, vsku.variant_id) AS variant_id,
                 DATE(ps.completed_at) AS sale_date,
                 psi.qty AS qty
          FROM   pos_sale_items psi
          JOIN   pos_sales      ps ON ps.id = psi.sale_id
+         LEFT JOIN ims_product_variants vsku
+                ON psi.variant_id IS NULL AND vsku.sku = psi.code
          WHERE  ps.status    = 'completed'
            AND  ps.sale_type = 'sale'
            AND  ps.completed_at >= DATE_SUB(NOW(), INTERVAL 365 DAY)
-           AND  psi.variant_id IS NOT NULL
        ) all_sales
        WHERE variant_id IS NOT NULL${salesFilter}
        GROUP BY variant_id`;

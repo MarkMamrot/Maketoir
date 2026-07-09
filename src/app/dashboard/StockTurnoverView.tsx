@@ -55,6 +55,26 @@ interface TurnoverResponse {
 
 type SortField = 'deadCapitalYears' | 'excessCapital' | 'excessStock' | 'daysToClearExcess' | 'capitalTied' | 'dos' | 'turnRate' | 'capitalEff' | 'soh' | 'salesQty' | 'name';
 
+interface SalesDetailRow {
+  channel:   'pos' | 'wholesale' | 'online' | 'history';
+  date:      string | null;
+  qty:       number;
+  status:    string;
+  reference: string;
+  linkedBy:  'variant_id' | 'sku' | 'cin7_option_id';
+  counted:   boolean;
+  note:      string;
+}
+
+interface SalesDetailResponse {
+  success: boolean;
+  error?:  string;
+  variant?: { variantId: string; sku: string | null; cin7OptionId: number | null; name: string };
+  cache?:  { sales_qty_7d: number; sales_qty_90d: number; sales_qty_180d: number; sales_qty_12m: number; updated_at: string | null } | null;
+  rows?:   SalesDetailRow[];
+  totals?: { counted: number; uncounted: number; pos: number; wholesale: number; online: number; history: number };
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 // Clearance-priority rating buckets (worst → best).
@@ -70,6 +90,17 @@ const RATING_COLORS: Record<string, string> = {
 
 const RATING_LABELS: Record<string, string> = {
   critical: 'Critical', high: 'High', moderate: 'Moderate', low: 'Low', healthy: 'Healthy',
+};
+
+const CHANNEL_COLORS: Record<string, string> = {
+  pos:       'bg-purple-100 text-purple-800',
+  wholesale: 'bg-blue-100 text-blue-800',
+  online:    'bg-teal-100 text-teal-800',
+  history:   'bg-gray-100 text-gray-500',
+};
+
+const CHANNEL_LABELS: Record<string, string> = {
+  pos: 'POS', wholesale: 'Wholesale', online: 'Online', history: 'Cin7 hist',
 };
 
 function fmt$(v: number): string {
@@ -128,6 +159,32 @@ export function StockTurnoverView({ databaseId }: { databaseId: string }) {
   const [ratingFilter, setRatingFilter]     = useState('');
   const [hideNoMovement, setHideNoMovement] = useState(false);
   const [hideZeroSoh, setHideZeroSoh]       = useState(true);
+
+  // ── Sales drill-down modal ──
+  const [detailRow, setDetailRow]       = useState<TurnoverRow | null>(null);
+  const [detailData, setDetailData]     = useState<SalesDetailResponse | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError]   = useState('');
+
+  const openSalesDetail = useCallback(async (row: TurnoverRow) => {
+    setDetailRow(row);
+    setDetailData(null);
+    setDetailError('');
+    setDetailLoading(true);
+    try {
+      const res = await fetch('/api/inventory/stock-turnover/sales-detail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId, variantId: row.optionId }),
+      });
+      const data = await res.json() as SalesDetailResponse;
+      if (!data.success) throw new Error(data.error ?? 'Failed to load sales detail.');
+      setDetailData(data);
+    } catch (e: any) {
+      setDetailError(e.message ?? 'Failed to load sales detail.');
+    }
+    setDetailLoading(false);
+  }, [databaseId]);
 
   const currentOptions = filterType === 'brand'
     ? brandOptions.map(v => ({ value: v, label: v }))
@@ -431,7 +488,15 @@ export function StockTurnoverView({ databaseId }: { databaseId: string }) {
                   </td>
                   <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.brand || '—'}</td>
                   <td className="px-3 py-2 text-gray-600 max-w-[140px] truncate">{row.supplierName}</td>
-                  <td className="px-3 py-2 text-right text-gray-700">{row.soh.toLocaleString()}</td>
+                  <td className="px-3 py-2 text-right">
+                    <button
+                      onClick={() => openSalesDetail(row)}
+                      title="Show all sales records for this variant"
+                      className="text-blue-600 hover:text-blue-800 hover:underline font-medium tabular-nums cursor-pointer"
+                    >
+                      {row.soh.toLocaleString()}
+                    </button>
+                  </td>
                   <td className="px-3 py-2 text-right text-gray-700">{row.salesQty.toLocaleString()}</td>
                   <td className="px-3 py-2 text-right font-semibold text-gray-800">
                     {row.capitalTied > 0 ? fmt$(row.capitalTied) : <span className="text-gray-400">—</span>}
@@ -489,6 +554,106 @@ export function StockTurnoverView({ databaseId }: { databaseId: string }) {
           <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Priority Rating</p>
             <p className="text-sm text-gray-700">Critical → Healthy, weighing both how much cash is locked and how long it stays stuck. Cheap or fast-clearing excess is never flagged urgent; no-sales stock with SOH is always Critical.</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Sales drill-down modal ── */}
+      {detailRow && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 overflow-y-auto"
+          onClick={() => setDetailRow(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl my-8" onClick={e => e.stopPropagation()}>
+            {/* header */}
+            <div className="flex items-start justify-between px-5 py-4 border-b border-gray-200">
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-gray-900 truncate">{detailRow.name}</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  <span className="font-mono">{detailRow.code || '—'}</span>
+                  {detailData?.variant?.cin7OptionId != null && <span> · Cin7 opt {detailData.variant.cin7OptionId}</span>}
+                  {' · '}All sales records across channels
+                </p>
+              </div>
+              <button onClick={() => setDetailRow(null)} className="text-gray-400 hover:text-gray-700 text-xl leading-none ml-3">×</button>
+            </div>
+
+            <div className="px-5 py-4">
+              {detailLoading && <div className="text-center py-10 text-gray-400 text-sm">Loading sales records…</div>}
+              {detailError && <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3">{detailError}</div>}
+
+              {detailData && !detailLoading && (
+                <>
+                  {/* reconciliation summary */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+                    {([
+                      ['POS', detailData.totals?.pos ?? 0, 'text-purple-700 bg-purple-50 border-purple-100'],
+                      ['Wholesale', detailData.totals?.wholesale ?? 0, 'text-blue-700 bg-blue-50 border-blue-100'],
+                      ['Online', detailData.totals?.online ?? 0, 'text-teal-700 bg-teal-50 border-teal-100'],
+                      ['Cin7 history', detailData.totals?.history ?? 0, 'text-gray-600 bg-gray-50 border-gray-200'],
+                    ] as const).map(([label, val, cls]) => (
+                      <div key={label} className={`rounded-lg border px-3 py-2 ${cls}`}>
+                        <p className="text-[10px] font-semibold uppercase tracking-wide opacity-70">{label}</p>
+                        <p className="text-lg font-bold tabular-nums">{val.toLocaleString()}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-gray-600 mb-3">
+                    <span><strong className="text-emerald-700">{(detailData.totals?.counted ?? 0).toLocaleString()}</strong> counted (last 365d, all channels)</span>
+                    {(detailData.totals?.uncounted ?? 0) > 0 && (
+                      <span><strong className="text-orange-600">{(detailData.totals?.uncounted ?? 0).toLocaleString()}</strong> not counted (excluded rows)</span>
+                    )}
+                    {detailData.cache && (
+                      <span className="text-gray-400">Cache 12m: <strong className="text-gray-600">{Number(detailData.cache.sales_qty_12m).toLocaleString()}</strong></span>
+                    )}
+                  </div>
+
+                  {/* rows table */}
+                  <div className="overflow-x-auto rounded-lg border border-gray-200 max-h-[50vh] overflow-y-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead className="bg-gray-50 text-gray-600 sticky top-0">
+                        <tr>
+                          <th className="text-left font-semibold px-3 py-2 border-b border-gray-200">Channel</th>
+                          <th className="text-left font-semibold px-3 py-2 border-b border-gray-200">Date</th>
+                          <th className="text-right font-semibold px-3 py-2 border-b border-gray-200">Qty</th>
+                          <th className="text-left font-semibold px-3 py-2 border-b border-gray-200">Status</th>
+                          <th className="text-left font-semibold px-3 py-2 border-b border-gray-200">Reference</th>
+                          <th className="text-left font-semibold px-3 py-2 border-b border-gray-200">Counted</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(detailData.rows ?? []).length === 0 && (
+                          <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-400">No sales records found for this variant.</td></tr>
+                        )}
+                        {(detailData.rows ?? []).map((r, i) => (
+                          <tr key={i} className={`border-b border-gray-100 ${!r.counted && r.channel !== 'history' ? 'bg-orange-50/40' : ''}`}>
+                            <td className="px-3 py-1.5">
+                              <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${CHANNEL_COLORS[r.channel]}`}>
+                                {CHANNEL_LABELS[r.channel]}
+                              </span>
+                            </td>
+                            <td className="px-3 py-1.5 text-gray-600 whitespace-nowrap">{r.date ?? '—'}</td>
+                            <td className="px-3 py-1.5 text-right tabular-nums font-medium text-gray-800">{r.qty.toLocaleString()}</td>
+                            <td className="px-3 py-1.5 text-gray-500">{r.status}{r.linkedBy === 'sku' && <span className="text-amber-600"> · via SKU</span>}</td>
+                            <td className="px-3 py-1.5 text-gray-500 max-w-[160px] truncate">{r.reference}</td>
+                            <td className="px-3 py-1.5">
+                              {r.channel === 'history'
+                                ? <span className="text-gray-400" title={r.note}>ref only</span>
+                                : r.counted
+                                  ? <span className="text-emerald-600 font-semibold" title={r.note || 'counted'}>✓</span>
+                                  : <span className="text-orange-500" title={r.note}>✕ {r.note.replace(/^excluded: /, '')}</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-2 italic">
+                    Counted rows feed the sales cache (POS completed sales + non-draft/cancelled orders, last 365 days).
+                    "Cin7 history" is shown for reference only and is not double-counted. Rows linked "via SKU" had a missing variant link and are recovered by SKU match.
+                  </p>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
