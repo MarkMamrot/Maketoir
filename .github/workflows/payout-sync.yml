@@ -12,7 +12,7 @@ jobs:
     steps:
       - name: Post confirmed Shopify Payments payouts to Xero
         run: |
-          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+          RESPONSE=$(curl -s -L -o /dev/null -w "%{http_code}" \
             -X POST \
             -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \

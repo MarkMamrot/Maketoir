@@ -682,14 +682,21 @@ export const ImsStockRepo = {
   },
 
   async upsert(variantId: string, locationId: number, data: Partial<ImsStock>): Promise<void> {
-    const sets: string[] = ['min_qty = VALUES(min_qty)', 'reorder_qty = VALUES(reorder_qty)'];
-    if (data.zone !== undefined) sets.push('zone = VALUES(zone)');
-    if (data.bin  !== undefined) sets.push('bin = VALUES(bin)');
+    // Build the ON DUPLICATE KEY UPDATE clause from only the fields that were explicitly passed,
+    // so a zone/bin-only call never overwrites existing min_qty / reorder_qty values.
+    const onUpdate: string[] = [];
+    const insertCols: string[] = ['variant_id', 'location_id', 'min_qty', 'reorder_qty'];
+    const insertVals: any[]   = [variantId, locationId, data.min_qty ?? 0, data.reorder_qty ?? 0];
+    if (data.min_qty     !== undefined) onUpdate.push('min_qty = VALUES(min_qty)');
+    if (data.reorder_qty !== undefined) onUpdate.push('reorder_qty = VALUES(reorder_qty)');
+    if (data.zone        !== undefined) { onUpdate.push('zone = VALUES(zone)'); insertCols.push('zone'); insertVals.push(data.zone); }
+    if (data.bin         !== undefined) { onUpdate.push('bin = VALUES(bin)');   insertCols.push('bin');  insertVals.push(data.bin);  }
+    if (onUpdate.length === 0) return; // nothing to do
+    const ph = insertCols.map(() => '?').join(', ');
     await imsExecute(
-      `INSERT INTO ims_stock (variant_id, location_id, min_qty, reorder_qty, zone, bin)
-       VALUES (?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE ${sets.join(', ')}`,
-      [variantId, locationId, data.min_qty ?? 0, data.reorder_qty ?? 0, data.zone ?? null, data.bin ?? null],
+      `INSERT INTO ims_stock (${insertCols.join(', ')}) VALUES (${ph})
+       ON DUPLICATE KEY UPDATE ${onUpdate.join(', ')}`,
+      insertVals,
     );
   },
 

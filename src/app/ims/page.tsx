@@ -14985,7 +14985,7 @@ function SyncZoneBinUtility() {
   const [applying,  setApplying]    = useState(false);
   const [diffs, setDiffs]           = useState<ZoneBinDiff[] | null>(null);
   const [localDiffs, setLocalDiffs] = useState<ZoneBinDiff[]>([]);
-  const [result, setResult]         = useState<{ updatedProducts: number; updatedVariants: number } | null>(null);
+  const [result, setResult]         = useState<{ updatedProducts: number; updatedVariants: number; updatedStockRows: number } | null>(null);
   const [error, setError]           = useState('');
 
   useEffect(() => {
@@ -15023,7 +15023,8 @@ function SyncZoneBinUtility() {
       const res = await fetch('/api/ims/utilities/sync-zone-bin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ diffs: localDiffs }),
+        // Pass location_id so stock rows for the chosen location are also upserted
+        body: JSON.stringify({ diffs: localDiffs, location_id: locationId || null }),
       });
       const d = await res.json();
       if (!d.success) throw new Error(d.error ?? 'Failed to apply');
@@ -15099,7 +15100,8 @@ function SyncZoneBinUtility() {
       {/* Success result */}
       {result && (
         <div style={{ margin: '14px 18px', padding: '12px 16px', background: 'color-mix(in srgb, var(--sv-mint) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sv-mint) 30%, transparent)', borderRadius: 8, fontSize: 13, color: 'var(--sv-mint)', fontWeight: 600 }}>
-          ✓ Done — {result.updatedVariants} variant{result.updatedVariants !== 1 ? 's' : ''} and {result.updatedProducts} product{result.updatedProducts !== 1 ? 's' : ''} updated.
+          ✓ Done — {result.updatedVariants} variant{result.updatedVariants !== 1 ? 's' : ''} and {result.updatedProducts} product{result.updatedProducts !== 1 ? 's' : ''} updated
+          {result.updatedStockRows > 0 && <>, {result.updatedStockRows} stock row{result.updatedStockRows !== 1 ? 's' : ''} updated at chosen location</>}.
         </div>
       )}
 

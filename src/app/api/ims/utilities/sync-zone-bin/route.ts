@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
+import { ImsStockRepo } from '@/lib/ims/ImsRepository';
 
 // ── Sync Zone/Bin between product-level and variant-level ──────────────────
 //
@@ -126,7 +127,8 @@ export async function GET(req: Request) {
       conflicts:     diffs.filter(d => d.zone_status === 'conflict' || d.bin_status === 'conflict').length,
     };
 
-    return NextResponse.json({ success: true, diffs, summary });
+    // Pass location_id so the POST can write to ims_stock rows too
+  return NextResponse.json({ success: true, diffs, summary, location_id: locationId });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
@@ -137,11 +139,19 @@ export async function POST(req: Request) {
   if (!getSession()) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
 
   try {
-    const body: { diffs: SyncZoneBinDiff[] } = await req.json();
-    const diffs = body.diffs ?? [];
+    const body: { diffs: SyncZoneBinDiff[]; location_id: number } = await req.json();
+    const diffs      = body.diffs ?? [];
+    const locationId = body.location_id ? Number(body.location_id) : null;
 
     let updatedProducts = 0;
     let updatedVariants = 0;
+    let updatedStockRows = 0;
+
+    // Ensure ims_stock has zone/bin columns (idempotent migration)
+    try {
+      await imsExecute('ALTER TABLE ims_stock ADD COLUMN IF NOT EXISTS zone VARCHAR(50) NULL', []);
+      await imsExecute('ALTER TABLE ims_stock ADD COLUMN IF NOT EXISTS bin  VARCHAR(50) NULL', []);
+    } catch { /* old MySQL without IF NOT EXISTS — ignore */ }
 
     // Group by product_id to batch product-level writes
     const byProduct = new Map<string, { zone: string | null; bin: string | null }>();
@@ -161,6 +171,14 @@ export async function POST(req: Request) {
           [finalZone, finalBin, d.variant_id],
         );
         updatedVariants++;
+      }
+
+      // Also upsert the ims_stock row for the chosen location so the stock panel reflects the
+      // new zone/bin. Creates a 0-qty row if no stock record exists yet (safe — DEFAULT values
+      // are all 0 and the min_qty/reorder_qty on existing rows are never overwritten).
+      if (locationId && (finalZone !== null || finalBin !== null)) {
+        await ImsStockRepo.upsert(d.variant_id, locationId, { zone: finalZone, bin: finalBin });
+        updatedStockRows++;
       }
 
       // Accumulate the "desired" product-level zone/bin.
@@ -189,7 +207,7 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, updatedProducts, updatedVariants });
+    return NextResponse.json({ success: true, updatedProducts, updatedVariants, updatedStockRows });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
