@@ -17,6 +17,12 @@ html[data-skin='dark'] {
   --sv-bg-1: #0f172a;
   --sv-bg-2: #1e293b;
 
+  /* Aliases used in some components — map to canonical vars */
+  --sv-accent:    #2563eb;          /* = --sv-action */
+  --sv-bg-subtle: #1e293b;          /* = --sv-bg-2 */
+  --sv-bg-card:   #0f172a;          /* = --sv-bg-1 */
+  --sv-border:    rgba(226,232,240,0.12); /* = --sv-etch */
+
   --sv-action: #2563eb;
   --sv-action-hover: #1d4ed8;
   --sv-action-bg: #2563eb;
@@ -70,6 +76,12 @@ html[data-skin='default'] {
   --sv-bg-0: #f8fafc;
   --sv-bg-1: #ffffff;
   --sv-bg-2: #f1f5f9;
+
+  /* Aliases used in some components — map to canonical vars */
+  --sv-accent:    #1ea8c2;          /* = --sv-action */
+  --sv-bg-subtle: #f1f5f9;          /* = --sv-bg-2 */
+  --sv-bg-card:   #ffffff;          /* = --sv-bg-1 */
+  --sv-border:    #e2e8f0;          /* = --sv-etch */
 
   --sv-action: #1ea8c2;
   --sv-action-hover: #1790a8;

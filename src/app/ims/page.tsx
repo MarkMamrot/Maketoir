@@ -73,7 +73,10 @@ const fmtFx = (n: number | null | undefined, currency?: string) => {
 const fmtQty = (n: number | null | undefined) =>
   n == null ? '—' : Number(n).toLocaleString('en-AU', { maximumFractionDigits: 4 });
 
-const today = () => new Date().toISOString().slice(0, 10);
+// Returns today's calendar date as YYYY-MM-DD in the business timezone.
+// Using 'sv-SE' locale gives the ISO YYYY-MM-DD format; explicit TZ prevents
+// the UTC off-by-one error that affects Australian evenings (UTC+10/+11).
+const today = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Australia/Sydney' });
 
 const PAYMENT_TERMS = ['', '10 Days', '15 Days', '30 Days', '60 Days', '90 Days', 'COD'];
 const PO_CURRENCIES = ['AUD', 'USD', 'EUR', 'GBP', 'THB', 'CNY', 'JPY', 'INR', 'CAD', 'NZD'];
@@ -3258,7 +3261,9 @@ function StockView() {
   const filtered = stock.filter((s: any) => {
     if (filterBrand && !(s.brand || '').toLowerCase().includes(filterBrand.toLowerCase())) return false;
     if (filterSupplier && !(s.supplier_name || '').toLowerCase().includes(filterSupplier.toLowerCase())) return false;
-    if (showLowOnly && !(Number(s.qty_on_hand) <= Number(s.min_qty) && Number(s.min_qty) > 0)) return false;
+    // Show items where available qty has hit the min_qty trigger.
+    // min_qty = 0 is valid — it means "replenish when out of stock" (SOH ≤ 0).
+    if (showLowOnly && !(Number(s.qty_on_hand) <= Number(s.min_qty))) return false;
     if (filter) {
       const q = filter.toLowerCase();
       if (!(s.sku || '').toLowerCase().includes(q) &&
@@ -3396,7 +3401,8 @@ function StockView() {
               </thead>
               <tbody>
                 {visible.map((s: any, i: number) => {
-                  const low = Number(s.qty_on_hand) <= Number(s.min_qty) && Number(s.min_qty) > 0;
+                  // min_qty = 0 means "flag when out of stock" — do not suppress with > 0 guard.
+                  const low = Number(s.qty_on_hand) <= Number(s.min_qty);
                   return (
                     <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}>
                       <td style={{ padding: '10px 12px', fontSize: 13 }}><code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{s.sku || '—'}</code></td>

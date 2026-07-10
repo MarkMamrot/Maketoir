@@ -91,8 +91,10 @@ export async function GET(req: Request) {
     [locationId],
   );
 
-  // Today as YYYY-MM-DD (server date) for discount range check
-  const today = new Date().toISOString().slice(0, 10);
+  // Today in the business timezone (discount_start/end dates are plain DATE fields,
+  // so we must compare against the local calendar date, not the UTC date).
+  const tz    = process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney';
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: tz }); // YYYY-MM-DD
 
   // Build display name: product name + option values
   const products = rows.map((r) => {

@@ -2578,6 +2578,7 @@ export const ImsBTRepo = {
     const items = await imsQuery<ImsBTItem>(
       `SELECT bti.*,
               v.sku, v.barcode, v.price_rrp,
+              v.price_rrp_sale, v.discount_start_date, v.discount_end_date,
               p.name AS product_name,
               p.brand,
               p.zone,

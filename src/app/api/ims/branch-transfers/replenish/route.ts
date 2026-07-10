@@ -53,7 +53,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'No valid branch IDs (warehouse excluded).' }, { status: 400 });
   }
 
-  // ── 1. Fetch all stock for branches where SOH < min_qty and min_qty > 0 ──
+  // ── 1. Fetch all stock for branches where available qty triggers replenishment ──
+  // When min_qty = 0 the trigger fires when SOH drops to 0 (i.e. out of stock),
+  // which is a valid replenishment scenario — do NOT filter out min_qty = 0 rows.
   const branchPlaceholders = filteredBranchIds.map(() => '?').join(',');
   const branchNeedsRaw = await imsQuery<{
     variant_id: string;
@@ -91,8 +93,9 @@ export async function POST(req: Request) {
      JOIN ims_product_variants v ON v.variant_id = s.variant_id AND v.is_active = 1
      JOIN ims_products p ON p.product_id = v.product_id AND p.is_active = 1
      WHERE s.location_id IN (${branchPlaceholders})
-       AND (s.qty_on_hand - COALESCE(s.qty_committed,0)) ${trigger === 'at_or_below' ? '<=' : '<'} s.min_qty
-       AND s.min_qty > 0`,
+       AND (s.qty_on_hand - COALESCE(s.qty_committed,0)) ${trigger === 'at_or_below' ? '<=' : '<'} s.min_qty`,
+  // NOTE: min_qty = 0 rows where SOH > 0 are correctly excluded by the comparison above
+  // (positive SOH is never < 0). Only truly out-of-stock (SOH ≤ 0) items trigger when min = 0.
     filteredBranchIds
   );
 

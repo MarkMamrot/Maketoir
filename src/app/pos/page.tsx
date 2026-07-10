@@ -17,6 +17,27 @@ import {
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
 function fmt(n: number) { return n.toFixed(2); }
+
+/** Error beep — short descending two-tone burst (same pattern as Receive Transfer). */
+function playErrorBeep() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    // First tone: sharp high note
+    const osc1 = ctx.createOscillator(); const g1 = ctx.createGain();
+    osc1.connect(g1); g1.connect(ctx.destination);
+    osc1.type = 'square'; osc1.frequency.value = 880;
+    g1.gain.setValueAtTime(0.25, ctx.currentTime);
+    g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+    osc1.start(ctx.currentTime); osc1.stop(ctx.currentTime + 0.18);
+    // Second tone: lower note
+    const osc2 = ctx.createOscillator(); const g2 = ctx.createGain();
+    osc2.connect(g2); g2.connect(ctx.destination);
+    osc2.type = 'square'; osc2.frequency.value = 440;
+    g2.gain.setValueAtTime(0.25, ctx.currentTime + 0.2);
+    g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+    osc2.start(ctx.currentTime + 0.2); osc2.stop(ctx.currentTime + 0.45);
+  } catch { /* AudioContext unavailable — silent fail */ }
+}
 /** Australian cash rounding — round to nearest 5 cents using integer arithmetic to avoid FP drift */
 function roundCash(amount: number): number {
   return Math.round(Math.round(amount * 100) / 5) * 5 / 100;
@@ -182,7 +203,9 @@ function RegisterGate({ session, deviceConfig, staleSession, onContinue, onGoToE
     : 'unknown time';
   const openedDate = staleSession?.session_date ?? '';
   // Today in the business timezone (session_date is stored as a local date string).
-  const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+  // Today in the business timezone — session_date is stored as a local date string;
+  // using an explicit TZ prevents UTC off-by-one errors during Australian evenings.
+  const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Australia/Sydney' }); // YYYY-MM-DD
   const isPriorDay = !!openedDate && String(openedDate).slice(0, 10) !== todayStr;
 
   return (
@@ -3025,6 +3048,8 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
   modeRef.current = mode;
   const [scanInput,  setScanInput]  = useState('');
   const [scanError,  setScanError]  = useState(false);
+  const [scanNotFound, setScanNotFound] = useState<string | null>(null); // barcode/SKU that wasn't found
+  const scanNotFoundTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const barcodeBuffer = useRef('');
   const barcodeTimer  = useRef<NodeJS.Timeout>();
   const blurTimer     = useRef<NodeJS.Timeout>();
@@ -3162,6 +3187,7 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
             (p.code    != null && p.code.toLowerCase()    === codeLower)
           );
           if (found) handleAdd(found);
+          else triggerScanNotFound(code);
           barcodeBuffer.current = '';
           clearTimeout(barcodeTimer.current);
           return;
@@ -3197,6 +3223,18 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
     return () => window.removeEventListener('keydown', onKey);
   }, [products, handleAdd]);
 
+  // Shared handler for both scan paths — plays error beep and shows a timed toast.
+  function triggerScanNotFound(code: string) {
+    playErrorBeep();
+    setScanError(true);
+    setScanNotFound(code);
+    if (scanNotFoundTimer.current) clearTimeout(scanNotFoundTimer.current);
+    scanNotFoundTimer.current = setTimeout(() => {
+      setScanError(false);
+      setScanNotFound(null);
+    }, 3000);
+  }
+
   // Scan-bar barcode handler: on Enter, find product and add to cart
   function handleScanKey(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key !== 'Enter') return;
@@ -3212,8 +3250,7 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
     if (found) {
       handleAdd(found);
     } else {
-      setScanError(true);
-      setTimeout(() => setScanError(false), 1200);
+      triggerScanNotFound(val);
     }
     scanRef.current?.focus();
   }
@@ -3259,7 +3296,12 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
                     <div style={{ fontSize: '.85rem', fontWeight: 600, color: 'var(--sv-text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
                     <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[p.brand, p.code].filter(Boolean).join(' · ')}</div>
                   </div>
-                  <span style={{ fontWeight: 700, color: 'var(--sv-action)', fontSize: '.85rem', flexShrink: 0 }}>${fmt(p.price)}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1, flexShrink: 0 }}>
+                    {p.original_price != null && (
+                      <span style={{ fontSize: '.68rem', color: 'var(--sv-text-dim)', textDecoration: 'line-through', lineHeight: 1, marginBottom: '1px' }}>${fmt(p.original_price)}</span>
+                    )}
+                    <span style={{ fontWeight: 700, color: p.original_price != null ? '#fb923c' : 'var(--sv-action)', fontSize: '.85rem' }}>${fmt(p.price)}</span>
+                  </div>
                   <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '2px 6px', borderRadius: 5, background: (p.available ?? p.soh) > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: (p.available ?? p.soh) > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', flexShrink: 0, border: 'none', cursor: 'pointer', fontWeight: 700 }} title="Available to sell at this store (SOH minus committed) — click for breakdown">{(p.available ?? p.soh) > 0 ? (p.available ?? p.soh) : 'OOS'}</button>
                   {p.available_all !== undefined && p.available_all !== (p.available ?? p.soh) && (
                     <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '2px 5px', borderRadius: 5, background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', flexShrink: 0, border: '1px solid var(--sv-etch)', cursor: 'pointer' }} title="Available across all locations — click for breakdown">all:{p.available_all}</button>
@@ -3302,6 +3344,30 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
             />
           </div>
         </div>{/* end toolbar row */}
+
+        {/* ── Scan not-found toast ── */}
+        {scanNotFound && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            margin: '0 .75rem .4rem',
+            padding: '.45rem .75rem',
+            background: 'var(--sv-red-tint)',
+            border: '1px solid var(--sv-red-border)',
+            borderRadius: 7,
+            fontSize: '.82rem',
+            color: 'var(--sv-red)',
+            fontWeight: 600,
+            animation: 'fadeIn .15s ease',
+          }}>
+            <span style={{ fontSize: '1rem', lineHeight: 1 }}>⚠️</span>
+            <span>Item not found: <span style={{ fontFamily: 'monospace' }}>{scanNotFound}</span></span>
+            <button
+              onClick={() => { setScanNotFound(null); setScanError(false); if (scanNotFoundTimer.current) clearTimeout(scanNotFoundTimer.current); scanRef.current?.focus(); }}
+              style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--sv-red)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: '0 2px', fontWeight: 700 }}
+              title="Dismiss"
+            >×</button>
+          </div>
+        )}
 
         {/* Search results banner — stays inside the same header bg */}
         {mode === 'search' && (
@@ -3350,7 +3416,12 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
                 <div style={{ flex: 1, minWidth: 0 }}>
               {/* Price row + info icon */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.3rem' }}>
-                <span style={{ fontWeight: 800, color: 'var(--sv-action)', fontSize: '1.05rem' }}>${fmt(p.price)}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1 }}>
+                  {p.original_price != null && (
+                    <span style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', textDecoration: 'line-through', lineHeight: 1, marginBottom: '1px' }}>${fmt(p.original_price)}</span>
+                  )}
+                  <span style={{ fontWeight: 800, color: p.original_price != null ? '#fb923c' : 'var(--sv-action)', fontSize: '1.05rem' }}>${fmt(p.price)}</span>
+                </div>
                 <button
                   onClick={e => { e.stopPropagation(); setStockModal({ variantId: p.variant_id, productName: p.name }); }}
                   style={{ background: 'transparent', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: '0 0 0 4px', flexShrink: 0 }}
@@ -5069,7 +5140,19 @@ function ReceiveBtInline({ bt, onBack, onDone }: { bt: any; onBack: () => void; 
                 {lastScanned.product_name}{lastScanned.variant_label ? ` — ${lastScanned.variant_label}` : ''}
               </div>
               <div style={{ display: 'flex', gap: '1.5rem', fontSize: '.9rem', flexWrap: 'wrap' }}>
-                <span><span style={{ color: 'var(--sv-text-dim)' }}>RRP: </span><strong style={{ color: '#34d399', fontSize: '1rem' }}>{lastScanned.price_rrp ? `$${Number(lastScanned.price_rrp).toFixed(2)}` : '—'}</strong></span>
+                <span><span style={{ color: 'var(--sv-text-dim)' }}>RRP: </span>
+                  {(() => {
+                    const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Australia/Sydney' });
+                    const salePrice = lastScanned.price_rrp_sale ? Number(lastScanned.price_rrp_sale) : null;
+                    const inSale = salePrice && salePrice > 0 && lastScanned.discount_start_date && lastScanned.discount_end_date &&
+                      today >= lastScanned.discount_start_date.slice(0,10) && today <= lastScanned.discount_end_date.slice(0,10);
+                    return inSale ? (
+                      <><span style={{ textDecoration: 'line-through', color: 'var(--sv-text-dim)', marginRight: 4 }}>${Number(lastScanned.price_rrp).toFixed(2)}</span><strong style={{ color: '#fb923c', fontSize: '1rem' }}>${salePrice!.toFixed(2)} SALE</strong></>
+                    ) : (
+                      <strong style={{ color: '#34d399', fontSize: '1rem' }}>{lastScanned.price_rrp ? `$${Number(lastScanned.price_rrp).toFixed(2)}` : '—'}</strong>
+                    );
+                  })()}
+                </span>
                 <span><span style={{ color: 'var(--sv-text-dim)' }}>Sent: </span><strong>{Number(lastScanned.qty_sent)}</strong></span>
                 <span><span style={{ color: 'var(--sv-text-dim)' }}>Received: </span><strong style={{ color: '#34d399' }}>{receiveQtys[lastScanned.id] ?? 0}</strong></span>
                 <span><span style={{ color: 'var(--sv-text-dim)' }}>Awaiting: </span>
@@ -5105,7 +5188,19 @@ function ReceiveBtInline({ bt, onBack, onDone }: { bt: any; onBack: () => void; 
                     <div style={{ fontSize: '.9rem' }}>{item.product_name}</div>
                     {item.variant_label && <div style={{ fontSize: '.78rem', color: 'var(--sv-text-dim)' }}>{item.variant_label}</div>}
                   </td>
-                  <td style={{ padding: '.6rem .9rem', fontSize: '.9rem', color: 'var(--sv-text-dim)' }}>{item.price_rrp ? `$${Number(item.price_rrp).toFixed(2)}` : '—'}</td>
+                  <td style={{ padding: '.6rem .9rem', fontSize: '.9rem' }}>
+                    {(() => {
+                      const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Australia/Sydney' });
+                      const salePrice = item.price_rrp_sale ? Number(item.price_rrp_sale) : null;
+                      const inSale = salePrice && salePrice > 0 && item.discount_start_date && item.discount_end_date &&
+                        today >= item.discount_start_date.slice(0,10) && today <= item.discount_end_date.slice(0,10);
+                      return inSale ? (
+                        <><span style={{ textDecoration: 'line-through', color: 'var(--sv-text-dim)', marginRight: 4, fontSize: '.82rem' }}>${Number(item.price_rrp).toFixed(2)}</span><span style={{ color: '#fb923c', fontWeight: 700 }}>${salePrice!.toFixed(2)}</span></>
+                      ) : (
+                        <span style={{ color: 'var(--sv-text-dim)' }}>{item.price_rrp ? `$${Number(item.price_rrp).toFixed(2)}` : '—'}</span>
+                      );
+                    })()}
+                  </td>
                   <td style={{ padding: '.6rem .9rem', fontSize: '.9rem', color: 'var(--sv-text-dim)' }}>{Number(item.qty_sent)}</td>
                   <td style={{ padding: '.4rem .9rem', width: 100 }}>
                     <input
