@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { ImsProductsRepo, ImsVariantsRepo, ImsBrandsRepo, ImsContactsRepo } from '@/lib/ims/ImsRepository';
+import { ImsProductsRepo, ImsVariantsRepo, ImsBrandsRepo, ImsContactsRepo, ImsStockRepo } from '@/lib/ims/ImsRepository';
+import { imsExecute } from '@/services/IMSMySQLService';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -45,6 +46,7 @@ interface RequestBody {
   rows: BulkImportRow[];
   autoCreateBrands: string[];
   autoCreateSuppliers: string[];
+  copy_zone_bin_location_id?: number | null;
 }
 
 export async function POST(req: Request) {
@@ -57,7 +59,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { rows, autoCreateBrands = [], autoCreateSuppliers = [] } = body;
+  const { rows, autoCreateBrands = [], autoCreateSuppliers = [], copy_zone_bin_location_id } = body;
+
+  // Ensure ims_stock has zone/bin columns (safe to run every time — IF NOT EXISTS is idempotent)
+  try {
+    await imsExecute('ALTER TABLE ims_stock ADD COLUMN IF NOT EXISTS zone VARCHAR(50) NULL', []);
+    await imsExecute('ALTER TABLE ims_stock ADD COLUMN IF NOT EXISTS bin  VARCHAR(50) NULL', []);
+  } catch { /* old MySQL without IF NOT EXISTS — ignore */ }
+
+  const copyLocationId = copy_zone_bin_location_id ? Number(copy_zone_bin_location_id) : null;
 
   // 1. Create missing brands
   for (const brandName of autoCreateBrands) {
@@ -118,7 +128,7 @@ export async function POST(req: Request) {
         }, businessId);
         createdProductIds.set(row.product_name.trim().toLowerCase(), productId);
         // Create variant
-        await ImsVariantsRepo.create({
+        const newVariantId = await ImsVariantsRepo.create({
           variant_id: '',
           product_id: productId,
           sku: row.sku,
@@ -139,6 +149,10 @@ export async function POST(req: Request) {
           cost_foreign: row.cost_foreign,
           is_active: 1,
         }, businessId);
+        // Optionally copy zone/bin to the chosen location's stock row
+        if (copyLocationId && (row.zone || row.bin)) {
+          await ImsStockRepo.upsert(newVariantId, copyLocationId, { zone: row.zone || null, bin: row.bin || null });
+        }
         created++;
 
       } else if (row.action === 'new_variant') {
@@ -158,7 +172,7 @@ export async function POST(req: Request) {
         if (supplierContactId) productUpdates.supplier_contact_id = supplierContactId;
         if (Object.keys(productUpdates).length) await ImsProductsRepo.update(productId, productUpdates);
 
-        await ImsVariantsRepo.create({
+        const newVariantId2 = await ImsVariantsRepo.create({
           variant_id: '',
           product_id: productId,
           sku: row.sku,
@@ -179,6 +193,9 @@ export async function POST(req: Request) {
           cost_foreign: row.cost_foreign,
           is_active: 1,
         }, businessId);
+        if (copyLocationId && (row.zone || row.bin)) {
+          await ImsStockRepo.upsert(newVariantId2, copyLocationId, { zone: row.zone || null, bin: row.bin || null });
+        }
         created++;
 
       } else if (row.action === 'update') {
@@ -203,6 +220,10 @@ export async function POST(req: Request) {
         if (row.cost_foreign !== undefined) variantUpdates.cost_foreign = row.cost_foreign;
         if (Object.keys(variantUpdates).length) {
           await ImsVariantsRepo.update(row.existing_variant_id, variantUpdates);
+        }
+        // Optionally copy zone/bin to the chosen location's stock row
+        if (copyLocationId && (row.zone !== undefined || row.bin !== undefined)) {
+          await ImsStockRepo.upsert(row.existing_variant_id, copyLocationId, { zone: row.zone || null, bin: row.bin || null });
         }
 
         // Update product-level fields if provided

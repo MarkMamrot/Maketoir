@@ -1538,6 +1538,41 @@ function ImportProductsModal({
   const [result, setResult] = useState<{ created: number; updated: number; skipped: number } | null>(null);
   const [importing, setImporting] = useState(false);
 
+  // Zone/bin → location copy option (persisted in localStorage)
+  const ZONE_LOC_KEY = 'ims_import_zone_bin_location';
+  const [locations, setLocations]             = useState<{ id: number; name: string }[]>([]);
+  const [copyZoneBin, setCopyZoneBin]         = useState(false);
+  const [zoneBinLocationId, setZoneBinLocationId] = useState<number | ''>('');
+
+  // Load locations + restore persisted choice
+  useEffect(() => {
+    fetch('/api/ims/locations').then(r => r.json()).then(d => {
+      if (!d.success) return;
+      const locs: { id: number; name: string }[] = d.data ?? [];
+      setLocations(locs);
+      // Restore last choice, or default to first location from online_pick_priority
+      const saved = localStorage.getItem(ZONE_LOC_KEY);
+      if (saved) {
+        const parsed = Number(saved);
+        if (locs.some(l => l.id === parsed)) { setZoneBinLocationId(parsed); return; }
+      }
+      // Fall back to online_pick_priority warehouse (first in list)
+      fetch('/api/ims/settings').then(r => r.json()).then(s => {
+        try {
+          const priority: number[] = JSON.parse(s.data?.online_pick_priority ?? '[]');
+          const defaultLocId = priority[0];
+          if (defaultLocId && locs.some(l => l.id === defaultLocId)) {
+            setZoneBinLocationId(defaultLocId);
+          } else if (locs.length > 0) {
+            setZoneBinLocationId(locs[0].id);
+          }
+        } catch {
+          if (locs.length > 0) setZoneBinLocationId(locs[0].id);
+        }
+      }).catch(() => { if (locs.length > 0) setZoneBinLocationId(locs[0].id); });
+    }).catch(() => {});
+  }, []);
+
   const normStr = (s: string) => (s || '').trim().toLowerCase();
 
   const parseAndClassify = (): ParsedImportRow[] => {
@@ -1752,8 +1787,11 @@ function ImportProductsModal({
           rows: buildApiRows(),
           autoCreateBrands: newBrands,
           autoCreateSuppliers: newSuppliers,
+          copy_zone_bin_location_id: (copyZoneBin && zoneBinLocationId) ? Number(zoneBinLocationId) : null,
         }),
       });
+      // Persist chosen location for next time
+      if (copyZoneBin && zoneBinLocationId) localStorage.setItem(ZONE_LOC_KEY, String(zoneBinLocationId));
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Import failed');
       setResult({ created: data.created, updated: data.updated, skipped: data.skipped });
@@ -1901,17 +1939,41 @@ function ImportProductsModal({
                 </tbody>
               </table>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <button onClick={() => setStage('paste')} style={btnStyle('ghost')}>← Back</button>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={onClose} style={btnStyle('ghost')}>Cancel</button>
-                <button
-                  onClick={handleConfirm}
-                  disabled={parsedRows.filter(r => r.action !== 'error').length === 0}
-                  style={btnStyle('action')}
-                >
-                  Confirm & Import {parsedRows.filter(r => r.action !== 'error').length} row{parsedRows.filter(r => r.action !== 'error').length !== 1 ? 's' : ''}
-                </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
+                {/* Zone/bin → location copy option */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--sv-bg-2)', border: `1px solid ${copyZoneBin ? 'var(--sv-action)' : 'var(--sv-etch)'}`, borderRadius: 8, flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', userSelect: 'none' as const, fontSize: 13 }}>
+                    <input
+                      type="checkbox"
+                      checked={copyZoneBin}
+                      onChange={e => setCopyZoneBin(e.target.checked)}
+                      style={{ accentColor: 'var(--sv-action)' }}
+                    />
+                    <span style={{ fontWeight: 600, color: 'var(--sv-text-main)' }}>Copy Zone &amp; Bin to location:</span>
+                  </label>
+                  <select
+                    value={zoneBinLocationId}
+                    onChange={e => { setZoneBinLocationId(e.target.value ? Number(e.target.value) : ''); setCopyZoneBin(true); }}
+                    disabled={!copyZoneBin}
+                    style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: copyZoneBin ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontSize: 13, opacity: copyZoneBin ? 1 : 0.5 }}
+                  >
+                    <option value="">— choose location —</option>
+                    {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                  </select>
+                  {copyZoneBin && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Zone &amp; Bin will also be saved to the stock row at this location</span>}
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button onClick={onClose} style={btnStyle('ghost')}>Cancel</button>
+                  <button
+                    onClick={handleConfirm}
+                    disabled={parsedRows.filter(r => r.action !== 'error').length === 0}
+                    style={btnStyle('action')}
+                  >
+                    Confirm &amp; Import {parsedRows.filter(r => r.action !== 'error').length} row{parsedRows.filter(r => r.action !== 'error').length !== 1 ? 's' : ''}
+                  </button>
+                </div>
               </div>
             </div>
           </>
@@ -11477,7 +11539,7 @@ function BulkEditView() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings — section type and context helper
 // ─────────────────────────────────────────────────────────────────────────────
-type SettingsSection = 'general' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'xero' | 'sync' | 'shopify';
+type SettingsSection = 'general' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'xero' | 'sync' | 'shopify' | 'utilities';
 
 function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'purchase-orders') return 'purchase-orders';
@@ -14901,6 +14963,279 @@ interface SettingsModalProps {
   setPoMonthsInput: (v: number) => void;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Utilities — Sync Zone/Bin
+// ─────────────────────────────────────────────────────────────────────────────
+
+type ZoneBinStatus = 'healthy' | 'fill_variant' | 'fill_product' | 'conflict';
+
+interface ZoneBinDiff {
+  product_id: string; variant_id: string;
+  product_name: string; sku: string | null; variant_label: string | null;
+  zone_product: string | null; zone_variant: string | null;
+  zone_status: ZoneBinStatus; zone_resolution: string | null;
+  bin_product:  string | null; bin_variant:  string | null;
+  bin_status:  ZoneBinStatus; bin_resolution:  string | null;
+}
+
+function SyncZoneBinUtility() {
+  const [locations, setLocations]   = useState<{ id: number; name: string }[]>([]);
+  const [locationId, setLocationId] = useState<number | ''>('');
+  const [analysing, setAnalysing]   = useState(false);
+  const [applying,  setApplying]    = useState(false);
+  const [diffs, setDiffs]           = useState<ZoneBinDiff[] | null>(null);
+  const [localDiffs, setLocalDiffs] = useState<ZoneBinDiff[]>([]);
+  const [result, setResult]         = useState<{ updatedProducts: number; updatedVariants: number } | null>(null);
+  const [error, setError]           = useState('');
+
+  useEffect(() => {
+    fetch('/api/ims/locations').then(r => r.json()).then(d => {
+      if (d.success) setLocations(d.data ?? []);
+    }).catch(() => {});
+  }, []);
+
+  const analyse = async () => {
+    if (!locationId) return;
+    setAnalysing(true); setDiffs(null); setResult(null); setError('');
+    try {
+      const res = await fetch(`/api/ims/utilities/sync-zone-bin?location_id=${locationId}`);
+      const d   = await res.json();
+      if (!d.success) throw new Error(d.error ?? 'Failed to analyse');
+      setDiffs(d.diffs);
+      setLocalDiffs(d.diffs);
+    } catch (e: any) { setError(e.message); }
+    setAnalysing(false);
+  };
+
+  const apply = async () => {
+    // Validate all conflicts are resolved
+    const unresolved = localDiffs.filter(d =>
+      (d.zone_status === 'conflict' && !d.zone_resolution?.trim()) ||
+      (d.bin_status  === 'conflict' && !d.bin_resolution?.trim())
+    );
+    if (unresolved.length > 0) {
+      alert(`Please resolve ${unresolved.length} conflict(s) before applying.`);
+      return;
+    }
+    if (!window.confirm(`Apply ${localDiffs.filter(d => d.zone_status !== 'healthy' || d.bin_status !== 'healthy').length} changes? This will update product and variant zone/bin values.`)) return;
+    setApplying(true); setError('');
+    try {
+      const res = await fetch('/api/ims/utilities/sync-zone-bin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ diffs: localDiffs }),
+      });
+      const d = await res.json();
+      if (!d.success) throw new Error(d.error ?? 'Failed to apply');
+      setResult(d);
+      setDiffs(null);
+    } catch (e: any) { setError(e.message); }
+    setApplying(false);
+  };
+
+  const setConflictChoice = (variantId: string, field: 'zone' | 'bin', value: string) => {
+    setLocalDiffs(prev => prev.map(d => d.variant_id !== variantId ? d : {
+      ...d,
+      [`${field}_resolution`]: value,
+    }));
+  };
+
+  const changedDiffs   = localDiffs.filter(d => d.zone_status !== 'healthy' || d.bin_status !== 'healthy');
+  const conflictDiffs  = localDiffs.filter(d => d.zone_status === 'conflict' || d.bin_status === 'conflict');
+  const fillDiffs      = changedDiffs.filter(d => d.zone_status !== 'conflict' && d.bin_status !== 'conflict');
+
+  const statusBadge = (status: ZoneBinStatus, fill: string | null) => {
+    if (status === 'healthy')       return <span style={{ color: 'var(--sv-mint)', fontSize: 11, fontWeight: 600 }}>✓</span>;
+    if (status === 'fill_variant')  return <span style={{ color: 'var(--sv-action)', fontSize: 11, fontWeight: 600 }}>→ variant: <em>{fill}</em></span>;
+    if (status === 'fill_product')  return <span style={{ color: 'var(--sv-action)', fontSize: 11, fontWeight: 600 }}>→ product: <em>{fill}</em></span>;
+    return <span style={{ color: 'var(--sv-red)', fontSize: 11, fontWeight: 700 }}>⚡ conflict</span>;
+  };
+
+  const labelSt: React.CSSProperties = { fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: 0.6, color: 'var(--sv-text-dim)', marginBottom: 4, display: 'block' };
+  const cardSt: React.CSSProperties  = { background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '18px 20px', marginBottom: 16 };
+
+  return (
+    <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+      {/* Header */}
+      <div style={{ background: 'var(--sv-bg-2)', padding: '14px 18px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 3 }}>🗃️ Sync Default Zone &amp; Bin with Location</div>
+          <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.5, maxWidth: 520 }}>
+            Zone and bin are stored at both <strong>product level</strong> (shown in the stock panel) and <strong>variant level</strong> (per individual variant).
+            This utility compares the two for all variants stocked at a chosen location, fills in missing values from whichever side has one, and flags any where they differ.
+          </div>
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div style={{ padding: '16px 18px', display: 'flex', gap: 10, alignItems: 'flex-end', borderBottom: '1px solid var(--sv-etch)', flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 200px', minWidth: 180 }}>
+          <label style={labelSt}>Location</label>
+          <select
+            value={locationId}
+            onChange={e => { setLocationId(e.target.value ? Number(e.target.value) : ''); setDiffs(null); setResult(null); }}
+            style={inputStyle}
+          >
+            <option value="">— select a location —</option>
+            {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+        </div>
+        <button
+          onClick={analyse}
+          disabled={!locationId || analysing}
+          style={{ ...btnStyle('action', 'sm'), height: 36, whiteSpace: 'nowrap' }}
+        >
+          {analysing ? 'Analysing…' : '🔍 Analyse Differences'}
+        </button>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div style={{ margin: '14px 18px', padding: '10px 14px', background: 'color-mix(in srgb, var(--sv-red) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sv-red) 30%, transparent)', borderRadius: 7, fontSize: 13, color: 'var(--sv-red)' }}>
+          {error}
+        </div>
+      )}
+
+      {/* Success result */}
+      {result && (
+        <div style={{ margin: '14px 18px', padding: '12px 16px', background: 'color-mix(in srgb, var(--sv-mint) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sv-mint) 30%, transparent)', borderRadius: 8, fontSize: 13, color: 'var(--sv-mint)', fontWeight: 600 }}>
+          ✓ Done — {result.updatedVariants} variant{result.updatedVariants !== 1 ? 's' : ''} and {result.updatedProducts} product{result.updatedProducts !== 1 ? 's' : ''} updated.
+        </div>
+      )}
+
+      {/* Analysis results */}
+      {diffs !== null && (
+        <div style={{ padding: '16px 18px' }}>
+          {/* Summary pills */}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+            {[
+              { label: 'Total variants at location', val: localDiffs.length, color: 'var(--sv-text-dim)' },
+              { label: 'Already in sync', val: localDiffs.filter(d => d.zone_status === 'healthy' && d.bin_status === 'healthy').length, color: 'var(--sv-mint)' },
+              { label: 'Will be filled', val: fillDiffs.length, color: 'var(--sv-action)' },
+              { label: 'Conflicts — need your input', val: conflictDiffs.length, color: 'var(--sv-red)' },
+            ].map(({ label, val, color }) => (
+              <div key={label} style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '8px 14px' }}>
+                <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 2 }}>{label}</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color }}>{val}</div>
+              </div>
+            ))}
+          </div>
+
+          {changedDiffs.length === 0 ? (
+            <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--sv-mint)', fontWeight: 600, fontSize: 14 }}>
+              ✓ All zones and bins are already in sync for this location — nothing to do.
+            </div>
+          ) : (
+            <>
+              {/* Conflicts first — need user input */}
+              {conflictDiffs.length > 0 && (
+                <div style={cardSt}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-red)', marginBottom: 10 }}>
+                    ⚡ Conflicts ({conflictDiffs.length}) — both sides have different values. Choose which to use:
+                  </div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ background: 'var(--sv-bg-0)' }}>
+                        {['Product / SKU', 'Field', 'Product value', 'Variant value', 'Use this value'].map(h => (
+                          <th key={h} style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, borderBottom: '1px solid var(--sv-etch)' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {conflictDiffs.flatMap(d => {
+                        const rows: React.ReactNode[] = [];
+                        const addRow = (field: 'zone' | 'bin', prodVal: string | null, varVal: string | null, status: ZoneBinStatus, resolution: string | null) => {
+                          if (status !== 'conflict') return;
+                          const key = `${d.variant_id}-${field}`;
+                          rows.push(
+                            <tr key={key} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                              <td style={{ padding: '8px 10px' }}>
+                                <div style={{ fontWeight: 600 }}>{d.product_name}</div>
+                                <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{[d.sku, d.variant_label].filter(Boolean).join(' · ')}</div>
+                              </td>
+                              <td style={{ padding: '8px 10px', fontWeight: 600, textTransform: 'uppercase' as const, fontSize: 11 }}>{field}</td>
+                              <td style={{ padding: '8px 10px', color: 'var(--sv-text-main)', fontFamily: 'monospace' }}>{prodVal || '—'}</td>
+                              <td style={{ padding: '8px 10px', color: 'var(--sv-text-main)', fontFamily: 'monospace' }}>{varVal || '—'}</td>
+                              <td style={{ padding: '6px 10px' }}>
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                                  <button
+                                    onClick={() => setConflictChoice(d.variant_id, field, prodVal ?? '')}
+                                    style={{ padding: '4px 10px', borderRadius: 5, border: `1px solid ${resolution === prodVal ? 'var(--sv-action)' : 'var(--sv-etch)'}`, background: resolution === prodVal ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: resolution === prodVal ? '#fff' : 'var(--sv-text-main)', cursor: 'pointer', fontSize: 12, fontFamily: 'monospace', fontWeight: 600 }}
+                                  >{prodVal}</button>
+                                  <button
+                                    onClick={() => setConflictChoice(d.variant_id, field, varVal ?? '')}
+                                    style={{ padding: '4px 10px', borderRadius: 5, border: `1px solid ${resolution === varVal ? 'var(--sv-action)' : 'var(--sv-etch)'}`, background: resolution === varVal ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: resolution === varVal ? '#fff' : 'var(--sv-text-main)', cursor: 'pointer', fontSize: 12, fontFamily: 'monospace', fontWeight: 600 }}
+                                  >{varVal}</button>
+                                  {!resolution && <span style={{ fontSize: 11, color: 'var(--sv-red)', fontWeight: 600 }}>← choose</span>}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        };
+                        addRow('zone', d.zone_product, d.zone_variant, d.zone_status, localDiffs.find(x => x.variant_id === d.variant_id)?.zone_resolution ?? null);
+                        addRow('bin',  d.bin_product,  d.bin_variant,  d.bin_status,  localDiffs.find(x => x.variant_id === d.variant_id)?.bin_resolution  ?? null);
+                        return rows;
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Auto-fillable changes */}
+              {fillDiffs.length > 0 && (
+                <div style={cardSt}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-action)', marginBottom: 10 }}>
+                    Auto-fill ({fillDiffs.length}) — one side was blank, value will be copied across:
+                  </div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ background: 'var(--sv-bg-0)' }}>
+                        {['Product / SKU', 'Zone', 'Bin'].map(h => (
+                          <th key={h} style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, borderBottom: '1px solid var(--sv-etch)' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {fillDiffs.map(d => (
+                        <tr key={d.variant_id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                          <td style={{ padding: '7px 10px' }}>
+                            <div style={{ fontWeight: 600 }}>{d.product_name}</div>
+                            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{[d.sku, d.variant_label].filter(Boolean).join(' · ')}</div>
+                          </td>
+                          <td style={{ padding: '7px 10px' }}>{statusBadge(d.zone_status, d.zone_resolution)}</td>
+                          <td style={{ padding: '7px 10px' }}>{statusBadge(d.bin_status,  d.bin_resolution)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Apply button */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+                <button onClick={() => { setDiffs(null); setLocalDiffs([]); }} style={{ ...btnStyle('ghost', 'sm'), height: 36 }}>Cancel</button>
+                <button
+                  onClick={apply}
+                  disabled={applying || conflictDiffs.some(d => {
+                    const ld = localDiffs.find(x => x.variant_id === d.variant_id);
+                    return (d.zone_status === 'conflict' && !ld?.zone_resolution?.trim()) ||
+                           (d.bin_status  === 'conflict' && !ld?.bin_resolution?.trim());
+                  })}
+                  style={{ ...btnStyle('action', 'sm'), height: 36 }}
+                >
+                  {applying ? 'Applying…' : `✓ Apply ${changedDiffs.length} Change${changedDiffs.length !== 1 ? 's' : ''}`}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, syncingSteps, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput }: SettingsModalProps) {
   const { settings, saveSettings } = useImsSettings();
   const [active, setActive] = useState<SettingsSection>(defaultSection);
@@ -15048,6 +15383,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
     { id: 'pos',             label: 'Point of Sale',   icon: '🖥' },
     { id: 'xero',            label: 'Xero',            icon: '🔗' },
     { id: 'sync',            label: 'Sync & Import',   icon: '🔄' },
+    { id: 'utilities',       label: 'Utilities',       icon: '🛠️' },
   ];
 
   return (
@@ -15928,7 +16264,18 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
   );
 
   const Content = () => {
-    // ── General ──────────────────────────────────────────────────────────────
+    // ── Utilities ─────────────────────────────────────────────────────────────
+    if (active === 'utilities') return (
+      <div style={{ padding: 32, maxWidth: 820 }}>
+        <h2 style={h2}>Utilities</h2>
+        <p style={{ ...p, color: 'var(--sv-text-dim)', marginBottom: 20 }}>
+          One-off tools for maintaining data consistency across the IMS.
+        </p>
+        <SyncZoneBinUtility />
+      </div>
+    );
+
+    // ── General ───────────────────────────────────────────────────────────────
     if (active === 'general') return (
       <div style={{ padding: 32, maxWidth: 760 }}>
         <h2 style={h2}>IMS Overview</h2>

@@ -30,6 +30,8 @@ async function runMigrations(): Promise<void> {
     'ALTER TABLE ims_products ADD COLUMN IF NOT EXISTS pack_size INT NULL',
     'ALTER TABLE ims_products ADD COLUMN IF NOT EXISTS zone VARCHAR(50) NULL',
     'ALTER TABLE ims_products ADD COLUMN IF NOT EXISTS bin VARCHAR(50) NULL',
+    'ALTER TABLE ims_stock ADD COLUMN IF NOT EXISTS zone VARCHAR(50) NULL',
+    'ALTER TABLE ims_stock ADD COLUMN IF NOT EXISTS bin VARCHAR(50) NULL',
     `CREATE TABLE IF NOT EXISTS ims_sales_history (
       id BIGINT AUTO_INCREMENT PRIMARY KEY,
       cin7_order_id VARCHAR(100) NOT NULL,

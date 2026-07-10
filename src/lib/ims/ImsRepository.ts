@@ -115,6 +115,7 @@ export interface ImsStock {
   qty_on_hand: number; qty_incoming: number; qty_committed: number;
   available?: number; // computed: qty_on_hand - qty_committed
   min_qty: number; reorder_qty: number; avg_cost?: number; updated_at?: string;
+  zone?: string | null; bin?: string | null;
   // joined
   sku?: string; product_name?: string; variant_label?: string; location_name?: string;
 }
@@ -637,8 +638,8 @@ export const ImsStockRepo = {
                 (s.qty_on_hand - s.qty_committed) AS available,
                 v.sku, p.name AS product_name,
                 p.brand AS brand,
-                p.zone AS zone,
-                p.bin AS bin,
+                COALESCE(NULLIF(s.zone,''), p.zone) AS zone,
+                COALESCE(NULLIF(s.bin, ''), p.bin)  AS bin,
                 p.created_at AS created_at,
                 c.name AS supplier_name,
                 c.is_active AS supplier_is_active,
@@ -681,13 +682,14 @@ export const ImsStockRepo = {
   },
 
   async upsert(variantId: string, locationId: number, data: Partial<ImsStock>): Promise<void> {
+    const sets: string[] = ['min_qty = VALUES(min_qty)', 'reorder_qty = VALUES(reorder_qty)'];
+    if (data.zone !== undefined) sets.push('zone = VALUES(zone)');
+    if (data.bin  !== undefined) sets.push('bin = VALUES(bin)');
     await imsExecute(
-      `INSERT INTO ims_stock (variant_id, location_id, min_qty, reorder_qty)
-       VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         min_qty    = VALUES(min_qty),
-         reorder_qty = VALUES(reorder_qty)`,
-      [variantId, locationId, data.min_qty ?? 0, data.reorder_qty ?? 0]
+      `INSERT INTO ims_stock (variant_id, location_id, min_qty, reorder_qty, zone, bin)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE ${sets.join(', ')}`,
+      [variantId, locationId, data.min_qty ?? 0, data.reorder_qty ?? 0, data.zone ?? null, data.bin ?? null],
     );
   },
 
