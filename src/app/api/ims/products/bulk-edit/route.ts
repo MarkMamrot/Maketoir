@@ -292,16 +292,18 @@ export async function PUT(req: Request) {
           [u.product_id],
         );
 
-        for (const { variant_id } of variantIds) {
-          const minQty     = u.min_qty     ?? 0;
-          const reorderQty = u.reorder_qty ?? 0;
+        // Pass null (not 0) for whichever field was not provided, so COALESCE keeps
+        // the existing DB value instead of overwriting it with zero.
+        const minQty     = u.min_qty     !== undefined ? u.min_qty     : null;
+        const reorderQty = u.reorder_qty !== undefined ? u.reorder_qty : null;
 
+        for (const { variant_id } of variantIds) {
           await imsExecute(
             `INSERT INTO ims_stock (variant_id, location_id, min_qty, reorder_qty)
-             VALUES (?, ?, ?, ?)
+             VALUES (?, ?, COALESCE(?,0), COALESCE(?,0))
              ON DUPLICATE KEY UPDATE
-               min_qty     = VALUES(min_qty),
-               reorder_qty = VALUES(reorder_qty)`,
+               min_qty     = COALESCE(VALUES(min_qty),     min_qty),
+               reorder_qty = COALESCE(VALUES(reorder_qty), reorder_qty)`,
             [variant_id, location_id, minQty, reorderQty],
           );
           stockUpdates++;

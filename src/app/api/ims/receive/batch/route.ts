@@ -169,20 +169,19 @@ export async function POST(req: Request) {
       // ─── 3. Stock metadata (min_qty, reorder_qty) ────────────────────────
       for (const update of stock_updates) {
         const { variant_id, min_qty, reorder_qty } = update;
-        if (min_qty !== undefined || reorder_qty !== undefined) {
-          const updates: string[] = [];
-          const params: any[] = [];
-          if (min_qty !== undefined)    { updates.push('min_qty = ?');    params.push(min_qty);    }
-          if (reorder_qty !== undefined) { updates.push('reorder_qty = ?'); params.push(reorder_qty); }
-          params.push(variant_id);
-          params.push(location_id);
-          await conn.execute(
-            `INSERT INTO ims_stock (variant_id, location_id) VALUES (?, ?)
-             ON DUPLICATE KEY UPDATE ${updates.join(', ')}`,
-            [variant_id, location_id, ...params.slice(0, -2), ...params.slice(-2)]
-          );
-          stockUpdatesCount++;
-        }
+        // Only write fields that are explicitly provided and non-null — never let a
+        // missing/null payload field overwrite an existing value.
+        const updates: string[] = [];
+        const params: any[] = [];
+        if (min_qty     !== undefined && min_qty     !== null) { updates.push('min_qty = ?');     params.push(min_qty);     }
+        if (reorder_qty !== undefined && reorder_qty !== null) { updates.push('reorder_qty = ?'); params.push(reorder_qty); }
+        if (updates.length === 0) continue;
+        await conn.execute(
+          `INSERT INTO ims_stock (variant_id, location_id) VALUES (?, ?)
+           ON DUPLICATE KEY UPDATE ${updates.join(', ')}`,
+          [variant_id, location_id, ...params],
+        );
+        stockUpdatesCount++;
       }
 
       // ─── 4. Determine final PO status ────────────────────────────────────

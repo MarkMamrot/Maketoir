@@ -431,11 +431,19 @@ export async function POST(req: Request) {
               imsProdId = prodCin7Map.get(cin7Id)!;
               await imsExecute(
                 `UPDATE ims_products
-                 SET name = ?, description = COALESCE(?, description),
-                     product_type = ?, brand = ?,
-                     tags = ?, style_code = ?, is_active = ?, is_online = ?,
-                     supplier_contact_id = ?, pack_size = ?, zone = ?, bin = ?,
-                     updated_at = CURRENT_TIMESTAMP
+                 SET name = ?,
+                     description      = COALESCE(?, description),
+                     product_type     = COALESCE(?, product_type),
+                     brand            = COALESCE(?, brand),
+                     tags             = COALESCE(?, tags),
+                     style_code       = COALESCE(?, style_code),
+                     is_active        = ?,
+                     is_online        = ?,
+                     supplier_contact_id = COALESCE(?, supplier_contact_id),
+                     pack_size        = COALESCE(?, pack_size),
+                     zone             = COALESCE(?, zone),
+                     bin              = COALESCE(?, bin),
+                     updated_at       = CURRENT_TIMESTAMP
                  WHERE product_id = ?`,
                 [
                   (p.name || '').trim() || 'Unknown',

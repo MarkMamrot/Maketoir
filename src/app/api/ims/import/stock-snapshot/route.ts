@@ -39,7 +39,11 @@ export async function POST() {
 
         if (!variantId || !locationId) { skipped++; continue; }
 
-        const qtyOnHand  = Number(row.available ?? 0);
+        // Skip rows where available is null — this means Cin7 has no allocation data for this
+        // branch, which is different from explicitly zero stock. Writing 0 would destroy real SOH.
+        if (row.available == null) { skipped++; continue; }
+
+        const qtyOnHand  = Number(row.available);
         const qtyIncoming = Number(row.incoming ?? 0);
 
         await imsExecute(

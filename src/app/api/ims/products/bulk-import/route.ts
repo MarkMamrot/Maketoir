@@ -201,23 +201,25 @@ export async function POST(req: Request) {
       } else if (row.action === 'update') {
         if (!row.existing_variant_id) { skipped++; continue; }
         // Update variant fields (only provided ones)
+        // Guards: `!= null` for numerics (rejects null from blank CSV cells, which pass `!== undefined`);
+        //         `!== undefined && value !== ''` for string fields that must not be cleared by a blank column.
         const variantUpdates: Record<string, any> = {};
-        if (row.sku !== undefined)              variantUpdates.sku = row.sku || null;
-        if (row.barcode !== undefined)          variantUpdates.barcode = row.barcode || null;
-        if (row.cost_aud !== undefined)             variantUpdates.cost_aud = row.cost_aud;
-        if (row.price_rrp !== undefined)            variantUpdates.price_rrp = row.price_rrp;
-        if (row.price_wholesale !== undefined)  variantUpdates.price_wholesale = row.price_wholesale;
-        if (row.weight_kg !== undefined)        variantUpdates.weight_kg = row.weight_kg;
-        if (row.pack_size !== undefined)        variantUpdates.pack_size = row.pack_size;
-        if (row.bin !== undefined)              variantUpdates.bin = row.bin || null;
-        if (row.zone !== undefined)             variantUpdates.zone = row.zone || null;
-        if (row.option1_name !== undefined)     variantUpdates.option1_name = row.option1_name;
-        if (row.option1_value !== undefined)    variantUpdates.option1_value = row.option1_value;
-        if (row.option2_name !== undefined)     variantUpdates.option2_name = row.option2_name;
-        if (row.option2_value !== undefined)    variantUpdates.option2_value = row.option2_value;
-        if (row.option3_name !== undefined)     variantUpdates.option3_name = row.option3_name;
-        if (row.option3_value !== undefined)    variantUpdates.option3_value = row.option3_value;
-        if (row.cost_foreign !== undefined) variantUpdates.cost_foreign = row.cost_foreign;
+        if (row.sku !== undefined)                                variantUpdates.sku = row.sku || null;
+        if (row.barcode !== undefined)                            variantUpdates.barcode = row.barcode || null;
+        if (row.cost_aud        != null)                          variantUpdates.cost_aud = row.cost_aud;
+        if (row.price_rrp       != null)                          variantUpdates.price_rrp = row.price_rrp;
+        if (row.price_wholesale != null)                          variantUpdates.price_wholesale = row.price_wholesale;
+        if (row.weight_kg       != null)                          variantUpdates.weight_kg = row.weight_kg;
+        if (row.pack_size       != null)                          variantUpdates.pack_size = row.pack_size;
+        if (row.bin  !== undefined && row.bin  !== '')            variantUpdates.bin  = row.bin  || null;
+        if (row.zone !== undefined && row.zone !== '')            variantUpdates.zone = row.zone || null;
+        if (row.option1_name  !== undefined && row.option1_name  !== '') variantUpdates.option1_name  = row.option1_name;
+        if (row.option1_value !== undefined && row.option1_value !== '') variantUpdates.option1_value = row.option1_value;
+        if (row.option2_name  !== undefined && row.option2_name  !== '') variantUpdates.option2_name  = row.option2_name;
+        if (row.option2_value !== undefined && row.option2_value !== '') variantUpdates.option2_value = row.option2_value;
+        if (row.option3_name  !== undefined && row.option3_name  !== '') variantUpdates.option3_name  = row.option3_name;
+        if (row.option3_value !== undefined && row.option3_value !== '') variantUpdates.option3_value = row.option3_value;
+        if (row.cost_foreign  !== undefined && row.cost_foreign  !== '') variantUpdates.cost_foreign  = row.cost_foreign;
         if (Object.keys(variantUpdates).length) {
           await ImsVariantsRepo.update(row.existing_variant_id, variantUpdates);
         }
