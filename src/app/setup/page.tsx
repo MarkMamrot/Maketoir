@@ -1818,7 +1818,7 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
                   </li>
                   <li>
                     Go to{' '}
-                    <a href="https://console.cloud.google.com/auth/consent" target="_blank" rel="noopener noreferrer" className="underline font-medium hover:text-blue-900">
+                    <a href="https://console.cloud.google.com/auth/overview" target="_blank" rel="noopener noreferrer" className="underline font-medium hover:text-blue-900">
                       OAuth Consent Screen ↗
                     </a>{' '}
                     and add the Gmail account you want to connect as a <strong>Test user</strong> (or publish the app).
