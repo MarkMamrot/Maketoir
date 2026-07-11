@@ -15473,6 +15473,17 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
           </div>
         )}
 
+        {/* ── Utilities ── */}
+        {active === 'utilities' && (
+          <div style={{ padding: 32, maxWidth: 820 }}>
+            <h2 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Utilities</h2>
+            <p style={{ margin: '0 0 20px', fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.65 }}>
+              One-off tools for maintaining data consistency across the IMS.
+            </p>
+            <SyncZoneBinUtility />
+          </div>
+        )}
+
         {/* ── General / POS / Sync ── legacy accordion body ── */}
         <div style={{ padding: 20, overflowY: 'auto', display: (active === 'general' || active === 'pos' || active === 'sync') ? undefined : 'none' }}>
           {/* ── SYNC SECTION ── */}
