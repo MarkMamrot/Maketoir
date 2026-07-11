@@ -431,7 +431,7 @@ function buildPrompt(
 
 // ── Route handler ─────────────────────────────────────────────────────────────
 
-type DataSourceId = 'businessInfo' | 'brandProfile' | 'products' | 'sales' | 'googleAds' | 'metaAds' | 'analytics' | 'website' | 'websiteCollections' | 'cin7Api' | 'googleAdsApi' | 'metaApi' | 'calculatedReports';
+type DataSourceId = 'businessInfo' | 'brandProfile' | 'products' | 'sales' | 'googleAds' | 'metaAds' | 'analytics' | 'website' | 'websiteCollections' | 'googleAdsApi' | 'metaApi' | 'calculatedReports';
 
 const TEXT_SOURCES = new Set<DataSourceId>(['businessInfo', 'brandProfile', 'calculatedReports']);
 
@@ -442,7 +442,7 @@ const JSON_API_SPECS: Record<string, { label: string; filename: string; apiKey: 
   metaApi:      { label: 'Meta Marketing API Schema', filename: 'meta-ads-schema.json',   apiKey: 'meta'        },
 };
 
-const CSV_META: Record<Exclude<DataSourceId, 'businessInfo' | 'brandProfile' | 'calculatedReports' | 'cin7Api' | 'googleAdsApi' | 'metaApi'>, { label: string; filename: string }> = {
+const CSV_META: Record<Exclude<DataSourceId, 'businessInfo' | 'brandProfile' | 'calculatedReports' | 'googleAdsApi' | 'metaApi'>, { label: string; filename: string }> = {
   products:           { label: 'Products Catalogue',   filename: 'products.csv'            },
   sales:              { label: 'Sales History',        filename: 'sales.csv'               },
   website:            { label: 'Website Products',     filename: 'website-products.csv'    },
