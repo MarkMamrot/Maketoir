@@ -402,7 +402,7 @@ export function CustomerServiceView({ databaseId }: { databaseId: string }) {
               {(guidelinesNotice || autoNotice) && <span className="text-xs text-gray-500">{autoNotice || guidelinesNotice}</span>}
             </div>
             <p className="text-xs text-gray-400">
-              ⚙️ You also need to set the <code className="bg-gray-100 px-1 rounded">MAIN_BUSINESS_DB_ID</code> GitHub Actions secret to your business database ID for the cron to work. Your ID: <code className="bg-gray-100 px-1 rounded select-all">{databaseId}</code>
+              ⚙️ Auto-reply runs automatically for all businesses that have it enabled. No additional GitHub secrets needed beyond <code className="bg-gray-100 px-1 rounded">CRON_SECRET</code>.
             </p>
           </div>
         )}

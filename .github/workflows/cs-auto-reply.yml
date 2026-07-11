@@ -11,13 +11,14 @@ jobs:
     steps:
       - name: Run CS auto-reply for all enabled businesses
         run: |
-          # The route checks CSAutoReplyEnabled + CSAutoReplyIntervalMins internally
-          # and skips if not enough time has passed — so running every 15 min is safe.
+          # No business ID needed — the route iterates all businesses automatically.
+          # Each business's config (CSAutoReplyEnabled, CSAutoReplyIntervalMins) is
+          # checked individually, so only businesses that opted in are processed.
           BODY=$(curl -s -L -w '\n__STATUS__%{http_code}' \
             -X POST \
             -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \
-            -d "{\"databaseId\":\"${{ secrets.MAIN_BUSINESS_DB_ID }}\"}" \
+            -d '{}' \
             "${{ secrets.APP_URL }}/api/customer-service/auto-reply")
           RESPONSE=$(echo "$BODY" | tail -1 | sed 's/__STATUS__//')
           RESPONSE_BODY=$(echo "$BODY" | head -n -1)

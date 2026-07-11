@@ -30,6 +30,7 @@ import { ProductsRepository } from '@/lib/db/ProductsRepository';
 import { SalesRepository } from '@/lib/db/SalesRepository';
 import { decrypt } from '@/lib/encryption';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
+import { query } from '@/services/MySQLService';
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
@@ -429,16 +430,24 @@ export async function POST(req: Request) {
   const cronSecret = req.headers.get('x-cron-secret');
 
   if (cronSecret) {
-    // Cron path — process all IMS-enabled businesses
+    // Cron path — iterate every active business and process each one.
     if (cronSecret !== process.env.CRON_SECRET) {
       return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
     }
-    const body = await req.json().catch(() => ({}));
-    const databaseId: string = body.databaseId || '';
-    if (!databaseId) return NextResponse.json({ error: 'databaseId required' }, { status: 400 });
     try {
-      const result = await runAutoReply(databaseId, false);
-      return NextResponse.json({ success: true, ...result });
+      const businesses = await query<{ business_id: string; name: string }>(
+        `SELECT business_id, name FROM businesses WHERE deleted_at IS NULL ORDER BY name`,
+      );
+      const results: Array<{ businessId: string; name: string; result?: any; error?: string }> = [];
+      for (const biz of businesses) {
+        try {
+          const r = await runAutoReply(biz.business_id, false);
+          results.push({ businessId: biz.business_id, name: biz.name, result: r });
+        } catch (e: any) {
+          results.push({ businessId: biz.business_id, name: biz.name, error: e.message });
+        }
+      }
+      return NextResponse.json({ success: true, businesses: results });
     } catch (e: any) {
       return NextResponse.json({ success: false, error: e.message }, { status: 500 });
     }

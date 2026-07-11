@@ -12,15 +12,20 @@ export async function GET(req: Request) {
   if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  // New multi-filter params (can all be active simultaneously)
   const brand       = searchParams.get('brand')       ?? '';
   const supplierId  = searchParams.get('supplierId')  ?? '';
   const productType = searchParams.get('productType') ?? '';
-  const productId   = searchParams.get('productId')   ?? '';  // single variant
+  const productId   = searchParams.get('productId')   ?? '';
   const win        = parseInt(searchParams.get('window') ?? '90');
   const page       = Math.max(1, parseInt(searchParams.get('page') ?? '1'));
   const pageSize   = Math.min(100, Math.max(10, parseInt(searchParams.get('pageSize') ?? '25')));
   const offset     = (page - 1) * pageSize;
+  // Custom date range — if both provided, use live query instead of cache.
+  const fromDate   = searchParams.get('from') ?? '';
+  const toDate     = searchParams.get('to')   ?? '';
+  // Branch filter — comma-separated location IDs to show as columns; empty = all
+  const locationIdsParam = searchParams.get('locationIds') ?? '';
+  const filterLocationIds: number[] = locationIdsParam ? locationIdsParam.split(',').map(Number).filter(Boolean) : [];
 
   try {
     const pool = getIMSPool();
@@ -34,11 +39,31 @@ export async function GET(req: Request) {
     if (productType) { conds.push('p.product_type = ?');         params.push(productType); }
     const where = 'WHERE ' + conds.join(' AND ');
 
-    // Sales column for the selected window
+    // Sales column for the selected window (only used when no custom date range)
     const salesCol =
       win <=  7 ? 'sc.sales_qty_7d'   :
       win <= 90 ? 'sc.sales_qty_90d'  :
       win <= 180? 'sc.sales_qty_180d' : 'sc.sales_qty_12m';
+
+    // If custom date range provided, compute live sales qty from ims_stock_movements.
+    // Otherwise use the pre-aggregated ims_sales_cache column.
+    const useCustomRange = !!(fromDate && toDate);
+
+    let customSalesMap: Map<string, number> = new Map();
+    if (useCustomRange) {
+      // Sum up neg qty_change (sales reduce stock) from pos_sale + so_fulfilled movements
+      const [mvRows] = await pool.query<any>(
+        `SELECT m.variant_id, ABS(SUM(m.qty_change)) AS sold
+           FROM ims_stock_movements m
+          WHERE m.movement_type IN ('pos_sale','so_fulfilled')
+            AND DATE(m.created_at) >= ? AND DATE(m.created_at) <= ?
+          GROUP BY m.variant_id`,
+        [fromDate, toDate],
+      ) as any;
+      for (const r of mvRows) customSalesMap.set(r.variant_id, Number(r.sold));
+    }
+
+    const salesOrderExpr = useCustomRange ? 'COALESCE(cust_sales.sold, 0)' : salesCol;
 
     // 1. Total count
     const [[countRow]] = await pool.query<any>(
@@ -72,7 +97,7 @@ export async function GET(req: Request) {
        LEFT JOIN ims_contacts con ON con.id             = p.supplier_contact_id
        LEFT JOIN ims_sales_cache sc ON sc.variant_id   = v.variant_id
        ${where}
-       ORDER BY ${salesCol} DESC, p.name, COALESCE(v.sku, '')
+       ORDER BY ${salesOrderExpr} DESC, p.name, COALESCE(v.sku, '')
        LIMIT ? OFFSET ?`,
       [...params, pageSize, offset],
     ) as any;
@@ -109,6 +134,11 @@ export async function GET(req: Request) {
       locations = Array.from(locMap.entries())
         .map(([id, name]) => ({ id, name }))
         .sort((a, b) => a.name.localeCompare(b.name));
+
+      // Apply branch column filter if requested
+      if (filterLocationIds.length > 0) {
+        locations = locations.filter(l => filterLocationIds.includes(l.id));
+      }
     }
 
     // 4. Filter options (fetched once from unfiltered data)
@@ -135,6 +165,8 @@ export async function GET(req: Request) {
       sales_qty_90d:   Number(r.sales_qty_90d),
       sales_qty_180d:  Number(r.sales_qty_180d),
       sales_qty_12m:   Number(r.sales_qty_12m),
+      // Custom range sales (0 if not using custom range)
+      sales_qty_custom: useCustomRange ? (customSalesMap.get(r.variant_id) ?? 0) : null,
       global_soh:      Number(r.global_soh),
       global_available:Number(r.global_available),
       global_incoming: Number(r.global_incoming),
@@ -148,6 +180,8 @@ export async function GET(req: Request) {
       page,
       pageSize,
       locations,
+      fromDate:  fromDate || null,
+      toDate:    toDate   || null,
       brands:    brands.map((b: any) => b.brand),
       suppliers: suppliers.map((s: any) => ({ id: s.id, name: s.name })),
     });

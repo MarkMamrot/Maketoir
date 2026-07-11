@@ -13881,6 +13881,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
   const [barcodeText, setBarcodeText]   = useState('');
   const [barcodeResults, setBarcodeResults] = useState<any[] | null>(null);
   const [applying, setApplying]         = useState(false);
+  const [savingDraft, setSavingDraft]   = useState(false);
   const [xeroSyncing, setXeroSyncing]   = useState(false);
   // (add-item search state is now handled inside StocktakeVariantSearch)
 
@@ -14001,6 +14002,33 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
       const d   = await res.json();
       setDetailModal({ open: true, st: d });
     }
+  };
+
+  // Save draft: flush any in-progress input edits then close the modal.
+  // Counts are auto-saved on blur, but the user may have typed without blurring yet.
+  const handleSaveDraft = async () => {
+    const id = detailModal.st?.id;
+    if (!id) return;
+    setSavingDraft(true);
+    try {
+      const unsaved = detailItems.filter((i: any) =>
+        i.counted_input !== '' && i.counted_input != null &&
+        String(i.counted_qty ?? '') !== String(i.counted_input)
+      );
+      if (unsaved.length > 0) {
+        await fetch(`/api/ims/stocktakes/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'bulk_update_items',
+            items: unsaved.map((i: any) => ({ item_id: i.id, counted_qty: Number(i.counted_input) })),
+          }),
+        });
+      }
+      load();
+      setDetailModal({ open: false, st: null });
+    } catch (e: any) { alert(`Save failed: ${e.message}`); }
+    finally { setSavingDraft(false); }
   };
 
   const handleComplete = async (id: number) => {
@@ -14341,10 +14369,15 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
             <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>{detailModal.st.location_name}</span>
             {detailModal.st.notes && <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>— {detailModal.st.notes}</span>}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-              {detailModal.st.status === 'in_progress' && <button onClick={() => handleComplete(detailModal.st.id)} disabled={applying} style={btnStyle('action', 'sm')}>Mark Complete</button>}
+              {detailModal.st.status === 'in_progress' && !isAdvisor && (
+                <button onClick={handleSaveDraft} disabled={savingDraft || applying} style={btnStyle('secondary', 'sm')} title="Flush any pending counts and close — stocktake stays in progress so you can continue later">
+                  {savingDraft ? 'Saving…' : '💾 Save & Close'}
+                </button>
+              )}
+              {detailModal.st.status === 'in_progress' && !isAdvisor && <button onClick={() => handleComplete(detailModal.st.id)} disabled={applying || savingDraft} style={btnStyle('action', 'sm')}>Mark Complete</button>}
               {detailModal.st.status === 'completed'   && <button onClick={() => handleRevert(detailModal.st.id)} disabled={applying} style={btnStyle('secondary', 'sm')}>Revert</button>}
-              {(detailModal.st.status === 'draft' || detailModal.st.status === 'in_progress') && <button onClick={() => changeStatus(detailModal.st.id, 'cancelled')} style={btnStyle('secondary', 'sm')}>Cancel</button>}
-              {['draft','cancelled','in_progress','reverted'].includes(detailModal.st.status) && <button onClick={() => handleDelete(detailModal.st.id, detailModal.st.reference)} style={btnStyle('danger', 'sm')}>Delete</button>}
+              {(detailModal.st.status === 'draft' || detailModal.st.status === 'in_progress') && !isAdvisor && <button onClick={() => changeStatus(detailModal.st.id, 'cancelled')} style={btnStyle('secondary', 'sm')}>Cancel</button>}
+              {['draft','cancelled','in_progress','reverted'].includes(detailModal.st.status) && !isAdvisor && <button onClick={() => handleDelete(detailModal.st.id, detailModal.st.reference)} style={btnStyle('danger', 'sm')}>Delete</button>}
             </div>
           </div>
 
