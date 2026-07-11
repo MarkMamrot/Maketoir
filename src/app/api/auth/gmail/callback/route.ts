@@ -8,7 +8,8 @@ import { query } from '@/services/MySQLService';
 import { encrypt, decrypt } from '@/lib/encryption';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 
-const APP_URL = process.env.APP_URL ?? 'https://solvantis.com.au';
+const raw = process.env.APP_URL ?? 'solvantis.com.au';
+const APP_URL = /^https?:\/\//i.test(raw) ? raw.replace(/\/$/, '') : `https://${raw.replace(/\/$/, '')}`;
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);

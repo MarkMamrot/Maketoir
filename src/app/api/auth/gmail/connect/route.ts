@@ -14,7 +14,9 @@ import { decrypt } from '@/lib/encryption';const SCOPES = [
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const businessId = searchParams.get('businessId') ?? '';
-  const appUrl = process.env.APP_URL ?? 'https://solvantis.com.au';
+  // Ensure appUrl has https:// — APP_URL may be stored without the scheme.
+  const raw = process.env.APP_URL ?? 'solvantis.com.au';
+  const appUrl = /^https?:\/\//i.test(raw) ? raw.replace(/\/$/, '') : `https://${raw.replace(/\/$/, '')}`;
   const returnUrl = `${appUrl}/setup`;
 
   if (!businessId) {
