@@ -11,11 +11,14 @@ jobs:
     steps:
       - name: Drain IMS → Shopify inventory queue
         run: |
-          RESPONSE=$(curl -s -L -o /dev/null -w "%{http_code}" \
+          BODY=$(curl -s -L -w '\n__STATUS__%{http_code}' \
             -X POST \
             -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \
             -d '{"mode":"queue","limit":4000}' \
             "${{ secrets.APP_URL }}/api/ims/shopify/sync-inventory")
+          RESPONSE=$(echo "$BODY" | tail -1 | sed 's/__STATUS__//')
+          RESPONSE_BODY=$(echo "$BODY" | head -n -1)
           echo "HTTP status: $RESPONSE"
+          echo "Response: $RESPONSE_BODY"
           [ "$RESPONSE" = "200" ] || exit 1

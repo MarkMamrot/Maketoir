@@ -1,26 +1,5 @@
 import mysql from 'mysql2/promise';
-import { cookies } from 'next/headers';
 import { getCurrentImsDb } from '@/services/imsContext';
-import { getImsDbNameSync } from '@/lib/db/BusinessRegistry';
-
-/**
- * Automatic per-request schema resolution: when no schema was set explicitly or
- * via request context, derive it from the logged-in business in the session
- * cookie. This makes every authenticated route route to the correct tenant
- * schema WITHOUT each route having to bind context manually. Returns undefined
- * outside a request scope (cron/scripts) or when the mapping isn't cached yet,
- * so the caller falls back to the env default.
- */
-function resolveImsDbFromCookie(): string | undefined {
-  try {
-    const raw = cookies().get('marketoir_session')?.value;
-    if (!raw) return undefined;
-    const businessId = JSON.parse(raw)?.businessId as string | undefined;
-    return businessId ? getImsDbNameSync(businessId) : undefined;
-  } catch {
-    return undefined; // not in a request scope
-  }
-}
 
 declare global {
   // eslint-disable-next-line no-var
@@ -87,10 +66,11 @@ function isRetryableDbError(err: any): boolean {
 /**
  * Get (or lazily create) a connection pool for an IMS schema.
  * Schema precedence: explicit dbName arg → current request context
- * (getCurrentImsDb) → session-cookie business → IMS_MYSQL_DATABASE env default.
+ * (getCurrentImsDb via AsyncLocalStorage, set by enterImsForBusiness in routes)
+ * → IMS_MYSQL_DATABASE env default (cron jobs + scripts).
  */
 export function getIMSPool(dbName?: string): mysql.Pool {
-  const name = dbName ?? getCurrentImsDb() ?? resolveImsDbFromCookie() ?? process.env.IMS_MYSQL_DATABASE ?? '';
+  const name = dbName ?? getCurrentImsDb() ?? process.env.IMS_MYSQL_DATABASE ?? '';
   if (!name) {
     throw new Error(
       'IMS database name not configured. Add IMS_MYSQL_DATABASE to .env.local and run scripts/setup-ims-database.mjs'
