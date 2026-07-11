@@ -1,36 +1,49 @@
 /**
  * GET /api/auth/gmail/connect?businessId=xxx
- * Redirects the user to Google's OAuth consent screen to grant Gmail access.
- * The businessId is encoded in the OAuth state parameter so the callback
- * knows which business to save the token for.
+ * Redirects the user to Google's OAuth consent screen using the business's
+ * own Google Cloud OAuth client credentials (stored per-business in the
+ * connections table — not shared env vars).
  */
 import { NextResponse } from 'next/server';
-
-const CLIENT_ID = process.env.GOOGLE_GMAIL_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '';
-const SCOPES = [
+import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { decrypt } from '@/lib/encryption';const SCOPES = [
   'https://www.googleapis.com/auth/gmail.send',
   'https://www.googleapis.com/auth/gmail.readonly',
 ];
 
-export function GET(req: Request) {
+export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const businessId = searchParams.get('businessId') ?? '';
+  const appUrl = process.env.APP_URL ?? 'https://solvantis.com.au';
+  const returnUrl = `${appUrl}/setup`;
 
-  if (!CLIENT_ID) {
-    return NextResponse.json({ error: 'GOOGLE_GMAIL_CLIENT_ID is not configured in the server environment.' }, { status: 500 });
+  if (!businessId) {
+    return NextResponse.redirect(`${returnUrl}?gmailError=${encodeURIComponent('Missing businessId.')}`);
   }
 
-  const redirectUri = `${process.env.APP_URL ?? ''}/api/auth/gmail/callback`;
-  const state = encodeURIComponent(businessId);
+  // Load the business's own Google OAuth credentials.
+  const conn = await ConnectionsRepository.get(businessId).catch(() => null);
+  const clientId     = conn?.gmail_client_id ?? '';
+  const encSecret    = conn?.gmail_client_secret ?? '';
+  let   clientSecret = '';
+  try { clientSecret = encSecret ? decrypt(encSecret) : ''; } catch { clientSecret = encSecret; }
 
+  if (!clientId) {
+    return NextResponse.redirect(`${returnUrl}?gmailError=${encodeURIComponent('No Google Client ID saved for this business. Enter your Client ID and Secret in the Gmail card first, then Save, then Connect.')}`);
+  }
+  if (!clientSecret) {
+    return NextResponse.redirect(`${returnUrl}?gmailError=${encodeURIComponent('No Google Client Secret saved for this business. Enter your Client Secret in the Gmail card first, then Save, then Connect.')}`);
+  }
+
+  const redirectUri = `${appUrl}/api/auth/gmail/callback`;
   const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-  authUrl.searchParams.set('client_id',     CLIENT_ID);
+  authUrl.searchParams.set('client_id',     clientId);
   authUrl.searchParams.set('redirect_uri',  redirectUri);
   authUrl.searchParams.set('response_type', 'code');
   authUrl.searchParams.set('scope',         SCOPES.join(' '));
   authUrl.searchParams.set('access_type',   'offline');
-  authUrl.searchParams.set('prompt',        'consent');  // always return refresh_token
-  authUrl.searchParams.set('state',         state);
+  authUrl.searchParams.set('prompt',        'consent');
+  authUrl.searchParams.set('state',         encodeURIComponent(businessId));
 
   return NextResponse.redirect(authUrl.toString());
 }

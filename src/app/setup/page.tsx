@@ -1162,6 +1162,8 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
   const [geminiModel, setGeminiModel] = useState('gemini-2.5-pro-preview');
   const [gmailAddress, setGmailAddress] = useState('');
   const [gmailRefreshToken, setGmailRefreshToken] = useState('');
+  const [gmailClientId, setGmailClientId] = useState('');
+  const [gmailClientSecret, setGmailClientSecret] = useState('');
   const [klaviyoApiKey, setKlaviyoApiKey] = useState('');
 
   // Xero OAuth state
@@ -1259,6 +1261,8 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
       const mdl  = creds.GeminiModel         || 'gemini-2.5-pro-preview';
       const gmAddr = creds.GmailAddress      || '';
       const gmTok  = creds.GmailRefreshToken || '';
+      const gmCid  = creds.GmailClientId     || '';
+      const gmCSec = creds.GmailClientSecret || '';
       const klKey  = creds.KlaviyoApiKey     || '';
 
       setShopId(sid);
@@ -1273,6 +1277,8 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
       setGeminiModel(mdl);
       setGmailAddress(gmAddr);
       setGmailRefreshToken(gmTok);
+      setGmailClientId(gmCid);
+      setGmailClientSecret(gmCSec);
       setKlaviyoApiKey(klKey);
 
       // 2. Auto-ping all connections with the loaded credentials
@@ -1344,6 +1350,8 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
             GeminiModel: geminiModel,
             GmailAddress: gmailAddress,
             GmailRefreshToken: gmailRefreshToken,
+            GmailClientId: gmailClientId,
+            GmailClientSecret: gmailClientSecret,
             KlaviyoApiKey: klaviyoApiKey,
           },
         }),
@@ -1731,7 +1739,6 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
         <div className="bg-white text-black p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col items-start gap-4 col-span-2">
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-3">
-              {/* Gmail envelope icon */}
               <div style={{ width: 28, height: 28, borderRadius: 6, background: '#EA4335', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <svg width="16" height="12" viewBox="0 0 16 12" fill="none"><rect width="16" height="12" rx="2" fill="#EA4335"/><path d="M1 1.5 8 7l7-5.5" stroke="#fff" strokeWidth="1.3" strokeLinecap="round"/></svg>
               </div>
@@ -1743,132 +1750,123 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
             </div>
           </div>
 
-          {gmailAddress ? (
-            /* ── Connected state ── */
-            <>
-              <div className="w-full p-3 bg-green-50 border border-green-200 rounded-lg">
-                <p className="text-sm font-semibold text-green-800">📧 {gmailAddress}</p>
-                <p className="text-xs text-green-600 mt-1">Gmail is connected. Customer-service email features are active.</p>
+          {/* Step 1 — always visible: Google Cloud credentials */}
+          <div className="w-full">
+            <p className="text-xs font-semibold text-gray-700 mb-2">Step 1 — Your Google Cloud OAuth credentials</p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-3">
+              <p className="text-xs font-semibold text-blue-800 mb-2">One-time Google Cloud setup:</p>
+              <ol className="text-xs text-blue-700 space-y-1.5 list-decimal list-inside leading-relaxed">
+                <li>
+                  <a href="https://console.cloud.google.com/apis/library/gmail.googleapis.com" target="_blank" rel="noopener noreferrer" className="underline font-medium hover:text-blue-900">Enable the Gmail API ↗</a> in your Google Cloud project.
+                </li>
+                <li>
+                  Go to <a href="https://console.cloud.google.com/auth/clients" target="_blank" rel="noopener noreferrer" className="underline font-medium hover:text-blue-900">OAuth 2.0 Clients ↗</a>, create a <strong>Web application</strong> client, and add this as an authorised redirect URI:
+                  <br />
+                  <code className="mt-1 inline-block bg-white border border-blue-200 rounded px-2 py-0.5 text-blue-800 select-all">
+                    {typeof window !== 'undefined' ? `${window.location.origin}/api/auth/gmail/callback` : '/api/auth/gmail/callback'}
+                  </code>
+                </li>
+                <li>
+                  Go to <a href="https://console.cloud.google.com/auth/audience" target="_blank" rel="noopener noreferrer" className="underline font-medium hover:text-blue-900">Auth → Audience ↗</a>. If the app is in <em>Testing</em> mode, scroll to <strong>Test users → + Add users</strong> and add the Gmail address you want to connect.
+                </li>
+                <li>Copy the <strong>Client ID</strong> and <strong>Client Secret</strong> from your OAuth client and paste them below.</li>
+              </ol>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Client ID</label>
+                <input className="w-full p-2 border rounded text-sm font-mono" value={gmailClientId} onChange={e => setGmailClientId(e.target.value)} placeholder="xxxx.apps.googleusercontent.com" />
               </div>
-              <div className="w-full flex items-center gap-3 pt-2 border-t border-gray-100 flex-wrap">
-                <button
-                  onClick={testGmailSync}
-                  disabled={gmailLoading}
-                  className="px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 transition disabled:opacity-40"
-                >
-                  {gmailLoading ? 'Checking…' : '✓ Verify connection'}
-                </button>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Client Secret</label>
+                <input className="w-full p-2 border rounded text-sm font-mono" type="password" value={gmailClientSecret} onChange={e => setGmailClientSecret(e.target.value)} placeholder="GOCSPX-..." />
+              </div>
+            </div>
+            <div className="flex items-center gap-3 mt-2">
+              <button onClick={() => saveCard('gmail')} disabled={savingCard === 'gmail' || !gmailClientId || !gmailClientSecret} className="px-3 py-1.5 bg-gray-800 text-white rounded text-xs font-semibold hover:bg-gray-900 transition disabled:opacity-40">
+                {savingCard === 'gmail' ? 'Saving…' : 'Save credentials'}
+              </button>
+              {cardMsgs['gmail'] && <span className="text-xs font-medium">{cardMsgs['gmail']}</span>}
+            </div>
+          </div>
+
+          {/* Step 2 — connect / status */}
+          <div className="w-full border-t border-gray-100 pt-4">
+            <p className="text-xs font-semibold text-gray-700 mb-2">Step 2 — Connect your Gmail account</p>
+            {gmailAddress ? (
+              <>
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg mb-3">
+                  <p className="text-sm font-semibold text-green-800">📧 {gmailAddress}</p>
+                  <p className="text-xs text-green-600 mt-1">Gmail is connected. Customer-service email features are active.</p>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <button onClick={testGmailSync} disabled={gmailLoading} className="px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 transition disabled:opacity-40">
+                    {gmailLoading ? 'Checking…' : '✓ Verify connection'}
+                  </button>
+                  <a href={`/api/auth/gmail/connect?businessId=${encodeURIComponent(business?.databaseId ?? '')}`} className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 transition">
+                    🔄 Change Gmail account
+                  </a>
+                  <button
+                    onClick={async () => {
+                      if (!confirm('Disconnect Gmail? This removes the stored token.')) return;
+                      setGmailAddress(''); setGmailRefreshToken(''); setGmailResult(null);
+                      setTimeout(() => saveCard('gmail'), 100);
+                    }}
+                    className="px-3 py-1.5 bg-red-100 text-red-700 rounded text-xs font-medium hover:bg-red-200 transition border border-red-200"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+                {gmailResult && (
+                  gmailResult.success
+                    ? <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2 mt-2">✅ Verified — signed in as <strong>{gmailResult.email}</strong>{gmailResult.messagesTotal ? ` · ${gmailResult.messagesTotal.toLocaleString()} messages` : ''}</p>
+                    : <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2 mt-2">❌ {gmailResult.error}</p>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-gray-500 mb-3">
+                  {gmailClientId && gmailClientSecret
+                    ? 'Credentials saved. Click the button below to sign in with Google and grant Gmail access.'
+                    : 'Save your Client ID and Secret above first.'}
+                </p>
                 <a
                   href={`/api/auth/gmail/connect?businessId=${encodeURIComponent(business?.databaseId ?? '')}`}
-                  className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 transition"
+                  className={`px-4 py-2 rounded text-sm font-semibold inline-flex items-center gap-2 transition ${gmailClientId && gmailClientSecret ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-gray-200 text-gray-400 pointer-events-none'}`}
+                  aria-disabled={!gmailClientId || !gmailClientSecret}
                 >
-                  🔄 Change Gmail account
+                  <svg width="16" height="12" viewBox="0 0 16 12" fill="none"><path d="M1 1.5 8 7l7-5.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+                  Connect Gmail account
                 </a>
-                <button
-                  onClick={async () => {
-                    if (!confirm('Disconnect Gmail? This removes the stored token.')) return;
-                    setGmailAddress('');
-                    setGmailRefreshToken('');
-                    setGmailResult(null);
-                    setTimeout(() => saveCard('gmail'), 100);
-                  }}
-                  className="px-3 py-1.5 bg-red-100 text-red-700 rounded text-xs font-medium hover:bg-red-200 transition border border-red-200"
-                >
-                  Disconnect
-                </button>
-              </div>
-              {gmailResult && (
-                gmailResult.success
-                  ? <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2 w-full">
-                      ✅ Verified — signed in as <strong>{gmailResult.email}</strong>
-                      {gmailResult.messagesTotal ? ` · ${gmailResult.messagesTotal.toLocaleString()} messages` : ''}
-                    </p>
-                  : <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2 w-full">
-                      ❌ {gmailResult.error}
-                    </p>
-              )}
-            </>
-          ) : (
-            /* ── Not connected state ── */
-            <>
-              <p className="text-sm text-gray-600 -mt-2 leading-relaxed">
-                Connect a Gmail account to enable AI-powered customer-service email drafting and sending.
-              </p>
-
-              {/* Google Cloud setup checklist */}
-              <div className="w-full bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-xs font-semibold text-blue-800 mb-2">Before connecting, make sure you&apos;ve done these steps in Google Cloud:</p>
-                <ol className="text-xs text-blue-700 space-y-1.5 list-decimal list-inside leading-relaxed">
-                  <li>
-                    <a href="https://console.cloud.google.com/apis/library/gmail.googleapis.com" target="_blank" rel="noopener noreferrer" className="underline font-medium hover:text-blue-900">
-                      Enable the Gmail API ↗
-                    </a>{' '}
-                    in your Google Cloud project.
-                  </li>
-                  <li>
-                    Go to{' '}
-                    <a href="https://console.cloud.google.com/auth/clients" target="_blank" rel="noopener noreferrer" className="underline font-medium hover:text-blue-900">
-                      OAuth 2.0 Clients ↗
-                    </a>
-                    , create a <strong>Web application</strong> client, and add this callback URL as an authorised redirect URI:
-                    <br />
-                    <code className="mt-1 inline-block bg-white border border-blue-200 rounded px-2 py-0.5 text-blue-800 select-all">
-                      {typeof window !== 'undefined' ? `${window.location.origin}/api/auth/gmail/callback` : '/api/auth/gmail/callback'}
-                    </code>
-                  </li>
-                  <li>
-                    Go to{' '}
-                    <a href="https://console.cloud.google.com/auth/overview" target="_blank" rel="noopener noreferrer" className="underline font-medium hover:text-blue-900">
-                      OAuth Consent Screen ↗
-                    </a>{' '}
-                    and add the Gmail account you want to connect as a <strong>Test user</strong> (or publish the app).
-                  </li>
-                  <li>Copy the <strong>Client ID</strong> and <strong>Client Secret</strong> into your Railway env vars as <code className="bg-white border border-blue-200 rounded px-1">GOOGLE_GMAIL_CLIENT_ID</code> and <code className="bg-white border border-blue-200 rounded px-1">GOOGLE_GMAIL_CLIENT_SECRET</code>.</li>
-                </ol>
-              </div>
-
-              <a
-                href={`/api/auth/gmail/connect?businessId=${encodeURIComponent(business?.databaseId ?? '')}`}
-                className="px-4 py-2 bg-red-500 text-white rounded text-sm font-semibold hover:bg-red-600 transition inline-flex items-center gap-2"
-              >
-                <svg width="16" height="16" viewBox="0 0 16 12" fill="none"><path d="M1 1.5 8 7l7-5.5" stroke="#fff" strokeWidth="1.3" strokeLinecap="round"/></svg>
-                Connect Gmail account
-              </a>
-
-              {gmailResult && !gmailResult.success && (
-                <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2 w-full">
-                  ❌ {gmailResult.error}
-                </p>
-              )}
-
-              {/* Advanced: manual token entry */}
-              <details className="w-full">
-                <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600 select-none">
-                  Advanced: paste refresh token manually
-                </summary>
-                <div className="mt-3 flex flex-col gap-3 pl-2 border-l-2 border-gray-100">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Gmail Address</label>
-                    <input className="w-full p-2 border rounded text-sm" value={gmailAddress} onChange={e => setGmailAddress(e.target.value)} placeholder="you@gmail.com" />
+                {gmailResult && !gmailResult.success && (
+                  <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2 mt-2">❌ {gmailResult.error}</p>
+                )}
+                {/* Advanced: manual token entry */}
+                <details className="mt-3">
+                  <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600 select-none">Advanced: paste refresh token manually</summary>
+                  <div className="mt-3 flex flex-col gap-3 pl-2 border-l-2 border-gray-100">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Gmail Address</label>
+                      <input className="w-full p-2 border rounded text-sm" value={gmailAddress} onChange={e => setGmailAddress(e.target.value)} placeholder="you@gmail.com" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Refresh Token</label>
+                      <input className="w-full p-2 border rounded text-sm font-mono" type="password" value={gmailRefreshToken} onChange={e => setGmailRefreshToken(e.target.value)} placeholder="1//0g..." />
+                      <p className="text-xs text-gray-400 mt-1">Or generate with: <code className="bg-gray-100 px-1 rounded">node scripts/get-gmail-token.mjs</code></p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button onClick={testGmailSync} disabled={gmailLoading || !gmailRefreshToken} className="px-3 py-1.5 bg-red-500 text-white rounded text-xs font-medium hover:bg-red-600 transition disabled:opacity-40">
+                        {gmailLoading ? 'Testing…' : 'Test token'}
+                      </button>
+                      <button onClick={() => saveCard('gmail')} disabled={savingCard === 'gmail' || !gmailRefreshToken} className="px-3 py-1.5 bg-gray-800 text-white rounded text-xs font-semibold hover:bg-gray-900 transition disabled:opacity-40">
+                        {savingCard === 'gmail' ? 'Saving…' : 'Save'}
+                      </button>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Refresh Token</label>
-                    <input className="w-full p-2 border rounded text-sm font-mono" type="password" value={gmailRefreshToken} onChange={e => setGmailRefreshToken(e.target.value)} placeholder="1//0g..." />
-                    <p className="text-xs text-gray-400 mt-1">Or generate with: <code className="bg-gray-100 px-1 rounded">node scripts/get-gmail-token.mjs</code></p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button onClick={testGmailSync} disabled={gmailLoading || !gmailRefreshToken} className="px-3 py-1.5 bg-red-500 text-white rounded text-xs font-medium hover:bg-red-600 transition disabled:opacity-40">
-                      {gmailLoading ? 'Testing…' : 'Test token'}
-                    </button>
-                    <button onClick={() => saveCard('gmail')} disabled={savingCard === 'gmail' || !gmailRefreshToken} className="px-3 py-1.5 bg-gray-800 text-white rounded text-xs font-semibold hover:bg-gray-900 transition disabled:opacity-40">
-                      {savingCard === 'gmail' ? 'Saving…' : 'Save'}
-                    </button>
-                    {cardMsgs['gmail'] && <span className="text-xs font-medium">{cardMsgs['gmail']}</span>}
-                  </div>
-                </div>
-              </details>
-            </>
-          )}
+                </details>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Xero */}

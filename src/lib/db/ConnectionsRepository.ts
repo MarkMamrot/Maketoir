@@ -18,6 +18,8 @@ export interface ConnectionsRow {
   klaviyo_api_key:          string | null;
   gmail_email:              string | null;
   gmail_refresh_token:      string | null;
+  gmail_client_id:          string | null;
+  gmail_client_secret:      string | null;
   website_sheet_id:         string | null;
   inventory_sheet_id:       string | null;
   gemini_model:             string | null;
@@ -48,6 +50,8 @@ const LEGACY_MAP: Record<string, keyof PartialConnections> = {
   KlaviyoApiKey:           'klaviyo_api_key',
   GmailAddress:            'gmail_email',
   GmailRefreshToken:       'gmail_refresh_token',
+  GmailClientId:           'gmail_client_id',
+  GmailClientSecret:       'gmail_client_secret',
   WebsiteSheetId:          'website_sheet_id',
   GA4PropertyId:           'ga4_property_id',
   GeminiModel:             'gemini_model',
@@ -64,6 +68,7 @@ export const CONNECTION_SECRET_FIELDS = new Set([
   'GmailRefreshToken',
   'KlaviyoApiKey',
   'GoogleAdsRefreshToken',
+  'GmailClientSecret',
 ]);
 
 /** Xero OAuth tokens stored directly (not via legacy map) — these are always encrypted */
