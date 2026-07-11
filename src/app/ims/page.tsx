@@ -3329,6 +3329,7 @@ function StockView() {
     if (filter) {
       const q = filter.toLowerCase();
       if (!(s.sku || '').toLowerCase().includes(q) &&
+          !(s.barcode || '').toLowerCase().includes(q) &&
           !(s.product_name || '').toLowerCase().includes(q) &&
           !(s.variant_label || '').toLowerCase().includes(q) &&
           !(s.location_name || '').toLowerCase().includes(q))

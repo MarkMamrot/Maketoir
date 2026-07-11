@@ -4,6 +4,7 @@ import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 
 const KEY_GUIDELINES = 'CSGuidelines';
 const KEY_HELPER_EMAIL = 'CSHelperEmail';
+const AUTO_KEYS = ['CSAutoReplyEnabled','CSAutoReplyIntervalMins','CSAutoReplyMode','CSAutoReplyForwardEmails','CSAutoReplyDays','CSAutoReplyDataSources','CSAutoReplyLastRunAt'] as const;
 
 function requireSession() {
   const session = cookies().get('marketoir_session');
@@ -34,11 +35,14 @@ export async function GET(req: Request) {
   const sheets = new GoogleSheetsService();
   try {
     const rows = (await sheets.getData(databaseId, 'Config!A:B')) as string[][];
-    const guidelines = rows?.find(r => r[0] === KEY_GUIDELINES)?.[1] ?? '';
-    const helperEmail = rows?.find(r => r[0] === KEY_HELPER_EMAIL)?.[1] ?? '';
-    return NextResponse.json({ guidelines, helperEmail });
+    const get = (k: string) => rows?.find(r => r[0] === k)?.[1] ?? '';
+    const guidelines  = get(KEY_GUIDELINES);
+    const helperEmail = get(KEY_HELPER_EMAIL);
+    const autoReply: Record<string, string> = {};
+    for (const k of AUTO_KEYS) autoReply[k] = get(k);
+    return NextResponse.json({ guidelines, helperEmail, autoReply });
   } catch {
-    return NextResponse.json({ guidelines: '', helperEmail: '' });
+    return NextResponse.json({ guidelines: '', helperEmail: '', autoReply: {} });
   }
 }
 
@@ -46,7 +50,7 @@ export async function POST(req: Request) {
   const _sess = requireSession();
   if (!_sess) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
 
-  const { databaseId, guidelines, helperEmail } = await req.json();
+  const { databaseId, guidelines, helperEmail, autoReply } = await req.json();
   if (!databaseId || databaseId !== _sess.businessId) return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
 
   const sheets = new GoogleSheetsService();
@@ -54,6 +58,11 @@ export async function POST(req: Request) {
     const rows = (await sheets.getData(databaseId, 'Config!A:B')) as string[][];
     await upsertConfigRow(sheets, databaseId, rows, KEY_GUIDELINES, guidelines ?? '');
     await upsertConfigRow(sheets, databaseId, rows, KEY_HELPER_EMAIL, helperEmail ?? '');
+    if (autoReply && typeof autoReply === 'object') {
+      for (const k of AUTO_KEYS) {
+        if (k in autoReply) await upsertConfigRow(sheets, databaseId, rows, k, String(autoReply[k] ?? ''));
+      }
+    }
     return NextResponse.json({ success: true });
   } catch (e: any) {
     return NextResponse.json({ error: e.message ?? 'Failed to save guidelines.' }, { status: 500 });

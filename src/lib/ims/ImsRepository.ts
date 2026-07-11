@@ -636,7 +636,7 @@ export const ImsStockRepo = {
       return await imsQuery<ImsStock>(
         `SELECT s.*,
                 (s.qty_on_hand - s.qty_committed) AS available,
-                v.sku, p.name AS product_name,
+                v.sku, v.barcode, p.name AS product_name,
                 p.brand AS brand,
                 COALESCE(NULLIF(s.zone,''), p.zone) AS zone,
                 COALESCE(NULLIF(s.bin, ''), p.bin)  AS bin,
@@ -662,7 +662,7 @@ export const ImsStockRepo = {
       return imsQuery<ImsStock>(
         `SELECT s.*,
                 (s.qty_on_hand - s.qty_committed) AS available,
-                v.sku, p.name AS product_name,
+                v.sku, v.barcode, p.name AS product_name,
                 p.brand AS brand,
                 l.name AS location_name,
                 CONCAT_WS(' / ',
