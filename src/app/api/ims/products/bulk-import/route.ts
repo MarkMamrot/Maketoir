@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { ImsProductsRepo, ImsVariantsRepo, ImsBrandsRepo, ImsContactsRepo, ImsStockRepo } from '@/lib/ims/ImsRepository';
-import { imsExecute } from '@/services/IMSMySQLService';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -61,13 +60,10 @@ export async function POST(req: Request) {
 
   const { rows, autoCreateBrands = [], autoCreateSuppliers = [], copy_zone_bin_location_id } = body;
 
-  // Ensure ims_stock has zone/bin columns (safe to run every time — IF NOT EXISTS is idempotent)
-  try {
-    await imsExecute('ALTER TABLE ims_stock ADD COLUMN IF NOT EXISTS zone VARCHAR(50) NULL', []);
-    await imsExecute('ALTER TABLE ims_stock ADD COLUMN IF NOT EXISTS bin  VARCHAR(50) NULL', []);
-  } catch { /* old MySQL without IF NOT EXISTS — ignore */ }
-
   const copyLocationId = copy_zone_bin_location_id ? Number(copy_zone_bin_location_id) : null;
+
+  // Ensure ims_stock has zone/bin columns before any writes.
+  if (copyLocationId) await ImsStockRepo.ensureZoneBinColumns();
 
   // 1. Create missing brands
   for (const brandName of autoCreateBrands) {

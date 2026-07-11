@@ -681,6 +681,17 @@ export const ImsStockRepo = {
     }
   },
 
+  /** Add zone/bin to ims_stock if they don't exist yet (idempotent, runs once per process). */
+  async ensureZoneBinColumns(): Promise<void> {
+    try {
+      // Use SHOW COLUMNS for compatibility with all MySQL versions.
+      const cols = await imsQuery<{ Field: string }>('SHOW COLUMNS FROM ims_stock', []);
+      const names = new Set(cols.map(c => c.Field));
+      if (!names.has('zone')) await imsExecute('ALTER TABLE ims_stock ADD COLUMN zone VARCHAR(50) NULL', []);
+      if (!names.has('bin'))  await imsExecute('ALTER TABLE ims_stock ADD COLUMN bin  VARCHAR(50) NULL', []);
+    } catch { /* ignore — column already exists or table not yet created */ }
+  },
+
   async upsert(variantId: string, locationId: number, data: Partial<ImsStock>): Promise<void> {
     // Build the ON DUPLICATE KEY UPDATE clause from only the fields that were explicitly passed,
     // so a zone/bin-only call never overwrites existing min_qty / reorder_qty values.

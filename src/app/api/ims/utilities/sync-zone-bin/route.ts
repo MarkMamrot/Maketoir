@@ -147,11 +147,8 @@ export async function POST(req: Request) {
     let updatedVariants = 0;
     let updatedStockRows = 0;
 
-    // Ensure ims_stock has zone/bin columns (idempotent migration)
-    try {
-      await imsExecute('ALTER TABLE ims_stock ADD COLUMN IF NOT EXISTS zone VARCHAR(50) NULL', []);
-      await imsExecute('ALTER TABLE ims_stock ADD COLUMN IF NOT EXISTS bin  VARCHAR(50) NULL', []);
-    } catch { /* old MySQL without IF NOT EXISTS — ignore */ }
+    // Ensure ims_stock has zone/bin columns before any writes.
+    await ImsStockRepo.ensureZoneBinColumns();
 
     // Group by product_id to batch product-level writes
     const byProduct = new Map<string, { zone: string | null; bin: string | null }>();
