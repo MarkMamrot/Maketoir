@@ -6,8 +6,9 @@ import { decrypt } from '@/lib/encryption';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
-const CLIENT_ID = process.env.GOOGLE_GMAIL_CLIENT_ID || process.env.GOOGLE_ADS_CLIENT_ID || '';
-const CLIENT_SECRET = process.env.GOOGLE_GMAIL_CLIENT_SECRET || process.env.GOOGLE_ADS_CLIENT_SECRET || '';
+// Fallback env vars (used when a business hasn't saved per-business credentials).
+const ENV_CLIENT_ID     = process.env.GOOGLE_GMAIL_CLIENT_ID     || process.env.GOOGLE_ADS_CLIENT_ID     || '';
+const ENV_CLIENT_SECRET = process.env.GOOGLE_GMAIL_CLIENT_SECRET || process.env.GOOGLE_ADS_CLIENT_SECRET || '';
 
 type DraftToSend = {
   threadId: string;
@@ -25,13 +26,13 @@ function requireSession() {
   try { return JSON.parse(session.value); } catch { return null; }
 }
 
-async function getAccessToken(refreshToken: string): Promise<string> {
+async function getAccessToken(refreshToken: string, clientId: string, clientSecret: string): Promise<string> {
   const res = await fetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      client_id: CLIENT_ID,
-      client_secret: CLIENT_SECRET,
+      client_id: clientId,
+      client_secret: clientSecret,
       refresh_token: refreshToken,
       grant_type: 'refresh_token',
     }),
@@ -53,10 +54,6 @@ export async function POST(req: Request) {
   const user = requireSession();
   if (!user) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
 
-  if (!CLIENT_ID || !CLIENT_SECRET) {
-    return NextResponse.json({ error: 'GOOGLE_GMAIL_CLIENT_ID / GOOGLE_GMAIL_CLIENT_SECRET not configured.' }, { status: 500 });
-  }
-
   const { databaseId, drafts } = await req.json();
   if (!databaseId || databaseId !== user.businessId) return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
   if (!Array.isArray(drafts) || drafts.length === 0) {
@@ -64,16 +61,17 @@ export async function POST(req: Request) {
   }
 
   let refreshToken = '';
+  let gmailClientId     = ENV_CLIENT_ID;
+  let gmailClientSecret = ENV_CLIENT_SECRET;
 
   try {
     const conn = await ConnectionsRepository.get(databaseId);
     const enc = conn?.gmail_refresh_token ?? '';
-    if (enc) {
-      try {
-        refreshToken = decrypt(enc);
-      } catch {
-        refreshToken = enc;
-      }
+    if (enc) { try { refreshToken = decrypt(enc); } catch { refreshToken = enc; } }
+    if ((conn as any)?.gmail_client_id) gmailClientId = (conn as any).gmail_client_id;
+    if ((conn as any)?.gmail_client_secret) {
+      try { gmailClientSecret = decrypt((conn as any).gmail_client_secret); }
+      catch { gmailClientSecret = (conn as any).gmail_client_secret; }
     }
   } catch {
     return NextResponse.json({ error: 'Could not load Gmail connection details.' }, { status: 500 });
@@ -82,8 +80,11 @@ export async function POST(req: Request) {
   if (!refreshToken) {
     return NextResponse.json({ error: 'Gmail refresh token is not configured in Connections.' }, { status: 400 });
   }
+  if (!gmailClientId || !gmailClientSecret) {
+    return NextResponse.json({ error: 'Gmail OAuth credentials (Client ID / Secret) are not configured. Save them in Settings → Connections → Gmail.' }, { status: 400 });
+  }
 
-  const accessToken = await getAccessToken(refreshToken);
+  const accessToken = await getAccessToken(refreshToken, gmailClientId, gmailClientSecret);
 
   const results: Array<{ messageId: string; success: boolean; error?: string }> = [];
 

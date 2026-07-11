@@ -15,7 +15,6 @@ export const AI_DATA_SOURCES: AiDataSource[] = [
   { id: 'metaAds', label: 'Meta Ads', icon: '📱', desc: 'Live Meta campaign data as CSV' },
   { id: 'website', label: 'Website Products', icon: '🌐', desc: 'Full Shopify product listings as CSV — inline or via Gemini File API' },
   { id: 'websiteCollections', label: 'Website Collections', icon: '📂', desc: 'Shopify collection names and URLs' },
-  { id: 'cin7Api', label: 'Cin7 API Spec', icon: '📖', desc: 'Full Cin7 OpenAPI spec as JSON — for writing scripts & integrations' },
   { id: 'googleAdsApi', label: 'Google Ads Field Schema', icon: '📖', desc: 'All queryable GAQL fields — for writing Google Ads scripts & reports' },
   { id: 'metaApi', label: 'Meta Ads API Schema', icon: '📖', desc: 'Meta Marketing API field definitions — for writing Meta automation scripts' },
 ];

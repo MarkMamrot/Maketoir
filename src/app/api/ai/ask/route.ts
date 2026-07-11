@@ -515,7 +515,7 @@ export async function POST(req: Request) {
 
   const sourcesArray  = (Array.isArray(dataSources) ? dataSources : []) as DataSourceId[];
   const textSourceIds = sourcesArray.filter(s => TEXT_SOURCES.has(s));
-  const csvSourceIds  = sourcesArray.filter(s => !TEXT_SOURCES.has(s) && !(s in JSON_API_SPECS)) as Exclude<DataSourceId, 'businessInfo' | 'brandProfile' | 'calculatedReports' | 'cin7Api' | 'googleAdsApi' | 'metaApi'>[];
+  const csvSourceIds  = sourcesArray.filter(s => !TEXT_SOURCES.has(s) && !(s in JSON_API_SPECS)) as Exclude<DataSourceId, 'businessInfo' | 'brandProfile' | 'calculatedReports' | 'googleAdsApi' | 'metaApi'>[];
   const apiSpecSourceIds = sourcesArray.filter(s => s in JSON_API_SPECS);
 
   const textGatherers: Record<string, () => Promise<string>> = {

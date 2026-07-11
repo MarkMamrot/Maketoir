@@ -17,8 +17,9 @@ import { resolveInventorySystemId } from '@/lib/cin7Helpers';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
-const CLIENT_ID = process.env.GOOGLE_GMAIL_CLIENT_ID || process.env.GOOGLE_ADS_CLIENT_ID || '';
-const CLIENT_SECRET = process.env.GOOGLE_GMAIL_CLIENT_SECRET || process.env.GOOGLE_ADS_CLIENT_SECRET || '';
+// Fallback env vars (used when a business hasn't saved per-business credentials).
+const ENV_CLIENT_ID     = process.env.GOOGLE_GMAIL_CLIENT_ID     || process.env.GOOGLE_ADS_CLIENT_ID     || '';
+const ENV_CLIENT_SECRET = process.env.GOOGLE_GMAIL_CLIENT_SECRET || process.env.GOOGLE_ADS_CLIENT_SECRET || '';
 
 const MAX_THREADS = 150;
 const MAX_MESSAGE_CHARS = 1500;
@@ -41,15 +42,15 @@ function requireSession() {
   try { return JSON.parse(session.value); } catch { return null; }
 }
 
-async function getAccessToken(refreshToken: string): Promise<string> {
+async function getAccessToken(refreshToken: string, clientId: string, clientSecret: string): Promise<string> {
   const res = await fetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      client_id: CLIENT_ID,
-      client_secret: CLIENT_SECRET,
+      client_id:     clientId,
+      client_secret: clientSecret,
       refresh_token: refreshToken,
-      grant_type: 'refresh_token',
+      grant_type:    'refresh_token',
     }),
   });
   const data = await res.json();
@@ -151,16 +152,28 @@ async function gatherBrandProfile(databaseId: string): Promise<string> {
   try {
     const row = await BrandProfileRepository.get(databaseId);
     if (!row) return '';
-    return [
-      '=== BRAND PROFILE ===',
-      `Mission: ${row.mission || ''}`,
-      `Tone: ${row.tone || ''}`,
-      `Shipping Policy: ${row.shipping_policy || ''}`,
-      `Returns Policy: ${row.returns_policy || ''}`,
-      `Brand History: ${row.brand_history || ''}`,
-      `Physical Branches: ${row.physical_branches || ''}`,
-      `Operations Summary: ${row.operations_summary || ''}`,
-    ].join('\n');
+    const lines: string[] = ['=== BRAND PROFILE ==='];
+    if (row.mission)                lines.push(`Mission: ${row.mission}`);
+    if (row.uvp)                    lines.push(`Unique Value Proposition: ${row.uvp}`);
+    if (row.tone)                   lines.push(`Tone / Voice: ${row.tone}`);
+    if (row.demographics)           lines.push(`Target Demographics: ${row.demographics}`);
+    if (row.geo)                    lines.push(`Geography: ${row.geo}`);
+    if (row.hero_products)          lines.push(`Hero Products: ${row.hero_products}`);
+    if (row.price_positioning)      lines.push(`Price Positioning: ${row.price_positioning}`);
+    if (row.shipping_policy)        lines.push(`Shipping Policy: ${row.shipping_policy}`);
+    if (row.returns_policy)         lines.push(`Returns Policy: ${row.returns_policy}`);
+    if (row.loyalty_program)        lines.push(`Loyalty Program: ${row.loyalty_program}`);
+    if (row.praises)                lines.push(`What Customers Praise: ${row.praises}`);
+    if (row.objections)             lines.push(`Common Objections: ${row.objections}`);
+    if (row.competitors)            lines.push(`Competitors: ${row.competitors}`);
+    if (row.market_gap)             lines.push(`Market Gap / Differentiation: ${row.market_gap}`);
+    if (row.brand_history)          lines.push(`Brand History: ${row.brand_history}`);
+    if (row.operations_summary)     lines.push(`Operations Summary: ${row.operations_summary}`);
+    if (row.physical_branches)      lines.push(`Physical Branches: ${row.physical_branches}`);
+    if (row.detailed_brand_aesthetic) lines.push(`Brand Aesthetic: ${row.detailed_brand_aesthetic}`);
+    if (row.connected_software)     lines.push(`Connected Software: ${row.connected_software}`);
+    if (row.brand_colours)          lines.push(`Brand Colours: ${row.brand_colours}`);
+    return lines.join('\n');
   } catch {
     return '';
   }
@@ -193,14 +206,16 @@ async function gatherCompactDataContext(
     try {
       const products = await ProductsRepository.list(inventorySystemId);
       const rows: string[][] = [
-        ['option_id', 'code', 'name', 'brand', 'cost', 'retail_price'],
+        ['option_id', 'code', 'name', 'brand', 'cost', 'retail_price', 'soh', 'available', 'incoming', 'sold_90d', 'sold_12m'],
         ...products.slice(0, 120).map(p => [
           p.option_id, p.code ?? '', p.name ?? '', p.brand ?? '',
           String(p.cost ?? ''), String(p.retail_price ?? ''),
+          String(p.global_soh ?? 0), String(p.global_available ?? 0), String(p.global_incoming ?? 0),
+          String(p.sales_qty_90d ?? 0), String(p.sales_qty_12m ?? 0),
         ]),
       ];
       const csv = rowsToCompactCsv(rows, 120);
-      if (csv) parts.push(`=== PRODUCTS (first 120 rows) ===\n${csv}`);
+      if (csv) parts.push(`=== PRODUCTS — code, name, price, stock on hand, sold last 90d / 12m (first 120) ===\n${csv}`);
     } catch { /* ignore */ }
   }
 
@@ -312,9 +327,6 @@ export async function POST(req: Request) {
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: 'GEMINI_API_KEY not configured.' }, { status: 500 });
-  if (!CLIENT_ID || !CLIENT_SECRET) {
-    return NextResponse.json({ error: 'GOOGLE_GMAIL_CLIENT_ID / GOOGLE_GMAIL_CLIENT_SECRET not configured.' }, { status: 500 });
-  }
 
   const body = await req.json();
   const databaseId: string = body.databaseId || '';
@@ -326,6 +338,8 @@ export async function POST(req: Request) {
 
   const sheets = new GoogleSheetsService();
   let refreshToken = '';
+  let gmailClientId     = ENV_CLIENT_ID;
+  let gmailClientSecret = ENV_CLIENT_SECRET;
   let modelId = 'gemini-2.5-flash-preview-04-17';
   let inventorySystemId = databaseId;
   let ga4PropertyId = '';
@@ -349,6 +363,12 @@ export async function POST(req: Request) {
     if (conn.gmail_refresh_token) {
       try { refreshToken = decrypt(conn.gmail_refresh_token); } catch { refreshToken = conn.gmail_refresh_token; }
     }
+    // Per-business OAuth credentials (override env fallbacks if present)
+    if ((conn as any).gmail_client_id) gmailClientId = (conn as any).gmail_client_id;
+    if ((conn as any).gmail_client_secret) {
+      try { gmailClientSecret = decrypt((conn as any).gmail_client_secret); }
+      catch { gmailClientSecret = (conn as any).gmail_client_secret; }
+    }
     if (conn.gemini_model) modelId = conn.gemini_model;
     ga4PropertyId = conn.ga4_property_id ?? '';
     metaAccountId = conn.meta_ad_account_id ?? '';
@@ -362,8 +382,11 @@ export async function POST(req: Request) {
   if (!refreshToken) {
     return NextResponse.json({ error: 'Gmail refresh token is not configured in Connections.' }, { status: 400 });
   }
+  if (!gmailClientId || !gmailClientSecret) {
+    return NextResponse.json({ error: 'Gmail OAuth credentials (Client ID / Client Secret) are not configured. Save them in Settings → Connections → Gmail.' }, { status: 400 });
+  }
 
-  const accessToken = await getAccessToken(refreshToken);
+  const accessToken = await getAccessToken(refreshToken, gmailClientId, gmailClientSecret);
 
   const profileRes = await fetch(`${GMAIL_API}/profile`, {
     headers: { Authorization: `Bearer ${accessToken}` },

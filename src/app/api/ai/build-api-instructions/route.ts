@@ -14,7 +14,6 @@ const API_LABELS: Record<string, string> = {
   ga4:         'Google Analytics 4 Data API (GA4)',
   'google-ads': 'Google Ads API (v16)',
   meta:        'Meta (Facebook) Marketing API (Graph API v19)',
-  cin7:        'Cin7 Omni REST API (api.cin7.com/api/v1)',
 };
 
 const API_RESOURCE_HINTS: Record<string, string> = {
@@ -22,8 +21,6 @@ const API_RESOURCE_HINTS: Record<string, string> = {
   'ga4':          'Ensure coverage of: runReport, batchRunReports, runPivotReport, runRealtimeReport, getMetadata, checkCompatibility, audienceExports, property metadata dimensions and metrics.',
   'google-ads':   'Ensure coverage of: Campaigns, AdGroups, Ads, Keywords, BiddingStrategies, ConversionActions, Audiences, Feeds, Labels, Budgets, Recommendations, ChangeHistory, CustomerClients, AccountHierarchy, Reports (via GAQL), Assets, Extensions.',
   'meta':         'Ensure coverage of: AdAccounts, Campaigns, AdSets, Ads, AdCreatives, AdImages, AdVideos, CustomAudiences, LeadAds, Insights (breakdowns, action types), Pixels, OfflineConversions, Catalogs, ProductFeeds, ProductSets, BusinessAssets, Pages, InstagramAccounts, Webhooks.',
-  'cin7':         'This is Cin7 Omni (NOT Cin7 Core / DEAR Systems). Base URL: https://api.cin7.com/api/v1. Auth: Basic auth with Account ID and API Key. Pagination uses "rows" (page size) and "page" (page number) query parameters. Ensure coverage of ALL these resource groups and their GET/POST/PUT/DELETE methods: Products (/Products, /ProductsList — note pagination via rows/page, filtering via ModifiedDate/Active), Contacts (/Contacts — covers both customers and suppliers), Sale Orders (/SaleOrders, /SaleOrderLines), Invoices (/SaleInvoices), Purchase Orders (/PurchaseOrders, /PurchaseOrderLines), Inventory (/ProductAvailability, /StockAdjustments), Branches/Locations (/Branches), Job Costing (/Jobs), Webhooks (/Webhooks), and any other available endpoints. Document rate limits, error codes, and best practices for incremental sync using ModifiedDate.',
-
 };
 
 const PROMPT = (apiLabel: string, apiKey: string) => `

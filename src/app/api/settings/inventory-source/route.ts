@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { ConfigRepository } from '@/lib/db/ConfigRepository';
 
-const VALID_SOURCES = ['cin7', 'solvantis', 'lightspeed'] as const;
+const VALID_SOURCES = ['cin7', 'solvantis'] as const;
 type InventorySource = typeof VALID_SOURCES[number];
 
 function getBusinessId(): string | null {

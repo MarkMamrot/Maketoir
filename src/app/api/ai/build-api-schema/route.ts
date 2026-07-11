@@ -12,7 +12,6 @@ const API_LABELS: Record<string, string> = {
   ga4:          'Google Analytics 4 Data API',
   'google-ads': 'Google Ads API',
   meta:         'Meta Marketing API',
-  cin7:         'Cin7 Omni REST API (api.cin7.com/api/v1)',
 };
 
 const SCHEMA_HEADERS = ['Field', 'Type', 'Category', 'Description'];
@@ -59,8 +58,6 @@ async function getCredentials(databaseId: string): Promise<Record<string, string
     const conn = await ConnectionsRepository.get(databaseId);
     if (!conn) return {};
     const data: Record<string, string> = {
-      Cin7AccountId:         conn.cin7_account_id          ?? '',
-      Cin7ApiKey:            conn.cin7_api_key              ? decrypt(conn.cin7_api_key) : '',
       ShopifyShopId:         conn.shopify_shop_id           ?? '',
       ShopifyAccessToken:    conn.shopify_access_token      ? decrypt(conn.shopify_access_token) : '',
       MetaAdAccountId:       conn.meta_ad_account_id        ?? '',
@@ -107,17 +104,6 @@ interface ApiFetchConfig {
 }
 
 const API_FETCH_CONFIGS: Record<string, ApiFetchConfig> = {
-  cin7: {
-    buildUrl: (path, paginationParam, _creds) => {
-      const url = new URL(`https://api.cin7.com${path}`);
-      url.searchParams.set(paginationParam || 'rows', '1');
-      return url.toString();
-    },
-    buildHeaders: (creds) => ({
-      Authorization: `Basic ${Buffer.from(`${creds.Cin7AccountId}:${creds.Cin7ApiKey}`).toString('base64')}`,
-    }),
-    canFetch: (creds) => !!(creds.Cin7AccountId && creds.Cin7ApiKey),
-  },
   shopify: {
     buildUrl: (path, paginationParam, creds) => {
       const url = new URL(`https://${creds.ShopifyShopId}${path}`);

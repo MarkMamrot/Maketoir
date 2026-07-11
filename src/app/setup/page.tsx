@@ -1680,18 +1680,6 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
               </button>
             </div>
           </div>
-          <div className="w-full flex flex-col gap-1 pt-2 border-t border-dashed border-gray-200">
-            <div className="flex items-center gap-2 flex-wrap">
-              <button onClick={() => buildInstructions('cin7')} disabled={!!apiActLoading['cin7']} className="px-2 py-1 bg-purple-600 text-white rounded text-xs font-medium hover:bg-purple-700 transition">
-                {apiActLoading['cin7'] === 'instructions' ? '⏳' : '📚'} Build
-              </button>
-              <button onClick={() => buildSchema('cin7')} disabled={!!apiActLoading['cin7_schema']} className="px-2 py-1 bg-violet-600 text-white rounded text-xs font-medium hover:bg-violet-700 transition">
-                {apiActLoading['cin7_schema'] === 'schema' ? '⏳' : '🔍'} Schema
-              </button>
-            </div>
-            {apiActMsgs?.['cin7'] && <p className="text-xs text-gray-600">{apiActMsgs['cin7']}</p>}
-            {apiActMsgs?.['cin7_schema'] && <p className="text-xs text-gray-600">{apiActMsgs['cin7_schema']}</p>}
-          </div>
           {cin7Result && <pre className="w-full p-4 bg-gray-100 rounded text-xs overflow-auto max-h-32">{JSON.stringify(cin7Result, null, 2)}</pre>}
         </div>
 
@@ -1989,7 +1977,7 @@ export function DataSourceTab({ business }: { business: Business | null }) {
   }, []);
 
   async function selectSource(newSource: string) {
-    if (newSource === 'lightspeed' || saving) return;
+    if (saving) return;
     setSaving(true);
     setMsg('');
     try {
@@ -2102,17 +2090,6 @@ export function DataSourceTab({ business }: { business: Business | null }) {
           </button>
         </div>
 
-        {/* LightSpeed — coming soon */}
-        <div className={`${tileBase} ${tileDisabled}`}>
-          <span className="absolute top-3 right-3 text-xs bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">
-            Coming Soon
-          </span>
-          <div className="text-2xl mb-2">⚡</div>
-          <div className="font-semibold text-gray-400 mb-1">LightSpeed</div>
-          <div className="text-xs text-gray-400">
-            LightSpeed Retail integration is planned for a future release.
-          </div>
-        </div>
       </div>
 
       {msg && (
