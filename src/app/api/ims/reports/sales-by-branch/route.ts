@@ -98,8 +98,8 @@ export async function GET(req: Request) {
        LEFT JOIN ims_sales_cache sc ON sc.variant_id   = v.variant_id
        ${where}
        ORDER BY ${salesOrderExpr} DESC, p.name, COALESCE(v.sku, '')
-       LIMIT ? OFFSET ?`,
-      [...params, pageSize, offset],
+       LIMIT ${pageSize} OFFSET ${offset}`,
+      [...params],
     ) as any;
 
     // 3. Per-location stock for the current page variants

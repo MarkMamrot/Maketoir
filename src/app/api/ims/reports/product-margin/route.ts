@@ -66,8 +66,8 @@ export async function GET(req: Request) {
       JOIN ims_sales_cache sc ON sc.variant_id = v.variant_id
       ${where}
       ORDER BY (${salesCol} * (v.price_rrp - v.cost_aud)) DESC
-      LIMIT ? OFFSET ?
-    `, [...filterParams, pageSize, offset]);
+      LIMIT ${pageSize} OFFSET ${offset}
+    `, [...filterParams]);
 
     const data = rows.map(r => {
       const q     = Number(r.sales_qty ?? 0);

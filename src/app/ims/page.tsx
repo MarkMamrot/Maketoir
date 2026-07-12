@@ -8961,6 +8961,99 @@ const WINDOW_OPTS = [
   { value: 365, label: '12 Months' },
 ];
 
+// ─── Date Range Picker (for Sales by Branch) ─────────────────────────────────
+
+type SBDateRange =
+  | { kind: 'window'; window: number; label: string }        // cached aggregate
+  | { kind: 'range';  from: string; to: string; label: string }; // live query
+
+const todaySB = () => new Date().toLocaleDateString('sv-SE');
+const daysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toLocaleDateString('sv-SE'); };
+
+function SBDatePicker({ value, onChange }: { value: SBDateRange; onChange: (r: SBDateRange) => void }) {
+  const [open, setOpen] = React.useState(false);
+  const [tab,  setTab]  = React.useState<'presets' | 'custom'>('presets');
+  const [cfrom, setCfrom] = React.useState('');
+  const [cto,   setCto]   = React.useState('');
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  const presets: { label: string; make: () => SBDateRange }[] = [
+    { label: 'Today',         make: () => ({ kind: 'range' as const, from: todaySB(), to: todaySB(), label: 'Today' }) },
+    { label: 'Yesterday',     make: () => { const y = daysAgo(1); return { kind: 'range' as const, from: y, to: y, label: 'Yesterday' }; } },
+    { label: 'Last 7 days',   make: () => ({ kind: 'window' as const, window: 7,   label: '7 Days' }) },
+    { label: 'Last 30 days',  make: () => ({ kind: 'range' as const, from: daysAgo(29), to: todaySB(), label: '30 Days' }) },
+    { label: 'Last 90 days',  make: () => ({ kind: 'window' as const, window: 90,  label: '90 Days' }) },
+    { label: 'Last 180 days', make: () => ({ kind: 'window' as const, window: 180, label: '180 Days' }) },
+    { label: 'Last 12 months',make: () => ({ kind: 'window' as const, window: 365, label: '12 Months' }) },
+  ];
+
+  const apply = (r: SBDateRange) => { onChange(r); setOpen(false); };
+  const applyCustom = () => {
+    if (!cfrom || !cto) return;
+    const [f, t] = cfrom <= cto ? [cfrom, cto] : [cto, cfrom];
+    const diff = Math.round((new Date(t).getTime() - new Date(f).getTime()) / 86400000) + 1;
+    apply({ kind: 'range', from: f, to: t, label: diff === 1 ? f : `${f} → ${t}` });
+  };
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 34, padding: '0 12px', borderRadius: 7, border: `1px solid ${open ? 'var(--sv-action)' : 'var(--sv-etch)'}`, background: open ? 'var(--sv-action)' : 'var(--sv-bg-0)', color: open ? '#fff' : 'var(--sv-text-main)', cursor: 'pointer', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        {value.label}
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+
+      {open && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 6, zIndex: 500, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.18)', width: 248, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', borderBottom: '1px solid var(--sv-etch)' }}>
+            {(['presets', 'custom'] as const).map(t => (
+              <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: '8px 0', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: tab === t ? 700 : 400, background: tab === t ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: tab === t ? '#fff' : 'var(--sv-text-dim)' }}>
+                {t === 'presets' ? 'Presets' : 'Custom Range'}
+              </button>
+            ))}
+          </div>
+
+          {tab === 'presets' ? (
+            <div style={{ padding: 6 }}>
+              {presets.map(p => {
+                const active = value.label === p.label;
+                return (
+                  <button key={p.label} onClick={() => apply(p.make())} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 12px', border: 'none', borderRadius: 6, background: active ? 'color-mix(in srgb, var(--sv-action) 15%, transparent)' : 'none', color: active ? 'var(--sv-action)' : 'var(--sv-text-main)', fontWeight: active ? 600 : 400, cursor: 'pointer', fontSize: 13 }}>
+                    {p.label}{active && <span style={{ float: 'right', fontSize: 10 }}>✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ padding: '12px 14px' }}>
+              {(['From', 'To'] as const).map((lbl, idx) => {
+                const val = idx === 0 ? cfrom : cto;
+                const set = idx === 0 ? setCfrom : setCto;
+                return (
+                  <div key={lbl} style={{ marginBottom: 10 }}>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: .5 }}>{lbl}</label>
+                    <input type="date" value={val} onChange={e => set(e.target.value)} style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 13, boxSizing: 'border-box' as const }} />
+                  </div>
+                );
+              })}
+              <button onClick={applyCustom} disabled={!cfrom || !cto} style={{ width: '100%', padding: '7px 0', border: 'none', borderRadius: 6, background: 'var(--sv-action)', color: '#fff', fontWeight: 600, fontSize: 13, cursor: (!cfrom || !cto) ? 'not-allowed' : 'pointer', opacity: (!cfrom || !cto) ? .5 : 1 }}>Apply</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SalesByBranchView({ onBack }: { onBack: () => void }) {
   const [rows, setRows]             = useState<any[]>([]);
   const [total, setTotal]           = useState(0);
@@ -8969,7 +9062,7 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
   const [error, setError]           = useState('');
 
   const [filters, setFilters]  = useState<MultiFilter>(EMPTY_MULTI);
-  const [window_,  setWindow_] = useState(90);
+  const [dateRange, setDateRange] = useState<SBDateRange>({ kind: 'window', window: 90, label: '90 Days' });
   const [page,     setPage]    = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
@@ -8981,11 +9074,17 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
 
   const totalPages = Math.ceil(total / pageSize) || 1;
 
-  const load = useCallback(async (pg: number, f: MultiFilter, win: number, ps: number) => {
+  const load = useCallback(async (pg: number, f: MultiFilter, dr: SBDateRange, ps: number) => {
     setLoading(true);
     setError('');
     try {
-      const params = new URLSearchParams({ window: String(win), page: String(pg), pageSize: String(ps), ...multiFilterParams(f) });
+      const params = new URLSearchParams({ page: String(pg), pageSize: String(ps), ...multiFilterParams(f) });
+      if (dr.kind === 'window') {
+        params.set('window', String(dr.window));
+      } else {
+        params.set('from', dr.from);
+        params.set('to', dr.to);
+      }
       const data = await apiFetch(`/api/ims/reports/sales-by-branch?${params}`);
       setRows(data.rows ?? []);
       setTotal(data.total ?? 0);
@@ -8997,15 +9096,17 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
     }
   }, []);
 
-  useEffect(() => { load(1, EMPTY_MULTI, 90, 25); }, [load]);
+  useEffect(() => { load(1, EMPTY_MULTI, { kind: 'window', window: 90, label: '90 Days' }, 25); }, [load]);
 
-  const handleFilterChange = (f: MultiFilter) => { setFilters(f); setPage(1); load(1, f, window_, pageSize); };
-  const goPage      = (pg: number) => { setPage(pg); load(pg, filters, window_, pageSize); };
-  const changeWindow = (win: number) => { setWindow_(win); load(page, filters, win, pageSize); };
-  const changePageSize = (ps: number) => { setPageSize(ps); setPage(1); load(1, filters, window_, ps); };
+  const handleFilterChange = (f: MultiFilter) => { setFilters(f); setPage(1); load(1, f, dateRange, pageSize); };
+  const handleDateChange   = (dr: SBDateRange) => { setDateRange(dr); setPage(1); load(1, filters, dr, pageSize); };
+  const goPage             = (pg: number)       => { setPage(pg); load(pg, filters, dateRange, pageSize); };
+  const changePageSize     = (ps: number)       => { setPageSize(ps); setPage(1); load(1, filters, dateRange, ps); };
 
-  const salesKey = window_ <= 7 ? 'sales_qty_7d' : window_ <= 90 ? 'sales_qty_90d' : window_ <= 180 ? 'sales_qty_180d' : 'sales_qty_12m';
-  const salesLabel = WINDOW_OPTS.find(o => o.value === window_)?.label ?? '90 Days';
+  // Which column to read for sales quantity
+  const salesKey = dateRange.kind === 'range'
+    ? 'sales_qty_custom'
+    : dateRange.window <= 7 ? 'sales_qty_7d' : dateRange.window <= 90 ? 'sales_qty_90d' : dateRange.window <= 180 ? 'sales_qty_180d' : 'sales_qty_12m';
 
   const toggleSort = (col: string) => {
     if (sortCol === col) setSortAsc(a => !a);
@@ -9041,7 +9142,7 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
 
   const downloadCsv = () => {
     const locHeaders = locations.map(l => l.name);
-    const headers = ['#', 'Product', 'Option', 'SKU', 'Brand', 'Supplier', `Sales (${salesLabel})`, 'Global SOH', ...locHeaders];
+    const headers = ['#', 'Product', 'Option', 'SKU', 'Brand', 'Supplier', `Sales (${dateRange.label})`, 'Global SOH', ...locHeaders];
     const lines = [headers.map(h => `"${h}"`).join(',')];
     displayRows.forEach((row, i) => {
       const sq = Number(row[salesKey] ?? 0);
@@ -9126,11 +9227,7 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
       {/* Filters */}
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         <ReportMultiFilter filters={filters} onChange={handleFilterChange} />
-        <div style={{ display: 'flex', gap: 4 }}>
-          {WINDOW_OPTS.map(o => (
-            <button key={o.value} onClick={() => changeWindow(o.value)} style={{ height: 34, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: window_ === o.value ? 'var(--sv-action)' : 'var(--sv-bg-0)', color: window_ === o.value ? '#fff' : 'var(--sv-text-main)', fontSize: 12, fontWeight: window_ === o.value ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{o.label}</button>
-          ))}
-        </div>
+        <SBDatePicker value={dateRange} onChange={handleDateChange} />
         {!loading && total > 0 && (
           <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
             {total.toLocaleString()} variant{total !== 1 ? 's' : ''}
@@ -9160,7 +9257,7 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
               {sortTh('brand', 'Brand')}
               {sortTh('supplier', 'Supplier')}
               <th onClick={() => toggleSort('sales')} style={{ ...numHCell, cursor: 'pointer', userSelect: 'none', color: 'var(--sv-action)' }}>
-                Sales ({salesLabel}){sortArrow('sales')}
+                Sales ({dateRange.label}){sortArrow('sales')}
               </th>
               <th onClick={() => toggleSort('soh')} style={{ ...numHCell, cursor: 'pointer', userSelect: 'none' }}>
                 Global SOH{sortArrow('soh')}

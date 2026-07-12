@@ -91,7 +91,8 @@ export async function GET(req: Request) {
       countParams,
     );
 
-    // Page data
+    // Page data — LIMIT/OFFSET inlined as integers (not ?-params) to avoid a
+    // mysql2 prepared-statement serialisation issue with LIMIT/OFFSET parameters.
     const rows = await imsQuery<{
       product_id: string;
       name: string;
@@ -119,8 +120,8 @@ export async function GET(req: Request) {
          COUNT(DISTINCT v.variant_id) AS variant_count
        ${baseQuery}
        ORDER BY p.created_at DESC
-       LIMIT ? OFFSET ?`,
-      [...selectParams, perPage, offset],
+       LIMIT ${perPage} OFFSET ${offset}`,
+      selectParams,
     );
 
     // Fetch variants for each product
