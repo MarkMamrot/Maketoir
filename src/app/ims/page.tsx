@@ -8973,6 +8973,12 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
   const [page,     setPage]    = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
+  // Sort state (client-side, within the loaded page)
+  const [sortCol, setSortCol] = useState<string>('sales');
+  const [sortAsc, setSortAsc] = useState(false);
+  // Per-column text filters
+  const [colQ, setColQ] = useState<Record<string, string>>({});
+
   const totalPages = Math.ceil(total / pageSize) || 1;
 
   const load = useCallback(async (pg: number, f: MultiFilter, win: number, ps: number) => {
@@ -9001,11 +9007,66 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
   const salesKey = window_ <= 7 ? 'sales_qty_7d' : window_ <= 90 ? 'sales_qty_90d' : window_ <= 180 ? 'sales_qty_180d' : 'sales_qty_12m';
   const salesLabel = WINDOW_OPTS.find(o => o.value === window_)?.label ?? '90 Days';
 
+  const toggleSort = (col: string) => {
+    if (sortCol === col) setSortAsc(a => !a);
+    else { setSortCol(col); setSortAsc(false); }
+  };
+
+  // Apply column text filters then sort within the loaded page
+  const displayRows = React.useMemo(() => {
+    let r = [...rows];
+    if (colQ.product) { const q = colQ.product.toLowerCase(); r = r.filter(x => (x.product_name || '').toLowerCase().includes(q) || (x.option_label || '').toLowerCase().includes(q)); }
+    if (colQ.sku)     { const q = colQ.sku.toLowerCase();     r = r.filter(x => (x.sku || '').toLowerCase().includes(q)); }
+    if (colQ.brand)   { const q = colQ.brand.toLowerCase();   r = r.filter(x => (x.brand || '').toLowerCase().includes(q)); }
+    if (colQ.supplier){ const q = colQ.supplier.toLowerCase();r = r.filter(x => (x.supplier_name || '').toLowerCase().includes(q)); }
+    const dir = sortAsc ? 1 : -1;
+    r.sort((a, b) => {
+      let av: number | string = 0, bv: number | string = 0;
+      if (sortCol === 'sales') { av = Number(a[salesKey] ?? 0); bv = Number(b[salesKey] ?? 0); }
+      else if (sortCol === 'soh') { av = Number(a.global_soh ?? 0); bv = Number(b.global_soh ?? 0); }
+      else if (sortCol === 'product') { av = (a.product_name ?? '') + (a.option_label ?? ''); bv = (b.product_name ?? '') + (b.option_label ?? ''); }
+      else if (sortCol === 'sku') { av = a.sku ?? ''; bv = b.sku ?? ''; }
+      else if (sortCol === 'brand') { av = a.brand ?? ''; bv = b.brand ?? ''; }
+      else if (sortCol === 'supplier') { av = a.supplier_name ?? ''; bv = b.supplier_name ?? ''; }
+      else if (sortCol.startsWith('loc_')) {
+        const lid = Number(sortCol.slice(4));
+        av = Number(a.stock?.find((s: any) => s.location_id === lid)?.soh ?? 0);
+        bv = Number(b.stock?.find((s: any) => s.location_id === lid)?.soh ?? 0);
+      }
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
+      return String(av).localeCompare(String(bv)) * dir;
+    });
+    return r;
+  }, [rows, sortCol, sortAsc, colQ, salesKey]);
+
+  const downloadCsv = () => {
+    const locHeaders = locations.map(l => l.name);
+    const headers = ['#', 'Product', 'Option', 'SKU', 'Brand', 'Supplier', `Sales (${salesLabel})`, 'Global SOH', ...locHeaders];
+    const lines = [headers.map(h => `"${h}"`).join(',')];
+    displayRows.forEach((row, i) => {
+      const sq = Number(row[salesKey] ?? 0);
+      const locCols = locations.map(l => { const s = row.stock?.find((x: any) => x.location_id === l.id); return String(s ? Number(s.soh) : 0); });
+      lines.push([
+        String((page - 1) * pageSize + i + 1),
+        `"${(row.product_name || '').replace(/"/g, '""')}"`,
+        `"${(row.option_label || '').replace(/"/g, '""')}"`,
+        `"${(row.sku || '').replace(/"/g, '""')}"`,
+        `"${(row.brand || '').replace(/"/g, '""')}"`,
+        `"${(row.supplier_name || '').replace(/"/g, '""')}"`,
+        String(sq), String(Number(row.global_soh ?? 0)), ...locCols,
+      ].join(','));
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url;
+    a.download = `sales-by-branch-${new Date().toLocaleDateString('sv-SE')}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const pageRange = (): (number | '...')[] => {
     const r: (number | '...')[] = [];
-    if (totalPages <= 7) {
-      for (let i = 1; i <= totalPages; i++) r.push(i);
-    } else {
+    if (totalPages <= 7) { for (let i = 1; i <= totalPages; i++) r.push(i); }
+    else {
       r.push(1);
       if (page > 3) r.push('...');
       for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) r.push(i);
@@ -9016,22 +9077,50 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
   };
 
   const cellStyle: React.CSSProperties = { padding: '9px 12px', borderBottom: '1px solid var(--sv-etch)', fontSize: 13, whiteSpace: 'nowrap' };
-  const hCell: React.CSSProperties    = { ...cellStyle, fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, background: 'var(--sv-bg-2)' };
+  const hCell: React.CSSProperties    = { ...cellStyle, fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, background: 'var(--sv-bg-2)', verticalAlign: 'top' };
   const numCell: React.CSSProperties  = { ...cellStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' as any };
   const numHCell: React.CSSProperties = { ...hCell, textAlign: 'right' };
 
+  // Reusable sort arrow
+  const sortArrow = (col: string) => (
+    <span style={{ marginLeft: 3, fontSize: 9, opacity: sortCol === col ? 1 : 0.3 }}>
+      {sortCol === col ? (sortAsc ? '▲' : '▼') : '↕'}
+    </span>
+  );
+  // Reusable column search input (stops click propagation so it doesn't trigger sort)
+  const colSearch = (key: string) => (
+    <input
+      value={colQ[key] ?? ''}
+      onChange={e => setColQ(p => ({ ...p, [key]: e.target.value }))}
+      onClick={e => e.stopPropagation()}
+      placeholder="Filter…"
+      style={{ display: 'block', marginTop: 5, width: '100%', padding: '3px 6px', border: '1px solid var(--sv-etch)', borderRadius: 4, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 11, boxSizing: 'border-box' as const, fontWeight: 400, letterSpacing: 0, textTransform: 'none' as const }}
+    />
+  );
+  const sortTh = (col: string, label: string, extra?: React.CSSProperties, withSearch = true) => (
+    <th onClick={() => toggleSort(col)} style={{ ...hCell, cursor: 'pointer', userSelect: 'none', ...extra }}>
+      {label}{sortArrow(col)}
+      {withSearch && colSearch(col)}
+    </th>
+  );
+
   return (
     <div>
-      {/* Back + Title */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-        <button
-          onClick={onBack}
-          style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--sv-text-dim)' }}
-        >
+      {/* Back + Title + Export */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+        <button onClick={onBack} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--sv-text-dim)' }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
           Reports
         </button>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0 }}>Sales by Branch / Product</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Sales by Branch / Product</h1>
+        <button
+          onClick={downloadCsv}
+          disabled={displayRows.length === 0}
+          style={{ height: 34, padding: '0 12px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12, cursor: displayRows.length === 0 ? 'not-allowed' : 'pointer', opacity: displayRows.length === 0 ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 5 }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export CSV
+        </button>
       </div>
 
       {/* Filters */}
@@ -9042,9 +9131,18 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
             <button key={o.value} onClick={() => changeWindow(o.value)} style={{ height: 34, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: window_ === o.value ? 'var(--sv-action)' : 'var(--sv-bg-0)', color: window_ === o.value ? '#fff' : 'var(--sv-text-main)', fontSize: 12, fontWeight: window_ === o.value ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{o.label}</button>
           ))}
         </div>
-        {!loading && total > 0 && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{total.toLocaleString()} variant{total !== 1 ? 's' : ''}</span>}
+        {!loading && total > 0 && (
+          <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
+            {total.toLocaleString()} variant{total !== 1 ? 's' : ''}
+            {displayRows.length !== rows.length ? ` (${displayRows.length} shown)` : ''}
+          </span>
+        )}
         {loading && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Loading…</span>}
-        {hasMultiFilter(filters) && <button onClick={() => handleFilterChange(EMPTY_MULTI)} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Clear filters</button>}
+        {(hasMultiFilter(filters) || Object.values(colQ).some(Boolean)) && (
+          <button onClick={() => { handleFilterChange(EMPTY_MULTI); setColQ({}); }} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
+            Clear filters
+          </button>
+        )}
       </div>
 
       {error && (
@@ -9056,38 +9154,39 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr>
-              <th style={{ ...hCell, position: 'sticky', left: 0, zIndex: 2, background: 'var(--sv-bg-2)', minWidth: 220 }}>Product</th>
-              <th style={hCell}>SKU</th>
-              <th style={hCell}>Brand</th>
-              <th style={hCell}>Supplier</th>
-              <th style={{ ...numHCell, color: 'var(--sv-action)' }}>Sales ({salesLabel})</th>
-              <th style={numHCell}>Global SOH</th>
+              <th style={{ ...hCell, width: 44, textAlign: 'right' }}>#</th>
+              {sortTh('product', 'Product', { position: 'sticky', left: 0, zIndex: 2, minWidth: 220 })}
+              {sortTh('sku', 'SKU')}
+              {sortTh('brand', 'Brand')}
+              {sortTh('supplier', 'Supplier')}
+              <th onClick={() => toggleSort('sales')} style={{ ...numHCell, cursor: 'pointer', userSelect: 'none', color: 'var(--sv-action)' }}>
+                Sales ({salesLabel}){sortArrow('sales')}
+              </th>
+              <th onClick={() => toggleSort('soh')} style={{ ...numHCell, cursor: 'pointer', userSelect: 'none' }}>
+                Global SOH{sortArrow('soh')}
+              </th>
               {locations.map(l => (
-                <th key={l.id} style={{ ...numHCell, maxWidth: 100, whiteSpace: 'normal', lineHeight: 1.3 }}>{l.name}</th>
+                <th key={l.id} onClick={() => toggleSort(`loc_${l.id}`)} style={{ ...numHCell, maxWidth: 100, whiteSpace: 'normal', lineHeight: 1.3, cursor: 'pointer', userSelect: 'none' }}>
+                  {l.name}{sortArrow(`loc_${l.id}`)}
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading && (
-              <tr>
-                <td colSpan={6 + locations.length} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>
-                  Loading…
-                </td>
-              </tr>
+              <tr><td colSpan={7 + locations.length} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
             )}
-            {!loading && rows.length === 0 && (
-              <tr>
-                <td colSpan={6 + locations.length} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>
-                  No results found.
-                </td>
-              </tr>
+            {!loading && displayRows.length === 0 && (
+              <tr><td colSpan={7 + locations.length} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>No results found.</td></tr>
             )}
-            {!loading && rows.map((row, i) => {
+            {!loading && displayRows.map((row, i) => {
               const salesQty = Number(row[salesKey] ?? 0);
               const locStockMap = new Map<number, any>(row.stock.map((s: any) => [s.location_id, s]));
               const rowBg = i % 2 === 0 ? 'transparent' : 'color-mix(in srgb, var(--sv-etch) 35%, transparent)';
+              const rowNum = (page - 1) * pageSize + i + 1;
               return (
                 <tr key={row.variant_id} style={{ background: rowBg }}>
+                  <td style={{ ...numCell, color: 'var(--sv-text-dim)', fontSize: 11 }}>{rowNum}</td>
                   <td style={{ ...cellStyle, position: 'sticky', left: 0, zIndex: 1, background: rowBg, minWidth: 220 }}>
                     <div style={{ fontWeight: 500, color: 'var(--sv-text-strong)' }}>{row.product_name}</div>
                     {row.option_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 1 }}>{row.option_label}</div>}
@@ -11047,6 +11146,7 @@ function BulkEditView() {
   const [total, setTotal]             = useState(0);
   const [page, setPage]               = useState(1);
   const [loading, setLoading]         = useState(false);
+  const [loadError, setLoadError]     = useState('');
   const [saving, setSaving]           = useState(false);
   const [saveMsg, setSaveMsg]         = useState('');
 
@@ -11087,6 +11187,7 @@ function BulkEditView() {
   useEffect(() => {
     if (!locationId) return;
     setLoading(true);
+    setLoadError('');
     const params = new URLSearchParams({
       location_id: String(locationId),
       page: String(page),
@@ -11097,8 +11198,11 @@ function BulkEditView() {
     });
     fetch(`/api/ims/products/bulk-edit?${params}`)
       .then(r => r.json())
-      .then(d => { setRows(d.products ?? []); setTotal(d.total ?? 0); })
-      .catch(() => {})
+      .then(d => {
+        if (d.error) { setLoadError(d.error); setRows([]); setTotal(0); return; }
+        setRows(d.products ?? []); setTotal(d.total ?? 0);
+      })
+      .catch(e => setLoadError(e?.message ?? 'Network error'))
       .finally(() => setLoading(false));
   }, [locationId, page, q, quickFilter, brandFilter, supplierFilter]);
 
@@ -11293,7 +11397,10 @@ function BulkEditView() {
             {loading && (
               <tr><td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
             )}
-            {!loading && rows.length === 0 && (
+            {!loading && loadError && (
+              <tr><td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-red)' }}>Error: {loadError}</td></tr>
+            )}
+            {!loading && !loadError && rows.length === 0 && (
               <tr><td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No products found.</td></tr>
             )}
             {!loading && rows.map((row, i) => {
