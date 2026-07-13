@@ -9069,8 +9069,6 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
   // Sort state (client-side, within the loaded page)
   const [sortCol, setSortCol] = useState<string>('sales');
   const [sortAsc, setSortAsc] = useState(false);
-  // Per-column text filters
-  const [colQ, setColQ] = useState<Record<string, string>>({});
 
   const totalPages = Math.ceil(total / pageSize) || 1;
 
@@ -9113,13 +9111,9 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
     else { setSortCol(col); setSortAsc(false); }
   };
 
-  // Apply column text filters then sort within the loaded page
+  // Apply sort within the loaded page
   const displayRows = React.useMemo(() => {
     let r = [...rows];
-    if (colQ.product) { const q = colQ.product.toLowerCase(); r = r.filter(x => (x.product_name || '').toLowerCase().includes(q) || (x.option_label || '').toLowerCase().includes(q)); }
-    if (colQ.sku)     { const q = colQ.sku.toLowerCase();     r = r.filter(x => (x.sku || '').toLowerCase().includes(q)); }
-    if (colQ.brand)   { const q = colQ.brand.toLowerCase();   r = r.filter(x => (x.brand || '').toLowerCase().includes(q)); }
-    if (colQ.supplier){ const q = colQ.supplier.toLowerCase();r = r.filter(x => (x.supplier_name || '').toLowerCase().includes(q)); }
     const dir = sortAsc ? 1 : -1;
     r.sort((a, b) => {
       let av: number | string = 0, bv: number | string = 0;
@@ -9138,7 +9132,7 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
       return String(av).localeCompare(String(bv)) * dir;
     });
     return r;
-  }, [rows, sortCol, sortAsc, colQ, salesKey]);
+  }, [rows, sortCol, sortAsc, salesKey]);
 
   const downloadCsv = () => {
     const locHeaders = locations.map(l => l.name);
@@ -9188,20 +9182,9 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
       {sortCol === col ? (sortAsc ? '▲' : '▼') : '↕'}
     </span>
   );
-  // Reusable column search input (stops click propagation so it doesn't trigger sort)
-  const colSearch = (key: string) => (
-    <input
-      value={colQ[key] ?? ''}
-      onChange={e => setColQ(p => ({ ...p, [key]: e.target.value }))}
-      onClick={e => e.stopPropagation()}
-      placeholder="Filter…"
-      style={{ display: 'block', marginTop: 5, width: '100%', padding: '3px 6px', border: '1px solid var(--sv-etch)', borderRadius: 4, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 11, boxSizing: 'border-box' as const, fontWeight: 400, letterSpacing: 0, textTransform: 'none' as const }}
-    />
-  );
-  const sortTh = (col: string, label: string, extra?: React.CSSProperties, withSearch = true) => (
+  const sortTh = (col: string, label: string, extra?: React.CSSProperties) => (
     <th onClick={() => toggleSort(col)} style={{ ...hCell, cursor: 'pointer', userSelect: 'none', ...extra }}>
       {label}{sortArrow(col)}
-      {withSearch && colSearch(col)}
     </th>
   );
 
@@ -9231,12 +9214,11 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
         {!loading && total > 0 && (
           <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
             {total.toLocaleString()} variant{total !== 1 ? 's' : ''}
-            {displayRows.length !== rows.length ? ` (${displayRows.length} shown)` : ''}
           </span>
         )}
         {loading && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Loading…</span>}
-        {(hasMultiFilter(filters) || Object.values(colQ).some(Boolean)) && (
-          <button onClick={() => { handleFilterChange(EMPTY_MULTI); setColQ({}); }} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
+        {(hasMultiFilter(filters)) && (
+          <button onClick={() => { handleFilterChange(EMPTY_MULTI); }} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
             Clear filters
           </button>
         )}
