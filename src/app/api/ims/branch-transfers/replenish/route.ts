@@ -38,10 +38,11 @@ export async function POST(req: Request) {
     branch_ids: number[];
     strategy: 'even' | 'priority';
     trigger?: 'below' | 'at_or_below';
+    reorder_mode?: 'exact' | 'top_up';
     priority_order: number[];
   };
 
-  const { warehouse_id, branch_ids, strategy, trigger = 'below', priority_order } = body;
+  const { warehouse_id, branch_ids, strategy, trigger = 'below', reorder_mode = 'exact', priority_order } = body;
 
   if (!warehouse_id || !Array.isArray(branch_ids) || branch_ids.length === 0) {
     return NextResponse.json({ error: 'warehouse_id and branch_ids are required.' }, { status: 400 });
@@ -131,8 +132,10 @@ export async function POST(req: Request) {
     const available   = Number((row as any).available ?? (Number(row.qty_on_hand) - Number((row as any).qty_committed ?? 0)));
     const min_qty     = Number(row.min_qty);
     const reorder_qty = Number(row.reorder_qty);
+    // 'exact': send the full reorder_qty (legacy behaviour)
+    // 'top_up': treat reorder_qty as a target level — only send what's needed to reach it
     const need = reorder_qty > 0
-      ? reorder_qty
+      ? (reorder_mode === 'top_up' ? Math.max(0, reorder_qty - available) : reorder_qty)
       : Math.max(0, min_qty - available);
     if (need <= 0) continue;
 

@@ -11726,7 +11726,7 @@ function BulkEditView() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings — section type and context helper
 // ─────────────────────────────────────────────────────────────────────────────
-type SettingsSection = 'general' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'xero' | 'sync' | 'shopify' | 'utilities';
+type SettingsSection = 'general' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations';
 
 function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'purchase-orders') return 'purchase-orders';
@@ -12553,6 +12553,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
   const [rpBranchIds, setRpBranchIds] = useState<number[]>([]);
   const [rpStrategy, setRpStrategy]   = useState<'even' | 'priority'>('priority');
   const [rpTrigger, setRpTrigger]     = useState<'below' | 'at_or_below'>('below');
+  const [rpReorderMode, setRpReorderMode] = useState<'exact' | 'top_up'>('exact');
   const [rpPriorityOrder, setRpPriorityOrder] = useState<number[]>([]);
   const [rpCalculating, setRpCalculating] = useState(false);
   const [rpPlan, setRpPlan]           = useState<ReplenishBranch[]>([]);
@@ -12574,6 +12575,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
         if (Array.isArray(d.branch_ids)) setRpBranchIds(d.branch_ids);
         if (d.strategy) setRpStrategy(d.strategy);
         if (d.trigger) setRpTrigger(d.trigger);
+        if (d.reorder_mode) setRpReorderMode(d.reorder_mode);
         if (Array.isArray(d.priority_order)) setRpPriorityOrder(d.priority_order);
       } catch {}
     }
@@ -12581,8 +12583,8 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
     setRpOpen(true);
   };
 
-  const saveReplenishDefaults = (wId: number | '', bIds: number[], strat: 'even' | 'priority', trig: 'below' | 'at_or_below', pOrder: number[]) => {
-    localStorage.setItem(REPLENISH_KEY, JSON.stringify({ warehouse_id: wId, branch_ids: bIds, strategy: strat, trigger: trig, priority_order: pOrder }));
+  const saveReplenishDefaults = (wId: number | '', bIds: number[], strat: 'even' | 'priority', trig: 'below' | 'at_or_below', reorderMode: 'exact' | 'top_up', pOrder: number[]) => {
+    localStorage.setItem(REPLENISH_KEY, JSON.stringify({ warehouse_id: wId, branch_ids: bIds, strategy: strat, trigger: trig, reorder_mode: reorderMode, priority_order: pOrder }));
   };
 
   const movePriority = (branchId: number, dir: -1 | 1) => {
@@ -12606,7 +12608,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
   const calculateReplenish = async () => {
     if (!rpWarehouseId) { alert('Please select a warehouse location.'); return; }
     if (rpBranchIds.length === 0) { alert('Please select at least one branch to replenish.'); return; }
-    saveReplenishDefaults(rpWarehouseId, rpBranchIds, rpStrategy, rpTrigger, rpPriorityOrder);
+    saveReplenishDefaults(rpWarehouseId, rpBranchIds, rpStrategy, rpTrigger, rpReorderMode, rpPriorityOrder);
     setRpCalculating(true);
     try {
       const res = await apiFetch('/api/ims/branch-transfers/replenish', {
@@ -12617,6 +12619,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
           branch_ids:    rpBranchIds,
           strategy:      rpStrategy,
           trigger:       rpTrigger,
+          reorder_mode:  rpReorderMode,
           priority_order: rpPriorityOrder,
         }),
       });
@@ -13194,6 +13197,27 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
                     <div>
                       <span style={{ fontWeight: 600 }}>SOH &le; Min Qty</span>
                       <span style={{ color: 'var(--sv-text-dim)', marginLeft: 6 }}>Also includes stock exactly at minimum</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Reorder qty mode */}
+              <div>
+                <label style={{ ...labelStyle, fontWeight: 700 }}>Reorder Qty</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+                    <input type="radio" checked={rpReorderMode === 'exact'} onChange={() => setRpReorderMode('exact')} style={{ marginTop: 2 }} />
+                    <div>
+                      <span style={{ fontWeight: 600 }}>Send full Reorder Qty</span>
+                      <span style={{ color: 'var(--sv-text-dim)', marginLeft: 6 }}>Transfer the full reorder quantity regardless of current stock on hand</span>
+                    </div>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+                    <input type="radio" checked={rpReorderMode === 'top_up'} onChange={() => setRpReorderMode('top_up')} style={{ marginTop: 2 }} />
+                    <div>
+                      <span style={{ fontWeight: 600 }}>Top up to Reorder Qty</span>
+                      <span style={{ color: 'var(--sv-text-dim)', marginLeft: 6 }}>Treat Reorder Qty as the target level — only send what's needed to reach it</span>
                     </div>
                   </label>
                 </div>
@@ -15458,6 +15482,82 @@ function SyncZoneBinUtility() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─── Locations Settings Section ──────────────────────────────────────────────
+
+function LocationsSettingsSection({ settings, saveSettings }: { settings: Record<string, string>; saveSettings: (u: Record<string, string>) => Promise<void> }) {
+  const [locs, setLocs]     = useState<Array<{ id: number; name: string }>>([]);
+  const [saving, setSaving] = useState(false);
+  const [saved,  setSaved]  = useState(false);
+
+  useEffect(() => {
+    fetch('/api/ims/locations')
+      .then(r => r.json())
+      .then(d => {
+        if (d.success && Array.isArray(d.data)) {
+          setLocs(d.data.filter((l: any) => l.is_active).map((l: any) => ({ id: l.id, name: l.name })).sort((a: any, b: any) => a.name.localeCompare(b.name)));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const current = settings['default_warehouse_location_id'] ?? '';
+
+  const handle = async (val: string) => {
+    setSaving(true); setSaved(false);
+    await saveSettings({ default_warehouse_location_id: val });
+    setSaving(false); setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: .5 };
+
+  return (
+    <div style={{ padding: 32, maxWidth: 680 }}>
+      <h2 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Locations</h2>
+      <p style={{ margin: '0 0 28px', fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.65 }}>
+        Configure default location behaviour across the IMS.
+      </p>
+
+      {/* Default Warehouse */}
+      <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '18px 20px', marginBottom: 16 }}>
+        <label style={{ ...labelStyle, fontSize: 13, textTransform: 'none' as const, letterSpacing: 0, fontWeight: 700, color: 'var(--sv-text-strong)' }}>
+          Default Warehouse Location
+        </label>
+        <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
+          The default location pre-selected across the IMS when no other location is specified. Used as the default for:
+        </p>
+        <ul style={{ margin: '0 0 14px', paddingLeft: 20, fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.9 }}>
+          <li><strong style={{ color: 'var(--sv-text-main)' }}>Branch Transfers</strong> — pre-filled as the &ldquo;From&rdquo; location when creating a new transfer</li>
+          <li><strong style={{ color: 'var(--sv-text-main)' }}>Zone &amp; Bin assignment</strong> — the location whose stock is shown when editing zone/bin on a product</li>
+          <li><strong style={{ color: 'var(--sv-text-main)' }}>Min Qty &amp; Reorder Qty</strong> — the location whose thresholds are set when managing low-stock alerts</li>
+        </ul>
+        {locs.length === 0 ? (
+          <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', fontStyle: 'italic' }}>Loading locations…</p>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <select
+              value={current}
+              onChange={e => handle(e.target.value)}
+              disabled={saving}
+              style={{ padding: '8px 12px', borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: current ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontSize: 13, minWidth: 240, cursor: 'pointer' }}
+            >
+              <option value="">— No default set —</option>
+              {locs.map(l => <option key={l.id} value={String(l.id)}>{l.name}</option>)}
+            </select>
+            {saving && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Saving…</span>}
+            {saved  && <span style={{ fontSize: 12, color: 'var(--sv-mint)' }}>✓ Saved</span>}
+          </div>
+        )}
+        {current && locs.length > 0 && (
+          <p style={{ marginTop: 8, fontSize: 12, color: 'var(--sv-text-dim)' }}>
+            Currently: <strong style={{ color: 'var(--sv-text-main)' }}>{locs.find(l => String(l.id) === current)?.name ?? current}</strong>
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, syncingSteps, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput }: SettingsModalProps) {
   const { settings, saveSettings } = useImsSettings();
   const [active, setActive] = useState<SettingsSection>(defaultSection);
@@ -15599,6 +15699,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
   const NAV_ITEMS_DRAWER: { id: SettingsSection; label: string; icon: string }[] = [
     { id: 'general',         label: 'General',         icon: '⚙' },
+    { id: 'locations',        label: 'Locations',        icon: '🏗' },
     { id: 'users',           label: 'Users',           icon: '👥' },
     { id: 'purchase-orders', label: 'Purchase Orders', icon: '📦' },
     { id: 'sales-orders',    label: 'Sales Orders',    icon: '🧾' },
@@ -15702,6 +15803,11 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
             </p>
             <SyncZoneBinUtility />
           </div>
+        )}
+
+        {/* ── Locations ── */}
+        {active === 'locations' && (
+          <LocationsSettingsSection settings={settings} saveSettings={saveSettings} />
         )}
 
         {/* ── General / POS / Sync ── legacy accordion body ── */}
