@@ -1544,7 +1544,7 @@ function ImportProductsModal({
   const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
   const { settings: importSettings } = useImsSettings();
   const showZoneBin   = importSettings.use_zones_bins  !== 'no';
-  const showCategories = importSettings.use_categories !== 'no';
+  const showCategories = importSettings.use_categories === 'yes';
 
   // Full template header list: optional category cols + base columns + per-location stock columns.
   const templateHeaders = useMemo(() => {
@@ -2132,7 +2132,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const [importProductsOpen, setImportProductsOpen] = useState(false);
   const [contacts, setContacts] = useState<{ id: number; name: string; type: string }[]>([]);
   const { settings: productSettings } = useImsSettings();
-  const showCategories = productSettings.use_categories !== 'no';
+  const showCategories = productSettings.use_categories === 'yes';
 
   const CURRENCIES = ['USD', 'EUR', 'GBP', 'THB', 'CNY', 'JPY'];
 
