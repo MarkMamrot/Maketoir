@@ -1,6 +1,6 @@
 // POS Service Worker — caches the /pos shell and JS chunks for offline use.
 // Bump CACHE_VER after a major deploy to evict old cached HTML.
-const CACHE_VER = 'v2';
+const CACHE_VER = 'v3';
 const PAGE_CACHE   = `pos-pages-${CACHE_VER}`;
 const STATIC_CACHE = `pos-static-${CACHE_VER}`;
 
