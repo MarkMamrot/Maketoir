@@ -11726,7 +11726,7 @@ function BulkEditView() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings — section type and context helper
 // ─────────────────────────────────────────────────────────────────────────────
-type SettingsSection = 'general' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations';
+type SettingsSection = 'general' | 'business-profile' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations';
 
 function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'purchase-orders') return 'purchase-orders';
@@ -15581,11 +15581,13 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   const [taxSaving, setTaxSaving] = useState(false);
   useEffect(() => {
     setTaxDraft({
-      sales_tax_on_sales:  'yes',
-      sales_tax_rate:      '',
-      sales_tax_code:      '',
-      purchase_tax_rate:   '',
-      purchase_tax_code:   '',
+      sales_tax_on_sales:       'yes',
+      sales_tax_rate:           '',
+      sales_tax_code:           '',
+      purchase_tax_rate:        '',
+      purchase_tax_code:        '',
+      use_multiple_locations:   'yes',
+      use_zones_bins:           'no',
       ...settings,
     });
   }, [settings]);
@@ -15698,7 +15700,8 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   if (!isOpen) return null;
 
   const NAV_ITEMS_DRAWER: { id: SettingsSection; label: string; icon: string }[] = [
-    { id: 'general',         label: 'General',         icon: '⚙' },
+    { id: 'general',          label: 'General',          icon: '⚙' },
+    { id: 'business-profile', label: 'Business Profile', icon: '🏢' },
     { id: 'locations',        label: 'Locations',        icon: '🏗' },
     { id: 'users',           label: 'Users',           icon: '👥' },
     { id: 'purchase-orders', label: 'Purchase Orders', icon: '📦' },
@@ -15808,6 +15811,49 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
         {/* ── Locations ── */}
         {active === 'locations' && (
           <LocationsSettingsSection settings={settings} saveSettings={saveSettings} />
+        )}
+
+        {/* ── Business Profile ── */}
+        {active === 'business-profile' && (
+          <div style={{ padding: 32, maxWidth: 640 }}>
+            <h2 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Business Profile</h2>
+            <p style={{ margin: '0 0 20px', fontSize: 13, color: 'var(--sv-text-dim)' }}>These details appear on PDF Purchase Orders and Tax Invoices.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div>
+                <label style={labelStyle}>Business Name</label>
+                <input style={inputStyle} value={profileDraft['business_name'] || ''} onChange={e => setProfileDraft(p => ({ ...p, business_name: e.target.value }))} placeholder="Your company name" />
+              </div>
+              <div>
+                <label style={labelStyle}>Business Address</label>
+                <input style={inputStyle} value={profileDraft['business_address'] || ''} onChange={e => setProfileDraft(p => ({ ...p, business_address: e.target.value }))} placeholder="e.g. 123 Main St, Sydney NSW 2000" />
+              </div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={labelStyle}>ABN</label>
+              <input style={inputStyle} value={profileDraft['business_abn'] || ''} onChange={e => setProfileDraft(p => ({ ...p, business_abn: e.target.value }))} placeholder="e.g. 11 222 333 444" />
+            </div>
+            <div style={{ marginBottom: 24 }}>
+              <label style={labelStyle}>Logo for PDF (PNG/JPG — max ~500 KB)</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (file.size > 600_000) { alert('Logo is too large (max ~500 KB). Please resize it first.'); e.target.value = ''; return; }
+                  const reader = new FileReader();
+                  reader.onload = ev => setProfileDraft(p => ({ ...p, logo_base64: String(ev.target?.result || '').replace(/^data:[^;]+;base64,/, '') }));
+                  reader.readAsDataURL(file);
+                }} style={{ fontSize: 12 }} />
+                {(profileDraft['logo_base64'] || settings['logo_base64']) && <>
+                  <img src={`data:image/png;base64,${profileDraft['logo_base64'] || settings['logo_base64']}`} alt="Logo preview" style={{ height: 44, objectFit: 'contain', borderRadius: 4, border: '1px solid var(--sv-etch)' }} />
+                  <button type="button" onClick={() => setProfileDraft(p => ({ ...p, logo_base64: '' }))} style={btnStyle('danger', 'xs')}>Remove</button>
+                </>}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={() => setProfileDraft(settings)} style={btnStyle('ghost', 'sm')}>Cancel</button>
+              <button type="button" disabled={profileSaving} onClick={async () => { setProfileSaving(true); await saveSettings(profileDraft); setProfileSaving(false); }} style={btnStyle('action', 'sm')}>{profileSaving ? 'Saving…' : 'Save Profile'}</button>
+            </div>
+          </div>
         )}
 
         {/* ── General / POS / Sync ── legacy accordion body ── */}
@@ -15930,97 +15976,74 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
           {/* ── GENERAL SECTION ── */}
           <div style={{ display: active === 'general' ? undefined : 'none' }}>
-          {/* ── Business Profile ── */}
-          <div style={{ marginBottom: 8 }}>
-            <CollHeader label="🏢 Business Profile" open={profileOpen} toggle={() => setProfileOpen(o => !o)} />
-            {profileOpen && (
-              <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
-                <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 14, marginTop: 0 }}>These details appear on PDF Purchase Orders and Tax Invoices.</p>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-                  <div>
-                    <label style={labelStyle}>Business Name</label>
-                    <input style={inputStyle} value={profileDraft['business_name'] || ''} onChange={e => setProfileDraft(p => ({ ...p, business_name: e.target.value }))} placeholder="Your company name" />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Business Address</label>
-                    <input style={inputStyle} value={profileDraft['business_address'] || ''} onChange={e => setProfileDraft(p => ({ ...p, business_address: e.target.value }))} placeholder="e.g. 123 Main St, Sydney NSW 2000" />
-                  </div>
-                </div>
-                <div style={{ marginBottom: 12 }}>
-                  <label style={labelStyle}>ABN</label>
-                  <input style={inputStyle} value={profileDraft['business_abn'] || ''} onChange={e => setProfileDraft(p => ({ ...p, business_abn: e.target.value }))} placeholder="e.g. 11 222 333 444" />
-                </div>
-                <div style={{ marginBottom: 16 }}>
-                  <label style={labelStyle}>Logo for PDF (PNG/JPG — max ~500 KB)</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                    <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" onChange={e => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      if (file.size > 600_000) { alert('Logo is too large (max ~500 KB). Please resize it first.'); e.target.value = ''; return; }
-                      const reader = new FileReader();
-                      reader.onload = ev => setProfileDraft(p => ({ ...p, logo_base64: String(ev.target?.result || '').replace(/^data:[^;]+;base64,/, '') }));
-                      reader.readAsDataURL(file);
-                    }} style={{ fontSize: 12 }} />
-                    {(profileDraft['logo_base64'] || settings['logo_base64']) && <>
-                      <img src={`data:image/png;base64,${profileDraft['logo_base64'] || settings['logo_base64']}`} alt="Logo preview" style={{ height: 44, objectFit: 'contain', borderRadius: 4, border: '1px solid var(--sv-etch)' }} />
-                      <button type="button" onClick={() => setProfileDraft(p => ({ ...p, logo_base64: '' }))} style={btnStyle('danger', 'xs')}>Remove</button>
-                    </>}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                  <button type="button" onClick={() => setProfileDraft(settings)} style={btnStyle('ghost', 'sm')}>Cancel</button>
-                  <button type="button" disabled={profileSaving} onClick={async () => { setProfileSaving(true); await saveSettings(profileDraft); setProfileSaving(false); }} style={btnStyle('action', 'sm')}>{profileSaving ? 'Saving…' : 'Save Profile'}</button>
+            <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>General Settings</h2>
+
+            {/* Business Operations */}
+            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
+              <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Business Operations</h3>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={labelStyle}>Does your business operate multiple locations?</label>
+                <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--sv-text-dim)' }}>e.g. multiple retail shops, or a shop and a warehouse</p>
+                <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', width: 'fit-content' }}>
+                  {(['yes', 'no'] as const).map(opt => {
+                    const isOpt = (taxDraft.use_multiple_locations ?? 'yes') === opt;
+                    return <button key={opt} type="button" onClick={() => setTaxDraft(p => ({ ...p, use_multiple_locations: opt }))} style={{ padding: '7px 22px', fontSize: 13, fontWeight: isOpt ? 600 : 400, background: isOpt ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: isOpt ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer' }}>{opt === 'yes' ? 'Yes' : 'No'}</button>;
+                  })}
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* ── Tax Settings ── */}
-          <div style={{ marginBottom: 8 }}>
-            <CollHeader label="🧾 Tax Settings" open={taxOpen} toggle={() => setTaxOpen(o => !o)} />
-            {taxOpen && (
-              <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
-
-                <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 14, marginTop: 0 }}>Configure sales tax codes and rates. Xero TaxType codes are hardcoded to standard values (OUTPUT / INPUT / NONE).</p>
-
-                <div style={{ marginBottom: 12 }}>
-                  <label style={labelStyle}>Charge Sales Tax on Sales Orders</label>
-                  <select value={taxDraft.sales_tax_on_sales ?? 'yes'} onChange={e => setTaxDraft(p => ({ ...p, sales_tax_on_sales: e.target.value }))} style={{ ...inputStyle, width: 140 }}>
-                    <option value="yes">Yes</option>
-                    <option value="no">No</option>
-                  </select>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-                  <div>
-                    <label style={labelStyle}>Sales Tax Rate (%)</label>
-                    <input type="number" min="0" max="100" step="0.01" style={inputStyle} value={taxRateDisplay('sales_tax_rate')} onChange={e => setTaxDraft(p => ({ ...p, sales_tax_rate: e.target.value !== '' ? String(Number(e.target.value) / 100) : '' }))} placeholder="e.g. 10" />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Sales Tax Code</label>
-                    <input style={inputStyle} value={taxDraft.sales_tax_code ?? ''} onChange={e => setTaxDraft(p => ({ ...p, sales_tax_code: e.target.value }))} placeholder="e.g. GST, VAT" />
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-                  <div>
-                    <label style={labelStyle}>Purchase Tax Rate (%)</label>
-                    <input type="number" min="0" max="100" step="0.01" style={inputStyle} value={taxRateDisplay('purchase_tax_rate')} onChange={e => setTaxDraft(p => ({ ...p, purchase_tax_rate: e.target.value !== '' ? String(Number(e.target.value) / 100) : '' }))} placeholder="e.g. 10" />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Purchase Tax Code</label>
-                    <input style={inputStyle} value={taxDraft.purchase_tax_code ?? ''} onChange={e => setTaxDraft(p => ({ ...p, purchase_tax_code: e.target.value }))} placeholder="e.g. GST on Purchases" />
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                  <button type="button" onClick={() => setTaxDraft({ sales_tax_on_sales: 'yes', sales_tax_rate: '', sales_tax_code: '', purchase_tax_rate: '', purchase_tax_code: '', ...settings })} style={btnStyle('ghost', 'sm')}>Cancel</button>
-                  <button type="button" disabled={taxSaving} onClick={saveTaxSettings} style={btnStyle('action', 'sm')}>{taxSaving ? 'Saving…' : 'Save Tax Settings'}</button>
+              <div style={{ marginBottom: 4 }}>
+                <label style={labelStyle}>Does your business organise stock in Zones and Bins?</label>
+                <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Zones and Bins let you assign a physical location (e.g. Aisle A, Shelf 3) to each product in a warehouse or stockroom</p>
+                <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', width: 'fit-content' }}>
+                  {(['yes', 'no'] as const).map(opt => {
+                    const isOpt = (taxDraft.use_zones_bins ?? 'no') === opt;
+                    return <button key={opt} type="button" onClick={() => setTaxDraft(p => ({ ...p, use_zones_bins: opt }))} style={{ padding: '7px 22px', fontSize: 13, fontWeight: isOpt ? 600 : 400, background: isOpt ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: isOpt ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer' }}>{opt === 'yes' ? 'Yes' : 'No'}</button>;
+                  })}
                 </div>
               </div>
-            )}
-          </div>
+            </div>
 
+            {/* Tax Settings */}
+            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
+              <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Tax Settings</h3>
+              <p style={{ margin: '0 0 16px', fontSize: 12.5, color: 'var(--sv-text-dim)' }}>Configure sales tax codes and rates used on orders and invoices.</p>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={labelStyle}>Charge Sales Tax on Sales Orders</label>
+                <select value={taxDraft.sales_tax_on_sales ?? 'yes'} onChange={e => setTaxDraft(p => ({ ...p, sales_tax_on_sales: e.target.value }))} style={{ ...inputStyle, width: 140 }}>
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={labelStyle}>Sales Tax Rate (%)</label>
+                  <input type="number" min="0" max="100" step="0.01" style={inputStyle} value={taxRateDisplay('sales_tax_rate')} onChange={e => setTaxDraft(p => ({ ...p, sales_tax_rate: e.target.value !== '' ? String(Number(e.target.value) / 100) : '' }))} placeholder="e.g. 10" />
+                </div>
+                <div>
+                  <label style={labelStyle}>Sales Tax Code</label>
+                  <input style={inputStyle} value={taxDraft.sales_tax_code ?? ''} onChange={e => setTaxDraft(p => ({ ...p, sales_tax_code: e.target.value }))} placeholder="e.g. GST, VAT" />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={labelStyle}>Purchase Tax Rate (%)</label>
+                  <input type="number" min="0" max="100" step="0.01" style={inputStyle} value={taxRateDisplay('purchase_tax_rate')} onChange={e => setTaxDraft(p => ({ ...p, purchase_tax_rate: e.target.value !== '' ? String(Number(e.target.value) / 100) : '' }))} placeholder="e.g. 10" />
+                </div>
+                <div>
+                  <label style={labelStyle}>Purchase Tax Code</label>
+                  <input style={inputStyle} value={taxDraft.purchase_tax_code ?? ''} onChange={e => setTaxDraft(p => ({ ...p, purchase_tax_code: e.target.value }))} placeholder="e.g. GST on Purchases" />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button type="button" disabled={taxSaving} onClick={saveTaxSettings} style={btnStyle('action', 'sm')}>{taxSaving ? 'Saving…' : 'Save Settings'}</button>
+            </div>
           </div>{/* ─ end general ─ */}
 
           {/* ── POS SECTION ── */}
