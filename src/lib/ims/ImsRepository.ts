@@ -86,7 +86,7 @@ export interface ImsLocation {
 
 export interface ImsProduct {
   id: number; product_id: string; name: string; description?: string;
-  product_type?: string; brand?: string; tags?: string; category?: string;
+  product_type?: string; brand?: string; tags?: string; category?: string; subcategory?: string;
   style_code?: string; is_online?: number; supplier_contact_id?: number; cin7_product_id?: number;
   is_active: number; shopify_product_id?: string; created_at?: string; updated_at?: string;
   variants?: ImsVariant[];
@@ -416,17 +416,17 @@ export const ImsProductsRepo = {
   ): Promise<string> {
     const product_id = data.product_id || uuidv4();
     await imsExecute(
-      `INSERT INTO ims_products (business_id,product_id,name,description,product_type,brand,tags,is_active,shopify_product_id,style_code,is_online,supplier_contact_id,cin7_product_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO ims_products (business_id,product_id,name,description,product_type,brand,tags,category,subcategory,is_active,shopify_product_id,style_code,is_online,supplier_contact_id,cin7_product_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [businessId ?? '', product_id, data.name, data.description ?? null, data.product_type ?? null, data.brand ?? null,
-       data.tags ?? null, data.is_active ?? 1, data.shopify_product_id ?? null,
+       data.tags ?? null, data.category ?? null, data.subcategory ?? null, data.is_active ?? 1, data.shopify_product_id ?? null,
        data.style_code ?? null, data.is_online ?? 1, data.supplier_contact_id ?? null, data.cin7_product_id ?? null]
     );
     return product_id;
   },
 
   async update(productId: string, data: Partial<ImsProduct>): Promise<void> {
-    const fields = ['name','description','product_type','brand','tags','is_active','shopify_product_id','style_code','is_online','supplier_contact_id','cin7_product_id'];
+    const fields = ['name','description','product_type','brand','tags','category','subcategory','is_active','shopify_product_id','style_code','is_online','supplier_contact_id','cin7_product_id'];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of fields) {
@@ -690,6 +690,16 @@ export const ImsStockRepo = {
       if (!names.has('zone')) await imsExecute('ALTER TABLE ims_stock ADD COLUMN zone VARCHAR(50) NULL', []);
       if (!names.has('bin'))  await imsExecute('ALTER TABLE ims_stock ADD COLUMN bin  VARCHAR(50) NULL', []);
     } catch { /* ignore — column already exists or table not yet created */ }
+  },
+
+  /** Add category/subcategory to ims_products if they don't exist yet (idempotent). */
+  async ensureProductCategoryColumns(): Promise<void> {
+    try {
+      const cols = await imsQuery<{ Field: string }>('SHOW COLUMNS FROM ims_products', []);
+      const names = new Set(cols.map(c => c.Field));
+      if (!names.has('category'))    await imsExecute('ALTER TABLE ims_products ADD COLUMN category    VARCHAR(255) NULL', []);
+      if (!names.has('subcategory')) await imsExecute('ALTER TABLE ims_products ADD COLUMN subcategory VARCHAR(255) NULL', []);
+    } catch { /* ignore */ }
   },
 
   async upsert(variantId: string, locationId: number, data: Partial<ImsStock>): Promise<void> {

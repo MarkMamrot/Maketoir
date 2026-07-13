@@ -1254,7 +1254,7 @@ interface VariantRow {
 }
 interface OptionSet { name: string; values: string; }
 
-const BLANK_PRODUCT = { name: '', description: '', product_type: '', brand: '', tags: '', is_active: 1, base_sku: '' };
+const BLANK_PRODUCT = { name: '', description: '', product_type: '', brand: '', tags: '', category: '', subcategory: '', is_active: 1, base_sku: '' };
 
 const blankRow = (): VariantRow => ({
   _tempId: Math.random().toString(36).slice(2, 10),
@@ -1543,10 +1543,12 @@ function ImportProductsModal({
   // Per-location Zone/Bin/Min Qty/Reorder Qty columns are appended to the template headers.
   const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
   const { settings: importSettings } = useImsSettings();
-  const showZoneBin = importSettings.use_zones_bins !== 'no';
+  const showZoneBin   = importSettings.use_zones_bins  !== 'no';
+  const showCategories = importSettings.use_categories !== 'no';
 
-  // Full template header list: base columns + per-location stock columns.
+  // Full template header list: optional category cols + base columns + per-location stock columns.
   const templateHeaders = useMemo(() => {
+    const catCols: string[] = showCategories ? ['Category', 'Subcategory'] : [];
     const perLoc: string[] = [];
     for (const loc of locations) {
       if (showZoneBin) {
@@ -1554,8 +1556,8 @@ function ImportProductsModal({
       }
       perLoc.push(`${loc.name} - Min Qty`, `${loc.name} - Reorder Qty`);
     }
-    return [...IMPORT_BASE_HEADERS, ...perLoc];
-  }, [locations, showZoneBin]);
+    return [...IMPORT_BASE_HEADERS, ...catCols, ...perLoc];
+  }, [locations, showZoneBin, showCategories]);
 
   // Normalized header string → { location_id, field } for parsing per-location columns.
   const locHeaderMap = useMemo(() => {
@@ -1779,6 +1781,8 @@ function ImportProductsModal({
         supplier_name: resolvedSupplier || undefined,
         tags: raw['tags'] || undefined,
         style_code: raw['style_code'] || undefined,
+        category: raw['category'] || undefined,
+        subcategory: raw['subcategory'] || undefined,
         is_online: raw['online'] !== '' ? (raw['online'] === '1' || raw['online'].toLowerCase() === 'yes' ? 1 : 0) : undefined,
         sku: raw['sku'] || undefined,
         barcode: raw['barcode'] || undefined,
@@ -1868,7 +1872,7 @@ function ImportProductsModal({
           <>
             <p style={{ margin: 0, fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
               The field headers are pre-filled below. <strong style={{ color: 'var(--sv-text-main)' }}>Copy them into Excel or Google Sheets</strong>, fill your data in the rows below the headers, then paste everything back here. SKU is used to match existing products — rows with a matching SKU will update that variant; rows without a matching SKU will create new products.
-              {' '}The columns at the end{showZoneBin ? ' — Zone, Bin,' : ' —'} Min Qty and Reorder Qty are per location and are saved against that location's stock.
+              {' '}The columns at the end{showCategories ? ' include Category and Subcategory, and' : ' —'}{showZoneBin ? ' Zone, Bin,' : ''} Min Qty and Reorder Qty are per location and are saved against that location's stock.
             </p>
             <textarea
               value={pasteText}
@@ -2127,6 +2131,8 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const [primaryImages, setPrimaryImages] = useState<Record<string, string>>({});
   const [importProductsOpen, setImportProductsOpen] = useState(false);
   const [contacts, setContacts] = useState<{ id: number; name: string; type: string }[]>([]);
+  const { settings: productSettings } = useImsSettings();
+  const showCategories = productSettings.use_categories !== 'no';
 
   const CURRENCIES = ['USD', 'EUR', 'GBP', 'THB', 'CNY', 'JPY'];
 
@@ -2740,6 +2746,12 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                 </datalist>
               </Field>
             </Row2>
+            {showCategories && (
+              <Row2>
+                <Field label="Category"><input value={form.category ?? ''} onChange={sf('category')} style={inputStyle} placeholder="e.g. Apparel" /></Field>
+                <Field label="Subcategory"><input value={form.subcategory ?? ''} onChange={sf('subcategory')} style={inputStyle} placeholder="e.g. T-Shirts" /></Field>
+              </Row2>
+            )}
             <Row2>
               <Field label="Tags (comma separated)"><input value={form.tags} onChange={sf('tags')} style={inputStyle} /></Field>
               <Field label="Active">
@@ -15599,6 +15611,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
       purchase_tax_code:        '',
       use_multiple_locations:   'yes',
       use_zones_bins:           'no',
+      use_categories:           'no',
       ...settings,
     });
   }, [settings]);
@@ -16011,6 +16024,17 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                   {(['yes', 'no'] as const).map(opt => {
                     const isOpt = (taxDraft.use_zones_bins ?? 'no') === opt;
                     return <button key={opt} type="button" onClick={() => setTaxDraft(p => ({ ...p, use_zones_bins: opt }))} style={{ padding: '7px 22px', fontSize: 13, fontWeight: isOpt ? 600 : 400, background: isOpt ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: isOpt ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer' }}>{opt === 'yes' ? 'Yes' : 'No'}</button>;
+                  })}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 4 }}>
+                <label style={labelStyle}>Does your business organise products into Categories and Subcategories?</label>
+                <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--sv-text-dim)' }}>When enabled, Category and Subcategory fields appear in the product import template</p>
+                <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', width: 'fit-content' }}>
+                  {(['yes', 'no'] as const).map(opt => {
+                    const isOpt = (taxDraft.use_categories ?? 'no') === opt;
+                    return <button key={opt} type="button" onClick={() => setTaxDraft(p => ({ ...p, use_categories: opt }))} style={{ padding: '7px 22px', fontSize: 13, fontWeight: isOpt ? 600 : 400, background: isOpt ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: isOpt ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer' }}>{opt === 'yes' ? 'Yes' : 'No'}</button>;
                   })}
                 </div>
               </div>

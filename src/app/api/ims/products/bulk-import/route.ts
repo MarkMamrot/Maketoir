@@ -18,6 +18,8 @@ export interface BulkImportRow {
   supplier_name?: string;
   tags?: string;
   style_code?: string;
+  category?: string;
+  subcategory?: string;
   is_online?: number;
   // Variant-level
   sku?: string;
@@ -62,6 +64,10 @@ export async function POST(req: Request) {
   // Ensure ims_stock has zone/bin columns before any per-location writes.
   const anyLocationStock = rows.some(r => Array.isArray(r.location_stock) && r.location_stock.length > 0);
   if (anyLocationStock) await ImsStockRepo.ensureZoneBinColumns();
+
+  // Ensure category/subcategory columns exist on ims_products.
+  const anyCategories = rows.some(r => r.category || r.subcategory);
+  if (anyCategories) await ImsProductsRepo.ensureProductCategoryColumns();
 
   // Applies per-location zone/bin/min_qty/reorder_qty overrides for a variant.
   async function applyLocationStock(variantId: string, entries?: BulkImportRow['location_stock']) {
@@ -129,6 +135,8 @@ export async function POST(req: Request) {
           brand: row.brand,
           tags: row.tags,
           style_code: row.style_code,
+          category: row.category,
+          subcategory: row.subcategory,
           is_online: row.is_online ?? 1,
           supplier_contact_id: supplierContactId,
           is_active: 1,
@@ -172,6 +180,8 @@ export async function POST(req: Request) {
         if (row.product_type !== undefined && row.product_type !== '') productUpdates.product_type = row.product_type;
         if (row.brand !== undefined && row.brand !== '') productUpdates.brand = row.brand;
         if (row.tags !== undefined && row.tags !== '') productUpdates.tags = row.tags;
+        if (row.category    !== undefined && row.category    !== '') productUpdates.category    = row.category;
+        if (row.subcategory !== undefined && row.subcategory !== '') productUpdates.subcategory = row.subcategory;
         if (supplierContactId) productUpdates.supplier_contact_id = supplierContactId;
         if (Object.keys(productUpdates).length) await ImsProductsRepo.update(productId, productUpdates);
 
@@ -232,6 +242,8 @@ export async function POST(req: Request) {
           if (row.brand !== undefined && row.brand !== '') productUpdates.brand = row.brand;
           if (row.tags !== undefined && row.tags !== '') productUpdates.tags = row.tags;
           if (row.style_code !== undefined && row.style_code !== '') productUpdates.style_code = row.style_code;
+          if (row.category    !== undefined && row.category    !== '') productUpdates.category    = row.category;
+          if (row.subcategory !== undefined && row.subcategory !== '') productUpdates.subcategory = row.subcategory;
           if (row.is_online !== undefined) productUpdates.is_online = row.is_online;
           if (supplierContactId) productUpdates.supplier_contact_id = supplierContactId;
           if (Object.keys(productUpdates).length) await ImsProductsRepo.update(row.existing_product_id, productUpdates);
