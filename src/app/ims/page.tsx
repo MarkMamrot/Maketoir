@@ -11512,6 +11512,8 @@ function BulkEditView() {
               
               // For product-level barcode, use first variant if available
               const firstVariantBarcode = row.variants && row.variants.length > 0 ? row.variants[0].barcode : null;
+              const firstVariantZone    = row.variants && row.variants.length > 0 ? (row.variants[0].zone ?? '') : '';
+              const firstVariantBin     = row.variants && row.variants.length > 0 ? (row.variants[0].bin  ?? '') : '';
               const isSingleVariant = row.variant_count === 1;
 
               return (
@@ -11560,7 +11562,7 @@ function BulkEditView() {
                         type="number" min={0} step={1}
                         value={Math.round(Number(minVal))}
                         onChange={e => setEdit(row.product_id, 'min_qty', e.target.value === '' ? 0 : Math.round(Number(e.target.value)))}
-                        style={{ ...minDirty ? dirtyInputSt : inputSt, textAlign: 'center' }}
+                        style={{ ...minDirty ? dirtyInputSt : inputSt, textAlign: 'center', maxWidth: 72 }}
                       />
                     </td>
 
@@ -11570,13 +11572,39 @@ function BulkEditView() {
                         type="number" min={0} step={1}
                         value={Math.round(Number(reorderVal))}
                         onChange={e => setEdit(row.product_id, 'reorder_qty', e.target.value === '' ? 0 : Math.round(Number(e.target.value)))}
-                        style={{ ...reorderDirty ? dirtyInputSt : inputSt, textAlign: 'center' }}
+                        style={{ ...reorderDirty ? dirtyInputSt : inputSt, textAlign: 'center', maxWidth: 72 }}
                       />
                     </td>
 
-                    {/* Zone / Bin — empty at product level, edited per variant below */}
-                    {showZoneBin && <td style={{ padding: '4px 8px' }} />}
-                    {showZoneBin && <td style={{ padding: '4px 8px' }} />}
+                    {/* Zone / Bin — editable for single-variant; expand hint for multi-variant */}
+                    {showZoneBin && (
+                      <td style={{ padding: '4px 8px' }}>
+                        {isSingleVariant ? (
+                          <input
+                            value={getVariantValue(row.product_id, row.variants[0]?.variant_id, 'zone', firstVariantZone)}
+                            onChange={e => setVariantEdit(row.product_id, row.variants[0]?.variant_id, 'zone', e.target.value)}
+                            placeholder="—"
+                            style={(variantEdits[`${row.product_id}|${row.variants[0]?.variant_id}`] && 'zone' in (variantEdits[`${row.product_id}|${row.variants[0]?.variant_id}`] ?? {})) ? dirtyInputSt : inputSt}
+                          />
+                        ) : (
+                          <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{firstVariantZone || '—'}</span>
+                        )}
+                      </td>
+                    )}
+                    {showZoneBin && (
+                      <td style={{ padding: '4px 8px' }}>
+                        {isSingleVariant ? (
+                          <input
+                            value={getVariantValue(row.product_id, row.variants[0]?.variant_id, 'bin', firstVariantBin)}
+                            onChange={e => setVariantEdit(row.product_id, row.variants[0]?.variant_id, 'bin', e.target.value)}
+                            placeholder="—"
+                            style={(variantEdits[`${row.product_id}|${row.variants[0]?.variant_id}`] && 'bin' in (variantEdits[`${row.product_id}|${row.variants[0]?.variant_id}`] ?? {})) ? dirtyInputSt : inputSt}
+                          />
+                        ) : (
+                          <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{firstVariantBin || '—'}</span>
+                        )}
+                      </td>
+                    )}
 
                     {/* Supplier */}
                     <td style={{ padding: '4px 8px' }}>
