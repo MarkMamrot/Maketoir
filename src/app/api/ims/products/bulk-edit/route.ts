@@ -124,7 +124,7 @@ export async function GET(req: Request) {
       selectParams,
     );
 
-    // Fetch variants for each product
+    // Fetch variants for each product — include zone/bin from ims_stock at the selected location
     const productsWithVariants = await Promise.all(rows.map(async (product) => {
       const variants = await imsQuery<{
         variant_id: string;
@@ -133,11 +133,13 @@ export async function GET(req: Request) {
         zone: string | null;
         bin: string | null;
       }>(
-        `SELECT variant_id, sku, barcode, zone, bin 
-         FROM ims_product_variants 
-         WHERE product_id = ? AND is_active = 1
-         ORDER BY sku ASC`,
-        [product.product_id],
+        `SELECT v.variant_id, v.sku, v.barcode,
+                s.zone, s.bin
+         FROM ims_product_variants v
+         LEFT JOIN ims_stock s ON s.variant_id = v.variant_id AND s.location_id = ?
+         WHERE v.product_id = ? AND v.is_active = 1
+         ORDER BY v.sku ASC`,
+        [locationId, product.product_id],
       );
       return { ...product, variants };
     }));
@@ -204,14 +206,6 @@ export async function PUT(req: Request) {
         productFields.push('supplier_contact_id = ?');
         productValues.push(u.supplier_contact_id ?? null);
       }
-      if ('zone' in u) {
-        productFields.push('zone = ?');
-        productValues.push(u.zone || null);
-      }
-      if ('bin' in u) {
-        productFields.push('bin = ?');
-        productValues.push(u.bin || null);
-      }
 
       if (productFields.length > 0) {
         productFields.push('updated_at = CURRENT_TIMESTAMP');
@@ -220,24 +214,6 @@ export async function PUT(req: Request) {
           [...productValues, u.product_id],
         );
         productUpdates++;
-      }
-
-      // ── Apply product-level zone/bin to all active variants ───────────────
-      if ('zone' in u || 'bin' in u) {
-        const variantIds = await imsQuery<{ variant_id: string }>(
-          'SELECT variant_id FROM ims_product_variants WHERE product_id = ? AND is_active = 1',
-          [u.product_id],
-        );
-
-        for (const { variant_id } of variantIds) {
-          const zoneVal = u.zone ?? null;
-          const binVal  = u.bin ?? null;
-          await imsExecute(
-            `UPDATE ims_product_variants SET zone = ?, bin = ? WHERE variant_id = ?`,
-            [zoneVal, binVal, variant_id],
-          );
-          variantUpdates++;
-        }
       }
 
       // ── Apply product-level barcode to single variant ─────────────────────
@@ -260,28 +236,29 @@ export async function PUT(req: Request) {
       // ── Apply variant-level overrides ──────────────────────────────────────
       if (u.variant_overrides && u.variant_overrides.length > 0) {
         for (const override of u.variant_overrides) {
-          const variantFields: string[] = [];
-          const variantValues: any[]    = [];
-
+          // Barcode → ims_product_variants
           if ('barcode' in override) {
-            variantFields.push('barcode = ?');
-            variantValues.push(override.barcode ?? null);
-          }
-          if ('zone' in override) {
-            variantFields.push('zone = ?');
-            variantValues.push(override.zone ?? null);
-          }
-          if ('bin' in override) {
-            variantFields.push('bin = ?');
-            variantValues.push(override.bin ?? null);
-          }
-
-          if (variantFields.length > 0) {
             await imsExecute(
-              `UPDATE ims_product_variants SET ${variantFields.join(', ')} WHERE variant_id = ?`,
-              [...variantValues, override.variant_id],
+              `UPDATE ims_product_variants SET barcode = ? WHERE variant_id = ?`,
+              [override.barcode ?? null, override.variant_id],
             );
             variantUpdates++;
+          }
+          // Zone/Bin → ims_stock at the chosen location
+          if ('zone' in override || 'bin' in override) {
+            const zoneVal = 'zone' in override ? (override.zone ?? null) : undefined;
+            const binVal  = 'bin'  in override ? (override.bin  ?? null) : undefined;
+            const setClauses: string[] = [];
+            const setVals: any[] = [];
+            if (zoneVal !== undefined) { setClauses.push('zone = ?'); setVals.push(zoneVal); }
+            if (binVal  !== undefined) { setClauses.push('bin = ?');  setVals.push(binVal); }
+            await imsExecute(
+              `INSERT INTO ims_stock (variant_id, location_id, zone, bin)
+               VALUES (?, ?, ?, ?)
+               ON DUPLICATE KEY UPDATE ${setClauses.join(', ')}`,
+              [override.variant_id, location_id, zoneVal ?? null, binVal ?? null, ...setVals],
+            );
+            stockUpdates++;
           }
         }
       }

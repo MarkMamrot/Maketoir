@@ -11195,6 +11195,8 @@ type BulkEditRow = {
     variant_id: string;
     sku: string;
     barcode: string | null;
+    zone: string | null;
+    bin: string | null;
   }>;
 };
 
@@ -11209,6 +11211,8 @@ type BulkEditDraft = Partial<{
 
 type VariantEditDraft = Partial<{
   barcode: string;
+  zone: string;
+  bin: string;
 }>;
 
 function BulkEditView() {
@@ -11223,6 +11227,8 @@ function BulkEditView() {
   const [loadError, setLoadError]     = useState('');
   const [saving, setSaving]           = useState(false);
   const [saveMsg, setSaveMsg]         = useState('');
+  const { settings: beSettings } = useImsSettings();
+  const showZoneBin = beSettings.use_zones_bins !== 'no';
 
   // Filters
   const [q, setQ]                     = useState('');
@@ -11319,14 +11325,16 @@ function BulkEditView() {
     setSaveMsg('');
     try {
       const updates = Object.entries(edits).map(([product_id, draft]) => {
-        const variantOverrides: Array<{ variant_id: string; barcode?: string | null }> = [];
+        const variantOverrides: Array<{ variant_id: string; barcode?: string | null; zone?: string | null; bin?: string | null }> = [];
         
         // Collect variant overrides for this product
         Object.entries(variantEdits).forEach(([key, vDraft]) => {
           const [pId, vId] = key.split('|');
-          if (pId === product_id && vDraft.barcode !== undefined) {
+          if (pId === product_id && (vDraft.barcode !== undefined || vDraft.zone !== undefined || vDraft.bin !== undefined)) {
             const override: any = { variant_id: vId };
             if ('barcode' in vDraft) override.barcode = vDraft.barcode || null;
+            if ('zone'    in vDraft) override.zone    = vDraft.zone    || null;
+            if ('bin'     in vDraft) override.bin     = vDraft.bin     || null;
             variantOverrides.push(override);
           }
         });
@@ -11459,19 +11467,21 @@ function BulkEditView() {
               <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 120 }}>Barcode</th>
               <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 80 }}>Min Qty</th>
               <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 90 }}>Reorder Qty</th>
+              {showZoneBin && <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 90 }}>Zone</th>}
+              {showZoneBin && <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 90 }}>Bin</th>}
               <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 160 }}>Supplier</th>
               <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 130 }}>Brand</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
+              <tr><td colSpan={showZoneBin ? 8 : 6} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
             )}
             {!loading && loadError && (
-              <tr><td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-red)' }}>Error: {loadError}</td></tr>
+              <tr><td colSpan={showZoneBin ? 8 : 6} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-red)' }}>Error: {loadError}</td></tr>
             )}
             {!loading && !loadError && rows.length === 0 && (
-              <tr><td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No products found.</td></tr>
+              <tr><td colSpan={showZoneBin ? 8 : 6} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No products found.</td></tr>
             )}
             {!loading && rows.map((row, i) => {
               const dirty = !!edits[row.product_id];
@@ -11548,7 +11558,7 @@ function BulkEditView() {
                     <td style={{ padding: '4px 8px' }}>
                       <input
                         type="number" min={0} step={1}
-                        value={minVal}
+                        value={Math.round(Number(minVal))}
                         onChange={e => setEdit(row.product_id, 'min_qty', e.target.value === '' ? 0 : Math.round(Number(e.target.value)))}
                         style={{ ...minDirty ? dirtyInputSt : inputSt, textAlign: 'center' }}
                       />
@@ -11558,14 +11568,15 @@ function BulkEditView() {
                     <td style={{ padding: '4px 8px' }}>
                       <input
                         type="number" min={0} step={1}
-                        value={reorderVal}
+                        value={Math.round(Number(reorderVal))}
                         onChange={e => setEdit(row.product_id, 'reorder_qty', e.target.value === '' ? 0 : Math.round(Number(e.target.value)))}
                         style={{ ...reorderDirty ? dirtyInputSt : inputSt, textAlign: 'center' }}
                       />
                     </td>
 
-                    {/* Zone (product-level) */}
-                    {/* Bin (product-level) */}
+                    {/* Zone / Bin — empty at product level, edited per variant below */}
+                    {showZoneBin && <td style={{ padding: '4px 8px' }} />}
+                    {showZoneBin && <td style={{ padding: '4px 8px' }} />}
 
                     {/* Supplier */}
                     <td style={{ padding: '4px 8px' }}>
@@ -11594,7 +11605,11 @@ function BulkEditView() {
                   {/* Variant rows (when expanded) */}
                   {isExpanded && row.variants && row.variants.map(variant => {
                     const vBarcodeVal = getVariantValue(row.product_id, variant.variant_id, 'barcode', variant.barcode || '');
+                    const vZoneVal    = getVariantValue(row.product_id, variant.variant_id, 'zone', variant.zone ?? '');
+                    const vBinVal     = getVariantValue(row.product_id, variant.variant_id, 'bin',  variant.bin  ?? '');
                     const vBarcodeDirty = variantEdits[`${row.product_id}|${variant.variant_id}`] && 'barcode' in variantEdits[`${row.product_id}|${variant.variant_id}`]!;
+                    const vZoneDirty    = variantEdits[`${row.product_id}|${variant.variant_id}`] && 'zone'    in variantEdits[`${row.product_id}|${variant.variant_id}`]!;
+                    const vBinDirty     = variantEdits[`${row.product_id}|${variant.variant_id}`] && 'bin'     in variantEdits[`${row.product_id}|${variant.variant_id}`]!;
 
                     return (
                       <tr key={`${row.product_id}|${variant.variant_id}`} style={variantRowStyle}>
@@ -11614,8 +11629,37 @@ function BulkEditView() {
                           />
                         </td>
 
-                        {/* Empty cells for Min/Reorder Qty + Supplier + Brand */}
-                        <td colSpan={4} style={{ padding: '4px 8px' }} />
+                        {/* Empty cells for Min Qty + Reorder Qty */}
+                        <td colSpan={2} style={{ padding: '4px 8px' }} />
+
+                        {/* Zone (location/variant level) */}
+                        {showZoneBin && (
+                          <td style={{ padding: '4px 8px' }}>
+                            <input
+                              value={vZoneVal}
+                              onChange={e => setVariantEdit(row.product_id, variant.variant_id, 'zone', e.target.value)}
+                              placeholder={'—'}
+                              style={vZoneDirty ? dirtyInputSt : inputSt}
+                              title={`Zone for variant ${variant.sku} at this branch`}
+                            />
+                          </td>
+                        )}
+
+                        {/* Bin (location/variant level) */}
+                        {showZoneBin && (
+                          <td style={{ padding: '4px 8px' }}>
+                            <input
+                              value={vBinVal}
+                              onChange={e => setVariantEdit(row.product_id, variant.variant_id, 'bin', e.target.value)}
+                              placeholder={'—'}
+                              style={vBinDirty ? dirtyInputSt : inputSt}
+                              title={`Bin for variant ${variant.sku} at this branch`}
+                            />
+                          </td>
+                        )}
+
+                        {/* Empty cells for Supplier + Brand */}
+                        <td colSpan={2} style={{ padding: '4px 8px' }} />
                       </tr>
                     );
                   })}
