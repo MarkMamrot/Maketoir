@@ -324,6 +324,10 @@ function Row3({ children }: { children: React.ReactNode }) {
 function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView) => void }) {
   const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: false, __orders: false, __locations: false, __integrations: false });
   const [collapsed, setCollapsed] = useState(false);
+  const { settings: sidebarSettings } = useImsSettings();
+  // Hide Locations group unless the business explicitly operates multiple locations.
+  // Default to showing (treat unset as 'yes') so existing users aren't locked out.
+  const showLocations = sidebarSettings.use_multiple_locations !== 'no';
 
   const toggleSection = (id: string) => setSectionOpen(p => ({ ...p, [id]: !p[id] }));
 
@@ -382,15 +386,15 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
 
       {/* Nav items — collapsed: curated 6-icon list */}
       {collapsed && (() => {
-        const COLLAPSED_ICONS: { icon: string; label: string; navigate: ImsView; activeFor: string[] }[] = [
+        const COLLAPSED_ICONS: { icon: string; label: string; navigate: ImsView; activeFor: string[]; hidden?: boolean }[] = [
           { icon: '__products',       label: 'Products',         navigate: 'products',         activeFor: ['products','stock','brands','bulk-edit'] },
           { icon: 'purchase-orders',  label: 'Purchase Orders',  navigate: 'purchase-orders',  activeFor: ['purchase-orders'] },
           { icon: 'sales-orders',     label: 'Sales Orders',     navigate: 'sales-orders',     activeFor: ['sales-orders'] },
-          { icon: 'branch-transfers', label: 'Branch Transfers', navigate: 'branch-transfers', activeFor: ['branch-transfers'] },
+          { icon: 'branch-transfers', label: 'Branch Transfers', navigate: 'branch-transfers', activeFor: ['branch-transfers'], hidden: !showLocations },
           { icon: 'contacts',         label: 'Contacts',         navigate: 'contacts',         activeFor: ['contacts'] },
           { icon: '__integrations',   label: 'Integrations',     navigate: 'shopify',          activeFor: ['xero','shopify'] },
         ];
-        return COLLAPSED_ICONS.map(entry => (
+        return COLLAPSED_ICONS.filter(entry => !entry.hidden).map(entry => (
           <button key={entry.icon} onClick={() => onSelect(entry.navigate)} title={entry.label}
             style={collapsedItemStyle(entry.activeFor.includes(active))}>
             <NavIcon id={entry.icon} />
@@ -399,7 +403,7 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
       })()}
 
       {/* Nav items — expanded */}
-      {!collapsed && NAV.map(item => {
+      {!collapsed && NAV.filter(item => item.id !== '__locations' || showLocations).map(item => {
         const hasChildren = 'children' in item && (item as any).children?.length > 0;
         const isGroupOpen = sectionOpen[item.id];
         const isActive = active === item.id;
@@ -3305,6 +3309,8 @@ function StockView() {
   const [sortCol, setSortCol] = useState<string>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
+  const { settings: stockSettings } = useImsSettings();
+  const showZoneBin = stockSettings.use_zones_bins !== 'no';
 
   const load = useCallback(() => {
     setLoading(true);
@@ -3439,7 +3445,8 @@ function StockView() {
                 <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
                   {([
                     ['sku','SKU'],['product_name','Product'],['variant_label','Variant'],
-                    ['location_name','Location'],['zone','Zone'],['bin','Bin'],
+                    ['location_name','Location'],
+                    ...(showZoneBin ? [['zone','Zone'],['bin','Bin']] as [string,string][] : []),
                   ] as [string,string][]).map(([col, label]) => (
                     <th key={col} onClick={() => toggleSort(col)} style={thStyle(col)}>
                       {label}<SortIcon col={col} />
@@ -3472,8 +3479,8 @@ function StockView() {
                       <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-main)', whiteSpace: 'nowrap' }}>{s.product_name}</td>
                       <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.variant_label || 'Default'}</td>
                       <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.location_name}</td>
-                      <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.zone || '—'}</td>
-                      <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.bin || '—'}</td>
+                      {showZoneBin && <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.zone || '—'}</td>}
+                      {showZoneBin && <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.bin || '—'}</td>}
                       <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'right', color: low ? 'var(--sv-red)' : 'inherit', fontWeight: low ? 700 : 400 }}>{fmtQty(s.qty_on_hand)}</td>
                       {(() => { const av = Number(s.qty_on_hand) - Number(s.qty_committed); return (
                         <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'right', fontWeight: 600, color: av <= 0 ? 'var(--sv-red)' : 'var(--sv-mint)' }}>{fmtQty(av)}</td>
@@ -11228,6 +11235,8 @@ function BulkEditView() {
   const [loadError, setLoadError]     = useState('');
   const [saving, setSaving]           = useState(false);
   const [saveMsg, setSaveMsg]         = useState('');
+  const { settings: beSettings } = useImsSettings();
+  const showZoneBin = beSettings.use_zones_bins !== 'no';
 
   // Filters
   const [q, setQ]                     = useState('');
@@ -11425,11 +11434,14 @@ function BulkEditView() {
 
         {/* Quick filters */}
         <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Quick:</span>
-        {(['', 'new', 'no_min', 'no_reorder', 'no_zone', 'no_bin'] as const).map(f => (
+        {(['', 'new', 'no_min', 'no_reorder', 'no_zone', 'no_bin'] as const).map(f => {
+          if (!showZoneBin && (f === 'no_zone' || f === 'no_bin')) return null;
+          return (
           <button key={f} style={quickBtnSt(quickFilter === f)} onClick={() => setQuickFilter(prev => prev === f ? '' : f)}>
             {f === '' ? 'All' : f === 'new' ? 'New (7d)' : f === 'no_min' ? 'No Min' : f === 'no_reorder' ? 'No Reorder' : f === 'no_zone' ? 'No Zone' : 'No Bin'}
           </button>
-        ))}
+          );
+        })}
 
         <div style={{ width: 1, height: 20, background: 'var(--sv-etch)', margin: '0 4px' }} />
 
@@ -11466,21 +11478,21 @@ function BulkEditView() {
               <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 120 }}>Barcode</th>
               <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 80 }}>Min Qty</th>
               <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 90 }}>Reorder Qty</th>
-              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 90 }}>Zone</th>
-              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 90 }}>Bin</th>
+              {showZoneBin && <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 90 }}>Zone</th>}
+              {showZoneBin && <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 90 }}>Bin</th>}
               <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 160 }}>Supplier</th>
               <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 130 }}>Brand</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
+              <tr><td colSpan={showZoneBin ? 8 : 6} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
             )}
             {!loading && loadError && (
-              <tr><td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-red)' }}>Error: {loadError}</td></tr>
+              <tr><td colSpan={showZoneBin ? 8 : 6} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-red)' }}>Error: {loadError}</td></tr>
             )}
             {!loading && !loadError && rows.length === 0 && (
-              <tr><td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No products found.</td></tr>
+              <tr><td colSpan={showZoneBin ? 8 : 6} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No products found.</td></tr>
             )}
             {!loading && rows.map((row, i) => {
               const dirty = !!edits[row.product_id];
@@ -11578,6 +11590,7 @@ function BulkEditView() {
                     </td>
 
                     {/* Zone (product-level) */}
+                    {showZoneBin && (
                     <td style={{ padding: '4px 8px' }}>
                       <input
                         value={zoneVal}
@@ -11587,8 +11600,10 @@ function BulkEditView() {
                         title="Product-level zone (applies to all variants)"
                       />
                     </td>
+                    )}
 
                     {/* Bin (product-level) */}
+                    {showZoneBin && (
                     <td style={{ padding: '4px 8px' }}>
                       <input
                         value={binVal}
@@ -11598,6 +11613,7 @@ function BulkEditView() {
                         title="Product-level bin (applies to all variants)"
                       />
                     </td>
+                    )}
 
                     {/* Supplier */}
                     <td style={{ padding: '4px 8px' }}>
@@ -11654,6 +11670,7 @@ function BulkEditView() {
                         <td colSpan={2} style={{ padding: '4px 8px' }} />
 
                         {/* Variant Zone */}
+                        {showZoneBin && (
                         <td style={{ padding: '4px 8px' }}>
                           <input
                             value={vZoneVal}
@@ -11663,8 +11680,10 @@ function BulkEditView() {
                             title={`Override zone for variant ${variant.sku}`}
                           />
                         </td>
+                        )}
 
                         {/* Variant Bin */}
+                        {showZoneBin && (
                         <td style={{ padding: '4px 8px' }}>
                           <input
                             value={vBinVal}
@@ -11674,6 +11693,7 @@ function BulkEditView() {
                             title={`Override bin for variant ${variant.sku}`}
                           />
                         </td>
+                        )}
 
                         {/* Empty cells for Supplier, Brand */}
                         <td colSpan={2} style={{ padding: '4px 8px' }} />

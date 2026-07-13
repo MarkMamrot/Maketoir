@@ -1342,32 +1342,19 @@ function MainPos({
     drainOfflineQueue().then(refreshQueueCount);
   }
 
-  async function handleOpenTill() {
-    if (!('serial' in navigator)) {
-      alert('Open Till uses the Web Serial API (Chrome / Edge only).\n\nConnect your receipt printer via USB, then try again.');
-      return;
-    }
-    setCashDrawerLoading(true);
-    try {
-      // ESC/POS cash-drawer-open: ESC p pin=0 t1=25 t2=25
-      const cmd = new Uint8Array([0x1B, 0x70, 0x00, 0x19, 0x19]);
-      const granted: any[] = await (navigator as any).serial.getPorts();
-      const port: any = granted[0] ?? await (navigator as any).serial.requestPort();
-      let opened = false;
-      try {
-        await port.open({ baudRate: 19200 });
-        opened = true;
-        const writer = port.writable.getWriter();
-        await writer.write(cmd);
-        writer.releaseLock();
-      } finally {
-        if (opened) await port.close().catch(() => {});
-      }
-    } catch (e: any) {
-      if (e?.name !== 'NotFoundError') alert(`Open till: ${e?.message ?? String(e)}`);
-    } finally {
-      setCashDrawerLoading(false);
-    }
+  function handleOpenTill() {
+    // Receipt printers open the cash drawer on any print job.
+    // Inject a minimal invisible element, print it, then remove it.
+    const style = document.createElement('style');
+    style.textContent = '@media print { body * { visibility: hidden !important; } #pos-open-till-el { visibility: visible !important; position: fixed; top: 0; left: 0; font-size: 1px; } }';
+    const el = document.createElement('div');
+    el.id = 'pos-open-till-el';
+    el.textContent = '-';
+    document.head.appendChild(style);
+    document.body.appendChild(el);
+    window.print();
+    document.head.removeChild(style);
+    document.body.removeChild(el);
   }
 
   async function handleSync() {
