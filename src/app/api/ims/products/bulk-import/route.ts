@@ -27,8 +27,6 @@ export interface BulkImportRow {
   price_wholesale?: number | null;
   weight_kg?: number | null;
   pack_size?: number | null;
-  bin?: string;
-  zone?: string;
   option1_name?: string;
   option1_value?: string;
   option2_name?: string;
@@ -36,6 +34,8 @@ export interface BulkImportRow {
   option3_name?: string;
   option3_value?: string;
   cost_foreign?: string;
+  // Per-location stock overrides (zone / bin / min_qty / reorder_qty)
+  location_stock?: Array<{ location_id: number; zone?: string; bin?: string; min_qty?: number; reorder_qty?: number }>;
   // Resolved IDs (filled by classification step on the server)
   existing_variant_id?: string;
   existing_product_id?: string;
@@ -45,7 +45,6 @@ interface RequestBody {
   rows: BulkImportRow[];
   autoCreateBrands: string[];
   autoCreateSuppliers: string[];
-  copy_zone_bin_location_id?: number | null;
 }
 
 export async function POST(req: Request) {
@@ -58,12 +57,24 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { rows, autoCreateBrands = [], autoCreateSuppliers = [], copy_zone_bin_location_id } = body;
+  const { rows, autoCreateBrands = [], autoCreateSuppliers = [] } = body;
 
-  const copyLocationId = copy_zone_bin_location_id ? Number(copy_zone_bin_location_id) : null;
+  // Ensure ims_stock has zone/bin columns before any per-location writes.
+  const anyLocationStock = rows.some(r => Array.isArray(r.location_stock) && r.location_stock.length > 0);
+  if (anyLocationStock) await ImsStockRepo.ensureZoneBinColumns();
 
-  // Ensure ims_stock has zone/bin columns before any writes.
-  if (copyLocationId) await ImsStockRepo.ensureZoneBinColumns();
+  // Applies per-location zone/bin/min_qty/reorder_qty overrides for a variant.
+  async function applyLocationStock(variantId: string, entries?: BulkImportRow['location_stock']) {
+    for (const e of entries ?? []) {
+      if (!e || !e.location_id) continue;
+      const data: Record<string, any> = {};
+      if (e.zone !== undefined) data.zone = e.zone || null;
+      if (e.bin  !== undefined) data.bin  = e.bin  || null;
+      if (e.min_qty     !== undefined && e.min_qty     !== null && !isNaN(Number(e.min_qty)))     data.min_qty     = Number(e.min_qty);
+      if (e.reorder_qty !== undefined && e.reorder_qty !== null && !isNaN(Number(e.reorder_qty))) data.reorder_qty = Number(e.reorder_qty);
+      if (Object.keys(data).length) await ImsStockRepo.upsert(variantId, Number(e.location_id), data);
+    }
+  }
 
   // 1. Create missing brands
   for (const brandName of autoCreateBrands) {
@@ -134,8 +145,6 @@ export async function POST(req: Request) {
           price_wholesale: row.price_wholesale ?? undefined,
           weight_kg: row.weight_kg ?? undefined,
           pack_size: row.pack_size ?? undefined,
-          bin: row.bin,
-          zone: row.zone,
           option1_name: row.option1_name,
           option1_value: row.option1_value,
           option2_name: row.option2_name,
@@ -145,10 +154,8 @@ export async function POST(req: Request) {
           cost_foreign: row.cost_foreign,
           is_active: 1,
         }, businessId);
-        // Optionally copy zone/bin to the chosen location's stock row
-        if (copyLocationId && (row.zone || row.bin)) {
-          await ImsStockRepo.upsert(newVariantId, copyLocationId, { zone: row.zone || null, bin: row.bin || null });
-        }
+        // Apply per-location stock overrides
+        await applyLocationStock(newVariantId, row.location_stock);
         created++;
 
       } else if (row.action === 'new_variant') {
@@ -178,8 +185,6 @@ export async function POST(req: Request) {
           price_wholesale: row.price_wholesale ?? undefined,
           weight_kg: row.weight_kg ?? undefined,
           pack_size: row.pack_size ?? undefined,
-          bin: row.bin,
-          zone: row.zone,
           option1_name: row.option1_name,
           option1_value: row.option1_value,
           option2_name: row.option2_name,
@@ -189,9 +194,7 @@ export async function POST(req: Request) {
           cost_foreign: row.cost_foreign,
           is_active: 1,
         }, businessId);
-        if (copyLocationId && (row.zone || row.bin)) {
-          await ImsStockRepo.upsert(newVariantId2, copyLocationId, { zone: row.zone || null, bin: row.bin || null });
-        }
+        await applyLocationStock(newVariantId2, row.location_stock);
         created++;
 
       } else if (row.action === 'update') {
@@ -207,8 +210,6 @@ export async function POST(req: Request) {
         if (row.price_wholesale != null)                          variantUpdates.price_wholesale = row.price_wholesale;
         if (row.weight_kg       != null)                          variantUpdates.weight_kg = row.weight_kg;
         if (row.pack_size       != null)                          variantUpdates.pack_size = row.pack_size;
-        if (row.bin  !== undefined && row.bin  !== '')            variantUpdates.bin  = row.bin  || null;
-        if (row.zone !== undefined && row.zone !== '')            variantUpdates.zone = row.zone || null;
         if (row.option1_name  !== undefined && row.option1_name  !== '') variantUpdates.option1_name  = row.option1_name;
         if (row.option1_value !== undefined && row.option1_value !== '') variantUpdates.option1_value = row.option1_value;
         if (row.option2_name  !== undefined && row.option2_name  !== '') variantUpdates.option2_name  = row.option2_name;
@@ -219,10 +220,8 @@ export async function POST(req: Request) {
         if (Object.keys(variantUpdates).length) {
           await ImsVariantsRepo.update(row.existing_variant_id, variantUpdates);
         }
-        // Optionally copy zone/bin to the chosen location's stock row
-        if (copyLocationId && (row.zone !== undefined || row.bin !== undefined)) {
-          await ImsStockRepo.upsert(row.existing_variant_id, copyLocationId, { zone: row.zone || null, bin: row.bin || null });
-        }
+        // Apply per-location stock overrides
+        await applyLocationStock(row.existing_variant_id, row.location_stock);
 
         // Update product-level fields if provided
         if (row.existing_product_id) {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
@@ -1248,8 +1248,6 @@ interface VariantRow {
   discount_end_date: string;
   weight_kg: string;
   price_wholesale: string;
-  bin: string;
-  zone: string;
   is_active: number;
   foreignCosts: Record<string, string>; // e.g. { USD: '10.50', THB: '380' }
   _delete?: boolean;
@@ -1264,7 +1262,7 @@ const blankRow = (): VariantRow => ({
   sku: '', barcode: '', cost_aud: '', price_rrp: '',
   price_wholesale: '',
   price_rrp_sale: '', discount_start_date: '', discount_end_date: '',
-  weight_kg: '', bin: '', zone: '', is_active: 1, foreignCosts: {},
+  weight_kg: '', is_active: 1, foreignCosts: {},
 });
 
 function cartesian(sets: OptionSet[]): [string, string, string][] {
@@ -1494,9 +1492,9 @@ function ImportLineItemsModal({
 // Import Products Modal
 // ─────────────────────────────────────────────────────────────────────────────
 
-const IMPORT_TEMPLATE_HEADERS = [
+const IMPORT_BASE_HEADERS = [
   'Product_Name','SKU','Barcode','Description','Brand','Supplier','Product_Type',
-  'Tags','Style_Code','Online','Pack_Size','Bin','Zone',
+  'Tags','Style_Code','Online','Pack_Size',
   'Option1_Name','Option1_Value','Option2_Name','Option2_Value','Option3_Name','Option3_Value',
   'RRP','price_wholesale','Cost_AUD','Cost_USD','Cost_EUR','Cost_GBP','Cost_THB','Cost_CNY','Cost_JPY','Weight_KG',
 ];
@@ -1528,7 +1526,7 @@ function ImportProductsModal({
   onDone: () => void;
 }) {
   const [stage, setStage] = useState<ImportProductsStage>('paste');
-  const [pasteText, setPasteText] = useState(IMPORT_TEMPLATE_HEADERS.join('\t'));
+  const [pasteText, setPasteText] = useState('');
   const [parsedRows, setParsedRows] = useState<ParsedImportRow[]>([]);
   const [unknownBrands, setUnknownBrands] = useState<string[]>([]);
   const [unknownSuppliers, setUnknownSuppliers] = useState<string[]>([]);
@@ -1542,40 +1540,55 @@ function ImportProductsModal({
   const [result, setResult] = useState<{ created: number; updated: number; skipped: number } | null>(null);
   const [importing, setImporting] = useState(false);
 
-  // Zone/bin → location copy option (persisted in localStorage)
-  const ZONE_LOC_KEY = 'ims_import_zone_bin_location';
-  const [locations, setLocations]             = useState<{ id: number; name: string }[]>([]);
-  const [copyZoneBin, setCopyZoneBin]         = useState(false);
-  const [zoneBinLocationId, setZoneBinLocationId] = useState<number | ''>('');
+  // Per-location Zone/Bin/Min Qty/Reorder Qty columns are appended to the template headers.
+  const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
+  const { settings: importSettings } = useImsSettings();
+  const showZoneBin = importSettings.use_zones_bins !== 'no';
 
-  // Load locations + restore persisted choice
+  // Full template header list: base columns + per-location stock columns.
+  const templateHeaders = useMemo(() => {
+    const perLoc: string[] = [];
+    for (const loc of locations) {
+      if (showZoneBin) {
+        perLoc.push(`${loc.name} - Zone`, `${loc.name} - Bin`);
+      }
+      perLoc.push(`${loc.name} - Min Qty`, `${loc.name} - Reorder Qty`);
+    }
+    return [...IMPORT_BASE_HEADERS, ...perLoc];
+  }, [locations, showZoneBin]);
+
+  // Normalized header string → { location_id, field } for parsing per-location columns.
+  const locHeaderMap = useMemo(() => {
+    const m = new Map<string, { location_id: number; field: 'zone' | 'bin' | 'min_qty' | 'reorder_qty' }>();
+    for (const loc of locations) {
+      const base = loc.name.trim().toLowerCase();
+      if (showZoneBin) {
+        m.set(`${base} - zone`, { location_id: loc.id, field: 'zone' });
+        m.set(`${base} - bin`,  { location_id: loc.id, field: 'bin' });
+      }
+      m.set(`${base} - min qty`,     { location_id: loc.id, field: 'min_qty' });
+      m.set(`${base} - reorder qty`, { location_id: loc.id, field: 'reorder_qty' });
+    }
+    return m;
+  }, [locations, showZoneBin]);
+
+  // Load locations
   useEffect(() => {
     fetch('/api/ims/locations').then(r => r.json()).then(d => {
       if (!d.success) return;
-      const locs: { id: number; name: string }[] = d.data ?? [];
-      setLocations(locs);
-      // Restore last choice, or default to first location from online_pick_priority
-      const saved = localStorage.getItem(ZONE_LOC_KEY);
-      if (saved) {
-        const parsed = Number(saved);
-        if (locs.some(l => l.id === parsed)) { setZoneBinLocationId(parsed); return; }
-      }
-      // Fall back to online_pick_priority warehouse (first in list)
-      fetch('/api/ims/settings').then(r => r.json()).then(s => {
-        try {
-          const priority: number[] = JSON.parse(s.data?.online_pick_priority ?? '[]');
-          const defaultLocId = priority[0];
-          if (defaultLocId && locs.some(l => l.id === defaultLocId)) {
-            setZoneBinLocationId(defaultLocId);
-          } else if (locs.length > 0) {
-            setZoneBinLocationId(locs[0].id);
-          }
-        } catch {
-          if (locs.length > 0) setZoneBinLocationId(locs[0].id);
-        }
-      }).catch(() => { if (locs.length > 0) setZoneBinLocationId(locs[0].id); });
+      setLocations(d.data ?? []);
     }).catch(() => {});
   }, []);
+
+  // Pre-fill / refresh the header row whenever the template changes — but only while
+  // the user hasn't pasted any data rows yet (textarea holds ≤ 1 line).
+  useEffect(() => {
+    const line = templateHeaders.join('\t');
+    setPasteText(prev => {
+      const lines = prev.split('\n').filter(l => l.trim());
+      return lines.length <= 1 ? line : prev;
+    });
+  }, [templateHeaders]);
 
   const normStr = (s: string) => (s || '').trim().toLowerCase();
 
@@ -1585,10 +1598,11 @@ function ImportProductsModal({
 
     // Detect if first line is headers (contains known header keywords, no purely numeric values)
     const firstCells = lines[0].split('\t');
-    const isHeaderLine = firstCells.some(c => IMPORT_TEMPLATE_HEADERS.map(h => h.toLowerCase()).includes(c.trim().toLowerCase()));
+    const headerSet = templateHeaders.map(h => h.toLowerCase());
+    const isHeaderLine = firstCells.some(c => headerSet.includes(c.trim().toLowerCase()));
     const headers = isHeaderLine
       ? firstCells.map(h => h.trim().toLowerCase())
-      : IMPORT_TEMPLATE_HEADERS.map(h => h.toLowerCase());
+      : headerSet;
     const dataLines = isHeaderLine ? lines.slice(1) : lines;
 
     // Build variant lookup map from products
@@ -1645,8 +1659,6 @@ function ImportProductsModal({
           if (raw['weight_kg'] !== '' && numOrNull(raw['weight_kg']) !== (v.weight_kg ?? null)) changedFields.push('Weight');
           if (raw['barcode'] !== '' && raw['barcode'] !== (v.barcode ?? '')) changedFields.push('Barcode');
           if (raw['brand'] !== '' && raw['brand'] !== (p.brand ?? '')) changedFields.push('Brand');
-          if (raw['bin'] !== '' && raw['bin'] !== (v.bin ?? '')) changedFields.push('Bin');
-          if (raw['zone'] !== '' && raw['zone'] !== (v.zone ?? '')) changedFields.push('Zone');
         } else {
           // SKU not found — new variant or new product
           const existingProduct = productByNameMap.get(normStr(product_name));
@@ -1743,6 +1755,21 @@ function ImportProductsModal({
       const resolvedBrand = raw['brand'] ? (brandResolutions[raw['brand']] ?? raw['brand']) : '';
       const resolvedSupplier = raw['supplier'] ? (supplierResolutions[raw['supplier']] ?? raw['supplier']) : '';
 
+      // Build per-location stock overrides from the appended location columns.
+      const location_stock: Array<{ location_id: number; zone?: string; bin?: string; min_qty?: number; reorder_qty?: number }> = [];
+      for (const loc of locations) {
+        const base = loc.name.trim().toLowerCase();
+        const entry: { location_id: number; zone?: string; bin?: string; min_qty?: number; reorder_qty?: number } = { location_id: loc.id };
+        let has = false;
+        if (showZoneBin) {
+          const z = raw[`${base} - zone`]; if (z !== undefined && z !== '') { entry.zone = z; has = true; }
+          const b = raw[`${base} - bin`];  if (b !== undefined && b !== '') { entry.bin  = b; has = true; }
+        }
+        const mn = raw[`${base} - min qty`];     if (mn !== undefined && mn !== '' && !isNaN(Number(mn))) { entry.min_qty = Number(mn); has = true; }
+        const rq = raw[`${base} - reorder qty`]; if (rq !== undefined && rq !== '' && !isNaN(Number(rq))) { entry.reorder_qty = Number(rq); has = true; }
+        if (has) location_stock.push(entry);
+      }
+
       return {
         action: r.action,
         product_name: r.product_name,
@@ -1760,8 +1787,6 @@ function ImportProductsModal({
         price_wholesale: numOrNull(raw['price_wholesale'] ?? ''),
         weight_kg: numOrNull(raw['weight_kg'] ?? ''),
         pack_size: numOrNull(raw['pack_size'] ?? ''),
-        bin: raw['bin'] || undefined,
-        zone: raw['zone'] || undefined,
         option1_name: raw['option1_name'] || undefined,
         option1_value: raw['option1_value'] || undefined,
         option2_name: raw['option2_name'] || undefined,
@@ -1769,6 +1794,7 @@ function ImportProductsModal({
         option3_name: raw['option3_name'] || undefined,
         option3_value: raw['option3_value'] || undefined,
         cost_foreign: Object.keys(foreignCosts).length ? JSON.stringify(foreignCosts) : undefined,
+        location_stock: location_stock.length ? location_stock : undefined,
         existing_variant_id: r.existing_variant_id,
         existing_product_id: r.existing_product_id,
       };
@@ -1791,11 +1817,8 @@ function ImportProductsModal({
           rows: buildApiRows(),
           autoCreateBrands: newBrands,
           autoCreateSuppliers: newSuppliers,
-          copy_zone_bin_location_id: (copyZoneBin && zoneBinLocationId) ? Number(zoneBinLocationId) : null,
         }),
       });
-      // Persist chosen location for next time
-      if (copyZoneBin && zoneBinLocationId) localStorage.setItem(ZONE_LOC_KEY, String(zoneBinLocationId));
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Import failed');
       setResult({ created: data.created, updated: data.updated, skipped: data.skipped });
@@ -1845,6 +1868,7 @@ function ImportProductsModal({
           <>
             <p style={{ margin: 0, fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
               The field headers are pre-filled below. <strong style={{ color: 'var(--sv-text-main)' }}>Copy them into Excel or Google Sheets</strong>, fill your data in the rows below the headers, then paste everything back here. SKU is used to match existing products — rows with a matching SKU will update that variant; rows without a matching SKU will create new products.
+              {' '}The columns at the end{showZoneBin ? ' — Zone, Bin,' : ' —'} Min Qty and Reorder Qty are per location and are saved against that location's stock.
             </p>
             <textarea
               value={pasteText}
@@ -1946,28 +1970,6 @@ function ImportProductsModal({
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <button onClick={() => setStage('paste')} style={btnStyle('ghost')}>← Back</button>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
-                {/* Zone/bin → location copy option */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--sv-bg-2)', border: `1px solid ${copyZoneBin ? 'var(--sv-action)' : 'var(--sv-etch)'}`, borderRadius: 8, flexWrap: 'wrap' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', userSelect: 'none' as const, fontSize: 13 }}>
-                    <input
-                      type="checkbox"
-                      checked={copyZoneBin}
-                      onChange={e => setCopyZoneBin(e.target.checked)}
-                      style={{ accentColor: 'var(--sv-action)' }}
-                    />
-                    <span style={{ fontWeight: 600, color: 'var(--sv-text-main)' }}>Copy Zone &amp; Bin to location:</span>
-                  </label>
-                  <select
-                    value={zoneBinLocationId}
-                    onChange={e => { setZoneBinLocationId(e.target.value ? Number(e.target.value) : ''); setCopyZoneBin(true); }}
-                    disabled={!copyZoneBin}
-                    style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: copyZoneBin ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontSize: 13, opacity: copyZoneBin ? 1 : 0.5 }}
-                  >
-                    <option value="">— choose location —</option>
-                    {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-                  </select>
-                  {copyZoneBin && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Zone &amp; Bin will also be saved to the stock row at this location</span>}
-                </div>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button onClick={onClose} style={btnStyle('ghost')}>Cancel</button>
                   <button
@@ -2248,8 +2250,6 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         discount_start_date: v.discount_start_date ? String(v.discount_start_date).slice(0, 10) : '',
         discount_end_date: v.discount_end_date ? String(v.discount_end_date).slice(0, 10) : '',
         weight_kg: v.weight_kg != null ? String(v.weight_kg) : '',
-        bin: v.bin ?? '',
-        zone: v.zone ?? '',
         is_active: v.is_active ?? 1,
         foreignCosts: fc,
       };
@@ -2335,8 +2335,6 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           discount_start_date: row.discount_start_date || null,
           discount_end_date: row.discount_end_date || null,
           weight_kg: row.weight_kg === '' ? null : Number(row.weight_kg),
-          bin: row.bin || null,
-          zone: row.zone || null,
           is_active: row.is_active,
           cost_foreign: Object.keys(fcObj).length ? JSON.stringify(fcObj) : null,
         };
@@ -2873,7 +2871,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)' }}>
-                    {['Variant','SKU','Barcode','Cost $','Wt kg','Bin','Zone',
+                    {['Variant','SKU','Barcode','Cost $','Wt kg',
                       ...activeCurrencies.map(c => c),
                       '✓',''].map((h, i) => (
                       <th key={i} style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, whiteSpace: 'nowrap' }}>
@@ -2898,8 +2896,6 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                         <td style={{ padding: '2px 4px', minWidth: 90 }}><input value={row.barcode} onChange={e => updateRow(row._tempId, 'barcode', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 72 }}><input type="number" step="0.0001" min="0" value={row.cost_aud} onChange={e => updateRow(row._tempId, 'cost_aud', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 60 }}><input type="number" step="0.001" min="0" value={row.weight_kg} onChange={e => updateRow(row._tempId, 'weight_kg', e.target.value)} style={cellInput} /></td>
-                        <td style={{ padding: '2px 4px', minWidth: 70 }}><input value={row.bin} onChange={e => updateRow(row._tempId, 'bin', e.target.value)} style={cellInput} placeholder="—" /></td>
-                        <td style={{ padding: '2px 4px', minWidth: 70 }}><input value={row.zone} onChange={e => updateRow(row._tempId, 'zone', e.target.value)} style={cellInput} placeholder="—" /></td>
                         {activeCurrencies.map(cur => (
                           <td key={cur} style={{ padding: '2px 4px', minWidth: 72 }}>
                             <input type="number" step="0.01" min="0"
@@ -11189,8 +11185,6 @@ type BulkEditRow = {
   product_id: string;
   name: string;
   brand: string | null;
-  zone: string | null;
-  bin: string | null;
   supplier_contact_id: number | null;
   supplier_name: string | null;
   created_at: string | null;
@@ -11201,8 +11195,6 @@ type BulkEditRow = {
     variant_id: string;
     sku: string;
     barcode: string | null;
-    zone: string | null;
-    bin: string | null;
   }>;
 };
 
@@ -11211,16 +11203,12 @@ type BulkEditDraft = Partial<{
   barcode: string;
   brand: string;
   supplier_contact_id: number | null;
-  zone: string;
-  bin: string;
   min_qty: number;
   reorder_qty: number;
 }>;
 
 type VariantEditDraft = Partial<{
   barcode: string;
-  zone: string;
-  bin: string;
 }>;
 
 function BulkEditView() {
@@ -11235,8 +11223,6 @@ function BulkEditView() {
   const [loadError, setLoadError]     = useState('');
   const [saving, setSaving]           = useState(false);
   const [saveMsg, setSaveMsg]         = useState('');
-  const { settings: beSettings } = useImsSettings();
-  const showZoneBin = beSettings.use_zones_bins !== 'no';
 
   // Filters
   const [q, setQ]                     = useState('');
@@ -11333,16 +11319,14 @@ function BulkEditView() {
     setSaveMsg('');
     try {
       const updates = Object.entries(edits).map(([product_id, draft]) => {
-        const variantOverrides: Array<{ variant_id: string; barcode?: string | null; zone?: string | null; bin?: string | null }> = [];
+        const variantOverrides: Array<{ variant_id: string; barcode?: string | null }> = [];
         
         // Collect variant overrides for this product
         Object.entries(variantEdits).forEach(([key, vDraft]) => {
           const [pId, vId] = key.split('|');
-          if (pId === product_id && (vDraft.barcode !== undefined || vDraft.zone !== undefined || vDraft.bin !== undefined)) {
+          if (pId === product_id && vDraft.barcode !== undefined) {
             const override: any = { variant_id: vId };
             if ('barcode' in vDraft) override.barcode = vDraft.barcode || null;
-            if ('zone' in vDraft) override.zone = vDraft.zone || null;
-            if ('bin' in vDraft) override.bin = vDraft.bin || null;
             variantOverrides.push(override);
           }
         });
@@ -11434,14 +11418,11 @@ function BulkEditView() {
 
         {/* Quick filters */}
         <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Quick:</span>
-        {(['', 'new', 'no_min', 'no_reorder', 'no_zone', 'no_bin'] as const).map(f => {
-          if (!showZoneBin && (f === 'no_zone' || f === 'no_bin')) return null;
-          return (
+        {(['', 'new', 'no_min', 'no_reorder'] as const).map(f => (
           <button key={f} style={quickBtnSt(quickFilter === f)} onClick={() => setQuickFilter(prev => prev === f ? '' : f)}>
-            {f === '' ? 'All' : f === 'new' ? 'New (7d)' : f === 'no_min' ? 'No Min' : f === 'no_reorder' ? 'No Reorder' : f === 'no_zone' ? 'No Zone' : 'No Bin'}
+            {f === '' ? 'All' : f === 'new' ? 'New (7d)' : f === 'no_min' ? 'No Min' : 'No Reorder'}
           </button>
-          );
-        })}
+        ))}
 
         <div style={{ width: 1, height: 20, background: 'var(--sv-etch)', margin: '0 4px' }} />
 
@@ -11478,21 +11459,19 @@ function BulkEditView() {
               <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 120 }}>Barcode</th>
               <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 80 }}>Min Qty</th>
               <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 90 }}>Reorder Qty</th>
-              {showZoneBin && <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 90 }}>Zone</th>}
-              {showZoneBin && <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 90 }}>Bin</th>}
               <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 160 }}>Supplier</th>
               <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', minWidth: 130 }}>Brand</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={showZoneBin ? 8 : 6} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
+              <tr><td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
             )}
             {!loading && loadError && (
-              <tr><td colSpan={showZoneBin ? 8 : 6} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-red)' }}>Error: {loadError}</td></tr>
+              <tr><td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-red)' }}>Error: {loadError}</td></tr>
             )}
             {!loading && !loadError && rows.length === 0 && (
-              <tr><td colSpan={showZoneBin ? 8 : 6} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No products found.</td></tr>
+              <tr><td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No products found.</td></tr>
             )}
             {!loading && rows.map((row, i) => {
               const dirty = !!edits[row.product_id];
@@ -11511,8 +11490,6 @@ function BulkEditView() {
               const barcodeVal  = getValue(row, 'barcode') as string;
               const minVal      = getValue(row, 'min_qty');
               const reorderVal  = getValue(row, 'reorder_qty');
-              const zoneVal     = getValue(row, 'zone') as string;
-              const binVal      = getValue(row, 'bin') as string;
               const supplierVal = String(getValue(row, 'supplier_contact_id') ?? '');
               const brandVal    = getValue(row, 'brand') as string;
 
@@ -11520,8 +11497,6 @@ function BulkEditView() {
               const barcodeDirty  = edits[row.product_id] && 'barcode'            in edits[row.product_id]!;
               const minDirty      = edits[row.product_id] && 'min_qty'            in edits[row.product_id]!;
               const reorderDirty  = edits[row.product_id] && 'reorder_qty'        in edits[row.product_id]!;
-              const zoneDirty     = edits[row.product_id] && 'zone'               in edits[row.product_id]!;
-              const binDirty      = edits[row.product_id] && 'bin'                in edits[row.product_id]!;
               const supplierDirty = edits[row.product_id] && 'supplier_contact_id' in edits[row.product_id]!;
               const brandDirty    = edits[row.product_id] && 'brand'              in edits[row.product_id]!;
               
@@ -11590,30 +11565,7 @@ function BulkEditView() {
                     </td>
 
                     {/* Zone (product-level) */}
-                    {showZoneBin && (
-                    <td style={{ padding: '4px 8px' }}>
-                      <input
-                        value={zoneVal}
-                        onChange={e => setEdit(row.product_id, 'zone', e.target.value)}
-                        placeholder="—"
-                        style={zoneDirty ? dirtyInputSt : inputSt}
-                        title="Product-level zone (applies to all variants)"
-                      />
-                    </td>
-                    )}
-
                     {/* Bin (product-level) */}
-                    {showZoneBin && (
-                    <td style={{ padding: '4px 8px' }}>
-                      <input
-                        value={binVal}
-                        onChange={e => setEdit(row.product_id, 'bin', e.target.value)}
-                        placeholder="—"
-                        style={binDirty ? dirtyInputSt : inputSt}
-                        title="Product-level bin (applies to all variants)"
-                      />
-                    </td>
-                    )}
 
                     {/* Supplier */}
                     <td style={{ padding: '4px 8px' }}>
@@ -11642,11 +11594,7 @@ function BulkEditView() {
                   {/* Variant rows (when expanded) */}
                   {isExpanded && row.variants && row.variants.map(variant => {
                     const vBarcodeVal = getVariantValue(row.product_id, variant.variant_id, 'barcode', variant.barcode || '');
-                    const vZoneVal = getVariantValue(row.product_id, variant.variant_id, 'zone', variant.zone);
-                    const vBinVal = getVariantValue(row.product_id, variant.variant_id, 'bin', variant.bin);
                     const vBarcodeDirty = variantEdits[`${row.product_id}|${variant.variant_id}`] && 'barcode' in variantEdits[`${row.product_id}|${variant.variant_id}`]!;
-                    const vZoneDirty = variantEdits[`${row.product_id}|${variant.variant_id}`] && 'zone' in variantEdits[`${row.product_id}|${variant.variant_id}`]!;
-                    const vBinDirty = variantEdits[`${row.product_id}|${variant.variant_id}`] && 'bin' in variantEdits[`${row.product_id}|${variant.variant_id}`]!;
 
                     return (
                       <tr key={`${row.product_id}|${variant.variant_id}`} style={variantRowStyle}>
@@ -11666,37 +11614,8 @@ function BulkEditView() {
                           />
                         </td>
 
-                        {/* Empty cells for Min/Reorder Qty */}
-                        <td colSpan={2} style={{ padding: '4px 8px' }} />
-
-                        {/* Variant Zone */}
-                        {showZoneBin && (
-                        <td style={{ padding: '4px 8px' }}>
-                          <input
-                            value={vZoneVal}
-                            onChange={e => setVariantEdit(row.product_id, variant.variant_id, 'zone', e.target.value)}
-                            placeholder={variant.zone || '—'}
-                            style={vZoneDirty ? dirtyInputSt : inputSt}
-                            title={`Override zone for variant ${variant.sku}`}
-                          />
-                        </td>
-                        )}
-
-                        {/* Variant Bin */}
-                        {showZoneBin && (
-                        <td style={{ padding: '4px 8px' }}>
-                          <input
-                            value={vBinVal}
-                            onChange={e => setVariantEdit(row.product_id, variant.variant_id, 'bin', e.target.value)}
-                            placeholder={variant.bin || '—'}
-                            style={vBinDirty ? dirtyInputSt : inputSt}
-                            title={`Override bin for variant ${variant.sku}`}
-                          />
-                        </td>
-                        )}
-
-                        {/* Empty cells for Supplier, Brand */}
-                        <td colSpan={2} style={{ padding: '4px 8px' }} />
+                        {/* Empty cells for Min/Reorder Qty + Supplier + Brand */}
+                        <td colSpan={4} style={{ padding: '4px 8px' }} />
                       </tr>
                     );
                   })}
