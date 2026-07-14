@@ -16,6 +16,8 @@ export async function GET(req: Request) {
   const supplierId  = searchParams.get('supplierId')  ?? '';
   const productType = searchParams.get('productType') ?? '';
   const productId   = searchParams.get('productId')   ?? '';
+  const category    = searchParams.get('category')    ?? '';
+  const subcategory = searchParams.get('subcategory') ?? '';
   const win        = parseInt(searchParams.get('window') ?? '90');
   const page       = Math.max(1, parseInt(searchParams.get('page') ?? '1'));
   const pageSize   = Math.min(100, Math.max(10, parseInt(searchParams.get('pageSize') ?? '25')));
@@ -37,6 +39,8 @@ export async function GET(req: Request) {
     if (brand)       { conds.push('p.brand = ?');                params.push(brand); }
     if (supplierId)  { conds.push('p.supplier_contact_id = ?');  params.push(Number(supplierId)); }
     if (productType) { conds.push('p.product_type = ?');         params.push(productType); }
+    if (category)    { conds.push('p.category = ?');             params.push(category); }
+    if (subcategory) { conds.push('p.subcategory = ?');          params.push(subcategory); }
     const where = 'WHERE ' + conds.join(' AND ');
 
     // Sales column for the selected window (only used when no custom date range)

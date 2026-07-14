@@ -8542,7 +8542,7 @@ function PosRegistersReportView({ onBack }: { onBack: () => void }) {
 const REPORT_CATALOG = [
   {
     id: 'report-sales-by-branch' as ImsView,
-    title: 'Sales by Branch / Product',
+    title: 'Sales',
     description: 'Product sales performance with per-branch stock levels. Filter by brand, supplier, or keyword.',
     icon: '📊',
   },
@@ -8620,14 +8620,14 @@ function ReportsView({ onNav }: { onNav: (v: ImsView) => void }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface FilterSelection {
-  type: 'product' | 'brand' | 'supplier' | 'product_type';
+  type: 'product' | 'brand' | 'supplier' | 'product_type' | 'category' | 'subcategory';
   value: string;
   label: string;
   meta?: string;
 }
 
 interface FilterSuggestion {
-  type: 'product' | 'brand' | 'supplier' | 'product_type';
+  type: 'product' | 'brand' | 'supplier' | 'product_type' | 'category' | 'subcategory';
   value: string;
   label: string;
   meta?: string;
@@ -8638,6 +8638,8 @@ const TYPE_PILL_COLORS: Record<FilterSelection['type'], { bg: string; text: stri
   brand:        { bg: 'rgba(16,185,129,.15)',  text: 'var(--sv-mint)' },
   supplier:     { bg: 'rgba(245,158,11,.15)',  text: '#d97706' },
   product_type: { bg: 'rgba(139,92,246,.15)',  text: '#7c3aed' },
+  category:     { bg: 'rgba(20,184,166,.15)',  text: '#0d9488' },
+  subcategory:  { bg: 'rgba(20,184,166,.10)',  text: '#0f766e' },
 };
 
 function ReportFilterCombobox({
@@ -8826,7 +8828,7 @@ function SearchableTypeFilter({
   onSelect,
   onClear,
 }: {
-  filterType: 'product' | 'supplier' | 'brand' | 'product_type';
+  filterType: 'product' | 'supplier' | 'brand' | 'product_type' | 'category' | 'subcategory';
   placeholder: string;
   selection: FilterSelection | null;
   onSelect: (s: FilterSelection) => void;
@@ -8885,7 +8887,7 @@ function SearchableTypeFilter({
     else if (e.key === 'Escape') setOpen(false);
   };
 
-  const typeLabel = filterType === 'product_type' ? 'Type' : filterType === 'product' ? 'Product' : filterType.charAt(0).toUpperCase() + filterType.slice(1);
+  const typeLabel = filterType === 'product_type' ? 'Type' : filterType === 'product' ? 'Product' : filterType === 'subcategory' ? 'Subcategory' : filterType.charAt(0).toUpperCase() + filterType.slice(1);
 
   return (
     <div ref={containerRef} style={{ position: 'relative', flex: filterType === 'product' ? 1.6 : 1, minWidth: filterType === 'product' ? 200 : 140 }}>
@@ -8937,12 +8939,12 @@ function SearchableTypeFilter({
 }
 
 // Multi-filter bar: Product + Supplier + Brand + Type dropdowns
-interface MultiFilter { product: FilterSelection | null; supplier: FilterSelection | null; brand: FilterSelection | null; type_: FilterSelection | null }
-const EMPTY_MULTI: MultiFilter = { product: null, supplier: null, brand: null, type_: null };
+interface MultiFilter { product: FilterSelection | null; supplier: FilterSelection | null; brand: FilterSelection | null; type_: FilterSelection | null; category: FilterSelection | null; subcategory: FilterSelection | null }
+const EMPTY_MULTI: MultiFilter = { product: null, supplier: null, brand: null, type_: null, category: null, subcategory: null };
 
 function ReportMultiFilter({
-  filters, onChange,
-}: { filters: MultiFilter; onChange: (f: MultiFilter) => void }) {
+  filters, onChange, showCategories = false,
+}: { filters: MultiFilter; onChange: (f: MultiFilter) => void; showCategories?: boolean }) {
   return (
     <div style={{ display: 'flex', gap: 8, flex: 1, flexWrap: 'wrap' }}>
       <SearchableTypeFilter filterType="product"  placeholder="Product name / SKU…" selection={filters.product}
@@ -8953,6 +8955,14 @@ function ReportMultiFilter({
         onSelect={s => onChange({ ...filters, brand: s })}    onClear={() => onChange({ ...filters, brand: null })} />
       <SearchableTypeFilter filterType="product_type" placeholder="All Types" selection={filters.type_}
         onSelect={s => onChange({ ...filters, type_: s })}    onClear={() => onChange({ ...filters, type_: null })} />
+      {showCategories && (
+        <SearchableTypeFilter filterType="category" placeholder="All Categories" selection={filters.category}
+          onSelect={s => onChange({ ...filters, category: s })} onClear={() => onChange({ ...filters, category: null })} />
+      )}
+      {showCategories && (
+        <SearchableTypeFilter filterType="subcategory" placeholder="All Subcategories" selection={filters.subcategory}
+          onSelect={s => onChange({ ...filters, subcategory: s })} onClear={() => onChange({ ...filters, subcategory: null })} />
+      )}
     </div>
   );
 }
@@ -8960,10 +8970,12 @@ function ReportMultiFilter({
 // Helper: turn MultiFilter into URLSearchParams entries
 function multiFilterParams(f: MultiFilter): Record<string, string> {
   const p: Record<string, string> = {};
-  if (f.product)  p.productId   = f.product.value;
-  if (f.supplier) p.supplierId  = f.supplier.value;
-  if (f.brand)    p.brand       = f.brand.value;
-  if (f.type_)    p.productType = f.type_.value;
+  if (f.product)     p.productId    = f.product.value;
+  if (f.supplier)    p.supplierId   = f.supplier.value;
+  if (f.brand)       p.brand        = f.brand.value;
+  if (f.type_)       p.productType  = f.type_.value;
+  if (f.category)    p.category     = f.category.value;
+  if (f.subcategory) p.subcategory  = f.subcategory.value;
   return p;
 }
 
@@ -9080,6 +9092,10 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
   const [dateRange, setDateRange] = useState<SBDateRange>({ kind: 'window', window: 90, label: '90 Days' });
   const [page,     setPage]    = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [branchFilter, setBranchFilter] = useState<number | null>(null);
+
+  const { settings: sbSettings } = useImsSettings();
+  const showCategories = sbSettings.use_categories === 'yes';
 
   // Sort state (client-side, within the loaded page)
   const [sortCol, setSortCol] = useState<string>('sales');
@@ -9087,7 +9103,7 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
 
   const totalPages = Math.ceil(total / pageSize) || 1;
 
-  const load = useCallback(async (pg: number, f: MultiFilter, dr: SBDateRange, ps: number) => {
+  const load = useCallback(async (pg: number, f: MultiFilter, dr: SBDateRange, ps: number, bid: number | null = null) => {
     setLoading(true);
     setError('');
     try {
@@ -9098,6 +9114,7 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
         params.set('from', dr.from);
         params.set('to', dr.to);
       }
+      if (bid) params.set('locationIds', String(bid));
       const data = await apiFetch(`/api/ims/reports/sales-by-branch?${params}`);
       setRows(data.rows ?? []);
       setTotal(data.total ?? 0);
@@ -9109,12 +9126,13 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
     }
   }, []);
 
-  useEffect(() => { load(1, EMPTY_MULTI, { kind: 'window', window: 90, label: '90 Days' }, 25); }, [load]);
+  useEffect(() => { load(1, EMPTY_MULTI, { kind: 'window', window: 90, label: '90 Days' }, 25, null); }, [load]);
 
-  const handleFilterChange = (f: MultiFilter) => { setFilters(f); setPage(1); load(1, f, dateRange, pageSize); };
-  const handleDateChange   = (dr: SBDateRange) => { setDateRange(dr); setPage(1); load(1, filters, dr, pageSize); };
-  const goPage             = (pg: number)       => { setPage(pg); load(pg, filters, dateRange, pageSize); };
-  const changePageSize     = (ps: number)       => { setPageSize(ps); setPage(1); load(1, filters, dateRange, ps); };
+  const handleFilterChange = (f: MultiFilter) => { setFilters(f); setPage(1); load(1, f, dateRange, pageSize, branchFilter); };
+  const handleDateChange   = (dr: SBDateRange) => { setDateRange(dr); setPage(1); load(1, filters, dr, pageSize, branchFilter); };
+  const handleBranchChange = (bid: number | null) => { setBranchFilter(bid); setPage(1); load(1, filters, dateRange, pageSize, bid); };
+  const goPage             = (pg: number)       => { setPage(pg); load(pg, filters, dateRange, pageSize, branchFilter); };
+  const changePageSize     = (ps: number)       => { setPageSize(ps); setPage(1); load(1, filters, dateRange, ps, branchFilter); };
 
   // Which column to read for sales quantity
   const salesKey = dateRange.kind === 'range'
@@ -9187,7 +9205,7 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
   };
 
   const cellStyle: React.CSSProperties = { padding: '9px 12px', borderBottom: '1px solid var(--sv-etch)', fontSize: 13, whiteSpace: 'nowrap' };
-  const hCell: React.CSSProperties    = { ...cellStyle, fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, background: 'var(--sv-bg-2)', verticalAlign: 'top' };
+  const hCell: React.CSSProperties    = { ...cellStyle, fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, background: 'var(--sv-bg-2)', verticalAlign: 'top', position: 'sticky', top: 0, zIndex: 2 };
   const numCell: React.CSSProperties  = { ...cellStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' as any };
   const numHCell: React.CSSProperties = { ...hCell, textAlign: 'right' };
 
@@ -9211,7 +9229,7 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
           Reports
         </button>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Sales by Branch / Product</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Sales</h1>
         <button
           onClick={downloadCsv}
           disabled={displayRows.length === 0}
@@ -9224,7 +9242,16 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
 
       {/* Filters */}
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-        <ReportMultiFilter filters={filters} onChange={handleFilterChange} />
+        {/* Branch filter */}
+        <select
+          value={branchFilter ?? ''}
+          onChange={e => handleBranchChange(e.target.value ? Number(e.target.value) : null)}
+          style={{ height: 34, padding: '0 8px', borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: branchFilter ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontSize: 12, minWidth: 140, cursor: 'pointer' }}
+        >
+          <option value="">All Branches</option>
+          {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+        </select>
+        <ReportMultiFilter filters={filters} onChange={handleFilterChange} showCategories={showCategories} />
         <SBDatePicker value={dateRange} onChange={handleDateChange} />
         {!loading && total > 0 && (
           <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
@@ -9232,8 +9259,8 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
           </span>
         )}
         {loading && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Loading…</span>}
-        {(hasMultiFilter(filters)) && (
-          <button onClick={() => { handleFilterChange(EMPTY_MULTI); }} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
+        {(hasMultiFilter(filters) || branchFilter !== null) && (
+          <button onClick={() => { setBranchFilter(null); handleFilterChange(EMPTY_MULTI); }} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
             Clear filters
           </button>
         )}
@@ -9244,12 +9271,12 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
       )}
 
       {/* Table */}
-      <div style={{ overflowX: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)' }}>
+      <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 260px)', border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr>
               <th style={{ ...hCell, width: 44, textAlign: 'right' }}>#</th>
-              {sortTh('product', 'Product', { position: 'sticky', left: 0, zIndex: 2, minWidth: 220 })}
+              {sortTh('product', 'Product', { position: 'sticky', left: 0, zIndex: 4, minWidth: 220 })}
               {sortTh('sku', 'SKU')}
               {sortTh('brand', 'Brand')}
               {sortTh('supplier', 'Supplier')}

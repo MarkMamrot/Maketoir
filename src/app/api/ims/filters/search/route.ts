@@ -9,7 +9,7 @@ function getSession() {
 }
 
 export interface FilterSuggestion {
-  type: 'product' | 'brand' | 'supplier' | 'product_type';
+  type: 'product' | 'brand' | 'supplier' | 'product_type' | 'category' | 'subcategory';
   value: string;
   label: string;
   meta?: string;
@@ -37,10 +37,12 @@ export async function GET(req: Request) {
   const session = getSession();
   const businessId = session?.businessId as string | undefined;
 
-  const wantSupplier = !only || only === 'supplier';
-  const wantBrand    = !only || only === 'brand';
-  const wantType     = !only || only === 'product_type';
-  const wantProduct  = !only || only === 'product';
+  const wantSupplier    = !only || only === 'supplier';
+  const wantBrand       = !only || only === 'brand';
+  const wantType        = !only || only === 'product_type';
+  const wantProduct     = !only || only === 'product';
+  const wantCategory    = !only || only === 'category';
+  const wantSubcategory = !only || only === 'subcategory';
 
   // ── Suppliers ──────────────────────────────────────────────────────────────
   let supplierSuggestions: FilterSuggestion[] = [];
@@ -146,5 +148,38 @@ export async function GET(req: Request) {
     ...productSuggestions,
   ].slice(0, limit);
 
+  // ── Categories ───────────────────────────────────────────────────────────
+  if (wantCategory) {
+    try {
+      const rows = await imsQuery<{ category: string }>(`
+        SELECT DISTINCT category FROM ims_products
+        WHERE is_active = 1 AND category IS NOT NULL AND category != '' AND category LIKE ?
+        ORDER BY CASE WHEN category LIKE ? THEN 0 ELSE 1 END, category
+        LIMIT ?
+      `, [like, exactLike, limit]);
+      const cats: FilterSuggestion[] = rows.map(r => ({
+        type: 'category' as const, value: r.category,
+        label: `Category: ${r.category}`, meta: 'Filter by category',
+      }));
+      return NextResponse.json({ suggestions: [...cats, ...suggestions].slice(0, limit) });
+    } catch { /* skip */ }
+  }
+
+  // ── Subcategories ─────────────────────────────────────────────────────────
+  if (wantSubcategory) {
+    try {
+      const rows = await imsQuery<{ subcategory: string }>(`
+        SELECT DISTINCT subcategory FROM ims_products
+        WHERE is_active = 1 AND subcategory IS NOT NULL AND subcategory != '' AND subcategory LIKE ?
+        ORDER BY CASE WHEN subcategory LIKE ? THEN 0 ELSE 1 END, subcategory
+        LIMIT ?
+      `, [like, exactLike, limit]);
+      const subs: FilterSuggestion[] = rows.map(r => ({
+        type: 'subcategory' as const, value: r.subcategory,
+        label: `Subcategory: ${r.subcategory}`, meta: 'Filter by subcategory',
+      }));
+      return NextResponse.json({ suggestions: [...subs, ...suggestions].slice(0, limit) });
+    } catch { /* skip */ }
+  }
+
   return NextResponse.json({ suggestions });
-}
