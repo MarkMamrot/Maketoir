@@ -105,7 +105,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
       qty_change: number; qty_after_soh: number; unit_cost: number | null;
       notes: string | null; created_at: string;
       po_number: string | null; so_number: string | null;
-      shopify_order_id: string | null;
+      shopify_order_id: string | null; so_type: string | null;
       supplier_name: string | null; customer_name: string | null;
       pos_sale_local_id: string | null;
       committed_change: number;
@@ -117,6 +117,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
          po.po_number,
          so.so_number,
          so.shopify_order_id,
+         so.so_type,
          sup.name AS supplier_name,
          cust.name AS customer_name,
          ps.local_id AS pos_sale_local_id,
@@ -252,7 +253,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
       movements: movements.map(m => ({
         ...m,
         variant_label: variantLabelMap.get(m.variant_id),
-        is_online_order: m.reference_type === 'sales_order' && !!m.shopify_order_id,
+        is_online_order: m.reference_type === 'sales_order' && (!!m.shopify_order_id || m.so_type === 'online'),
         is_pos_sale: m.reference_type === 'pos_sale' || m.movement_type.startsWith('pos_'),
       })),
       summary: {

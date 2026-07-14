@@ -3823,7 +3823,12 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
                             color: movementColor(m.movement_type, io),
                             borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
                           }}>
-                            {m.is_online_order && m.movement_type === 'so_fulfilled' ? 'Online Order Fulfilled' : (movementLabel[m.movement_type] ?? m.movement_type)}
+                            {(() => {
+                              const base = movementLabel[m.movement_type] ?? m.movement_type;
+                              return m.is_online_order && typeof m.movement_type === 'string' && m.movement_type.startsWith('so_')
+                                ? base.replace(/^SO /, 'Online Order ')
+                                : base;
+                            })()}
                           </span>
                         )}
                       </td>

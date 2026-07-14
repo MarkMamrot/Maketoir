@@ -5377,9 +5377,10 @@ function ReportsScreen({ session, onBack }: { session: PosSession; onBack: () =>
   const [reprintSale, setReprintSale] = useState<CompletedSale | null>(null);
   const [reprintSettings, setReprintSettings] = useState<ReceiptPrintSettings | null>(null);
 
-  // Load receipt settings for reprint
+  // Load receipt settings for reprint (with location_id so branch address/phone are used)
   useEffect(() => {
-    fetch('/api/pos/settings/receipt').then(r => r.json()).then(d => setReprintSettings(d)).catch(() => {});
+    const locParam = session.location_id ? `?location_id=${session.location_id}` : '';
+    fetch(`/api/pos/settings/receipt${locParam}`).then(r => r.json()).then(d => setReprintSettings(d)).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function buildReprintSale(t: any): CompletedSale {
