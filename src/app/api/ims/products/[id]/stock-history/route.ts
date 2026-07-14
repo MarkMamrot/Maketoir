@@ -34,8 +34,9 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
     const variants = await imsQuery<{
       variant_id: string; sku: string | null;
       option1_value: string | null; option2_value: string | null; option3_value: string | null;
+      created_at: string | null;
     }>(
-      `SELECT variant_id, sku, option1_value, option2_value, option3_value
+      `SELECT variant_id, sku, option1_value, option2_value, option3_value, created_at
        FROM ims_product_variants
        WHERE product_id = ?
        ORDER BY id`,
@@ -58,6 +59,10 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
 
     const variantIds = variants.map(v => v.variant_id);
     const ph = variantIds.map(() => '?').join(',');
+
+    // Variant creation date — used as the opening-balance date when no explicit
+    // pre-window movement exists (i.e. the balance was inferred).
+    const variantCreatedAt = new Map(variants.map(v => [v.variant_id, v.created_at]));
 
     // Current stock by location
     const stockByLocation = await imsQuery<{
@@ -195,7 +200,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
         location_id: current.location_id,
         location_name: current.location_name,
         qty_after_soh: current.qty_on_hand - postCutoffDelta,
-        created_at: cutoffStr,
+        created_at: variantCreatedAt.get(current.variant_id) ?? cutoffStr,
         inferred: true,
       });
     }

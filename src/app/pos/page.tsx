@@ -2445,6 +2445,8 @@ function PosAvatarBar({
       .then(d => {
         if (!d.messages) return;
         setMessages(d.messages);
+        // Seed seenMsgIdsRef so the SSE stream doesn't double-count these same messages
+        for (const m of d.messages) seenMsgIdsRef.current.add(m.id);
         const nr = d.messages.filter((m: ChatMessage) => m.id > lastReadRef.current).length;
         setUnread(nr);
         if (chatOpen && d.messages.length > 0) { saveLastRead(Math.max(...d.messages.map((m: ChatMessage) => m.id))); setUnread(0); }
@@ -2523,10 +2525,17 @@ function PosAvatarBar({
 
   useEffect(() => {
     lastReadRef.current = loadLastRead();
-    // Load DM last-reads for all known partners
-    for (const loc of leaderboard) {
-      if (loc.id !== myLocationId) dmLastReadRef.current[loc.id] = loadDmLastRead(loc.id);
-    }
+    // Load ALL DM last-reads from localStorage up-front — cannot use `leaderboard` here
+    // because this effect runs with [] deps and leaderboard is still empty at mount time.
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k?.startsWith('pos_dm_last_read_')) {
+          const pid = parseInt(k.slice('pos_dm_last_read_'.length), 10);
+          if (!isNaN(pid)) dmLastReadRef.current[pid] = parseInt(localStorage.getItem(k) ?? '0', 10) || 0;
+        }
+      }
+    } catch {}
     fetchMessages(); // initial load via REST (fast, no streaming overhead)
 
     // SSE stream for near-instant new messages
@@ -2574,8 +2583,8 @@ function PosAvatarBar({
               const updated = [...existing, msg].sort((a, b) => a.id - b.id).slice(-200);
               return { ...prev, [partnerId]: updated };
             });
-            // Only count unread if this DM is incoming (not from me) and not currently open
-            if (msg.location_id !== myLocationId) {
+            // Only count unread if this DM is incoming (not from me), not yet read, and DM not open
+            if (msg.location_id !== myLocationId && msg.id > (dmLastReadRef.current[partnerId] ?? 0)) {
               setDmOpen(currentDmOpen => {
                 if (currentDmOpen !== partnerId) {
                   setDmUnread(u => ({ ...u, [partnerId]: (u[partnerId] ?? 0) + 1 }));
@@ -2982,7 +2991,10 @@ function PosStockModal({ variantId, productName, imageUrl, barcode, sku, onClose
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem', gap: 12 }}>
           <div>
             <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8, marginBottom: 2 }}>Stock by Location</div>
-            <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--sv-text-strong)', lineHeight: 1.3 }}>{baseName}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--sv-text-strong)', lineHeight: 1.3, userSelect: 'text', WebkitUserSelect: 'text' as any }}>{baseName}</div>
+              <button onClick={() => navigator.clipboard.writeText(baseName).catch(() => {})} title="Copy name" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '.78rem', padding: '1px 4px', color: 'var(--sv-text-dim)', lineHeight: 1, flexShrink: 0 }}>📋</button>
+            </div>
             {barcode && (
               <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', userSelect: 'text', WebkitUserSelect: 'text' as any }}>Barcode: <span style={{ fontFamily: 'monospace', color: 'var(--sv-text-main)', userSelect: 'text', WebkitUserSelect: 'text' as any }}>{barcode}</span></span>

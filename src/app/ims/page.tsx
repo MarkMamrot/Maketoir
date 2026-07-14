@@ -3509,11 +3509,6 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
   }
   const openingRows = Object.values(openingByLoc).sort((a, b) => a.name.localeCompare(b.name));
 
-  // Movements — filtered by selected variant
-  const filteredMovements = data
-    ? (selectedVariantId ? data.movements.filter((m: any) => m.variant_id === selectedVariantId) : data.movements)
-    : [];
-
   // Branch selector for the transactions table ('' = all branches, combined).
   const branchNames = data
     ? [...new Set<string>([
@@ -3522,52 +3517,80 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
       ])].sort()
     : [];
 
-  // Rows actually shown: variant filter (above) + branch filter.
-  const displayMovements = filteredMovements.filter((m: any) => !branchFilter || m.location_name === branchFilter);
-  const displayOpeningRows = openingRows.filter(ob => !branchFilter || ob.name === branchFilter);
-
-  // Running "SOH After" and "Available After" per movement, scoped to the current
-  // variant + branch selection. On-hand uses the authoritative per-row
-  // qty_after_soh; committed is anchored to the live qty_committed and walked
-  // backwards through each movement's committed_change. When no branch is
-  // selected the figures are combined across all branches.
-  const txMetrics = useMemo(() => {
-    const rowSoh = new Map<number, number>();
-    const rowAvail = new Map<number, number>();
-    if (!data) return { rowSoh, rowAvail };
+  // Unified transaction timeline (opening balances + movements), scoped to the
+  // current variant + branch selection. Opening balances are treated as the
+  // first "in" transactions; SOH After / Available After accumulate from there
+  // and are combined across branches when no branch is selected. Displayed
+  // newest-first, so opening balances sit at the bottom.
+  const timeline = useMemo(() => {
+    if (!data) return [] as any[];
     const inVariant = (vid: string) => !selectedVariantId || vid === selectedVariantId;
     const inBranch = (name: string) => !branchFilter || name === branchFilter;
-    const key = (m: any) => `${m.variant_id}::${m.location_name}`;
+    const k = (vid: string, loc: string) => `${vid}::${loc}`;
 
-    const scoped = data.movements.filter((m: any) => inVariant(m.variant_id) && inBranch(m.location_name));
-    const asc = [...scoped].sort((a: any, b: any) => {
-      const t = String(a.created_at).localeCompare(String(b.created_at));
-      return t !== 0 ? t : a.id - b.id;
+    // Opening-balance rows (one per variant/location in scope).
+    const openings: any[] = data.openingBalances
+      .filter((ob: any) => inVariant(ob.variant_id) && inBranch(ob.location_name))
+      .map((ob: any) => ({
+        rowKey: `ob-${ob.variant_id}-${ob.location_name}`,
+        kind: 'opening' as const, id: -1,
+        date: ob.created_at, variant_id: ob.variant_id, location_name: ob.location_name,
+        variant_label: null as string | null, movement: null as any,
+        inOut: Number(ob.qty_after_soh ?? 0), committedDelta: 0,
+        sohAfter: 0, committedAfter: 0, availAfter: 0,
+      }))
+      .sort((a: any, b: any) => a.location_name.localeCompare(b.location_name));
+
+    // Movement rows, ascending chronological.
+    const moves: any[] = data.movements
+      .filter((m: any) => inVariant(m.variant_id) && inBranch(m.location_name))
+      .map((m: any) => ({
+        rowKey: `m-${m.id}`,
+        kind: 'movement' as const, id: m.id,
+        date: m.created_at, variant_id: m.variant_id, location_name: m.location_name,
+        variant_label: m.variant_label as string | null, movement: m,
+        inOut: Number(m.qty_change ?? 0), committedDelta: Number(m.committed_change ?? 0),
+        sohAfter: 0, committedAfter: 0, availAfter: 0,
+      }))
+      .sort((a: any, b: any) => {
+        const t = String(a.date).localeCompare(String(b.date));
+        return t !== 0 ? t : a.id - b.id;
+      });
+
+    // Committed carried into the window (live committed minus every movement's
+    // committed change) becomes each opening row's committed figure.
+    const baseline: Record<string, number> = {};
+    data.stockByLocation.forEach((s: any) => {
+      if (inVariant(s.variant_id) && inBranch(s.location_name)) baseline[k(s.variant_id, s.location_name)] = Number(s.qty_committed ?? 0);
     });
+    for (const m of moves) baseline[k(m.variant_id, m.location_name)] = (baseline[k(m.variant_id, m.location_name)] ?? 0) - m.committedDelta;
+    for (const o of openings) o.committedDelta = baseline[k(o.variant_id, o.location_name)] ?? 0;
 
-    // Running on-hand per (variant, location), seeded from opening balances.
+    const asc = [...openings, ...moves];
+
+    // Forward pass — accumulate on-hand; SOH After = combined across scoped keys.
     const soh: Record<string, number> = {};
-    data.openingBalances.forEach((ob: any) => {
-      if (inVariant(ob.variant_id) && inBranch(ob.location_name)) soh[`${ob.variant_id}::${ob.location_name}`] = Number(ob.qty_after_soh ?? 0);
-    });
-    for (const m of asc) {
-      soh[key(m)] = Number(m.qty_after_soh ?? 0);
-      let total = 0; for (const k in soh) total += soh[k];
-      rowSoh.set(m.id, total);
+    for (const r of asc) {
+      soh[k(r.variant_id, r.location_name)] = (soh[k(r.variant_id, r.location_name)] ?? 0) + r.inOut;
+      let total = 0; for (const key in soh) total += soh[key];
+      r.sohAfter = total;
     }
 
-    // Running committed per (variant, location), anchored to the live committed
-    // value and walked backwards using each movement's committed_change.
+    // Backward pass — anchor committed to the live value and walk back.
     const comm: Record<string, number> = {};
     data.stockByLocation.forEach((s: any) => {
-      if (inVariant(s.variant_id) && inBranch(s.location_name)) comm[`${s.variant_id}::${s.location_name}`] = Number(s.qty_committed ?? 0);
+      if (inVariant(s.variant_id) && inBranch(s.location_name)) comm[k(s.variant_id, s.location_name)] = Number(s.qty_committed ?? 0);
     });
-    for (const m of [...asc].reverse()) {
-      let total = 0; for (const k in comm) total += comm[k];
-      rowAvail.set(m.id, (rowSoh.get(m.id) ?? 0) - total);
-      comm[key(m)] = (comm[key(m)] ?? 0) - Number(m.committed_change ?? 0);
+    for (let i = asc.length - 1; i >= 0; i--) {
+      const r = asc[i];
+      let total = 0; for (const key in comm) total += comm[key];
+      r.committedAfter = total;
+      r.availAfter = r.sohAfter - total;
+      comm[k(r.variant_id, r.location_name)] = (comm[k(r.variant_id, r.location_name)] ?? 0) - r.committedDelta;
     }
-    return { rowSoh, rowAvail };
+
+    // Display newest-first; opening balances (oldest) fall to the bottom.
+    return [...moves].reverse().concat(openings);
   }, [data, selectedVariantId, branchFilter]);
 
   const movementLabel: Record<string, string> = {
@@ -3761,7 +3784,7 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
             </div>
           </div>
 
-          {displayMovements.length === 0 && displayOpeningRows.length === 0 ? (
+          {timeline.length === 0 ? (
             <p style={{ color: 'var(--sv-text-muted)', fontSize: 13 }}>No transactions in the last 12 months{branchFilter ? ` for ${branchFilter}` : ''}.</p>
           ) : (
             <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden', maxHeight: 420, overflowY: 'auto' }}>
@@ -3773,58 +3796,51 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
                     <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Reference</th>
                     {!branchFilter && <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Location</th>}
                     {data.variants.length > 1 && !selectedVariantId && <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Variant</th>}
-                    <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Qty</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Committed</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Qty In/Out</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Qty Committed</th>
                     <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>SOH After</th>
                     <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Avail. After</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {/* Opening balance rows — per variant or aggregated depending on filter */}
-                  {displayOpeningRows.map(ob => (
-                    <tr key={`ob-${ob.name}`} style={{ borderTop: '1px solid var(--sv-etch)', background: 'color-mix(in srgb, var(--sv-amber) 8%, transparent)' }}>
-                      <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{String(ob.date).slice(0, 10)}</td>
-                      <td style={{ padding: '7px 12px' }}>
-                        <span style={{ background: 'color-mix(in srgb, var(--sv-amber) 20%, transparent)', color: 'var(--sv-amber)', borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 700 }}>Opening Balance</span>
-                      </td>
-                      <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)' }}>{selectedVariantId ? 'Balance before 12-month window (this variant)' : 'Balance before 12-month window'}</td>
-                      {!branchFilter && <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)' }}>{ob.name}</td>}
-                      {data.variants.length > 1 && !selectedVariantId && <td style={{ padding: '7px 12px' }} />}
-                      <td style={{ padding: '7px 12px', textAlign: 'right' }} />
-                      <td style={{ padding: '7px 12px', textAlign: 'right', color: 'var(--sv-text-dim)' }}>—</td>
-                      <td style={{ padding: '7px 12px', textAlign: 'right', color: 'var(--sv-amber)', fontWeight: 700 }}>{fmtQty(ob.qty)}</td>
-                      <td style={{ padding: '7px 12px', textAlign: 'right', color: 'var(--sv-text-dim)' }}>—</td>
-                    </tr>
-                  ))}
-                  {/* Movement rows */}
-                  {displayMovements.map((m: any, i: number) => {
-                    const cc = Number(m.committed_change || 0);
-                    const sohAfter = txMetrics.rowSoh.get(m.id) ?? Number(m.qty_after_soh);
-                    const availAfter = txMetrics.rowAvail.get(m.id);
+                  {timeline.map((r: any, i: number) => {
+                    const io = Number(r.inOut || 0);
+                    const cc = Number(r.committedDelta || 0);
+                    const isOpening = r.kind === 'opening';
+                    const m = r.movement;
+                    const ioColor = io > 0 ? 'var(--sv-mint)' : io < 0 ? 'var(--sv-red)' : 'var(--sv-text-dim)';
                     return (
-                    <tr key={m.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 25%, transparent)' : undefined }}>
-                      <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{String(m.created_at).slice(0, 10)}</td>
+                    <tr key={r.rowKey} style={{ borderTop: '1px solid var(--sv-etch)', background: isOpening ? 'color-mix(in srgb, var(--sv-amber) 8%, transparent)' : (i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 25%, transparent)' : undefined) }}>
+                      <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{String(r.date).slice(0, 10)}</td>
                       <td style={{ padding: '7px 12px' }}>
-                        <span style={{
-                          background: Number(m.qty_change) > 0 ? 'color-mix(in srgb, var(--sv-mint) 18%, transparent)' : Number(m.qty_change) < 0 ? 'color-mix(in srgb, var(--sv-red) 18%, transparent)' : 'var(--sv-bg-2)',
-                          color: movementColor(m.movement_type, Number(m.qty_change)),
-                          borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
-                        }}>
-                          {m.is_online_order && m.movement_type === 'so_fulfilled' ? 'Online Order Fulfilled' : (movementLabel[m.movement_type] ?? m.movement_type)}
-                        </span>
+                        {isOpening ? (
+                          <span style={{ background: 'color-mix(in srgb, var(--sv-amber) 20%, transparent)', color: 'var(--sv-amber)', borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 700 }}>Opening Balance</span>
+                        ) : (
+                          <span style={{
+                            background: io > 0 ? 'color-mix(in srgb, var(--sv-mint) 18%, transparent)' : io < 0 ? 'color-mix(in srgb, var(--sv-red) 18%, transparent)' : 'var(--sv-bg-2)',
+                            color: movementColor(m.movement_type, io),
+                            borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+                          }}>
+                            {m.is_online_order && m.movement_type === 'so_fulfilled' ? 'Online Order Fulfilled' : (movementLabel[m.movement_type] ?? m.movement_type)}
+                          </span>
+                        )}
                       </td>
-                      <td style={{ padding: '7px 12px', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>{refLink(m)}</td>
-                      {!branchFilter && <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', fontSize: 12, whiteSpace: 'nowrap' }}>{m.location_name}</td>}
-                      {data.variants.length > 1 && !selectedVariantId && <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', fontSize: 12 }}>{m.variant_label}</td>}
-                      <td style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 700, color: movementColor(m.movement_type, Number(m.qty_change)) }}>
-                        {Number(m.qty_change) > 0 ? '+' : ''}{fmtQty(Number(m.qty_change))}
+                      <td style={{ padding: '7px 12px', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>
+                        {isOpening
+                          ? <span style={{ color: 'var(--sv-text-dim)' }}>{selectedVariantId ? 'Balance before 12-month window (this variant)' : 'Balance before 12-month window'}</span>
+                          : refLink(m)}
+                      </td>
+                      {!branchFilter && <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', fontSize: 12, whiteSpace: 'nowrap' }}>{r.location_name}</td>}
+                      {data.variants.length > 1 && !selectedVariantId && <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', fontSize: 12 }}>{r.variant_label}</td>}
+                      <td style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 700, color: ioColor }}>
+                        {io > 0 ? '+' : ''}{fmtQty(io)}
                       </td>
                       <td style={{ padding: '7px 12px', textAlign: 'right', fontWeight: cc !== 0 ? 700 : 400, color: cc > 0 ? 'var(--sv-amber)' : 'var(--sv-text-dim)' }}>
                         {cc === 0 ? '—' : `${cc > 0 ? '+' : ''}${fmtQty(cc)}`}
                       </td>
-                      <td style={{ padding: '7px 12px', textAlign: 'right', color: 'var(--sv-text-dim)', fontSize: 12 }}>{fmtQty(sohAfter)}</td>
-                      <td style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 700, color: availAfter == null ? 'var(--sv-text-dim)' : availAfter <= 0 ? 'var(--sv-red)' : 'var(--sv-mint)' }}>
-                        {availAfter == null ? '—' : fmtQty(availAfter)}
+                      <td style={{ padding: '7px 12px', textAlign: 'right', color: 'var(--sv-text-dim)', fontSize: 12 }}>{fmtQty(r.sohAfter)}</td>
+                      <td style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 700, color: r.availAfter <= 0 ? 'var(--sv-red)' : 'var(--sv-mint)' }}>
+                        {fmtQty(r.availAfter)}
                       </td>
                     </tr>
                     );
