@@ -3070,7 +3070,7 @@ function PosStockModal({ variantId, productName, imageUrl, barcode, sku, onClose
 function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', focusScanTick = 0, bgImage = '', bgOpacity = 10, bgPosition = 'center', bgScale = 'fit', cartLeft = false }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; onChargeEnter?: () => void; defaultView?: string; focusScanTick?: number; bgImage?: string; bgOpacity?: number; bgPosition?: 'center' | 'bottom'; bgScale?: 'fit' | 'original'; cartLeft?: boolean }) {
   const [search, setSearch]             = useState('');
   const [brand, setBrand]               = useState(() => defaultView.startsWith('brand:') ? defaultView.slice(6) : '');
-  const [inStockOnly, setInStockOnly]   = useState(true);
+  const [inStockOnly, setInStockOnly]   = useState(() => { try { const v = localStorage.getItem('pos_in_stock_only'); return v === null ? true : v === '1'; } catch { return true; } });
 const [stockModal, setStockModal]     = useState<{ variantId: string; productName: string; imageUrl?: string; barcode?: string | null; sku?: string | null } | null>(null);
 
   // Pinned variant IDs from the "Specific Products" setting
@@ -3356,7 +3356,7 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
         </div>
         {/* In-stock only toggle */}
         <button
-          onClick={() => setInStockOnly(v => !v)}
+          onClick={() => setInStockOnly(v => { const next = !v; try { localStorage.setItem('pos_in_stock_only', next ? '1' : '0'); } catch {} return next; })}
           title={inStockOnly ? 'Showing in-stock only — click to show all' : 'Show in-stock only'}
           style={{ flexShrink: 0, padding: '5px 9px', borderRadius: 6, border: `1px solid ${inStockOnly ? 'var(--sv-mint)' : 'var(--sv-etch)'}`, background: inStockOnly ? 'var(--sv-mint-tint)' : 'transparent', color: inStockOnly ? 'var(--sv-mint)' : 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 12, fontWeight: 600, lineHeight: 1, whiteSpace: 'nowrap' }}
         >In Stock</button>
@@ -4024,6 +4024,9 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
               <div style={{ fontWeight: 700, fontSize: '1.2rem' }}>{printSettings?.business_name}</div>
               {(printSettings?.business_address || sale.location_name) && (
                 <div style={{ fontSize: '.8rem', color: '#555' }}>{printSettings?.business_address || sale.location_name}</div>
+              )}
+              {printSettings?.business_phone && (
+                <div style={{ fontSize: '.8rem', color: '#555' }}>{printSettings.business_phone}</div>
               )}
               {printSettings?.business_abn && (
                 <div style={{ fontSize: '.8rem', color: '#555' }}>ABN: {printSettings.business_abn}</div>
