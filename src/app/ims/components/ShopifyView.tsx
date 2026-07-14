@@ -231,7 +231,7 @@ function ShopifyProductsTab() {
   const [syncing, setSyncing]     = useState(false);
   const [opResult, setOpResult]   = useState<string | null>(null);
   const [opError, setOpError]     = useState<string | null>(null);
-  const [opProgress, setOpProgress] = useState<{ synced: number; total: number; products?: number } | null>(null);
+  const [opProgress, setOpProgress] = useState<{ synced: number; total: number; batch: number; batches: number } | null>(null);
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
@@ -284,37 +284,36 @@ function ShopifyProductsTab() {
     setUploading(false);
   };
 
-  /** Consume the SSE price-sync stream and drive UI state. */
-  const streamSyncPrices = async (body: object, successMsg: (s: number, t: number) => string) => {
+  /** Sync prices for a list of IMS product IDs, batching into ≤30-product calls
+   *  so each HTTP request finishes well within Cloudflare's proxy timeout.       */
+  const batchSyncPrices = async (productIds: string[], label: string) => {
     setSyncing(true); setOpResult(null); setOpError(null); setOpProgress(null);
+    const BATCH = 30;
+    let totalSynced = 0;
+    let totalVariants = 0;
+    const allErrors: string[] = [];
+
     try {
-      const r = await fetch('/api/ims/shopify/sync-prices', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!r.ok) throw new Error(`Server error ${r.status}`);
-      const reader  = r.body!.getReader();
-      const decoder = new TextDecoder();
-      let buf = '';
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const chunks = buf.split('\n\n');
-        buf = chunks.pop()!;
-        for (const chunk of chunks) {
-          const line = chunk.split('\n').find(l => l.startsWith('data: '));
-          if (!line) continue;
-          const data = JSON.parse(line.slice(6));
-          if (data.error)    throw new Error(data.error);
-          if (data.progress) setOpProgress(data.progress);
-          if (data.done) {
-            setOpProgress(null);
-            setOpResult(successMsg(data.synced, data.total));
-          }
-        }
+      for (let i = 0; i < productIds.length; i += BATCH) {
+        const batch = productIds.slice(i, i + BATCH);
+        setOpProgress({ synced: totalSynced, total: productIds.length, batch: Math.floor(i / BATCH) + 1, batches: Math.ceil(productIds.length / BATCH) });
+
+        const r = await fetch('/api/ims/shopify/sync-prices', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ product_ids: batch }),
+        });
+        if (!r.ok) throw new Error(`Server error ${r.status}`);
+        const d = await r.json();
+        if (!d.success) throw new Error(d.error);
+
+        totalSynced  += d.synced;
+        totalVariants += d.total;
+        if (d.errors?.length) allErrors.push(...d.errors);
       }
+
+      setOpProgress(null);
+      setOpResult(`${label}: ${totalSynced} of ${totalVariants} variants synced.${allErrors.length ? ` (${allErrors.length} errors)` : ''}`);
     } catch (e: any) {
       setOpProgress(null);
       setOpError(e.message);
@@ -326,11 +325,25 @@ function ShopifyProductsTab() {
   const runSyncPrices = async () => {
     const ids = [...selected].filter(id => products.find(p => p.product_id === id && p.shopify_status === 'linked'));
     if (!ids.length) { setOpError('No linked products selected.'); return; }
-    await streamSyncPrices({ product_ids: ids }, (s, t) => `Synced prices for ${s}/${t} variants.`);
+    await batchSyncPrices(ids, 'Sync Prices');
   };
 
   const runResync = async () => {
-    await streamSyncPrices({}, (s, t) => `Full resync complete: ${s}/${t} variants.`);
+    setSyncing(true); setOpResult(null); setOpError(null); setOpProgress(null);
+    try {
+      // Discover ALL product IDs that have Shopify links (fast DB-only GET)
+      const r = await fetch('/api/ims/shopify/sync-prices');
+      if (!r.ok) throw new Error(`Server error ${r.status}`);
+      const { productIds, variantCount } = await r.json();
+      if (!productIds?.length) { setOpResult('No linked products found.'); setSyncing(false); return; }
+      // Hand off to the batching helper (which will re-set syncing=true)
+      setSyncing(false);
+      await batchSyncPrices(productIds, `Full Resync (${variantCount} variants)`);
+    } catch (e: any) {
+      setOpProgress(null);
+      setOpError(e.message);
+      setSyncing(false);
+    }
   };
 
   const segBtn = (s: typeof segment, label: string, count?: number) => (
@@ -392,15 +405,15 @@ function ShopifyProductsTab() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
             <svg style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sv-action)" strokeWidth="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
             <span style={{ color: 'var(--sv-action)', fontWeight: 600 }}>
-              Syncing prices… {opProgress.synced} / {opProgress.total} variants
-              {opProgress.products !== undefined ? ` (${opProgress.products} products)` : ''}
+              Syncing prices… batch {opProgress.batch} of {opProgress.batches}
+            </span>
+            <span style={{ color: 'var(--sv-text-dim)', fontSize: 12, marginLeft: 'auto' }}>
+              {opProgress.synced} / {opProgress.total} products queued
             </span>
           </div>
-          {opProgress.total > 0 && (
-            <div style={{ height: 6, borderRadius: 3, background: 'rgba(37,99,235,.15)', overflow: 'hidden' }}>
-              <div style={{ height: '100%', borderRadius: 3, background: 'var(--sv-action)', width: `${Math.round(opProgress.synced / opProgress.total * 100)}%`, transition: 'width 0.3s ease' }} />
-            </div>
-          )}
+          <div style={{ height: 6, borderRadius: 3, background: 'rgba(37,99,235,.15)', overflow: 'hidden' }}>
+            <div style={{ height: '100%', borderRadius: 3, background: 'var(--sv-action)', width: `${Math.round((opProgress.batch - 1) / opProgress.batches * 100)}%`, transition: 'width 0.3s ease' }} />
+          </div>
         </div>
       )}
 
