@@ -2167,8 +2167,9 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
     const botH   = showBottomRow ? s.h * 0.23 : 0;
     const bcH    = Math.max(4, s.h - 2 * padV - topH - botH);
 
-    const namePt    = Math.max(5, Math.round(topH * 2.835 * 0.72));
+    const namePt    = Math.max(4, Math.round(topH * 2.835 * 0.50));
     const pricePt   = Math.max(5, Math.round(topH * 2.835 * 0.80));
+    // Fill available barcode height exactly; JS scaleX will handle width.
     const barcodePt = Math.max(8, Math.round(bcH  * 2.835));
     const bottomPt  = Math.max(4, Math.round(botH * 2.835 * 0.68));
 
@@ -2234,7 +2235,7 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
     .rrp-strike  { font-size: ${Math.max(4, pricePt - 2)}pt; text-decoration: line-through; color: #888; margin-right: 0.5mm; }
     .bc-wrap {
       flex: 1 1 0; min-height: 0;
-      display: flex; align-items: center;
+      display: flex; align-items: flex-start;
       overflow: hidden; width: 100%;
     }
     .barcode {
@@ -2264,7 +2265,7 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
         var wW = wrap.offsetWidth;
         var bcW = bc.scrollWidth;
         if (bcW > 0 && wW > 0) {
-          var scale = Math.min(1.9, wW / bcW);
+          var scale = wW / bcW; // scale to exactly fill label width
           bc.style.transform = 'scaleX(' + scale + ')';
         }
       });
@@ -2293,9 +2294,9 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
   const bcH    = Math.max(4, size.h - 2 * padV - topH - botH);
 
   const toScPx = (mm: number) => mm * 3.78 * previewScale;
-  const namePx    = Math.max(7,  toScPx(topH) * 0.72);
+  const namePx    = Math.max(6,  toScPx(topH) * 0.50);
   const pricePx   = Math.max(7,  toScPx(topH) * 0.80);
-  const barcodePx = Math.max(10, toScPx(bcH));
+  const barcodePx = Math.max(8,  toScPx(bcH));  // fills available height exactly
   const bottomPx  = Math.max(6,  toScPx(botH) * 0.68);
 
   const fmtP = (p: any) => p != null && !isNaN(Number(p)) ? `$${Number(p).toFixed(2)}` : '';
@@ -2396,7 +2397,7 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
 
               {/* Barcode: flex-grow, fills remaining space */}
               {settings.showBarcode && variant?.barcode && (
-                <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'center', overflow: 'hidden', width: '100%' }}>
+                <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'flex-start', overflow: 'hidden', width: '100%' }}>
                   <span style={{ fontFamily: "'Libre Barcode 128 Text', monospace", fontSize: barcodePx, lineHeight: 1, color: '#000', whiteSpace: 'nowrap', overflow: 'hidden', maxWidth: '100%' }}>{variant.barcode}</span>
                 </div>
               )}
@@ -12440,6 +12441,36 @@ export default function ImsPage() {
   const [pendingOpenPO, setPendingOpenPO] = useState<number | null>(null);
   const [pendingOpenSO, setPendingOpenSO] = useState<number | null>(null);
   const [cnPrefill, setCnPrefill] = useState<any>(null);
+
+  // ── URL hash ↔ view sync ──────────────────────────────────────────────────
+  const VALID_VIEWS = useMemo(() => new Set<string>([
+    'dashboard','products','stock','brands','bulk-edit','contacts','locations',
+    'purchase-orders','sales-orders','credit-notes','supplier-credit-notes',
+    'branch-transfers','smart-device-receive','order-planner','receive-transfers',
+    'pos-sales','online-sales','stocktakes',
+    'reports','report-sales-by-branch','report-sales-search',
+    'report-inventory-valuation','report-product-margin',
+    'report-pos-price-changes','report-pos-registers',
+    'xero','shopify',
+  ]), []);
+
+  // On mount: restore view from hash; wire up browser back/forward.
+  useEffect(() => {
+    const readHash = () => {
+      const h = window.location.hash.replace(/^#/, '');
+      return VALID_VIEWS.has(h) ? h as ImsView : 'dashboard';
+    };
+    const initial = readHash();
+    if (initial !== 'dashboard' || window.location.hash) setView(initial);
+    const onPop = () => setView(readHash());
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [VALID_VIEWS]);
+
+  // Keep hash in sync whenever the active view changes.
+  useEffect(() => {
+    window.history.pushState(null, '', `#${view}`);
+  }, [view]);
 
   useEffect(() => {
     fetch('/api/ims/xero/queued').then(r => r.ok ? r.json() : { count: 0 }).then(d => setXeroQueuedCount(d.count ?? 0)).catch(() => {});
