@@ -2097,7 +2097,53 @@ function OnlineStoreSection({ productId, isReadOnly = false }: { productId: stri
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Barcode Label Dialog
+// Barcode Label Dialog — CODE128 SVG generator (no external fonts)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Generates a CODE128-B barcode as an inline SVG string.
+ * Self-contained — no fonts, no CDN, identical output in preview and print.
+ */
+function code128Svg(text: string, widthMm: number, heightMm: number): string {
+  // CODE128 pattern table (index = symbol value, last entry = STOP which has 7 elements)
+  const T = ['212222','222122','222221','121223','121322','131222','122213','122312','132212','221213','221312','231212','112232','122132','122231','113222','123122','123221','223211','221132','221231','213212','223112','312131','311222','321122','321221','312212','322112','322211','212123','212321','232121','111323','131123','131321','112313','132113','132311','211313','231113','231311','112133','112331','132131','113123','113321','133121','313121','211331','231131','213113','213311','213131','311123','311321','331121','312113','312311','332111','314111','221411','431111','111224','111422','121124','121421','141122','141221','112214','112412','122114','122411','142112','142211','241211','221114','413111','241112','134111','111242','121142','121241','114212','124112','124211','411212','421112','421211','212141','214121','412121','111143','111341','131141','114113','114311','411113','411311','113141','114131','311141','411131','211412','211214','211232','2331112'];
+  const codes: number[] = [104]; // START B
+  let check = 104, pos = 0;
+  for (let i = 0; i < text.length; i++) {
+    const v = text.charCodeAt(i) - 32;
+    if (v < 0 || v > 94) continue; // skip non-Code128B chars
+    pos++;
+    codes.push(v);
+    check += v * pos;
+  }
+  codes.push(check % 103); // check character
+  codes.push(106);          // STOP
+
+  // Decode widths: alternating dark/light, starting dark
+  const bars: Array<{ w: number; dark: boolean }> = [];
+  let totalModules = 0;
+  for (const code of codes) {
+    let dark = true;
+    for (const ch of T[code]) {
+      const w = parseInt(ch);
+      bars.push({ w, dark });
+      totalModules += w;
+      dark = !dark;
+    }
+  }
+
+  // Quiet zones (10 modules each side per spec)
+  const qz = 10;
+  const scale = widthMm / (totalModules + qz * 2);
+  let x = qz * scale;
+  let rects = '';
+  for (const { w, dark } of bars) {
+    const bw = w * scale;
+    if (dark) rects += `<rect x="${x.toFixed(3)}" y="0" width="${bw.toFixed(3)}" height="${heightMm}" fill="#000"/>`;
+    x += bw;
+  }
+  return `<svg viewBox="0 0 ${widthMm} ${heightMm}" width="100%" height="100%" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><rect width="${widthMm}" height="${heightMm}" fill="white"/>${rects}</svg>`;
+}
 // ─────────────────────────────────────────────────────────────────────────────
 
 const LABEL_SIZES = [
@@ -2140,21 +2186,6 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
     } catch { return DEFAULT_LABEL; }
   });
   const [selectedVariantIdx, setSelectedVariantIdx] = useState(0);
-  const barcodeSpanRef = useRef<HTMLSpanElement>(null);
-  const barcodeWrapRef = useRef<HTMLDivElement>(null);
-  const [previewBcScale, setPreviewBcScale] = useState(1);
-
-  // Mirror print scaleX in the preview: measure after render and apply transform.
-  useEffect(() => {
-    const bc   = barcodeSpanRef.current;
-    const wrap = barcodeWrapRef.current;
-    if (!bc || !wrap) { setPreviewBcScale(1); return; }
-    // Reset transform so we measure the natural width.
-    bc.style.transform = '';
-    const bcW = bc.scrollWidth;
-    const wW  = wrap.offsetWidth;
-    if (bcW > 0 && wW > 0) setPreviewBcScale(wW / bcW);
-  });
 
   const set = <K extends keyof LabelSettings>(k: K, v: LabelSettings[K]) =>
     setSettings(prev => {
@@ -2204,12 +2235,15 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
       return '';
     })();
 
+    // Barcode SVG — generated inline, no external fonts or CDN needed
+    const barcodeSvg = hasBarcode ? code128Svg(variant.barcode, s.w - 2 * padH, bcH) : '';
+
     const singleLabel = `<div class="label">
   ${showTopRow ? `<div class="top-row">
     <span class="pname">${name}</span>
     <span class="price-group">${priceSpan}</span>
   </div>` : ''}
-  ${hasBarcode ? `<div class="bc-wrap"><span class="barcode">${variant.barcode}</span></div>` : ''}
+  ${hasBarcode ? `<div class="bc-wrap">${barcodeSvg}</div>` : ''}
   ${showBottomRow ? `<div class="bottom-row">
     ${brand ? `<span class="brand">${brand}</span>` : '<span></span>'}
     ${sku   ? `<span class="sku">${sku}</span>`     : ''}
@@ -2222,8 +2256,6 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
 <html>
 <head>
   <meta charset="utf-8">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=block">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     @page { size: ${s.w}mm ${s.h}mm; margin: 0; }
@@ -2237,63 +2269,21 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
     .top-row {
       display: flex; align-items: baseline;
       justify-content: space-between; gap: 1mm;
-      flex-shrink: 0; width: 100%;
-      height: ${topH}mm;
+      flex-shrink: 0; width: 100%; height: ${topH}mm;
     }
-    .pname {
-      font-size: ${namePt}pt; font-weight: 700;
-      flex: 1 1 0; overflow: hidden;
-      text-overflow: ellipsis; white-space: nowrap; line-height: 1.2;
-    }
+    .pname  { font-size: ${namePt}pt; font-weight: 700; flex: 1 1 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.2; }
     .price-group { display: flex; align-items: baseline; gap: 1px; flex-shrink: 0; white-space: nowrap; }
     .price       { font-size: ${pricePt}pt; font-weight: 700; }
     .rrp-strike  { font-size: ${Math.max(4, pricePt - 2)}pt; text-decoration: line-through; color: #888; margin-right: 0.5mm; }
-    .bc-wrap {
-      flex: 1 1 0; min-height: 0;
-      display: flex; align-items: flex-start;
-      width: 100%;
-      /* overflow intentionally omitted — .label clips everything */
-    }
-    .barcode {
-      font-family: 'Libre Barcode 128', monospace;
-      font-size: ${barcodePt}pt; line-height: 1;
-      white-space: nowrap; display: block;
-      transform-origin: left center;
-    }
-    .bottom-row {
-      display: flex; align-items: baseline;
-      justify-content: space-between; gap: 1mm;
-      flex-shrink: 0; width: 100%;
-      height: ${botH}mm;
-    }
+    .bc-wrap  { flex: 1 1 0; min-height: 0; display: flex; align-items: flex-start; width: 100%; overflow: hidden; }
+    .bc-wrap svg { display: block; width: 100%; height: 100%; }
+    .bottom-row { display: flex; align-items: baseline; justify-content: space-between; gap: 1mm; flex-shrink: 0; width: 100%; height: ${botH}mm; }
     .brand { font-size: ${bottomPt}pt; color: #555; flex: 1 1 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .sku   { font-size: ${bottomPt}pt; color: #333; flex-shrink: 0; white-space: nowrap; letter-spacing: .3px; }
   </style>
 </head>
-<body>
+<body onload="window.print(); window.close();">
   ${labelsHtml}
-  <script>
-    // display=block means the font is guaranteed to be loaded before any paint,
-    // so scrollWidth gives the true barcode width on the very first measurement.
-    document.fonts.load("${barcodePt}pt 'Libre Barcode 128'")
-      .catch(function() { return document.fonts.ready; })
-      .then(function() {
-        void document.body.offsetWidth; // flush layout
-
-        document.querySelectorAll('.bc-wrap').forEach(function(wrap) {
-          var bc = wrap.querySelector('.barcode');
-          if (!bc) return;
-          var wW = wrap.offsetWidth;
-          var bcW = bc.scrollWidth;
-          if (bcW > 0 && wW > 0) {
-            bc.style.transform = 'scaleX(' + (wW / bcW) + ')';
-          }
-        });
-        requestAnimationFrame(function() {
-          setTimeout(function() { window.print(); window.close(); }, 300);
-        });
-      });
-  </script>
 </body>
 </html>`;
 
@@ -2419,9 +2409,9 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
 
               {/* Barcode: flex-grow, fills remaining space */}
               {settings.showBarcode && variant?.barcode && (
-                <div ref={barcodeWrapRef} style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'flex-start', width: '100%', overflow: 'visible' }}>
-                  <span ref={barcodeSpanRef} style={{ fontFamily: "'Libre Barcode 128', monospace", fontSize: barcodePx, lineHeight: 1, color: '#000', whiteSpace: 'nowrap', display: 'block', transformOrigin: 'left center', transform: `scaleX(${previewBcScale})` }}>{variant.barcode}</span>
-                </div>
+                <div style={{ flex: '1 1 0', minHeight: 0, overflow: 'hidden', width: '100%' }}
+                  dangerouslySetInnerHTML={{ __html: code128Svg(variant.barcode, size.w - 2 * padH_mm, bcH) }}
+                />
               )}
 
               {/* Bottom row: brand (left) | sku (right) */}
@@ -3478,6 +3468,7 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedVariantId, setSelectedVariantId] = useState<string>(''); // '' = all variants
+  const [branchFilter, setBranchFilter] = useState<string>(''); // '' = all branches (combined)
 
   useEffect(() => {
     fetch(`/api/ims/products/${productId}/stock-history`)
@@ -3522,6 +3513,62 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
   const filteredMovements = data
     ? (selectedVariantId ? data.movements.filter((m: any) => m.variant_id === selectedVariantId) : data.movements)
     : [];
+
+  // Branch selector for the transactions table ('' = all branches, combined).
+  const branchNames = data
+    ? [...new Set<string>([
+        ...data.stockByLocation.map((s: any) => s.location_name),
+        ...data.movements.map((m: any) => m.location_name),
+      ])].sort()
+    : [];
+
+  // Rows actually shown: variant filter (above) + branch filter.
+  const displayMovements = filteredMovements.filter((m: any) => !branchFilter || m.location_name === branchFilter);
+  const displayOpeningRows = openingRows.filter(ob => !branchFilter || ob.name === branchFilter);
+
+  // Running "SOH After" and "Available After" per movement, scoped to the current
+  // variant + branch selection. On-hand uses the authoritative per-row
+  // qty_after_soh; committed is anchored to the live qty_committed and walked
+  // backwards through each movement's committed_change. When no branch is
+  // selected the figures are combined across all branches.
+  const txMetrics = useMemo(() => {
+    const rowSoh = new Map<number, number>();
+    const rowAvail = new Map<number, number>();
+    if (!data) return { rowSoh, rowAvail };
+    const inVariant = (vid: string) => !selectedVariantId || vid === selectedVariantId;
+    const inBranch = (name: string) => !branchFilter || name === branchFilter;
+    const key = (m: any) => `${m.variant_id}::${m.location_name}`;
+
+    const scoped = data.movements.filter((m: any) => inVariant(m.variant_id) && inBranch(m.location_name));
+    const asc = [...scoped].sort((a: any, b: any) => {
+      const t = String(a.created_at).localeCompare(String(b.created_at));
+      return t !== 0 ? t : a.id - b.id;
+    });
+
+    // Running on-hand per (variant, location), seeded from opening balances.
+    const soh: Record<string, number> = {};
+    data.openingBalances.forEach((ob: any) => {
+      if (inVariant(ob.variant_id) && inBranch(ob.location_name)) soh[`${ob.variant_id}::${ob.location_name}`] = Number(ob.qty_after_soh ?? 0);
+    });
+    for (const m of asc) {
+      soh[key(m)] = Number(m.qty_after_soh ?? 0);
+      let total = 0; for (const k in soh) total += soh[k];
+      rowSoh.set(m.id, total);
+    }
+
+    // Running committed per (variant, location), anchored to the live committed
+    // value and walked backwards using each movement's committed_change.
+    const comm: Record<string, number> = {};
+    data.stockByLocation.forEach((s: any) => {
+      if (inVariant(s.variant_id) && inBranch(s.location_name)) comm[`${s.variant_id}::${s.location_name}`] = Number(s.qty_committed ?? 0);
+    });
+    for (const m of [...asc].reverse()) {
+      let total = 0; for (const k in comm) total += comm[k];
+      rowAvail.set(m.id, (rowSoh.get(m.id) ?? 0) - total);
+      comm[key(m)] = (comm[key(m)] ?? 0) - Number(m.committed_change ?? 0);
+    }
+    return { rowSoh, rowAvail };
+  }, [data, selectedVariantId, branchFilter]);
 
   const movementLabel: Record<string, string> = {
     po_approved:    'PO Approved',
@@ -3677,30 +3724,45 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>
               Transactions — Last 12 Months
             </div>
-            {data.variants.length > 1 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
-                <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Variant:</span>
-                <select
-                  value={selectedVariantId}
-                  onChange={e => setSelectedVariantId(e.target.value)}
-                  style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', fontSize: 12 }}
-                >
-                  <option value="">All variants</option>
-                  {data.variants.map((v: any) => (
-                    <option key={v.variant_id} value={v.variant_id}>
-                      {v.label || v.sku || v.variant_id}
-                    </option>
-                  ))}
-                </select>
-                {selectedVariantId && (
-                  <button onClick={() => setSelectedVariantId('')} style={{ fontSize: 11, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-muted)', padding: 0 }}>✕ All</button>
-                )}
-              </div>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 'auto', flexWrap: 'wrap' }}>
+              {branchNames.length > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Branch:</span>
+                  <select
+                    value={branchFilter}
+                    onChange={e => setBranchFilter(e.target.value)}
+                    style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', fontSize: 12 }}
+                  >
+                    <option value="">All Branches</option>
+                    {branchNames.map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
+              )}
+              {data.variants.length > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Variant:</span>
+                  <select
+                    value={selectedVariantId}
+                    onChange={e => setSelectedVariantId(e.target.value)}
+                    style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', fontSize: 12 }}
+                  >
+                    <option value="">All variants</option>
+                    {data.variants.map((v: any) => (
+                      <option key={v.variant_id} value={v.variant_id}>
+                        {v.label || v.sku || v.variant_id}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedVariantId && (
+                    <button onClick={() => setSelectedVariantId('')} style={{ fontSize: 11, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-muted)', padding: 0 }}>✕ All</button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
-          {filteredMovements.length === 0 && Object.keys(openingByLoc).length === 0 ? (
-            <p style={{ color: 'var(--sv-text-muted)', fontSize: 13 }}>No transactions in the last 12 months.</p>
+          {displayMovements.length === 0 && displayOpeningRows.length === 0 ? (
+            <p style={{ color: 'var(--sv-text-muted)', fontSize: 13 }}>No transactions in the last 12 months{branchFilter ? ` for ${branchFilter}` : ''}.</p>
           ) : (
             <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden', maxHeight: 420, overflowY: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -3709,29 +3771,37 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
                     <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7, whiteSpace: 'nowrap' }}>Date</th>
                     <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Type</th>
                     <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Reference</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Location</th>
+                    {!branchFilter && <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Location</th>}
                     {data.variants.length > 1 && !selectedVariantId && <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Variant</th>}
                     <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Qty</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Committed</th>
                     <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>SOH After</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7 }}>Avail. After</th>
                   </tr>
                 </thead>
                 <tbody>
                   {/* Opening balance rows — per variant or aggregated depending on filter */}
-                  {Object.values(openingByLoc).map(ob => (
+                  {displayOpeningRows.map(ob => (
                     <tr key={`ob-${ob.name}`} style={{ borderTop: '1px solid var(--sv-etch)', background: 'color-mix(in srgb, var(--sv-amber) 8%, transparent)' }}>
                       <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{String(ob.date).slice(0, 10)}</td>
                       <td style={{ padding: '7px 12px' }}>
                         <span style={{ background: 'color-mix(in srgb, var(--sv-amber) 20%, transparent)', color: 'var(--sv-amber)', borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 700 }}>Opening Balance</span>
                       </td>
                       <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)' }}>{selectedVariantId ? 'Balance before 12-month window (this variant)' : 'Balance before 12-month window'}</td>
-                      <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)' }}>{ob.name}</td>
+                      {!branchFilter && <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)' }}>{ob.name}</td>}
                       {data.variants.length > 1 && !selectedVariantId && <td style={{ padding: '7px 12px' }} />}
                       <td style={{ padding: '7px 12px', textAlign: 'right' }} />
+                      <td style={{ padding: '7px 12px', textAlign: 'right', color: 'var(--sv-text-dim)' }}>—</td>
                       <td style={{ padding: '7px 12px', textAlign: 'right', color: 'var(--sv-amber)', fontWeight: 700 }}>{fmtQty(ob.qty)}</td>
+                      <td style={{ padding: '7px 12px', textAlign: 'right', color: 'var(--sv-text-dim)' }}>—</td>
                     </tr>
                   ))}
                   {/* Movement rows */}
-                  {filteredMovements.map((m: any, i: number) => (
+                  {displayMovements.map((m: any, i: number) => {
+                    const cc = Number(m.committed_change || 0);
+                    const sohAfter = txMetrics.rowSoh.get(m.id) ?? Number(m.qty_after_soh);
+                    const availAfter = txMetrics.rowAvail.get(m.id);
+                    return (
                     <tr key={m.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 25%, transparent)' : undefined }}>
                       <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{String(m.created_at).slice(0, 10)}</td>
                       <td style={{ padding: '7px 12px' }}>
@@ -3744,14 +3814,21 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
                         </span>
                       </td>
                       <td style={{ padding: '7px 12px', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>{refLink(m)}</td>
-                      <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', fontSize: 12, whiteSpace: 'nowrap' }}>{m.location_name}</td>
+                      {!branchFilter && <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', fontSize: 12, whiteSpace: 'nowrap' }}>{m.location_name}</td>}
                       {data.variants.length > 1 && !selectedVariantId && <td style={{ padding: '7px 12px', color: 'var(--sv-text-dim)', fontSize: 12 }}>{m.variant_label}</td>}
                       <td style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 700, color: movementColor(m.movement_type, Number(m.qty_change)) }}>
                         {Number(m.qty_change) > 0 ? '+' : ''}{fmtQty(Number(m.qty_change))}
                       </td>
-                      <td style={{ padding: '7px 12px', textAlign: 'right', color: 'var(--sv-text-dim)', fontSize: 12 }}>{fmtQty(Number(m.qty_after_soh))}</td>
+                      <td style={{ padding: '7px 12px', textAlign: 'right', fontWeight: cc !== 0 ? 700 : 400, color: cc > 0 ? 'var(--sv-amber)' : 'var(--sv-text-dim)' }}>
+                        {cc === 0 ? '—' : `${cc > 0 ? '+' : ''}${fmtQty(cc)}`}
+                      </td>
+                      <td style={{ padding: '7px 12px', textAlign: 'right', color: 'var(--sv-text-dim)', fontSize: 12 }}>{fmtQty(sohAfter)}</td>
+                      <td style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 700, color: availAfter == null ? 'var(--sv-text-dim)' : availAfter <= 0 ? 'var(--sv-red)' : 'var(--sv-mint)' }}>
+                        {availAfter == null ? '—' : fmtQty(availAfter)}
+                      </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -6932,7 +7009,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (pendingOpenId) { openEdit({ id: pendingOpenId }); onPendingHandled?.(); } }, [pendingOpenId]);
+  useEffect(() => { if (pendingOpenId) { openView({ id: pendingOpenId }); onPendingHandled?.(); } }, [pendingOpenId]);
 
   const openEdit = async (so: any) => {
     const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);
@@ -7213,14 +7290,14 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>LINE ITEMS</span>
-                {form.customer_id && (
+                {(form.customer_id || modal.edit) && (
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button type="button" onClick={() => setImportOpen(true)} style={btnStyle('secondary', 'xs')}>⬆ Import</button>
                     <button type="button" onClick={addLine} style={btnStyle('ghost', 'xs')}>+ Add Line</button>
                   </div>
                 )}
               </div>
-              {!form.customer_id ? (
+              {(!form.customer_id && !modal.edit) ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13, border: '1px dashed var(--sv-etch)', borderRadius: 6 }}>
                   Select a customer above to set pricing and add line items
                 </div>

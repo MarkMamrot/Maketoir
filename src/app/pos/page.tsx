@@ -2379,6 +2379,7 @@ function PosAvatarBar({
   const [sending,   setSending]   = useState(false);
   const [unread,    setUnread]    = useState(0);
   const lastReadRef = useRef<number>(0);
+  const chatOpenRef = useRef(false); // stable ref so SSE closure sees current chatOpen
   const listRef     = useRef<HTMLDivElement>(null);
 
   // ── DM state ─────────────────────────────────────────────────────────────────
@@ -2558,8 +2559,8 @@ function PosAvatarBar({
               if (!newMsgs.length) return prev;
               const merged = [...prev, ...newMsgs].sort((a: ChatMessage, b: ChatMessage) => a.id - b.id).slice(-200);
               const maxId = Math.max(...merged.map((m: ChatMessage) => m.id));
-              if (chatOpen) { saveLastRead(maxId); setUnread(0); }
-              else setUnread(u => u + newMsgs.length);
+              if (chatOpenRef.current) { saveLastRead(maxId); setUnread(0); }
+              else { lastReadRef.current = maxId; setUnread(u => u + newMsgs.length); }
               return merged;
             });
           }
@@ -2599,6 +2600,7 @@ function PosAvatarBar({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    chatOpenRef.current = chatOpen;
     if (chatOpen) {
       if (messages.length > 0) { saveLastRead(Math.max(...messages.map(m => m.id))); setUnread(0); }
       setTimeout(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, 80);
@@ -2938,7 +2940,7 @@ function saveRecentIds(ids: string[]): void {
 
 // ─── POS Stock Modal ──────────────────────────────────────────────────────────
 
-function PosStockModal({ variantId, productName, imageUrl, onClose }: { variantId: string; productName: string; imageUrl?: string; onClose: () => void }) {
+function PosStockModal({ variantId, productName, imageUrl, barcode, sku, onClose }: { variantId: string; productName: string; imageUrl?: string; barcode?: string | null; sku?: string | null; onClose: () => void }) {
   const [rows, setRows]           = useState<{ location_name: string; qty_on_hand: number }[]>([]);
   const [description, setDescription] = useState<string | null>(null);
   const [loading, setLoading]     = useState(true);
@@ -2969,11 +2971,23 @@ function PosStockModal({ variantId, productName, imageUrl, onClose }: { variantI
       style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1.25rem', padding: '1rem' }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: '1.5rem', width: 400, maxWidth: '95vw', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 12px 48px rgba(0,0,0,.5)' }}>
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: '1.5rem', width: 400, maxWidth: '95vw', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 12px 48px rgba(0,0,0,.5)', userSelect: 'text' }}>
+        {(() => {
+          // Split "Product Name — Opt1 / Opt2" into base name + options string
+          const dashIdx = productName.indexOf(' — ');
+          const baseName = dashIdx !== -1 ? productName.slice(0, dashIdx) : productName;
+          const optionsStr = dashIdx !== -1 ? productName.slice(dashIdx + 3) : '';
+          return (
+        <>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem', gap: 12 }}>
           <div>
             <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8, marginBottom: 2 }}>Stock by Location</div>
-            <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--sv-text-strong)', lineHeight: 1.3 }}>{productName}</div>
+            <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--sv-text-strong)', lineHeight: 1.3 }}>{baseName}</div>
+            {barcode && (
+              <div style={{ marginTop: 4 }}>
+                <span style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)' }}>Barcode: <span style={{ fontFamily: 'monospace', color: 'var(--sv-text-main)' }}>{barcode}</span></span>
+              </div>
+            )}
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 22, lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
         </div>
@@ -3005,6 +3019,20 @@ function PosStockModal({ variantId, productName, imageUrl, onClose }: { variantI
             {rows.length === 0 && <div style={{ color: 'var(--sv-text-dim)', fontSize: '.85rem', gridColumn: '1/-1' }}>No stock records found.</div>}
           </div>
         )}
+        {/* ── Variant options + SKU at bottom ── */}
+        {(optionsStr || sku) && (
+          <div style={{ marginTop: '1rem', paddingTop: '.75rem', borderTop: '1px solid var(--sv-etch)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {optionsStr && (
+              <div style={{ fontSize: '.82rem', color: 'var(--sv-text-main)', fontWeight: 500 }}>{optionsStr}</div>
+            )}
+            {sku && (
+              <span style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', userSelect: 'text' }}>SKU: <span style={{ fontFamily: 'monospace', color: 'var(--sv-mint)' }}>{sku}</span></span>
+            )}
+          </div>
+        )}
+        </>
+          );
+        })()}
         </div>{/* end info panel */}
 
         {/* ── Large image panel ── */}
@@ -3027,7 +3055,7 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
   const [search, setSearch]             = useState('');
   const [brand, setBrand]               = useState(() => defaultView.startsWith('brand:') ? defaultView.slice(6) : '');
   const [inStockOnly, setInStockOnly]   = useState(true);
-const [stockModal, setStockModal]     = useState<{ variantId: string; productName: string; imageUrl?: string } | null>(null);
+const [stockModal, setStockModal]     = useState<{ variantId: string; productName: string; imageUrl?: string; barcode?: string | null; sku?: string | null } | null>(null);
 
   // Pinned variant IDs from the "Specific Products" setting
   const pinnedIds = useMemo(() => {
@@ -3291,8 +3319,8 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
                     ? <img src={p.image_url} alt="" style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
                     : <div style={{ width: 36, height: 36, borderRadius: 4, flexShrink: 0, background: 'var(--sv-bg-2)' }} />}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '.85rem', fontWeight: 600, color: 'var(--sv-text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-                    <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[p.brand, p.code].filter(Boolean).join(' · ')}</div>
+                    <div style={{ fontSize: '.85rem', fontWeight: 600, color: 'var(--sv-text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', userSelect: 'text' }}>{p.name}</div>
+                    <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', userSelect: 'text' }}>{[p.brand, p.code].filter(Boolean).join(' · ')}</div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1, flexShrink: 0 }}>
                     {p.original_price != null && (
@@ -3300,9 +3328,9 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
                     )}
                     <span style={{ fontWeight: 700, color: p.original_price != null ? '#fb923c' : 'var(--sv-action)', fontSize: '.85rem' }}>${fmt(p.price)}</span>
                   </div>
-                  <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '2px 6px', borderRadius: 5, background: (p.available ?? p.soh) > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: (p.available ?? p.soh) > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', flexShrink: 0, border: 'none', cursor: 'pointer', fontWeight: 700 }} title="Available to sell at this store (SOH minus committed) — click for breakdown">{(p.available ?? p.soh) > 0 ? (p.available ?? p.soh) : 'OOS'}</button>
+                  <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name, barcode: p.barcode, sku: p.code }); }} style={{ fontSize: '.72rem', padding: '2px 6px', borderRadius: 5, background: (p.available ?? p.soh) > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: (p.available ?? p.soh) > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', flexShrink: 0, border: 'none', cursor: 'pointer', fontWeight: 700 }} title="Available to sell at this store (SOH minus committed) — click for breakdown">{(p.available ?? p.soh) > 0 ? (p.available ?? p.soh) : 'OOS'}</button>
                   {p.available_all !== undefined && p.available_all !== (p.available ?? p.soh) && (
-                    <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name }); }} style={{ fontSize: '.72rem', padding: '2px 5px', borderRadius: 5, background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', flexShrink: 0, border: '1px solid var(--sv-etch)', cursor: 'pointer' }} title="Available across all locations — click for breakdown">all:{p.available_all}</button>
+                    <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name, barcode: p.barcode, sku: p.code }); }} style={{ fontSize: '.72rem', padding: '2px 5px', borderRadius: 5, background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', flexShrink: 0, border: '1px solid var(--sv-etch)', cursor: 'pointer' }} title="Available across all locations — click for breakdown">all:{p.available_all}</button>
                   )}
                 </div>
               ))}
@@ -3427,17 +3455,17 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
                   <span style={{ fontWeight: 800, color: p.original_price != null ? '#fb923c' : 'var(--sv-action)', fontSize: '1.05rem' }}>${fmt(p.price)}</span>
                 </div>
                 <button
-                  onClick={e => { e.stopPropagation(); setStockModal({ variantId: p.variant_id, productName: p.name, imageUrl: p.image_url }); }}
+                  onClick={e => { e.stopPropagation(); setStockModal({ variantId: p.variant_id, productName: p.name, imageUrl: p.image_url, barcode: p.barcode, sku: p.code }); }}
                   style={{ background: 'transparent', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: '0 0 0 4px', flexShrink: 0 }}
                   title="Product info & stock by location"
                 >ℹ️</button>
               </div>
               {/* SKU beside image, under price */}
-              {p.code && <div style={{ fontSize: '.68rem', color: 'var(--sv-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.code}</div>}
+              {p.code && <div style={{ fontSize: '.68rem', color: 'var(--sv-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', userSelect: 'text' }}>{p.code}</div>}
                 </div>{/* end right col */}
               </div>{/* end top flex row */}
               {/* Product name — full width, single line */}
-              <div style={{ fontSize: '.88rem', fontWeight: 700, lineHeight: 1.25, color: 'var(--sv-text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '.2rem' }}>{p.name}</div>
+              <div style={{ fontSize: '.88rem', fontWeight: 700, lineHeight: 1.25, color: 'var(--sv-text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '.2rem', userSelect: 'text' }}>{p.name}</div>
               {/* Stock info — compact single line */}
               <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', display: 'flex', gap: '.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 <span style={{ color: (p.available ?? p.soh) > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 600 }}>Avail: {p.available ?? p.soh}</span>
@@ -3461,6 +3489,8 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
         variantId={stockModal.variantId}
         productName={stockModal.productName}
         imageUrl={stockModal.imageUrl}
+        barcode={stockModal.barcode}
+        sku={stockModal.sku}
         onClose={() => setStockModal(null)}
       />
     )}
@@ -4452,6 +4482,11 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
                     const openFloat  = m === 'Cash' ? (parseFloat(e.openingFloat ?? '') || 0) : 0;
                     const cashSales  = m === 'Cash' ? counted - openFloat : null;
                     const variance   = m === 'Cash' ? (cashSales ?? 0) - exp : counted - exp;
+                    // Match the printed receipt: balanced (within rounding) → green,
+                    // short → red, over → amber so a surplus stands out too.
+                    const varColor = Math.abs(variance) < 0.005 ? 'var(--sv-mint)'
+                      : variance < 0 ? 'var(--sv-red)'
+                      : 'var(--sv-amber, #f59e0b)';
                     return (
                       <>
                         <tr key={m} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
@@ -4479,7 +4514,7 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
                           <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--sv-text-strong)' }}>
                             {cashSales !== null ? `$${fmt(cashSales)}` : <span style={{ color: 'var(--sv-text-muted)' }}>—</span>}
                           </td>
-                          <td style={{ ...tdStyle, color: variance >= 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 600 }}>
+                          <td style={{ ...tdStyle, color: varColor, fontWeight: 600 }}>
                             {variance >= 0 ? '+' : ''}{fmt(variance)}
                           </td>
                           <td style={tdStyle}>
@@ -5006,6 +5041,7 @@ function ReceiveBtInline({ bt, onBack, onDone }: { bt: any; onBack: () => void; 
   const [lastScanned, setLastScanned] = useState<any | null>(null);
   const [scanError, setScanError]     = useState<string | null>(null);
   const [submitting, setSubmitting]   = useState(false);
+  const [nameSearch, setNameSearch]   = useState('');
   const scanRef = useRef<HTMLInputElement>(null);
 
   const playError = () => {
@@ -5176,7 +5212,21 @@ function ReceiveBtInline({ bt, onBack, onDone }: { bt: any; onBack: () => void; 
         </div>
 
         {/* Items table */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', background: 'var(--sv-bg-1)', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--sv-etch)' }}>
+        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+          {/* Search bar */}
+          <div style={{ padding: '.6rem .9rem', borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+            <input
+              type="text"
+              placeholder="Filter by product name, SKU or barcode…"
+              value={nameSearch}
+              onChange={e => setNameSearch(e.target.value)}
+              style={{ ...inputStyle, flex: 1, marginBottom: 0, fontSize: '.9rem' }}
+            />
+            {nameSearch && (
+              <button onClick={() => setNameSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: '1.1rem', lineHeight: 1, padding: '0 4px' }}>×</button>
+            )}
+          </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: 'var(--sv-bg-2)' }}>
               {['SKU', 'Product / Variant', 'RRP', 'Qty Sent', 'Qty Received', 'Awaiting'].map(h => (
@@ -5185,7 +5235,14 @@ function ReceiveBtInline({ bt, onBack, onDone }: { bt: any; onBack: () => void; 
             </tr>
           </thead>
           <tbody>
-            {(bt.items ?? []).map((item: any) => {
+            {(bt.items ?? []).filter((item: any) => {
+              if (!nameSearch.trim()) return true;
+              const q = nameSearch.toLowerCase();
+              return (item.product_name ?? '').toLowerCase().includes(q) ||
+                     (item.variant_label ?? '').toLowerCase().includes(q) ||
+                     (item.sku ?? '').toLowerCase().includes(q) ||
+                     (item.barcode ?? '').toLowerCase().includes(q);
+            }).map((item: any) => {
               const rcvd = receiveQtys[item.id] ?? 0;
               const awaiting = Math.max(0, Number(item.qty_sent) - rcvd);
               const isLast = lastScanned?.id === item.id;
@@ -5226,6 +5283,7 @@ function ReceiveBtInline({ bt, onBack, onDone }: { bt: any; onBack: () => void; 
             })}
           </tbody>
         </table>
+        </div>{/* end items table wrapper */}
       </div>
     </div>
   );

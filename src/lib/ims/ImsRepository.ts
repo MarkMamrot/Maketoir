@@ -1698,6 +1698,20 @@ export const ImsSORepo = {
     try {
       await conn.beginTransaction();
 
+      // Snapshot BEFORE any change. When the order is already 'confirmed', its
+      // qty_committed reflects the OLD lines at the OLD location; replacing the
+      // lines below would strand that commitment, so we rebalance it here.
+      const [[preEdit]] = await conn.execute<any[]>(
+        `SELECT status, location_id, business_id FROM ims_sales_orders WHERE id = ?`, [id]
+      );
+      const rebalanceCommitted = !!items && preEdit?.status === 'confirmed';
+      let oldCommitItems: any[] = [];
+      if (rebalanceCommitted) {
+        [oldCommitItems] = await conn.execute<any[]>(
+          `SELECT variant_id, qty_ordered FROM ims_sales_order_items WHERE so_id = ?`, [id]
+        );
+      }
+
       if (sets.length) {
         vals.push(id);
         await conn.execute(`UPDATE ims_sales_orders SET ${sets.join(', ')} WHERE id = ?`, vals);
@@ -1719,6 +1733,32 @@ export const ImsSORepo = {
              item.discount_pct ?? 0, item.tax_rate ?? 0, line_total, item.notes ?? null]
           );
         }
+
+        // Rebalance committed for a confirmed order: release the OLD lines'
+        // commitment (at the OLD location), then commit the NEW lines (at the
+        // possibly-changed location). Skips null-variant lines.
+        if (rebalanceCommitted) {
+          const oldLoc = preEdit.location_id;
+          const newLoc = (data.location_id != null) ? data.location_id : preEdit.location_id;
+          for (const oi of oldCommitItems) {
+            if (!oi.variant_id) continue;
+            await conn.execute(
+              `UPDATE ims_stock SET qty_committed = GREATEST(0, qty_committed - ?)
+               WHERE variant_id = ? AND location_id = ?`,
+              [oi.qty_ordered, oi.variant_id, oldLoc]
+            );
+          }
+          for (const item of items) {
+            if (!item.variant_id) continue;
+            await conn.execute(
+              `INSERT INTO ims_stock (variant_id, location_id, business_id, qty_committed)
+               VALUES (?, ?, ?, ?)
+               ON DUPLICATE KEY UPDATE qty_committed = qty_committed + VALUES(qty_committed)`,
+              [item.variant_id, newLoc, preEdit.business_id, item.qty_ordered]
+            );
+          }
+        }
+
         const [[existingSo]] = await conn.execute<any[]>(`SELECT freight, discount FROM ims_sales_orders WHERE id=?`, [id]);
         const useSoFr = (typeof data.freight !== 'undefined') ? Number(data.freight) : Number(existingSo?.freight ?? 0);
         const useSoDi = (typeof data.discount !== 'undefined') ? Number(data.discount) : Number(existingSo?.discount ?? 0);
@@ -2678,6 +2718,20 @@ export const ImsBTRepo = {
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
+
+      // Snapshot BEFORE any change. A 'sent' transfer holds qty_committed at its
+      // OLD source; replacing the lines would strand it, so rebalance here.
+      const [[preEdit]] = await conn.execute<any[]>(
+        `SELECT status, from_location_id FROM ims_branch_transfers WHERE id = ?`, [id]
+      );
+      const rebalanceCommitted = !!items && preEdit?.status === 'sent';
+      let oldCommitItems: any[] = [];
+      if (rebalanceCommitted) {
+        [oldCommitItems] = await conn.execute<any[]>(
+          `SELECT variant_id, qty_sent FROM ims_branch_transfer_items WHERE transfer_id = ?`, [id]
+        );
+      }
+
       if (sets.length) {
         vals.push(id);
         await conn.execute(`UPDATE ims_branch_transfers SET ${sets.join(', ')} WHERE id = ?`, vals);
@@ -2695,6 +2749,31 @@ export const ImsBTRepo = {
             [id, item.variant_id, item.qty_sent, item.unit_cost, line_value, item.notes ?? null]
           );
         }
+
+        // Rebalance committed for a 'sent' transfer: release the OLD lines at the
+        // OLD source, then re-commit the NEW lines at the (possibly-changed) source.
+        if (rebalanceCommitted) {
+          const oldLoc = preEdit.from_location_id;
+          const newLoc = (data.from_location_id != null) ? data.from_location_id : preEdit.from_location_id;
+          for (const oi of oldCommitItems) {
+            if (!oi.variant_id) continue;
+            await conn.execute(
+              `UPDATE ims_stock SET qty_committed = GREATEST(0, qty_committed - ?)
+               WHERE variant_id = ? AND location_id = ?`,
+              [oi.qty_sent, oi.variant_id, oldLoc]
+            );
+          }
+          for (const item of items) {
+            if (!item.variant_id) continue;
+            await conn.execute(
+              `INSERT INTO ims_stock (variant_id, location_id, qty_committed)
+               VALUES (?, ?, ?)
+               ON DUPLICATE KEY UPDATE qty_committed = qty_committed + VALUES(qty_committed)`,
+              [item.variant_id, newLoc, item.qty_sent]
+            );
+          }
+        }
+
         await conn.execute(`UPDATE ims_branch_transfers SET total_value = ? WHERE id = ?`, [total_value, id]);
       }
       await conn.commit();

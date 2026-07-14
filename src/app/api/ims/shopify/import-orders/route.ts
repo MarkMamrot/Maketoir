@@ -32,6 +32,45 @@ async function getSetting(businessId: string, key: string): Promise<string | nul
   return rows[0]?.value ?? null;
 }
 
+/**
+ * Resolves the default "Online Customer" contact that all online orders are
+ * attributed to. Reuses the configured/cached contact, falls back to an
+ * existing contact named "Online Customer", and creates one if neither exists.
+ * The resolved id is cached in the `online_sales_customer_id` setting.
+ */
+async function getOrCreateOnlineCustomerId(businessId: string): Promise<number | null> {
+  // 1. Reuse the configured/cached contact if it still exists.
+  const configured = await getSetting(businessId, 'online_sales_customer_id');
+  if (configured) {
+    const rows = await imsQuery<{ id: number }>(
+      'SELECT id FROM ims_contacts WHERE id = ? AND business_id = ? LIMIT 1',
+      [Number(configured), businessId],
+    );
+    if (rows[0]) return rows[0].id;
+  }
+  // 2. Reuse an existing "Online Customer" contact, or create one.
+  const found = await imsQuery<{ id: number }>(
+    "SELECT id FROM ims_contacts WHERE business_id = ? AND name = 'Online Customer' ORDER BY id LIMIT 1",
+    [businessId],
+  );
+  let id: number;
+  if (found[0]) {
+    id = found[0].id;
+  } else {
+    const res = await imsExecute(
+      "INSERT INTO ims_contacts (business_id, type, name, is_active) VALUES (?, 'customer', 'Online Customer', 1)",
+      [businessId],
+    );
+    id = res.insertId;
+  }
+  // 3. Cache for next time.
+  await imsExecute(
+    'INSERT INTO ims_settings (business_id, `key`, value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)',
+    [businessId, 'online_sales_customer_id', String(id)],
+  );
+  return id;
+}
+
 export async function POST(req: Request) {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -58,6 +97,18 @@ export async function POST(req: Request) {
     }, { status: 400 });
   }
   const locationId = Number(locationIdStr);
+
+  // Default "Online Customer" that every online order is attributed to.
+  const onlineCustomerId = await getOrCreateOnlineCustomerId(businessId);
+  // Backfill any existing online orders that were imported before this default
+  // existed (idempotent — only touches rows with no customer assigned).
+  if (onlineCustomerId) {
+    await imsExecute(
+      `UPDATE ims_sales_orders SET customer_id = ?
+        WHERE business_id = ? AND so_type = 'online' AND (customer_id IS NULL OR customer_id = 0)`,
+      [onlineCustomerId, businessId],
+    );
+  }
 
   // Shopify credentials
   const conn = await ConnectionsRepository.get(businessId);
@@ -184,11 +235,11 @@ export async function POST(req: Request) {
         const gateway     = Array.isArray(order.payment_gateway_names) ? order.payment_gateway_names.join(', ') : null;
         const [result] = await poolConn.execute<any>(
           `INSERT INTO ims_sales_orders
-             (business_id, so_number, so_type, location_id, status, order_date, freight, discount,
+             (business_id, so_number, so_type, customer_id, location_id, status, order_date, freight, discount,
               subtotal, tax_amount, total_amount, shopify_order_id, shopify_order_name, payment_gateway, financial_status, notes)
-           VALUES (?, ?, 'online', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, 'online', ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            businessId, soNumber, locationId, orderDateTime, freight, discount,
+            businessId, soNumber, onlineCustomerId, locationId, orderDateTime, freight, discount,
             subtotal, taxAmount, totalAmount, orderIdStr, order.name ?? null,
             gateway, order.financial_status ?? null,
             `Shopify order ${order.name ?? ''}`.trim(),

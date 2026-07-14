@@ -103,6 +103,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
       shopify_order_id: string | null;
       supplier_name: string | null; customer_name: string | null;
       pos_sale_local_id: string | null;
+      committed_change: number;
     }>(
       `SELECT
          m.id, m.variant_id, m.location_id, l.name AS location_name,
@@ -113,7 +114,13 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
          so.shopify_order_id,
          sup.name AS supplier_name,
          cust.name AS customer_name,
-         ps.local_id AS pos_sale_local_id
+         ps.local_id AS pos_sale_local_id,
+         CASE
+           WHEN m.movement_type IN ('so_confirmed','so_committed')     THEN COALESCE(soi.qty, 0)
+           WHEN m.movement_type IN ('so_unconfirmed','so_uncommitted') THEN -COALESCE(soi.qty, 0)
+           WHEN m.movement_type = 'so_fulfilled'                        THEN m.qty_change
+           ELSE 0
+         END AS committed_change
        FROM ims_stock_movements m
        JOIN ims_locations l ON l.id = m.location_id
        LEFT JOIN ims_purchase_orders po
@@ -124,6 +131,11 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
        LEFT JOIN ims_contacts cust ON cust.id = so.customer_id
        LEFT JOIN pos_sales ps
          ON ps.id = m.reference_id AND m.reference_type = 'pos_sale'
+       LEFT JOIN (
+         SELECT so_id, variant_id, SUM(qty_ordered) AS qty
+         FROM ims_sales_order_items
+         GROUP BY so_id, variant_id
+       ) soi ON soi.so_id = m.reference_id AND soi.variant_id = m.variant_id AND m.reference_type = 'sales_order'
        WHERE m.variant_id IN (${ph})
          AND m.created_at >= ?
        ORDER BY m.created_at DESC`,
