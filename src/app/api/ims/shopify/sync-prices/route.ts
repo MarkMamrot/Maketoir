@@ -51,9 +51,14 @@ export async function POST(req: Request) {
 
     for (const v of variants) {
       try {
+        // When a sale price exists: Shopify price = sale price, compare_at_price = regular RRP (shown crossed out).
+        // When no sale price: Shopify price = regular RRP, compare_at_price = null.
+        const isOnSale = v.price_rrp_sale != null && Number(v.price_rrp_sale) > 0;
+        const shopifyPrice  = isOnSale ? Number(v.price_rrp_sale) : Number(v.price_rrp ?? 0);
+        const compareAt     = isOnSale ? Number(v.price_rrp ?? 0) : null;
         await shopify.updateVariant(v.shopify_variant_id, {
-          price: String(v.price_rrp ?? '0.00'),
-          compare_at_price: v.price_rrp_sale ? String(v.price_rrp ?? '0.00') : null,
+          price:            shopifyPrice.toFixed(2),
+          compare_at_price: compareAt != null ? compareAt.toFixed(2) : null,
         });
         synced++;
       } catch (err: any) {
@@ -64,11 +69,12 @@ export async function POST(req: Request) {
     const status = errors.length === 0 ? 'success' : synced > 0 ? 'partial' : 'error';
     const action = product_ids ? 'sync_prices' : 'resync';
     await ImsShopifyRepo.logAction(action, status,
-      `Synced prices for ${synced}/${variants.length} variants`, { errors: errors.slice(0, 20) });
+      `Synced prices for ${synced}/${variants.length} variants`, session.businessId,
+      { errors: errors.slice(0, 20) }).catch(() => {});
 
     return NextResponse.json({ success: true, synced, total: variants.length, errors });
   } catch (e: any) {
-    await ImsShopifyRepo.logAction('sync_prices', 'error', e.message).catch(() => {});
+    await ImsShopifyRepo.logAction('sync_prices', 'error', e.message, session?.businessId ?? '').catch(() => {});
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }

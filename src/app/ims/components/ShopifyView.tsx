@@ -289,6 +289,7 @@ function ShopifyProductsTab() {
     setSyncing(true); setOpResult(null); setOpError(null);
     try {
       const r = await fetch('/api/ims/shopify/sync-prices', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ product_ids: ids }) });
+      if (!r.ok) throw new Error(`Server error ${r.status}`);
       const d = await r.json();
       if (!d.success) throw new Error(d.error);
       setOpResult(`Synced prices for ${d.synced}/${d.total} variants.`);
@@ -300,6 +301,7 @@ function ShopifyProductsTab() {
     setSyncing(true); setOpResult(null); setOpError(null);
     try {
       const r = await fetch('/api/ims/shopify/sync-prices', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      if (!r.ok) throw new Error(`Server error ${r.status}`);
       const d = await r.json();
       if (!d.success) throw new Error(d.error);
       setOpResult(`Full resync complete: ${d.synced}/${d.total} variants.`);
