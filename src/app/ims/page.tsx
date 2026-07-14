@@ -2124,7 +2124,7 @@ interface LabelSettings {
 }
 
 const DEFAULT_LABEL: LabelSettings = {
-  sizeIdx: 0, showBarcode: true, showSku: true,
+  sizeIdx: 0, showBarcode: true, showSku: false,
   showName: true, showBrand: false, priceMode: 'rrp', qty: 1,
 };
 
@@ -2155,31 +2155,50 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
     p != null && !isNaN(Number(p)) ? `$${Number(p).toFixed(2)}` : '';
 
   const printLabels = () => {
-    const s  = size;
-    const hasBarcode = settings.showBarcode && variant?.barcode;
-    const name      = settings.showName  ? (product.name ?? '') : '';
-    const brand     = settings.showBrand ? (product.brand ?? '') : '';
-    const sku       = settings.showSku   ? (variant?.sku ?? '') : '';
-    const rrp       = fmtPrice(variant?.price_rrp);
-    const sale      = fmtPrice(variant?.price_rrp_sale);
+    const s = size;
+    const hasBarcode   = settings.showBarcode && !!variant?.barcode;
+    const showBottomRow = (settings.showBrand && !!product.brand) || (settings.showSku && !!variant?.sku);
+    const showTopRow    = (settings.showName && !!product.name) || settings.priceMode !== 'none';
 
-    let priceHtml = '';
-    if (settings.priceMode === 'rrp') {
-      priceHtml = rrp ? `<div class="price">${rrp}</div>` : '';
-    } else if (settings.priceMode === 'sale') {
-      priceHtml = sale
-        ? `<div class="price-row">${rrp ? `<span class="rrp-strike">${rrp}</span>` : ''}<span class="price-sale">${sale}</span></div>`
-        : (rrp ? `<div class="price">${rrp}</div>` : '');
-    }
+    // Proportional height budget (mm)
+    const padV   = 1.0;
+    const padH   = 1.5;
+    const topH   = showTopRow    ? s.h * 0.30 : 0;
+    const botH   = showBottomRow ? s.h * 0.23 : 0;
+    const bcH    = Math.max(4, s.h - 2 * padV - topH - botH);
 
-    const singleLabel = `
-      <div class="label">
-        ${brand    ? `<div class="brand">${brand}</div>` : ''}
-        ${name     ? `<div class="pname">${name}</div>` : ''}
-        ${hasBarcode ? `<div class="barcode">${variant.barcode}</div>` : ''}
-        ${sku      ? `<div class="sku">${sku}</div>` : ''}
-        ${priceHtml}
-      </div>`;
+    const namePt    = Math.max(5, Math.round(topH * 2.835 * 0.72));
+    const pricePt   = Math.max(5, Math.round(topH * 2.835 * 0.80));
+    const barcodePt = Math.max(8, Math.round(bcH  * 2.835));
+    const bottomPt  = Math.max(4, Math.round(botH * 2.835 * 0.68));
+
+    const name  = settings.showName  ? (product.name  ?? '') : '';
+    const brand = settings.showBrand ? (product.brand ?? '') : '';
+    const sku   = settings.showSku   ? (variant?.sku  ?? '') : '';
+    const rrp   = fmtPrice(variant?.price_rrp);
+    const sale  = fmtPrice(variant?.price_rrp_sale);
+
+    const priceSpan = (() => {
+      if (settings.priceMode === 'none') return '';
+      if (settings.priceMode === 'rrp')  return rrp  ? `<span class="price">${rrp}</span>` : '';
+      if (settings.priceMode === 'sale') {
+        if (sale) return `${rrp ? `<span class="rrp-strike">${rrp}</span>` : ''}<span class="price">${sale}</span>`;
+        return rrp ? `<span class="price">${rrp}</span>` : '';
+      }
+      return '';
+    })();
+
+    const singleLabel = `<div class="label">
+  ${showTopRow ? `<div class="top-row">
+    <span class="pname">${name}</span>
+    <span class="price-group">${priceSpan}</span>
+  </div>` : ''}
+  ${hasBarcode ? `<div class="bc-wrap"><span class="barcode">${variant.barcode}</span></div>` : ''}
+  ${showBottomRow ? `<div class="bottom-row">
+    ${brand ? `<span class="brand">${brand}</span>` : '<span></span>'}
+    ${sku   ? `<span class="sku">${sku}</span>`     : ''}
+  </div>` : ''}
+</div>`;
 
     const labelsHtml = Array.from({ length: settings.qty }).map(() => singleLabel).join('');
 
@@ -2192,46 +2211,92 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     @page { size: ${s.w}mm ${s.h}mm; margin: 0; }
-    body { width: ${s.w}mm; }
+    body { width: ${s.w}mm; font-family: Arial, Helvetica, sans-serif; }
     .label {
       width: ${s.w}mm; height: ${s.h}mm;
       display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      overflow: hidden; padding: 0.8mm 1mm;
-      page-break-after: always;
-      font-family: Arial, sans-serif;
+      padding: ${padV}mm ${padH}mm;
+      overflow: hidden; page-break-after: always;
     }
-    .brand  { font-size: ${Math.max(4, Math.round(s.h * 0.22))}pt; color: #555; text-transform: uppercase; letter-spacing: .4px; line-height: 1.1; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; flex-shrink: 0; }
-    .pname  { font-size: ${Math.max(5, Math.round(s.h * 0.28))}pt; font-weight: 700; text-align: center; line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
-    .barcode{ font-family: 'Libre Barcode 128 Text', monospace; font-size: ${Math.round(s.h * 1.1)}pt; line-height: 1; text-align: center; flex-shrink: 1; min-height: 0; overflow: hidden; max-width: 100%; }
-    .sku    { font-size: ${Math.max(4, Math.round(s.h * 0.2))}pt; letter-spacing: .5px; color: #333; text-align: center; white-space: nowrap; flex-shrink: 0; }
-    .price  { font-size: ${Math.max(5, Math.round(s.h * 0.3))}pt; font-weight: 700; text-align: center; flex-shrink: 0; }
-    .price-row { display: flex; align-items: center; gap: 2px; justify-content: center; flex-shrink: 0; }
-    .rrp-strike { font-size: ${Math.max(4, Math.round(s.h * 0.22))}pt; text-decoration: line-through; color: #888; }
-    .price-sale { font-size: ${Math.max(5, Math.round(s.h * 0.3))}pt; font-weight: 700; }
+    .top-row {
+      display: flex; align-items: baseline;
+      justify-content: space-between; gap: 1mm;
+      flex-shrink: 0; width: 100%;
+      height: ${topH}mm;
+    }
+    .pname {
+      font-size: ${namePt}pt; font-weight: 700;
+      flex: 1 1 0; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap; line-height: 1.2;
+    }
+    .price-group { display: flex; align-items: baseline; gap: 1px; flex-shrink: 0; white-space: nowrap; }
+    .price       { font-size: ${pricePt}pt; font-weight: 700; }
+    .rrp-strike  { font-size: ${Math.max(4, pricePt - 2)}pt; text-decoration: line-through; color: #888; margin-right: 0.5mm; }
+    .bc-wrap {
+      flex: 1 1 0; min-height: 0;
+      display: flex; align-items: center;
+      overflow: hidden; width: 100%;
+    }
+    .barcode {
+      font-family: 'Libre Barcode 128 Text', monospace;
+      font-size: ${barcodePt}pt; line-height: 1;
+      white-space: nowrap; display: block;
+      transform-origin: left center;
+    }
+    .bottom-row {
+      display: flex; align-items: baseline;
+      justify-content: space-between; gap: 1mm;
+      flex-shrink: 0; width: 100%;
+      height: ${botH}mm;
+    }
+    .brand { font-size: ${bottomPt}pt; color: #555; flex: 1 1 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sku   { font-size: ${bottomPt}pt; color: #333; flex-shrink: 0; white-space: nowrap; letter-spacing: .3px; }
   </style>
 </head>
 <body>
   ${labelsHtml}
   <script>
-    // Wait for fonts then print
-    document.fonts.ready.then(() => setTimeout(() => { window.print(); window.close(); }, 200));
+    document.fonts.ready.then(() => {
+      // Scale each barcode to fill the wrapper width
+      document.querySelectorAll('.bc-wrap').forEach(function(wrap) {
+        var bc = wrap.querySelector('.barcode');
+        if (!bc) return;
+        var wW = wrap.offsetWidth;
+        var bcW = bc.scrollWidth;
+        if (bcW > 0 && wW > 0) {
+          var scale = Math.min(1.9, wW / bcW);
+          bc.style.transform = 'scaleX(' + scale + ')';
+        }
+      });
+      setTimeout(function() { window.print(); window.close(); }, 250);
+    });
   </script>
 </body>
 </html>`;
 
     const win = window.open('', '_blank', `width=${s.w * 4},height=${s.h * 4 * settings.qty + 80}`);
     if (!win) { alert('Please allow pop-ups to print labels.'); return; }
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
+    win.document.open(); win.document.write(html); win.document.close();
   };
 
-  // Preview scale: fit label into ~300px wide preview
-  const previewScale = Math.min(280 / (size.w * 3.78), 140 / (size.h * 3.78));
-  const pwPx = size.w * 3.78 * previewScale;
-  const phPx = size.h * 3.78 * previewScale;
-  const barcodeFontPx = Math.round(size.h * 1.1 * 0.353 * 3.78 * previewScale);
+  // Preview dimensions
+  const previewScale  = Math.min(300 / (size.w * 3.78), 160 / (size.h * 3.78));
+  const pwPx          = size.w * 3.78 * previewScale;
+  const phPx          = size.h * 3.78 * previewScale;
+
+  // Mirror the print layout logic for the preview
+  const showBottomRow = (settings.showBrand && !!product.brand) || (settings.showSku && !!variant?.sku);
+  const showTopRow    = (settings.showName && !!product.name)   || settings.priceMode !== 'none';
+  const padV = 1.0; const padH_mm = 1.5;
+  const topH   = showTopRow    ? size.h * 0.30 : 0;
+  const botH   = showBottomRow ? size.h * 0.23 : 0;
+  const bcH    = Math.max(4, size.h - 2 * padV - topH - botH);
+
+  const toScPx = (mm: number) => mm * 3.78 * previewScale;
+  const namePx    = Math.max(7,  toScPx(topH) * 0.72);
+  const pricePx   = Math.max(7,  toScPx(topH) * 0.80);
+  const barcodePx = Math.max(10, toScPx(bcH));
+  const bottomPx  = Math.max(6,  toScPx(botH) * 0.68);
 
   const fmtP = (p: any) => p != null && !isNaN(Number(p)) ? `$${Number(p).toFixed(2)}` : '';
   const pRrp  = fmtP(variant?.price_rrp);
@@ -2246,51 +2311,42 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      {/* Load the barcode font in the main page too so the preview works */}
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128+Text&display=swap" />
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 14, padding: 28, width: 700, maxWidth: '95vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--sv-text-strong)', flex: 1 }}>Print Barcode Labels</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>\u00d7</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>×</button>
         </div>
 
         <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
           {/* ── Settings ── */}
-          <div style={{ flex: '1 1 280px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-            {/* Variant selector */}
+          <div style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             {variants.length > 1 && (
               <div>
                 <label style={{ ...labelStyle, display: 'block', marginBottom: 4 }}>Variant</label>
                 <select value={selectedVariantIdx} onChange={e => setSelectedVariantIdx(Number(e.target.value))} style={inputStyle}>
                   {variants.map((v, i) => {
-                    const label = [v.option1_value, v.option2_value, v.option3_value].filter(Boolean).join(' / ') || v.sku || `Variant ${i + 1}`;
-                    return <option key={i} value={i}>{label}</option>;
+                    const lbl = [v.option1_value, v.option2_value, v.option3_value].filter(Boolean).join(' / ') || v.sku || `Variant ${i + 1}`;
+                    return <option key={i} value={i}>{lbl}</option>;
                   })}
                 </select>
               </div>
             )}
-
-            {/* Label size */}
             <div>
               <label style={{ ...labelStyle, display: 'block', marginBottom: 4 }}>Label Size</label>
               <select value={settings.sizeIdx} onChange={e => set('sizeIdx', Number(e.target.value))} style={inputStyle}>
                 {LABEL_SIZES.map((s, i) => <option key={i} value={i}>{s.label}</option>)}
               </select>
             </div>
-
-            {/* Content toggles */}
             <div>
               <label style={{ ...labelStyle, display: 'block', marginBottom: 6 }}>Show on Label</label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                {optRow('Barcode', settings.showBarcode, v => set('showBarcode', v))}
-                {optRow('SKU',     settings.showSku,     v => set('showSku', v))}
-                {optRow('Product Name', settings.showName, v => set('showName', v))}
-                {optRow('Brand',   settings.showBrand,   v => set('showBrand', v))}
+                {optRow('Product Name', settings.showName,    v => set('showName', v))}
+                {optRow('Barcode',      settings.showBarcode, v => set('showBarcode', v))}
+                {optRow('Brand',        settings.showBrand,   v => set('showBrand', v))}
+                {optRow('SKU',          settings.showSku,     v => set('showSku', v))}
               </div>
             </div>
-
-            {/* Price mode */}
             <div>
               <label style={{ ...labelStyle, display: 'block', marginBottom: 6 }}>Price</label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
@@ -2302,8 +2358,6 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
                 ))}
               </div>
             </div>
-
-            {/* Quantity */}
             <div>
               <label style={{ ...labelStyle, display: 'block', marginBottom: 4 }}>Quantity (copies)</label>
               <input type="number" min={1} max={100} value={settings.qty}
@@ -2313,39 +2367,49 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
           </div>
 
           {/* ── Preview ── */}
-          <div style={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+          <div style={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Preview</div>
             <div style={{
               width: pwPx, height: phPx,
               background: '#fff', border: '1px solid #ccc', borderRadius: 3,
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              overflow: 'hidden', padding: `${2 * previewScale}px`,
+              display: 'flex', flexDirection: 'column',
+              padding: `${toScPx(padV)}px ${toScPx(padH_mm)}px`,
+              overflow: 'hidden',
               boxShadow: '0 2px 8px rgba(0,0,0,.18)',
             }}>
               <style>{`@import url('https://fonts.googleapis.com/css2?family=Libre+Barcode+128+Text&display=swap');`}</style>
-              {settings.showBrand && product.brand && (
-                <div style={{ fontSize: Math.max(7, Math.round(size.h * 0.22 * 0.353 * 3.78 * previewScale)), color: '#555', textTransform: 'uppercase', letterSpacing: .3, lineHeight: 1.1, textAlign: 'center', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>{product.brand}</div>
+
+              {/* Top row: name (left) | price (right) */}
+              {showTopRow && (
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: toScPx(1), flexShrink: 0, height: toScPx(topH), overflow: 'hidden' }}>
+                  {settings.showName && product.name && (
+                    <span style={{ fontSize: namePx, fontWeight: 700, flex: '1 1 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.2, color: '#000' }}>{product.name}</span>
+                  )}
+                  {settings.priceMode !== 'none' && (
+                    <span style={{ flexShrink: 0, whiteSpace: 'nowrap', display: 'flex', alignItems: 'baseline', gap: 2 }}>
+                      {settings.priceMode === 'sale' && pRrp && pSale && <span style={{ fontSize: Math.max(6, pricePx - 3), textDecoration: 'line-through', color: '#888' }}>{pRrp}</span>}
+                      <span style={{ fontSize: pricePx, fontWeight: 700, color: '#000' }}>{settings.priceMode === 'sale' && pSale ? pSale : pRrp}</span>
+                    </span>
+                  )}
+                </div>
               )}
-              {settings.showName && product.name && (
-                <div style={{ fontSize: Math.max(8, Math.round(size.h * 0.28 * 0.353 * 3.78 * previewScale)), fontWeight: 700, lineHeight: 1.2, textAlign: 'center', color: '#000', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>{product.name}</div>
-              )}
+
+              {/* Barcode: flex-grow, fills remaining space */}
               {settings.showBarcode && variant?.barcode && (
-                <div style={{ fontFamily: "'Libre Barcode 128 Text', monospace", fontSize: barcodeFontPx, lineHeight: 1, color: '#000', textAlign: 'center', maxWidth: '100%', overflow: 'hidden', flexShrink: 1, minHeight: 0 }}>{variant.barcode}</div>
+                <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'center', overflow: 'hidden', width: '100%' }}>
+                  <span style={{ fontFamily: "'Libre Barcode 128 Text', monospace", fontSize: barcodePx, lineHeight: 1, color: '#000', whiteSpace: 'nowrap', overflow: 'hidden', maxWidth: '100%' }}>{variant.barcode}</span>
+                </div>
               )}
-              {settings.showSku && variant?.sku && (
-                <div style={{ fontSize: Math.max(7, Math.round(size.h * 0.2 * 0.353 * 3.78 * previewScale)), letterSpacing: .5, color: '#333', textAlign: 'center', whiteSpace: 'nowrap', flexShrink: 0 }}>{variant.sku}</div>
-              )}
-              {settings.priceMode === 'rrp' && pRrp && (
-                <div style={{ fontSize: Math.max(8, Math.round(size.h * 0.3 * 0.353 * 3.78 * previewScale)), fontWeight: 700, color: '#000', flexShrink: 0 }}>{pRrp}</div>
-              )}
-              {settings.priceMode === 'sale' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                  {pRrp && pSale && <span style={{ fontSize: Math.max(7, Math.round(size.h * 0.22 * 0.353 * 3.78 * previewScale)), textDecoration: 'line-through', color: '#888' }}>{pRrp}</span>}
-                  {(pSale || pRrp) && <span style={{ fontSize: Math.max(8, Math.round(size.h * 0.3 * 0.353 * 3.78 * previewScale)), fontWeight: 700, color: '#000' }}>{pSale || pRrp}</span>}
+
+              {/* Bottom row: brand (left) | sku (right) */}
+              {showBottomRow && (
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: toScPx(1), flexShrink: 0, height: toScPx(botH), overflow: 'hidden' }}>
+                  {settings.showBrand && product.brand && <span style={{ fontSize: bottomPx, color: '#555', flex: '1 1 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.brand}</span>}
+                  {settings.showSku   && variant?.sku   && <span style={{ fontSize: bottomPx, color: '#333', flexShrink: 0, whiteSpace: 'nowrap' }}>{variant.sku}</span>}
                 </div>
               )}
             </div>
-            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{size.w} \u00d7 {size.h} mm</div>
+            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{size.w} × {size.h} mm</div>
           </div>
         </div>
 
@@ -2353,7 +2417,7 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 4, borderTop: '1px solid var(--sv-etch)' }}>
           <button onClick={onClose} style={btnStyle('ghost')}>Close</button>
           <button onClick={printLabels} style={btnStyle('action')}>
-            🖨 Print {settings.qty > 1 ? `${settings.qty} \u00d7 ` : ''}Label{settings.qty !== 1 ? 's' : ''}
+            🖨 Print {settings.qty > 1 ? `${settings.qty} × ` : ''}Label{settings.qty !== 1 ? 's' : ''}
           </button>
         </div>
       </div>
