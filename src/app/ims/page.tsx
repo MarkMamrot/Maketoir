@@ -2236,7 +2236,8 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
     .bc-wrap {
       flex: 1 1 0; min-height: 0;
       display: flex; align-items: flex-start;
-      overflow: hidden; width: 100%;
+      width: 100%;
+      /* overflow intentionally omitted — .label clips everything */
     }
     .barcode {
       font-family: 'Libre Barcode 128 Text', monospace;
@@ -2257,20 +2258,29 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
 <body>
   ${labelsHtml}
   <script>
-    document.fonts.ready.then(() => {
-      // Scale each barcode to fill the wrapper width
-      document.querySelectorAll('.bc-wrap').forEach(function(wrap) {
-        var bc = wrap.querySelector('.barcode');
-        if (!bc) return;
-        var wW = wrap.offsetWidth;
-        var bcW = bc.scrollWidth;
-        if (bcW > 0 && wW > 0) {
-          var scale = wW / bcW; // scale to exactly fill label width
-          bc.style.transform = 'scaleX(' + scale + ')';
-        }
+    // Explicitly wait for the barcode font (document.fonts.ready alone is not
+    // enough — it may resolve before a dynamically-injected font is rendered).
+    document.fonts.load("${barcodePt}pt 'Libre Barcode 128 Text'")
+      .catch(function() { return document.fonts.ready; }) // fallback
+      .then(function() {
+        // Force a layout flush so scrollWidth reflects the barcode font, not fallback.
+        document.querySelectorAll('.barcode').forEach(function(el) { void el.offsetWidth; });
+
+        document.querySelectorAll('.bc-wrap').forEach(function(wrap) {
+          var bc = wrap.querySelector('.barcode');
+          if (!bc) return;
+          var wW = wrap.offsetWidth;
+          var bcW = bc.scrollWidth;
+          if (bcW > 0 && wW > 0) {
+            // Compress or expand to exactly fill the label width.
+            bc.style.transform = 'scaleX(' + (wW / bcW) + ')';
+          }
+        });
+        // Extra frame + delay ensures the transform is painted before printing.
+        requestAnimationFrame(function() {
+          setTimeout(function() { window.print(); window.close(); }, 300);
+        });
       });
-      setTimeout(function() { window.print(); window.close(); }, 250);
-    });
   </script>
 </body>
 </html>`;
@@ -2397,7 +2407,7 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
 
               {/* Barcode: flex-grow, fills remaining space */}
               {settings.showBarcode && variant?.barcode && (
-                <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'flex-start', overflow: 'hidden', width: '100%' }}>
+                <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'flex-start', width: '100%', overflow: 'visible' }}>
                   <span style={{ fontFamily: "'Libre Barcode 128 Text', monospace", fontSize: barcodePx, lineHeight: 1, color: '#000', whiteSpace: 'nowrap', overflow: 'hidden', maxWidth: '100%' }}>{variant.barcode}</span>
                 </div>
               )}
