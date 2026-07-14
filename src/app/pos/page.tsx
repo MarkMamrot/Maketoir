@@ -2984,8 +2984,9 @@ function PosStockModal({ variantId, productName, imageUrl, barcode, sku, onClose
             <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8, marginBottom: 2 }}>Stock by Location</div>
             <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--sv-text-strong)', lineHeight: 1.3 }}>{baseName}</div>
             {barcode && (
-              <div style={{ marginTop: 4, userSelect: 'text', WebkitUserSelect: 'text' }}>
-                <span style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', userSelect: 'text' }}>Barcode: <span style={{ fontFamily: 'monospace', color: 'var(--sv-text-main)', userSelect: 'text' }}>{barcode}</span></span>
+              <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', userSelect: 'text', WebkitUserSelect: 'text' as any }}>Barcode: <span style={{ fontFamily: 'monospace', color: 'var(--sv-text-main)', userSelect: 'text', WebkitUserSelect: 'text' as any }}>{barcode}</span></span>
+                <button onClick={() => navigator.clipboard.writeText(barcode).catch(() => {})} title="Copy barcode" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '.78rem', padding: '1px 4px', color: 'var(--sv-text-dim)', lineHeight: 1, flexShrink: 0 }}>📋</button>
               </div>
             )}
           </div>
@@ -3026,7 +3027,10 @@ function PosStockModal({ variantId, productName, imageUrl, barcode, sku, onClose
               <div style={{ fontSize: '.82rem', color: 'var(--sv-text-main)', fontWeight: 500 }}>{optionsStr}</div>
             )}
             {sku && (
-              <span style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', userSelect: 'text', WebkitUserSelect: 'text' }}>SKU: <span style={{ fontFamily: 'monospace', color: 'var(--sv-mint)', userSelect: 'text' }}>{sku}</span></span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', userSelect: 'text', WebkitUserSelect: 'text' as any }}>SKU: <span style={{ fontFamily: 'monospace', color: 'var(--sv-mint)', userSelect: 'text', WebkitUserSelect: 'text' as any }}>{sku}</span></span>
+                <button onClick={() => navigator.clipboard.writeText(sku).catch(() => {})} title="Copy SKU" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '.78rem', padding: '1px 4px', color: 'var(--sv-text-dim)', lineHeight: 1, flexShrink: 0 }}>📋</button>
+              </div>
             )}
           </div>
         )}
@@ -3312,7 +3316,7 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
                 <div
                   key={p.variant_id}
                   onMouseDown={() => { clearTimeout(blurTimer.current); }}
-                  onClick={() => handleAdd(p)}
+                  onClick={() => { if (window.getSelection()?.toString()) return; handleAdd(p); }}
                   onMouseEnter={() => setHighlightIdx(i)}
                   style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', cursor: 'pointer', background: i === highlightIdx ? 'var(--sv-bg-2)' : 'transparent', borderBottom: i < dropdownItems.length - 1 ? '1px solid var(--sv-etch)' : 'none' }}
                 >
@@ -3423,7 +3427,7 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
           return (
             <button
               key={p.variant_id}
-              onClick={() => handleAdd(p)}
+              onClick={() => { if (window.getSelection()?.toString()) return; handleAdd(p); }}
               style={{
                 background: 'var(--sv-bg-2)',
                 border: `1px solid ${isRecent ? 'rgba(37,99,235,.35)' : 'var(--sv-etch)'}`,
