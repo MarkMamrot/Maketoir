@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { PosSalesRepo, PosRegisterSessionRepo } from '@/lib/db/PosRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
+import { createNotification } from '@/lib/ims/createNotification';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -82,6 +83,30 @@ export async function POST(req: Request) {
       const vids = body.items.map((i: any) => i.variant_id).filter(Boolean);
       if (vids.length > 0) {
         refreshVariantCache(vids).catch(err => console.error('Failed inline cache refresh for POS sale:', err));
+      }
+    }
+
+    // Persist a notification so the IMS operator is alerted when POS stock deduction fails
+    if (stockError) {
+      const bizId: string = session.businessId ?? '';
+      if (bizId) {
+        createNotification(
+          bizId,
+          'pos_stock',
+          'POS Stock Deduction Failed',
+          stockError,
+          {
+            sale_id:     saleId ?? null,
+            local_id:    body.local_id ?? null,
+            location_id: body.location_id ?? session.location_id ?? null,
+            items: (body.items ?? []).map((i: any) => ({
+              variant_id: i.variant_id ?? null,
+              sku:        i.sku        ?? null,
+              name:       i.name       ?? null,
+              qty:        i.qty        ?? i.quantity ?? null,
+            })),
+          },
+        ).catch(err => console.error('[notifications] POS stock notify failed:', err));
       }
     }
 

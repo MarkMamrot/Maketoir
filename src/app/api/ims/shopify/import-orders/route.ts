@@ -17,6 +17,7 @@ import { ImsSORepo } from '@/lib/ims/ImsRepository';
 import { decrypt } from '@/lib/encryption';
 import { toBusinessDate, toBusinessDateTime } from '@/lib/shopifyDate';
 import { parseShopifyRefund } from '@/lib/shopifyRefund';
+import { createNotification } from '@/lib/ims/createNotification';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -308,6 +309,17 @@ export async function POST(req: Request) {
     } catch (e: any) {
       errors.push(`Order ${order.name}: ${e.message}`);
     }
+  }
+
+  // If any refund/confirm errors occurred, persist a notification for the IMS operator.
+  if (errors.length > 0) {
+    createNotification(
+      businessId,
+      'shopify_import',
+      `Shopify Import Errors (${errors.length})`,
+      errors[0],
+      { errors },
+    ).catch(err => console.error('[notifications] import notify failed:', err));
   }
 
   return NextResponse.json({

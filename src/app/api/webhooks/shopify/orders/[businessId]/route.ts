@@ -17,6 +17,7 @@ import { imsQuery, imsExecute, getIMSPool } from '@/services/IMSMySQLService';
 import { ImsSORepo } from '@/lib/ims/ImsRepository';
 import { toBusinessDate, toBusinessDateTime } from '@/lib/shopifyDate';
 import { parseShopifyRefund } from '@/lib/shopifyRefund';
+import { createNotification } from '@/lib/ims/createNotification';
 
 export const runtime = 'nodejs';
 
@@ -135,7 +136,24 @@ export async function POST(req: Request, { params }: { params: { businessId: str
 
       await ImsSORepo.changeStatus(soId, 'confirmed');
       if (payload.fulfillment_status === 'fulfilled') await ImsSORepo.changeStatus(soId, 'fulfilled');
-    } catch (e: any) { console.error('[shopify-webhook] order create error:', e.message); }
+    } catch (e: any) {
+      const msg = e?.message ?? String(e);
+      console.error('[shopify-webhook] order create error:', msg);
+      createNotification(
+        businessId,
+        'shopify_webhook',
+        `Shopify Webhook Failed — ${topic}`,
+        msg,
+        {
+          topic,
+          shopify_order_id:   String(payload.id ?? ''),
+          shopify_order_name: payload.name ?? null,
+          error:              msg,
+        },
+      ).catch(console.error);
+      // Return 500 so Shopify retries the webhook delivery
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
   }
 
   // ── orders/cancelled ─────────────────────────────────────────────────────────
@@ -146,7 +164,22 @@ export async function POST(req: Request, { params }: { params: { businessId: str
       [orderIdStr, businessId],
     );
     if (existing.length && existing[0].status !== 'cancelled') {
-      try { await ImsSORepo.changeStatus(existing[0].id, 'cancelled'); } catch {}
+      try { await ImsSORepo.changeStatus(existing[0].id, 'cancelled'); } catch (e: any) {
+        const msg = e?.message ?? String(e);
+        console.error('[shopify-webhook] orders/cancelled error:', msg);
+        createNotification(
+          businessId,
+          'shopify_webhook',
+          'Shopify Webhook Failed — orders/cancelled',
+          msg,
+          {
+            topic,
+            shopify_order_id: orderIdStr,
+            so_id:            existing[0].id,
+            error:            msg,
+          },
+        ).catch(console.error);
+      }
     }
   }
 
@@ -158,7 +191,22 @@ export async function POST(req: Request, { params }: { params: { businessId: str
       [orderId, businessId],
     );
     if (existing.length && existing[0].status === 'confirmed') {
-      try { await ImsSORepo.changeStatus(existing[0].id, 'fulfilled'); } catch {}
+      try { await ImsSORepo.changeStatus(existing[0].id, 'fulfilled'); } catch (e: any) {
+        const msg = e?.message ?? String(e);
+        console.error('[shopify-webhook] fulfillments/create error:', msg);
+        createNotification(
+          businessId,
+          'shopify_webhook',
+          'Shopify Webhook Failed — fulfillments/create',
+          msg,
+          {
+            topic,
+            shopify_order_id: orderId,
+            so_id:            existing[0].id,
+            error:            msg,
+          },
+        ).catch(console.error);
+      }
     }
   }
 

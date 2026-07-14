@@ -216,7 +216,7 @@ export const PosSalesRepo = {
       amount:         number;
       reference?:     string | null;
     }>;
-  }): Promise<number> {
+  }): Promise<{ saleId: number; stockError: string | undefined }> {
     const pool = getIMSPool();
     const conn = await pool.getConnection();
     try {

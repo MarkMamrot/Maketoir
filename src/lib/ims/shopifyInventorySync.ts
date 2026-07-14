@@ -13,6 +13,7 @@ import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { ShopifyService } from '@/services/ShopifyService';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
+import { createNotification } from '@/lib/ims/createNotification';
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -258,10 +259,27 @@ export async function drainInventoryQueue(limit = 250): Promise<{ processed: num
       // force:true so queued items always push regardless of the 'enabled' toggle.
       const res = await pushInventoryForBusiness(businessId, { variantIds, force: true });
       pushed += res.pushed;
-      if (res.errors.length) drainErrors.push(...res.errors.slice(0, 3));
+      if (res.errors.length) {
+        drainErrors.push(...res.errors.slice(0, 3));
+        createNotification(
+          businessId,
+          'shopify_inventory',
+          `Shopify Inventory Sync Errors (${res.errors.length})`,
+          res.errors[0],
+          { errors: res.errors, variant_ids: variantIds },
+        ).catch(err => console.error('[notifications] inventory sync notify failed:', err));
+      }
     } catch (e: any) {
-      console.error('[inventory-sync] business', businessId, e?.message);
-      drainErrors.push(e?.message ?? 'unknown error');
+      const msg = e?.message ?? 'unknown error';
+      console.error('[inventory-sync] business', businessId, msg);
+      drainErrors.push(msg);
+      createNotification(
+        businessId,
+        'shopify_inventory',
+        'Shopify Inventory Sync Failed',
+        msg,
+        { errors: [msg], variant_ids: variantIds },
+      ).catch(err => console.error('[notifications] inventory sync notify failed:', err));
     }
   }
 

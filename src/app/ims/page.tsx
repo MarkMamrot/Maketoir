@@ -12564,6 +12564,73 @@ export default function ImsPage() {
   const [pendingOpenSO, setPendingOpenSO] = useState<number | null>(null);
   const [cnPrefill, setCnPrefill] = useState<any>(null);
 
+  // ── Notifications ────────────────────────────────────────────────────────
+  const [notifOpen, setNotifOpen]           = useState(false);
+  const [notifications, setNotifications]   = useState<any[]>([]);
+  const [notifUnread, setNotifUnread]       = useState(0);
+  const [notifLoading, setNotifLoading]     = useState(false);
+  const [notifExpanded, setNotifExpanded]   = useState<number | null>(null);
+
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const r = await fetch('/api/ims/notifications');
+      if (!r.ok) return;
+      const d = await r.json();
+      if (d.success) {
+        setNotifications(d.notifications ?? []);
+        setNotifUnread(d.unreadCount ?? 0);
+      }
+    } catch { /* silent */ }
+  }, []);
+
+  // Fetch unread count on mount + every 60 s
+  useEffect(() => {
+    fetchNotifications();
+    const t = setInterval(fetchNotifications, 60_000);
+    return () => clearInterval(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const openNotifPanel = useCallback(async () => {
+    setNotifOpen(p => !p);
+    setNotifExpanded(null);
+    if (!notifOpen) {
+      setNotifLoading(true);
+      await fetchNotifications();
+      setNotifLoading(false);
+    }
+  }, [notifOpen, fetchNotifications]);
+
+  const markAllRead = useCallback(async () => {
+    await fetch('/api/ims/notifications/read-all', { method: 'PUT' });
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    setNotifUnread(0);
+  }, []);
+
+  const markOneRead = useCallback(async (id: number) => {
+    await fetch(`/api/ims/notifications/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_read: true }),
+    });
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+    setNotifUnread(prev => Math.max(0, prev - 1));
+  }, []);
+
+  const dismissNotif = useCallback(async (id: number, wasUnread: boolean) => {
+    await fetch(`/api/ims/notifications/${id}`, { method: 'DELETE' });
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    if (wasUnread) setNotifUnread(prev => Math.max(0, prev - 1));
+    if (notifExpanded === id) setNotifExpanded(null);
+  }, [notifExpanded]);
+
+  const clearAllNotif = useCallback(async () => {
+    await fetch('/api/ims/notifications', { method: 'DELETE' });
+    setNotifications([]);
+    setNotifUnread(0);
+    setNotifExpanded(null);
+  }, []);
+
   // ── URL hash ↔ view sync ──────────────────────────────────────────────────
   const VALID_VIEWS = useMemo(() => new Set<string>([
     'dashboard','products','stock','brands','bulk-edit','contacts','locations',
@@ -12754,6 +12821,120 @@ export default function ImsPage() {
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17" strokeLinecap="round" strokeWidth="2.5"/></svg>
         </button>
+        {/* ── Notifications bell ─────────────────────────────────────────── */}
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={openNotifPanel}
+            title="Notifications"
+            style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: notifUnread > 0 ? 'var(--sv-red, #ef4444)' : 'var(--sv-text-dim)', transition: 'background .15s', position: 'relative' }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--sv-bg-2)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+            {notifUnread > 0 && (
+              <span style={{ position: 'absolute', top: 4, right: 4, minWidth: 14, height: 14, borderRadius: 99, background: 'var(--sv-red, #ef4444)', color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, padding: '0 3px', pointerEvents: 'none' }}>
+                {notifUnread > 99 ? '99+' : notifUnread}
+              </span>
+            )}
+          </button>
+          {notifOpen && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setNotifOpen(false)} />
+              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, width: 380, maxHeight: 520, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,.14)', zIndex: 50, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                {/* Panel header */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px 8px', borderBottom: '1px solid var(--sv-etch)', flexShrink: 0 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)', flex: 1 }}>
+                    Notifications {notifUnread > 0 && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-red, #ef4444)', marginLeft: 4 }}>({notifUnread} unread)</span>}
+                  </span>
+                  {notifUnread > 0 && (
+                    <button onClick={markAllRead} style={{ fontSize: 11, color: 'var(--sv-action)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', borderRadius: 4 }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--sv-bg-2)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}>Mark all read</button>
+                  )}
+                  {notifications.length > 0 && (
+                    <button onClick={clearAllNotif} style={{ fontSize: 11, color: 'var(--sv-text-dim)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', borderRadius: 4 }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--sv-bg-2)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}>Clear all</button>
+                  )}
+                </div>
+                {/* Notification list */}
+                <div style={{ overflowY: 'auto', flex: 1 }}>
+                  {notifLoading && <div style={{ padding: 24, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>Loading…</div>}
+                  {!notifLoading && notifications.length === 0 && (
+                    <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>
+                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ opacity: 0.3, marginBottom: 8, display: 'block', margin: '0 auto 8px' }}><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+                      No notifications
+                    </div>
+                  )}
+                  {notifications.map(n => {
+                    const isExpanded = notifExpanded === n.id;
+                    const sourceLabel: Record<string, string> = {
+                      pos_stock: 'POS Stock', shopify_webhook: 'Webhook',
+                      shopify_import: 'Shopify Import', shopify_inventory: 'Inventory Sync',
+                    };
+                    const srcLabel = sourceLabel[n.source] ?? n.source;
+                    const timeAgo = (() => {
+                      const secs = Math.floor((Date.now() - new Date(n.created_at).getTime()) / 1000);
+                      if (secs < 60) return 'just now';
+                      if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+                      if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
+                      return `${Math.floor(secs / 86400)}d ago`;
+                    })();
+                    return (
+                      <div key={n.id}
+                        style={{ borderBottom: '1px solid var(--sv-etch)', background: n.is_read ? 'transparent' : 'var(--sv-red-tint, rgba(239,68,68,.04))' }}
+                      >
+                        <div
+                          onClick={() => {
+                            setNotifExpanded(isExpanded ? null : n.id);
+                            if (!n.is_read) markOneRead(n.id);
+                          }}
+                          style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', cursor: 'pointer' }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'var(--sv-bg-2)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          {/* Error icon */}
+                          <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--sv-red-tint, rgba(239,68,68,.12))', border: '1.5px solid var(--sv-red, #ef4444)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--sv-red, #ef4444)" strokeWidth="3" strokeLinecap="round"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                              <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 99, background: 'var(--sv-bg-3, #f3f4f6)', color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: '.5px', flexShrink: 0 }}>{srcLabel}</span>
+                              <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginLeft: 'auto', flexShrink: 0 }}>{timeAgo}</span>
+                              {!n.is_read && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--sv-red, #ef4444)', flexShrink: 0 }} />}
+                            </div>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.title}</div>
+                            {!isExpanded && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.message}</div>}
+                          </div>
+                          <button
+                            onClick={e => { e.stopPropagation(); dismissNotif(n.id, !n.is_read); }}
+                            title="Dismiss"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', padding: 2, borderRadius: 4, flexShrink: 0, lineHeight: 0 }}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                          </button>
+                        </div>
+                        {/* Expanded detail */}
+                        {isExpanded && (
+                          <div style={{ padding: '0 14px 12px 46px' }}>
+                            <div style={{ fontSize: 12, color: 'var(--sv-text-main)', marginBottom: 8, lineHeight: 1.5 }}>{n.message}</div>
+                            <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 600 }}>Detail</div>
+                            <pre style={{ fontSize: 10, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: 'var(--sv-text-main)', margin: 0, maxHeight: 200, overflowY: 'auto' }}>
+                              {n.detail ? JSON.stringify(n.detail, null, 2) : '(no detail)'}
+                            </pre>
+                            <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginTop: 6 }}>
+                              {new Date(n.created_at).toLocaleString('en-AU', { dateStyle: 'medium', timeStyle: 'short' })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
         {isAdvisor && advisorSyncEnabled && (
           <button
             onClick={() => handleSync('latest', ['products', 'stock'])}
