@@ -2938,7 +2938,7 @@ function saveRecentIds(ids: string[]): void {
 
 // ─── POS Stock Modal ──────────────────────────────────────────────────────────
 
-function PosStockModal({ variantId, productName, onClose }: { variantId: string; productName: string; onClose: () => void }) {
+function PosStockModal({ variantId, productName, imageUrl, onClose }: { variantId: string; productName: string; imageUrl?: string; onClose: () => void }) {
   const [rows, setRows]           = useState<{ location_name: string; qty_on_hand: number }[]>([]);
   const [description, setDescription] = useState<string | null>(null);
   const [loading, setLoading]     = useState(true);
@@ -3005,7 +3005,19 @@ function PosStockModal({ variantId, productName, onClose }: { variantId: string;
             {rows.length === 0 && <div style={{ color: 'var(--sv-text-dim)', fontSize: '.85rem', gridColumn: '1/-1' }}>No stock records found.</div>}
           </div>
         )}
-      </div>
+        </div>{/* end info panel */}
+
+        {/* ── Large image panel ── */}
+        {imageUrl && (
+          <div style={{ flexShrink: 0, width: 'min(420px, 42vw)', display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'center' }}>
+            <img
+              src={imageUrl}
+              alt={productName}
+              style={{ width: '100%', maxHeight: '80vh', objectFit: 'contain', borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,.4)', background: '#fff' }}
+            />
+          </div>
+        )}
+      </div>{/* end flex row */}
     </div>
   );
 }
@@ -3016,7 +3028,7 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
   const [search, setSearch]             = useState('');
   const [brand, setBrand]               = useState(() => defaultView.startsWith('brand:') ? defaultView.slice(6) : '');
   const [inStockOnly, setInStockOnly]   = useState(true);
-  const [stockModal, setStockModal]     = useState<{ variantId: string; productName: string } | null>(null);
+const [stockModal, setStockModal]     = useState<{ variantId: string; productName: string; imageUrl?: string } | null>(null);
 
   // Pinned variant IDs from the "Specific Products" setting
   const pinnedIds = useMemo(() => {
@@ -3396,13 +3408,13 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
               onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--sv-action)')}
               onMouseLeave={e => (e.currentTarget.style.borderColor = isRecent ? 'rgba(37,99,235,.35)' : 'var(--sv-etch)')}
             >
-              <div style={{ display: 'flex', gap: '.55rem', alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', gap: '.55rem', alignItems: 'flex-start', marginBottom: '.3rem' }}>
                 {p.image_url && (
-                  <img src={p.image_url} alt="" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 5, flexShrink: 0 }} />
+                  <img src={p.image_url} alt="" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 5, flexShrink: 0 }} />
                 )}
                 <div style={{ flex: 1, minWidth: 0 }}>
               {/* Price row + info icon */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.3rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '.15rem' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1 }}>
                   {p.original_price != null && (
                     <span style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', textDecoration: 'line-through', lineHeight: 1, marginBottom: '1px' }}>${fmt(p.original_price)}</span>
@@ -3410,22 +3422,25 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
                   <span style={{ fontWeight: 800, color: p.original_price != null ? '#fb923c' : 'var(--sv-action)', fontSize: '1.05rem' }}>${fmt(p.price)}</span>
                 </div>
                 <button
-                  onClick={e => { e.stopPropagation(); setStockModal({ variantId: p.variant_id, productName: p.name }); }}
+                  onClick={e => { e.stopPropagation(); setStockModal({ variantId: p.variant_id, productName: p.name, imageUrl: p.image_url }); }}
                   style={{ background: 'transparent', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: '0 0 0 4px', flexShrink: 0 }}
                   title="Product info & stock by location"
                 >ℹ️</button>
               </div>
-              {/* Product name */}
-              <div style={{ fontSize: '.88rem', fontWeight: 700, lineHeight: 1.3, color: 'var(--sv-text-strong)', maxHeight: '2.6em', overflow: 'hidden', marginBottom: '.3rem' }}>{p.name}</div>
-              {/* Stock info */}
-              <div style={{ fontSize: '.73rem', lineHeight: 1.6, color: 'var(--sv-text-dim)' }}>
-                <div><span style={{ color: (p.available ?? p.soh) > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 600 }}>Available: {p.available ?? p.soh}</span> <span style={{ color: 'var(--sv-text-dim)' }}>· SOH: {p.soh}</span></div>
-                <div>Other Stores: {(p.available_all ?? p.soh_all) - (p.available ?? p.soh)}</div>
-              </div>
-              {/* SKU */}
-              {p.code && <div style={{ fontSize: '.68rem', color: 'var(--sv-text-muted)', marginTop: '.25rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.code}</div>}
-                </div>{/* end text col */}
-              </div>{/* end flex row */}
+              {/* SKU beside image, under price */}
+              {p.code && <div style={{ fontSize: '.68rem', color: 'var(--sv-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.code}</div>}
+                </div>{/* end right col */}
+              </div>{/* end top flex row */}
+              {/* Product name — full width, single line */}
+              <div style={{ fontSize: '.88rem', fontWeight: 700, lineHeight: 1.25, color: 'var(--sv-text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '.2rem' }}>{p.name}</div>
+              {/* Stock info — compact single line */}
+              <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', display: 'flex', gap: '.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ color: (p.available ?? p.soh) > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 600 }}>Avail: {p.available ?? p.soh}</span>
+                <span>· SOH: {p.soh}</span>
+                {((p.available_all ?? p.soh_all) - (p.available ?? p.soh)) > 0 && (
+                  <span>· Other: {(p.available_all ?? p.soh_all) - (p.available ?? p.soh)}</span>
+                )}
+              </div>}
             </button>
           );
         })}
@@ -3440,6 +3455,7 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
       <PosStockModal
         variantId={stockModal.variantId}
         productName={stockModal.productName}
+        imageUrl={stockModal.imageUrl}
         onClose={() => setStockModal(null)}
       />
     )}
