@@ -3939,12 +3939,23 @@ interface ReceiptPrintSettings {
 
 function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: CompletedSale; onClose: () => void; printSettings?: ReceiptPrintSettings; changeDue?: number }) {
   const [printMode, setPrintMode] = useState<'normal' | 'gift'>('normal');
+  const [emailAddr,   setEmailAddr]   = useState('');
+  const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [emailError,  setEmailError]  = useState('');
+  const printBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
+    printBtnRef.current?.focus();
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key === 'Enter' && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
+        e.preventDefault();
+        handlePrint();
+      }
+    }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePrint = () => { setPrintMode('normal'); window.print(); };
   const handleGiftPrint = () => {
@@ -3953,6 +3964,24 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
       window.addEventListener('afterprint', () => setPrintMode('normal'), { once: true });
       window.print();
     }));
+  };
+
+  const sendEmail = async () => {
+    if (!emailAddr.trim()) return;
+    setEmailStatus('sending');
+    setEmailError('');
+    try {
+      const res = await fetch('/api/pos/receipt/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailAddr.trim(), sale, printSettings, changeDue }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) { setEmailStatus('sent'); }
+      else { setEmailStatus('error'); setEmailError(json.error ?? 'Failed to send email.'); }
+    } catch (err: any) {
+      setEmailStatus('error'); setEmailError(err.message ?? 'Network error.');
+    }
   };
 
   return (
@@ -4062,8 +4091,28 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
             </div>
           </div>
           <div className='no-print' style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem', gap: '.75rem' }}>
-            <button onClick={handlePrint} style={{ ...primaryBtn, padding: '.6rem 1.5rem' }}>🖨 Print Receipt</button>
+            <button ref={printBtnRef} onClick={handlePrint} style={{ ...primaryBtn, padding: '.6rem 1.5rem' }}>🖨 Print Receipt <span style={{ opacity: .45, fontSize: '.7rem' }}>Enter</span></button>
             <button onClick={onClose} style={{ ...smallBtn, padding: '.6rem 1.5rem' }}>New Sale <span style={{ opacity: .45, fontSize: '.7rem' }}>Esc</span></button>
+          </div>
+          {/* Email receipt */}
+          <div className='no-print' style={{ marginTop: '.75rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.35rem' }}>
+            <div style={{ display: 'flex', gap: '.4rem', width: '100%', maxWidth: 310 }}>
+              <input
+                type='email'
+                placeholder='Email receipt…'
+                value={emailAddr}
+                onChange={e => { setEmailAddr(e.target.value); setEmailStatus('idle'); setEmailError(''); }}
+                onKeyDown={async e => { if (e.key === 'Enter') { e.preventDefault(); await sendEmail(); } }}
+                style={{ flex: 1, padding: '.45rem .7rem', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: '.82rem', outline: 'none' }}
+              />
+              <button
+                onClick={sendEmail}
+                disabled={emailStatus === 'sending' || !emailAddr.trim()}
+                style={{ ...smallBtn, padding: '.45rem .9rem', fontSize: '.82rem', flexShrink: 0 }}
+              >{emailStatus === 'sending' ? '…' : '✉ Send'}</button>
+            </div>
+            {emailStatus === 'sent'  && <div style={{ fontSize: '.78rem', color: 'var(--sv-mint)' }}>✓ Receipt sent to {emailAddr}</div>}
+            {emailStatus === 'error' && <div style={{ fontSize: '.78rem', color: 'var(--sv-red)' }}>{emailError}</div>}
           </div>
         </div>
 
@@ -5322,6 +5371,52 @@ function ReportsScreen({ session, onBack }: { session: PosSession; onBack: () =>
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [editPaymentsSale, setEditPaymentsSale] = useState<{ saleId: number; saleRef: string; payments: any[]; total: number } | null>(null);
+  const [reprintSale, setReprintSale] = useState<CompletedSale | null>(null);
+  const [reprintSettings, setReprintSettings] = useState<ReceiptPrintSettings | null>(null);
+
+  // Load receipt settings for reprint
+  useEffect(() => {
+    fetch('/api/pos/settings/receipt').then(r => r.json()).then(d => setReprintSettings(d)).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function buildReprintSale(t: any): CompletedSale {
+    return {
+      id: t.sale.id ?? null,
+      local_id: `reprint-${t.sale.id ?? Date.now()}`,
+      location_name: session.location_name ?? '',
+      cashier_name: t.sale.cashier_name ?? session.full_name ?? '',
+      sale_type: (t.sale.sale_type ?? 'sale') as 'sale' | 'return' | 'layby',
+      status: 'completed',
+      items: (t.items ?? []).map((item: any, idx: number) => ({
+        localId: `item-${item.id ?? idx}`,
+        variant_id: item.variant_id ?? null,
+        code: item.code ?? null,
+        name: item.name ?? '',
+        qty: Number(item.qty),
+        unit_price: Number(item.unit_price ?? 0),
+        original_price: null,
+        discount_type: 'none' as const,
+        discount_value: 0,
+        discount_amount: 0,
+        tax_rate: Number(item.tax_rate ?? 0.1),
+        line_total: Number(item.line_total),
+      })),
+      payments: (t.payments ?? []).map((p: any) => ({
+        localId: `pay-${p.id}`,
+        method: p.payment_method ?? '',
+        amount: Number(p.amount),
+        reference: '',
+      })),
+      subtotal: Number(t.sale.total ?? 0),
+      discount_total: Number(t.sale.discount_total ?? 0),
+      tax_total: Number(t.sale.tax_total ?? 0),
+      total: Number(t.sale.total ?? 0),
+      cash_rounding: 0,
+      customer_name: t.sale.customer_name ?? null,
+      notes: t.sale.notes ?? null,
+      created_at: t.sale.created_at,
+    };
+  }
 
   const loadData = (d: string) => {
     setLoading(true);
@@ -5403,6 +5498,11 @@ function ReportsScreen({ session, onBack }: { session: PosSession; onBack: () =>
                     title="Edit payment split"
                     style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, padding: '2px 7px', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: '.8rem', flexShrink: 0 }}
                   >✏️ Edit</button>
+                  <button
+                    onClick={e => { e.stopPropagation(); setReprintSale(buildReprintSale(t)); }}
+                    title="Reprint receipt"
+                    style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, padding: '2px 7px', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: '.8rem', flexShrink: 0 }}
+                  >🖨 Print</button>
                   <span style={{ fontSize: '.8rem', color: 'var(--sv-text-muted)', flexShrink: 0 }}>{expanded === idx ? '▲' : '▼'}</span>
                 </div>
                 {expanded === idx && (
@@ -5430,6 +5530,13 @@ function ReportsScreen({ session, onBack }: { session: PosSession; onBack: () =>
           sale={editPaymentsSale}
           onClose={() => setEditPaymentsSale(null)}
           onSaved={() => { setEditPaymentsSale(null); loadData(date); }}
+        />
+      )}
+      {reprintSale && (
+        <ReceiptScreen
+          sale={reprintSale}
+          onClose={() => setReprintSale(null)}
+          printSettings={reprintSettings ?? undefined}
         />
       )}
     </div>
