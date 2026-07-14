@@ -2140,6 +2140,21 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
     } catch { return DEFAULT_LABEL; }
   });
   const [selectedVariantIdx, setSelectedVariantIdx] = useState(0);
+  const barcodeSpanRef = useRef<HTMLSpanElement>(null);
+  const barcodeWrapRef = useRef<HTMLDivElement>(null);
+  const [previewBcScale, setPreviewBcScale] = useState(1);
+
+  // Mirror print scaleX in the preview: measure after render and apply transform.
+  useEffect(() => {
+    const bc   = barcodeSpanRef.current;
+    const wrap = barcodeWrapRef.current;
+    if (!bc || !wrap) { setPreviewBcScale(1); return; }
+    // Reset transform so we measure the natural width.
+    bc.style.transform = '';
+    const bcW = bc.scrollWidth;
+    const wW  = wrap.offsetWidth;
+    if (bcW > 0 && wW > 0) setPreviewBcScale(wW / bcW);
+  });
 
   const set = <K extends keyof LabelSettings>(k: K, v: LabelSettings[K]) =>
     setSettings(prev => {
@@ -2208,7 +2223,7 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
 <head>
   <meta charset="utf-8">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128+Text&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=block">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     @page { size: ${s.w}mm ${s.h}mm; margin: 0; }
@@ -2240,7 +2255,7 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
       /* overflow intentionally omitted — .label clips everything */
     }
     .barcode {
-      font-family: 'Libre Barcode 128 Text', monospace;
+      font-family: 'Libre Barcode 128', monospace;
       font-size: ${barcodePt}pt; line-height: 1;
       white-space: nowrap; display: block;
       transform-origin: left center;
@@ -2258,13 +2273,12 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
 <body>
   ${labelsHtml}
   <script>
-    // Explicitly wait for the barcode font (document.fonts.ready alone is not
-    // enough — it may resolve before a dynamically-injected font is rendered).
-    document.fonts.load("${barcodePt}pt 'Libre Barcode 128 Text'")
-      .catch(function() { return document.fonts.ready; }) // fallback
+    // display=block means the font is guaranteed to be loaded before any paint,
+    // so scrollWidth gives the true barcode width on the very first measurement.
+    document.fonts.load("${barcodePt}pt 'Libre Barcode 128'")
+      .catch(function() { return document.fonts.ready; })
       .then(function() {
-        // Force a layout flush so scrollWidth reflects the barcode font, not fallback.
-        document.querySelectorAll('.barcode').forEach(function(el) { void el.offsetWidth; });
+        void document.body.offsetWidth; // flush layout
 
         document.querySelectorAll('.bc-wrap').forEach(function(wrap) {
           var bc = wrap.querySelector('.barcode');
@@ -2272,11 +2286,9 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
           var wW = wrap.offsetWidth;
           var bcW = bc.scrollWidth;
           if (bcW > 0 && wW > 0) {
-            // Compress or expand to exactly fill the label width.
             bc.style.transform = 'scaleX(' + (wW / bcW) + ')';
           }
         });
-        // Extra frame + delay ensures the transform is painted before printing.
         requestAnimationFrame(function() {
           setTimeout(function() { window.print(); window.close(); }, 300);
         });
@@ -2322,7 +2334,7 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128+Text&display=swap" />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" />
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 14, padding: 28, width: 700, maxWidth: '95vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--sv-text-strong)', flex: 1 }}>Print Barcode Labels</h2>
@@ -2388,7 +2400,7 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
               overflow: 'hidden',
               boxShadow: '0 2px 8px rgba(0,0,0,.18)',
             }}>
-              <style>{`@import url('https://fonts.googleapis.com/css2?family=Libre+Barcode+128+Text&display=swap');`}</style>
+              <style>{`@import url('https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap');`}</style>
 
               {/* Top row: name (left) | price (right) */}
               {showTopRow && (
@@ -2407,8 +2419,8 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
 
               {/* Barcode: flex-grow, fills remaining space */}
               {settings.showBarcode && variant?.barcode && (
-                <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'flex-start', width: '100%', overflow: 'visible' }}>
-                  <span style={{ fontFamily: "'Libre Barcode 128 Text', monospace", fontSize: barcodePx, lineHeight: 1, color: '#000', whiteSpace: 'nowrap', overflow: 'hidden', maxWidth: '100%' }}>{variant.barcode}</span>
+                <div ref={barcodeWrapRef} style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'flex-start', width: '100%', overflow: 'visible' }}>
+                  <span ref={barcodeSpanRef} style={{ fontFamily: "'Libre Barcode 128', monospace", fontSize: barcodePx, lineHeight: 1, color: '#000', whiteSpace: 'nowrap', display: 'block', transformOrigin: 'left center', transform: `scaleX(${previewBcScale})` }}>{variant.barcode}</span>
                 </div>
               )}
 
