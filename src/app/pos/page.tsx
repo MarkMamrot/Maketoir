@@ -2984,8 +2984,8 @@ function PosStockModal({ variantId, productName, imageUrl, barcode, sku, onClose
             <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8, marginBottom: 2 }}>Stock by Location</div>
             <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--sv-text-strong)', lineHeight: 1.3 }}>{baseName}</div>
             {barcode && (
-              <div style={{ marginTop: 4 }}>
-                <span style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)' }}>Barcode: <span style={{ fontFamily: 'monospace', color: 'var(--sv-text-main)' }}>{barcode}</span></span>
+              <div style={{ marginTop: 4, userSelect: 'text', WebkitUserSelect: 'text' }}>
+                <span style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', userSelect: 'text' }}>Barcode: <span style={{ fontFamily: 'monospace', color: 'var(--sv-text-main)', userSelect: 'text' }}>{barcode}</span></span>
               </div>
             )}
           </div>
@@ -3026,7 +3026,7 @@ function PosStockModal({ variantId, productName, imageUrl, barcode, sku, onClose
               <div style={{ fontSize: '.82rem', color: 'var(--sv-text-main)', fontWeight: 500 }}>{optionsStr}</div>
             )}
             {sku && (
-              <span style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', userSelect: 'text' }}>SKU: <span style={{ fontFamily: 'monospace', color: 'var(--sv-mint)' }}>{sku}</span></span>
+              <span style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', userSelect: 'text', WebkitUserSelect: 'text' }}>SKU: <span style={{ fontFamily: 'monospace', color: 'var(--sv-mint)', userSelect: 'text' }}>{sku}</span></span>
             )}
           </div>
         )}
@@ -3311,7 +3311,8 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
               {dropdownItems.map((p, i) => (
                 <div
                   key={p.variant_id}
-                  onMouseDown={e => { e.preventDefault(); clearTimeout(blurTimer.current); handleAdd(p); }}
+                  onMouseDown={() => { clearTimeout(blurTimer.current); }}
+                  onClick={() => handleAdd(p)}
                   onMouseEnter={() => setHighlightIdx(i)}
                   style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', cursor: 'pointer', background: i === highlightIdx ? 'var(--sv-bg-2)' : 'transparent', borderBottom: i < dropdownItems.length - 1 ? '1px solid var(--sv-etch)' : 'none' }}
                 >
@@ -3417,6 +3418,8 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
         <div style={{ position: 'relative', zIndex: 1, overflow: 'auto', height: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px,1fr))', gap: '.6rem', padding: '.75rem', alignContent: 'start' }}>
         {filtered.map(p => {
           const isRecent = mode === 'browse' && recentIds.includes(p.variant_id);
+          const dashIdx  = p.name.indexOf(' — ');
+          const optionsStr = dashIdx !== -1 ? p.name.slice(dashIdx + 3) : '';
           return (
             <button
               key={p.variant_id}
@@ -3431,6 +3434,8 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
                 color: 'var(--sv-text-main)',
                 position: 'relative',
                 transition: 'border-color .15s, background .15s',
+                userSelect: 'text',
+                WebkitUserSelect: 'text',
               }}
               onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--sv-action)')}
               onMouseLeave={e => (e.currentTarget.style.borderColor = isRecent ? 'rgba(37,99,235,.35)' : 'var(--sv-etch)')}
@@ -3455,13 +3460,13 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
                   <span style={{ fontWeight: 800, color: p.original_price != null ? '#fb923c' : 'var(--sv-action)', fontSize: '1.05rem' }}>${fmt(p.price)}</span>
                 </div>
                 <button
-                  onClick={e => { e.stopPropagation(); setStockModal({ variantId: p.variant_id, productName: p.name, imageUrl: p.image_url, barcode: p.barcode, sku: p.code }); }}
+                  onClick={e => { e.stopPropagation(); setStockModal({ variantId: p.variant_id, productName: p.name, imageUrl: p.image_url ?? undefined, barcode: p.barcode ?? undefined, sku: p.code ?? undefined }); }}
                   style={{ background: 'transparent', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: '0 0 0 4px', flexShrink: 0 }}
                   title="Product info & stock by location"
                 >ℹ️</button>
               </div>
-              {/* SKU beside image, under price */}
-              {p.code && <div style={{ fontSize: '.68rem', color: 'var(--sv-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', userSelect: 'text' }}>{p.code}</div>}
+              {/* Variant options (size/colour) under price */}
+              {optionsStr && <div style={{ fontSize: '.75rem', fontWeight: 600, color: 'var(--sv-text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '2px' }}>{optionsStr}</div>}
                 </div>{/* end right col */}
               </div>{/* end top flex row */}
               {/* Product name — full width, single line */}
@@ -3474,6 +3479,8 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
                   <span>· Other: {(p.available_all ?? p.soh_all) - (p.available ?? p.soh)}</span>
                 )}
               </div>
+              {/* SKU — moved to bottom */}
+              {p.code && <div style={{ fontSize: '.68rem', color: 'var(--sv-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', userSelect: 'text', marginTop: '.15rem' }}>{p.code}</div>}
             </button>
           );
         })}
