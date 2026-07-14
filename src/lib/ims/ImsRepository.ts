@@ -692,8 +692,10 @@ export const ImsStockRepo = {
     } catch { /* ignore — column already exists or table not yet created */ }
   },
 
-  /** Add category/subcategory to ims_products if they don't exist yet (idempotent). */
+  /** Add category/subcategory to ims_products if they don't exist yet (idempotent, runs once per process). */
   async ensureProductCategoryColumns(): Promise<void> {
+    if ((ImsStockRepo as any)._productCatColsEnsured) return;
+    (ImsStockRepo as any)._productCatColsEnsured = true;
     try {
       const cols = await imsQuery<{ Field: string }>('SHOW COLUMNS FROM ims_products', []);
       const names = new Set(cols.map(c => c.Field));

@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS ims_products (
   name               VARCHAR(255) NOT NULL,
   description        MEDIUMTEXT,
   category           VARCHAR(255),
+  subcategory        VARCHAR(255),
   brand              VARCHAR(255),
   tags               VARCHAR(1000),
   is_active          TINYINT(1) NOT NULL DEFAULT 1,

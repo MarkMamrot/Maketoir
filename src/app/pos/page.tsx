@@ -2966,7 +2966,7 @@ function PosStockModal({ variantId, productName, imageUrl, onClose }: { variantI
 
   return (
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1.25rem', padding: '1rem' }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: '1.5rem', width: 400, maxWidth: '95vw', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 12px 48px rgba(0,0,0,.5)' }}>
@@ -3017,8 +3017,7 @@ function PosStockModal({ variantId, productName, imageUrl, onClose }: { variantI
             />
           </div>
         )}
-      </div>{/* end flex row */}
-    </div>
+      </div>
   );
 }
 
