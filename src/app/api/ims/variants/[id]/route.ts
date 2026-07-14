@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { ImsVariantsRepo } from '@/lib/ims/ImsRepository';
-import { ShopifyService } from '@/services/ShopifyService';
-import { decrypt } from '@/lib/encryption';
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { getShopifyForBusiness, shopifyVariantPricePayload } from '@/lib/ims/shopifyInventorySync';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -24,20 +22,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       if (variant?.shopify_variant_id) {
         (async () => {
           try {
-            const conn = await ConnectionsRepository.get(session.userSpreadsheetId);
-            const rawShopId = conn?.shopify_shop_id ?? '';
-            const encToken  = conn?.shopify_access_token ?? '';
-            if (!rawShopId || !encToken) return;
-            const shopName = rawShopId.replace(/\.myshopify\.com$/, '');
-            if (!/^[a-zA-Z0-9-]+$/.test(shopName)) return;
-            const shopify = new ShopifyService(shopName, decrypt(encToken));
-            const updatedVariant = body.price_rrp !== undefined ? variant : await ImsVariantsRepo.get(params.id);
-            await shopify.updateVariant(variant.shopify_variant_id!, {
-              price: String(updatedVariant?.price_rrp ?? variant.price_rrp ?? '0.00'),
-              compare_at_price: updatedVariant?.price_rrp_sale
-                ? String(updatedVariant.price_rrp ?? '0.00')
-                : null,
-            });
+            const shopify = await getShopifyForBusiness(session.businessId);
+            if (!shopify) return;
+            await shopify.updateVariant(variant.shopify_variant_id!, shopifyVariantPricePayload(variant.price_rrp, variant.price_rrp_sale));
           } catch (e) {
             console.error('[variant PUT] Shopify price sync failed:', e);
           }

@@ -46,6 +46,24 @@ export async function getShopifyForBusiness(businessId: string): Promise<Shopify
   return new ShopifyService(shopName, decrypt(encToken));
 }
 
+/**
+ * Returns `{ price, compare_at_price }` for a Shopify variant update/create.
+ *
+ *  - Sale active  → price = sale price (what customer pays),
+ *                   compare_at_price = regular RRP (shown crossed-out).
+ *  - No sale      → price = regular RRP, compare_at_price = null.
+ */
+export function shopifyVariantPricePayload(
+  price_rrp:      number | null | undefined,
+  price_rrp_sale: number | null | undefined,
+): { price: string; compare_at_price: string | null } {
+  const isOnSale = price_rrp_sale != null && Number(price_rrp_sale) > 0;
+  return {
+    price:            (isOnSale ? Number(price_rrp_sale) : Number(price_rrp ?? 0)).toFixed(2),
+    compare_at_price: isOnSale ? Number(price_rrp ?? 0).toFixed(2) : null,
+  };
+}
+
 /** Resolve the Shopify location used for online inventory.
  *  Infers it from an existing inventory level (write_inventory scope only).
  *  Caches the result in ims_settings so subsequent calls are instant.

@@ -12,6 +12,7 @@ import { ShopifyService } from '@/services/ShopifyService';
 import { decrypt } from '@/lib/encryption';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { ImsProductsRepo, ImsImagesRepo, ImsShopifyRepo } from '@/lib/ims/ImsRepository';
+import { shopifyVariantPricePayload } from '@/lib/ims/shopifyInventorySync';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -90,19 +91,22 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
     // ── If not yet linked → create the product on Shopify ────────────────────
     if (!product.shopify_product_id) {
-      const shopifyVariants = variants.map(v => ({
-        sku: v.sku ?? '',
-        barcode: v.barcode ?? undefined,
-        price: String(v.price_rrp ?? '0.00'),
-        compare_at_price: v.price_rrp_sale ? String(v.price_rrp ?? '0.00') : undefined,
-        weight: v.weight_kg ? v.weight_kg * 1000 : undefined,
-        weight_unit: 'g',
-        option1: v.option1_value ?? 'Default',
-        option2: v.option2_value ?? undefined,
-        option3: v.option3_value ?? undefined,
-        inventory_management: 'shopify',
-        inventory_policy: 'deny',
-      }));
+      const shopifyVariants = variants.map(v => {
+        const { price, compare_at_price } = shopifyVariantPricePayload(v.price_rrp, v.price_rrp_sale);
+        return {
+          sku: v.sku ?? '',
+          barcode: v.barcode ?? undefined,
+          price,
+          compare_at_price: compare_at_price ?? undefined,
+          weight: v.weight_kg ? v.weight_kg * 1000 : undefined,
+          weight_unit: 'g',
+          option1: v.option1_value ?? 'Default',
+          option2: v.option2_value ?? undefined,
+          option3: v.option3_value ?? undefined,
+          inventory_management: 'shopify',
+          inventory_policy: 'deny',
+        };
+      });
       const options: any[] = [];
       if (variants.some(v => v.option1_name)) options.push({ name: variants[0]?.option1_name ?? 'Option 1' });
       if (variants.some(v => v.option2_name)) options.push({ name: variants[0]?.option2_name ?? 'Option 2' });
@@ -144,10 +148,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     for (const v of variants) {
       if (v.shopify_variant_id && v.price_rrp != null) {
         try {
-          await shop.service.updateVariant(v.shopify_variant_id, {
-            price: String(v.price_rrp),
-            compare_at_price: v.price_rrp_sale ? String(v.price_rrp) : null,
-          });
+          await shop.service.updateVariant(v.shopify_variant_id, shopifyVariantPricePayload(v.price_rrp, v.price_rrp_sale));
           pricesUpdated++;
         } catch {}
       }

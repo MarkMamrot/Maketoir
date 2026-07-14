@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { ShopifyService } from '@/services/ShopifyService';
-import { decrypt } from '@/lib/encryption';
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { ImsShopifyRepo } from '@/lib/ims/ImsRepository';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { getShopifyForBusiness, shopifyVariantPricePayload } from '@/lib/ims/shopifyInventorySync';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -19,18 +17,10 @@ export async function POST(req: Request) {
   try {
     const { product_ids }: { product_ids?: string[] } = await req.json().catch(() => ({}));
 
-    const conn = await ConnectionsRepository.get(session.businessId);
-    const rawShopId = conn?.shopify_shop_id ?? '';
-    const encToken  = conn?.shopify_access_token ?? '';
-    if (!rawShopId || !encToken) {
+    const shopify = await getShopifyForBusiness(session.businessId);
+    if (!shopify) {
       return NextResponse.json({ success: false, error: 'Shopify not connected.' }, { status: 400 });
     }
-    const shopName = rawShopId.replace(/\.myshopify\.com$/, '');
-    if (!/^[a-zA-Z0-9-]+$/.test(shopName)) {
-      return NextResponse.json({ success: false, error: 'Invalid Shopify shop name.' }, { status: 400 });
-    }
-    const accessToken = decrypt(encToken);
-    const shopify = new ShopifyService(shopName, accessToken);
 
     // Fetch linked variants
     let sql = `SELECT v.variant_id, v.shopify_variant_id, v.price_rrp, v.price_rrp_sale
@@ -51,15 +41,7 @@ export async function POST(req: Request) {
 
     for (const v of variants) {
       try {
-        // When a sale price exists: Shopify price = sale price, compare_at_price = regular RRP (shown crossed out).
-        // When no sale price: Shopify price = regular RRP, compare_at_price = null.
-        const isOnSale = v.price_rrp_sale != null && Number(v.price_rrp_sale) > 0;
-        const shopifyPrice  = isOnSale ? Number(v.price_rrp_sale) : Number(v.price_rrp ?? 0);
-        const compareAt     = isOnSale ? Number(v.price_rrp ?? 0) : null;
-        await shopify.updateVariant(v.shopify_variant_id, {
-          price:            shopifyPrice.toFixed(2),
-          compare_at_price: compareAt != null ? compareAt.toFixed(2) : null,
-        });
+        await shopify.updateVariant(v.shopify_variant_id, shopifyVariantPricePayload(v.price_rrp, v.price_rrp_sale));
         synced++;
       } catch (err: any) {
         errors.push(`variant ${v.variant_id}: ${err.message}`);
