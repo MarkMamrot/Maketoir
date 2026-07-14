@@ -2201,14 +2201,14 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
       page-break-after: always;
       font-family: Arial, sans-serif;
     }
-    .brand  { font-size: ${Math.max(4, s.h * 0.2)}pt; color: #555; text-transform: uppercase; letter-spacing: .4px; line-height: 1.1; text-align: center; }
-    .pname  { font-size: ${Math.max(5, s.h * 0.25)}pt; font-weight: 700; text-align: center; line-height: 1.1; max-width: 100%; overflow: hidden; }
-    .barcode{ font-family: 'Libre Barcode 128 Text', monospace; font-size: ${Math.min(s.h * 2.2, s.w * 1.5)}pt; line-height: 1; text-align: center; }
-    .sku    { font-size: ${Math.max(4, s.h * 0.18)}pt; letter-spacing: .5px; color: #333; text-align: center; }
-    .price  { font-size: ${Math.max(6, s.h * 0.28)}pt; font-weight: 700; text-align: center; }
-    .price-row { display: flex; align-items: center; gap: 2px; justify-content: center; }
-    .rrp-strike { font-size: ${Math.max(5, s.h * 0.2)}pt; text-decoration: line-through; color: #888; }
-    .price-sale { font-size: ${Math.max(6, s.h * 0.28)}pt; font-weight: 700; }
+    .brand  { font-size: ${Math.max(4, Math.round(s.h * 0.22))}pt; color: #555; text-transform: uppercase; letter-spacing: .4px; line-height: 1.1; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; flex-shrink: 0; }
+    .pname  { font-size: ${Math.max(5, Math.round(s.h * 0.28))}pt; font-weight: 700; text-align: center; line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
+    .barcode{ font-family: 'Libre Barcode 128 Text', monospace; font-size: ${Math.round(s.h * 1.1)}pt; line-height: 1; text-align: center; flex-shrink: 1; min-height: 0; overflow: hidden; max-width: 100%; }
+    .sku    { font-size: ${Math.max(4, Math.round(s.h * 0.2))}pt; letter-spacing: .5px; color: #333; text-align: center; white-space: nowrap; flex-shrink: 0; }
+    .price  { font-size: ${Math.max(5, Math.round(s.h * 0.3))}pt; font-weight: 700; text-align: center; flex-shrink: 0; }
+    .price-row { display: flex; align-items: center; gap: 2px; justify-content: center; flex-shrink: 0; }
+    .rrp-strike { font-size: ${Math.max(4, Math.round(s.h * 0.22))}pt; text-decoration: line-through; color: #888; }
+    .price-sale { font-size: ${Math.max(5, Math.round(s.h * 0.3))}pt; font-weight: 700; }
   </style>
 </head>
 <body>
@@ -2231,7 +2231,7 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
   const previewScale = Math.min(280 / (size.w * 3.78), 140 / (size.h * 3.78));
   const pwPx = size.w * 3.78 * previewScale;
   const phPx = size.h * 3.78 * previewScale;
-  const barcodeFontPx = Math.min(size.h * 2.2 * previewScale * 1.33, size.w * 1.5 * previewScale * 1.33);
+  const barcodeFontPx = Math.round(size.h * 1.1 * 0.353 * 3.78 * previewScale);
 
   const fmtP = (p: any) => p != null && !isNaN(Number(p)) ? `$${Number(p).toFixed(2)}` : '';
   const pRrp  = fmtP(variant?.price_rrp);
@@ -2324,24 +2324,24 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
             }}>
               <style>{`@import url('https://fonts.googleapis.com/css2?family=Libre+Barcode+128+Text&display=swap');`}</style>
               {settings.showBrand && product.brand && (
-                <div style={{ fontSize: Math.max(7, size.h * 0.2 * previewScale * 1.2), color: '#555', textTransform: 'uppercase', letterSpacing: .3, lineHeight: 1.1, textAlign: 'center', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.brand}</div>
+                <div style={{ fontSize: Math.max(7, Math.round(size.h * 0.22 * 0.353 * 3.78 * previewScale)), color: '#555', textTransform: 'uppercase', letterSpacing: .3, lineHeight: 1.1, textAlign: 'center', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>{product.brand}</div>
               )}
               {settings.showName && product.name && (
-                <div style={{ fontSize: Math.max(8, size.h * 0.25 * previewScale * 1.2), fontWeight: 700, lineHeight: 1.1, textAlign: 'center', color: '#000', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.name}</div>
+                <div style={{ fontSize: Math.max(8, Math.round(size.h * 0.28 * 0.353 * 3.78 * previewScale)), fontWeight: 700, lineHeight: 1.2, textAlign: 'center', color: '#000', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>{product.name}</div>
               )}
               {settings.showBarcode && variant?.barcode && (
-                <div style={{ fontFamily: "'Libre Barcode 128 Text', monospace", fontSize: barcodeFontPx, lineHeight: 1, color: '#000', textAlign: 'center', maxWidth: '100%', overflow: 'hidden' }}>{variant.barcode}</div>
+                <div style={{ fontFamily: "'Libre Barcode 128 Text', monospace", fontSize: barcodeFontPx, lineHeight: 1, color: '#000', textAlign: 'center', maxWidth: '100%', overflow: 'hidden', flexShrink: 1, minHeight: 0 }}>{variant.barcode}</div>
               )}
               {settings.showSku && variant?.sku && (
-                <div style={{ fontSize: Math.max(7, size.h * 0.18 * previewScale * 1.2), letterSpacing: .5, color: '#333', textAlign: 'center' }}>{variant.sku}</div>
+                <div style={{ fontSize: Math.max(7, Math.round(size.h * 0.2 * 0.353 * 3.78 * previewScale)), letterSpacing: .5, color: '#333', textAlign: 'center', whiteSpace: 'nowrap', flexShrink: 0 }}>{variant.sku}</div>
               )}
               {settings.priceMode === 'rrp' && pRrp && (
-                <div style={{ fontSize: Math.max(9, size.h * 0.28 * previewScale * 1.2), fontWeight: 700, color: '#000' }}>{pRrp}</div>
+                <div style={{ fontSize: Math.max(8, Math.round(size.h * 0.3 * 0.353 * 3.78 * previewScale)), fontWeight: 700, color: '#000', flexShrink: 0 }}>{pRrp}</div>
               )}
               {settings.priceMode === 'sale' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                  {pRrp && pSale && <span style={{ fontSize: Math.max(7, size.h * 0.2 * previewScale * 1.2), textDecoration: 'line-through', color: '#888' }}>{pRrp}</span>}
-                  {(pSale || pRrp) && <span style={{ fontSize: Math.max(9, size.h * 0.28 * previewScale * 1.2), fontWeight: 700, color: '#000' }}>{pSale || pRrp}</span>}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                  {pRrp && pSale && <span style={{ fontSize: Math.max(7, Math.round(size.h * 0.22 * 0.353 * 3.78 * previewScale)), textDecoration: 'line-through', color: '#888' }}>{pRrp}</span>}
+                  {(pSale || pRrp) && <span style={{ fontSize: Math.max(8, Math.round(size.h * 0.3 * 0.353 * 3.78 * previewScale)), fontWeight: 700, color: '#000' }}>{pSale || pRrp}</span>}
                 </div>
               )}
             </div>
