@@ -2096,6 +2096,271 @@ function OnlineStoreSection({ productId, isReadOnly = false }: { productId: stri
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Barcode Label Dialog
+// ─────────────────────────────────────────────────────────────────────────────
+
+const LABEL_SIZES = [
+  { label: '40 \u00d7 15 mm (default)', w: 40, h: 15 },
+  { label: '40 \u00d7 25 mm',           w: 40, h: 25 },
+  { label: '50 \u00d7 25 mm',           w: 50, h: 25 },
+  { label: '58 \u00d7 40 mm',           w: 58, h: 40 },
+  { label: '70 \u00d7 35 mm',           w: 70, h: 35 },
+  { label: '100 \u00d7 50 mm',          w: 100, h: 50 },
+  { label: '38 \u00d7 25 mm (Dymo)',    w: 38,  h: 25 },
+  { label: '62 \u00d7 29 mm (Dymo L)', w: 62,  h: 29 },
+] as const;
+
+type LabelPriceMode = 'none' | 'rrp' | 'sale';
+
+interface LabelSettings {
+  sizeIdx:     number;
+  showBarcode: boolean;
+  showSku:     boolean;
+  showName:    boolean;
+  showBrand:   boolean;
+  priceMode:   LabelPriceMode;
+  qty:         number;
+}
+
+const DEFAULT_LABEL: LabelSettings = {
+  sizeIdx: 0, showBarcode: true, showSku: true,
+  showName: true, showBrand: false, priceMode: 'rrp', qty: 1,
+};
+
+function BarcodeLabelDialog({ product, variants, onClose }: {
+  product:  any;
+  variants: any[];
+  onClose:  () => void;
+}) {
+  const [settings, setSettings] = useState<LabelSettings>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('ims_label_settings') ?? '');
+      return { ...DEFAULT_LABEL, ...saved };
+    } catch { return DEFAULT_LABEL; }
+  });
+  const [selectedVariantIdx, setSelectedVariantIdx] = useState(0);
+
+  const set = <K extends keyof LabelSettings>(k: K, v: LabelSettings[K]) =>
+    setSettings(prev => {
+      const next = { ...prev, [k]: v };
+      localStorage.setItem('ims_label_settings', JSON.stringify(next));
+      return next;
+    });
+
+  const variant  = variants[selectedVariantIdx] ?? variants[0];
+  const size     = LABEL_SIZES[settings.sizeIdx];
+
+  const fmtPrice = (p: any) =>
+    p != null && !isNaN(Number(p)) ? `$${Number(p).toFixed(2)}` : '';
+
+  const printLabels = () => {
+    const s  = size;
+    const hasBarcode = settings.showBarcode && variant?.barcode;
+    const name      = settings.showName  ? (product.name ?? '') : '';
+    const brand     = settings.showBrand ? (product.brand ?? '') : '';
+    const sku       = settings.showSku   ? (variant?.sku ?? '') : '';
+    const rrp       = fmtPrice(variant?.price_rrp);
+    const sale      = fmtPrice(variant?.price_rrp_sale);
+
+    let priceHtml = '';
+    if (settings.priceMode === 'rrp') {
+      priceHtml = rrp ? `<div class="price">${rrp}</div>` : '';
+    } else if (settings.priceMode === 'sale') {
+      priceHtml = sale
+        ? `<div class="price-row">${rrp ? `<span class="rrp-strike">${rrp}</span>` : ''}<span class="price-sale">${sale}</span></div>`
+        : (rrp ? `<div class="price">${rrp}</div>` : '');
+    }
+
+    const singleLabel = `
+      <div class="label">
+        ${brand    ? `<div class="brand">${brand}</div>` : ''}
+        ${name     ? `<div class="pname">${name}</div>` : ''}
+        ${hasBarcode ? `<div class="barcode">${variant.barcode}</div>` : ''}
+        ${sku      ? `<div class="sku">${sku}</div>` : ''}
+        ${priceHtml}
+      </div>`;
+
+    const labelsHtml = Array.from({ length: settings.qty }).map(() => singleLabel).join('');
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128+Text&display=swap">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    @page { size: ${s.w}mm ${s.h}mm; margin: 0; }
+    body { width: ${s.w}mm; }
+    .label {
+      width: ${s.w}mm; height: ${s.h}mm;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      overflow: hidden; padding: 0.8mm 1mm;
+      page-break-after: always;
+      font-family: Arial, sans-serif;
+    }
+    .brand  { font-size: ${Math.max(4, s.h * 0.2)}pt; color: #555; text-transform: uppercase; letter-spacing: .4px; line-height: 1.1; text-align: center; }
+    .pname  { font-size: ${Math.max(5, s.h * 0.25)}pt; font-weight: 700; text-align: center; line-height: 1.1; max-width: 100%; overflow: hidden; }
+    .barcode{ font-family: 'Libre Barcode 128 Text', monospace; font-size: ${Math.min(s.h * 2.2, s.w * 1.5)}pt; line-height: 1; text-align: center; }
+    .sku    { font-size: ${Math.max(4, s.h * 0.18)}pt; letter-spacing: .5px; color: #333; text-align: center; }
+    .price  { font-size: ${Math.max(6, s.h * 0.28)}pt; font-weight: 700; text-align: center; }
+    .price-row { display: flex; align-items: center; gap: 2px; justify-content: center; }
+    .rrp-strike { font-size: ${Math.max(5, s.h * 0.2)}pt; text-decoration: line-through; color: #888; }
+    .price-sale { font-size: ${Math.max(6, s.h * 0.28)}pt; font-weight: 700; }
+  </style>
+</head>
+<body>
+  ${labelsHtml}
+  <script>
+    // Wait for fonts then print
+    document.fonts.ready.then(() => setTimeout(() => { window.print(); window.close(); }, 200));
+  </script>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank', `width=${s.w * 4},height=${s.h * 4 * settings.qty + 80}`);
+    if (!win) { alert('Please allow pop-ups to print labels.'); return; }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+  };
+
+  // Preview scale: fit label into ~300px wide preview
+  const previewScale = Math.min(280 / (size.w * 3.78), 140 / (size.h * 3.78));
+  const pwPx = size.w * 3.78 * previewScale;
+  const phPx = size.h * 3.78 * previewScale;
+  const barcodeFontPx = Math.min(size.h * 2.2 * previewScale * 1.33, size.w * 1.5 * previewScale * 1.33);
+
+  const fmtP = (p: any) => p != null && !isNaN(Number(p)) ? `$${Number(p).toFixed(2)}` : '';
+  const pRrp  = fmtP(variant?.price_rrp);
+  const pSale = fmtP(variant?.price_rrp_sale);
+
+  const optRow = (label: string, checked: boolean, onChange: (v: boolean) => void) => (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', userSelect: 'none' as const }}>
+      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} />
+      {label}
+    </label>
+  );
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      {/* Load the barcode font in the main page too so the preview works */}
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128+Text&display=swap" />
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 14, padding: 28, width: 700, maxWidth: '95vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--sv-text-strong)', flex: 1 }}>Print Barcode Labels</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>\u00d7</button>
+        </div>
+
+        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+          {/* ── Settings ── */}
+          <div style={{ flex: '1 1 280px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+            {/* Variant selector */}
+            {variants.length > 1 && (
+              <div>
+                <label style={{ ...labelStyle, display: 'block', marginBottom: 4 }}>Variant</label>
+                <select value={selectedVariantIdx} onChange={e => setSelectedVariantIdx(Number(e.target.value))} style={inputStyle}>
+                  {variants.map((v, i) => {
+                    const label = [v.option1_value, v.option2_value, v.option3_value].filter(Boolean).join(' / ') || v.sku || `Variant ${i + 1}`;
+                    return <option key={i} value={i}>{label}</option>;
+                  })}
+                </select>
+              </div>
+            )}
+
+            {/* Label size */}
+            <div>
+              <label style={{ ...labelStyle, display: 'block', marginBottom: 4 }}>Label Size</label>
+              <select value={settings.sizeIdx} onChange={e => set('sizeIdx', Number(e.target.value))} style={inputStyle}>
+                {LABEL_SIZES.map((s, i) => <option key={i} value={i}>{s.label}</option>)}
+              </select>
+            </div>
+
+            {/* Content toggles */}
+            <div>
+              <label style={{ ...labelStyle, display: 'block', marginBottom: 6 }}>Show on Label</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {optRow('Barcode', settings.showBarcode, v => set('showBarcode', v))}
+                {optRow('SKU',     settings.showSku,     v => set('showSku', v))}
+                {optRow('Product Name', settings.showName, v => set('showName', v))}
+                {optRow('Brand',   settings.showBrand,   v => set('showBrand', v))}
+              </div>
+            </div>
+
+            {/* Price mode */}
+            <div>
+              <label style={{ ...labelStyle, display: 'block', marginBottom: 6 }}>Price</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {(['none','rrp','sale'] as LabelPriceMode[]).map(m => (
+                  <label key={m} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', userSelect: 'none' as const }}>
+                    <input type="radio" checked={settings.priceMode === m} onChange={() => set('priceMode', m)} />
+                    {m === 'none' ? 'No price' : m === 'rrp' ? 'Show RRP' : 'Sale price with RRP strikeout'}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Quantity */}
+            <div>
+              <label style={{ ...labelStyle, display: 'block', marginBottom: 4 }}>Quantity (copies)</label>
+              <input type="number" min={1} max={100} value={settings.qty}
+                onChange={e => set('qty', Math.max(1, Math.min(100, Number(e.target.value) || 1)))}
+                style={{ ...inputStyle, width: 80 }} />
+            </div>
+          </div>
+
+          {/* ── Preview ── */}
+          <div style={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Preview</div>
+            <div style={{
+              width: pwPx, height: phPx,
+              background: '#fff', border: '1px solid #ccc', borderRadius: 3,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              overflow: 'hidden', padding: `${2 * previewScale}px`,
+              boxShadow: '0 2px 8px rgba(0,0,0,.18)',
+            }}>
+              <style>{`@import url('https://fonts.googleapis.com/css2?family=Libre+Barcode+128+Text&display=swap');`}</style>
+              {settings.showBrand && product.brand && (
+                <div style={{ fontSize: Math.max(7, size.h * 0.2 * previewScale * 1.2), color: '#555', textTransform: 'uppercase', letterSpacing: .3, lineHeight: 1.1, textAlign: 'center', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.brand}</div>
+              )}
+              {settings.showName && product.name && (
+                <div style={{ fontSize: Math.max(8, size.h * 0.25 * previewScale * 1.2), fontWeight: 700, lineHeight: 1.1, textAlign: 'center', color: '#000', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.name}</div>
+              )}
+              {settings.showBarcode && variant?.barcode && (
+                <div style={{ fontFamily: "'Libre Barcode 128 Text', monospace", fontSize: barcodeFontPx, lineHeight: 1, color: '#000', textAlign: 'center', maxWidth: '100%', overflow: 'hidden' }}>{variant.barcode}</div>
+              )}
+              {settings.showSku && variant?.sku && (
+                <div style={{ fontSize: Math.max(7, size.h * 0.18 * previewScale * 1.2), letterSpacing: .5, color: '#333', textAlign: 'center' }}>{variant.sku}</div>
+              )}
+              {settings.priceMode === 'rrp' && pRrp && (
+                <div style={{ fontSize: Math.max(9, size.h * 0.28 * previewScale * 1.2), fontWeight: 700, color: '#000' }}>{pRrp}</div>
+              )}
+              {settings.priceMode === 'sale' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                  {pRrp && pSale && <span style={{ fontSize: Math.max(7, size.h * 0.2 * previewScale * 1.2), textDecoration: 'line-through', color: '#888' }}>{pRrp}</span>}
+                  {(pSale || pRrp) && <span style={{ fontSize: Math.max(9, size.h * 0.28 * previewScale * 1.2), fontWeight: 700, color: '#000' }}>{pSale || pRrp}</span>}
+                </div>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{size.w} \u00d7 {size.h} mm</div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 4, borderTop: '1px solid var(--sv-etch)' }}>
+          <button onClick={onClose} style={btnStyle('ghost')}>Close</button>
+          <button onClick={printLabels} style={btnStyle('action')}>
+            🖨 Print {settings.qty > 1 ? `${settings.qty} \u00d7 ` : ''}Label{settings.qty !== 1 ? 's' : ''}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, businessId = '' }: { onNavigateToPO?: (id: number) => void; onNavigateToSO?: (id: number) => void; isAdvisor?: boolean; businessId?: string } = {}) {
   const [products, setProducts] = useState<any[]>([]);
@@ -2135,6 +2400,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const showCategories = productSettings.use_categories === 'yes';
   const showZoneBin    = productSettings.use_zones_bins  !== 'no';
   const [exporting, setExporting] = useState(false);
+  const [barcodeLabelOpen, setBarcodeLabelOpen] = useState(false);
 
   const CURRENCIES = ['USD', 'EUR', 'GBP', 'THB', 'CNY', 'JPY'];
 
@@ -3036,10 +3302,19 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           )}
 
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
+            {modal.edit && <button type="button" onClick={() => setBarcodeLabelOpen(true)} style={{ ...btnStyle('ghost'), marginRight: 'auto' }}>🏷 Print Labels</button>}
             <button type="button" onClick={() => setModal({ open: false, edit: null })} style={btnStyle('ghost')}>Cancel</button>
-            {!isAdvisor && <button type="button" onClick={handleSaveAll} disabled={saving} style={btnStyle('action')}>{saving ? 'Saving\u2026' : 'Save All'}</button>}
+            {!isAdvisor && <button type="button" onClick={handleSaveAll} disabled={saving} style={btnStyle('action')}>{saving ? 'Saving…' : 'Save All'}</button>}
           </div>
         </Modal>
+      )}
+
+      {barcodeLabelOpen && modal.edit && (
+        <BarcodeLabelDialog
+          product={modal.edit}
+          variants={variantRows.filter(r => !r._delete)}
+          onClose={() => setBarcodeLabelOpen(false)}
+        />
       )}
 
       {/* ── Brand resolution prompt ── */}
