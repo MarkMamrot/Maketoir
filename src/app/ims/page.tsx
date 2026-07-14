@@ -3590,7 +3590,9 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
     }
 
     // Display newest-first; opening balances (oldest) fall to the bottom.
-    return [...moves].reverse().concat(openings);
+    // Reverse the opening group too so the cumulative SOH/Available flows
+    // correctly when read bottom-to-top (oldest seed at the very bottom).
+    return [...moves].reverse().concat([...openings].reverse());
   }, [data, selectedVariantId, branchFilter]);
 
   const movementLabel: Record<string, string> = {
