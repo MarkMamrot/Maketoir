@@ -258,6 +258,33 @@ export class ShopifyService {
     await (this.shopify as any).productVariant.update(Number(id), updates);
   }
 
+  /**
+   * Update prices for ALL variants of one Shopify product in a single GraphQL
+   * call using `productVariantsBulkUpdate`. Far faster than one REST call per
+   * variant — ideal for syncing large catalogues.
+   */
+  async bulkUpdateVariantPrices(
+    shopifyProductId: string,
+    variants: Array<{ shopify_variant_id: string; price: string; compare_at_price: string | null }>,
+  ): Promise<{ userErrors: Array<{ field: string[]; message: string }> }> {
+    if (!variants.length) return { userErrors: [] };
+    const mutation = `
+      mutation bulkUpdatePrices($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+        productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+          userErrors { field message }
+        }
+      }`;
+    const res: any = await (this.shopify as any).graphql(mutation, {
+      productId: `gid://shopify/Product/${shopifyProductId}`,
+      variants: variants.map(v => ({
+        id:             `gid://shopify/ProductVariant/${v.shopify_variant_id}`,
+        price:          v.price,
+        compareAtPrice: v.compare_at_price,   // null clears the compare-at price
+      })),
+    });
+    return { userErrors: res?.productVariantsBulkUpdate?.userErrors ?? [] };
+  }
+
   /** Create a new product in Shopify. Returns the created product (with variants). */
   async createProduct(payload: Record<string, any>): Promise<any> {
     return (this.shopify as any).product.create(payload);
