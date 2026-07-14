@@ -2133,6 +2133,8 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const [contacts, setContacts] = useState<{ id: number; name: string; type: string }[]>([]);
   const { settings: productSettings } = useImsSettings();
   const showCategories = productSettings.use_categories === 'yes';
+  const showZoneBin    = productSettings.use_zones_bins  !== 'no';
+  const [exporting, setExporting] = useState(false);
 
   const CURRENCIES = ['USD', 'EUR', 'GBP', 'THB', 'CNY', 'JPY'];
 
@@ -2495,6 +2497,98 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
     <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
   );
 
+  const downloadProductsCsv = async () => {
+    setExporting(true);
+    try {
+      // Fetch per-location stock (zone, bin, min_qty, reorder_qty)
+      const stockRes  = await fetch('/api/ims/stock');
+      const stockData = await stockRes.json();
+      const stockRows: any[] = stockData.success ? stockData.data : [];
+
+      // Build stock lookup: variant_id → location_id → stock row
+      const stockMap   = new Map<string, Map<number, any>>();
+      const locationMap = new Map<number, string>(); // id → name
+      for (const s of stockRows) {
+        if (!stockMap.has(s.variant_id)) stockMap.set(s.variant_id, new Map());
+        stockMap.get(s.variant_id)!.set(s.location_id, s);
+        if (s.location_name) locationMap.set(s.location_id, s.location_name);
+      }
+      const locs = Array.from(locationMap.entries())
+        .sort((a, b) => a[1].localeCompare(b[1]))
+        .map(([id, name]) => ({ id, name }));
+
+      // Build headers — same structure as the import template
+      const catCols: string[]    = showCategories ? ['Category', 'Subcategory'] : [];
+      const perLocCols: string[] = [];
+      for (const loc of locs) {
+        if (showZoneBin) perLocCols.push(`${loc.name} - Zone`, `${loc.name} - Bin`);
+        perLocCols.push(`${loc.name} - Min Qty`, `${loc.name} - Reorder Qty`);
+      }
+      const headers = [...IMPORT_BASE_HEADERS, ...catCols, ...perLocCols];
+
+      // CSV escape helper
+      const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+
+      const lines: string[] = [headers.map(esc).join(',')];
+
+      for (const p of products) {
+        const variants: any[] = p.variants || [];
+        for (const v of variants) {
+          let fc: Record<string, any> = {};
+          try { fc = JSON.parse(v.cost_foreign ?? '{}'); } catch {}
+
+          const cells: any[] = [
+            p.name,
+            v.sku ?? '',
+            v.barcode ?? '',
+            p.description ?? '',
+            p.brand ?? '',
+            p.supplier_name ?? '',
+            p.product_type ?? '',
+            p.tags ?? '',
+            p.style_code ?? '',
+            p.is_online ? 'yes' : 'no',
+            v.pack_size ?? '',
+            v.option1_name ?? '',
+            v.option1_value ?? '',
+            v.option2_name ?? '',
+            v.option2_value ?? '',
+            v.option3_name ?? '',
+            v.option3_value ?? '',
+            v.price_rrp ?? '',
+            v.price_wholesale ?? '',
+            v.cost_aud ?? '',
+            ...CURRENCIES.map(c => fc[c] ?? ''),
+            v.weight_kg ?? '',
+          ];
+
+          if (showCategories) cells.push(p.category ?? '', p.subcategory ?? '');
+
+          const varStock = stockMap.get(v.variant_id) ?? new Map();
+          for (const loc of locs) {
+            const s = varStock.get(loc.id);
+            if (showZoneBin) cells.push(s?.zone ?? '', s?.bin ?? '');
+            cells.push(s?.min_qty ?? 0, s?.reorder_qty ?? 0);
+          }
+
+          lines.push(cells.map(esc).join(','));
+        }
+      }
+
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `products-export-${new Date().toLocaleDateString('sv-SE')}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      alert('Export failed: ' + e.message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const cellInput: React.CSSProperties = {
     width: '100%', padding: '4px 6px', background: 'var(--sv-bg-1)',
     border: '1px solid var(--sv-etch)', borderRadius: 4, color: 'var(--sv-text-main)',
@@ -2505,6 +2599,9 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Products</h1>
+        <button onClick={downloadProductsCsv} disabled={exporting || products.length === 0} style={btnStyle('ghost')}>
+          {exporting ? 'Exporting…' : '⬇ Export CSV'}
+        </button>
         <button onClick={() => setImportProductsOpen(true)} style={btnStyle('ghost')}>⬆ Import Products</button>
         {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New Product</button>}
       </div>
