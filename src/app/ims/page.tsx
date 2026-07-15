@@ -2448,10 +2448,16 @@ function ForesightProductSection({ product, businessId, onApplyContent }: {
   const [urls, setUrls] = useState<[string, string, string]>(['', '', '']);
   const [findingUrls, setFindingUrls] = useState(false);
   const [researching, setResearching] = useState(false);
-  const [researchResult, setResearchResult] = useState<{ answer: string; urls: string[] } | null>(null);
+  const [researchResult, setResearchResult] = useState<{ answer: string; urls: string[]; images: string[] } | null>(null);
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState<{ title: string; websiteDescription: string; tags: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Filter out thumbnail/icon noise (same heuristic as Foresight dashboard)
+  const filterImages = (imgs: string[]): string[] => {
+    const noise = /thumb|icon|swatch|logo|favicon|width=[0-9]{1,2}(?![0-9])/i;
+    return [...new Set(imgs.filter(u => u && !noise.test(u)))].slice(0, 20);
+  };
 
   const handleFindUrls = async () => {
     setFindingUrls(true); setError(null);
@@ -2473,14 +2479,35 @@ function ForesightProductSection({ product, businessId, onApplyContent }: {
     const topUrl = urls[0]?.trim();
     setResearching(true); setError(null); setResearchResult(null);
     try {
-      const res = await fetch('/api/website/tavily-preflight', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ product: { name: product.name, brand: product.brand ?? '' }, firstUrl: topUrl || undefined }),
+      // Fetch research from all three URLs in parallel, then aggregate images
+      const nonEmptyUrls = urls.filter(Boolean);
+      const requests = nonEmptyUrls.length > 0
+        ? nonEmptyUrls.map(url =>
+            fetch('/api/website/tavily-preflight', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ product: { name: product.name, brand: product.brand ?? '' }, firstUrl: url }),
+            }).then(r => r.json()).catch(() => ({}))
+          )
+        : [
+            fetch('/api/website/tavily-preflight', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ product: { name: product.name, brand: product.brand ?? '' } }),
+            }).then(r => r.json()).catch(() => ({}))
+          ];
+
+      const results = await Promise.all(requests);
+      const primary = results[0] ?? {};
+      if (primary.error) { setError(primary.error ?? 'Research failed'); return; }
+
+      // Aggregate images from all URL results, deduplicated and filtered
+      const allImages: string[] = results.flatMap(r => r.images ?? []);
+      setResearchResult({
+        answer: primary.answer ?? '',
+        urls:   primary.urls   ?? [],
+        images: filterImages(allImages),
       });
-      const d = await res.json();
-      if (!res.ok || d.error) { setError(d.error ?? 'Research failed'); return; }
-      setResearchResult({ answer: d.answer ?? '', urls: d.urls ?? [] });
     } catch (e: any) { setError(e.message); }
     finally { setResearching(false); }
   };
@@ -2602,8 +2629,45 @@ function ForesightProductSection({ product, businessId, onApplyContent }: {
                 </button>
               </div>
               {researchResult && (
-                <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '10px 12px', fontSize: 12, color: 'var(--sv-text-main)', lineHeight: 1.6, maxHeight: 160, overflowY: 'auto' }}>
-                  {researchResult.answer || <span style={{ color: 'var(--sv-text-dim)', fontStyle: 'italic' }}>No summary returned — try with a URL in Step 1.</span>}
+                <div>
+                  {/* Summary text */}
+                  {researchResult.answer && (
+                    <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '10px 12px', fontSize: 12, color: 'var(--sv-text-main)', lineHeight: 1.6, maxHeight: 140, overflowY: 'auto', marginBottom: researchResult.images.length > 0 ? 10 : 0 }}>
+                      {researchResult.answer}
+                    </div>
+                  )}
+                  {!researchResult.answer && (
+                    <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '10px 12px', fontSize: 12, color: 'var(--sv-text-dim)', fontStyle: 'italic', marginBottom: researchResult.images.length > 0 ? 10 : 0 }}>
+                      No summary returned — try with a URL in Step 1.
+                    </div>
+                  )}
+                  {/* Product images from research */}
+                  {researchResult.images.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                        Product Images ({researchResult.images.length})
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+                        {researchResult.images.map((imgUrl, idx) => (
+                          <a
+                            key={idx}
+                            href={imgUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={imgUrl}
+                            style={{ flexShrink: 0, display: 'block', width: 90, height: 90, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}
+                          >
+                            <img
+                              src={imgUrl}
+                              alt={`Product image ${idx + 1}`}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                              onError={e => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; }}
+                            />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
