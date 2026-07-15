@@ -3504,10 +3504,9 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto' }}>
           <table style={{ minWidth: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
-              <col style={{ width: 36, minWidth: 36 }} />{/* expand */}
               <col style={{ width: 32, minWidth: 32 }} />{/* checkbox */}
               <col style={{ width: 90, minWidth: 90 }} />{/* SKU */}
-              <col style={{ width: 180, minWidth: 160 }} />{/* name */}
+              <col style={{ width: 280, minWidth: 280 }} />{/* name */}
               <col style={{ width: 120, minWidth: 120 }} />{/* barcode */}
               {showCols.product_type && <col style={{ width: 140, minWidth: 140 }} />}{/* product type */}
               <col style={{ width: 130, minWidth: 130 }} />{/* brand */}
@@ -3523,31 +3522,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             </colgroup>
             <thead>
               <tr style={{ background: 'var(--sv-bg-2)', position: 'sticky', top: 0, zIndex: 10 }}>
-                <th style={{ padding: '10px 8px 10px 12px', borderBottom: '1px solid var(--sv-etch)' }}>
-                  {expandableVisibleIds.length > 0 && (
-                    <button
-                      onClick={() => {
-                        ensureStockSohLoaded();
-                        setExpandedIds(prev => {
-                          const next = new Set(prev);
-                          if (allExpandableVisibleExpanded) {
-                            expandableVisibleIds.forEach((id: string) => next.delete(id));
-                          } else {
-                            expandableVisibleIds.forEach((id: string) => next.add(id));
-                          }
-                          return next;
-                        });
-                      }}
-                      title={allExpandableVisibleExpanded ? 'Collapse all on page' : 'Expand all on page'}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', padding: 0, display: 'inline-flex', alignItems: 'center' }}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transform: allExpandableVisibleExpanded ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>
-                        <path d="M9 18l6-6-6-6" />
-                      </svg>
-                    </button>
-                  )}
-                </th>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid var(--sv-etch)' }}>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid var(--sv-etch)', position: 'sticky', top: 0, background: 'var(--sv-bg-2)', zIndex: 10 }}>
                   <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAll} style={{ cursor: 'pointer' }} />
                 </th>
                 {([
@@ -3567,7 +3542,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                   ['created_at','Created']
                 ] as [string,string][]).map(([col, label]) => (
                   <th key={col} onClick={() => toggleSort(col)}
-                    style={{ padding: '10px 12px', borderBottom: '1px solid var(--sv-etch)', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                    style={{ padding: '10px 12px', borderBottom: '1px solid var(--sv-etch)', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', position: 'sticky', top: 0, background: 'var(--sv-bg-2)', zIndex: 10 }}>
                     {label}<SortIcon col={col} />
                   </th>
                 ))}
@@ -3586,16 +3561,6 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                 return (
                 <React.Fragment key={p.product_id}>
                   <tr style={{ background: selected.has(p.product_id) ? 'color-mix(in srgb, var(--sv-action) 10%, transparent)' : i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}>
-                    <td style={{ padding: '10px 8px 10px 12px', borderTop: '1px solid var(--sv-etch)' }}>
-                      {(p.variants || []).length > 0 && (
-                        <button onClick={() => handleExpand(p.product_id)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', padding: 0 }}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transform: expandedIds.has(p.product_id) ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>
-                            <path d="M9 18l6-6-6-6" />
-                          </svg>
-                        </button>
-                      )}
-                    </td>
                     <td style={{ padding: '10px 8px' }}>
                       <input type="checkbox" checked={selected.has(p.product_id)} onChange={() => toggleSelect(p.product_id)} style={{ cursor: 'pointer' }} />
                     </td>
@@ -3647,7 +3612,9 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                       {aggSoh === null
                         ? (stockSohLoading ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>loading…</span> : '—')
                         : (
-                          <span style={{ color: aggSoh === 0 ? 'var(--sv-text-dim)' : 'var(--sv-text-main)', fontWeight: 600 }}>
+                          <span 
+                            onClick={() => openHistory(p.product_id, variants[0]?.variant_id)}
+                            style={{ color: aggSoh === 0 ? 'var(--sv-text-dim)' : 'var(--sv-action)', fontWeight: 600, cursor: 'pointer' }}>
                             {fmtQty(aggSoh)}
                           </span>
                         )
