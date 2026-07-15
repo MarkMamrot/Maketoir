@@ -18,10 +18,12 @@ interface Props {
   productTitle?: string;
   productDescription?: string;
   productTags?: string;
+  /** Increment this number externally to trigger a re-fetch (e.g. after Foresight adds an image). */
+  imageAddedKey?: number;
   onApplyText?: (fields: { title?: string; description?: string; tags?: string }) => void;
 }
 
-export default function ProductImageGallery({ productId, productName = 'Product', businessId = '', productTitle = '', productDescription = '', productTags = '', onApplyText }: Props) {
+export default function ProductImageGallery({ productId, productName = 'Product', businessId = '', productTitle = '', productDescription = '', productTags = '', imageAddedKey, onApplyText }: Props) {
   const [images, setImages]       = useState<ProductImage[]>([]);
   const [loading, setLoading]     = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -30,6 +32,10 @@ export default function ProductImageGallery({ productId, productName = 'Product'
   const [error, setError]         = useState<string | null>(null);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Drag-and-drop reorder state
+  const [dragSrcId,  setDragSrcId]  = useState<number | null>(null);
+  const [dragOverId, setDragOverId] = useState<number | null>(null);
 
   const fetchImages = async () => {
     try {
@@ -41,8 +47,10 @@ export default function ProductImageGallery({ productId, productName = 'Product'
   };
 
   useEffect(() => { fetchImages(); }, [productId]);
+  // Re-fetch when an external caller adds an image (e.g. Foresight)
+  useEffect(() => { if (imageAddedKey) fetchImages(); }, [imageAddedKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const primary  = images.find(i => i.is_primary) ?? images[0];
+  const primary  = images[0] ?? null; // first sorted image = primary
   const thumbs   = images.filter(i => i.id !== primary?.id);
 
   const setPrimary = async (id: number) => {
@@ -102,6 +110,46 @@ export default function ProductImageGallery({ productId, productName = 'Product'
   const sourceLabel = (s: string) =>
     s === 'shopify' ? '🛍' : s === 'google_drive' ? '📁' : '🔗';
 
+  // ── Drag-and-drop reorder ──────────────────────────────────────────────────
+  const handleDragStart = (e: React.DragEvent, id: number) => {
+    setDragSrcId(id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent, id: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (id !== dragSrcId) setDragOverId(id);
+  };
+
+  const handleDragEnd = () => { setDragSrcId(null); setDragOverId(null); };
+
+  const handleDrop = async (e: React.DragEvent, targetId: number) => {
+    e.preventDefault();
+    if (!dragSrcId || dragSrcId === targetId) { handleDragEnd(); return; }
+
+    const newOrder = [...images];
+    const srcIdx = newOrder.findIndex(i => i.id === dragSrcId);
+    const tgtIdx = newOrder.findIndex(i => i.id === targetId);
+    if (srcIdx < 0 || tgtIdx < 0) { handleDragEnd(); return; }
+
+    const [moved] = newOrder.splice(srcIdx, 1);
+    newOrder.splice(tgtIdx, 0, moved);
+
+    // Optimistic UI update
+    setImages(newOrder);
+    setDragSrcId(null); setDragOverId(null);
+
+    try {
+      await fetch(`/api/ims/products/${productId}/images`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reorder', ordered_ids: newOrder.map(i => i.id) }),
+      });
+      await fetchImages(); // re-fetch to pick up updated is_primary + sort_order
+    } catch {}
+  };
+
   if (loading) return <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', padding: '8px 0' }}>Loading images…</div>;
 
   return (
@@ -157,21 +205,50 @@ export default function ProductImageGallery({ productId, productName = 'Product'
         {/* Thumbnails */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {thumbs.map(img => (
-              <div key={img.id} style={{
-                width: 64, height: 64, borderRadius: 6,
-                border: '1px solid var(--sv-etch)', overflow: 'hidden',
-                position: 'relative', background: 'var(--sv-bg-2)', cursor: 'pointer', flexShrink: 0,
-              }}>
-                <img
-                  src={img.url} alt={img.alt_text ?? ''}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: img.url.match(/\.(mp4|mov|webm)$/i) ? 'none' : 'block' }}
-                  onClick={() => setPrimary(img.id)}
-                  title="Click to set as primary"
-                />
-                {img.url.match(/\.(mp4|mov|webm)$/i) && (
-                  <div onClick={() => setPrimary(img.id)} title="Click to set as primary"
-                    style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, cursor: 'pointer', background: 'var(--sv-bg-2)' }}>🎬</div>
+            {/* Show ALL images as draggable tiles; first = primary */}
+            {images.map((img, idx) => (
+              <div
+                key={img.id}
+                draggable
+                onDragStart={e => handleDragStart(e, img.id)}
+                onDragOver={e => handleDragOver(e, img.id)}
+                onDragEnd={handleDragEnd}
+                onDrop={e => handleDrop(e, img.id)}
+                style={{
+                  width: 64, height: 64, borderRadius: 6,
+                  border: dragOverId === img.id
+                    ? '2px solid var(--sv-action)'
+                    : idx === 0
+                      ? '2px solid var(--sv-mint)'
+                      : '1px solid var(--sv-etch)',
+                  overflow: 'hidden',
+                  position: 'relative', background: 'var(--sv-bg-2)',
+                  cursor: 'grab', flexShrink: 0,
+                  opacity: dragSrcId === img.id ? 0.45 : 1,
+                  transition: 'opacity .15s, border .1s',
+                }}
+                title={idx === 0 ? 'Primary image (drag to reorder)' : 'Drag to reorder · click to set as primary'}
+              >
+                {img.url.match(/\.(mp4|mov|webm)$/i)
+                  ? <div onClick={() => idx > 0 && setPrimary(img.id)}
+                      style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, background: 'var(--sv-bg-2)' }}>🎬</div>
+                  : <img
+                      src={img.url} alt={img.alt_text ?? ''}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }}
+                    />
+                }
+                {/* Primary badge */}
+                {idx === 0 && (
+                  <span style={{
+                    position: 'absolute', bottom: 2, left: 2, fontSize: 9,
+                    background: 'rgba(16,185,129,.85)', color: '#fff', borderRadius: 3, padding: '0 3px',
+                  }}>★ Primary</span>
+                )}
+                {idx > 0 && (
+                  <span style={{
+                    position: 'absolute', bottom: 2, left: 2, fontSize: 9,
+                    background: 'rgba(0,0,0,0.5)', color: '#fff', borderRadius: 3, padding: '0 3px',
+                  }}>{sourceLabel(img.source)}</span>
                 )}
                 <button
                   onClick={() => deleteImage(img.id)}
@@ -183,10 +260,6 @@ export default function ProductImageGallery({ productId, productName = 'Product'
                     cursor: 'pointer', fontSize: 10, lineHeight: '18px', textAlign: 'center',
                   }}
                 >×</button>
-                <span style={{
-                  position: 'absolute', bottom: 2, left: 2, fontSize: 9,
-                  background: 'rgba(0,0,0,0.5)', color: '#fff', borderRadius: 3, padding: '0 3px',
-                }}>{sourceLabel(img.source)}</span>
               </div>
             ))}
 
@@ -268,7 +341,7 @@ export default function ProductImageGallery({ productId, productName = 'Product'
           )}
 
           <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>
-            {images.length}/5 images · click thumbnail to set primary
+            {images.length}/5 images · drag to reorder · first image = primary
           </div>
         </div>
       </div>

@@ -2442,10 +2442,11 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
 }
 
 
-function ForesightProductSection({ product, businessId, onApplyContent }: {
+function ForesightProductSection({ product, businessId, onApplyContent, onImageAdded }: {
   product: any;
   businessId: string;
   onApplyContent: (title: string | null, description: string | null, tags: string | null) => void;
+  onImageAdded?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [urls, setUrls] = useState<[string, string, string]>(['', '', '']);
@@ -2464,6 +2465,27 @@ function ForesightProductSection({ product, businessId, onApplyContent }: {
   const [useSupplierSite, setUseSupplierSite] = useState(true);
   const [useBrandSite, setUseBrandSite] = useState(true);
   const [useGeneralResults, setUseGeneralResults] = useState(true);
+  const [searchAuOnly, setSearchAuOnly] = useState(true);
+
+  // Add-image state for research images
+  const [addingImages, setAddingImages] = useState<Set<string>>(new Set());
+  const [addedImages,  setAddedImages]  = useState<Set<string>>(new Set());
+
+  const handleAddImage = async (url: string) => {
+    const productId = product.product_id;
+    if (!productId) return;
+    setAddingImages(prev => new Set(prev).add(url));
+    try {
+      const res = await fetch(`/api/ims/products/${productId}/images`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, source: 'external' }),
+      });
+      const d = await res.json();
+      if (d.success) { setAddedImages(prev => new Set(prev).add(url)); onImageAdded?.(); }
+    } catch {}
+    setAddingImages(prev => { const s = new Set(prev); s.delete(url); return s; });
+  };
 
   // Extract bare domain for display
   const getDomain = (url: string) => {
@@ -2517,6 +2539,7 @@ function ForesightProductSection({ product, businessId, onApplyContent }: {
           preferred_sites: activePrefSites,
           excluded_sites: excludedSites,
           include_general: useGeneralResults,
+          search_au_only: searchAuOnly,
         }),
       });
       const d = await res.json();
@@ -2653,6 +2676,11 @@ function ForesightProductSection({ product, businessId, onApplyContent }: {
                 <input type="checkbox" checked={useGeneralResults} onChange={e => setUseGeneralResults(e.target.checked)} style={{ cursor: 'pointer' }} />
                 General web
               </label>
+              <span style={{ borderLeft: '1px solid var(--sv-etch)', alignSelf: 'stretch', margin: '0 4px' }} />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer', color: 'var(--sv-text)' }} title="Restrict Serper search to Australian results (gl=au)">
+                <input type="checkbox" checked={searchAuOnly} onChange={e => setSearchAuOnly(e.target.checked)} style={{ cursor: 'pointer' }} />
+                🇦🇺 AU only
+              </label>
               {!supplierSite && !brandSite && (
                 <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontStyle: 'italic' }}>Add supplier / brand URLs on the Contacts &amp; Brands pages to prioritise their sites</span>
               )}
@@ -2725,21 +2753,40 @@ function ForesightProductSection({ product, businessId, onApplyContent }: {
                       </div>
                       <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
                         {researchResult.images.map((imgUrl, idx) => (
-                          <a
-                            key={idx}
-                            href={imgUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title={imgUrl}
-                            style={{ flexShrink: 0, display: 'block', width: 90, height: 90, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}
-                          >
-                            <img
-                              src={imgUrl}
-                              alt={`Product image ${idx + 1}`}
-                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                              onError={e => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; }}
-                            />
-                          </a>
+                          <div key={idx} style={{ flexShrink: 0, position: 'relative', width: 90, height: 90 }}>
+                            <a
+                              href={imgUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={imgUrl}
+                              style={{ display: 'block', width: 90, height: 90, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}
+                            >
+                              <img
+                                src={imgUrl}
+                                alt={`Product image ${idx + 1}`}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                onError={e => { (e.currentTarget.closest('div') as HTMLElement).style.display = 'none'; }}
+                              />
+                            </a>
+                            {/* Quick-add to product images */}
+                            <button
+                              onClick={() => handleAddImage(imgUrl)}
+                              disabled={addingImages.has(imgUrl) || addedImages.has(imgUrl)}
+                              title={addedImages.has(imgUrl) ? 'Already added to product images' : 'Add to product images'}
+                              style={{
+                                position: 'absolute', bottom: 4, right: 4,
+                                width: 22, height: 22, borderRadius: '50%',
+                                background: addedImages.has(imgUrl) ? 'rgba(16,185,129,.85)' : 'rgba(0,0,0,.65)',
+                                color: '#fff', border: 'none',
+                                cursor: addedImages.has(imgUrl) ? 'default' : 'pointer',
+                                fontSize: addedImages.has(imgUrl) ? 12 : 16, lineHeight: '22px',
+                                textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {addingImages.has(imgUrl) ? '…' : addedImages.has(imgUrl) ? '✓' : '+'}
+                            </button>
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -2766,25 +2813,46 @@ function ForesightProductSection({ product, businessId, onApplyContent }: {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {generated.title && (
                     <div>
-                      <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Title</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                        <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Title</span>
+                        <button
+                          onClick={() => onApplyContent(generated.title || null, null, null)}
+                          title="Apply title to product name field"
+                          style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
+                        >↙ Apply</button>
+                      </div>
                       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 13, color: 'var(--sv-text-strong)' }}>{generated.title}</div>
                     </div>
                   )}
                   {generated.websiteDescription && (
                     <div>
-                      <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Description (HTML)</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                        <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Description (HTML)</span>
+                        <button
+                          onClick={() => onApplyContent(null, generated.websiteDescription || null, null)}
+                          title="Apply description to product description field"
+                          style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
+                        >↙ Apply</button>
+                      </div>
                       <pre style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 11, color: 'var(--sv-text-main)', overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 140, overflowY: 'auto', margin: 0 }}>{generated.websiteDescription}</pre>
                     </div>
                   )}
                   {generated.tags && (
                     <div>
-                      <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Tags</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                        <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Tags</span>
+                        <button
+                          onClick={() => onApplyContent(null, null, generated.tags || null)}
+                          title="Apply tags to product tags field"
+                          style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
+                        >↙ Apply</button>
+                      </div>
                       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 12, color: 'var(--sv-text-main)' }}>{generated.tags}</div>
                     </div>
                   )}
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <button onClick={handleApply} style={btnStyle('action', 'sm')}>Apply to Product</button>
-                    <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Updates Title, Description and Tags fields above — save afterwards</span>
+                    <button onClick={handleApply} style={btnStyle('action', 'sm')}>Apply All to Product</button>
+                    <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Applies all fields — or use ↙ Apply on individual fields above</span>
                     <button onClick={() => setGenerated(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 12 }}>Discard</button>
                   </div>
                 </div>
@@ -2836,6 +2904,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const showZoneBin    = productSettings.use_zones_bins  !== 'no';
   const [exporting, setExporting] = useState(false);
   const [barcodeLabelOpen, setBarcodeLabelOpen] = useState(false);
+  const [galleryRefreshKey, setGalleryRefreshKey] = useState(0);
 
   const CURRENCIES = ['USD', 'EUR', 'GBP', 'THB', 'CNY', 'JPY'];
 
@@ -3608,6 +3677,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                   productTitle={form.name ?? ''}
                   productDescription={form.description ?? ''}
                   productTags={form.tags ?? ''}
+                  imageAddedKey={galleryRefreshKey}
                   onApplyText={(f) => setForm((p: any) => ({
                     ...p,
                     ...(f.title       !== undefined ? { name: f.title } : {}),
@@ -3742,10 +3812,14 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               product={modal.edit}
               businessId={businessId}
               onApplyContent={(title, description, tags) => {
-                if (title)       setForm((p: any) => ({ ...p, name: title }));
-                if (description) setForm((p: any) => ({ ...p, description }));
-                if (tags)        setForm((p: any) => ({ ...p, tags }));
+                setForm((p: any) => ({
+                  ...p,
+                  ...(title       !== null ? { name:        title       } : {}),
+                  ...(description !== null ? { description: description } : {}),
+                  ...(tags        !== null ? { tags:        tags        } : {}),
+                }));
               }}
+              onImageAdded={() => setGalleryRefreshKey(k => k + 1)}
             />
           )}
 

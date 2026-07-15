@@ -21,7 +21,7 @@ async function serperQuery(query: string, apiKey: string, num = 20): Promise<str
   const res = await fetch('https://google.serper.dev/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-API-KEY': apiKey },
-    body: JSON.stringify({ q: query, gl: 'au', num }),
+    body: JSON.stringify(search_au_only ? { q: query, gl: 'au', num } : { q: query, num }),
     signal: AbortSignal.timeout(15000),
   });
   if (!res.ok) return [];
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { product, preferred_sites = [], excluded_sites = [], include_general = true } = body;
+    const { product, preferred_sites = [], excluded_sites = [], include_general = true, search_au_only = true } = body;
     if (!product?.name || !product?.brand) {
       return NextResponse.json(
         { error: 'product.name and product.brand are required.' },
