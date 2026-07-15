@@ -73,6 +73,7 @@ export interface ImsContact {
   lead_time_days?: number; order_frequency_days?: number; cin7_supplier_id?: number; cin7_contact_id?: number;
   is_active: number; price_tier?: string;
   charges_tax?: number; prices_include_tax?: number; tax_rate?: number;
+  website_url?: string;
   created_at?: string; updated_at?: string;
 }
 
@@ -289,20 +290,21 @@ export const ImsContactsRepo = {
 
   async create(data: Omit<ImsContact, 'id' | 'created_at' | 'updated_at'>, businessId?: string): Promise<number> {
     const res = await imsExecute(
-      `INSERT INTO ims_contacts (business_id,type,name,company,email,phone,address,city,state,postcode,country,notes,is_active,cin7_supplier_id,lead_time_days,order_frequency_days,price_tier,charges_tax,prices_include_tax,tax_rate)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO ims_contacts (business_id,type,name,company,email,phone,address,city,state,postcode,country,notes,is_active,cin7_supplier_id,lead_time_days,order_frequency_days,price_tier,charges_tax,prices_include_tax,tax_rate,website_url)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [businessId ?? '', data.type, data.name, data.company, data.email, data.phone,
        data.address, data.city, data.state, data.postcode, data.country,
        data.notes, data.is_active ?? 1, data.cin7_supplier_id ?? null, data.lead_time_days ?? null,
        data.order_frequency_days ?? 45,
        data.price_tier ?? 'retail',
-       data.charges_tax ?? 1, data.prices_include_tax ?? 0, data.tax_rate ?? null]
+       data.charges_tax ?? 1, data.prices_include_tax ?? 0, data.tax_rate ?? null,
+       data.website_url ?? null]
     );
     return res.insertId;
   },
 
   async update(id: number, data: Partial<ImsContact>): Promise<void> {
-    const fields = ['type','name','company','email','phone','address','city','state','postcode','country','notes','is_active','cin7_supplier_id','lead_time_days','order_frequency_days','price_tier','charges_tax','prices_include_tax','tax_rate'];
+    const fields = ['type','name','company','email','phone','address','city','state','postcode','country','notes','is_active','cin7_supplier_id','lead_time_days','order_frequency_days','price_tier','charges_tax','prices_include_tax','tax_rate','website_url'];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of fields) {
@@ -600,10 +602,10 @@ export const ImsVariantsRepo = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const ImsBrandsRepo = {
-  async list(businessId?: string): Promise<{ id: number; name: string; created_at: string }[]> {
+  async list(businessId?: string): Promise<{ id: number; name: string; website_url: string | null; created_at: string }[]> {
     const where = businessId ? 'WHERE business_id = ?' : '';
     const params = businessId ? [businessId] : [];
-    return imsQuery(`SELECT id, name, created_at FROM ims_brands ${where} ORDER BY name`, params);
+    return imsQuery(`SELECT id, name, website_url, created_at FROM ims_brands ${where} ORDER BY name`, params);
   },
 
   async create(name: string, businessId?: string): Promise<number> {
@@ -611,8 +613,11 @@ export const ImsBrandsRepo = {
     return (res as any).insertId;
   },
 
-  async update(id: number, name: string): Promise<void> {
-    await imsExecute('UPDATE ims_brands SET name = ? WHERE id = ?', [name.trim(), id]);
+  async update(id: number, name: string, websiteUrl?: string | null): Promise<void> {
+    await imsExecute(
+      'UPDATE ims_brands SET name = ?, website_url = ? WHERE id = ?',
+      [name.trim(), websiteUrl !== undefined ? (websiteUrl || null) : null, id]
+    );
   },
 
   async delete(id: number): Promise<void> {

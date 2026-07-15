@@ -5146,10 +5146,23 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     setSerperSearchingSet(prev => new Set(prev).add(key));
     setExpandedCode(key);
     try {
+      // Look up brand/supplier website URLs to prioritise in search results
+      let preferred_sites: string[] = [];
+      try {
+        const qs = product.brand ? `?brand=${encodeURIComponent(product.brand)}` : '';
+        if (qs) {
+          const siteRes = await fetch(`/api/ims/supplier-brand-urls${qs}`);
+          const siteData = await siteRes.json();
+          if (siteData.success) {
+            preferred_sites = [siteData.brand_url, siteData.supplier_url].filter(Boolean) as string[];
+          }
+        }
+      } catch { /* non-fatal */ }
+
       const res = await fetch('/api/website/serper-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ product }),
+        body: JSON.stringify({ product, preferred_sites }),
       });
       const data = await res.json();
       if (!res.ok || data.error) {
@@ -5274,11 +5287,20 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     setAutomatingSet(prev => new Set(prev).add(key));
     setExpandedCode(key);
     try {
-      // Step 1: Find URLs
+      // Step 1: Find URLs (using preferred brand/supplier domains if configured)
       step('Step 1/5: Finding URLs…');
+      let preferred_sites: string[] = [];
+      try {
+        const qs = product.brand ? `?brand=${encodeURIComponent(product.brand)}` : '';
+        if (qs) {
+          const siteRes = await fetch(`/api/ims/supplier-brand-urls${qs}`);
+          const siteData = await siteRes.json();
+          if (siteData.success) preferred_sites = [siteData.brand_url, siteData.supplier_url].filter(Boolean) as string[];
+        }
+      } catch { /* non-fatal */ }
       const serperRes = await fetch('/api/website/serper-search', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ product }),
+        body: JSON.stringify({ product, preferred_sites }),
       });
       const serperData = await serperRes.json();
       if (!serperRes.ok || serperData.error) { step(`❌ Find URLs failed: ${serperData.error ?? 'error'}`); return; }

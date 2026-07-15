@@ -769,7 +769,7 @@ function RecentTable({ title, rows, columns }: { title: string; rows: any[]; col
 // Contacts View
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BLANK_CONTACT = { type: 'supplier' as const, name: '', company: '', email: '', phone: '', address: '', city: '', state: '', postcode: '', country: 'Australia', notes: '', is_active: 1, price_tier: 'retail', order_frequency_days: 45, charges_tax: 1, prices_include_tax: 0, tax_rate: '' };
+const BLANK_CONTACT = { type: 'supplier' as const, name: '', company: '', email: '', phone: '', address: '', city: '', state: '', postcode: '', country: 'Australia', notes: '', is_active: 1, price_tier: 'retail', order_frequency_days: 45, charges_tax: 1, prices_include_tax: 0, tax_rate: '', website_url: '' };
 
 function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
   const [contacts, setContacts] = useState<any[]>([]);
@@ -894,6 +894,9 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
               <Field label="Postcode"><input value={form.postcode} onChange={sf('postcode')} style={inputStyle} /></Field>
             </Row3>
             <Field label="Notes"><textarea value={form.notes} onChange={sf('notes') as any} rows={3} style={{ ...inputStyle, resize: 'vertical' }} /></Field>
+            <Field label="Website URL">
+              <input type="url" value={(form as any).website_url ?? ''} onChange={sf('website_url')} placeholder="https://supplier-or-brand.com" style={inputStyle} />
+            </Field>
             <Row2>
               <Field label="Price Tier">
                 <select value={(form as any).price_tier ?? 'retail'} onChange={sf('price_tier')} style={inputStyle}>
@@ -2452,6 +2455,27 @@ function ForesightProductSection({ product, businessId, onApplyContent }: {
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState<{ title: string; websiteDescription: string; tags: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [preferredSites, setPreferredSites] = useState<string[]>([]);
+
+  // Load supplier + brand website URLs when section opens
+  useEffect(() => {
+    if (!open) return;
+    const brand    = product.brand ?? '';
+    const supplier = product.supplier_name ?? '';
+    if (!brand && !supplier) return;
+    const qs = new URLSearchParams();
+    if (brand)    qs.set('brand', brand);
+    if (supplier) qs.set('supplier', supplier);
+    fetch(`/api/ims/supplier-brand-urls?${qs}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) {
+          const sites = [d.brand_url, d.supplier_url].filter(Boolean) as string[];
+          setPreferredSites(sites);
+        }
+      })
+      .catch(() => {});
+  }, [open, product.brand, product.supplier_name]);
 
   // Filter out thumbnail/icon noise (same heuristic as Foresight dashboard)
   const filterImages = (imgs: string[]): string[] => {
@@ -2465,7 +2489,10 @@ function ForesightProductSection({ product, businessId, onApplyContent }: {
       const res = await fetch('/api/website/serper-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ product: { name: product.name, brand: product.brand ?? '' } }),
+        body: JSON.stringify({
+          product: { name: product.name, brand: product.brand ?? '' },
+          preferred_sites: preferredSites,
+        }),
       });
       const d = await res.json();
       if (!res.ok || d.error) { setError(d.error ?? 'Find URLs failed'); return; }
@@ -8126,12 +8153,13 @@ function btnStyle(variant: BtnVariant, size?: BtnSize): React.CSSProperties {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function BrandsView() {
-  const [brands, setBrands] = useState<{ id: number; name: string; created_at: string }[]>([]);
+  const [brands, setBrands] = useState<{ id: number; name: string; website_url: string | null; created_at: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
   const [adding, setAdding] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
+  const [editUrl, setEditUrl] = useState('');
 
   const load = useCallback(() => {
     setLoading(true);
@@ -8154,10 +8182,10 @@ function BrandsView() {
     finally { setAdding(false); }
   };
 
-  const handleRename = async (id: number) => {
+  const handleSaveEdit = async (id: number) => {
     if (!editName.trim()) return;
     try {
-      await apiFetch(`/api/ims/brands/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editName.trim() }) });
+      await apiFetch(`/api/ims/brands/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editName.trim(), website_url: editUrl.trim() || null }) });
       setEditId(null);
       load();
     } catch (e: any) { alert(e.message); }
@@ -8184,11 +8212,11 @@ function BrandsView() {
       </form>
 
       {loading ? <Spinner /> : brands.length === 0 ? <EmptyState text="No brands yet. Add one above." /> : (
-        <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden', maxWidth: 560 }}>
+        <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden', maxWidth: 720 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-                {['Brand Name', 'Added', ''].map((h, i) => (
+                {['Brand Name', 'Website URL', 'Added', ''].map((h, i) => (
                   <th key={i} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8 }}>{h}</th>
                 ))}
               </tr>
@@ -8196,28 +8224,50 @@ function BrandsView() {
             <tbody>
               {brands.map(b => (
                 <tr key={b.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                  <td style={{ padding: '8px 14px' }}>
-                    {editId === b.id ? (
-                      <div style={{ display: 'flex', gap: 6 }}>
+                  {editId === b.id ? (
+                    <>
+                      <td style={{ padding: '8px 14px' }}>
                         <input autoFocus value={editName} onChange={e => setEditName(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') handleRename(b.id); if (e.key === 'Escape') setEditId(null); }}
-                          style={{ ...inputStyle, width: 200 }} />
-                        <button onClick={() => handleRename(b.id)} style={btnStyle('action', 'xs')}>Save</button>
-                        <button onClick={() => setEditId(null)} style={btnStyle('ghost', 'xs')}>×</button>
-                      </div>
-                    ) : (
-                      <span style={{ fontWeight: 500 }}>{b.name}</span>
-                    )}
-                  </td>
-                  <td style={{ padding: '8px 14px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-                    {new Date(b.created_at).toLocaleDateString('en-AU')}
-                  </td>
-                  <td style={{ padding: '8px 14px' }}>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={() => { setEditId(b.id); setEditName(b.name); }} style={btnStyle('ghost', 'xs')}>Rename</button>
-                      <button onClick={() => handleDelete(b.id, b.name)} style={btnStyle('danger', 'xs')}>Del</button>
-                    </div>
-                  </td>
+                          onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(b.id); if (e.key === 'Escape') setEditId(null); }}
+                          style={{ ...inputStyle, fontSize: 13, width: 180 }} placeholder="Brand name" />
+                      </td>
+                      <td style={{ padding: '8px 14px' }}>
+                        <input type="url" value={editUrl} onChange={e => setEditUrl(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(b.id); if (e.key === 'Escape') setEditId(null); }}
+                          style={{ ...inputStyle, fontSize: 13, width: 220 }} placeholder="https://brand.com" />
+                      </td>
+                      <td style={{ padding: '8px 14px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
+                        {new Date(b.created_at).toLocaleDateString('en-AU')}
+                      </td>
+                      <td style={{ padding: '8px 14px' }}>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button onClick={() => handleSaveEdit(b.id)} style={btnStyle('action', 'xs')}>Save</button>
+                          <button onClick={() => setEditId(null)} style={btnStyle('ghost', 'xs')}>×</button>
+                        </div>
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td style={{ padding: '8px 14px' }}>
+                        <span style={{ fontWeight: 500 }}>{b.name}</span>
+                      </td>
+                      <td style={{ padding: '8px 14px', fontSize: 12 }}>
+                        {b.website_url
+                          ? <a href={b.website_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sv-action)', textDecoration: 'none' }}>{b.website_url}</a>
+                          : <span style={{ color: 'var(--sv-text-dim)' }}>—</span>
+                        }
+                      </td>
+                      <td style={{ padding: '8px 14px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
+                        {new Date(b.created_at).toLocaleDateString('en-AU')}
+                      </td>
+                      <td style={{ padding: '8px 14px' }}>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button onClick={() => { setEditId(b.id); setEditName(b.name); setEditUrl(b.website_url ?? ''); }} style={btnStyle('ghost', 'xs')}>Edit</button>
+                          <button onClick={() => handleDelete(b.id, b.name)} style={btnStyle('danger', 'xs')}>Del</button>
+                        </div>
+                      </td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>
