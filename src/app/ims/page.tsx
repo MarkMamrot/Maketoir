@@ -3502,7 +3502,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
 
       {loading ? <Spinner /> : sortedFiltered.length === 0 ? <EmptyState text="No products match your filters." /> : (
         <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto' }}>
-          <table style={{ minWidth: '100%', borderCollapse: 'collapse' }}>
+          <table style={{ minWidth: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: 36, minWidth: 36 }} />{/* expand */}
               <col style={{ width: 32, minWidth: 32 }} />{/* checkbox */}
