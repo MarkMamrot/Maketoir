@@ -91,26 +91,31 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
     // ── If not yet linked → create the product on Shopify ────────────────────
     if (!product.shopify_product_id) {
+      // Build options first so variant option slots match exactly what Shopify expects.
+      // Shopify rejects a 422 if variant option2/option3 are present but no matching product option.
+      const options: any[] = [];
+      if (variants.some(v => v.option1_name)) options.push({ name: variants[0]?.option1_name ?? 'Option 1' });
+      if (variants.some(v => v.option2_name)) options.push({ name: variants[0]?.option2_name ?? 'Option 2' });
+      if (variants.some(v => v.option3_name)) options.push({ name: variants[0]?.option3_name ?? 'Option 3' });
+
       const shopifyVariants = variants.map(v => {
         const { price, compare_at_price } = shopifyVariantPricePayload(v.price_rrp, v.price_rrp_sale);
-        return {
+        const vp: Record<string, any> = {
           sku: v.sku ?? '',
           barcode: v.barcode ?? undefined,
           price,
           compare_at_price: compare_at_price ?? undefined,
           weight: v.weight_kg ? v.weight_kg * 1000 : undefined,
           weight_unit: 'g',
-          option1: v.option1_value ?? 'Default',
-          option2: v.option2_value ?? undefined,
-          option3: v.option3_value ?? undefined,
+          option1: v.option1_value || 'Default',
           inventory_management: 'shopify',
           inventory_policy: 'deny',
         };
+        // Only include option2/option3 when the product-level option is also defined
+        if (options.length >= 2) vp.option2 = v.option2_value || 'Default';
+        if (options.length >= 3) vp.option3 = v.option3_value || 'Default';
+        return vp;
       });
-      const options: any[] = [];
-      if (variants.some(v => v.option1_name)) options.push({ name: variants[0]?.option1_name ?? 'Option 1' });
-      if (variants.some(v => v.option2_name)) options.push({ name: variants[0]?.option2_name ?? 'Option 2' });
-      if (variants.some(v => v.option3_name)) options.push({ name: variants[0]?.option3_name ?? 'Option 3' });
 
       const payload: any = {
         title: product.name,
@@ -171,7 +176,12 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     await ImsShopifyRepo.logAction('resync', 'success', `Pushed "${product.name}" to Shopify (prices: ${pricesUpdated}, images: +${imagesAdded})`, session.businessId, { product_id: params.id }).catch(() => {});
     return NextResponse.json({ success: true, updated: true, pricesUpdated, imagesAdded });
   } catch (e: any) {
-    await ImsShopifyRepo.logAction('resync', 'error', e?.message ?? 'Shopify push failed', session.businessId, { product_id: params.id }).catch(() => {});
-    return NextResponse.json({ error: e?.message ?? 'Shopify push failed' }, { status: 500 });
+    // Surface the actual Shopify validation errors when available (e.g. 422 details)
+    const shopifyErrors = e.response?.body?.errors ?? e.response?.body ?? null;
+    const detail = shopifyErrors
+      ? `${e.message}: ${JSON.stringify(shopifyErrors).slice(0, 400)}`
+      : (e.message ?? 'Shopify push failed');
+    await ImsShopifyRepo.logAction('resync', 'error', detail, session.businessId, { product_id: params.id }).catch(() => {});
+    return NextResponse.json({ error: detail }, { status: 500 });
   }
 }
