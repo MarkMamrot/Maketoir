@@ -8,6 +8,8 @@
  */
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import fs from 'fs';
+import path from 'path';
 import { ShopifyService } from '@/services/ShopifyService';
 import { decrypt } from '@/lib/encryption';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
@@ -32,21 +34,36 @@ async function getShopify(businessId: string) {
 
 /**
  * Resolve a product image URL to a Shopify-compatible image payload.
- * Local API routes become absolute src URLs (endpoint is now public).
- * External public URLs are passed as-is.
+ * - External/CDN URLs (https://...) → passed as src directly.
+ * - Local volume images (/api/ims/products/.../images/.../file) → read from disk
+ *   using businessId so there is no HTTP round-trip and no database context issue.
  */
 async function resolveImagePayload(
   url: string,
-  reqOrigin: string,
-  _cookieHeader: string,
+  businessId: string,
   alt: string,
 ): Promise<{ src?: string; attachment?: string; alt: string } | null> {
   if (/^https?:\/\//i.test(url)) {
     return { src: url, alt };
   }
-  if (url.startsWith('/')) {
-    // Construct absolute URL — the file endpoint is now publicly accessible
-    return { src: `${reqOrigin}${url}`, alt };
+  // Local volume image — parse the imageId from the URL and read directly from disk
+  const imageIdMatch = url.match(/\/images\/(\d+)\/file/);
+  if (imageIdMatch) {
+    try {
+      const record = await ImsImagesRepo.get(Number(imageIdMatch[1]));
+      if (!record || record.source !== 'volume' || !record.drive_file_id) return null;
+      const filePath = path.join(
+        process.env.UPLOAD_BASE_PATH ?? './uploads',
+        businessId,
+        'product-images',
+        record.drive_file_id,
+      );
+      if (!fs.existsSync(filePath)) return null;
+      const attachment = fs.readFileSync(filePath).toString('base64');
+      return { attachment, alt };
+    } catch {
+      return null;
+    }
   }
   return null;
 }
@@ -98,9 +115,6 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-
-  const reqOrigin = new URL(req.url).origin;
-  const cookieHeader = req.headers.get('cookie') ?? '';
 
   try {
     const product = await ImsProductsRepo.get(params.id, session.businessId);
@@ -161,7 +175,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       let imagesAdded = 0;
       const imageErrors: string[] = [];
       for (const img of images) {
-        const imgPayload = await resolveImagePayload(img.url, reqOrigin, cookieHeader, img.alt_text ?? '');
+        const imgPayload = await resolveImagePayload(img.url, session.businessId, img.alt_text ?? '');
         if (!imgPayload) { imageErrors.push(`Image ${img.id}: could not resolve URL`); continue; }
         try {
           const createdImg = await shop.service.createProductImage(String(created.id), imgPayload);
@@ -210,7 +224,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       for (const img of images) {
         const base = String(img.url).split('?')[0];
         if (existing.has(base)) continue;
-        const imgPayload = await resolveImagePayload(img.url, reqOrigin, cookieHeader, img.alt_text ?? '');
+        const imgPayload = await resolveImagePayload(img.url, session.businessId, img.alt_text ?? '');
         if (!imgPayload) { imageErrors.push(`Image ${img.id}: could not resolve URL`); continue; }
         try {
           const createdImg = await shop.service.createProductImage(shopifyProductId, imgPayload);
