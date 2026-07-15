@@ -3501,12 +3501,12 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
       )}
 
       {loading ? <Spinner /> : sortedFiltered.length === 0 ? <EmptyState text="No products match your filters." /> : (
-        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto' }}>
+        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto', maxHeight: 'calc(100vh - 260px)' }}>
           <table style={{ minWidth: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: 32, minWidth: 32 }} />{/* checkbox */}
               <col style={{ width: 90, minWidth: 90 }} />{/* SKU */}
-              <col style={{ width: 280, minWidth: 280 }} />{/* name */}
+              <col style={{ width: 400, minWidth: 400 }} />{/* name */}
               <col style={{ width: 120, minWidth: 120 }} />{/* barcode */}
               {showCols.product_type && <col style={{ width: 140, minWidth: 140 }} />}{/* product type */}
               <col style={{ width: 130, minWidth: 130 }} />{/* brand */}
