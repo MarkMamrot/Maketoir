@@ -136,8 +136,8 @@ export class ShopifyService {
     return (this.shopify as any).product.get(Number(id));
   }
 
-  /** Create a product image from a source URL. */
-  async createProductImage(productId: number | string, image: { src: string; alt?: string; position?: number }): Promise<any> {
+  /** Create a product image from a source URL or base64 attachment. */
+  async createProductImage(productId: number | string, image: { src?: string; attachment?: string; alt?: string; position?: number }): Promise<any> {
     return (this.shopify as any).productImage.create(Number(productId), image);
   }
 

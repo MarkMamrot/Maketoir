@@ -30,6 +30,37 @@ async function getShopify(businessId: string) {
   return { service: new ShopifyService(shopName, decrypt(encToken)), shopName, shopDomain: `${shopName}.myshopify.com` };
 }
 
+/**
+ * Resolve a product image URL to a Shopify-compatible image payload.
+ * Local API route images (e.g. /api/ims/products/.../images/.../file) are fetched
+ * server-side with the session cookie and sent as a base64 attachment.
+ * External public URLs are sent as-is via src.
+ */
+async function resolveImagePayload(
+  url: string,
+  reqOrigin: string,
+  cookieHeader: string,
+  alt: string,
+): Promise<{ src?: string; attachment?: string; alt: string } | null> {
+  if (/^https?:\/\//i.test(url)) {
+    return { src: url, alt };
+  }
+  if (url.startsWith('/')) {
+    // Local route — fetch with auth cookie and convert to base64
+    try {
+      const absUrl = `${reqOrigin}${url}`;
+      const res = await fetch(absUrl, { headers: { cookie: cookieHeader } });
+      if (!res.ok) return null;
+      const buf = await res.arrayBuffer();
+      const attachment = Buffer.from(buf).toString('base64');
+      return { attachment, alt };
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -74,9 +105,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   }
 }
 
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+
+  const reqOrigin = new URL(req.url).origin;
+  const cookieHeader = req.headers.get('cookie') ?? '';
 
   try {
     const product = await ImsProductsRepo.get(params.id, session.businessId);
@@ -126,8 +160,14 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
         status: 'active',
         variants: shopifyVariants.length > 0 ? shopifyVariants : [{ price: String(firstPriced?.price_rrp ?? '0.00') }],
         options: options.length > 0 ? options : undefined,
-        images: images.length > 0 ? images.map((img, i) => ({ src: img.url, position: i + 1, alt: img.alt_text ?? '' })) : undefined,
       };
+      // Resolve images — local API routes become base64 attachments; external URLs are passed as src
+      if (images.length > 0) {
+        const resolved = (await Promise.all(
+          images.map((img, i) => resolveImagePayload(img.url, reqOrigin, cookieHeader, img.alt_text ?? '').then(p => p ? { ...p, position: i + 1 } : null))
+        )).filter(Boolean);
+        if (resolved.length > 0) payload.images = resolved;
+      }
       const created = await shop.service.createProduct(payload);
       await ImsShopifyRepo.linkProduct(params.id, String(created.id), session.businessId);
       for (let i = 0; i < variants.length; i++) {
@@ -170,15 +210,15 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       const existing = new Set<string>((sp?.images ?? []).map((im: any) => String(im.src).split('?')[0]));
       for (const img of images) {
         const base = String(img.url).split('?')[0];
-        // Only push publicly reachable URLs (Shopify must be able to fetch the src)
-        if (!existing.has(base) && /^https?:\/\//i.test(img.url)) {
-          try {
-            await shop.service.createProductImage(shopifyProductId, { src: img.url, alt: img.alt_text ?? '' });
-            imagesAdded++;
-          } catch (imgErr: any) {
-            const detail = imgErr.response?.body?.errors ?? imgErr.message ?? 'unknown';
-            imageErrors.push(`${base.slice(-40)}: ${JSON.stringify(detail).slice(0, 100)}`);
-          }
+        if (existing.has(base)) continue;
+        const imgPayload = await resolveImagePayload(img.url, reqOrigin, cookieHeader, img.alt_text ?? '');
+        if (!imgPayload) { imageErrors.push(`${base.slice(-40)}: could not resolve URL`); continue; }
+        try {
+          await shop.service.createProductImage(shopifyProductId, imgPayload);
+          imagesAdded++;
+        } catch (imgErr: any) {
+          const detail = imgErr.response?.body?.errors ?? imgErr.message ?? 'unknown';
+          imageErrors.push(`${base.slice(-40)}: ${JSON.stringify(detail).slice(0, 100)}`);
         }
       }
     } catch {}
