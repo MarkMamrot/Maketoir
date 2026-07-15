@@ -19,7 +19,7 @@ type ImsView =
   | 'reports' | 'report-sales-by-branch' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers'
   | 'xero' | 'shopify';
 
-interface User { name: string; email: string; company: string; businessId: string; tier?: string }
+interface User { name: string; email: string; company: string; businessId: string; tier?: string; hasForesight?: boolean }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Nav structure
@@ -2439,7 +2439,225 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
 }
 
 
-function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, businessId = '' }: { onNavigateToPO?: (id: number) => void; onNavigateToSO?: (id: number) => void; isAdvisor?: boolean; businessId?: string } = {}) {
+function ForesightProductSection({ product, businessId, onApplyContent }: {
+  product: any;
+  businessId: string;
+  onApplyContent: (title: string | null, description: string | null, tags: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [urls, setUrls] = useState<[string, string, string]>(['', '', '']);
+  const [findingUrls, setFindingUrls] = useState(false);
+  const [researching, setResearching] = useState(false);
+  const [researchResult, setResearchResult] = useState<{ answer: string; urls: string[] } | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [generated, setGenerated] = useState<{ title: string; websiteDescription: string; tags: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleFindUrls = async () => {
+    setFindingUrls(true); setError(null);
+    try {
+      const res = await fetch('/api/website/serper-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product: { name: product.name, brand: product.brand ?? '' } }),
+      });
+      const d = await res.json();
+      if (!res.ok || d.error) { setError(d.error ?? 'Find URLs failed'); return; }
+      const found: string[] = d.urls ?? [];
+      setUrls([found[0] ?? '', found[1] ?? '', found[2] ?? '']);
+    } catch (e: any) { setError(e.message); }
+    finally { setFindingUrls(false); }
+  };
+
+  const handleResearch = async () => {
+    const topUrl = urls[0]?.trim();
+    setResearching(true); setError(null); setResearchResult(null);
+    try {
+      const res = await fetch('/api/website/tavily-preflight', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product: { name: product.name, brand: product.brand ?? '' }, firstUrl: topUrl || undefined }),
+      });
+      const d = await res.json();
+      if (!res.ok || d.error) { setError(d.error ?? 'Research failed'); return; }
+      setResearchResult({ answer: d.answer ?? '', urls: d.urls ?? [] });
+    } catch (e: any) { setError(e.message); }
+    finally { setResearching(false); }
+  };
+
+  const handleGenerate = async () => {
+    setGenerating(true); setError(null); setGenerated(null);
+    try {
+      const res = await fetch('/api/website/generate-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          databaseId: businessId,
+          product: {
+            name: product.name,
+            brand: product.brand ?? '',
+            code: product.variants?.[0]?.sku ?? product.base_sku ?? '',
+            styleCode: '',
+            retailPrice: product.variants?.[0]?.price_rrp ?? '0',
+          },
+          mode: 'full',
+          tavilyInfo: researchResult?.answer ?? '',
+          tavilyUrls: urls.filter(Boolean),
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok || d.error) { setError(d.error ?? 'Generate failed'); return; }
+      setGenerated({
+        title:              d.title               ?? '',
+        websiteDescription: d.websiteDescription  ?? '',
+        tags:               d.tags                ?? '',
+      });
+    } catch (e: any) { setError(e.message); }
+    finally { setGenerating(false); }
+  };
+
+  const handleApply = () => {
+    if (!generated) return;
+    onApplyContent(
+      generated.title               || null,
+      generated.websiteDescription  || null,
+      generated.tags                || null,
+    );
+    setGenerated(null);
+  };
+
+  return (
+    <>
+      {/* Section divider */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', letterSpacing: '.04em' }}>✦ Foresight</span>
+        <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+      </div>
+
+      <div style={{ background: 'color-mix(in srgb, var(--sv-action) 5%, var(--sv-bg-2))', border: '1px solid color-mix(in srgb, var(--sv-action) 25%, var(--sv-etch))', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
+        {/* Header row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: open ? 16 : 0 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)' }}>🔍 Website Content Generator</div>
+            <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 2 }}>Find supplier URLs → Research product → Generate title, description & tags using your brand templates</div>
+          </div>
+          <button onClick={() => setOpen(p => !p)} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, color: 'var(--sv-text-dim)', fontWeight: 500 }}>
+            {open ? 'Hide ↑' : 'Open ↓'}
+          </button>
+        </div>
+
+        {open && (
+          <div>
+            {error && (
+              <div style={{ marginBottom: 12, padding: '8px 10px', background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 6, fontSize: 12, color: 'var(--sv-red)' }}>
+                {error}
+              </div>
+            )}
+
+            {/* Step 1: URLs */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Step 1 — Supplier / Retailer URLs</span>
+                <button
+                  onClick={handleFindUrls}
+                  disabled={findingUrls}
+                  style={{ ...btnStyle('ghost', 'xs'), opacity: findingUrls ? .6 : 1 }}
+                >
+                  {findingUrls ? '⏳ Finding…' : '🔍 Find URLs'}
+                </button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {([0, 1, 2] as const).map(i => (
+                  <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', minWidth: 16 }}>{i + 1}.</span>
+                    <input
+                      type="url"
+                      value={urls[i]}
+                      onChange={e => { const u: [string, string, string] = [...urls] as any; u[i] = e.target.value; setUrls(u); }}
+                      placeholder="https://…"
+                      style={{ ...inputStyle, fontSize: 12, flex: 1 }}
+                    />
+                    {urls[i] && (
+                      <>
+                        <a href={urls[i]} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: 'var(--sv-action)', textDecoration: 'none', whiteSpace: 'nowrap' }}>Open ↗</a>
+                        <button onClick={() => { const u: [string, string, string] = [...urls] as any; u[i] = ''; setUrls(u); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 14, lineHeight: 1, padding: '0 2px' }}>×</button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Step 2: Research */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Step 2 — Research Product</span>
+                <button
+                  onClick={handleResearch}
+                  disabled={researching}
+                  style={{ ...btnStyle('ghost', 'xs'), opacity: researching ? .6 : 1 }}
+                >
+                  {researching ? '⏳ Researching…' : '🌐 Research'}
+                </button>
+              </div>
+              {researchResult && (
+                <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '10px 12px', fontSize: 12, color: 'var(--sv-text-main)', lineHeight: 1.6, maxHeight: 160, overflowY: 'auto' }}>
+                  {researchResult.answer || <span style={{ color: 'var(--sv-text-dim)', fontStyle: 'italic' }}>No summary returned — try with a URL in Step 1.</span>}
+                </div>
+              )}
+            </div>
+
+            {/* Step 3: Generate */}
+            <div style={{ marginBottom: generated ? 14 : 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: generated ? 10 : 0 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Step 3 — Generate Content</span>
+                <button
+                  onClick={handleGenerate}
+                  disabled={generating}
+                  style={{ ...btnStyle('action', 'xs'), opacity: generating ? .6 : 1 }}
+                >
+                  {generating ? '⏳ Generating…' : '✦ Generate Content'}
+                </button>
+                <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Uses your Foresight brand templates</span>
+              </div>
+
+              {generated && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {generated.title && (
+                    <div>
+                      <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Title</div>
+                      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 13, color: 'var(--sv-text-strong)' }}>{generated.title}</div>
+                    </div>
+                  )}
+                  {generated.websiteDescription && (
+                    <div>
+                      <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Description (HTML)</div>
+                      <pre style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 11, color: 'var(--sv-text-main)', overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 140, overflowY: 'auto', margin: 0 }}>{generated.websiteDescription}</pre>
+                    </div>
+                  )}
+                  {generated.tags && (
+                    <div>
+                      <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Tags</div>
+                      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 12, color: 'var(--sv-text-main)' }}>{generated.tags}</div>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <button onClick={handleApply} style={btnStyle('action', 'sm')}>Apply to Product</button>
+                    <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Updates Title, Description and Tags fields above — save afterwards</span>
+                    <button onClick={() => setGenerated(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 12 }}>Discard</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, businessId = '', hasForesight = false }: { onNavigateToPO?: (id: number) => void; onNavigateToSO?: (id: number) => void; isAdvisor?: boolean; businessId?: string; hasForesight?: boolean } = {}) {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
@@ -3376,6 +3594,19 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           {/* ── Online Store ── */}
           {modal.edit?.product_id && (
             <OnlineStoreSection productId={modal.edit.product_id} isReadOnly={isAdvisor} />
+          )}
+
+          {/* ── Foresight: Supplier URL finder + Research + Generate Content ── */}
+          {hasForesight && modal.edit?.product_id && (
+            <ForesightProductSection
+              product={modal.edit}
+              businessId={businessId}
+              onApplyContent={(title, description, tags) => {
+                if (title)       setForm((p: any) => ({ ...p, name: title }));
+                if (description) setForm((p: any) => ({ ...p, description }));
+                if (tags)        setForm((p: any) => ({ ...p, tags }));
+              }}
+            />
           )}
 
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
@@ -13071,7 +13302,7 @@ export default function ImsPage() {
         <Sidebar active={view} onSelect={(v) => { if (v === 'smart-device-receive') { window.open('/receive', '_blank'); return; } setView(v); }} />
         <main style={{ flex: 1, overflow: 'auto', padding: 28 }}>
           {view === 'dashboard'        && <DashboardView onNav={setView} />}
-          {view === 'products'         && <ProductsView isAdvisor={isAdvisor} businessId={user?.businessId ?? ''} onNavigateToPO={id => { setView('purchase-orders'); setPendingOpenPO(id); }} onNavigateToSO={id => { setView('sales-orders'); setPendingOpenSO(id); }} />}
+          {view === 'products'         && <ProductsView isAdvisor={isAdvisor} businessId={user?.businessId ?? ''} hasForesight={user?.hasForesight ?? false} onNavigateToPO={id => { setView('purchase-orders'); setPendingOpenPO(id); }} onNavigateToSO={id => { setView('sales-orders'); setPendingOpenSO(id); }} />}
           {view === 'stock'            && <StockView />}
           {view === 'bulk-edit'        && <BulkEditView />}
           {view === 'contacts'         && <ContactsView />}

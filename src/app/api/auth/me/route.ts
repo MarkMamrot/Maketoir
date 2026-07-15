@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { UsersRepository } from '@/lib/db/UsersRepository';
+import { query } from '@/services/MySQLService';
 
 /**
  * GET /api/auth/me
@@ -32,6 +33,16 @@ export async function GET() {
     return NextResponse.json({ error: 'Account not found. Please log in again.' }, { status: 403 });
   }
 
+  // Fetch business flags (has_foresight etc.) from the businesses table
+  let hasForesight = false;
+  if (dbUser.business_id) {
+    const bizRows = await query<{ has_foresight: number }>(
+      'SELECT has_foresight FROM businesses WHERE business_id = ? AND deleted_at IS NULL LIMIT 1',
+      [dbUser.business_id],
+    ).catch(() => []);
+    hasForesight = !!(bizRows[0]?.has_foresight);
+  }
+
   return NextResponse.json({
     valid: true,
     user: {
@@ -42,6 +53,7 @@ export async function GET() {
       role:              dbUser.role,
       tier:              dbUser.tier,
       userId:            dbUser.id,
+      hasForesight,
     },
   });
 }
