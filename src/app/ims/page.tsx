@@ -2119,7 +2119,13 @@ function OnlineStoreSection({ productId, isOnline, onChangeIsOnline, isReadOnly 
     try {
       const r = await fetch(`/api/ims/products/${productId}/shopify-sync`, { method: 'POST' });
       const d = await r.json();
-      if (d.success) { setMsg(d.created ? '✓ Created on the online shop' : `✓ Pushed — prices updated: ${d.pricesUpdated}, images added: ${d.imagesAdded}`); await load(); }
+      if (d.success) {
+        const invMsg = d.inventoryPushed > 0 ? `, inventory: ${d.inventoryPushed} variant${d.inventoryPushed !== 1 ? 's' : ''} synced` : (d.inventoryErrors?.length ? ` (inventory: ${d.inventoryErrors[0]})` : '');
+        setMsg(d.created
+          ? `✓ Created on the online shop${invMsg}`
+          : `✓ Pushed — prices updated: ${d.pricesUpdated}, images added: ${d.imagesAdded}${invMsg}`);
+        await load();
+      }
       else setMsg(`⚠️ ${d.error || 'Push failed'}`);
     } catch (e: any) { setMsg(`⚠️ ${e.message}`); }
     setPushing(false);

@@ -12,7 +12,7 @@ import { ShopifyService } from '@/services/ShopifyService';
 import { decrypt } from '@/lib/encryption';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { ImsProductsRepo, ImsImagesRepo, ImsShopifyRepo } from '@/lib/ims/ImsRepository';
-import { shopifyVariantPricePayload } from '@/lib/ims/shopifyInventorySync';
+import { shopifyVariantPricePayload, pushInventoryForBusiness } from '@/lib/ims/shopifyInventorySync';
 
 function getSession() {
   const c = cookies().get('marketoir_session');
@@ -134,8 +134,11 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
         const sv = created.variants?.[i];
         if (sv) await ImsShopifyRepo.linkVariant(variants[i].variant_id, String(sv.id), String(sv.inventory_item_id ?? ''), session.businessId);
       }
-      await ImsShopifyRepo.logAction('upload', 'success', `Created "${product.name}" on Shopify`, session.businessId, { product_id: params.id }).catch(() => {});
-      return NextResponse.json({ success: true, created: true, shopifyProductId: String(created.id) });
+      // Push inventory quantities using the same pick-location + buffer logic as the live sync
+      const variantIds = variants.map(v => v.variant_id);
+      const invResult = await pushInventoryForBusiness(session.businessId, { variantIds, force: true }).catch(() => ({ pushed: 0, skipped: 0, errors: ['Inventory push failed'], locationId: null }));
+      await ImsShopifyRepo.logAction('upload', 'success', `Created "${product.name}" on Shopify (inventory pushed: ${invResult.pushed})`, session.businessId, { product_id: params.id }).catch(() => {});
+      return NextResponse.json({ success: true, created: true, shopifyProductId: String(created.id), inventoryPushed: invResult.pushed, inventoryErrors: invResult.errors });
     }
 
     // ── Already linked → update title / description / tags / price / images ──
@@ -174,7 +177,12 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     } catch {}
 
     await ImsShopifyRepo.logAction('resync', 'success', `Pushed "${product.name}" to Shopify (prices: ${pricesUpdated}, images: +${imagesAdded})`, session.businessId, { product_id: params.id }).catch(() => {});
-    return NextResponse.json({ success: true, updated: true, pricesUpdated, imagesAdded });
+
+    // Push inventory quantities using the same pick-location + buffer logic as the live sync
+    const linkedVariantIds = variants.filter(v => v.shopify_variant_id).map(v => v.variant_id);
+    const invResult = await pushInventoryForBusiness(session.businessId, { variantIds: linkedVariantIds, force: true }).catch(() => ({ pushed: 0, skipped: 0, errors: ['Inventory push failed'], locationId: null }));
+
+    return NextResponse.json({ success: true, updated: true, pricesUpdated, imagesAdded, inventoryPushed: invResult.pushed, inventoryErrors: invResult.errors });
   } catch (e: any) {
     // Surface the actual Shopify validation errors when available (e.g. 422 details)
     const shopifyErrors = e.response?.body?.errors ?? e.response?.body ?? null;
