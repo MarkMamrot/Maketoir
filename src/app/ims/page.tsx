@@ -3580,7 +3580,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             <colgroup>
               <col style={{ width: 32, minWidth: 32 }} />{/* checkbox */}
               {showCols.sku && <col style={{ width: 90, minWidth: 90 }} />}{/* SKU */}
-              <col />{/* name */}
+              <col style={{ minWidth: 240 }} />{/* name */}
               {showCols.barcode && <col style={{ width: 120, minWidth: 120 }} />}{/* barcode */}
               {showCols.product_type && <col style={{ width: 140, minWidth: 140 }} />}{/* product type */}
               {showCols.brand && <col style={{ width: 130, minWidth: 130 }} />}{/* brand */}
@@ -3618,7 +3618,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                   ...(showCols.created ? [['created_at','Created']] : [])
                 ] as [string,string][]).map(([col, label]) => (
                   <th key={col} onClick={() => toggleSort(col)}
-                    style={{ padding: '10px 12px', borderBottom: '1px solid var(--sv-etch)', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', position: 'sticky', top: 0, background: 'var(--sv-bg-2)', zIndex: 10 }}>
+                    style={{ padding: '10px 12px', borderBottom: '1px solid var(--sv-etch)', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', lineHeight: 1.3, position: 'sticky', top: 0, background: 'var(--sv-bg-2)', zIndex: 10 }}>
                     {label}<SortIcon col={col} />
                   </th>
                 ))}
@@ -3717,8 +3717,8 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                           : <span style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>No</span>}
                       </td>
                     )}
-                    <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)' }}><ActiveDot active={p.is_active} /></td>
-                    <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{p.created_at ? String(p.created_at).slice(0, 10) : '—'}</td>
+                    {showCols.active && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)' }}><ActiveDot active={p.is_active} /></td>}
+                    {showCols.created && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{p.created_at ? String(p.created_at).slice(0, 10) : '—'}</td>}
                   </tr>
                   {expandedIds.has(p.product_id) && variants.map((v: any) => {
                     const vHasDiscount = v.price_rrp_sale != null && Number(v.price_rrp_sale) > 0;
