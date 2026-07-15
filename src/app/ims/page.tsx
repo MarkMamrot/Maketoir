@@ -6,9 +6,9 @@ import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Types
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type ImsView =
   | 'dashboard' | 'products' | 'stock' | 'brands' | 'bulk-edit'
@@ -21,9 +21,9 @@ type ImsView =
 
 interface User { name: string; email: string; company: string; businessId: string; tier?: string; hasForesight?: boolean }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Nav structure
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const NAV = [
   { id: 'dashboard',       label: 'Dashboard',        section: null },
@@ -31,14 +31,14 @@ const NAV = [
     { id: 'products',      label: 'All Products' },
     { id: 'stock',         label: 'Stock Levels' },
     { id: 'brands',        label: 'Brands' },
-    { id: 'bulk-edit',     label: '✏️ Bulk Edit' },
+    { id: 'bulk-edit',     label: 'âœï¸ Bulk Edit' },
   ]},
   { id: '__orders',        label: 'Orders',           section: 'orders', children: [
     { id: 'purchase-orders',  label: 'Purchase Orders' },
     { id: 'sales-orders',     label: 'Sales Orders' },
     { id: 'credit-notes',     label: 'Credit Notes / Returns' },
     { id: 'supplier-credit-notes', label: 'Supplier Credit Notes' },
-    { id: 'smart-device-receive', label: '📱 Smart Device Receive' },
+    { id: 'smart-device-receive', label: 'ðŸ“± Smart Device Receive' },
     { id: 'pos-sales',            label: 'POS Sales' },
     { id: 'online-sales',     label: 'Online Sales' },
     { id: 'order-planner',    label: 'Order Planner' },
@@ -47,31 +47,31 @@ const NAV = [
   { id: '__locations',     label: 'Locations',        section: 'locations', children: [
     { id: 'locations',      label: 'Locations' },
     { id: 'branch-transfers', label: 'Branch Transfers' },
-    { id: 'receive-transfers', label: '📦 Receive Transfers' },
+    { id: 'receive-transfers', label: 'ðŸ“¦ Receive Transfers' },
   ]},
-  { id: 'stocktakes',       label: '📋 Stocktakes',     section: null },
-  { id: 'reports',          label: '📊 Reports',         section: null },
+  { id: 'stocktakes',       label: 'ðŸ“‹ Stocktakes',     section: null },
+  { id: 'reports',          label: 'ðŸ“Š Reports',         section: null },
   { id: '__integrations',   label: 'Integrations',     section: 'integrations', children: [
     { id: 'xero',           label: 'Xero' },
     { id: 'shopify',        label: 'Shopify' },
   ]},
 ] as const;
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Utility helpers
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const fmtCurrency = (n: number | null | undefined) =>
-  n == null ? '—' : `$${Number(n).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  n == null ? 'â€”' : `$${Number(n).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const fmtFx = (n: number | null | undefined, currency?: string) => {
-  if (n == null) return '—';
+  if (n == null) return 'â€”';
   const num = Number(n).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return (!currency || currency === 'AUD') ? `$${num}` : `${currency} ${num}`;
 };
 
 const fmtQty = (n: number | null | undefined) =>
-  n == null ? '—' : Number(n).toLocaleString('en-AU', { maximumFractionDigits: 4 });
+  n == null ? 'â€”' : Number(n).toLocaleString('en-AU', { maximumFractionDigits: 4 });
 
 // Returns today's calendar date as YYYY-MM-DD in the business timezone.
 // Using 'sv-SE' locale gives the ISO YYYY-MM-DD format; explicit TZ prevents
@@ -107,7 +107,7 @@ function VariantSearch({ value, variants, onChange, style }: {
 
   const selected = variants.find(v => v.variant_id === value);
   const displayLabel = selected
-    ? `${selected.product_name} · ${selected.sku || ''} ${[selected.option1_value, selected.option2_value].filter(Boolean).join('/')}`.trim()
+    ? `${selected.product_name} Â· ${selected.sku || ''} ${[selected.option1_value, selected.option2_value].filter(Boolean).join('/')}`.trim()
     : '';
 
   const filtered = React.useMemo(() => {
@@ -142,7 +142,7 @@ function VariantSearch({ value, variants, onChange, style }: {
         ref={inputRef}
         type="text"
         value={open ? query : displayLabel}
-        placeholder="Search variant…"
+        placeholder="Search variantâ€¦"
         onFocus={openDropdown}
         onChange={e => { setQuery(e.target.value); setOpen(true); }}
         style={{ ...inputStyle, fontSize: 12, width: '100%' }}
@@ -191,10 +191,10 @@ function VariantSearch({ value, variants, onChange, style }: {
 }
 
 function calcDueDate(orderDate: string | undefined, terms: string | undefined): string {
-  if (!terms) return '—';
+  if (!terms) return 'â€”';
   if (terms === 'COD') return 'Cash on Delivery';
   const days = parseInt(terms);
-  if (!orderDate || isNaN(days)) return '—';
+  if (!orderDate || isNaN(days)) return 'â€”';
   const d = new Date(orderDate);
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
@@ -207,9 +207,9 @@ async function apiFetch(url: string, opts?: RequestInit) {
   return json;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Shared settings hook  (fetches ims_settings for the current business)
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function useImsSettings() {
   const [settings, setSettings] = useState<Record<string, string>>({});
@@ -231,9 +231,9 @@ function useImsSettings() {
   return { settings, saveSettings };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Status badge
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const STATUS_COLORS: Record<string, string> = {
   draft:              'background:rgba(100,116,139,.18);color:#94a3b8',
@@ -268,9 +268,9 @@ function parseStyleStr(s: string): Record<string, string> {
   return obj;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Modal
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function Modal({ title, onClose, children, wide, wider, width }: {
   title: string; onClose: () => void; children: React.ReactNode; wide?: boolean; wider?: boolean; width?: number;
@@ -280,7 +280,7 @@ function Modal({ title, onClose, children, wide, wider, width }: {
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, width: width ?? (wider ? 1120 : wide ? 860 : 560), maxWidth: '97vw', padding: 28, position: 'relative' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{title}</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>Ã—</button>
         </div>
         {children}
       </div>
@@ -288,9 +288,9 @@ function Modal({ title, onClose, children, wide, wider, width }: {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Field helpers
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '8px 10px', background: 'var(--sv-bg-2)',
@@ -317,9 +317,9 @@ function Row3({ children }: { children: React.ReactNode }) {
   return <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>{children}</div>;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Sidebar
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView) => void }) {
   const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: false, __orders: false, __locations: false, __integrations: false });
@@ -384,7 +384,7 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
         </button>
       </div>
 
-      {/* Nav items — collapsed: curated 6-icon list */}
+      {/* Nav items â€” collapsed: curated 6-icon list */}
       {collapsed && (() => {
         const COLLAPSED_ICONS: { icon: string; label: string; navigate: ImsView; activeFor: string[]; hidden?: boolean }[] = [
           { icon: '__products',       label: 'Products',         navigate: 'products',         activeFor: ['products','stock','brands','bulk-edit'] },
@@ -402,7 +402,7 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
         ));
       })()}
 
-      {/* Nav items — expanded */}
+      {/* Nav items â€” expanded */}
       {!collapsed && NAV.filter(item => item.id !== '__locations' || showLocations).map(item => {
         const hasChildren = 'children' in item && (item as any).children?.length > 0;
         const isGroupOpen = sectionOpen[item.id];
@@ -460,9 +460,9 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Dashboard View
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
   const [data, setData] = useState<any>(null);
@@ -523,7 +523,7 @@ function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
                 <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--sv-mint)', marginLeft: 4 }}>{data.openRegisters.length} open</span>
               )}
               {(data?.posRegisters ?? []).length > 0 && (
-                <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--sv-text-dim)', marginLeft: 2 }}>· {(data.posRegisters as any[]).filter((r: any) => r.status === 'closed').length} closed today</span>
+                <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--sv-text-dim)', marginLeft: 2 }}>Â· {(data.posRegisters as any[]).filter((r: any) => r.status === 'closed').length} closed today</span>
               )}
             </div>
             {!(data?.posRegisters ?? []).length ? (
@@ -541,8 +541,8 @@ function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
                   <tbody>
                     {(data.posRegisters as any[]).map((r: any, i: number) => {
                       const fmtDt = (v: string | null) => {
-                        if (!v) return '—';
-                        // Stored as AEST by localNow() — display directly, no Date conversion
+                        if (!v) return 'â€”';
+                        // Stored as AEST by localNow() â€” display directly, no Date conversion
                         const [datePart = '', timePart = ''] = v.replace('T', ' ').split(' ');
                         const [y = '', m = '', d = ''] = datePart.split('-');
                         const [h = '0', min = '00'] = timePart.split(':');
@@ -559,16 +559,16 @@ function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
                             <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 700,
                               background: isOpen ? 'rgba(16,185,129,.15)' : 'rgba(239,68,68,.15)',
                               color: isOpen ? 'var(--sv-mint)' : 'var(--sv-red)' }}>
-                              {isOpen ? '● Open' : 'Closed'}
+                              {isOpen ? 'â— Open' : 'Closed'}
                             </span>
                           </td>
                           <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{fmtDt(r.opened_at)}</td>
-                          <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{r.opened_by || '—'}</td>
-                          <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)', whiteSpace: 'nowrap' }}>{r.opening_float != null ? fmtCurrency(Number(r.opening_float)) : '—'}</td>
-                          <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{isOpen ? '—' : fmtDt(r.closed_at)}</td>
-                          <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{isOpen ? '—' : (r.closed_by || '—')}</td>
+                          <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{r.opened_by || 'â€”'}</td>
+                          <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)', whiteSpace: 'nowrap' }}>{r.opening_float != null ? fmtCurrency(Number(r.opening_float)) : 'â€”'}</td>
+                          <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{isOpen ? 'â€”' : fmtDt(r.closed_at)}</td>
+                          <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{isOpen ? 'â€”' : (r.closed_by || 'â€”')}</td>
                           <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--sv-text-main)' }}>
-                            {totals.length === 0 ? <span style={{ color: 'var(--sv-text-dim)' }}>—</span> : (
+                            {totals.length === 0 ? <span style={{ color: 'var(--sv-text-dim)' }}>â€”</span> : (
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 10px' }}>
                                 {totals.map(t => (
                                   <span key={t.payment_method} style={{ whiteSpace: 'nowrap' }}>
@@ -588,7 +588,7 @@ function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
             )}
           </div>
 
-          {/* ── Sales by Channel ── */}
+          {/* â”€â”€ Sales by Channel â”€â”€ */}
           <div style={{ marginTop: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales by Channel</div>
@@ -637,7 +637,7 @@ function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
               const yVal=(v:number) => PT + plotH - (v/yMax)*plotH;
               const hVal=(v:number) => (v/yMax)*plotH;
               const fmtY=(v:number) => v>=1000000?`$${(v/1000000).toFixed(1)}M`:v>=1000?`$${(v/1000).toFixed(0)}k`:`$${v}`;
-              const trunc=(s:string,n=13) => s.length>n ? s.slice(0,n)+'…' : s;
+              const trunc=(s:string,n=13) => s.length>n ? s.slice(0,n)+'â€¦' : s;
 
               return (
                 <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px 8px' }}>
@@ -673,7 +673,7 @@ function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
                                 {h>24 && barW>14 && (
                                   <text x={x+barW/2} y={y-5} textAnchor="middle" fontSize="9" fill="currentColor" fillOpacity="0.55">{fmtCurrency(v)}</text>
                                 )}
-                                <title>{`${CH_LABEL[ch]} — ${loc}\n${fmtCurrency(v)} · ${getOrd(ch,loc)} orders`}</title>
+                                <title>{`${CH_LABEL[ch]} â€” ${loc}\n${fmtCurrency(v)} Â· ${getOrd(ch,loc)} orders`}</title>
                               </g>
                             );
                           })}
@@ -687,7 +687,7 @@ function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
             })()}
           </div>
 
-          {/* ── Recent tables row: POs · SOs · POS Sales ── */}
+          {/* â”€â”€ Recent tables row: POs Â· SOs Â· POS Sales â”€â”€ */}
           <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 18, alignItems: 'start' }}>
             <RecentTable title="Recent Purchase Orders" rows={data?.recentPOs ?? []} columns={[
               { key: 'po_number',     label: 'PO #'        },
@@ -719,8 +719,8 @@ function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
                       <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
                         <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{new Date(s.created_at).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' })}</td>
                         <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{s.location_name}</td>
-                        <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{s.cashier_name || '—'}</td>
-                        <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{s.customer_name || '—'}</td>
+                        <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{s.cashier_name || 'â€”'}</td>
+                        <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{s.customer_name || 'â€”'}</td>
                         <td style={{ padding: '8px 12px' }}><StatusBadge status={s.sale_type} /></td>
                         <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 600, textAlign: 'right',
                           color: s.sale_type === 'return' ? 'var(--sv-red)' : 'var(--sv-text-main)' }}>{fmtCurrency(Number(s.total))}</td>
@@ -753,7 +753,7 @@ function RecentTable({ title, rows, columns }: { title: string; rows: any[]; col
               <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
                 {columns.map(c => (
                   <td key={c.key} style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>
-                    {c.render ? c.render(row[c.key]) : (row[c.key] ?? '—')}
+                    {c.render ? c.render(row[c.key]) : (row[c.key] ?? 'â€”')}
                   </td>
                 ))}
               </tr>
@@ -765,9 +765,9 @@ function RecentTable({ title, rows, columns }: { title: string; rows: any[]; col
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Contacts View
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const BLANK_CONTACT = { type: 'supplier' as const, name: '', company: '', email: '', phone: '', address: '', city: '', state: '', postcode: '', country: 'Australia', notes: '', is_active: 1, price_tier: 'retail', order_frequency_days: 45, charges_tax: 1, prices_include_tax: 0, tax_rate: '', website_url: '' };
 
@@ -828,7 +828,7 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
         {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New Contact</button>}
       </div>
       <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-        <input placeholder="Search…" value={filter} onChange={e => setFilter(e.target.value)} style={{ ...inputStyle, width: 240 }} />
+        <input placeholder="Searchâ€¦" value={filter} onChange={e => setFilter(e.target.value)} style={{ ...inputStyle, width: 240 }} />
         <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ ...inputStyle, width: 160 }}>
           <option value="">All Types</option>
           <option value="supplier">Suppliers</option>
@@ -842,16 +842,16 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
           rows={visible}
           render={(c) => [
             <button onClick={() => openEdit(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
-            c.company || '—',
+            c.company || 'â€”',
             <span style={{ textTransform: 'capitalize' }}>{c.type}</span>,
             c.price_tier === 'wholesale'
               ? <span style={{ background: 'rgba(139,92,246,.18)', color: '#a78bfa', borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600 }}>Wholesale</span>
               : <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Retail</span>,
-            c.email || '—',
-            c.phone || '—',
+            c.email || 'â€”',
+            c.phone || 'â€”',
             (c.type === 'supplier' || c.type === 'both')
               ? <span style={{ color: 'var(--sv-text-main)', fontVariantNumeric: 'tabular-nums' }}>{c.order_frequency_days ?? 45}d</span>
-              : <span style={{ color: 'var(--sv-text-dim)' }}>—</span>,
+              : <span style={{ color: 'var(--sv-text-dim)' }}>â€”</span>,
             <ActiveDot active={c.is_active} />,
             <div style={{ display: 'flex', gap: 4 }}>
               {!isAdvisor && <button onClick={() => openEdit(c)} style={btnStyle('ghost', 'xs')}>Edit</button>}
@@ -937,9 +937,9 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Locations View
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const BLANK_LOC = { name: '', code: '', address: '', phone: '', city: '', state: '', postcode: '', country: 'Australia', is_active: 1, pos_pin: '', has_pos: 0, has_wholesale: 0, has_online: 0 };
 const LOC_TARGET_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
@@ -1020,10 +1020,10 @@ function LocationRegistersPanel({ locationId, locationName, onClose }: { locatio
     <div style={{ marginTop: 16, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '1rem 1.25rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
         <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)', flex: 1 }}>
-          Registers — {locationName}
+          Registers â€” {locationName}
         </span>
         <button onClick={() => setAdding(a => !a)} style={btnStyle('action', 'xs')}>+ Add Register</button>
-        <button onClick={onClose} style={btnStyle('ghost', 'xs')}>✕ Close</button>
+        <button onClick={onClose} style={btnStyle('ghost', 'xs')}>âœ• Close</button>
       </div>
       {adding && (
         <form onSubmit={handleAdd} style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'flex-end' }}>
@@ -1033,7 +1033,7 @@ function LocationRegistersPanel({ locationId, locationName, onClose }: { locatio
           <Field label="Default Float ($)">
             <input type="number" min="0" step="0.01" value={newFloat} onChange={e => setNewFloat(e.target.value)} placeholder="0.00" style={{ ...inputStyle, width: 100, marginBottom: 0 }} />
           </Field>
-          <button type="submit" disabled={saving || !newName.trim()} style={{ ...btnStyle('action', 'sm'), marginBottom: 1 }}>{saving ? 'Saving…' : 'Save'}</button>
+          <button type="submit" disabled={saving || !newName.trim()} style={{ ...btnStyle('action', 'sm'), marginBottom: 1 }}>{saving ? 'Savingâ€¦' : 'Save'}</button>
           <button type="button" onClick={() => setAdding(false)} style={{ ...btnStyle('ghost', 'sm'), marginBottom: 1 }}>Cancel</button>
         </form>
       )}
@@ -1149,7 +1149,7 @@ function LocationsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
           rows={locations}
           render={(l) => [
             <strong style={{ color: 'var(--sv-text-strong)' }}>{l.name}</strong>,
-            l.code || '—', l.city || '—', l.state || '—',
+            l.code || 'â€”', l.city || 'â€”', l.state || 'â€”',
             <ActiveDot active={l.is_active} />,
             <div style={{ display: 'flex', gap: 6 }}>
               <button onClick={() => setRegistersFor(registersFor?.id === l.id ? null : { id: l.id, name: l.name })} style={btnStyle('ghost', 'xs')}>Registers</button>
@@ -1216,7 +1216,7 @@ function LocationsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
                       type="number" min="0" step="1"
                       value={targets[day] ?? ''}
                       onChange={e => setTargets(p => ({ ...p, [day]: e.target.value }))}
-                      placeholder="—"
+                      placeholder="â€”"
                       style={{ ...inputStyle, textAlign: 'center', padding: '5px 2px', fontSize: 13, width: '100%', minWidth: 0 }}
                     />
                   </div>
@@ -1232,9 +1232,9 @@ function LocationsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Products View
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface VariantRow {
   _tempId: string;
@@ -1279,9 +1279,9 @@ function cartesian(sets: OptionSet[]): [string, string, string][] {
 
 const PAGE_SIZE = 100;
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Import Line Items Modal (shared by PO / SO / BT)
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type ImportMode = 'scan' | 'paste';
 
 function ImportLineItemsModal({
@@ -1369,14 +1369,14 @@ function ImportLineItemsModal({
     <Modal title="Import Line Items" onClose={onClose}>
       {/* Mode toggle */}
       <div style={{ display: 'flex', marginBottom: 20, border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', width: 'fit-content' }}>
-        <button type="button" onClick={() => setMode('scan')} style={toggleStyle(mode === 'scan')}>📷 Barcode Scan</button>
-        <button type="button" onClick={() => setMode('paste')} style={toggleStyle(mode === 'paste')}>📋 Paste / Tab-delimited</button>
+        <button type="button" onClick={() => setMode('scan')} style={toggleStyle(mode === 'scan')}>ðŸ“· Barcode Scan</button>
+        <button type="button" onClick={() => setMode('paste')} style={toggleStyle(mode === 'paste')}>ðŸ“‹ Paste / Tab-delimited</button>
       </div>
 
       {mode === 'scan' && (
         <div>
           <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 6 }}>
-            Paste or scan barcodes/SKUs — one per line. Duplicates are tallied automatically.
+            Paste or scan barcodes/SKUs â€” one per line. Duplicates are tallied automatically.
           </div>
           <textarea
             value={scanText}
@@ -1402,9 +1402,9 @@ function ImportLineItemsModal({
                     <tr key={v.variant_id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
                       <td style={{ padding: '4px 8px' }}>
                         <div style={{ fontWeight: 500 }}>{v.product_name}</div>
-                        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{[v.sku, v.barcode].filter(Boolean).join(' · ')}</div>
+                        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{[v.sku, v.barcode].filter(Boolean).join(' Â· ')}</div>
                       </td>
-                      <td style={{ padding: '4px 8px', width: 60, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 12 }}>{scannedCount}×</td>
+                      <td style={{ padding: '4px 8px', width: 60, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 12 }}>{scannedCount}Ã—</td>
                       <td style={{ padding: '4px 4px', width: 72 }}>
                         <input type="number" min="0.0001" step="any" value={qty}
                           onChange={e => setScanOverrides(prev => ({ ...prev, [v.variant_id]: { qty: parseFloat(e.target.value) || 0, price: prev[v.variant_id]?.price ?? priceFn(v) } }))}
@@ -1418,7 +1418,7 @@ function ImportLineItemsModal({
                       <td style={{ padding: '4px 4px', width: 28 }}>
                         <button type="button"
                           onClick={() => { setScanText(prev => prev.split('\n').filter(l => { const vv = lookupVariant(l.trim()); return !vv || vv.variant_id !== v.variant_id; }).join('\n')); }}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16 }}>×</button>
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16 }}>Ã—</button>
                       </td>
                     </tr>
                   );
@@ -1428,7 +1428,7 @@ function ImportLineItemsModal({
           )}
           {scanUnmatched.length > 0 && (
             <div style={{ background: 'rgba(239,68,68,.1)', borderRadius: 6, padding: '8px 12px', marginTop: 6, fontSize: 12, color: 'var(--sv-red)' }}>
-              ⚠ Unrecognised ({scanUnmatched.length}): {scanUnmatched.slice(0, 10).join(', ')}{scanUnmatched.length > 10 ? ` +${scanUnmatched.length - 10} more` : ''}
+              âš  Unrecognised ({scanUnmatched.length}): {scanUnmatched.slice(0, 10).join(', ')}{scanUnmatched.length > 10 ? ` +${scanUnmatched.length - 10} more` : ''}
             </div>
           )}
         </div>
@@ -1462,15 +1462,15 @@ function ImportLineItemsModal({
                     <td style={{ padding: '4px 8px', fontFamily: 'monospace', fontSize: 12 }}>{row.code}</td>
                     <td style={{ padding: '4px 8px' }}>
                       {row.variant
-                        ? <span>{row.variant.product_name}{row.variant.sku ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}> — {row.variant.sku}</span> : null}</span>
-                        : <span style={{ color: 'var(--sv-red)' }}>Not found — will skip</span>}
+                        ? <span>{row.variant.product_name}{row.variant.sku ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}> â€” {row.variant.sku}</span> : null}</span>
+                        : <span style={{ color: 'var(--sv-red)' }}>Not found â€” will skip</span>}
                     </td>
                     <td style={{ padding: '4px 8px', width: 60 }}>{row.qty}</td>
                     <td style={{ padding: '4px 8px', width: 80 }}>{row.price.toFixed(2)}</td>
                     <td style={{ padding: '4px 8px', width: 60, textAlign: 'center' }}>
                       {row.variant
-                        ? <span style={{ color: '#4ade80', fontSize: 11, fontWeight: 600 }}>✓</span>
-                        : <span style={{ color: 'var(--sv-red)', fontSize: 11, fontWeight: 600 }}>✗</span>}
+                        ? <span style={{ color: '#4ade80', fontSize: 11, fontWeight: 600 }}>âœ“</span>
+                        : <span style={{ color: 'var(--sv-red)', fontSize: 11, fontWeight: 600 }}>âœ—</span>}
                     </td>
                   </tr>
                 ))}
@@ -1491,9 +1491,9 @@ function ImportLineItemsModal({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Import Products Modal
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const IMPORT_BASE_HEADERS = [
   'Product_Name','Product_SKU','SKU','Barcode','Description','Brand','Supplier','Product_Type',
@@ -1537,7 +1537,7 @@ function ImportProductsModal({
   const [currentPrompt, setCurrentPrompt] = useState<{ kind: 'brand' | 'supplier'; name: string } | null>(null);
   const [promptChoice, setPromptChoice] = useState<'new' | 'existing'>('new');
   const [promptSelected, setPromptSelected] = useState('');
-  // Maps unknown name → resolved name (after prompts)
+  // Maps unknown name â†’ resolved name (after prompts)
   const [brandResolutions, setBrandResolutions] = useState<Record<string, string>>({});
   const [supplierResolutions, setSupplierResolutions] = useState<Record<string, string>>({});
   const [result, setResult] = useState<{ created: number; updated: number; skipped: number } | null>(null);
@@ -1562,7 +1562,7 @@ function ImportProductsModal({
     return [...IMPORT_BASE_HEADERS, ...catCols, ...perLoc];
   }, [locations, showZoneBin, showCategories]);
 
-  // Normalized header string → { location_id, field } for parsing per-location columns.
+  // Normalized header string â†’ { location_id, field } for parsing per-location columns.
   const locHeaderMap = useMemo(() => {
     const m = new Map<string, { location_id: number; field: 'zone' | 'bin' | 'min_qty' | 'reorder_qty' }>();
     for (const loc of locations) {
@@ -1577,7 +1577,7 @@ function ImportProductsModal({
     return m;
   }, [locations, showZoneBin]);
 
-  // Load locations — sorted with default warehouse first, then alphabetical
+  // Load locations â€” sorted with default warehouse first, then alphabetical
   useEffect(() => {
     fetch('/api/ims/locations').then(r => r.json()).then(d => {
       if (!d.success) return;
@@ -1592,8 +1592,8 @@ function ImportProductsModal({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [importSettings.default_warehouse_location_id]);
 
-  // Pre-fill / refresh the header row whenever the template changes — but only while
-  // the user hasn't pasted any data rows yet (textarea holds ≤ 1 line).
+  // Pre-fill / refresh the header row whenever the template changes â€” but only while
+  // the user hasn't pasted any data rows yet (textarea holds â‰¤ 1 line).
   useEffect(() => {
     const line = templateHeaders.join('\t');
     setPasteText(prev => {
@@ -1676,7 +1676,7 @@ function ImportProductsModal({
           if (raw['barcode'] !== '' && raw['barcode'] !== (v.barcode ?? '')) changedFields.push('Barcode');
           if (raw['brand'] !== '' && raw['brand'] !== (p.brand ?? '')) changedFields.push('Brand');
         } else {
-          // SKU not found — check by Product_SKU column, then product name
+          // SKU not found â€” check by Product_SKU column, then product name
           const existingProduct =
             (product_sku && productByBaseSkuMap.get(normStr(product_sku))) ||
             (product_name && productByNameMap.get(normStr(product_name)));
@@ -1688,7 +1688,7 @@ function ImportProductsModal({
           }
         }
       } else {
-        // No SKU — check by Product_SKU column, then product name
+        // No SKU â€” check by Product_SKU column, then product name
         const existingProduct =
           (product_sku && productByBaseSkuMap.get(normStr(product_sku))) ||
           (product_name && productByNameMap.get(normStr(product_name)));
@@ -1883,7 +1883,7 @@ function ImportProductsModal({
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)', flex: 1 }}>Import Products</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>Ã—</button>
         </div>
 
         {/* Stage: paste */}
@@ -1894,11 +1894,12 @@ function ImportProductsModal({
             </p>
             <div style={{ margin: '4px 0 8px', padding: '10px 14px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.7 }}>
               <strong style={{ color: 'var(--sv-text-main)' }}>Key columns:</strong><br />
-              <strong>Product_SKU</strong> — The product-level identifier that groups variants under the same product (e.g. <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>MT-RCAK</code>). Rows sharing the same <em>Product_SKU</em> will be added as variants of one product. For a single-variant product, <em>Product_SKU</em> and <em>SKU</em> are typically identical.<br />
-              <strong>SKU</strong> — The individual variant barcode-style SKU (e.g. <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>MT-RCAKMemphis-2 to 3 years</code>). A matching SKU updates that variant; a non-matching SKU creates a new one.<br />
-              <strong>Product_Name</strong> — Used as a fallback grouping key if <em>Product_SKU</em> is blank.{' '}
+              <strong>Product_SKU</strong> â€” The product-level identifier that groups variants under the same product (e.g. <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>MT-RCAK</code>). Rows sharing the same <em>Product_SKU</em> will be added as variants of one product. For a single-variant product, <em>Product_SKU</em> and <em>SKU</em> are typically identical.<br />
+              <strong>SKU</strong> â€” The individual variant barcode-style SKU (e.g. <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>MT-RCAKMemphis-2 to 3 years</code>). A matching SKU updates that variant; a non-matching SKU creates a new one.<br />
+              <strong>Product_Name</strong> â€” Used as a fallback grouping key if <em>Product_SKU</em> is blank.{' '}
               {showCategories ? 'Category and Subcategory columns are also included. ' : ''}
-              The columns at the end —{showZoneBin ? ' Zone, Bin,' : ''} Min Qty and Reorder Qty — are per location and saved against that location’s stock. The default warehouse location appears first.
+              The columns at the end â€”{showZoneBin ? ' Zone, Bin,' : ''} Min Qty and Reorder Qty â€” are per location and saved against that locationâ€™s stock. The default warehouse location appears first.<br />
+              <strong>Variant options (Size, Colour, etc.)</strong> — Use <strong>Option1_Name</strong> / <strong>Option1_Value</strong> (and Option2 / Option3) to define variant dimensions. For example, to import a shirt in three sizes: set <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>Option1_Name</code> = <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>Size</code> and <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>Option1_Value</code> = <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>S</code>, <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>M</code> or <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>L</code> on each row — all sharing the same <em>Product_SKU</em>.
             </div>
             <textarea
               value={pasteText}
@@ -1912,7 +1913,7 @@ function ImportProductsModal({
             />
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
               <button onClick={onClose} style={btnStyle('ghost')}>Cancel</button>
-              <button onClick={handleNext} style={btnStyle('action')}>Next: Preview →</button>
+              <button onClick={handleNext} style={btnStyle('action')}>Next: Preview â†’</button>
             </div>
           </>
         )}
@@ -1954,7 +1955,7 @@ function ImportProductsModal({
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
               <button onClick={onClose} style={btnStyle('ghost')}>Cancel</button>
-              <button onClick={handlePromptConfirm} style={btnStyle('action')}>Confirm →</button>
+              <button onClick={handlePromptConfirm} style={btnStyle('action')}>Confirm â†’</button>
             </div>
           </div>
         )}
@@ -1963,9 +1964,9 @@ function ImportProductsModal({
         {stage === 'review' && (
           <>
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 13, color: '#4ade80', fontWeight: 600 }}>✚ {newCount} new</span>
-              <span style={{ fontSize: 13, color: '#facc15', fontWeight: 600 }}>↑ {updateCount} updates</span>
-              {errorCount > 0 && <span style={{ fontSize: 13, color: '#f87171', fontWeight: 600 }}>✕ {errorCount} errors</span>}
+              <span style={{ fontSize: 13, color: '#4ade80', fontWeight: 600 }}>âœš {newCount} new</span>
+              <span style={{ fontSize: 13, color: '#facc15', fontWeight: 600 }}>â†‘ {updateCount} updates</span>
+              {errorCount > 0 && <span style={{ fontSize: 13, color: '#f87171', fontWeight: 600 }}>âœ• {errorCount} errors</span>}
             </div>
             <div style={{ overflowX: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 8, maxHeight: 400, overflowY: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -1979,8 +1980,8 @@ function ImportProductsModal({
                 <tbody>
                   {parsedRows.map((row, i) => (
                     <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)', opacity: row.action === 'error' ? 0.6 : 1 }}>
-                      <td style={{ padding: '6px 12px', color: 'var(--sv-text-main)', fontWeight: 500 }}>{row.product_name || '—'}</td>
-                      <td style={{ padding: '6px 12px', color: 'var(--sv-text-dim)', fontFamily: 'monospace' }}>{row.sku || '—'}</td>
+                      <td style={{ padding: '6px 12px', color: 'var(--sv-text-main)', fontWeight: 500 }}>{row.product_name || 'â€”'}</td>
+                      <td style={{ padding: '6px 12px', color: 'var(--sv-text-dim)', fontFamily: 'monospace' }}>{row.sku || 'â€”'}</td>
                       <td style={{ padding: '6px 12px' }}>{actionBadge(row.action)}</td>
                       <td style={{ padding: '6px 12px', color: 'var(--sv-text-dim)', fontSize: 11 }}>
                         {row.action === 'error' && <span style={{ color: '#f87171' }}>{row.errorMsg}</span>}
@@ -1998,7 +1999,7 @@ function ImportProductsModal({
               </table>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <button onClick={() => setStage('paste')} style={btnStyle('ghost')}>← Back</button>
+              <button onClick={() => setStage('paste')} style={btnStyle('ghost')}>â† Back</button>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button onClick={onClose} style={btnStyle('ghost')}>Cancel</button>
@@ -2018,20 +2019,20 @@ function ImportProductsModal({
         {/* Stage: importing */}
         {stage === 'importing' && (
           <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)', fontSize: 14 }}>
-            Importing… please wait.
+            Importingâ€¦ please wait.
           </div>
         )}
 
         {/* Stage: done */}
         {stage === 'done' && result && (
           <div style={{ textAlign: 'center', padding: '20px 0' }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>✓</div>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>âœ“</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 8 }}>Import Complete</div>
             <div style={{ fontSize: 14, color: 'var(--sv-text-dim)', marginBottom: 24 }}>
               <span style={{ color: '#4ade80', fontWeight: 600 }}>Created {result.created}</span>
-              {' · '}
+              {' Â· '}
               <span style={{ color: '#facc15', fontWeight: 600 }}>Updated {result.updated}</span>
-              {result.skipped > 0 && <>{' · '}<span style={{ color: '#f87171', fontWeight: 600 }}>Skipped {result.skipped}</span></>}
+              {result.skipped > 0 && <>{' Â· '}<span style={{ color: '#f87171', fontWeight: 600 }}>Skipped {result.skipped}</span></>}
             </div>
             <button onClick={onClose} style={btnStyle('action')}>Close</button>
           </div>
@@ -2061,14 +2062,14 @@ function OnlineStoreSection({ productId, isOnline, onChangeIsOnline, isReadOnly 
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [productId]);
 
   const push = async () => {
-    if (!window.confirm("Push this product's Title, Description, Tags, Price and IMS images to the online shop?\n\nMake sure you have saved your changes (Save All) first — the push uses the last saved data.")) return;
+    if (!window.confirm("Push this product's Title, Description, Tags, Price and IMS images to the online shop?\n\nMake sure you have saved your changes (Save All) first â€” the push uses the last saved data.")) return;
     setPushing(true); setMsg('');
     try {
       const r = await fetch(`/api/ims/products/${productId}/shopify-sync`, { method: 'POST' });
       const d = await r.json();
-      if (d.success) { setMsg(d.created ? '✓ Created on the online shop' : `✓ Pushed — prices updated: ${d.pricesUpdated}, images added: ${d.imagesAdded}`); await load(); }
-      else setMsg(`⚠️ ${d.error || 'Push failed'}`);
-    } catch (e: any) { setMsg(`⚠️ ${e.message}`); }
+      if (d.success) { setMsg(d.created ? 'âœ“ Created on the online shop' : `âœ“ Pushed â€” prices updated: ${d.pricesUpdated}, images added: ${d.imagesAdded}`); await load(); }
+      else setMsg(`âš ï¸ ${d.error || 'Push failed'}`);
+    } catch (e: any) { setMsg(`âš ï¸ ${e.message}`); }
     setPushing(false);
   };
 
@@ -2078,7 +2079,7 @@ function OnlineStoreSection({ productId, isOnline, onChangeIsOnline, isReadOnly 
 
   return (
     <>
-      {/* ── Section divider ── */}
+      {/* â”€â”€ Section divider â”€â”€ */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
         <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
         <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Online Store</span>
@@ -2100,7 +2101,7 @@ function OnlineStoreSection({ productId, isOnline, onChangeIsOnline, isReadOnly 
 
       <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
         {loading ? (
-          <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Checking online store status…</span>
+          <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Checking online store statusâ€¦</span>
         ) : !status?.connected ? (
           <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Shopify is not connected for this business.</span>
         ) : (
@@ -2108,25 +2109,25 @@ function OnlineStoreSection({ productId, isOnline, onChangeIsOnline, isReadOnly 
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)' }}>Sync status:</span>
               {status.linked
-                ? chip('🛍 Linked to Shopify', 'rgba(16,185,129,.15)', '#10b981')
+                ? chip('ðŸ› Linked to Shopify', 'rgba(16,185,129,.15)', '#10b981')
                 : chip('Not on the online shop yet', 'rgba(248,113,113,.15)', '#f87171')}
               {status.linked && (status.published
                 ? chip('Published', 'rgba(16,185,129,.15)', '#10b981')
                 : chip('Draft / Unpublished', 'rgba(251,191,36,.15)', '#fbbf24'))}
               {status.linked && status.storefrontUrl && (
-                <a href={status.storefrontUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--sv-action)', fontWeight: 600 }}>View listing ↗</a>
+                <a href={status.storefrontUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--sv-action)', fontWeight: 600 }}>View listing â†—</a>
               )}
               {status.linked && status.adminUrl && (
-                <a href={status.adminUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Open in Shopify admin ↗</a>
+                <a href={status.adminUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Open in Shopify admin â†—</a>
               )}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <button type="button" onClick={push} disabled={pushing || isReadOnly}
                 style={{ padding: '7px 16px', borderRadius: 8, border: 'none', cursor: pushing || isReadOnly ? 'default' : 'pointer', background: 'var(--sv-action)', color: '#fff', fontWeight: 700, fontSize: 13, opacity: pushing || isReadOnly ? .5 : 1 }}>
-                {pushing ? 'Pushing…' : status.linked ? '⬆ Push to Online Shop' : '⬆ Create on Online Shop'}
+                {pushing ? 'Pushingâ€¦' : status.linked ? 'â¬† Push to Online Shop' : 'â¬† Create on Online Shop'}
               </button>
               <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Pushes title, description, tags, price and saved IMS images. Save your changes first.</span>
-              {msg && <span style={{ fontSize: 12, color: msg.startsWith('✓') ? '#10b981' : '#f87171', fontWeight: 600 }}>{msg}</span>}
+              {msg && <span style={{ fontSize: 12, color: msg.startsWith('âœ“') ? '#10b981' : '#f87171', fontWeight: 600 }}>{msg}</span>}
             </div>
           </div>
         )}
@@ -2135,13 +2136,13 @@ function OnlineStoreSection({ productId, isOnline, onChangeIsOnline, isReadOnly 
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Barcode Label Dialog — CODE128 SVG generator (no external fonts)
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Barcode Label Dialog â€” CODE128 SVG generator (no external fonts)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Generates a CODE128-B barcode as an inline SVG string.
- * Self-contained — no fonts, no CDN, identical output in preview and print.
+ * Self-contained â€” no fonts, no CDN, identical output in preview and print.
  */
 function code128Svg(text: string, widthMm: number, heightMm: number): string {
   // CODE128 pattern table (index = symbol value, last entry = STOP which has 7 elements)
@@ -2183,7 +2184,7 @@ function code128Svg(text: string, widthMm: number, heightMm: number): string {
   }
   return `<svg viewBox="0 0 ${widthMm} ${heightMm}" width="100%" height="100%" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><rect width="${widthMm}" height="${heightMm}" fill="white"/>${rects}</svg>`;
 }
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const LABEL_SIZES = [
   { label: '40 \u00d7 15 mm (default)', w: 40, h: 15 },
@@ -2274,7 +2275,7 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
       return '';
     })();
 
-    // Barcode SVG — generated inline, no external fonts or CDN needed
+    // Barcode SVG â€” generated inline, no external fonts or CDN needed
     const barcodeSvg = hasBarcode ? code128Svg(variant.barcode, s.w - 2 * padH, bcH) : '';
 
     const singleLabel = `<div class="label">
@@ -2367,11 +2368,11 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 14, padding: 28, width: 700, maxWidth: '95vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--sv-text-strong)', flex: 1 }}>Print Barcode Labels</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>Ã—</button>
         </div>
 
         <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-          {/* ── Settings ── */}
+          {/* â”€â”€ Settings â”€â”€ */}
           <div style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             {variants.length > 1 && (
               <div>
@@ -2418,7 +2419,7 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
             </div>
           </div>
 
-          {/* ── Preview ── */}
+          {/* â”€â”€ Preview â”€â”€ */}
           <div style={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Preview</div>
             <div style={{
@@ -2461,7 +2462,7 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
                 </div>
               )}
             </div>
-            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{size.w} × {size.h} mm</div>
+            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{size.w} Ã— {size.h} mm</div>
           </div>
         </div>
 
@@ -2469,7 +2470,7 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 4, borderTop: '1px solid var(--sv-etch)' }}>
           <button onClick={onClose} style={btnStyle('ghost')}>Close</button>
           <button onClick={printLabels} style={btnStyle('action')}>
-            🖨 Print {settings.qty > 1 ? `${settings.qty} × ` : ''}Label{settings.qty !== 1 ? 's' : ''}
+            ðŸ–¨ Print {settings.qty > 1 ? `${settings.qty} Ã— ` : ''}Label{settings.qty !== 1 ? 's' : ''}
           </button>
         </div>
       </div>
@@ -2673,7 +2674,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
       {/* Section divider */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
         <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', letterSpacing: '.04em' }}>✦ Foresight</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', letterSpacing: '.04em' }}>âœ¦ Foresight</span>
         <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
       </div>
 
@@ -2681,11 +2682,11 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
         {/* Header row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: open ? 16 : 0 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)' }}>🔍 Website Content Generator</div>
-            <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 2 }}>Find supplier URLs → Research product → Generate title, description & tags using your brand templates</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)' }}>ðŸ” Website Content Generator</div>
+            <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 2 }}>Find supplier URLs â†’ Research product â†’ Generate title, description & tags using your brand templates</div>
           </div>
           <button onClick={() => setOpen(p => !p)} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, color: 'var(--sv-text-dim)', fontWeight: 500 }}>
-            {open ? 'Hide ↑' : 'Open ↓'}
+            {open ? 'Hide â†‘' : 'Open â†“'}
           </button>
         </div>
 
@@ -2719,7 +2720,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
               <span style={{ borderLeft: '1px solid var(--sv-etch)', alignSelf: 'stretch', margin: '0 4px' }} />
               <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer', color: 'var(--sv-text)' }} title="Restrict Serper search to Australian results (gl=au)">
                 <input type="checkbox" checked={searchAuOnly} onChange={e => setSearchAuOnly(e.target.checked)} style={{ cursor: 'pointer' }} />
-                🇦🇺 AU only
+                ðŸ‡¦ðŸ‡º AU only
               </label>
               {!supplierSite && !brandSite && (
                 <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontStyle: 'italic' }}>Add supplier / brand URLs on the Contacts &amp; Brands pages to prioritise their sites</span>
@@ -2729,13 +2730,13 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
             {/* Step 1: URLs */}
             <div style={{ marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Step 1 — Supplier / Retailer URLs</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Step 1 â€” Supplier / Retailer URLs</span>
                 <button
                   onClick={handleFindUrls}
                   disabled={findingUrls}
                   style={{ ...btnStyle('ghost', 'xs'), opacity: findingUrls ? .6 : 1 }}
                 >
-                  {findingUrls ? '⏳ Finding…' : '🔍 Find URLs'}
+                  {findingUrls ? 'â³ Findingâ€¦' : 'ðŸ” Find URLs'}
                 </button>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -2746,13 +2747,13 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
                       type="url"
                       value={urls[i]}
                       onChange={e => { const u: [string, string, string] = [...urls] as any; u[i] = e.target.value; setUrls(u); }}
-                      placeholder="https://…"
+                      placeholder="https://â€¦"
                       style={{ ...inputStyle, fontSize: 12, flex: 1 }}
                     />
                     {urls[i] && (
                       <>
-                        <a href={urls[i]} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: 'var(--sv-action)', textDecoration: 'none', whiteSpace: 'nowrap' }}>Open ↗</a>
-                        <button onClick={() => { const u: [string, string, string] = [...urls] as any; u[i] = ''; setUrls(u); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 14, lineHeight: 1, padding: '0 2px' }}>×</button>
+                        <a href={urls[i]} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: 'var(--sv-action)', textDecoration: 'none', whiteSpace: 'nowrap' }}>Open â†—</a>
+                        <button onClick={() => { const u: [string, string, string] = [...urls] as any; u[i] = ''; setUrls(u); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 14, lineHeight: 1, padding: '0 2px' }}>Ã—</button>
                       </>
                     )}
                   </div>
@@ -2763,13 +2764,13 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
             {/* Step 2: Research */}
             <div style={{ marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Step 2 — Research Product</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Step 2 â€” Research Product</span>
                 <button
                   onClick={handleResearch}
                   disabled={researching}
                   style={{ ...btnStyle('ghost', 'xs'), opacity: researching ? .6 : 1 }}
                 >
-                  {researching ? '⏳ Researching…' : '🌐 Research'}
+                  {researching ? 'â³ Researchingâ€¦' : 'ðŸŒ Research'}
                 </button>
               </div>
               {researchResult && (
@@ -2782,7 +2783,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
                   )}
                   {!researchResult.answer && (
                     <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '10px 12px', fontSize: 12, color: 'var(--sv-text-dim)', fontStyle: 'italic', marginBottom: researchResult.images.length > 0 ? 10 : 0 }}>
-                      No summary returned — try with a URL in Step 1.
+                      No summary returned â€” try with a URL in Step 1.
                     </div>
                   )}
                   {/* Product images from research */}
@@ -2824,7 +2825,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
                                 fontWeight: 700,
                               }}
                             >
-                              {addingImages.has(imgUrl) ? '…' : addedImages.has(imgUrl) ? '✓' : '+'}
+                              {addingImages.has(imgUrl) ? 'â€¦' : addedImages.has(imgUrl) ? 'âœ“' : '+'}
                             </button>
                           </div>
                         ))}
@@ -2838,13 +2839,13 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
             {/* Step 3: Generate */}
             <div style={{ marginBottom: generated ? 14 : 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: generated ? 10 : 0 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Step 3 — Generate Content</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Step 3 â€” Generate Content</span>
                 <button
                   onClick={handleGenerate}
                   disabled={generating}
                   style={{ ...btnStyle('action', 'xs'), opacity: generating ? .6 : 1 }}
                 >
-                  {generating ? '⏳ Generating…' : '✦ Generate Content'}
+                  {generating ? 'â³ Generatingâ€¦' : 'âœ¦ Generate Content'}
                 </button>
                 <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Uses your Foresight brand templates</span>
               </div>
@@ -2859,7 +2860,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
                         onClick={() => onApplyContent(generated.title || null, null, null)}
                         title="Apply title to product name field"
                         style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
-                      >↙ Apply</button>
+                      >â†™ Apply</button>
                     </div>
                     <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 13, color: generated.title ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontStyle: generated.title ? 'normal' : 'italic' }}>{generated.title || 'No title generated'}</div>
                   </div>
@@ -2871,7 +2872,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
                         onClick={() => onApplyContent(null, generated.websiteDescription || null, null)}
                         title="Apply description to product description field"
                         style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
-                      >↙ Apply</button>
+                      >â†™ Apply</button>
                     </div>
                     <pre style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 11, color: generated.websiteDescription ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontStyle: generated.websiteDescription ? 'normal' : 'italic', overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 140, overflowY: 'auto', margin: 0 }}>{generated.websiteDescription || 'No description generated'}</pre>
                   </div>
@@ -2883,13 +2884,13 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
                         onClick={() => onApplyContent(null, null, generated.tags || null)}
                         title="Apply tags to product tags field"
                         style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
-                      >↙ Apply</button>
+                      >â†™ Apply</button>
                     </div>
                     <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 12, color: generated.tags ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontStyle: generated.tags ? 'normal' : 'italic' }}>{generated.tags || 'No tags generated'}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <button onClick={handleApply} style={btnStyle('action', 'sm')}>Apply All to Product</button>
-                    <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Applies all fields — or use ↙ Apply on individual fields above</span>
+                    <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Applies all fields â€” or use â†™ Apply on individual fields above</span>
                     <button onClick={() => setGenerated(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 12 }}>Discard</button>
                   </div>
                 </div>
@@ -3140,7 +3141,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
 
   const handleGenerate = () => {
     if (!form.base_sku?.trim()) {
-      alert('Please enter a Product SKU first. Variant SKUs will be generated from it (e.g. "MT-PROD" → "MT-PROD-L", "MT-PROD-M").');
+      alert('Please enter a Product SKU first. Variant SKUs will be generated from it (e.g. "MT-PROD" â†’ "MT-PROD-L", "MT-PROD-M").');
       return;
     }
     const baseSku = form.base_sku.trim();
@@ -3163,7 +3164,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const updateRow = (tempId: string, field: string, value: any) =>
     setVariantRows(rows => rows.map(r => r._tempId === tempId ? { ...r, [field]: value } : r));
 
-  // Update a price field at product level — propagates to all variant rows
+  // Update a price field at product level â€” propagates to all variant rows
   const updateProductPrice = (field: string, value: string) => {
     setProductPrices(prev => ({ ...prev, [field]: value }));
     setVariantRows(rows => rows.map(r => ({ ...r, [field]: value })));
@@ -3232,7 +3233,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
     if (inputBrand) {
       const match = brands.find(b => normBrand(b.name) === normBrand(inputBrand));
       if (!match) {
-        // Not in brand list — prompt user to add as new or pick existing
+        // Not in brand list â€” prompt user to add as new or pick existing
         setBrandPromptChoice(brands.length > 0 ? 'existing' : 'new');
         setBrandPromptSelected(brands[0]?.name ?? '');
         setBrandPrompt({ inputBrand });
@@ -3303,7 +3304,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const safePage = Math.min(page, totalPages);
   const visible = sortedFiltered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  // Fetch primary images for the current page only — accumulates as user pages through
+  // Fetch primary images for the current page only â€” accumulates as user pages through
   const visiblePageKey = visible.map((p: any) => p.product_id).join(',');
   useEffect(() => {
     if (!visiblePageKey) return;
@@ -3363,7 +3364,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   };
 
   const SortIcon = ({ col }: { col: string }) => sortCol !== col ? null : (
-    <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
+    <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? 'â†‘' : 'â†“'}</span>
   );
 
   const downloadProductsCsv = async () => {
@@ -3374,9 +3375,9 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
       const stockData = await stockRes.json();
       const stockRows: any[] = stockData.success ? stockData.data : [];
 
-      // Build stock lookup: variant_id → location_id → stock row
+      // Build stock lookup: variant_id â†’ location_id â†’ stock row
       const stockMap   = new Map<string, Map<number, any>>();
-      const locationMap = new Map<number, string>(); // id → name
+      const locationMap = new Map<number, string>(); // id â†’ name
       for (const s of stockRows) {
         if (!stockMap.has(s.variant_id)) stockMap.set(s.variant_id, new Map());
         stockMap.get(s.variant_id)!.set(s.location_id, s);
@@ -3391,7 +3392,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         })
         .map(([id, name]) => ({ id, name }));
 
-      // Build headers — same structure as the import template
+      // Build headers â€” same structure as the import template
       const catCols: string[]    = showCategories ? ['Category', 'Subcategory'] : [];
       const perLocCols: string[] = [];
       for (const loc of locs) {
@@ -3474,17 +3475,17 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Products</h1>
         <button onClick={downloadProductsCsv} disabled={exporting || products.length === 0} style={btnStyle('ghost')}>
-          {exporting ? 'Exporting…' : '⬇ Export CSV'}
+          {exporting ? 'Exportingâ€¦' : 'â¬‡ Export CSV'}
         </button>
-        <button onClick={() => setImportProductsOpen(true)} style={btnStyle('ghost')}>⬆ Import Products</button>
+        <button onClick={() => setImportProductsOpen(true)} style={btnStyle('ghost')}>â¬† Import Products</button>
         {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New Product</button>}
       </div>
-      {/* ── Filter bar ── */}
+      {/* â”€â”€ Filter bar â”€â”€ */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-        <input placeholder="Search products or SKUs…" value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 220, flex: '1 1 220px' }} />
+        <input placeholder="Search products or SKUsâ€¦" value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 220, flex: '1 1 220px' }} />
         <input
           list="brand-filter-list"
-          placeholder="Filter by brand…"
+          placeholder="Filter by brandâ€¦"
           value={filterBrand}
           onChange={e => { setFilterBrand(e.target.value); setPage(1); }}
           style={{ ...inputStyle, minWidth: 150, flex: '1 1 150px' }}
@@ -3494,7 +3495,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         </datalist>
         <input
           list="products-supplier-filter-list"
-          placeholder="Filter by supplier…"
+          placeholder="Filter by supplierâ€¦"
           value={filterSupplier}
           onChange={e => { setFilterSupplier(e.target.value); setPage(1); }}
           style={{ ...inputStyle, minWidth: 150, flex: '1 1 150px' }}
@@ -3523,7 +3524,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             }}
             style={btnStyle('secondary', 'sm')}
           >
-            Show Fields ▾
+            Show Fields â–¾
           </button>
           <div id="products-fields-dropdown" style={{ display: 'none', position: 'absolute', top: '100%', right: 0, zIndex: 100, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '12px 14px', marginTop: 4, minWidth: 200, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
             <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-dim)', cursor: 'not-allowed', opacity: 0.6 }}>
@@ -3594,7 +3595,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         </div>
       </div>
 
-      {/* ── Bulk actions bar ── */}
+      {/* â”€â”€ Bulk actions bar â”€â”€ */}
       {selected.size > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, marginBottom: 10 }}>
           <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', flex: 1 }}>{selected.size} product{selected.size !== 1 ? 's' : ''} selected</span>
@@ -3672,7 +3673,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                       <input type="checkbox" checked={selected.has(p.product_id)} onChange={() => toggleSelect(p.product_id)} style={{ cursor: 'pointer' }} />
                     </td>
                     {showCols.sku && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{firstVar?.sku || '—'}</code>
+                      <code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{firstVar?.sku || 'â€”'}</code>
                     </td>}
                     <td style={{ padding: '10px 12px', overflow: 'hidden' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
@@ -3693,9 +3694,9 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                     {showCols.barcode && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {firstVar?.barcode && <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>#{firstVar.barcode}</span>}
                     </td>}
-                    {showCols.product_type && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.product_type || '—'}</td>}
-                    {showCols.brand && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.brand || '—'}</td>}
-                    {showCols.supplier && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.supplier_name || '—'}</td>}
+                    {showCols.product_type && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.product_type || 'â€”'}</td>}
+                    {showCols.brand && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.brand || 'â€”'}</td>}
+                    {showCols.supplier && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.supplier_name || 'â€”'}</td>}
                     {showCols.cb_cost && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13 }}>{fmtCurrency(firstVar?.cost_aud)}</td>}
                     {showCols.sell_price && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', fontSize: 13 }}>
                       {firstVar ? (
@@ -3707,17 +3708,17 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                         ) : (
                           <span style={{ color: 'var(--sv-text-dim)' }}>{fmtCurrency(firstVar.price_rrp)}</span>
                         )
-                      ) : '—'}
+                      ) : 'â€”'}
                     </td>}
                     {showCols.ws_price && (
                       <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', fontSize: 13, color: 'var(--sv-text-dim)' }}>
-                        {firstVar?.price_wholesale != null ? fmtCurrency(firstVar.price_wholesale) : '—'}
+                        {firstVar?.price_wholesale != null ? fmtCurrency(firstVar.price_wholesale) : 'â€”'}
                       </td>
                     )}
 
                     {showCols.soh && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
                       {aggSoh === null
-                        ? (stockSohLoading ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>loading…</span> : '—')
+                        ? (stockSohLoading ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>loadingâ€¦</span> : 'â€”')
                         : (
                           <span 
                             onClick={() => setStockHistoryModal({ productId: p.product_id, productName: p.name })}
@@ -3749,7 +3750,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                       </td>
                     )}
                     {showCols.active && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)' }}><ActiveDot active={p.is_active} /></td>}
-                    {showCols.created && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{p.created_at ? String(p.created_at).slice(0, 10) : '—'}</td>}
+                    {showCols.created && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{p.created_at ? String(p.created_at).slice(0, 10) : 'â€”'}</td>}
                   </tr>
                   {expandedIds.has(p.product_id) && variants.map((v: any) => {
                     const vHasDiscount = v.price_rrp_sale != null && Number(v.price_rrp_sale) > 0;
@@ -3758,7 +3759,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                         <td style={{ borderTop: '1px solid color-mix(in srgb, var(--sv-etch) 40%, transparent)' }} />{/* expand */}
                         <td style={{ borderTop: '1px solid color-mix(in srgb, var(--sv-etch) 40%, transparent)' }} />{/* checkbox */}
                         <td style={{ borderTop: '1px solid color-mix(in srgb, var(--sv-etch) 40%, transparent)', padding: '8px 12px 8px 36px', fontSize: 13, color: 'var(--sv-text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          <code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{v.sku || '—'}</code>
+                          <code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{v.sku || 'â€”'}</code>
                           {v.barcode && <span style={{ color: 'var(--sv-text-dim)', fontSize: 11, marginLeft: 6 }}>#{v.barcode}</span>}
                           {' '}{[v.option1_value, v.option2_value, v.option3_value].filter(Boolean).join(' / ')}
                         </td>
@@ -3779,13 +3780,13 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                         
                         {showCols.ws_price && (
                           <td style={{ borderTop: '1px solid color-mix(in srgb, var(--sv-etch) 40%, transparent)', padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>
-                            {v.price_wholesale != null ? fmtCurrency(v.price_wholesale) : '—'}
+                            {v.price_wholesale != null ? fmtCurrency(v.price_wholesale) : 'â€”'}
                           </td>
                         )}
 
                         <td style={{ borderTop: '1px solid color-mix(in srgb, var(--sv-etch) 40%, transparent)', padding: '8px 12px', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
                           {stockSoh === null
-                            ? (stockSohLoading ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>loading…</span> : '—')
+                            ? (stockSohLoading ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>loadingâ€¦</span> : 'â€”')
                             : (
                               <button
                                 onClick={() => setStockHistoryModal({ productId: p.product_id, productName: p.name })}
@@ -3815,18 +3816,18 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         </div>
       )}
 
-      {/* ── Pagination ── */}
+      {/* â”€â”€ Pagination â”€â”€ */}
       {!loading && totalPages > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14 }}>
-          <button onClick={() => setPage(1)} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>«</button>
-          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>‹ Prev</button>
+          <button onClick={() => setPage(1)} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>Â«</button>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>â€¹ Prev</button>
           <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 8px' }}>Page {safePage} of {totalPages} ({sortedFiltered.length} products)</span>
-          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>Next ›</button>
-          <button onClick={() => setPage(totalPages)} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>»</button>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>Next â€º</button>
+          <button onClick={() => setPage(totalPages)} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>Â»</button>
         </div>
       )}
 
-      {/* ── Stock History Modal ── */}
+      {/* â”€â”€ Stock History Modal â”€â”€ */}
       {stockHistoryModal && (
         <StockHistoryModal
           productId={stockHistoryModal.productId}
@@ -3837,10 +3838,10 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         />
       )}
 
-      {/* ── Combined Product + Variants Modal ── */}
+      {/* â”€â”€ Combined Product + Variants Modal â”€â”€ */}
       {modal.open && (
         <Modal title={modal.edit ? `Edit: ${form.name || 'Product'}` : 'New Product'} onClose={() => setModal({ open: false, edit: null })} wider>
-          {/* ── Product Details ── */}
+          {/* â”€â”€ Product Details â”€â”€ */}
           <div style={{ marginBottom: 20 }}>
             {modal.edit?.product_id && (
               <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 10 }}>
@@ -3852,7 +3853,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             <Row2>
               <Field label="Product Type"><input value={form.product_type} onChange={sf('product_type')} style={inputStyle} /></Field>
               <Field label="Brand">
-                <input list="brand-list" value={form.brand} onChange={sf('brand')} style={inputStyle} placeholder="Type or select…" />
+                <input list="brand-list" value={form.brand} onChange={sf('brand')} style={inputStyle} placeholder="Type or selectâ€¦" />
                 <datalist id="brand-list">
                   {brands.map(b => <option key={b.id} value={b.name} />)}
                 </datalist>
@@ -3878,7 +3879,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                 onChange={e => setForm((p: any) => ({ ...p, supplier_contact_id: e.target.value ? Number(e.target.value) : null }))}
                 style={inputStyle}
               >
-                <option value="">— None —</option>
+                <option value="">â€” None â€”</option>
                 {contacts.filter((c: any) => c.type === 'supplier').map((c: any) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
@@ -3906,7 +3907,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             </div>
           </div>
 
-          {/* ── Photos ── */}
+          {/* â”€â”€ Photos â”€â”€ */}
           {modal.edit?.product_id && (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
@@ -3934,7 +3935,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             </>
           )}
 
-          {/* ── Pricing ── */}
+          {/* â”€â”€ Pricing â”€â”€ */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
             <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
             <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Pricing</span>
@@ -3942,13 +3943,13 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           </div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
             <Field label="Price (RRP) $"><input type="number" step="0.01" min="0" value={productPrices.price_rrp} onChange={e => updateProductPrice('price_rrp', e.target.value)} style={{ ...inputStyle, width: 100 }} placeholder="0.00" /></Field>
-            <Field label="Wholesale $"><input type="number" step="0.01" min="0" value={productPrices.price_wholesale} onChange={e => updateProductPrice('price_wholesale', e.target.value)} style={{ ...inputStyle, width: 100 }} placeholder="—" /></Field>
-            <Field label="Disc. Price $"><input type="number" step="0.01" min="0" value={productPrices.price_rrp_sale} onChange={e => updateProductPrice('price_rrp_sale', e.target.value)} style={{ ...inputStyle, width: 100 }} placeholder="—" /></Field>
+            <Field label="Wholesale $"><input type="number" step="0.01" min="0" value={productPrices.price_wholesale} onChange={e => updateProductPrice('price_wholesale', e.target.value)} style={{ ...inputStyle, width: 100 }} placeholder="â€”" /></Field>
+            <Field label="Disc. Price $"><input type="number" step="0.01" min="0" value={productPrices.price_rrp_sale} onChange={e => updateProductPrice('price_rrp_sale', e.target.value)} style={{ ...inputStyle, width: 100 }} placeholder="â€”" /></Field>
             <Field label="Disc. From"><input type="date" value={productPrices.discount_start_date} onChange={e => updateProductPrice('discount_start_date', e.target.value)} style={{ ...inputStyle, width: 140 }} /></Field>
             <Field label="Disc. To"><input type="date" value={productPrices.discount_end_date} onChange={e => updateProductPrice('discount_end_date', e.target.value)} style={{ ...inputStyle, width: 140 }} /></Field>
           </div>
 
-          {/* ── Section divider ── */}
+          {/* â”€â”€ Section divider â”€â”€ */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
             <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
             <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Variants</span>
@@ -3968,7 +3969,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                   style={{ ...inputStyle, flex: 1 }} />
                 {optionSets.length > 1 && (
                   <button type="button" onClick={() => setOptionSets(prev => prev.filter((_, i) => i !== idx))}
-                    style={{ background: 'none', border: 'none', color: 'var(--sv-red)', cursor: 'pointer', fontSize: 20, lineHeight: 1, padding: '0 4px' }}>×</button>
+                    style={{ background: 'none', border: 'none', color: 'var(--sv-red)', cursor: 'pointer', fontSize: 20, lineHeight: 1, padding: '0 4px' }}>Ã—</button>
                 )}
               </div>
             ))}
@@ -3976,7 +3977,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               {optionSets.length < 3 && (
                 <button type="button" onClick={() => setOptionSets(prev => [...prev, { name: '', values: '' }])} style={btnStyle('ghost', 'xs')}>+ Option</button>
               )}
-              <button type="button" onClick={handleGenerate} style={btnStyle('mint', 'xs')}>⚡ Generate Variants</button>
+              <button type="button" onClick={handleGenerate} style={btnStyle('mint', 'xs')}>âš¡ Generate Variants</button>
               <button type="button" onClick={() => setVariantRows(prev => [...prev, blankRow()])} style={btnStyle('ghost', 'xs')}>+ Blank Row</button>
               {/* Currency cost picker */}
               <select
@@ -3984,7 +3985,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                 onChange={e => { if (e.target.value && !activeCurrencies.includes(e.target.value)) setActiveCurrencies(prev => [...prev, e.target.value]); }}
                 style={{ ...inputStyle, padding: '3px 8px', fontSize: 12, width: 'auto' }}
               >
-                <option value="">+ Add Currency Cost…</option>
+                <option value="">+ Add Currency Costâ€¦</option>
                 {CURRENCIES.filter(c => !activeCurrencies.includes(c)).map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
@@ -3998,13 +3999,13 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                   <tr style={{ background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)' }}>
                     {['Variant','SKU','Barcode','Cost $','Wt kg',
                       ...activeCurrencies.map(c => c),
-                      '✓',''].map((h, i) => (
+                      'âœ“',''].map((h, i) => (
                       <th key={i} style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, whiteSpace: 'nowrap' }}>
                         {activeCurrencies.includes(h as string) ? (
                           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                             {h}
                             <button type="button" onClick={() => setActiveCurrencies(prev => prev.filter(c => c !== h))}
-                              style={{ background: 'none', border: 'none', color: 'var(--sv-red)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
+                              style={{ background: 'none', border: 'none', color: 'var(--sv-red)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>Ã—</button>
                           </span>
                         ) : h}
                       </th>
@@ -4034,7 +4035,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                         </td>
                         <td style={{ padding: '2px 4px', textAlign: 'center' }}>
                           <button type="button" onClick={() => deleteRow(row._tempId)}
-                            style={{ background: 'none', border: 'none', color: 'var(--sv-red)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '0 4px' }}>×</button>
+                            style={{ background: 'none', border: 'none', color: 'var(--sv-red)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '0 4px' }}>Ã—</button>
                         </td>
                       </tr>
                     );
@@ -4043,10 +4044,10 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               </table>
             </div>
           ) : (
-            <p style={{ color: 'var(--sv-text-dim)', fontSize: 13, marginBottom: 16 }}>No variants yet — define options above and click ⚡ Generate Variants, or add a Blank Row.</p>
+            <p style={{ color: 'var(--sv-text-dim)', fontSize: 13, marginBottom: 16 }}>No variants yet â€” define options above and click âš¡ Generate Variants, or add a Blank Row.</p>
           )}
 
-          {/* ── Online Store ── */}
+          {/* â”€â”€ Online Store â”€â”€ */}
           {modal.edit?.product_id && (
             <OnlineStoreSection
               productId={modal.edit.product_id}
@@ -4059,7 +4060,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             />
           )}
 
-          {/* ── Foresight: Supplier URL finder + Research + Generate Content ── */}
+          {/* â”€â”€ Foresight: Supplier URL finder + Research + Generate Content â”€â”€ */}
           {hasForesight && modal.edit?.product_id && (
             <ForesightProductSection
               product={modal.edit}
@@ -4077,9 +4078,9 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           )}
 
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
-            {modal.edit && <button type="button" onClick={() => setBarcodeLabelOpen(true)} style={{ ...btnStyle('ghost'), marginRight: 'auto' }}>🏷 Print Labels</button>}
+            {modal.edit && <button type="button" onClick={() => setBarcodeLabelOpen(true)} style={{ ...btnStyle('ghost'), marginRight: 'auto' }}>ðŸ· Print Labels</button>}
             <button type="button" onClick={() => setModal({ open: false, edit: null })} style={btnStyle('ghost')}>Cancel</button>
-            {!isAdvisor && <button type="button" onClick={handleSaveAll} disabled={saving} style={btnStyle('action')}>{saving ? 'Saving…' : 'Save All'}</button>}
+            {!isAdvisor && <button type="button" onClick={handleSaveAll} disabled={saving} style={btnStyle('action')}>{saving ? 'Savingâ€¦' : 'Save All'}</button>}
           </div>
         </Modal>
       )}
@@ -4092,7 +4093,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         />
       )}
 
-      {/* ── Brand resolution prompt ── */}
+      {/* â”€â”€ Brand resolution prompt â”€â”€ */}
       {brandPrompt && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.7)' }}>
           <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: 28, width: 440, maxWidth: '90vw' }}>
@@ -4126,7 +4127,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         </div>
       )}
 
-      {/* ── Import Products modal ── */}
+      {/* â”€â”€ Import Products modal â”€â”€ */}
       {importProductsOpen && (
         <ImportProductsModal
           products={products}
@@ -4140,9 +4141,9 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Stock History Modal
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type StockHistoryData = {
   variants: any[];
@@ -4179,7 +4180,7 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
       .finally(() => setLoading(false));
   }, [productId]);
 
-  // Group stock by location — when a variant is selected, show only that variant's stock
+  // Group stock by location â€” when a variant is selected, show only that variant's stock
   const locationTotals: Record<string, { name: string; qty_on_hand: number; qty_incoming: number; qty_committed: number }> = {};
   if (data) {
     for (const row of data.stockByLocation) {
@@ -4193,7 +4194,7 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
   }
   const locationRows = Object.values(locationTotals);
 
-  // Opening balance — when a variant is selected, show only that variant's balance (not sum)
+  // Opening balance â€” when a variant is selected, show only that variant's balance (not sum)
   const openingByLoc: Record<string, { name: string; qty: number; date: string; inferred?: boolean }> = {};
   if (data) {
     for (const ob of data.openingBalances) {
@@ -4266,7 +4267,7 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
 
     const asc = [...openings, ...moves];
 
-    // Forward pass — accumulate on-hand; SOH After = combined across scoped keys.
+    // Forward pass â€” accumulate on-hand; SOH After = combined across scoped keys.
     const soh: Record<string, number> = {};
     for (const r of asc) {
       soh[k(r.variant_id, r.location_name)] = (soh[k(r.variant_id, r.location_name)] ?? 0) + r.inOut;
@@ -4274,7 +4275,7 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
       r.sohAfter = total;
     }
 
-    // Backward pass — anchor committed to the live value and walk back.
+    // Backward pass â€” anchor committed to the live value and walk back.
     const comm: Record<string, number> = {};
     data.stockByLocation.forEach((s: any) => {
       if (inVariant(s.variant_id) && inBranch(s.location_name)) comm[k(s.variant_id, s.location_name)] = Number(s.qty_committed ?? 0);
@@ -4314,12 +4315,12 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
   };
 
   const refLabel = (m: any): string => {
-    if (m.po_number) return `${m.po_number}${m.supplier_name ? ` · ${m.supplier_name}` : ''}`;
-    if (m.is_online_order && m.so_number) return `Online ${m.so_number}${m.customer_name ? ` · ${m.customer_name}` : ''}`;
-    if (m.so_number) return `${m.so_number}${m.customer_name ? ` · ${m.customer_name}` : ''}`;
+    if (m.po_number) return `${m.po_number}${m.supplier_name ? ` Â· ${m.supplier_name}` : ''}`;
+    if (m.is_online_order && m.so_number) return `Online ${m.so_number}${m.customer_name ? ` Â· ${m.customer_name}` : ''}`;
+    if (m.so_number) return `${m.so_number}${m.customer_name ? ` Â· ${m.customer_name}` : ''}`;
     if (m.pos_sale_local_id) return `POS ${m.pos_sale_local_id}`;
     if (m.notes) return m.notes;
-    return '—';
+    return 'â€”';
   };
 
   const linkBtn: React.CSSProperties = { background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--sv-action)', textDecoration: 'underline', fontSize: 12, fontFamily: 'inherit', textAlign: 'left' };
@@ -4336,12 +4337,12 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
   const totalAvail = locationRows.reduce((s, r) => s + (r.qty_on_hand - r.qty_committed), 0);
 
   return (
-    <Modal title={`Stock History — ${productName}`} onClose={onClose} wider>
+    <Modal title={`Stock History â€” ${productName}`} onClose={onClose} wider>
       {loading && <Spinner />}
       {error && <div style={{ color: 'var(--sv-red)', padding: 12 }}>{error}</div>}
       {data && !loading && (
         <>
-          {/* ── Stock at every location ── */}
+          {/* â”€â”€ Stock at every location â”€â”€ */}
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8, marginBottom: 8 }}>
               Current Stock by Location
@@ -4391,7 +4392,7 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
 
           <div style={{ height: 1, background: 'var(--sv-etch)', marginBottom: 20 }} />
 
-          {/* ── 12-month summary ── */}
+          {/* â”€â”€ 12-month summary â”€â”€ */}
           <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
             <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '10px 18px', flex: 1, minWidth: 120 }}>
               <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .7, marginBottom: 4 }}>Total In (12 mo)</div>
@@ -4399,7 +4400,7 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
             </div>
             <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '10px 18px', flex: 1, minWidth: 120 }}>
               <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .7, marginBottom: 4 }}>Total Out (12 mo)</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--sv-red)' }}>−{fmtQty(data.summary.total_out)}</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--sv-red)' }}>âˆ’{fmtQty(data.summary.total_out)}</div>
             </div>
             <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '10px 18px', flex: 1, minWidth: 120 }}>
               <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .7, marginBottom: 4 }}>Net Change (12 mo)</div>
@@ -4415,7 +4416,7 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
               <div style={{ fontSize: 13, color: 'var(--sv-text-main)' }}>
                 <span style={{ color: 'var(--sv-mint)', fontWeight: 700 }}>+{fmtQty(data.summary.online.in)}</span>
                 <span style={{ margin: '0 8px', color: 'var(--sv-text-dim)' }}>/</span>
-                <span style={{ color: 'var(--sv-red)', fontWeight: 700 }}>−{fmtQty(data.summary.online.out)}</span>
+                <span style={{ color: 'var(--sv-red)', fontWeight: 700 }}>âˆ’{fmtQty(data.summary.online.out)}</span>
                 <span style={{ marginLeft: 8, color: data.summary.online.net >= 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 700 }}>
                   net {data.summary.online.net >= 0 ? '+' : ''}{fmtQty(data.summary.online.net)}
                 </span>
@@ -4426,7 +4427,7 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
               <div style={{ fontSize: 13, color: 'var(--sv-text-main)' }}>
                 <span style={{ color: 'var(--sv-mint)', fontWeight: 700 }}>+{fmtQty(data.summary.pos.in)}</span>
                 <span style={{ margin: '0 8px', color: 'var(--sv-text-dim)' }}>/</span>
-                <span style={{ color: 'var(--sv-red)', fontWeight: 700 }}>−{fmtQty(data.summary.pos.out)}</span>
+                <span style={{ color: 'var(--sv-red)', fontWeight: 700 }}>âˆ’{fmtQty(data.summary.pos.out)}</span>
                 <span style={{ marginLeft: 8, color: data.summary.pos.net >= 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 700 }}>
                   net {data.summary.pos.net >= 0 ? '+' : ''}{fmtQty(data.summary.pos.net)}
                 </span>
@@ -4442,10 +4443,10 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
 
           <div style={{ height: 1, background: 'var(--sv-etch)', marginBottom: 16 }} />
 
-          {/* ── Transaction list ── */}
+          {/* â”€â”€ Transaction list â”€â”€ */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>
-              Transactions — Last 12 Months
+              Transactions â€” Last 12 Months
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 'auto', flexWrap: 'wrap' }}>
               {branchNames.length > 1 && (
@@ -4477,7 +4478,7 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
                     ))}
                   </select>
                   {selectedVariantId && (
-                    <button onClick={() => setSelectedVariantId('')} style={{ fontSize: 11, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-muted)', padding: 0 }}>✕ All</button>
+                    <button onClick={() => setSelectedVariantId('')} style={{ fontSize: 11, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-muted)', padding: 0 }}>âœ• All</button>
                   )}
                 </div>
               )}
@@ -4541,7 +4542,7 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
                         {io > 0 ? '+' : ''}{fmtQty(io)}
                       </td>
                       <td style={{ padding: '7px 12px', textAlign: 'right', fontWeight: cc !== 0 ? 700 : 400, color: cc > 0 ? 'var(--sv-amber)' : 'var(--sv-text-dim)' }}>
-                        {cc === 0 ? '—' : `${cc > 0 ? '+' : ''}${fmtQty(cc)}`}
+                        {cc === 0 ? 'â€”' : `${cc > 0 ? '+' : ''}${fmtQty(cc)}`}
                       </td>
                       <td style={{ padding: '7px 12px', textAlign: 'right', color: 'var(--sv-text-dim)', fontSize: 12 }}>{fmtQty(r.sohAfter)}</td>
                       <td style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 700, color: r.availAfter <= 0 ? 'var(--sv-red)' : 'var(--sv-mint)' }}>
@@ -4560,9 +4561,9 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Stock View
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function StockView() {
   const [stock, setStock] = useState<any[]>([]);
@@ -4595,7 +4596,7 @@ function StockView() {
     if (filterBrand && !(s.brand || '').toLowerCase().includes(filterBrand.toLowerCase())) return false;
     if (filterSupplier && !(s.supplier_name || '').toLowerCase().includes(filterSupplier.toLowerCase())) return false;
     // Show items where available qty has hit the min_qty trigger.
-    // min_qty = 0 is valid — it means "replenish when out of stock" (SOH ≤ 0).
+    // min_qty = 0 is valid â€” it means "replenish when out of stock" (SOH â‰¤ 0).
     if (showLowOnly && !(Number(s.qty_on_hand) <= Number(s.min_qty))) return false;
     if (filter) {
       const q = filter.toLowerCase();
@@ -4629,7 +4630,7 @@ function StockView() {
     setPage(1);
   };
   const SortIcon = ({ col }: { col: string }) => sortCol !== col ? null : (
-    <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
+    <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? 'â†‘' : 'â†“'}</span>
   );
   const thStyle = (col: string): React.CSSProperties => ({
     padding: '10px 12px', textAlign: 'left', fontSize: 11,
@@ -4653,14 +4654,14 @@ function StockView() {
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
         <input
-          placeholder="Search SKU, product or location…"
+          placeholder="Search SKU, product or locationâ€¦"
           value={filter}
           onChange={e => { setFilter(e.target.value); setPage(1); }}
           style={{ ...inputStyle, minWidth: 220, flex: '1 1 220px' }}
         />
         <input
           list="stock-brand-list"
-          placeholder="Filter by brand…"
+          placeholder="Filter by brandâ€¦"
           value={filterBrand}
           onChange={e => { setFilterBrand(e.target.value); setPage(1); }}
           style={{ ...inputStyle, minWidth: 150, flex: '1 1 150px' }}
@@ -4670,7 +4671,7 @@ function StockView() {
         </datalist>
         <input
           list="stock-supplier-list"
-          placeholder="Filter by supplier…"
+          placeholder="Filter by supplierâ€¦"
           value={filterSupplier}
           onChange={e => { setFilterSupplier(e.target.value); setPage(1); }}
           style={{ ...inputStyle, minWidth: 150, flex: '1 1 150px' }}
@@ -4736,16 +4737,16 @@ function StockView() {
               </thead>
               <tbody>
                 {visible.map((s: any, i: number) => {
-                  // min_qty = 0 means "flag when out of stock" — do not suppress with > 0 guard.
+                  // min_qty = 0 means "flag when out of stock" â€” do not suppress with > 0 guard.
                   const low = Number(s.qty_on_hand) <= Number(s.min_qty);
                   return (
                     <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}>
-                      <td style={{ padding: '10px 12px', fontSize: 13 }}><code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{s.sku || '—'}</code></td>
+                      <td style={{ padding: '10px 12px', fontSize: 13 }}><code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{s.sku || 'â€”'}</code></td>
                       <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-main)', whiteSpace: 'nowrap' }}>{s.product_name}</td>
                       <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.variant_label || 'Default'}</td>
                       <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.location_name}</td>
-                      {showZoneBin && <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.zone || '—'}</td>}
-                      {showZoneBin && <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.bin || '—'}</td>}
+                      {showZoneBin && <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.zone || 'â€”'}</td>}
+                      {showZoneBin && <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.bin || 'â€”'}</td>}
                       <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'right', color: low ? 'var(--sv-red)' : 'inherit', fontWeight: low ? 700 : 400 }}>{fmtQty(s.qty_on_hand)}</td>
                       {(() => { const av = Number(s.qty_on_hand) - Number(s.qty_committed); return (
                         <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'right', fontWeight: 600, color: av <= 0 ? 'var(--sv-red)' : 'var(--sv-mint)' }}>{fmtQty(av)}</td>
@@ -4756,8 +4757,8 @@ function StockView() {
                       <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'right', color: 'var(--sv-text-dim)' }}>{fmtQty(s.reorder_qty)}</td>
                       <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'right' }}>{fmtCurrency(s.avg_cost)}</td>
                       <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'right' }}>{fmtCurrency(Number(s.qty_on_hand) * Number(s.avg_cost || 0))}</td>
-                      <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.brand || '—'}</td>
-                      <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.supplier_name || '—'}</td>
+                      <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.brand || 'â€”'}</td>
+                      <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.supplier_name || 'â€”'}</td>
                     </tr>
                   );
                 })}
@@ -4767,11 +4768,11 @@ function StockView() {
           </div>
           {totalPages > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, justifyContent: 'center' }}>
-              <button onClick={() => setPage(1)} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>«</button>
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>‹ Prev</button>
+              <button onClick={() => setPage(1)} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>Â«</button>
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>â€¹ Prev</button>
               <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 8px' }}>Page {safePage} of {totalPages} ({sorted.length} rows)</span>
-              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>Next ›</button>
-              <button onClick={() => setPage(totalPages)} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>»</button>
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>Next â€º</button>
+              <button onClick={() => setPage(totalPages)} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>Â»</button>
             </div>
           )}
         </>
@@ -4780,9 +4781,9 @@ function StockView() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Invoice Import Modal
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type InvoiceParseResult = {
   invoice: { supplier_name: string | null; invoice_number: string | null; invoice_date: string | null; currency: string; subtotal: number | null; tax_total: number | null; total_amount: number | null; payment_terms: string | null };
@@ -4859,7 +4860,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
   }
 
   const fmt$ = (v: number | null | undefined) =>
-    v == null ? '—' : Number(v).toLocaleString('en-AU', { style: 'currency', currency: currency || 'AUD', minimumFractionDigits: 2 });
+    v == null ? 'â€”' : Number(v).toLocaleString('en-AU', { style: 'currency', currency: currency || 'AUD', minimumFractionDigits: 2 });
 
   function handleImport() {
     if (!result || !onImport) return;
@@ -4901,7 +4902,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
       const json = await res.json();
       if (!res.ok || !json.success) { setAiMatchError(json.error ?? 'AI matching failed'); return; }
 
-      // Merge AI matches into result — only override non-exact, non-manual lines
+      // Merge AI matches into result â€” only override non-exact, non-manual lines
       setResult(prev => {
         if (!prev) return prev;
         const newLines = prev.line_results.map((lr, i) => {
@@ -4937,7 +4938,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
   const thSt: React.CSSProperties = { padding: '6px 8px', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-muted)', borderBottom: '1px solid var(--sv-border)', whiteSpace: 'nowrap' };
   const tdSt: React.CSSProperties = { padding: '6px 8px', borderBottom: '1px solid var(--sv-border)' };
 
-  // ── Upload / Loading ──
+  // â”€â”€ Upload / Loading â”€â”€
   if (stage === 'idle' || stage === 'uploading') return (
     <Modal title={isPo ? 'Match Supplier Invoice to PO' : 'Import from Supplier Invoice'} onClose={onClose}>
       <div style={{ minHeight: 200, display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -4950,8 +4951,8 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
           style={{ border: `2px dashed ${dragging ? 'var(--sv-accent)' : 'var(--sv-border)'}`, borderRadius: 10, padding: '40px 24px', textAlign: 'center', cursor: stage === 'uploading' ? 'default' : 'pointer', background: dragging ? 'rgba(99,102,241,.05)' : 'var(--sv-bg-subtle)', transition: 'all 0.15s' }}
         >
           {stage === 'uploading'
-            ? <><div style={{ fontSize: 32, marginBottom: 10 }}>⏳</div><div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 6 }}>AI is reading your invoice…</div><div style={{ fontSize: 13, color: 'var(--sv-text-muted)' }}>This usually takes 10–30 seconds</div></>
-            : <><div style={{ fontSize: 32, marginBottom: 10 }}>📄</div><div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 6 }}>Drop invoice here or click to browse</div><div style={{ fontSize: 12, color: 'var(--sv-text-muted)' }}>PDF, JPEG, or PNG · Max 20 MB</div></>}
+            ? <><div style={{ fontSize: 32, marginBottom: 10 }}>â³</div><div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 6 }}>AI is reading your invoiceâ€¦</div><div style={{ fontSize: 13, color: 'var(--sv-text-muted)' }}>This usually takes 10â€“30 seconds</div></>
+            : <><div style={{ fontSize: 32, marginBottom: 10 }}>ðŸ“„</div><div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 6 }}>Drop invoice here or click to browse</div><div style={{ fontSize: 12, color: 'var(--sv-text-muted)' }}>PDF, JPEG, or PNG Â· Max 20 MB</div></>}
         </div>
         <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) processFile(f); }} />
         {isPo && <div style={{ fontSize: 12, color: 'var(--sv-text-muted)', padding: '8px 12px', background: 'var(--sv-bg-subtle)', borderRadius: 6 }}>Upload the supplier's invoice for this PO. The AI will compare each line and highlight any quantity or price differences.</div>}
@@ -4961,7 +4962,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
 
   if (!result) return null;
 
-  // ── Pathway 2: PO comparison view ──
+  // â”€â”€ Pathway 2: PO comparison view â”€â”€
   if (isPo && result.po_comparison) {
     const hasDisc = result.po_comparison.some(r => Math.abs(r.qty_diff ?? 0) > 0.001 || Math.abs(r.price_diff ?? 0) > 0.001);
     const extra   = result.po_comparison.filter(r => r.not_in_po);
@@ -4969,9 +4970,9 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
     return (
       <Modal title="PO vs Invoice Comparison" onClose={onClose} wide>
         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 13, marginBottom: 12 }}>
-          {[['Invoice #', result.invoice.invoice_number], ['Date', result.invoice.invoice_date], ['Supplier', result.invoice.supplier_name], ['Total', fmt$(result.invoice.total_amount)]].map(([l, v]) => <div key={l as string}><span style={{ color: 'var(--sv-text-muted)' }}>{l} </span><strong>{v ?? '—'}</strong></div>)}
+          {[['Invoice #', result.invoice.invoice_number], ['Date', result.invoice.invoice_date], ['Supplier', result.invoice.supplier_name], ['Total', fmt$(result.invoice.total_amount)]].map(([l, v]) => <div key={l as string}><span style={{ color: 'var(--sv-text-muted)' }}>{l} </span><strong>{v ?? 'â€”'}</strong></div>)}
         </div>
-        {hasDisc && <div style={{ padding: '8px 12px', background: 'rgba(245,158,11,.1)', color: '#f59e0b', borderRadius: 6, fontSize: 13, marginBottom: 10 }}>⚠️ Discrepancies found — review before receiving.</div>}
+        {hasDisc && <div style={{ padding: '8px 12px', background: 'rgba(245,158,11,.1)', color: '#f59e0b', borderRadius: 6, fontSize: 13, marginBottom: 10 }}>âš ï¸ Discrepancies found â€” review before receiving.</div>}
         <div style={{ overflowX: 'auto', marginBottom: 14 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
@@ -4990,19 +4991,19 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
                 const ds = (v: number): React.CSSProperties => ({ color: v === 0 ? undefined : v > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: v !== 0 ? 600 : undefined, textAlign: 'right' });
                 return (
                   <tr key={i} style={{ background: bg }}>
-                    <td style={tdSt}>{pl?.product_name ?? il?.product_name ?? '—'}{pl?.variant_label ? ` · ${pl.variant_label}` : ''}</td>
-                    <td style={{ ...tdSt, color: 'var(--sv-text-muted)', fontFamily: 'monospace', fontSize: 11 }}>{pl?.sku ?? il?.product_code ?? '—'}</td>
-                    <td style={{ ...tdSt, textAlign: 'right' }}>{pl ? pl.qty_ordered : '—'}</td>
-                    <td style={{ ...tdSt, textAlign: 'right' }}>{il ? il.qty : '—'}</td>
-                    <td style={{ ...tdSt, ...ds(qd) }}>{row.qty_diff != null ? (qd > 0 ? '+' : '') + qd : '—'}</td>
-                    <td style={{ ...tdSt, textAlign: 'right' }}>{pl ? fmt$(pl.unit_cost) : '—'}</td>
-                    <td style={{ ...tdSt, textAlign: 'right' }}>{il ? fmt$(il.unit_price) : '—'}</td>
-                    <td style={{ ...tdSt, ...ds(pd) }}>{row.price_diff != null ? (pd > 0 ? '+' : '') + fmt$(Math.abs(pd)) : '—'}</td>
+                    <td style={tdSt}>{pl?.product_name ?? il?.product_name ?? 'â€”'}{pl?.variant_label ? ` Â· ${pl.variant_label}` : ''}</td>
+                    <td style={{ ...tdSt, color: 'var(--sv-text-muted)', fontFamily: 'monospace', fontSize: 11 }}>{pl?.sku ?? il?.product_code ?? 'â€”'}</td>
+                    <td style={{ ...tdSt, textAlign: 'right' }}>{pl ? pl.qty_ordered : 'â€”'}</td>
+                    <td style={{ ...tdSt, textAlign: 'right' }}>{il ? il.qty : 'â€”'}</td>
+                    <td style={{ ...tdSt, ...ds(qd) }}>{row.qty_diff != null ? (qd > 0 ? '+' : '') + qd : 'â€”'}</td>
+                    <td style={{ ...tdSt, textAlign: 'right' }}>{pl ? fmt$(pl.unit_cost) : 'â€”'}</td>
+                    <td style={{ ...tdSt, textAlign: 'right' }}>{il ? fmt$(il.unit_price) : 'â€”'}</td>
+                    <td style={{ ...tdSt, ...ds(pd) }}>{row.price_diff != null ? (pd > 0 ? '+' : '') + fmt$(Math.abs(pd)) : 'â€”'}</td>
                     <td style={{ ...tdSt, whiteSpace: 'nowrap', fontSize: 11 }}>
                       {row.not_in_po ? <span style={{ color: '#818cf8', fontWeight: 600 }}>Not in PO</span>
                         : !il ? <span style={{ color: 'var(--sv-text-muted)' }}>Not on invoice</span>
-                        : (hasQD || hasPD) ? <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ Diff</span>
-                        : <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>✓ Match</span>}
+                        : (hasQD || hasPD) ? <span style={{ color: '#f59e0b', fontWeight: 600 }}>âš  Diff</span>
+                        : <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>âœ“ Match</span>}
                     </td>
                   </tr>
                 );
@@ -5020,7 +5021,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
     );
   }
 
-  // ── Pathway 1: line-item review ──
+  // â”€â”€ Pathway 1: line-item review â”€â”€
   const importableCount = result.line_results.filter((lr, i) => !skipped.has(i) && getVid(i, lr) !== null).length;
   const exactN = result.line_results.filter(lr => lr.match?.confidence === 'exact_sku' || lr.match?.confidence === 'exact_barcode').length;
   const fuzzyN = result.line_results.filter(lr => lr.match?.confidence === 'fuzzy_name').length;
@@ -5036,7 +5037,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
       {/* Editable header */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10, marginBottom: 14, padding: '10px 12px', background: 'var(--sv-bg-subtle)', borderRadius: 8 }}>
         {[
-          { label: 'Supplier', el: <select value={supplierId} onChange={e => setSupplierId(e.target.value ? Number(e.target.value) : '')} style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-border)', background: 'var(--sv-bg-card)', color: 'var(--sv-text-strong)', fontSize: 12, width: '100%' }}><option value="">— Unmatched —</option>{suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select> },
+          { label: 'Supplier', el: <select value={supplierId} onChange={e => setSupplierId(e.target.value ? Number(e.target.value) : '')} style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-border)', background: 'var(--sv-bg-card)', color: 'var(--sv-text-strong)', fontSize: 12, width: '100%' }}><option value="">â€” Unmatched â€”</option>{suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select> },
           { label: 'Invoice #', el: <input value={invoiceNum} onChange={e => setInvoiceNum(e.target.value)} style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-border)', background: 'var(--sv-bg-card)', color: 'var(--sv-text-strong)', fontSize: 12, width: '100%' }} /> },
           { label: 'Invoice Date', el: <input type="date" value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-border)', background: 'var(--sv-bg-card)', color: 'var(--sv-text-strong)', fontSize: 12, width: '100%' }} /> },
           { label: 'Currency', el: <input value={currency} onChange={e => setCurrency(e.target.value.toUpperCase())} maxLength={3} style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-border)', background: 'var(--sv-bg-card)', color: 'var(--sv-text-strong)', fontSize: 12, width: '100%' }} /> },
@@ -5047,19 +5048,19 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
 
       {/* Stats bar */}
       <div style={{ display: 'flex', gap: 16, fontSize: 12, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-        <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>✓ {exactN} exact</span>
+        <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>âœ“ {exactN} exact</span>
         {fuzzyN > 0 && <span style={{ color: '#f59e0b', fontWeight: 600 }}>~ {fuzzyN} fuzzy</span>}
-        {aiN   > 0 && <span style={{ color: '#818cf8', fontWeight: 600 }}>🤖 {aiN} AI</span>}
-        {noneN  > 0 && <span style={{ color: 'var(--sv-red)', fontWeight: 600 }}>✗ {noneN} unmatched</span>}
+        {aiN   > 0 && <span style={{ color: '#818cf8', fontWeight: 600 }}>ðŸ¤– {aiN} AI</span>}
+        {noneN  > 0 && <span style={{ color: 'var(--sv-red)', fontWeight: 600 }}>âœ— {noneN} unmatched</span>}
         <span style={{ marginLeft: 'auto', color: 'var(--sv-text-muted)' }}>Invoice total: {fmt$(result.invoice.total_amount)}</span>
       </div>
 
       {/* Second-pass AI banner */}
       {showAiBanner && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, padding: '10px 14px', background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.3)', borderRadius: 8 }}>
-          <span style={{ fontSize: 18 }}>🤖</span>
+          <span style={{ fontSize: 18 }}>ðŸ¤–</span>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#f59e0b' }}>Only {Math.round(matchRate * 100)}% matched — want to try a second AI pass?</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#f59e0b' }}>Only {Math.round(matchRate * 100)}% matched â€” want to try a second AI pass?</div>
             <div style={{ fontSize: 12, color: 'var(--sv-text-muted)' }}>
               {supplierId ? 'AI will compare each unmatched invoice line against all products for this supplier.' : 'Select a supplier above first so AI knows which products to search.'}
             </div>
@@ -5070,7 +5071,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
             disabled={!supplierId || aiMatchLoading}
             style={{ padding: '7px 16px', background: supplierId ? '#f59e0b' : 'var(--sv-border)', color: supplierId ? '#fff' : 'var(--sv-text-muted)', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: supplierId ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap' }}
           >
-            {aiMatchLoading ? 'Matching…' : 'Try AI Matching'}
+            {aiMatchLoading ? 'Matchingâ€¦' : 'Try AI Matching'}
           </button>
         </div>
       )}
@@ -5095,15 +5096,15 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
               const effectiveVid = getVid(i, lr);
               const hasOverride = i in overrides;
               const conf = hasOverride ? (overrides[i] ? 'manual' : 'skipped') : (lr.match?.confidence ?? 'none');
-              const confLabel = conf === 'exact_sku' ? '✓ SKU' : conf === 'exact_barcode' ? '✓ Barcode' : conf === 'fuzzy_name' ? '~ Name' : conf === 'manual' ? '✎ Manual' : conf === 'ai_high' ? '🤖 AI' : conf === 'ai_match' ? '🤖 AI~' : '✗ None';
+              const confLabel = conf === 'exact_sku' ? 'âœ“ SKU' : conf === 'exact_barcode' ? 'âœ“ Barcode' : conf === 'fuzzy_name' ? '~ Name' : conf === 'manual' ? 'âœŽ Manual' : conf === 'ai_high' ? 'ðŸ¤– AI' : conf === 'ai_match' ? 'ðŸ¤– AI~' : 'âœ— None';
               const imsV = effectiveVid ? variants.find((v: any) => v.variant_id === effectiveVid) : null;
-              const imsLabel = imsV ? `${imsV.product_name}${imsV.variant_label ? ' · ' + imsV.variant_label : ''} (${imsV.sku ?? ''})` : (lr.match && !hasOverride) ? `${lr.match.product_name ?? ''}${lr.match.variant_label ? ' · ' + lr.match.variant_label : ''} (${lr.match.sku ?? ''})` : null;
+              const imsLabel = imsV ? `${imsV.product_name}${imsV.variant_label ? ' Â· ' + imsV.variant_label : ''} (${imsV.sku ?? ''})` : (lr.match && !hasOverride) ? `${lr.match.product_name ?? ''}${lr.match.variant_label ? ' Â· ' + lr.match.variant_label : ''} (${lr.match.sku ?? ''})` : null;
               return (
                 <tr key={i} style={{ opacity: isSkipped ? 0.4 : 1, borderBottom: '1px solid var(--sv-border)' }}>
                   <td style={{ ...tdSt, width: 28 }}>
                     <input type="checkbox" checked={!isSkipped} title="Include this line" onChange={e => setSkipped(p => { const n = new Set(p); e.target.checked ? n.delete(i) : n.add(i); return n; })} />
                   </td>
-                  <td style={{ ...tdSt, color: 'var(--sv-text-muted)', fontFamily: 'monospace', fontSize: 11 }}>{lr.invoice_line.product_code ?? '—'}</td>
+                  <td style={{ ...tdSt, color: 'var(--sv-text-muted)', fontFamily: 'monospace', fontSize: 11 }}>{lr.invoice_line.product_code ?? 'â€”'}</td>
                   <td style={{ ...tdSt, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={lr.invoice_line.product_name}>{lr.invoice_line.product_name}</td>
                   <td style={{ ...tdSt, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{lr.invoice_line.qty}</td>
                   <td style={{ ...tdSt, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt$(lr.invoice_line.unit_price)}</td>
@@ -5115,10 +5116,10 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
                   <td style={{ ...tdSt, whiteSpace: 'nowrap' }}>
                     <span style={confidenceSt(conf)}>{confLabel}</span>
                     {conf !== 'none' && conf !== 'manual' && conf !== 'skipped' && !hasOverride && (
-                      <button onClick={() => setOverrides(p => ({ ...p, [i]: lr.match?.variant_id ?? '' }))} title="Override" style={{ marginLeft: 5, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-muted)', fontSize: 11, padding: 0 }}>✎</button>
+                      <button onClick={() => setOverrides(p => ({ ...p, [i]: lr.match?.variant_id ?? '' }))} title="Override" style={{ marginLeft: 5, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-muted)', fontSize: 11, padding: 0 }}>âœŽ</button>
                     )}
                     {hasOverride && (
-                      <button onClick={() => setOverrides(p => { const n = { ...p }; delete n[i]; return n; })} title="Reset to AI match" style={{ marginLeft: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-muted)', fontSize: 11, padding: 0 }}>↩</button>
+                      <button onClick={() => setOverrides(p => { const n = { ...p }; delete n[i]; return n; })} title="Reset to AI match" style={{ marginLeft: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-muted)', fontSize: 11, padding: 0 }}>â†©</button>
                     )}
                   </td>
                 </tr>
@@ -5141,9 +5142,9 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Purchase Orders View
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false }: { pendingOpenId?: number | null; onPendingHandled?: () => void; isAdvisor?: boolean } = {}) {
   const [pos, setPos] = useState<any[]>([]);
@@ -5247,17 +5248,17 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
       setForm((p: any) => ({ ...p, currency_code: 'AUD', exchange_rate: '1', _rateHint: '' }));
       return;
     }
-    setForm((p: any) => ({ ...p, currency_code: cur, _rateHint: 'Fetching live rate…' }));
+    setForm((p: any) => ({ ...p, currency_code: cur, _rateHint: 'Fetching live rateâ€¦' }));
     try {
       const res = await fetch(`/api/ims/exchange-rate?from=${cur}&to=AUD`);
       const data = await res.json();
       if (data.success && data.rate) {
         setForm((p: any) => ({ ...p, exchange_rate: String(Number(data.rate).toFixed(6)), _rateHint: `Live rate ${data.date ?? ''}`.trim() }));
       } else {
-        setForm((p: any) => ({ ...p, _rateHint: 'Could not fetch — enter manually' }));
+        setForm((p: any) => ({ ...p, _rateHint: 'Could not fetch â€” enter manually' }));
       }
     } catch {
-      setForm((p: any) => ({ ...p, _rateHint: 'Could not fetch — enter manually' }));
+      setForm((p: any) => ({ ...p, _rateHint: 'Could not fetch â€” enter manually' }));
     }
   };
 
@@ -5357,14 +5358,14 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
     const dateStr = payment.payment_date?.slice(0, 10) ?? '';
     const amtStr  = fmtFx(payment.amount, (viewModal.po.currency_code || 'AUD').toUpperCase());
     const confirmed = confirm(
-      `⚠️ Delete this payment?\n\n` +
+      `âš ï¸ Delete this payment?\n\n` +
       `Date: ${dateStr}\n` +
       `Amount: ${amtStr}\n` +
       (payment.notes ? `Notes: ${payment.notes}\n` : '') +
-      `\n──────────────────────────────\n` +
+      `\nâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n` +
       `IMPORTANT: This payment is NOT automatically removed from Xero.\n` +
       `Please notify your bookkeeper to delete the matching payment from the Xero bill manually.\n` +
-      `──────────────────────────────\n\n` +
+      `â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n\n` +
       `Click OK to delete the payment from IMS only.`
     );
     if (!confirmed) return;
@@ -5489,7 +5490,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
     setPage(1);
   };
   const SortIcon = ({ col }: { col: string }) => sortCol !== col ? null : (
-    <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
+    <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? 'â†‘' : 'â†“'}</span>
   );
 
   return (
@@ -5506,7 +5507,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
         ))}
         <input
           list="po-supplier-filter-list"
-          placeholder="Filter by supplier…"
+          placeholder="Filter by supplierâ€¦"
           value={filterSupplier}
           onChange={e => { setFilterSupplier(e.target.value); setPage(1); }}
           style={{ ...inputStyle, minWidth: 180, flex: '1 1 180px' }}
@@ -5547,7 +5548,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                   <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     <button onClick={() => openView(po)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{po.po_number}</button>
                   </td>
-                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.supplier_name || '—'}</td>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.supplier_name || 'â€”'}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.location_name}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{po.order_date?.slice(0, 10)}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(po.total_amount)}</td>
@@ -5561,11 +5562,11 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
       )}
       {!loading && totalPagesPO > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14 }}>
-          <button onClick={() => setPage(1)} disabled={safePagePO === 1} style={btnStyle('secondary', 'sm')}>«</button>
-          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePagePO === 1} style={btnStyle('secondary', 'sm')}>‹ Prev</button>
+          <button onClick={() => setPage(1)} disabled={safePagePO === 1} style={btnStyle('secondary', 'sm')}>Â«</button>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePagePO === 1} style={btnStyle('secondary', 'sm')}>â€¹ Prev</button>
           <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 8px' }}>Page {safePagePO} of {totalPagesPO} ({sortedFilteredPOs.length} orders)</span>
-          <button onClick={() => setPage(p => Math.min(totalPagesPO, p + 1))} disabled={safePagePO === totalPagesPO} style={btnStyle('secondary', 'sm')}>Next ›</button>
-          <button onClick={() => setPage(totalPagesPO)} disabled={safePagePO === totalPagesPO} style={btnStyle('secondary', 'sm')}>»</button>
+          <button onClick={() => setPage(p => Math.min(totalPagesPO, p + 1))} disabled={safePagePO === totalPagesPO} style={btnStyle('secondary', 'sm')}>Next â€º</button>
+          <button onClick={() => setPage(totalPagesPO)} disabled={safePagePO === totalPagesPO} style={btnStyle('secondary', 'sm')}>Â»</button>
         </div>
       )}
 
@@ -5575,10 +5576,10 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
           <form onSubmit={handleSubmit}>
             {!modal.edit && (
               <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, padding: '10px 14px', background: 'var(--sv-bg-subtle)', borderRadius: 8, border: '1px dashed var(--sv-border)', cursor: 'pointer' }}>
-                <span style={{ fontSize: 20 }}>📄</span>
+                <span style={{ fontSize: 20 }}>ðŸ“„</span>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Have a supplier invoice? Click to upload</div>
-                  <div style={{ fontSize: 12, color: 'var(--sv-text-muted)' }}>PDF, JPEG or PNG — AI reads it and pre-fills this PO automatically.</div>
+                  <div style={{ fontSize: 12, color: 'var(--sv-text-muted)' }}>PDF, JPEG or PNG â€” AI reads it and pre-fills this PO automatically.</div>
                 </div>
                 <span style={{ padding: '7px 16px', background: 'var(--sv-accent)', color: '#fff', borderRadius: 6, fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }}>Upload Invoice</span>
                 <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
@@ -5593,13 +5594,13 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
             <Row3>
               <Field label="Supplier">
                 <select value={form.supplier_id} onChange={e => selectSupplier(e.target.value)} style={inputStyle}>
-                  <option value="">— None —</option>
+                  <option value="">â€” None â€”</option>
                   {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </Field>
               <Field label="Location *">
                 <select required value={form.location_id} onChange={sf('location_id')} style={inputStyle}>
-                  <option value="">— Select —</option>
+                  <option value="">â€” Select â€”</option>
                   {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
               </Field>
@@ -5614,12 +5615,12 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
               <Field label="Supplier Invoice Date"><input type="date" value={form.supplier_invoice_date ?? ''} onChange={sf('supplier_invoice_date')} style={inputStyle} /></Field>
               <Field label="Payment Terms">
                 <select value={form.payment_terms} onChange={sf('payment_terms')} style={inputStyle}>
-                  {PAYMENT_TERMS.map(t => <option key={t} value={t}>{t || '— None —'}</option>)}
+                  {PAYMENT_TERMS.map(t => <option key={t} value={t}>{t || 'â€” None â€”'}</option>)}
                 </select>
               </Field>
             </Row3>
             <Row2>
-              <Field label="Supplier costs are…">
+              <Field label="Supplier costs areâ€¦">
                 <select value={form.tax_treatment ?? 'ex_tax'} onChange={sf('tax_treatment')} style={inputStyle}>
                   <option value="ex_tax">Ex-tax (tax is added on top)</option>
                   <option value="inc_tax">Inc-tax (tax already included)</option>
@@ -5646,7 +5647,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
               <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>LINE ITEMS</span>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button type="button" onClick={() => setImportOpen(true)} style={btnStyle('secondary', 'xs')}>⬆ Import</button>
+                  <button type="button" onClick={() => setImportOpen(true)} style={btnStyle('secondary', 'xs')}>â¬† Import</button>
                   <button type="button" onClick={addLine} style={btnStyle('ghost', 'xs')}>+ Add Line</button>
                   {isReceiving && (
                     <button type="button" onClick={() => {
@@ -5704,10 +5705,10 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                           </>);
                         })()}
                         <td style={{ padding: 4 }}>
-                          <input type="text" value={item.notes ?? ''} onChange={e => updateLine(i, 'notes', e.target.value)} style={{ ...inputStyle, fontSize: 12, minWidth: 100 }} placeholder="Notes…" />
+                          <input type="text" value={item.notes ?? ''} onChange={e => updateLine(i, 'notes', e.target.value)} style={{ ...inputStyle, fontSize: 12, minWidth: 100 }} placeholder="Notesâ€¦" />
                         </td>
                         <td style={{ padding: 4, width: 30 }}>
-                          <button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16 }}>×</button>
+                          <button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16 }}>Ã—</button>
                         </td>
                       </tr>
                     ))}
@@ -5733,15 +5734,15 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                     </div>
                   )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
-                    <span>Discount (−)</span>
+                    <span>Discount (âˆ’)</span>
                     <input type="number" min="0" step="0.01" value={form.discount} onChange={sf('discount')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
                   </div>
-                  {/* Landed Costs — separate invoices; NOT in total, but added to avg. cost on receive */}
+                  {/* Landed Costs â€” separate invoices; NOT in total, but added to avg. cost on receive */}
                   <div style={{ borderTop: '1px solid var(--sv-etch)', paddingTop: 8, marginBottom: 8 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
                       <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Landed Costs</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>not on invoice · added to avg. cost</span>
+                        <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>not on invoice Â· added to avg. cost</span>
                         {!lcForm && <button type="button" onClick={() => setLcForm({ label: '', reference: '', amount: '' })} style={btnStyle('mint', 'xs')}>+ Add</button>}
                       </div>
                     </div>
@@ -5758,10 +5759,10 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                           {landedCosts.map((c, i) => (
                             <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
                               <td style={{ padding: '4px 8px' }}>{c.label}</td>
-                              <td style={{ padding: '4px 8px', color: 'var(--sv-text-dim)' }}>{c.reference || '—'}</td>
+                              <td style={{ padding: '4px 8px', color: 'var(--sv-text-dim)' }}>{c.reference || 'â€”'}</td>
                               <td style={{ padding: '4px 8px', fontWeight: 600, textAlign: 'right' }}>{fmtCurrency(Number(c.amount))}</td>
                               <td style={{ padding: '4px 8px', textAlign: 'right' }}>
-                                <button type="button" onClick={() => setLandedCosts(p => p.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>✕</button>
+                                <button type="button" onClick={() => setLandedCosts(p => p.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>âœ•</button>
                               </td>
                             </tr>
                           ))}
@@ -5799,7 +5800,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                   </div>
                   {taxTreatment === 'inc_tax' && (
                     <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 4 }}>
-                      Costs entered inc. tax — tax extracted at line rate
+                      Costs entered inc. tax â€” tax extracted at line rate
                     </div>
                   )}
                   {(form.currency_code ?? 'AUD') !== 'AUD' && (() => {
@@ -5812,7 +5813,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 3 }}>
                           <span>Exchange rate</span>
-                          <span>1 {form.currency_code} = {rate.toFixed(4)} AUD{form._rateHint ? ` · ${form._rateHint}` : ''}</span>
+                          <span>1 {form.currency_code} = {rate.toFixed(4)} AUD{form._rateHint ? ` Â· ${form._rateHint}` : ''}</span>
                         </div>
                       </div>
                     );
@@ -5824,12 +5825,12 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
             {isReceiving ? (
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
                 <button type="button" onClick={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} style={btnStyle('ghost')}>Cancel</button>
-                <button type="button" disabled={saving} title="Saves received quantities. PO becomes Partially Received if any items have been received, or stays Confirmed if nothing received yet. Does NOT sync to Xero." onClick={e => { const hasAny = lineItems.some(item => item.variant_id && Number(receiveQtys[item.variant_id] || 0) > 0); handleSubmit(e as any, false, undefined, (hasAny || modal.edit?.status === 'partially_received') ? 'partially_received' : undefined); }} style={btnStyle('ghost')}>{saving ? 'Saving…' : 'Save'}</button>
-                <button type="button" disabled={saving} title="Saves received quantities and marks this PO as complete. Triggers Xero sync: bill is approved and inventory journal is posted." onClick={e => handleSubmit(e as any, false, undefined, 'complete')} style={btnStyle('mint')}>{saving ? 'Saving…' : 'Save and Complete'}</button>
+                <button type="button" disabled={saving} title="Saves received quantities. PO becomes Partially Received if any items have been received, or stays Confirmed if nothing received yet. Does NOT sync to Xero." onClick={e => { const hasAny = lineItems.some(item => item.variant_id && Number(receiveQtys[item.variant_id] || 0) > 0); handleSubmit(e as any, false, undefined, (hasAny || modal.edit?.status === 'partially_received') ? 'partially_received' : undefined); }} style={btnStyle('ghost')}>{saving ? 'Savingâ€¦' : 'Save'}</button>
+                <button type="button" disabled={saving} title="Saves received quantities and marks this PO as complete. Triggers Xero sync: bill is approved and inventory journal is posted." onClick={e => handleSubmit(e as any, false, undefined, 'complete')} style={btnStyle('mint')}>{saving ? 'Savingâ€¦' : 'Save and Complete'}</button>
               </div>
             ) : (
               <FormActions onCancel={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} saving={saving} isEdit={!!modal.edit}
-                extraActions={!modal.edit ? [{ label: saving ? 'Creating…' : 'Create & Confirm', onClick: (e: React.MouseEvent) => handleSubmit(e as any, true) }] : []} />
+                extraActions={!modal.edit ? [{ label: saving ? 'Creatingâ€¦' : 'Create & Confirm', onClick: (e: React.MouseEvent) => handleSubmit(e as any, true) }] : []} />
             )}
           </form>
         </Modal>
@@ -5847,10 +5848,10 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
 
       {/* Xero warning modal for complete PO edit/delete */}
       {xeroWarnModal && (
-        <Modal title="⚠️ Xero Manual Update Required" onClose={() => setXeroWarnModal(null)}>
+        <Modal title="âš ï¸ Xero Manual Update Required" onClose={() => setXeroWarnModal(null)}>
           <div style={{ padding: '4px 0 8px', lineHeight: 1.6 }}>
             {xeroWarnModal.action === 'edit' ? (
-              <p>This PO (<strong>{xeroWarnModal.po.po_number}</strong>) is marked complete. The Xero bill is <strong>AUTHORISED</strong> and cannot be automatically updated. Any edits saved in IMS <strong>will not sync to Xero</strong> — Xero will need to be updated manually.</p>
+              <p>This PO (<strong>{xeroWarnModal.po.po_number}</strong>) is marked complete. The Xero bill is <strong>AUTHORISED</strong> and cannot be automatically updated. Any edits saved in IMS <strong>will not sync to Xero</strong> â€” Xero will need to be updated manually.</p>
             ) : (
               <p>Deleting <strong>{xeroWarnModal.po.po_number}</strong> will only remove it from IMS. The corresponding Xero bill will remain in Xero and may need to be manually voided.</p>
             )}
@@ -5858,18 +5859,18 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
               <div style={{ fontWeight: 600, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8, color: 'var(--sv-amber)' }}>Draft message for bookkeeper</div>
               <div style={{ fontFamily: 'monospace', fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
                 {xeroWarnFetching
-                  ? 'Loading Xero bill details…'
+                  ? 'Loading Xero bill detailsâ€¦'
                   : xeroWarnModal.action === 'edit'
-                    ? `Hi, just a heads up — ${xeroWarnModal.po.po_number} in IMS has been updated. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} will need to be manually updated to reflect the changes.`
-                    : `Hi, just a heads up — ${xeroWarnModal.po.po_number} in IMS has been deleted. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} may need to be manually voided in Xero.`
+                    ? `Hi, just a heads up â€” ${xeroWarnModal.po.po_number} in IMS has been updated. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} will need to be manually updated to reflect the changes.`
+                    : `Hi, just a heads up â€” ${xeroWarnModal.po.po_number} in IMS has been deleted. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} may need to be manually voided in Xero.`
                 }
               </div>
               {!xeroWarnFetching && (
                 <button
                   onClick={() => {
                     const msg = xeroWarnModal.action === 'edit'
-                      ? `Hi, just a heads up — ${xeroWarnModal.po.po_number} in IMS has been updated. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} will need to be manually updated to reflect the changes.`
-                      : `Hi, just a heads up — ${xeroWarnModal.po.po_number} in IMS has been deleted. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} may need to be manually voided in Xero.`;
+                      ? `Hi, just a heads up â€” ${xeroWarnModal.po.po_number} in IMS has been updated. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} will need to be manually updated to reflect the changes.`
+                      : `Hi, just a heads up â€” ${xeroWarnModal.po.po_number} in IMS has been deleted. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} may need to be manually voided in Xero.`;
                     navigator.clipboard.writeText(msg).catch(() => {});
                   }}
                   style={{ ...btnStyle('ghost', 'xs'), marginTop: 8 }}
@@ -5889,14 +5890,14 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
 
       {/* View PO detail modal */}
       {viewModal.open && viewModal.po && (
-        <Modal title={`${viewModal.po.po_number} — ${viewModal.po.status}`} onClose={() => { setViewModal({ open: false, po: null }); setPoPayForm(null); }} wide>
+        <Modal title={`${viewModal.po.po_number} â€” ${viewModal.po.status}`} onClose={() => { setViewModal({ open: false, po: null }); setPoPayForm(null); }} wide>
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <POActions isAdvisor={isAdvisor} po={viewModal.po} onEdit={() => editPoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onDelete={() => deletePoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onStatus={changeStatus} context="view" />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <button
                 onClick={() => { window.open(`/api/ims/purchase-orders/${viewModal.po.id}/pdf`, '_blank'); }}
                 style={btnStyle('secondary', 'sm')}
-              >⬇ Download PDF</button>
+              >â¬‡ Download PDF</button>
               <button
                 onClick={() => {
                   const po = viewModal.po;
@@ -5921,16 +5922,16 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                   }, 400);
                 }}
                 style={btnStyle('mint', 'sm')}
-              >✉ Email</button>
+              >âœ‰ Email</button>
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
-            <div><div style={labelStyle}>Supplier</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.supplier_name || '—'}</div></div>
+            <div><div style={labelStyle}>Supplier</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.supplier_name || 'â€”'}</div></div>
             <div><div style={labelStyle}>Location</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.location_name}</div></div>
             <div><div style={labelStyle}>Status</div><StatusBadge status={viewModal.po.status} /></div>
             <div><div style={labelStyle}>Order Date</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.order_date?.slice(0, 10)}</div></div>
-            <div><div style={labelStyle}>Expected</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.expected_date?.slice(0, 10) || '—'}</div></div>
-            <div><div style={labelStyle}>Received</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.received_date?.slice(0, 10) || '—'}</div></div>
+            <div><div style={labelStyle}>Expected</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.expected_date?.slice(0, 10) || 'â€”'}</div></div>
+            <div><div style={labelStyle}>Received</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.received_date?.slice(0, 10) || 'â€”'}</div></div>
           </div>
           {viewModal.po.notes && <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--sv-bg-2)', borderRadius: 6, fontSize: 13, color: 'var(--sv-text-dim)' }}>{viewModal.po.notes}</div>}
           <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
@@ -5944,13 +5945,13 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
             <tbody>
               {(viewModal.po.items || []).map((item: any, i: number) => (
                 <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                  <td style={{ padding: '8px 10px' }}><code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{item.sku || '—'}</code></td>
+                  <td style={{ padding: '8px 10px' }}><code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{item.sku || 'â€”'}</code></td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{item.product_name}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{item.variant_label || 'Default'}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtQty(item.qty_ordered)}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtQty(item.qty_received)}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtCurrency(item.unit_cost)}</td>
-                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{Number(item.discount_pct) > 0 ? `${Number(item.discount_pct).toFixed(1)}%` : '—'}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{Number(item.discount_pct) > 0 ? `${Number(item.discount_pct).toFixed(1)}%` : 'â€”'}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{(Number(item.tax_rate) * 100).toFixed(0)}%</td>
                   <td style={{ padding: '8px 10px', fontSize: 13, fontWeight: 600 }}>{fmtCurrency(item.line_total)}</td>
                 </tr>
@@ -5977,8 +5978,8 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
               )}
               {Number(viewModal.po.discount) > 0 && (
                 <tr>
-                  <td colSpan={7} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Discount (−)</td>
-                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-red)' }}>−{fmtCurrency(viewModal.po.discount)}</td>
+                  <td colSpan={7} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Discount (âˆ’)</td>
+                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-red)' }}>âˆ’{fmtCurrency(viewModal.po.discount)}</td>
                 </tr>
               )}
               <tr style={{ borderTop: '2px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
@@ -5988,7 +5989,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
             </tfoot>
           </table>
 
-          {/* ── Landed Costs (view/edit) — not on invoice; allocated to avg. cost on receive ── */}
+          {/* â”€â”€ Landed Costs (view/edit) â€” not on invoice; allocated to avg. cost on receive â”€â”€ */}
           {(() => {
             const lcs: any[] = viewModal.po.landed_costs || [];
             const canEdit = viewModal.po.status === 'draft' || viewModal.po.status === 'confirmed' || viewModal.po.status === 'partially_received';
@@ -5997,7 +5998,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Landed Costs</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>separate invoices · not on PO total · added to avg. cost on receive</span>
+                    <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>separate invoices Â· not on PO total Â· added to avg. cost on receive</span>
                     {canEdit && !lcForm && (
                       <button onClick={() => setLcForm({ label: '', reference: '', amount: '' })} style={btnStyle('mint', 'xs')}>+ Add</button>
                     )}
@@ -6016,7 +6017,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                       {lcs.map((c: any) => (
                         <tr key={c.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
                           <td style={{ padding: '5px 10px' }}>{c.label}</td>
-                          <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{c.reference || '—'}</td>
+                          <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{c.reference || 'â€”'}</td>
                           <td style={{ padding: '5px 10px', fontWeight: 600 }}>{fmtCurrency(c.amount)}</td>
                           {canEdit && (
                             <td style={{ padding: '5px 10px', textAlign: 'right' }}>
@@ -6026,7 +6027,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                                   await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ landed_costs: updated }) });
                                   await refreshPoView(viewModal.po.id); load();
                                 } catch (e: any) { alert(e.message); }
-                              }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>✕</button>
+                              }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>âœ•</button>
                             </td>
                           )}
                         </tr>
@@ -6071,7 +6072,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
             );
           })()}
 
-          {/* ── Payments ── */}
+          {/* â”€â”€ Payments â”€â”€ */}
           {(() => {
             const currency = (viewModal.po.currency_code || 'AUD').toUpperCase();
             const isFx = currency !== 'AUD';
@@ -6102,9 +6103,9 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                           <td style={{ padding: '5px 10px', fontWeight: 600 }}>{fmtFx(p.amount, currency)}</td>
                           {isFx && <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{Number(p.exchange_rate).toFixed(4)}</td>}
                           {isFx && <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{fmtCurrency(p.amount_local)}</td>}
-                          <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.notes || '—'}</td>
+                          <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.notes || 'â€”'}</td>
                           <td style={{ padding: '5px 10px', textAlign: 'right' }}>
-                            <button onClick={() => handleDeletePoPayment(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>✕</button>
+                            <button onClick={() => handleDeletePoPayment(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>âœ•</button>
                           </td>
                         </tr>
                       ))}
@@ -6116,7 +6117,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                   <span><span style={{ color: 'var(--sv-text-dim)' }}>Total: </span><strong>{fmtFx(viewModal.po.total_amount, currency)}</strong></span>
                   <span><span style={{ color: 'var(--sv-text-dim)' }}>Paid: </span><strong style={{ color: 'var(--sv-mint,#0c9)' }}>{fmtFx(amountPaid, currency)}</strong></span>
                   <span><span style={{ color: 'var(--sv-text-dim)' }}>Balance: </span><strong style={{ color: balance > 0.005 ? 'var(--sv-orange,#f80)' : 'var(--sv-mint,#0c9)' }}>{fmtFx(balance, currency)}</strong></span>
-                  {isFx && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>≈ {fmtCurrency(viewModal.po.balance_local)} AUD remaining</span>}
+                  {isFx && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>â‰ˆ {fmtCurrency(viewModal.po.balance_local)} AUD remaining</span>}
                 </div>
 
                 {poPayForm && (
@@ -6137,12 +6138,12 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                         </div>
                       )}
                       {isFx && poPayForm.amount && poPayForm.rate && (
-                        <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', paddingBottom: 6 }}>≈ {fmtCurrency(Number(poPayForm.amount) * Number(poPayForm.rate))} AUD</div>
+                        <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', paddingBottom: 6 }}>â‰ˆ {fmtCurrency(Number(poPayForm.amount) * Number(poPayForm.rate))} AUD</div>
                       )}
                       <div>
                         <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Payment Method</div>
                         <select value={poPayForm.method} onChange={e => setPoPayForm(f => f ? { ...f, method: e.target.value } : f)} style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13, minWidth: 130 }}>
-                          <option value="">— None (no Xero sync) —</option>
+                          <option value="">â€” None (no Xero sync) â€”</option>
                           {paymentMethods.map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}
                         </select>
                       </div>
@@ -6160,7 +6161,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
           })()}
           <PoAccountingSection po={viewModal.po} settings={settings} onVoided={async () => { try { const d = await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}`); setViewModal(v => ({ ...v, po: d.data })); } catch {} }} />
 
-          {/* ── Supplier Invoices / Attachments ── */}
+          {/* â”€â”€ Supplier Invoices / Attachments â”€â”€ */}
           <div style={{ marginTop: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Supplier Invoices</div>
@@ -6169,10 +6170,10 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                   <button
                     onClick={() => { setInvoiceImportPoId(viewModal.po!.id); setShowInvoiceImport(true); }}
                     style={{ padding: '4px 12px', background: 'none', border: '1px solid var(--sv-accent)', color: 'var(--sv-accent)', borderRadius: 6, fontWeight: 600, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                  >📄 Match from Invoice</button>
+                  >ðŸ“„ Match from Invoice</button>
                 )}
                 <label style={{ cursor: 'pointer' }}>
-                  <span style={btnStyle('mint', 'xs') as any}>{poFileUploading ? 'Uploading…' : '+ Upload'}</span>
+                  <span style={btnStyle('mint', 'xs') as any}>{poFileUploading ? 'Uploadingâ€¦' : '+ Upload'}</span>
                 <input type="file" accept=".pdf,image/jpeg,image/png" style={{ display: 'none' }} disabled={poFileUploading}
                   onChange={async (e) => {
                     const file = e.target.files?.[0];
@@ -6198,10 +6199,10 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {poFiles.map((f: any) => (
                   <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--sv-bg-2)', borderRadius: 6, padding: '6px 10px', fontSize: 13 }}>
-                    <span style={{ fontSize: 16 }}>{f.mime_type === 'application/pdf' ? '📄' : '🖼️'}</span>
+                    <span style={{ fontSize: 16 }}>{f.mime_type === 'application/pdf' ? 'ðŸ“„' : 'ðŸ–¼ï¸'}</span>
                     <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.original_name}</span>
                     <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
-                      {(f.file_size / 1024).toFixed(0)} KB · {new Date(f.uploaded_at).toLocaleDateString()}
+                      {(f.file_size / 1024).toFixed(0)} KB Â· {new Date(f.uploaded_at).toLocaleDateString()}
                     </span>
                     <a href={`/api/ims/purchase-orders/${viewModal.po!.id}/files/${f.id}`} target="_blank" rel="noopener noreferrer" style={{ ...btnStyle('ghost', 'xs') as any, textDecoration: 'none' }}>View</a>
                     <button style={btnStyle('danger', 'xs')} onClick={async () => {
@@ -6210,7 +6211,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                       const data = await res.json();
                       if (res.ok) setPoFiles(data.files ?? []);
                       else alert(data.error || 'Delete failed');
-                    }}>✕</button>
+                    }}>âœ•</button>
                   </div>
                 ))}
               </div>
@@ -6219,7 +6220,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
         </Modal>
       )}
 
-      {/* ── Invoice Import Modal (Pathway 1: new PO pre-fill; Pathway 2: PO comparison) ── */}
+      {/* â”€â”€ Invoice Import Modal (Pathway 1: new PO pre-fill; Pathway 2: PO comparison) â”€â”€ */}
       {showInvoiceImport && (
         <InvoiceImportModal
           onClose={() => { setShowInvoiceImport(false); setInvoiceImportPoId(null); setInvoicePendingFile(null); }}
@@ -6228,7 +6229,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
           poId={invoiceImportPoId}
           pendingFile={invoicePendingFile}
           onImport={data => {
-            // Pathway 1 – pre-fill the new PO form
+            // Pathway 1 â€“ pre-fill the new PO form
             setForm((p: any) => ({
               ...p,
               supplier_id: data.supplier_id,
@@ -6242,7 +6243,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
             setShowInvoiceImport(false);
           }}
           onPreFillReceive={qtys => {
-            // Pathway 2 – open PO in receive mode with invoice quantities
+            // Pathway 2 â€“ open PO in receive mode with invoice quantities
             const po = viewModal.po;
             pendingReceiveOverrideRef.current = qtys;
             setViewModal({ open: false, po: null });
@@ -6275,10 +6276,10 @@ function POActions({ po, onEdit, onReceive, onDelete, onStatus, context = 'list'
   }
   const btns = [];
   if (po.status === 'draft')    { btns.push(<button key="a" onClick={() => onStatus(po, 'confirmed')}  style={btnStyle('mint', 'xs')} disabled={isAdvisor}>Confirm</button>); }
-  if (isMobile && po.status === 'confirmed' && context !== 'list') { btns.push(<a key="p" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 Smart Device Receive</a>); }
+  if (isMobile && po.status === 'confirmed' && context !== 'list') { btns.push(<a key="p" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>ðŸ“± Smart Device Receive</a>); }
   if (po.status === 'confirmed' && context === 'view') { btns.push(<button key="r" onClick={() => onStatus(po, 'complete')}  style={btnStyle('mint', 'xs')}>Mark Complete</button>); }
   if (po.status === 'confirmed' && context !== 'list') { btns.push(<button key="b" onClick={() => onStatus(po, 'draft')}     style={btnStyle('ghost', 'xs')}>Revert</button>); }
-  if (isMobile && po.status === 'partially_received') { btns.push(<a key="pr" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 {context === 'view' ? 'Continue Receiving' : 'Continue'}</a>); }
+  if (isMobile && po.status === 'partially_received') { btns.push(<a key="pr" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>ðŸ“± {context === 'view' ? 'Continue Receiving' : 'Continue'}</a>); }
   if (po.status === 'partially_received') { btns.push(<button key="prr" onClick={() => onStatus(po, 'complete')} style={btnStyle('mint', 'xs')}>Mark Complete</button>); }
   if (po.status === 'partially_received' && context !== 'list') { btns.push(<button key="prb" onClick={() => onStatus(po, 'confirmed')} style={btnStyle('ghost', 'xs')}>Revert to Confirmed</button>); }
   if (po.status === 'complete') {
@@ -6306,9 +6307,9 @@ function POActions({ po, onEdit, onReceive, onDelete, onStatus, context = 'list'
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Accounting Debug Sections (PO & SO)
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Record<string, string>; onVoided?: () => void }) {
   const [open, setOpen] = useState(false);
@@ -6360,16 +6361,16 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
       ? <div style={{ display:'flex', flexDirection:'column', gap:4, padding:'5px 10px', background: xeroVoidResult === 'voided' ? 'rgba(251,191,36,.1)' : 'rgba(16,185,129,.1)', borderRadius:6, fontSize:11, marginBottom:6 }}>
           <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
             {xeroVoidResult === 'voided'
-              ? <span style={{ color:'#fbbf24', fontWeight:700 }}>✕ Removed from Xero</span>
-              : <span style={{ color:'#34d399', fontWeight:700 }}>✓ Synced to Xero</span>}
+              ? <span style={{ color:'#fbbf24', fontWeight:700 }}>âœ• Removed from Xero</span>
+              : <span style={{ color:'#34d399', fontWeight:700 }}>âœ“ Synced to Xero</span>}
             {xeroAt && <span style={{ color:'var(--sv-text-dim)' }}>{xeroAt}</span>}
-            {xeroId && <span style={{ color:'var(--sv-text-dim)', fontFamily:'monospace', fontSize:10 }}>{xeroId.slice(0,8)}…</span>}
-            {xeroId && <a href={`https://go.xero.com/AccountsPayable/View.aspx?InvoiceID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color:'var(--sv-mint)' }}>View Bill ↗</a>}
-            {xeroId && xeroVoidResult !== 'voided' && <button onClick={doXeroVoid} disabled={xeroVoiding} style={{ background:'none', border:'1px solid #f87171', borderRadius:4, cursor:'pointer', padding:'2px 8px', fontSize:11, color:'#f87171' }}>{xeroVoiding ? 'Removing…' : po.status === 'complete' ? 'Void in Xero' : 'Delete from Xero'}</button>}
+            {xeroId && <span style={{ color:'var(--sv-text-dim)', fontFamily:'monospace', fontSize:10 }}>{xeroId.slice(0,8)}â€¦</span>}
+            {xeroId && <a href={`https://go.xero.com/AccountsPayable/View.aspx?InvoiceID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color:'var(--sv-mint)' }}>View Bill â†—</a>}
+            {xeroId && xeroVoidResult !== 'voided' && <button onClick={doXeroVoid} disabled={xeroVoiding} style={{ background:'none', border:'1px solid #f87171', borderRadius:4, cursor:'pointer', padding:'2px 8px', fontSize:11, color:'#f87171' }}>{xeroVoiding ? 'Removingâ€¦' : po.status === 'complete' ? 'Void in Xero' : 'Delete from Xero'}</button>}
             {xeroVoidResult === 'failed' && <span style={{ color:'#f87171' }}>{xeroVoidMsg}</span>}
           </div>
           {xeroBillFetching && !xeroBillDetails && xeroVoidResult !== 'voided' && (
-            <span style={{ fontSize:10, color:'var(--sv-text-dim)' }}>Loading Xero details…</span>
+            <span style={{ fontSize:10, color:'var(--sv-text-dim)' }}>Loading Xero detailsâ€¦</span>
           )}
           {xeroBillDetails && xeroVoidResult !== 'voided' && (
             <div style={{ display:'flex', gap:12, fontSize:10.5, color:'var(--sv-text-dim)' }}>
@@ -6379,19 +6380,19 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
           )}
           {xeroBillDetails && xeroBillDetails.total !== null && xeroVoidResult !== 'voided' && Math.abs(xeroBillDetails.total - Number(po.total_amount || 0)) > 0.01 && (
             <div style={{ background:'rgba(251,191,36,.15)', border:'1px solid rgba(251,191,36,.6)', borderRadius:4, padding:'5px 8px', fontSize:11, color:'var(--sv-text-main)', lineHeight:1.5 }}>
-              ⚠ <strong>Total mismatch:</strong> IMS PO #{po.po_number} total is {fmtCurrency(Number(po.total_amount || 0))} but the linked Xero bill shows {fmtCurrency(xeroBillDetails.total)}. This can happen if the PO was edited after the Xero bill was approved. Please contact your bookkeeper with these details.
+              âš  <strong>Total mismatch:</strong> IMS PO #{po.po_number} total is {fmtCurrency(Number(po.total_amount || 0))} but the linked Xero bill shows {fmtCurrency(xeroBillDetails.total)}. This can happen if the PO was edited after the Xero bill was approved. Please contact your bookkeeper with these details.
             </div>
           )}
         </div>
       : xeroStatus === 'queued' || xeroStatus === 'error'
         ? <div style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 10px', background:'rgba(251,191,36,.1)', borderRadius:6, fontSize:11, marginBottom:6 }}>
-            <span style={{ color:'#fbbf24', fontWeight:700 }}>⚠ Queued for Xero sync</span>
+            <span style={{ color:'#fbbf24', fontWeight:700 }}>âš  Queued for Xero sync</span>
             {xeroAt && <span style={{ color:'var(--sv-text-dim)' }}>Last attempt: {xeroAt}</span>}
             {xeroRetried === false && <span style={{ color:'#f87171' }}>Retry failed</span>}
-            <button onClick={doXeroRetry} disabled={xeroRetrying} style={{ background:'none', border:'1px solid var(--sv-etch)', borderRadius:4, cursor:'pointer', padding:'2px 8px', fontSize:11, color:'var(--sv-text-dim)' }}>{xeroRetrying ? 'Retrying…' : 'Retry'}</button>
+            <button onClick={doXeroRetry} disabled={xeroRetrying} style={{ background:'none', border:'1px solid var(--sv-etch)', borderRadius:4, cursor:'pointer', padding:'2px 8px', fontSize:11, color:'var(--sv-text-dim)' }}>{xeroRetrying ? 'Retryingâ€¦' : 'Retry'}</button>
           </div>
         : <div style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 10px', background:'var(--sv-bg-1)', borderRadius:6, fontSize:11, color:'var(--sv-text-dim)', marginBottom:6 }}>
-            <span>○ Not yet synced to Xero</span>
+            <span>â—‹ Not yet synced to Xero</span>
           </div>
   );
   const currency = (po.currency_code || 'AUD').toUpperCase();
@@ -6431,7 +6432,7 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
       <div style={{ marginTop: 24, borderTop: '1px dashed var(--sv-etch)', paddingTop: 8 }}>
         <XeroBadge />
         <button onClick={() => setOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span>🧮</span> <span style={{ textDecoration: 'underline dotted' }}>Accounting</span>
+          <span>ðŸ§®</span> <span style={{ textDecoration: 'underline dotted' }}>Accounting</span>
         </button>
       </div>
     );
@@ -6440,13 +6441,13 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
   return (
     <div style={{ marginTop: 24, borderTop: '1px dashed var(--sv-etch)', paddingTop: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)' }}>🧮 Accounting</span>
-        <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11 }}>hide ↑</button>
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)' }}>ðŸ§® Accounting</span>
+        <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11 }}>hide â†‘</button>
       </div>
       <XeroBadge />
 
-      {/* A – Line Costs */}
-      <div style={lbl}>A — Line Costs {isFx ? `(${currency} → AUD @ ${rate.toFixed(4)})` : ''}</div>
+      {/* A â€“ Line Costs */}
+      <div style={lbl}>A â€” Line Costs {isFx ? `(${currency} â†’ AUD @ ${rate.toFixed(4)})` : ''}</div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
         <thead>
           <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
@@ -6462,12 +6463,12 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
         <tbody>
           {lineItems.map((item: any, i: number) => (
             <tr key={i} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-              <td style={{ ...cell, color: 'var(--sv-text-main)' }}>{item.sku || '—'}{item.variant_label ? ` (${item.variant_label})` : ''}</td>
+              <td style={{ ...cell, color: 'var(--sv-text-main)' }}>{item.sku || 'â€”'}{item.variant_label ? ` (${item.variant_label})` : ''}</td>
               <td style={num}>{item.qty}</td>
               <td style={num}>{fmtFx(item.cost, currency)}</td>
-              <td style={num}>{item.taxRate > 0 ? `${(item.taxRate * 100).toFixed(0)}%` : '—'}</td>
+              <td style={num}>{item.taxRate > 0 ? `${(item.taxRate * 100).toFixed(0)}%` : 'â€”'}</td>
               <td style={{ ...num, color: 'var(--sv-text-main)' }}>{fmtFx(item.lineTotal, currency)}</td>
-              <td style={num}>{item.taxAmt > 0 ? fmtFx(item.taxAmt, currency) : '—'}</td>
+              <td style={num}>{item.taxAmt > 0 ? fmtFx(item.taxAmt, currency) : 'â€”'}</td>
               {isFx && <td style={num}>{fmtCurrency(item.lineTotal * rate)}</td>}
             </tr>
           ))}
@@ -6481,17 +6482,17 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
           </tr>
         </tfoot>
       </table>
-      <div style={{ ...dim, marginTop: 3 }}>= qty × unit_cost per line; tax_rate stored as decimal (0.1 = 10%)</div>
+      <div style={{ ...dim, marginTop: 3 }}>= qty Ã— unit_cost per line; tax_rate stored as decimal (0.1 = 10%)</div>
 
-      {/* B – Order Totals */}
-      <div style={lbl}>B — Order Totals</div>
+      {/* B â€“ Order Totals */}
+      <div style={lbl}>B â€” Order Totals</div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
         {isFx && (
           <thead>
             <tr>
               <td style={cell} />
               <th style={{ ...num, fontWeight: 600 }}>In {currency}</th>
-              <th style={{ ...num, fontWeight: 600 }}>In AUD (×{rate.toFixed(4)})</th>
+              <th style={{ ...num, fontWeight: 600 }}>In AUD (Ã—{rate.toFixed(4)})</th>
             </tr>
           </thead>
         )}
@@ -6515,9 +6516,9 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
           )}
           {Number(po.discount || 0) > 0 && (
             <tr>
-              <td style={cell}>Discount (−)</td>
-              <td style={{ ...num, color: 'var(--sv-red)' }}>−{fmtFx(Number(po.discount), currency)}</td>
-              {isFx && <td style={{ ...num, color: 'var(--sv-red)' }}>−{fmtCurrency(Number(po.discount) * rate)}</td>}
+              <td style={cell}>Discount (âˆ’)</td>
+              <td style={{ ...num, color: 'var(--sv-red)' }}>âˆ’{fmtFx(Number(po.discount), currency)}</td>
+              {isFx && <td style={{ ...num, color: 'var(--sv-red)' }}>âˆ’{fmtCurrency(Number(po.discount) * rate)}</td>}
             </tr>
           )}
           <tr style={{ borderTop: '2px solid var(--sv-etch)' }}>
@@ -6528,48 +6529,48 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
         </tbody>
       </table>
       {totalLanded > 0 && (
-        <div style={{ ...dim, marginTop: 4 }}>Landed costs: {fmtCurrency(totalLanded)} AUD (separate invoices — distributed to units on receive, not included in Xero bill)</div>
+        <div style={{ ...dim, marginTop: 4 }}>Landed costs: {fmtCurrency(totalLanded)} AUD (separate invoices â€” distributed to units on receive, not included in Xero bill)</div>
       )}
 
-      {/* C – Xero Bill */}
-      <div style={lbl}>C — Xero Bill (what will be sent)</div>
+      {/* C â€“ Xero Bill */}
+      <div style={lbl}>C â€” Xero Bill (what will be sent)</div>
       <div style={{ ...dim, lineHeight: 1.7 }}>
-        <div><strong>Type:</strong> ACCPAY (Accounts Payable) · <strong>Status:</strong> DRAFT · <strong>Lines:</strong> Exclusive (tax-exclusive)</div>
-        <div><strong>Currency:</strong> {currency}{isFx ? ` · Xero fetches live rate at bill date (stored rate ${rate.toFixed(4)} is for AUD calcs only)` : ''}</div>
-        <div><strong>Contact:</strong> {po.supplier_name || '—'} · <strong>Ref:</strong> {po.po_number}</div>
+        <div><strong>Type:</strong> ACCPAY (Accounts Payable) Â· <strong>Status:</strong> DRAFT Â· <strong>Lines:</strong> Exclusive (tax-exclusive)</div>
+        <div><strong>Currency:</strong> {currency}{isFx ? ` Â· Xero fetches live rate at bill date (stored rate ${rate.toFixed(4)} is for AUD calcs only)` : ''}</div>
+        <div><strong>Contact:</strong> {po.supplier_name || 'â€”'} Â· <strong>Ref:</strong> {po.po_number}</div>
         {po.supplier_invoice_number && <div><strong>Supplier invoice #:</strong> {po.supplier_invoice_number}</div>}
         <div>
           <strong>Tax:</strong> treatment <code>{po.tax_treatment || 'ex_tax'}</code>
-          {po.tax_code ? <> · code <code>{po.tax_code}</code></> : null}
-          {' · '}Xero TaxType <code>{(po.tax_treatment || 'ex_tax') === 'no_tax' ? 'NONE' : 'INPUT'}</code>
-          {' · '}LineAmountTypes <code>{(po.tax_treatment || 'ex_tax') === 'inc_tax' ? 'Inclusive' : 'Exclusive'}</code>
+          {po.tax_code ? <> Â· code <code>{po.tax_code}</code></> : null}
+          {' Â· '}Xero TaxType <code>{(po.tax_treatment || 'ex_tax') === 'no_tax' ? 'NONE' : 'INPUT'}</code>
+          {' Â· '}LineAmountTypes <code>{(po.tax_treatment || 'ex_tax') === 'inc_tax' ? 'Inclusive' : 'Exclusive'}</code>
         </div>
         <div style={{ marginTop: 2 }}>
           {lineItems.map((item: any, i: number) => (
-            <div key={i}>→ {item.sku || item.product_name || 'item'} ×{item.qty} @ {fmtFx(item.cost, currency)} = {fmtFx(item.lineTotal, currency)} → <strong>{hasDeposits ? 'Inventory in Transit' : 'Inventory Asset'}</strong>{item.taxAmt > 0 ? ` + tax ${fmtFx(item.taxAmt, currency)}` : ''}</div>
+            <div key={i}>â†’ {item.sku || item.product_name || 'item'} Ã—{item.qty} @ {fmtFx(item.cost, currency)} = {fmtFx(item.lineTotal, currency)} â†’ <strong>{hasDeposits ? 'Inventory in Transit' : 'Inventory Asset'}</strong>{item.taxAmt > 0 ? ` + tax ${fmtFx(item.taxAmt, currency)}` : ''}</div>
           ))}
           {freight > 0 && (
-            <div>→ Freight {fmtFx(freight, currency)} → <strong>{freightTreatment === 'capitalise' ? 'Inventory Asset (capitalised — adds to stock value)' : 'Freight / Shipping expense account'}</strong></div>
+            <div>â†’ Freight {fmtFx(freight, currency)} â†’ <strong>{freightTreatment === 'capitalise' ? 'Inventory Asset (capitalised â€” adds to stock value)' : 'Freight / Shipping expense account'}</strong></div>
           )}
         </div>
-        <div style={{ marginTop: 2 }}><strong>Bill subtotal (excl. tax):</strong> {fmtFx(goodsSubtotal + freight, currency)}{isFx ? ` ≈ ${fmtCurrency((goodsSubtotal + freight) * rate)} AUD` : ''}</div>
-        <div><strong>Tax:</strong> {fmtFx(taxTotal, currency)} · <strong>Bill total (incl. tax):</strong> {fmtFx(Number(po.total_amount), currency)}</div>
+        <div style={{ marginTop: 2 }}><strong>Bill subtotal (excl. tax):</strong> {fmtFx(goodsSubtotal + freight, currency)}{isFx ? ` â‰ˆ ${fmtCurrency((goodsSubtotal + freight) * rate)} AUD` : ''}</div>
+        <div><strong>Tax:</strong> {fmtFx(taxTotal, currency)} Â· <strong>Bill total (incl. tax):</strong> {fmtFx(Number(po.total_amount), currency)}</div>
         {hasDeposits && (
-          <div style={{ color: 'var(--sv-amber,#f59e0b)', marginTop: 2 }}>⚠ Deposits exist → lines coded to Inventory in Transit. On receive, a DR Inventory Asset / CR Inventory in Transit journal will be posted.</div>
+          <div style={{ color: 'var(--sv-amber,#f59e0b)', marginTop: 2 }}>âš  Deposits exist â†’ lines coded to Inventory in Transit. On receive, a DR Inventory Asset / CR Inventory in Transit journal will be posted.</div>
         )}
       </div>
 
-      {/* D – COGS on Receive */}
+      {/* D â€“ COGS on Receive */}
       {po.status === 'complete' && (
         <>
-          <div style={lbl}>D — COGS / Inventory Impact (status: complete)</div>
+          <div style={lbl}>D â€” COGS / Inventory Impact (status: complete)</div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
                 <th style={{ ...cell, textAlign: 'left', fontWeight: 600 }}>SKU</th>
                 <th style={{ ...num, fontWeight: 600 }}>Qty</th>
                 {isFx && <th style={{ ...num, fontWeight: 600 }}>Cost ({currency})</th>}
-                {isFx && <th style={{ ...num, fontWeight: 600 }}>Base AUD (×{rate.toFixed(4)})</th>}
+                {isFx && <th style={{ ...num, fontWeight: 600 }}>Base AUD (Ã—{rate.toFixed(4)})</th>}
                 {!isFx && <th style={{ ...num, fontWeight: 600 }}>Unit Cost</th>}
                 <th style={{ ...num, fontWeight: 600 }}>Landed/Unit</th>
                 <th style={{ ...num, fontWeight: 600 }}>True Cost AUD</th>
@@ -6579,12 +6580,12 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
             <tbody>
               {lineItems.map((item: any, i: number) => (
                 <tr key={i} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-                  <td style={cell}>{item.sku || '—'}</td>
+                  <td style={cell}>{item.sku || 'â€”'}</td>
                   <td style={num}>{item.qty}</td>
                   {isFx && <td style={num}>{fmtFx(item.cost, currency)}</td>}
                   {isFx && <td style={num}>{fmtCurrency(item.cost * rate)}</td>}
                   {!isFx && <td style={num}>{fmtCurrency(item.cost)}</td>}
-                  <td style={num}>{item.lcpu > 0 ? fmtCurrency(item.lcpu) : '—'}</td>
+                  <td style={num}>{item.lcpu > 0 ? fmtCurrency(item.lcpu) : 'â€”'}</td>
                   <td style={{ ...num, color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtCurrency(item.trueCostAud)}</td>
                   <td style={{ ...num, color: 'var(--sv-text-main)' }}>{fmtCurrency(item.qty * item.trueCostAud)}</td>
                 </tr>
@@ -6598,7 +6599,7 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
               </tr>
             </tfoot>
           </table>
-          <div style={{ ...dim, marginTop: 3 }}>true_cost_aud = unit_cost{isFx ? ` × rate(${rate.toFixed(4)})` : ''} + landed_cost_per_unit. avg_cost in ims_stock is updated to new weighted average on receive.</div>
+          <div style={{ ...dim, marginTop: 3 }}>true_cost_aud = unit_cost{isFx ? ` Ã— rate(${rate.toFixed(4)})` : ''} + landed_cost_per_unit. avg_cost in ims_stock is updated to new weighted average on receive.</div>
         </>
       )}
     </div>
@@ -6650,25 +6651,25 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
     xeroStatus === 'synced' || xeroVoidResult === 'voided'
       ? <div style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 10px', background: xeroVoidResult === 'voided' ? 'rgba(251,191,36,.1)' : 'rgba(16,185,129,.1)', borderRadius:6, fontSize:11, marginBottom:6, flexWrap:'wrap' }}>
           {xeroVoidResult === 'voided'
-            ? <span style={{ color:'#fbbf24', fontWeight:700 }}>✕ Voided in Xero</span>
-            : <span style={{ color:'#34d399', fontWeight:700 }}>✓ Synced to Xero</span>}
+            ? <span style={{ color:'#fbbf24', fontWeight:700 }}>âœ• Voided in Xero</span>
+            : <span style={{ color:'#34d399', fontWeight:700 }}>âœ“ Synced to Xero</span>}
           {xeroAt && <span style={{ color:'var(--sv-text-dim)' }}>{xeroAt}</span>}
           {xeroBillDetails?.invoiceNumber && <span style={{ color:'var(--sv-text-dim)' }}>Invoice #: <strong>{xeroBillDetails.invoiceNumber}</strong></span>}
           {xeroBillDetails?.total != null && <span style={{ color:'var(--sv-text-dim)' }}>Xero Total: {fmtCurrency(xeroBillDetails.total)}</span>}
-          {xeroId && <span style={{ color:'var(--sv-text-dim)', fontFamily:'monospace', fontSize:10 }}>{xeroId.slice(0,8)}…</span>}
-          {xeroId && <a href={`https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color:'var(--sv-mint)' }}>View Invoice ↗</a>}
-          {xeroId && xeroVoidResult !== 'voided' && <button onClick={doXeroVoid} disabled={xeroVoiding} style={{ background:'none', border:'1px solid #f87171', borderRadius:4, cursor:'pointer', padding:'2px 8px', fontSize:11, color:'#f87171' }}>{xeroVoiding ? 'Voiding…' : 'Void in Xero'}</button>}
+          {xeroId && <span style={{ color:'var(--sv-text-dim)', fontFamily:'monospace', fontSize:10 }}>{xeroId.slice(0,8)}â€¦</span>}
+          {xeroId && <a href={`https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color:'var(--sv-mint)' }}>View Invoice â†—</a>}
+          {xeroId && xeroVoidResult !== 'voided' && <button onClick={doXeroVoid} disabled={xeroVoiding} style={{ background:'none', border:'1px solid #f87171', borderRadius:4, cursor:'pointer', padding:'2px 8px', fontSize:11, color:'#f87171' }}>{xeroVoiding ? 'Voidingâ€¦' : 'Void in Xero'}</button>}
           {xeroVoidResult === 'failed' && <span style={{ color:'#f87171' }}>{xeroVoidMsg}</span>}
         </div>
       : xeroStatus === 'queued' || xeroStatus === 'error'
         ? <div style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 10px', background:'rgba(251,191,36,.1)', borderRadius:6, fontSize:11, marginBottom:6 }}>
-            <span style={{ color:'#fbbf24', fontWeight:700 }}>⚠ Queued for Xero sync</span>
+            <span style={{ color:'#fbbf24', fontWeight:700 }}>âš  Queued for Xero sync</span>
             {xeroAt && <span style={{ color:'var(--sv-text-dim)' }}>Last attempt: {xeroAt}</span>}
             {xeroRetried === false && <span style={{ color:'#f87171' }}>Retry failed</span>}
-            <button onClick={doXeroRetry} disabled={xeroRetrying} style={{ background:'none', border:'1px solid var(--sv-etch)', borderRadius:4, cursor:'pointer', padding:'2px 8px', fontSize:11, color:'var(--sv-text-dim)' }}>{xeroRetrying ? 'Retrying…' : 'Retry'}</button>
+            <button onClick={doXeroRetry} disabled={xeroRetrying} style={{ background:'none', border:'1px solid var(--sv-etch)', borderRadius:4, cursor:'pointer', padding:'2px 8px', fontSize:11, color:'var(--sv-text-dim)' }}>{xeroRetrying ? 'Retryingâ€¦' : 'Retry'}</button>
           </div>
         : <div style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 10px', background:'var(--sv-bg-1)', borderRadius:6, fontSize:11, color:'var(--sv-text-dim)', marginBottom:6 }}>
-            <span>○ Not yet synced to Xero</span>
+            <span>â—‹ Not yet synced to Xero</span>
           </div>
   );
   const currency = (so.currency_code || 'AUD').toUpperCase();
@@ -6709,7 +6710,7 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
       <div style={{ marginTop: 24, borderTop: '1px dashed var(--sv-etch)', paddingTop: 8 }}>
         <XeroBadge />
         <button onClick={() => setOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span>🧮</span> <span style={{ textDecoration: 'underline dotted' }}>Accounting</span>
+          <span>ðŸ§®</span> <span style={{ textDecoration: 'underline dotted' }}>Accounting</span>
         </button>
       </div>
     );
@@ -6718,18 +6719,18 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
   return (
     <div style={{ marginTop: 24, borderTop: '1px dashed var(--sv-etch)', paddingTop: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)' }}>🧮 Accounting</span>
-        <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11 }}>hide ↑</button>
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)' }}>ðŸ§® Accounting</span>
+        <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11 }}>hide â†‘</button>
       </div>
       <XeroBadge />
       {xeroBillDetails?.total != null && Math.abs(xeroBillDetails.total - Number(so.total_amount)) > 0.01 && (
         <div style={{ padding:'6px 10px', background:'color-mix(in srgb, var(--sv-red,#e05) 10%, transparent)', border:'1px solid color-mix(in srgb, var(--sv-red,#e05) 30%, var(--sv-border,#444))', borderRadius:5, fontSize:11, color:'var(--sv-red,#e05)', marginBottom:6 }}>
-          ⚠ IMS total ({fmtCurrency(Number(so.total_amount))}) differs from Xero total ({fmtCurrency(xeroBillDetails.total)}) — Xero may need manual update.
+          âš  IMS total ({fmtCurrency(Number(so.total_amount))}) differs from Xero total ({fmtCurrency(xeroBillDetails.total)}) â€” Xero may need manual update.
         </div>
       )}
 
-      {/* A – Line Revenue */}
-      <div style={lbl}>A — Line Revenue {isFx ? `(${currency} → AUD @ ${rate.toFixed(4)})` : ''}</div>
+      {/* A â€“ Line Revenue */}
+      <div style={lbl}>A â€” Line Revenue {isFx ? `(${currency} â†’ AUD @ ${rate.toFixed(4)})` : ''}</div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
         <thead>
           <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
@@ -6745,12 +6746,12 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
         <tbody>
           {lineItems.map((item: any, i: number) => (
             <tr key={i} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-              <td style={{ ...cell, color: 'var(--sv-text-main)' }}>{item.sku || '—'}{item.variant_label ? ` (${item.variant_label})` : ''}</td>
+              <td style={{ ...cell, color: 'var(--sv-text-main)' }}>{item.sku || 'â€”'}{item.variant_label ? ` (${item.variant_label})` : ''}</td>
               <td style={num}>{item.qty}</td>
               <td style={num}>{fmtFx(item.price, currency)}</td>
-              <td style={num}>{item.discPct > 0 ? `${item.discPct}%` : '—'}</td>
+              <td style={num}>{item.discPct > 0 ? `${item.discPct}%` : 'â€”'}</td>
               <td style={{ ...num, color: 'var(--sv-text-main)' }}>{fmtFx(item.lineNet, currency)}</td>
-              <td style={num}>{item.taxAmt > 0 ? fmtFx(item.taxAmt, currency) : '—'}</td>
+              <td style={num}>{item.taxAmt > 0 ? fmtFx(item.taxAmt, currency) : 'â€”'}</td>
               {isFx && <td style={num}>{fmtCurrency(item.lineNet * rate)}</td>}
             </tr>
           ))}
@@ -6764,17 +6765,17 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
           </tr>
         </tfoot>
       </table>
-      <div style={{ ...dim, marginTop: 3 }}>= qty × unit_price × (1 − discount_pct%); tax_rate stored as decimal (0.1 = 10%)</div>
+      <div style={{ ...dim, marginTop: 3 }}>= qty Ã— unit_price Ã— (1 âˆ’ discount_pct%); tax_rate stored as decimal (0.1 = 10%)</div>
 
-      {/* B – Order Totals */}
-      <div style={lbl}>B — Order Totals</div>
+      {/* B â€“ Order Totals */}
+      <div style={lbl}>B â€” Order Totals</div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
         {isFx && (
           <thead>
             <tr>
               <td style={cell} />
               <th style={{ ...num, fontWeight: 600 }}>In {currency}</th>
-              <th style={{ ...num, fontWeight: 600 }}>In AUD (×{rate.toFixed(4)})</th>
+              <th style={{ ...num, fontWeight: 600 }}>In AUD (Ã—{rate.toFixed(4)})</th>
             </tr>
           </thead>
         )}
@@ -6786,9 +6787,9 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
           </tr>
           {discount > 0 && (
             <tr>
-              <td style={cell}>Order discount (−)</td>
-              <td style={{ ...num, color: 'var(--sv-red)' }}>−{fmtFx(discount, currency)}</td>
-              {isFx && <td style={{ ...num, color: 'var(--sv-red)' }}>−{fmtCurrency(discount * rate)}</td>}
+              <td style={cell}>Order discount (âˆ’)</td>
+              <td style={{ ...num, color: 'var(--sv-red)' }}>âˆ’{fmtFx(discount, currency)}</td>
+              {isFx && <td style={{ ...num, color: 'var(--sv-red)' }}>âˆ’{fmtCurrency(discount * rate)}</td>}
             </tr>
           )}
           {freight > 0 && (
@@ -6811,8 +6812,8 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
         </tbody>
       </table>
 
-      {/* C – COGS & Margin */}
-      <div style={lbl}>C — COGS & Gross Margin{!hasCogs ? ' (cost unavailable — no standard cost set on product)' : ''}</div>
+      {/* C â€“ COGS & Margin */}
+      <div style={lbl}>C â€” COGS & Gross Margin{!hasCogs ? ' (cost unavailable â€” no standard cost set on product)' : ''}</div>
       {hasCogs ? (
         <>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
@@ -6831,13 +6832,13 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
                 const itemMargin = item.cogs !== null && item.lineNet > 0 ? ((item.lineNet - item.cogs) / item.lineNet) * 100 : null;
                 return (
                   <tr key={i} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-                    <td style={cell}>{item.sku || '—'}</td>
+                    <td style={cell}>{item.sku || 'â€”'}</td>
                     <td style={num}>{item.qty}</td>
-                    <td style={num}>{item.unit_cost != null ? fmtCurrency(Number(item.unit_cost)) : '—'}</td>
-                    <td style={num}>{item.cogs !== null ? fmtCurrency(item.cogs) : '—'}</td>
+                    <td style={num}>{item.unit_cost != null ? fmtCurrency(Number(item.unit_cost)) : 'â€”'}</td>
+                    <td style={num}>{item.cogs !== null ? fmtCurrency(item.cogs) : 'â€”'}</td>
                     <td style={{ ...num, color: 'var(--sv-text-main)' }}>{fmtFx(item.lineNet, currency)}</td>
                     <td style={{ ...num, color: itemMargin !== null && itemMargin >= 0 ? 'var(--sv-mint,#0c9)' : 'var(--sv-red)' }}>
-                      {itemMargin !== null ? `${itemMargin.toFixed(1)}%` : '—'}
+                      {itemMargin !== null ? `${itemMargin.toFixed(1)}%` : 'â€”'}
                     </td>
                   </tr>
                 );
@@ -6849,13 +6850,13 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
                 <td style={{ ...num, fontWeight: 700 }}>{fmtCurrency(totalCogs!)}</td>
                 <td style={{ ...num, fontWeight: 700 }}>{fmtFx(revenueSubtotal, currency)}</td>
                 <td style={{ ...num, fontWeight: 700, color: grossMarginPct !== null && grossMarginPct >= 0 ? 'var(--sv-mint,#0c9)' : 'var(--sv-red)' }}>
-                  {grossMarginPct !== null ? `${grossMarginPct.toFixed(1)}%` : '—'}
+                  {grossMarginPct !== null ? `${grossMarginPct.toFixed(1)}%` : 'â€”'}
                 </td>
               </tr>
               <tr>
-                <td colSpan={4} style={dim}>Gross Profit = Revenue − COGS</td>
+                <td colSpan={4} style={dim}>Gross Profit = Revenue âˆ’ COGS</td>
                 <td colSpan={2} style={{ ...dim, textAlign: 'right', fontWeight: 700, color: grossProfit !== null && grossProfit >= 0 ? 'var(--sv-mint,#0c9)' : 'var(--sv-red)' }}>
-                  {grossProfit !== null ? fmtCurrency(grossProfit) : '—'}
+                  {grossProfit !== null ? fmtCurrency(grossProfit) : 'â€”'}
                 </td>
               </tr>
             </tfoot>
@@ -6863,38 +6864,38 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
           <div style={{ ...dim, marginTop: 3 }}>Unit cost = business-wide weighted avg (across all locations), falling back to standard cost (cost_aud) if not yet received into stock.</div>
         </>
       ) : (
-        <div style={{ ...dim, fontStyle: 'italic' }}>Cost not available — no standard cost (cost_aud) set on these variants.</div>
+        <div style={{ ...dim, fontStyle: 'italic' }}>Cost not available â€” no standard cost (cost_aud) set on these variants.</div>
       )}
 
-      {/* D – Xero Invoice */}
-      <div style={lbl}>D — Xero Invoice (what will be sent)</div>
+      {/* D â€“ Xero Invoice */}
+      <div style={lbl}>D â€” Xero Invoice (what will be sent)</div>
       <div style={{ ...dim, lineHeight: 1.7 }}>
-        <div><strong>Type:</strong> ACCREC (Accounts Receivable) · <strong>Status: <span style={{ color: 'var(--sv-amber,#f90)' }}>DRAFT</span></strong> (on confirm) → <strong><span style={{ color: 'var(--sv-mint,#0c9)' }}>AUTHORISED</span></strong> (on fulfil) · <strong>Lines:</strong> Exclusive</div>
-        <div><strong>Currency:</strong> {currency}{isFx ? ` · Xero fetches live rate at invoice date` : ''}</div>
-        <div><strong>Contact:</strong> {so.customer_name || '—'} · <strong>Ref:</strong> {so.so_number}</div>
+        <div><strong>Type:</strong> ACCREC (Accounts Receivable) Â· <strong>Status: <span style={{ color: 'var(--sv-amber,#f90)' }}>DRAFT</span></strong> (on confirm) â†’ <strong><span style={{ color: 'var(--sv-mint,#0c9)' }}>AUTHORISED</span></strong> (on fulfil) Â· <strong>Lines:</strong> Exclusive</div>
+        <div><strong>Currency:</strong> {currency}{isFx ? ` Â· Xero fetches live rate at invoice date` : ''}</div>
+        <div><strong>Contact:</strong> {so.customer_name || 'â€”'} Â· <strong>Ref:</strong> {so.so_number}</div>
         <div>
-          <strong>Tax:</strong>{so.tax_code ? <> code <code>{so.tax_code}</code> · </> : ' '}
-          taxed lines → Xero TaxType <code>OUTPUT</code>
-          {' · '}exempt lines → <code>NONE</code>
+          <strong>Tax:</strong>{so.tax_code ? <> code <code>{so.tax_code}</code> Â· </> : ' '}
+          taxed lines â†’ Xero TaxType <code>OUTPUT</code>
+          {' Â· '}exempt lines â†’ <code>NONE</code>
         </div>
         <div style={{ marginTop: 2 }}>
           {lineItems.map((item: any, i: number) => (
-            <div key={i}>→ {item.sku || item.product_name || 'item'} ×{item.qty} @ {fmtFx(item.price, currency)}{item.discPct > 0 ? ` − ${item.discPct}%` : ''} = {fmtFx(item.lineNet, currency)} → <strong>Sales Revenue account</strong>{item.taxAmt > 0 ? ` + tax ${fmtFx(item.taxAmt, currency)}` : ''}</div>
+            <div key={i}>â†’ {item.sku || item.product_name || 'item'} Ã—{item.qty} @ {fmtFx(item.price, currency)}{item.discPct > 0 ? ` âˆ’ ${item.discPct}%` : ''} = {fmtFx(item.lineNet, currency)} â†’ <strong>Sales Revenue account</strong>{item.taxAmt > 0 ? ` + tax ${fmtFx(item.taxAmt, currency)}` : ''}</div>
           ))}
           {freight > 0 && (
-            <div>→ Freight {fmtFx(freight, currency)} → <strong>Freight account</strong></div>
+            <div>â†’ Freight {fmtFx(freight, currency)} â†’ <strong>Freight account</strong></div>
           )}
         </div>
-        <div style={{ marginTop: 2 }}><strong>Invoice subtotal (excl. tax):</strong> {fmtFx(revenueSubtotal + freight - discount, currency)}{isFx ? ` ≈ ${fmtCurrency((revenueSubtotal + freight - discount) * rate)} AUD` : ''}</div>
-        <div><strong>Tax:</strong> {fmtFx(taxTotal, currency)} · <strong>Invoice total (incl. tax):</strong> {fmtFx(Number(so.total_amount), currency)}</div>
+        <div style={{ marginTop: 2 }}><strong>Invoice subtotal (excl. tax):</strong> {fmtFx(revenueSubtotal + freight - discount, currency)}{isFx ? ` â‰ˆ ${fmtCurrency((revenueSubtotal + freight - discount) * rate)} AUD` : ''}</div>
+        <div><strong>Tax:</strong> {fmtFx(taxTotal, currency)} Â· <strong>Invoice total (incl. tax):</strong> {fmtFx(Number(so.total_amount), currency)}</div>
       </div>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Credit Notes View
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed }: { isAdvisor?: boolean; prefill?: any; onPrefillConsumed?: () => void } = {}) {
   const [cns, setCns] = useState<any[]>([]);
@@ -7132,19 +7133,19 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
                   onClick={() => cn.status === 'draft' ? openEdit(cn) : openView(cn)}>
                   <td style={{ padding: '10px 12px', fontWeight: 600, color: 'var(--sv-mint)' }}>
                     {cn.cn_number}{sourceBadge(cn.source)}
-                    {cn.original_so_number && <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', fontWeight: 400 }}>↩ {cn.original_so_number}</div>}
+                    {cn.original_so_number && <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', fontWeight: 400 }}>â†© {cn.original_so_number}</div>}
                   </td>
                   <td style={{ padding: '10px 12px' }}>{cn.cn_date?.slice(0, 10)}</td>
-                  <td style={{ padding: '10px 12px' }}>{cn.customer_name ?? <span style={{ color: 'var(--sv-text-dim)' }}>—</span>}</td>
+                  <td style={{ padding: '10px 12px' }}>{cn.customer_name ?? <span style={{ color: 'var(--sv-text-dim)' }}>â€”</span>}</td>
                   <td style={{ padding: '10px 12px' }}>{cn.location_name}</td>
                   <td style={{ padding: '10px 12px' }}>{statusBadge(cn.status)}</td>
                   <td style={{ padding: '10px 12px', fontWeight: 600 }}>{fmtCurrency(cn.total_amount)}</td>
                   <td style={{ padding: '10px 12px' }}>
                     {cn.source === 'shopify' ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }} title="Accounted via Shopify payout">via payout</span>
-                      : cn.xero_sync_status === 'synced' ? <span style={{ color: '#34d399', fontSize: 11 }}>✓ Synced</span>
-                      : cn.xero_sync_status === 'queued' ? <span style={{ color: '#fbbf24', fontSize: 11 }}>⚠ Queued</span>
-                      : cn.xero_sync_status === 'error' ? <span style={{ color: '#f87171', fontSize: 11 }}>✕ Error</span>
-                      : <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>—</span>}
+                      : cn.xero_sync_status === 'synced' ? <span style={{ color: '#34d399', fontSize: 11 }}>âœ“ Synced</span>
+                      : cn.xero_sync_status === 'queued' ? <span style={{ color: '#fbbf24', fontSize: 11 }}>âš  Queued</span>
+                      : cn.xero_sync_status === 'error' ? <span style={{ color: '#f87171', fontSize: 11 }}>âœ• Error</span>
+                      : <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>â€”</span>}
                   </td>
                   <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
                     {!isAdvisor && cn.status === 'draft' && (
@@ -7172,7 +7173,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
           <form onSubmit={handleSave}>
             {form.so_id && (
               <div style={{ marginBottom: 12, padding: '8px 12px', background: 'rgba(96,165,250,.08)', border: '1px solid rgba(96,165,250,.25)', borderRadius: 8, fontSize: 12, color: 'var(--sv-text-main)' }}>
-                ↩ Linked to order <strong>{form.original_so_number || `#${form.so_id}`}</strong> — items pre-filled from the order. Untick <strong>Restock</strong> for anything not returned or returned broken.
+                â†© Linked to order <strong>{form.original_so_number || `#${form.so_id}`}</strong> â€” items pre-filled from the order. Untick <strong>Restock</strong> for anything not returned or returned broken.
               </div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
@@ -7181,7 +7182,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
               </Field>
               <Field label="Location *">
                 <select value={form.location_id} onChange={sf('location_id')} required style={inputStyle}>
-                  <option value="">Select location…</option>
+                  <option value="">Select locationâ€¦</option>
                   {locations.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
               </Field>
@@ -7237,8 +7238,8 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
                     <tr key={i} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
                       <td style={{ padding: '6px 8px' }}>
                         <select value={item.variant_id} onChange={e => selectCNVariant(i, e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: '4px 6px' }}>
-                          <option value="">Select variant…</option>
-                          {variants.map((v: any) => <option key={v.variant_id} value={v.variant_id}>{v.sku} — {v.product_name} {v.variant_label !== 'Default' ? `(${v.variant_label})` : ''}</option>)}
+                          <option value="">Select variantâ€¦</option>
+                          {variants.map((v: any) => <option key={v.variant_id} value={v.variant_id}>{v.sku} â€” {v.product_name} {v.variant_label !== 'Default' ? `(${v.variant_label})` : ''}</option>)}
                         </select>
                       </td>
                       <td style={{ padding: '6px 8px' }}>
@@ -7254,11 +7255,11 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
                         <input type="number" min="0" max="1" step="0.01" value={item.tax_rate} onChange={e => updateLine(i, 'tax_rate', e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: '4px 6px', width: 60 }} />
                       </td>
                       <td style={{ padding: '6px 8px', textAlign: 'center' }}>
-                        <input type="checkbox" checked={item.restock === undefined ? true : !!item.restock} onChange={e => updateLine(i, 'restock', e.target.checked)} disabled={!item.variant_id} title={item.variant_id ? 'Return to stock' : 'No variant — cannot restock'} style={{ cursor: item.variant_id ? 'pointer' : 'not-allowed', width: 16, height: 16 }} />
+                        <input type="checkbox" checked={item.restock === undefined ? true : !!item.restock} onChange={e => updateLine(i, 'restock', e.target.checked)} disabled={!item.variant_id} title={item.variant_id ? 'Return to stock' : 'No variant â€” cannot restock'} style={{ cursor: item.variant_id ? 'pointer' : 'not-allowed', width: 16, height: 16 }} />
                       </td>
                       <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600 }}>{fmtCurrency(lineTotal(item))}</td>
                       <td style={{ padding: '6px 8px', textAlign: 'center' }}>
-                        <button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f87171', fontSize: 16, lineHeight: 1 }}>×</button>
+                        <button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f87171', fontSize: 16, lineHeight: 1 }}>Ã—</button>
                       </td>
                     </tr>
                   ))}
@@ -7281,10 +7282,10 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button type="button" onClick={() => setModal({ open: false, edit: null })} style={btnStyle('ghost')}>Cancel</button>
-              <button type="submit" disabled={saving} style={btnStyle('action')}>{saving ? 'Saving…' : modal.edit ? 'Save Changes' : 'Create Draft'}</button>
+              <button type="submit" disabled={saving} style={btnStyle('action')}>{saving ? 'Savingâ€¦' : modal.edit ? 'Save Changes' : 'Create Draft'}</button>
               {modal.edit && modal.edit.status === 'draft' && (
                 <button type="button" disabled={completing} onClick={() => { setModal({ open: false, edit: null }); handleComplete(modal.edit); }} style={{ ...btnStyle('action'), background: '#34d399', borderColor: '#34d399' }}>
-                  {completing ? 'Completing…' : 'Complete & Return Stock'}
+                  {completing ? 'Completingâ€¦' : 'Complete & Return Stock'}
                 </button>
               )}
             </div>
@@ -7305,22 +7306,22 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
               if (xeroStatus === 'synced')
                 return (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', background: 'rgba(16,185,129,.1)', borderRadius: 6, fontSize: 11, marginBottom: 12, flexWrap: 'wrap' }}>
-                    <span style={{ color: '#34d399', fontWeight: 700 }}>✓ Synced to Xero</span>
+                    <span style={{ color: '#34d399', fontWeight: 700 }}>âœ“ Synced to Xero</span>
                     {xeroAt && <span style={{ color: 'var(--sv-text-dim)' }}>{xeroAt}</span>}
-                    {xeroId && <span style={{ color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 10 }}>{xeroId.slice(0, 8)}…</span>}
-                    {xeroId && <a href={`https://go.xero.com/AccountsReceivable/CreditNote.aspx?creditNoteID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sv-mint)' }}>View in Xero ↗</a>}
+                    {xeroId && <span style={{ color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 10 }}>{xeroId.slice(0, 8)}â€¦</span>}
+                    {xeroId && <a href={`https://go.xero.com/AccountsReceivable/CreditNote.aspx?creditNoteID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sv-mint)' }}>View in Xero â†—</a>}
                   </div>
                 );
               if (xeroStatus === 'queued' || xeroStatus === 'error')
                 return (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', background: 'rgba(251,191,36,.1)', borderRadius: 6, fontSize: 11, marginBottom: 12 }}>
-                    <span style={{ color: '#fbbf24', fontWeight: 700 }}>⚠ Queued for Xero sync</span>
+                    <span style={{ color: '#fbbf24', fontWeight: 700 }}>âš  Queued for Xero sync</span>
                     {xeroAt && <span style={{ color: 'var(--sv-text-dim)' }}>Last: {xeroAt}</span>}
                   </div>
                 );
               return (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--sv-bg-1)', borderRadius: 6, fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 12 }}>
-                  <span>○ Not yet synced to Xero</span>
+                  <span>â—‹ Not yet synced to Xero</span>
                 </div>
               );
             })()}
@@ -7330,8 +7331,8 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
               {[
                 ['Date', viewModal.cn.cn_date?.slice(0, 10)],
                 ['Location', viewModal.cn.location_name],
-                ['Customer', viewModal.cn.customer_name ?? '—'],
-                ['Reference', viewModal.cn.reference ?? '—'],
+                ['Customer', viewModal.cn.customer_name ?? 'â€”'],
+                ['Reference', viewModal.cn.reference ?? 'â€”'],
                 ['Tax Treatment', viewModal.cn.tax_treatment === 'inc_tax' ? 'Inc-Tax' : 'Ex-Tax'],
                 ['Status', viewModal.cn.status],
               ].map(([label, val]) => (
@@ -7358,11 +7359,11 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
                 <tbody>
                   {(viewModal.cn.items ?? []).map((item: any, i: number) => (
                     <tr key={i} style={{ borderBottom: i < (viewModal.cn.items.length - 1) ? '1px solid var(--sv-etch)' : 'none' }}>
-                      <td style={{ padding: '8px 10px', color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 11 }}>{item.sku ?? item.code ?? '—'}</td>
+                      <td style={{ padding: '8px 10px', color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 11 }}>{item.sku ?? item.code ?? 'â€”'}</td>
                       <td style={{ padding: '8px 10px' }}>{item.product_name ?? item.name}</td>
                       <td style={{ padding: '8px 10px' }}>{item.qty}</td>
                       <td style={{ padding: '8px 10px' }}>{fmtCurrency(item.unit_price)}</td>
-                      <td style={{ padding: '8px 10px' }}>{item.tax_rate > 0 ? `${(item.tax_rate * 100).toFixed(0)}%` : '—'}</td>
+                      <td style={{ padding: '8px 10px' }}>{item.tax_rate > 0 ? `${(item.tax_rate * 100).toFixed(0)}%` : 'â€”'}</td>
                       <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>{fmtCurrency(item.line_total)}</td>
                     </tr>
                   ))}
@@ -7384,7 +7385,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                 <button onClick={() => { setViewModal({ open: false, cn: null }); openEdit(viewModal.cn); }} style={btnStyle('ghost')}>Edit</button>
                 <button disabled={completing} onClick={() => handleComplete(viewModal.cn)} style={{ ...btnStyle('action'), background: '#34d399', borderColor: '#34d399' }}>
-                  {completing ? 'Completing…' : 'Complete & Return Stock'}
+                  {completing ? 'Completingâ€¦' : 'Complete & Return Stock'}
                 </button>
               </div>
             )}
@@ -7395,11 +7396,11 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Sales Orders View
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// ── Supplier Credit Notes View (credits received FROM suppliers → Xero ACCPAY) ──
+// â”€â”€ Supplier Credit Notes View (credits received FROM suppliers â†’ Xero ACCPAY) â”€â”€
 function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
   const [scns, setScns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -7503,7 +7504,7 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Supplier Credit Notes</h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--sv-text-dim)' }}>Credits received from suppliers (returns, damaged goods, rebates) → Xero supplier (ACCPAY) credit notes.</p>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--sv-text-dim)' }}>Credits received from suppliers (returns, damaged goods, rebates) â†’ Xero supplier (ACCPAY) credit notes.</p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ ...inputStyle, width: 'auto' }}>
@@ -7526,11 +7527,11 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
               {filtered.map(scn => (
                 <tr key={scn.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
                   <td style={{ padding: '10px 12px', fontWeight: 600, color: 'var(--sv-text-strong)' }}>{scn.scn_number}</td>
-                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-main)' }}>{scn.supplier_name ?? '—'}</td>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-main)' }}>{scn.supplier_name ?? 'â€”'}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)' }}>{scn.scn_date?.slice(0, 10)}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-main)' }}>{money(scn.total_amount)}</td>
                   <td style={{ padding: '10px 12px' }}>{statusBadge(scn.status)}</td>
-                  <td style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)' }}>{scn.xero_sync_status ?? '—'}</td>
+                  <td style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)' }}>{scn.xero_sync_status ?? 'â€”'}</td>
                   <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button onClick={() => openView(scn)} style={btnStyle('ghost', 'xs')}>View</button>
@@ -7554,8 +7555,8 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
           <form onSubmit={handleSave} style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, width: 900, maxWidth: '98vw', padding: 24 }}>
             <h2 style={{ margin: '0 0 16px', fontSize: 17, color: 'var(--sv-text-strong)' }}>{modal.edit ? `Edit ${modal.edit.scn_number}` : 'New Supplier Credit Note'}</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 12 }}>
-              <div><label style={labelStyle}>Supplier *</label><select value={form.supplier_id} onChange={sf('supplier_id')} style={inputStyle}><option value="">— select —</option>{suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-              <div><label style={labelStyle}>Location *</label><select value={form.location_id} onChange={sf('location_id')} style={inputStyle}><option value="">— select —</option>{locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></div>
+              <div><label style={labelStyle}>Supplier *</label><select value={form.supplier_id} onChange={sf('supplier_id')} style={inputStyle}><option value="">â€” select â€”</option>{suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+              <div><label style={labelStyle}>Location *</label><select value={form.location_id} onChange={sf('location_id')} style={inputStyle}><option value="">â€” select â€”</option>{locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></div>
               <div><label style={labelStyle}>Date</label><input type="date" value={form.scn_date} onChange={sf('scn_date')} style={inputStyle} /></div>
               <div><label style={labelStyle}>Supplier's Credit Ref</label><input value={form.supplier_credit_ref} onChange={sf('supplier_credit_ref')} placeholder="their CN number" style={inputStyle} /></div>
               <div><label style={labelStyle}>Reference (PO/Bill)</label><input value={form.reference} onChange={sf('reference')} style={inputStyle} /></div>
@@ -7571,16 +7572,16 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
                     <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
                       <td style={{ padding: '4px 8px', minWidth: 240 }}>
                         <select value={item.variant_id} onChange={e => selectVariant(i, e.target.value)} style={{ ...inputStyle, fontSize: 12 }}>
-                          <option value="">— select product —</option>
-                          {variants.map((v: any) => <option key={v.variant_id} value={v.variant_id}>{v.sku} — {v.product_name}{v.variant_label ? ` (${v.variant_label})` : ''}</option>)}
+                          <option value="">â€” select product â€”</option>
+                          {variants.map((v: any) => <option key={v.variant_id} value={v.variant_id}>{v.sku} â€” {v.product_name}{v.variant_label ? ` (${v.variant_label})` : ''}</option>)}
                         </select>
                       </td>
                       <td style={{ padding: '4px 8px' }}><input type="number" step="any" value={item.qty} onChange={e => updateLine(i, 'qty', e.target.value)} style={{ ...inputStyle, width: 70, fontSize: 12 }} /></td>
                       <td style={{ padding: '4px 8px' }}><input type="number" step="any" value={item.unit_cost} onChange={e => updateLine(i, 'unit_cost', e.target.value)} style={{ ...inputStyle, width: 90, fontSize: 12 }} /></td>
                       <td style={{ padding: '4px 8px' }}><input type="number" step="any" value={item.tax_rate} onChange={e => updateLine(i, 'tax_rate', e.target.value)} style={{ ...inputStyle, width: 70, fontSize: 12 }} /></td>
-                      <td style={{ padding: '4px 8px', textAlign: 'center' }}><input type="checkbox" checked={!!item.restock} onChange={e => updateLine(i, 'restock', e.target.checked)} title="Goods physically returned to supplier — reduces stock" /></td>
+                      <td style={{ padding: '4px 8px', textAlign: 'center' }}><input type="checkbox" checked={!!item.restock} onChange={e => updateLine(i, 'restock', e.target.checked)} title="Goods physically returned to supplier â€” reduces stock" /></td>
                       <td style={{ padding: '4px 8px', color: 'var(--sv-text-main)' }}>{money(lineTotal(item))}</td>
-                      <td style={{ padding: '4px 8px' }}><button type="button" onClick={() => removeLine(i)} style={btnStyle('danger', 'xs')}>×</button></td>
+                      <td style={{ padding: '4px 8px' }}><button type="button" onClick={() => removeLine(i)} style={btnStyle('danger', 'xs')}>Ã—</button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -7598,7 +7599,7 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18 }}>
               <button type="button" onClick={() => setModal({ open: false, edit: null })} style={btnStyle('ghost')}>Cancel</button>
-              <button type="submit" disabled={saving} style={{ ...btnStyle('action'), opacity: saving ? .6 : 1 }}>{saving ? 'Saving…' : (modal.edit ? 'Save' : 'Create Draft')}</button>
+              <button type="submit" disabled={saving} style={{ ...btnStyle('action'), opacity: saving ? .6 : 1 }}>{saving ? 'Savingâ€¦' : (modal.edit ? 'Save' : 'Create Draft')}</button>
             </div>
           </form>
         </div>
@@ -7613,7 +7614,7 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
               <button onClick={() => setViewModal({ open: false, scn: null })} style={btnStyle('ghost', 'sm')}>Close</button>
             </div>
             <div style={{ fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.9, marginBottom: 12 }}>
-              <div><strong>Supplier:</strong> {viewModal.scn.supplier_name ?? '—'}</div>
+              <div><strong>Supplier:</strong> {viewModal.scn.supplier_name ?? 'â€”'}</div>
               <div><strong>Location:</strong> {viewModal.scn.location_name}</div>
               <div><strong>Date:</strong> {viewModal.scn.scn_date?.slice(0, 10)}</div>
               {viewModal.scn.supplier_credit_ref && <div><strong>Supplier Ref:</strong> {viewModal.scn.supplier_credit_ref}</div>}
@@ -7848,7 +7849,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const handleReturn = async (so: any) => {
     // Shopify orders must be refunded in Shopify (auto-restocks + payout handles Xero).
     if (so.shopify_order_id) {
-      alert('This order originated in Shopify. Returns and refunds must be initiated in Shopify — they sync back into IMS automatically.');
+      alert('This order originated in Shopify. Returns and refunds must be initiated in Shopify â€” they sync back into IMS automatically.');
       return;
     }
     try {
@@ -7896,7 +7897,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     setPage(1);
   };
   const SortIcon = ({ col }: { col: string }) => sortCol !== col ? null : (
-    <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
+    <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? 'â†‘' : 'â†“'}</span>
   );
 
   return (
@@ -7913,7 +7914,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         ))}
         <input
           list="so-customer-filter-list"
-          placeholder="Filter by customer…"
+          placeholder="Filter by customerâ€¦"
           value={filterCustomer}
           onChange={e => { setFilterCustomer(e.target.value); setPage(1); }}
           style={{ ...inputStyle, minWidth: 180, flex: '1 1 180px' }}
@@ -7954,7 +7955,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                   <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     <button onClick={() => openView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{so.so_number}</button>
                   </td>
-                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{so.customer_name || '—'}</td>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{so.customer_name || 'â€”'}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{so.location_name}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{so.order_date?.slice(0, 10)}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(so.total_amount)}</td>
@@ -7968,11 +7969,11 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       )}
       {!loading && totalPagesSO > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14 }}>
-          <button onClick={() => setPage(1)} disabled={safePageSO === 1} style={btnStyle('secondary', 'sm')}>«</button>
-          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePageSO === 1} style={btnStyle('secondary', 'sm')}>‹ Prev</button>
+          <button onClick={() => setPage(1)} disabled={safePageSO === 1} style={btnStyle('secondary', 'sm')}>Â«</button>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePageSO === 1} style={btnStyle('secondary', 'sm')}>â€¹ Prev</button>
           <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 8px' }}>Page {safePageSO} of {totalPagesSO} ({sortedFilteredSOs.length} orders)</span>
-          <button onClick={() => setPage(p => Math.min(totalPagesSO, p + 1))} disabled={safePageSO === totalPagesSO} style={btnStyle('secondary', 'sm')}>Next ›</button>
-          <button onClick={() => setPage(totalPagesSO)} disabled={safePageSO === totalPagesSO} style={btnStyle('secondary', 'sm')}>»</button>
+          <button onClick={() => setPage(p => Math.min(totalPagesSO, p + 1))} disabled={safePageSO === totalPagesSO} style={btnStyle('secondary', 'sm')}>Next â€º</button>
+          <button onClick={() => setPage(totalPagesSO)} disabled={safePageSO === totalPagesSO} style={btnStyle('secondary', 'sm')}>Â»</button>
         </div>
       )}
 
@@ -7983,13 +7984,13 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             <Row3>
               <Field label="Customer">
                 <select value={form.customer_id} onChange={sf('customer_id')} style={inputStyle}>
-                  <option value="">— None —</option>
+                  <option value="">â€” None â€”</option>
                   {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </Field>
               <Field label="Location *">
                 <select required value={form.location_id} onChange={sf('location_id')} style={inputStyle}>
-                  <option value="">— Select —</option>
+                  <option value="">â€” Select â€”</option>
                   {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
               </Field>
@@ -8002,7 +8003,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             <Row2>
               <Field label="Payment Terms">
                 <select value={form.payment_terms} onChange={sf('payment_terms')} style={inputStyle}>
-                  {PAYMENT_TERMS.map(t => <option key={t} value={t}>{t || '— None —'}</option>)}
+                  {PAYMENT_TERMS.map(t => <option key={t} value={t}>{t || 'â€” None â€”'}</option>)}
                 </select>
               </Field>
               <div />
@@ -8013,7 +8014,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                 <span>LINE ITEMS</span>
                 {(form.customer_id || modal.edit) && (
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <button type="button" onClick={() => setImportOpen(true)} style={btnStyle('secondary', 'xs')}>⬆ Import</button>
+                    <button type="button" onClick={() => setImportOpen(true)} style={btnStyle('secondary', 'xs')}>â¬† Import</button>
                     <button type="button" onClick={addLine} style={btnStyle('ghost', 'xs')}>+ Add Line</button>
                   </div>
                 )}
@@ -8047,8 +8048,8 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                         <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="100" step="1" value={Math.round(Number(item.discount_pct || 0))} onChange={e => updateLine(i, 'discount_pct', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0" /></td>
                         <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="100" step="1" value={Math.round(Number(item.tax_rate || 0) * 100)} onChange={e => updateLine(i, 'tax_rate', Number(e.target.value) / 100)} style={{ ...inputStyle, fontSize: 12 }} placeholder="10" /></td>
                         <td style={{ padding: '4px 8px', width: 100, color: 'var(--sv-text-main)', fontSize: 13 }}>{fmtCurrency(lineTotal(item))}</td>
-                        <td style={{ padding: 4 }}><input type="text" value={item.notes ?? ''} onChange={e => updateLine(i, 'notes', e.target.value)} style={{ ...inputStyle, fontSize: 12, minWidth: 100 }} placeholder="Notes…" /></td>
-                        <td style={{ padding: 4, width: 30 }}><button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16 }}>×</button></td>
+                        <td style={{ padding: 4 }}><input type="text" value={item.notes ?? ''} onChange={e => updateLine(i, 'notes', e.target.value)} style={{ ...inputStyle, fontSize: 12, minWidth: 100 }} placeholder="Notesâ€¦" /></td>
+                        <td style={{ padding: 4, width: 30 }}><button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16 }}>Ã—</button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -8063,7 +8064,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                     </div>
                   ))}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
-                    <span>Discount (−)</span>
+                    <span>Discount (âˆ’)</span>
                     <input type="number" min="0" step="0.01" value={form.discount} onChange={sf('discount')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 8 }}>
@@ -8105,10 +8106,10 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
 
       {/* Xero warning modal for fulfilled SO edit/delete */}
       {soXeroWarnModal && (
-        <Modal title="⚠️ Xero Manual Update Required" onClose={() => setSoXeroWarnModal(null)}>
+        <Modal title="âš ï¸ Xero Manual Update Required" onClose={() => setSoXeroWarnModal(null)}>
           <div style={{ padding: '4px 0 8px', lineHeight: 1.6 }}>
             {soXeroWarnModal.action === 'edit' ? (
-              <p>This SO (<strong>{soXeroWarnModal.so.so_number}</strong>) is fulfilled. The Xero invoice is <strong>AUTHORISED</strong> and cannot be automatically updated. Any edits saved in IMS <strong>will not sync to Xero</strong> — Xero will need to be updated manually.</p>
+              <p>This SO (<strong>{soXeroWarnModal.so.so_number}</strong>) is fulfilled. The Xero invoice is <strong>AUTHORISED</strong> and cannot be automatically updated. Any edits saved in IMS <strong>will not sync to Xero</strong> â€” Xero will need to be updated manually.</p>
             ) : (
               <p>Deleting <strong>{soXeroWarnModal.so.so_number}</strong> will only remove it from IMS. The corresponding Xero invoice will remain and may need to be manually voided.</p>
             )}
@@ -8116,18 +8117,18 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
               <div style={{ fontWeight: 600, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8, color: 'var(--sv-amber)' }}>Draft message for bookkeeper</div>
               <div style={{ fontFamily: 'monospace', fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
                 {soXeroWarnFetching
-                  ? 'Loading Xero invoice details…'
+                  ? 'Loading Xero invoice detailsâ€¦'
                   : soXeroWarnModal.action === 'edit'
-                    ? `Hi, just a heads up — ${soXeroWarnModal.so.so_number} in IMS has been updated. The corresponding Xero invoice${soXeroWarnBillNum ? ` (${soXeroWarnBillNum})` : ''} will need to be manually updated to reflect the changes.`
-                    : `Hi, just a heads up — ${soXeroWarnModal.so.so_number} in IMS has been deleted. The corresponding Xero invoice${soXeroWarnBillNum ? ` (${soXeroWarnBillNum})` : ''} may need to be manually voided in Xero.`
+                    ? `Hi, just a heads up â€” ${soXeroWarnModal.so.so_number} in IMS has been updated. The corresponding Xero invoice${soXeroWarnBillNum ? ` (${soXeroWarnBillNum})` : ''} will need to be manually updated to reflect the changes.`
+                    : `Hi, just a heads up â€” ${soXeroWarnModal.so.so_number} in IMS has been deleted. The corresponding Xero invoice${soXeroWarnBillNum ? ` (${soXeroWarnBillNum})` : ''} may need to be manually voided in Xero.`
                 }
               </div>
               {!soXeroWarnFetching && (
                 <button
                   onClick={() => {
                     const msg = soXeroWarnModal.action === 'edit'
-                      ? `Hi, just a heads up — ${soXeroWarnModal.so.so_number} in IMS has been updated. The corresponding Xero invoice${soXeroWarnBillNum ? ` (${soXeroWarnBillNum})` : ''} will need to be manually updated to reflect the changes.`
-                      : `Hi, just a heads up — ${soXeroWarnModal.so.so_number} in IMS has been deleted. The corresponding Xero invoice${soXeroWarnBillNum ? ` (${soXeroWarnBillNum})` : ''} may need to be manually voided in Xero.`;
+                      ? `Hi, just a heads up â€” ${soXeroWarnModal.so.so_number} in IMS has been updated. The corresponding Xero invoice${soXeroWarnBillNum ? ` (${soXeroWarnBillNum})` : ''} will need to be manually updated to reflect the changes.`
+                      : `Hi, just a heads up â€” ${soXeroWarnModal.so.so_number} in IMS has been deleted. The corresponding Xero invoice${soXeroWarnBillNum ? ` (${soXeroWarnBillNum})` : ''} may need to be manually voided in Xero.`;
                     navigator.clipboard.writeText(msg).catch(() => {});
                   }}
                   style={{ ...btnStyle('ghost', 'xs'), marginTop: 8 }}
@@ -8147,14 +8148,14 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
 
       {/* View SO detail modal */}
       {viewModal.open && viewModal.so && (
-        <Modal title={`${viewModal.so.so_number} — ${viewModal.so.status}`} onClose={() => { setViewModal({ open: false, so: null }); setSoPayForm(null); }} wide>
+        <Modal title={`${viewModal.so.so_number} â€” ${viewModal.so.status}`} onClose={() => { setViewModal({ open: false, so: null }); setSoPayForm(null); }} wide>
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <SOActions isAdvisor={isAdvisor} so={viewModal.so} onEdit={() => editSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onDelete={() => deleteSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onStatus={changeStatus} onReturn={() => { setViewModal({ open: false, so: null }); handleReturn(viewModal.so); }} />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <button
                 onClick={() => { window.open(`/api/ims/sales-orders/${viewModal.so.id}/pdf`, '_blank'); }}
                 style={btnStyle('secondary', 'sm')}
-              >⬇ Download PDF</button>
+              >â¬‡ Download PDF</button>
               <button
                 onClick={() => {
                   const so = viewModal.so;
@@ -8180,17 +8181,17 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                   }, 400);
                 }}
                 style={btnStyle('mint', 'sm')}
-              >✉ Email</button>
+              >âœ‰ Email</button>
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
-            <div><div style={labelStyle}>Customer</div><div>{viewModal.so.customer_name || '—'}</div></div>
+            <div><div style={labelStyle}>Customer</div><div>{viewModal.so.customer_name || 'â€”'}</div></div>
             <div><div style={labelStyle}>Location</div><div>{viewModal.so.location_name}</div></div>
             <div><div style={labelStyle}>Status</div><StatusBadge status={viewModal.so.status} /></div>
             <div><div style={labelStyle}>Order Date</div><div>{viewModal.so.order_date?.slice(0, 10)}</div></div>
-            <div><div style={labelStyle}>Cust PO #</div><div>{viewModal.so.customer_po_number || '—'}</div></div>
-            <div><div style={labelStyle}>Fulfilled</div><div>{viewModal.so.fulfilled_date?.slice(0, 10) || '—'}</div></div>
-            <div><div style={labelStyle}>Payment Terms</div><div>{viewModal.so.payment_terms || '—'}</div></div>
+            <div><div style={labelStyle}>Cust PO #</div><div>{viewModal.so.customer_po_number || 'â€”'}</div></div>
+            <div><div style={labelStyle}>Fulfilled</div><div>{viewModal.so.fulfilled_date?.slice(0, 10) || 'â€”'}</div></div>
+            <div><div style={labelStyle}>Payment Terms</div><div>{viewModal.so.payment_terms || 'â€”'}</div></div>
             <div><div style={labelStyle}>Due Date</div><div>{calcDueDate(viewModal.so.order_date, viewModal.so.payment_terms)}</div></div>
             <div />
           </div>
@@ -8206,14 +8207,14 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             <tbody>
               {(viewModal.so.items || []).map((item: any, i: number) => (
                 <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                  <td style={{ padding: '8px 10px' }}><code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{item.sku || '—'}</code></td>
+                  <td style={{ padding: '8px 10px' }}><code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{item.sku || 'â€”'}</code></td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{item.product_name}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{item.variant_label || 'Default'}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtQty(item.qty_ordered)}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtQty(item.qty_fulfilled)}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtCurrency(item.unit_price)}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtCurrency(item.unit_cost)}</td>
-                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{Number(item.discount_pct) > 0 ? `${Number(item.discount_pct).toFixed(1)}%` : '—'}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{Number(item.discount_pct) > 0 ? `${Number(item.discount_pct).toFixed(1)}%` : 'â€”'}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{(Number(item.tax_rate) * 100).toFixed(0)}%</td>
                   <td style={{ padding: '8px 10px', fontSize: 13, fontWeight: 600 }}>{fmtCurrency(item.line_total)}</td>
                 </tr>
@@ -8240,8 +8241,8 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
               )}
               {Number(viewModal.so.discount) > 0 && (
                 <tr>
-                  <td colSpan={9} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Discount (−)</td>
-                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-red)' }}>−{fmtCurrency(viewModal.so.discount)}</td>
+                  <td colSpan={9} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Discount (âˆ’)</td>
+                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-red)' }}>âˆ’{fmtCurrency(viewModal.so.discount)}</td>
                 </tr>
               )}
               <tr style={{ borderTop: '2px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
@@ -8251,7 +8252,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             </tfoot>
           </table>
 
-          {/* ── Payments ── */}
+          {/* â”€â”€ Payments â”€â”€ */}
           {(() => {
             const currency = (viewModal.so.currency_code || 'AUD').toUpperCase();
             const isFx = currency !== 'AUD';
@@ -8282,10 +8283,10 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                           <td style={{ padding: '5px 10px', fontWeight: 600 }}>{fmtFx(p.amount, currency)}</td>
                           {isFx && <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{Number(p.exchange_rate).toFixed(4)}</td>}
                           {isFx && <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{fmtCurrency(p.amount_local)}</td>}
-                          <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{p.payment_method_name || '—'}</td>
-                          <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.notes || '—'}</td>
+                          <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{p.payment_method_name || 'â€”'}</td>
+                          <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.notes || 'â€”'}</td>
                           <td style={{ padding: '5px 10px', textAlign: 'right' }}>
-                            <button onClick={() => handleDeleteSoPayment(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>✕</button>
+                            <button onClick={() => handleDeleteSoPayment(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>âœ•</button>
                           </td>
                         </tr>
                       ))}
@@ -8297,7 +8298,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                   <span><span style={{ color: 'var(--sv-text-dim)' }}>Total: </span><strong>{fmtFx(viewModal.so.total_amount, currency)}</strong></span>
                   <span><span style={{ color: 'var(--sv-text-dim)' }}>Paid: </span><strong style={{ color: 'var(--sv-mint,#0c9)' }}>{fmtFx(amountPaid, currency)}</strong></span>
                   <span><span style={{ color: 'var(--sv-text-dim)' }}>Balance: </span><strong style={{ color: balance > 0.005 ? 'var(--sv-orange,#f80)' : 'var(--sv-mint,#0c9)' }}>{fmtFx(balance, currency)}</strong></span>
-                  {isFx && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>≈ {fmtCurrency(viewModal.so.balance_local)} AUD remaining</span>}
+                  {isFx && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>â‰ˆ {fmtCurrency(viewModal.so.balance_local)} AUD remaining</span>}
                 </div>
 
                 {soPayForm && (
@@ -8318,12 +8319,12 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                         </div>
                       )}
                       {isFx && soPayForm.amount && soPayForm.rate && (
-                        <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', paddingBottom: 6 }}>≈ {fmtCurrency(Number(soPayForm.amount) * Number(soPayForm.rate))} AUD</div>
+                        <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', paddingBottom: 6 }}>â‰ˆ {fmtCurrency(Number(soPayForm.amount) * Number(soPayForm.rate))} AUD</div>
                       )}
                       <div>
                         <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Payment Method</div>
                         <select value={soPayForm.method} onChange={e => setSoPayForm(f => f ? { ...f, method: e.target.value } : f)} style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13, minWidth: 130 }}>
-                          <option value="">— None (no Xero sync) —</option>
+                          <option value="">â€” None (no Xero sync) â€”</option>
                           {paymentMethods.map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}
                         </select>
                       </div>
@@ -8368,16 +8369,16 @@ function SOActions({ so, onEdit, onDelete, onStatus, onReturn, isAdvisor = false
   if (so.status === 'cancelled' || so.status === 'draft') {
     if (!isAdvisor) { btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>); }
   }
-  // Return / Refund — available on any sold order (confirmed or fulfilled).
+  // Return / Refund â€” available on any sold order (confirmed or fulfilled).
   if (!isAdvisor && onReturn && (so.status === 'confirmed' || so.status === 'fulfilled')) {
-    btns.push(<button key="r" onClick={onReturn} style={btnStyle('ghost', 'xs')} title="Create a credit note / return for this order">↩ Return</button>);
+    btns.push(<button key="r" onClick={onReturn} style={btnStyle('ghost', 'xs')} title="Create a credit note / return for this order">â†© Return</button>);
   }
   return <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{btns}</div>;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Shared small components
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ImsTable({ cols, rows, render }: {
   cols: string[];
@@ -8445,7 +8446,7 @@ function FormActions({ onCancel, saving, isEdit, extraActions }: { onCancel: () 
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
       <button type="button" onClick={onCancel} style={btnStyle('ghost')}>Cancel</button>
-      <button type="submit" disabled={saving} style={btnStyle(extraActions?.length ? 'ghost' : 'action')}>{saving ? 'Saving…' : isEdit ? 'Update' : 'Create Draft'}</button>
+      <button type="submit" disabled={saving} style={btnStyle(extraActions?.length ? 'ghost' : 'action')}>{saving ? 'Savingâ€¦' : isEdit ? 'Update' : 'Create Draft'}</button>
       {extraActions?.map((a, i) => (
         <button key={i} type="button" disabled={saving} onClick={a.onClick} style={btnStyle('action')}>{a.label}</button>
       ))}
@@ -8453,9 +8454,9 @@ function FormActions({ onCancel, saving, isEdit, extraActions }: { onCancel: () 
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Section Settings — cog button + collapsible panel
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Section Settings â€” cog button + collapsible panel
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function CogButton({ active, onClick }: { active: boolean; onClick: () => void }) {
   return (
@@ -8478,7 +8479,7 @@ function CogButton({ active, onClick }: { active: boolean; onClick: () => void }
         lineHeight: 1,
       }}
     >
-      ⚙ <span style={{ fontSize: 12, fontWeight: 500 }}>Settings</span>
+      âš™ <span style={{ fontSize: 12, fontWeight: 500 }}>Settings</span>
     </button>
   );
 }
@@ -8524,9 +8525,9 @@ function btnStyle(variant: BtnVariant, size?: BtnSize): React.CSSProperties {
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Brands View
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function BrandsView() {
   const [brands, setBrands] = useState<{ id: number; name: string; website_url: string | null; created_at: string }[]>([]);
@@ -8583,7 +8584,7 @@ function BrandsView() {
 
       {/* Add brand form */}
       <form onSubmit={handleAdd} style={{ display: 'flex', gap: 8, marginBottom: 20, maxWidth: 420 }}>
-        <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="New brand name…" style={{ ...inputStyle, flex: 1 }} />
+        <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="New brand nameâ€¦" style={{ ...inputStyle, flex: 1 }} />
         <button type="submit" disabled={adding || !newName.trim()} style={btnStyle('action')}>Add</button>
       </form>
 
@@ -8618,7 +8619,7 @@ function BrandsView() {
                       <td style={{ padding: '8px 14px' }}>
                         <div style={{ display: 'flex', gap: 6 }}>
                           <button onClick={() => handleSaveEdit(b.id)} style={btnStyle('action', 'xs')}>Save</button>
-                          <button onClick={() => setEditId(null)} style={btnStyle('ghost', 'xs')}>×</button>
+                          <button onClick={() => setEditId(null)} style={btnStyle('ghost', 'xs')}>Ã—</button>
                         </div>
                       </td>
                     </>
@@ -8630,7 +8631,7 @@ function BrandsView() {
                       <td style={{ padding: '8px 14px', fontSize: 12 }}>
                         {b.website_url
                           ? <a href={b.website_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sv-action)', textDecoration: 'none' }}>{b.website_url}</a>
-                          : <span style={{ color: 'var(--sv-text-dim)' }}>—</span>
+                          : <span style={{ color: 'var(--sv-text-dim)' }}>â€”</span>
                         }
                       </td>
                       <td style={{ padding: '8px 14px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
@@ -8654,9 +8655,9 @@ function BrandsView() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// POS Sales View — grouped by register→day when a location is selected, by day otherwise
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// POS Sales View â€” grouped by registerâ†’day when a location is selected, by day otherwise
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function PosSalesView() {
   const [locationId, setLocationId] = useState<number | ''>('');
@@ -8746,7 +8747,7 @@ function PosSalesView() {
     return new Date(s + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   };
   const fmtTime  = (dt: any) => {
-    // Stored as AEST — extract time portion directly without timezone conversion
+    // Stored as AEST â€” extract time portion directly without timezone conversion
     const s = String(dt instanceof Date ? dt.toISOString() : dt).replace('T', ' ');
     const timePart = s.split(' ')[1] ?? '';
     const [h = '0', min = '00'] = timePart.split(':');
@@ -8756,7 +8757,7 @@ function PosSalesView() {
 
   const selStyle: React.CSSProperties = { padding: '6px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'inherit', fontSize: 13 };
 
-  // ── Day row (shared between both modes) ────────────────────────────────────
+  // â”€â”€ Day row (shared between both modes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const renderDayRow = (day: any, key: string, regId?: number) => {
     const isOpen    = expandedDays.has(key);
     const isLoading = dayLoading.has(key);
@@ -8775,7 +8776,7 @@ function PosSalesView() {
           <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
             <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Sub <strong style={{ color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtMoney(Number(day.subtotal ?? 0))}</strong></span>
             {Number(day.tax ?? 0) > 0 && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>GST <strong style={{ color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtMoney(Number(day.tax))}</strong></span>}
-            {Number(day.discount ?? 0) > 0 && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Disc <strong style={{ color: 'var(--sv-red)', fontWeight: 600 }}>−{fmtMoney(Number(day.discount))}</strong></span>}
+            {Number(day.discount ?? 0) > 0 && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Disc <strong style={{ color: 'var(--sv-red)', fontWeight: 600 }}>âˆ’{fmtMoney(Number(day.discount))}</strong></span>}
           </div>
           {Object.keys(day.payments ?? {}).length > 0 && (
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
@@ -8790,7 +8791,7 @@ function PosSalesView() {
           {returns > 0 && <span style={{ fontSize: 11, color: 'var(--sv-red)', padding: '1px 7px', borderRadius: 99, border: '1px solid rgba(248,113,113,.3)', background: 'rgba(248,113,113,.08)', flexShrink: 0 }}>{returns} return{returns !== 1 ? 's' : ''}</span>}
           <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 54, textAlign: 'right', flexShrink: 0 }}>{Number(day.count)} txn{Number(day.count) !== 1 ? 's' : ''}</span>
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', minWidth: 96, textAlign: 'right', flexShrink: 0 }}>{fmtMoney(dayTotal)}</span>
-          <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', width: 14, textAlign: 'center', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
+          <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', width: 14, textAlign: 'center', flexShrink: 0 }}>{isOpen ? 'â–²' : 'â–¼'}</span>
         </div>
 
         {isOpen && (
@@ -8802,7 +8803,7 @@ function PosSalesView() {
                   Float <strong style={{ color: 'var(--sv-text-main)' }}>{fmtMoney(day.session.opening_float ?? 0)}</strong>
                 </span>
                 <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>
-                  Opened <strong style={{ color: 'var(--sv-mint)' }}>{day.session.opened_at ? fmtTime(day.session.opened_at) : '—'}</strong>
+                  Opened <strong style={{ color: 'var(--sv-mint)' }}>{day.session.opened_at ? fmtTime(day.session.opened_at) : 'â€”'}</strong>
                 </span>
                 <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>
                   Closed <strong style={{ color: day.session.closed_at ? 'var(--sv-text-main)' : 'var(--sv-yellow, #fbbf24)' }}>{day.session.closed_at ? fmtTime(day.session.closed_at) : 'Still open'}</strong>
@@ -8812,7 +8813,7 @@ function PosSalesView() {
                 </span>
               </div>
             )}
-            {isLoading && <div style={{ padding: '16px 20px', fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading transactions…</div>}
+            {isLoading && <div style={{ padding: '16px 20px', fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading transactionsâ€¦</div>}
             {!isLoading && sales.length === 0 && <div style={{ padding: '16px 20px', fontSize: 13, color: 'var(--sv-text-dim)' }}>No transactions found.</div>}
             {!isLoading && sales.map((sale: any) => {
               const saleOpen = expandedSales.has(sale.id);
@@ -8824,12 +8825,12 @@ function PosSalesView() {
                     <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 68 }}>{fmtTime(sale.completed_at)}</span>
                     <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, fontWeight: 600, background: isReturn ? 'rgba(239,68,68,.12)' : 'rgba(16,185,129,.1)', color: isReturn ? 'var(--sv-red)' : 'var(--sv-mint)' }}>{isReturn ? 'Return' : 'Sale'}</span>
                     {sale.location_name && !locationId && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', padding: '1px 7px', borderRadius: 99, border: '1px solid var(--sv-etch)' }}>{sale.location_name}</span>}
-                    {sale.register_name && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', padding: '1px 7px', borderRadius: 99, border: '1px solid var(--sv-etch)', fontFamily: 'inherit' }}>🖥 {sale.register_name}</span>}
+                    {sale.register_name && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', padding: '1px 7px', borderRadius: 99, border: '1px solid var(--sv-etch)', fontFamily: 'inherit' }}>ðŸ–¥ {sale.register_name}</span>}
                     {sale.cashier_name && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{sale.cashier_name}</span>}
                     <span style={{ flex: 1, fontSize: 13, color: 'var(--sv-text-main)' }}>{sale.customer_name || <span style={{ color: 'var(--sv-text-dim)' }}>Walk-in</span>}</span>
                     <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{sale.items.reduce((s: number, i: any) => s + Math.abs(Number(i.qty ?? 1)), 0)} item{sale.items.reduce((s: number, i: any) => s + Math.abs(Number(i.qty ?? 1)), 0) !== 1 ? 's' : ''}</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: isReturn ? 'var(--sv-red)' : 'var(--sv-text-strong)', minWidth: 72, textAlign: 'right' }}>{isReturn ? '−' : ''}{fmtMoney(sale.total)}</span>
-                    <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginLeft: 4 }}>{saleOpen ? '▲' : '▼'}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: isReturn ? 'var(--sv-red)' : 'var(--sv-text-strong)', minWidth: 72, textAlign: 'right' }}>{isReturn ? 'âˆ’' : ''}{fmtMoney(sale.total)}</span>
+                    <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginLeft: 4 }}>{saleOpen ? 'â–²' : 'â–¼'}</span>
                   </div>
                   {saleOpen && (
                     <div style={{ padding: '0 20px 12px 20px', background: 'rgba(0,0,0,.15)' }}>
@@ -8839,7 +8840,7 @@ function PosSalesView() {
                           <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginRight: 2 }}>Paid:</span>
                           {sale.payments.map((p: any, i: number) => (
                             <span key={i} style={{ fontSize: 11, padding: '1px 8px', borderRadius: 99, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontWeight: 600 }}>
-                              {p.payment_method} {fmtMoney(p.amount)}{p.reference ? <span style={{ fontWeight: 400, color: 'var(--sv-text-dim)' }}> · {p.reference}</span> : ''}
+                              {p.payment_method} {fmtMoney(p.amount)}{p.reference ? <span style={{ fontWeight: 400, color: 'var(--sv-text-dim)' }}> Â· {p.reference}</span> : ''}
                             </span>
                           ))}
                         </div>
@@ -8871,7 +8872,7 @@ function PosSalesView() {
                             return (
                               <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
                                 <td style={{ padding: '5px 6px', color: 'var(--sv-text-main)' }}>{item.name}</td>
-                                <td style={{ padding: '5px 6px', color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 11 }}>{item.code || '—'}</td>
+                                <td style={{ padding: '5px 6px', color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 11 }}>{item.code || 'â€”'}</td>
                                 <td style={{ padding: '5px 6px', textAlign: 'right' }}>{Number(item.qty)}</td>
                                 <td style={{ padding: '5px 6px', textAlign: 'right' }}>{fmtMoney(lineExc)}</td>
                                 <td style={{ padding: '5px 6px', textAlign: 'right', color: 'var(--sv-text-dim)' }}>{fmtMoney(lineGst)}</td>
@@ -8881,7 +8882,7 @@ function PosSalesView() {
                           })}
                         </tbody>
                         <tfoot>
-                          {Number(sale.discount_total) > 0 && <tr><td colSpan={5} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Discount</td><td style={{ padding: '4px 6px', textAlign: 'right', color: 'var(--sv-red)' }}>−{fmtMoney(sale.discount_total)}</td></tr>}
+                          {Number(sale.discount_total) > 0 && <tr><td colSpan={5} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Discount</td><td style={{ padding: '4px 6px', textAlign: 'right', color: 'var(--sv-red)' }}>âˆ’{fmtMoney(sale.discount_total)}</td></tr>}
                           {Number(sale.tax_total) > 0 && <tr><td colSpan={5} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>GST included</td><td style={{ padding: '4px 6px', textAlign: 'right', color: 'var(--sv-text-dim)' }}>{fmtMoney(sale.tax_total)}</td></tr>}
                           <tr style={{ borderTop: '2px solid var(--sv-etch)' }}><td colSpan={5} style={{ padding: '5px 6px', textAlign: 'right', fontSize: 12, fontWeight: 600 }}>Total</td><td style={{ padding: '5px 6px', textAlign: 'right', fontWeight: 700, fontSize: 13 }}>{fmtMoney(sale.total)}</td></tr>
                         </tfoot>
@@ -8939,7 +8940,7 @@ function PosSalesView() {
         </div>
       )}
 
-      {loading && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</div>}
+      {loading && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loadingâ€¦</div>}
       {!loading && !locationId && days.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No POS sales found.</div>}
       {!loading && locationId  && registers.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No POS sales for this location.</div>}
 
@@ -8953,11 +8954,11 @@ function PosSalesView() {
               onClick={() => toggleReg(reg.register_id)}
               style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', cursor: 'pointer', background: regOpen ? 'color-mix(in srgb, var(--sv-action) 12%, var(--sv-bg-2))' : 'var(--sv-bg-2)', userSelect: 'none', borderBottom: regOpen ? '1px solid var(--sv-etch)' : 'none' }}
             >
-              <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)', flex: 1 }}>📟 {reg.register_name}</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)', flex: 1 }}>ðŸ“Ÿ {reg.register_name}</span>
               <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{reg.days.length} day{reg.days.length !== 1 ? 's' : ''}</span>
               <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{reg.count.toLocaleString()} txns</span>
               <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)', minWidth: 96, textAlign: 'right' }}>{fmtMoney(reg.total)}</span>
-              <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', width: 14, textAlign: 'center' }}>{regOpen ? '▲' : '▼'}</span>
+              <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', width: 14, textAlign: 'center' }}>{regOpen ? 'â–²' : 'â–¼'}</span>
             </div>
             {/* Day rows inside register */}
             {regOpen && (
@@ -8984,9 +8985,9 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Online Sales View — sales orders from Cin7, grouped by day
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Online Sales View â€” sales orders from Cin7, grouped by day
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; onReturnOrder?: (prefill: any) => void }) {
   const [locationId, setLocationId] = useState<number | ''>('');
@@ -9062,12 +9063,12 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
   const handleOnlineReturn = (order: any) => {
     if (order.shopify_order_id) {
       const url = shopDomain ? `https://${shopDomain}/admin/orders/${order.shopify_order_id}` : null;
-      const msg = 'This order originated in Shopify. Returns & refunds must be initiated in Shopify — they sync back into IMS automatically (stock is restocked and the refund is recorded).';
+      const msg = 'This order originated in Shopify. Returns & refunds must be initiated in Shopify â€” they sync back into IMS automatically (stock is restocked and the refund is recorded).';
       if (url && confirm(`${msg}\n\nOpen this order in Shopify now?`)) window.open(url, '_blank', 'noopener');
       else if (!url) alert(msg);
       return;
     }
-    // Manual (non-Shopify) online order → credit note prefill.
+    // Manual (non-Shopify) online order â†’ credit note prefill.
     const items = (order.items ?? []).map((it: any) => ({
       variant_id: it.variant_id ?? '',
       code: it.sku ?? it.code ?? '',
@@ -9121,30 +9122,30 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
             setImporting(true); setImportResult(null);
             try {
               const r = await apiFetch('/api/ims/shopify/import-orders', { method: 'POST' });
-              setImportResult(r.error ? `✗ ${r.error}` : `✓ Imported ${r.imported} order${r.imported !== 1 ? 's' : ''}${r.confirmed_drafts > 0 ? `, fixed ${r.confirmed_drafts} stuck draft${r.confirmed_drafts !== 1 ? 's' : ''}` : ''} (${r.skipped_existing} already existed)`);
+              setImportResult(r.error ? `âœ— ${r.error}` : `âœ“ Imported ${r.imported} order${r.imported !== 1 ? 's' : ''}${r.confirmed_drafts > 0 ? `, fixed ${r.confirmed_drafts} stuck draft${r.confirmed_drafts !== 1 ? 's' : ''}` : ''} (${r.skipped_existing} already existed)`);
               if (r.imported > 0 || r.confirmed_drafts > 0) loadDays();
-            } catch (e: any) { setImportResult(`✗ ${e.message}`); }
+            } catch (e: any) { setImportResult(`âœ— ${e.message}`); }
             setImporting(false);
           }}
           disabled={importing}
           style={{ padding: '7px 14px', background: 'none', border: '1px solid var(--sv-accent)', color: 'var(--sv-accent)', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: importing ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
-        >{importing ? 'Importing…' : '📦 Import from Shopify'}</button>
+        >{importing ? 'Importingâ€¦' : 'ðŸ“¦ Import from Shopify'}</button>
       </div>
       {importResult && (
-        <div style={{ marginBottom: 14, padding: '8px 14px', borderRadius: 6, background: importResult.startsWith('✓') ? 'rgba(16,185,129,.1)' : 'rgba(239,68,68,.1)', color: importResult.startsWith('✓') ? 'var(--sv-mint)' : 'var(--sv-red)', fontSize: 13 }}>{importResult}</div>
+        <div style={{ marginBottom: 14, padding: '8px 14px', borderRadius: 6, background: importResult.startsWith('âœ“') ? 'rgba(16,185,129,.1)' : 'rgba(239,68,68,.1)', color: importResult.startsWith('âœ“') ? 'var(--sv-mint)' : 'var(--sv-red)', fontSize: 13 }}>{importResult}</div>
       )}
 
       {/* Xero sync info banner */}
       <div style={{ marginBottom: 18, padding: '9px 14px', borderRadius: 8, background: 'rgba(96,165,250,.07)', border: '1px solid rgba(96,165,250,.15)', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.7 }}>
         <strong style={{ color: 'var(--sv-text-main)' }}>How online sales reach Xero</strong>
-        {' · '}
+        {' Â· '}
         <strong style={{ color: '#34d399' }}>Shopify Payments</strong>: one invoice per confirmed payout (~11am daily), net of processing fees. Enable in{' '}
-        <span style={{ fontStyle: 'italic' }}>Shopify tab → Orders → Shopify Payments → Xero</span>.
-        {' · '}
+        <span style={{ fontStyle: 'italic' }}>Shopify tab â†’ Orders â†’ Shopify Payments â†’ Xero</span>.
+        {' Â· '}
         <strong style={{ color: '#60a5fa' }}>Other gateways</strong> (PayPal, Afterpay, etc.): nightly batch, split by gateway if clearing accounts are configured in{' '}
-        <span style={{ fontStyle: 'italic' }}>Xero → Mapping → Online Gateway Clearing Accounts</span>.
-        {' · '}
-        <strong style={{ color: '#fbbf24' }}>Returns</strong>: initiate in Shopify — they sync back automatically.
+        <span style={{ fontStyle: 'italic' }}>Xero â†’ Mapping â†’ Online Gateway Clearing Accounts</span>.
+        {' Â· '}
+        <strong style={{ color: '#fbbf24' }}>Returns</strong>: initiate in Shopify â€” they sync back automatically.
       </div>
 
       {/* Summary strip */}
@@ -9171,7 +9172,7 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
         </div>
       )}
 
-      {daysLoading && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</div>}
+      {daysLoading && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loadingâ€¦</div>}
 
       {!daysLoading && days.length === 0 && (
         <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No online sales found. Import from Cin7 in Settings first.</div>
@@ -9209,12 +9210,12 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
                 <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Sub <strong style={{ color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtMoney(Number(day.subtotal ?? 0))}</strong></span>
                 {Number(day.freight ?? 0) > 0 && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Freight <strong style={{ color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtMoney(Number(day.freight))}</strong></span>}
                 {Number(day.tax ?? 0) > 0 && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>GST <strong style={{ color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtMoney(Number(day.tax))}</strong></span>}
-                {Number(day.discount ?? 0) > 0 && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Disc <strong style={{ color: 'var(--sv-red)', fontWeight: 600 }}>−{fmtMoney(Number(day.discount))}</strong></span>}
+                {Number(day.discount ?? 0) > 0 && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Disc <strong style={{ color: 'var(--sv-red)', fontWeight: 600 }}>âˆ’{fmtMoney(Number(day.discount))}</strong></span>}
               </div>
               <span style={{ flex: 1 }} />
               <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 66, textAlign: 'right', flexShrink: 0 }}>{Number(day.count)} order{Number(day.count) !== 1 ? 's' : ''}</span>
               <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', minWidth: 96, textAlign: 'right', flexShrink: 0 }}>{fmtMoney(dayTotal)}</span>
-              {/* Xero sync button — only for days with syncable (non-historical) orders */}
+              {/* Xero sync button â€” only for days with syncable (non-historical) orders */}
               {Number(day.syncable_count ?? 0) > 0 ? (
                 <button
                   onClick={async (e) => {
@@ -9233,17 +9234,17 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
                   disabled={xeroSyncing === day.day}
                   title="Post this day's non-Shopify-Payments orders to Xero as a daily sales invoice. Shopify Payments orders are automatically handled via the payout sync (~11am daily)."
                   style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: xeroResults[day.day] === 'ok' ? 'rgba(16,185,129,.1)' : 'none', color: xeroResults[day.day] === 'ok' ? 'var(--sv-mint)' : xeroResults[day.day] === 'err' ? 'var(--sv-red)' : 'var(--sv-text-muted)', fontSize: 11, fontWeight: 600, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
-                >{xeroSyncing === day.day ? 'Syncing…' : xeroResults[day.day] === 'ok' ? '✓ Xero' : xeroResults[day.day] === 'err' ? '✗ Xero' : 'Sync Xero'}</button>
+                >{xeroSyncing === day.day ? 'Syncingâ€¦' : xeroResults[day.day] === 'ok' ? 'âœ“ Xero' : xeroResults[day.day] === 'err' ? 'âœ— Xero' : 'Sync Xero'}</button>
               ) : (
-                <span title="Historical Cin7 orders — already in Xero, cannot be re-synced" style={{ padding: '3px 10px', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', flexShrink: 0, whiteSpace: 'nowrap' }}>Historical</span>
+                <span title="Historical Cin7 orders â€” already in Xero, cannot be re-synced" style={{ padding: '3px 10px', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', flexShrink: 0, whiteSpace: 'nowrap' }}>Historical</span>
               )}
-              <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', width: 14, textAlign: 'center', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
+              <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', width: 14, textAlign: 'center', flexShrink: 0 }}>{isOpen ? 'â–²' : 'â–¼'}</span>
             </div>
 
             {/* Expanded: order list */}
             {isOpen && (
               <div style={{ borderTop: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)' }}>
-                {isLoading && <div style={{ padding: '16px 20px', fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading orders…</div>}
+                {isLoading && <div style={{ padding: '16px 20px', fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading ordersâ€¦</div>}
                 {!isLoading && orders.length === 0 && <div style={{ padding: '16px 20px', fontSize: 13, color: 'var(--sv-text-dim)' }}>No orders found.</div>}
                 {!isLoading && orders.map((order: any) => {
                   const orderOpen = expandedOrders.has(order.id);
@@ -9281,10 +9282,10 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
                           return <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, fontWeight: 600, background: c.bg, color: c.color }}>{c.label}</span>;
                         })()}
                         <span style={{ flex: 1, fontSize: 13, color: 'var(--sv-text-main)' }}>
-                          {order.customer_name || <span style={{ color: 'var(--sv-text-dim)' }}>—</span>}
+                          {order.customer_name || <span style={{ color: 'var(--sv-text-dim)' }}>â€”</span>}
                         </span>
                         {order.has_missing && (
-                          <span title="One or more items are not fully available at any pick location" style={{ fontSize: 11, padding: '1px 8px', borderRadius: 99, fontWeight: 700, background: 'rgba(239,68,68,.14)', color: 'var(--sv-red)', border: '1px solid rgba(239,68,68,.3)' }}>⚠ Missing stock</span>
+                          <span title="One or more items are not fully available at any pick location" style={{ fontSize: 11, padding: '1px 8px', borderRadius: 99, fontWeight: 700, background: 'rgba(239,68,68,.14)', color: 'var(--sv-red)', border: '1px solid rgba(239,68,68,.3)' }}>âš  Missing stock</span>
                         )}
                         {order.location_name && !locationId && (
                           <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', padding: '1px 7px', borderRadius: 99, border: '1px solid var(--sv-etch)' }}>{order.location_name}</span>
@@ -9298,9 +9299,9 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
                               ? 'Returns for Shopify orders must be initiated in Shopify Admin. Click to open the order in Shopify.'
                               : 'Create a credit note / return for this order'}
                             style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer' }}
-                          >↩ Return</button>
+                          >â†© Return</button>
                         )}
-                        <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginLeft: 4 }}>{orderOpen ? '▲' : '▼'}</span>
+                        <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginLeft: 4 }}>{orderOpen ? 'â–²' : 'â–¼'}</span>
                       </div>
 
                       {/* Order items */}
@@ -9326,9 +9327,9 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
                                 return (
                                 <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
                                   <td style={{ padding: '4px 6px', color: 'var(--sv-text-main)' }}>{item.product_name || item.name}</td>
-                                  <td style={{ padding: '4px 6px', color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 11 }}>{item.sku || item.code || '—'}</td>
+                                  <td style={{ padding: '4px 6px', color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 11 }}>{item.sku || item.code || 'â€”'}</td>
                                   <td style={{ padding: '4px 6px', textAlign: 'right' }}>{qty}</td>
-                                  <td style={{ padding: '4px 6px', color: short ? 'var(--sv-red)' : 'var(--sv-text-dim)', fontSize: 11 }}>{item.pick_location_name || '—'}</td>
+                                  <td style={{ padding: '4px 6px', color: short ? 'var(--sv-red)' : 'var(--sv-text-dim)', fontSize: 11 }}>{item.pick_location_name || 'â€”'}</td>
                                   <td style={{ padding: '4px 6px', textAlign: 'right' }}>
                                     {item.product_id ? (
                                       <button
@@ -9360,7 +9361,7 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
                               {Number(order.discount) > 0 && (
                                 <tr>
                                   <td colSpan={6} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Disc</td>
-                                  <td style={{ padding: '4px 6px', textAlign: 'right', color: 'var(--sv-red)' }}>−{fmtMoney(order.discount)}</td>
+                                  <td style={{ padding: '4px 6px', textAlign: 'right', color: 'var(--sv-red)' }}>âˆ’{fmtMoney(order.discount)}</td>
                                 </tr>
                               )}
                               {Number(order.tax_amount) > 0 && (
@@ -9396,9 +9397,9 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // POS Price Changes Report
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function PosPriceChangesView({ onBack }: { onBack: () => void }) {
   const [rows, setRows]       = useState<any[]>([]);
@@ -9457,7 +9458,7 @@ function PosPriceChangesView({ onBack }: { onBack: () => void }) {
           Reports
         </button>
         <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>POS Price Changed Transactions</h1>
-        <button onClick={downloadCsv} disabled={rows.length === 0} style={btnStyle('ghost', 'sm')}>⬇ Export CSV</button>
+        <button onClick={downloadCsv} disabled={rows.length === 0} style={btnStyle('ghost', 'sm')}>â¬‡ Export CSV</button>
       </div>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 12, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
         <label style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>From</label>
@@ -9467,7 +9468,7 @@ function PosPriceChangesView({ onBack }: { onBack: () => void }) {
         <button onClick={() => load(dateFrom, dateTo)} style={btnStyle('action', 'sm')}>Search</button>
         <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginLeft: 'auto' }}>{rows.length} result{rows.length !== 1 ? 's' : ''}</span>
       </div>
-      {loading && <div style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</div>}
+      {loading && <div style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loadingâ€¦</div>}
       {error && <div style={{ padding: 16, color: 'var(--sv-red)' }}>{error}</div>}
       {!loading && !error && rows.length === 0 && (
         <div style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)' }}>No price changes found in this date range.</div>
@@ -9495,13 +9496,13 @@ function PosPriceChangesView({ onBack }: { onBack: () => void }) {
                   <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'rgba(0,0,0,.03)' }}>
                     <td style={cellStyle}>{dt.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                     <td style={cellStyle}>{dt.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })}</td>
-                    <td style={cellStyle}>{r.location_name || '—'}</td>
-                    <td style={cellStyle}>{r.cashier_name || '—'}</td>
+                    <td style={cellStyle}>{r.location_name || 'â€”'}</td>
+                    <td style={cellStyle}>{r.cashier_name || 'â€”'}</td>
                     <td style={cellStyle}>
                       <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--sv-action)' }}>#{r.sale_id}</span>
                     </td>
                     <td style={cellStyle}>{r.item_name}</td>
-                    <td style={{ ...cellStyle, fontFamily: 'monospace', fontSize: 12, color: 'var(--sv-text-dim)' }}>{r.item_code || '—'}</td>
+                    <td style={{ ...cellStyle, fontFamily: 'monospace', fontSize: 12, color: 'var(--sv-text-dim)' }}>{r.item_code || 'â€”'}</td>
                     <td style={{ ...numCell, color: 'var(--sv-text-dim)', textDecoration: 'line-through' }}>{fmtMoney(r.original_price)}</td>
                     <td style={{ ...numCell, color: '#fb923c', fontWeight: 700 }}>{fmtMoney(r.unit_price)}</td>
                   </tr>
@@ -9515,9 +9516,9 @@ function PosPriceChangesView({ onBack }: { onBack: () => void }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Daily POS Registers Report
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type PosRegisterSession = {
   id: number;
@@ -9569,11 +9570,11 @@ function PosRegistersReportView({ onBack }: { onBack: () => void }) {
   React.useEffect(() => { run(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fmt$ = (v: number | null) =>
-    v == null ? '—' : v.toLocaleString('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 2 });
+    v == null ? 'â€”' : v.toLocaleString('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 2 });
 
   const fmtDt = (v: string | null) => {
-    if (!v) return '—';
-    // Stored as AEST by localNow() — display directly, no Date conversion
+    if (!v) return 'â€”';
+    // Stored as AEST by localNow() â€” display directly, no Date conversion
     const [datePart = '', timePart = ''] = v.replace('T', ' ').split(' ');
     const [y = '', m = '', d = ''] = datePart.split('-');
     const [h = '0', min = '00'] = timePart.split(':');
@@ -9657,7 +9658,7 @@ function PosRegistersReportView({ onBack }: { onBack: () => void }) {
         <button
           onClick={onBack}
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-muted)', fontSize: 20, lineHeight: 1, padding: 0 }}
-        >‹</button>
+        >â€¹</button>
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--sv-text-strong)' }}>
           Daily POS Registers Report
         </h1>
@@ -9678,7 +9679,7 @@ function PosRegistersReportView({ onBack }: { onBack: () => void }) {
           onClick={run}
           disabled={loading}
           style={{ padding: '8px 18px', background: 'var(--sv-accent)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}
-        >{loading ? 'Loading…' : 'Run'}</button>
+        >{loading ? 'Loadingâ€¦' : 'Run'}</button>
         {fetched && sessions.length > 0 && (
           <button
             onClick={exportCsv}
@@ -9742,10 +9743,10 @@ function PosRegistersReportView({ onBack }: { onBack: () => void }) {
                         </span>
                       </td>
                       <td style={tdStyle} rowSpan={reconRows}>{fmtDt(s.opened_at)}</td>
-                      <td style={{ ...tdStyle, color: 'var(--sv-text-muted)' }} rowSpan={reconRows}>{s.opened_by ?? '—'}</td>
+                      <td style={{ ...tdStyle, color: 'var(--sv-text-muted)' }} rowSpan={reconRows}>{s.opened_by ?? 'â€”'}</td>
                       <td style={tdStyle} rowSpan={reconRows}>{fmt$(s.opening_float != null ? parseFloat(s.opening_float) : null)}</td>
                       <td style={tdStyle} rowSpan={reconRows}>{fmtDt(s.closed_at)}</td>
-                      <td style={{ ...tdStyle, color: 'var(--sv-text-muted)' }} rowSpan={reconRows}>{s.closed_by ?? '—'}</td>
+                      <td style={{ ...tdStyle, color: 'var(--sv-text-muted)' }} rowSpan={reconRows}>{s.closed_by ?? 'â€”'}</td>
 
                       {hasRecons ? (
                         /* First recon row inline */
@@ -9754,7 +9755,7 @@ function PosRegistersReportView({ onBack }: { onBack: () => void }) {
                           <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt$(s.reconciliations[0].expected_amount)}</td>
                           <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt$(s.reconciliations[0].counted_amount)}</td>
                           <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: varColor(s.reconciliations[0].variance) }}>
-                            {s.reconciliations[0].variance != null ? (s.reconciliations[0].variance >= 0 ? '+' : '') + fmt$(s.reconciliations[0].variance) : '—'}
+                            {s.reconciliations[0].variance != null ? (s.reconciliations[0].variance >= 0 ? '+' : '') + fmt$(s.reconciliations[0].variance) : 'â€”'}
                           </td>
                           <td style={tdStyle}>
                             {s.reconciliations[0].xero_invoice_id ? (
@@ -9778,7 +9779,7 @@ function PosRegistersReportView({ onBack }: { onBack: () => void }) {
                         <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt$(r.expected_amount)}</td>
                         <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt$(r.counted_amount)}</td>
                         <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: varColor(r.variance) }}>
-                          {r.variance != null ? (r.variance >= 0 ? '+' : '') + fmt$(r.variance) : '—'}
+                          {r.variance != null ? (r.variance >= 0 ? '+' : '') + fmt$(r.variance) : 'â€”'}
                         </td>
                         <td style={tdStyle}>
                           {r.xero_invoice_id ? (
@@ -9815,46 +9816,46 @@ function PosRegistersReportView({ onBack }: { onBack: () => void }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Reports Dashboard
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const REPORT_CATALOG = [
   {
     id: 'report-sales-by-branch' as ImsView,
     title: 'Sales',
     description: 'Product sales performance with per-branch stock levels. Filter by brand, supplier, or keyword.',
-    icon: '📊',
+    icon: 'ðŸ“Š',
   },
   {
     id: 'report-sales-search' as ImsView,
     title: 'Sales Search',
-    description: 'Search all sales in any date range — type words from a product name or SKU. Totals per product across POS, online and wholesale.',
-    icon: '🔍',
+    description: 'Search all sales in any date range â€” type words from a product name or SKU. Totals per product across POS, online and wholesale.',
+    icon: 'ðŸ”',
   },
   {
     id: 'report-inventory-valuation' as ImsView,
     title: 'Inventory Valuation',
     description: 'The total financial value of all stock currently on hand based on average cost.',
-    icon: '💰',
+    icon: 'ðŸ’°',
   },
   {
     id: 'report-product-margin' as ImsView,
     title: 'Product Profitability Margin',
     description: 'Best and worst-selling items over the last 12 months sorted by gross profit and margin.',
-    icon: '📈',
+    icon: 'ðŸ“ˆ',
   },
   {
     id: 'report-pos-price-changes' as ImsView,
     title: 'POS Price Changed Transactions',
     description: 'All POS transactions where a price was manually overridden at the register. Review Date, Location, Cashier, Item, Original Price, and Changed Price.',
-    icon: '🏷️',
+    icon: 'ðŸ·ï¸',
   },
   {
     id: 'report-pos-registers' as ImsView,
     title: 'Daily POS Registers Report',
     description: 'Per-register session breakdown by date: open/close times, opening float, close totals by payment type, variances, and Xero sync status.',
-    icon: '🏪',
+    icon: 'ðŸª',
   },
 ];
 
@@ -9895,9 +9896,9 @@ function ReportsView({ onNav }: { onNav: (v: ImsView) => void }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Shared: Unified Report Filter Combobox
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface FilterSelection {
   type: 'product' | 'brand' | 'supplier' | 'product_type' | 'category' | 'subcategory';
@@ -9926,7 +9927,7 @@ function ReportFilterCombobox({
   selection,
   onSelect,
   onClear,
-  placeholder = 'Filter by product, brand, supplier or type…',
+  placeholder = 'Filter by product, brand, supplier or typeâ€¦',
 }: {
   selection: FilterSelection | null;
   onSelect: (s: FilterSelection) => void;
@@ -10012,7 +10013,7 @@ function ReportFilterCombobox({
             onClick={onClear}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 16, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
             title="Clear filter"
-          >×</button>
+          >Ã—</button>
         </div>
       ) : (
         <div style={{ position: 'relative' }}>
@@ -10031,13 +10032,13 @@ function ReportFilterCombobox({
             }}
           />
           {loading && (
-            <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--sv-text-dim)' }}>…</span>
+            <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--sv-text-dim)' }}>â€¦</span>
           )}
           {!loading && query && (
             <button
               onClick={() => { setQuery(''); setSuggestions([]); setOpen(false); }}
               style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 16, lineHeight: 1, padding: 0 }}
-            >×</button>
+            >Ã—</button>
           )}
         </div>
       )}
@@ -10098,9 +10099,9 @@ function ReportFilterCombobox({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Searchable single-type filter combobox (Supplier / Brand / Product Type)
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function SearchableTypeFilter({
   filterType,
   placeholder,
@@ -10177,7 +10178,7 @@ function SearchableTypeFilter({
           <span style={{ fontSize: 12, color: 'var(--sv-text-strong)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {selection.label.replace(/^(Product:|Brand:|Supplier:|Type:|Product Type:)\s*/i, '')}
           </span>
-          <button onClick={onClear} style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.text, fontSize: 15, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>×</button>
+          <button onClick={onClear} style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.text, fontSize: 15, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>Ã—</button>
         </div>
       ) : (
         <div style={{ position: 'relative' }}>
@@ -10192,11 +10193,11 @@ function SearchableTypeFilter({
             style={{ width: '100%', height: 34, padding: `0 28px 0 ${typeLabel.length * 7 + 16}px`, borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12, boxSizing: 'border-box' }}
           />
           {loading ? (
-            <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: 'var(--sv-text-dim)' }}>…</span>
+            <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: 'var(--sv-text-dim)' }}>â€¦</span>
           ) : query ? (
-            <button onClick={() => { setQuery(''); }} style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 15, lineHeight: 1, padding: 0 }}>×</button>
+            <button onClick={() => { setQuery(''); }} style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 15, lineHeight: 1, padding: 0 }}>Ã—</button>
           ) : (
-            <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--sv-text-dim)', pointerEvents: 'none' }}>▾</span>
+            <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--sv-text-dim)', pointerEvents: 'none' }}>â–¾</span>
           )}
         </div>
       )}
@@ -10227,7 +10228,7 @@ function ReportMultiFilter({
 }: { filters: MultiFilter; onChange: (f: MultiFilter) => void; showCategories?: boolean }) {
   return (
     <div style={{ display: 'flex', gap: 8, flex: 1, flexWrap: 'wrap' }}>
-      <SearchableTypeFilter filterType="product"  placeholder="Product name / SKU…" selection={filters.product}
+      <SearchableTypeFilter filterType="product"  placeholder="Product name / SKUâ€¦" selection={filters.product}
         onSelect={s => onChange({ ...filters, product: s })}  onClear={() => onChange({ ...filters, product: null })} />
       <SearchableTypeFilter filterType="supplier" placeholder="All Suppliers" selection={filters.supplier}
         onSelect={s => onChange({ ...filters, supplier: s })} onClear={() => onChange({ ...filters, supplier: null })} />
@@ -10268,7 +10269,7 @@ const WINDOW_OPTS = [
   { value: 365, label: '12 Months' },
 ];
 
-// ─── Date Range Picker (for Sales by Branch) ─────────────────────────────────
+// â”€â”€â”€ Date Range Picker (for Sales by Branch) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type SBDateRange =
   | { kind: 'window'; window: number; label: string }        // cached aggregate
@@ -10305,7 +10306,7 @@ function SBDatePicker({ value, onChange }: { value: SBDateRange; onChange: (r: S
     if (!cfrom || !cto) return;
     const [f, t] = cfrom <= cto ? [cfrom, cto] : [cto, cfrom];
     const diff = Math.round((new Date(t).getTime() - new Date(f).getTime()) / 86400000) + 1;
-    apply({ kind: 'range', from: f, to: t, label: diff === 1 ? f : `${f} → ${t}` });
+    apply({ kind: 'range', from: f, to: t, label: diff === 1 ? f : `${f} â†’ ${t}` });
   };
 
   return (
@@ -10335,7 +10336,7 @@ function SBDatePicker({ value, onChange }: { value: SBDateRange; onChange: (r: S
                 const active = value.label === p.label;
                 return (
                   <button key={p.label} onClick={() => apply(p.make())} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 12px', border: 'none', borderRadius: 6, background: active ? 'color-mix(in srgb, var(--sv-action) 15%, transparent)' : 'none', color: active ? 'var(--sv-action)' : 'var(--sv-text-main)', fontWeight: active ? 600 : 400, cursor: 'pointer', fontSize: 13 }}>
-                    {p.label}{active && <span style={{ float: 'right', fontSize: 10 }}>✓</span>}
+                    {p.label}{active && <span style={{ float: 'right', fontSize: 10 }}>âœ“</span>}
                   </button>
                 );
               })}
@@ -10492,7 +10493,7 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
   // Reusable sort arrow
   const sortArrow = (col: string) => (
     <span style={{ marginLeft: 3, fontSize: 9, opacity: sortCol === col ? 1 : 0.3 }}>
-      {sortCol === col ? (sortAsc ? '▲' : '▼') : '↕'}
+      {sortCol === col ? (sortAsc ? 'â–²' : 'â–¼') : 'â†•'}
     </span>
   );
   const sortTh = (col: string, label: string, extra?: React.CSSProperties) => (
@@ -10538,7 +10539,7 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
             {total.toLocaleString()} variant{total !== 1 ? 's' : ''}
           </span>
         )}
-        {loading && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Loading…</span>}
+        {loading && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Loadingâ€¦</span>}
         {(hasMultiFilter(filters) || branchFilter !== null) && (
           <button onClick={() => { setBranchFilter(null); handleFilterChange(EMPTY_MULTI); }} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
             Clear filters
@@ -10575,7 +10576,7 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={7 + locations.length} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
+              <tr><td colSpan={7 + locations.length} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>Loadingâ€¦</td></tr>
             )}
             {!loading && displayRows.length === 0 && (
               <tr><td colSpan={7 + locations.length} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>No results found.</td></tr>
@@ -10592,9 +10593,9 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
                     <div style={{ fontWeight: 500, color: 'var(--sv-text-strong)' }}>{row.product_name}</div>
                     {row.option_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 1 }}>{row.option_label}</div>}
                   </td>
-                  <td style={{ ...cellStyle, color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 12 }}>{row.sku || '—'}</td>
-                  <td style={cellStyle}>{row.brand || '—'}</td>
-                  <td style={cellStyle}>{row.supplier_name || '—'}</td>
+                  <td style={{ ...cellStyle, color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 12 }}>{row.sku || 'â€”'}</td>
+                  <td style={cellStyle}>{row.brand || 'â€”'}</td>
+                  <td style={cellStyle}>{row.supplier_name || 'â€”'}</td>
                   <td style={{ ...numCell, color: salesQty > 0 ? 'var(--sv-mint)' : 'var(--sv-text-dim)', fontWeight: salesQty > 0 ? 600 : 400 }}>
                     {salesQty.toLocaleString('en-AU', { maximumFractionDigits: 0 })}
                   </td>
@@ -10606,7 +10607,7 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
                     const soh = s ? Number(s.soh) : 0;
                     return (
                       <td key={l.id} style={{ ...numCell, color: soh > 0 ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', opacity: soh > 0 ? 1 : 0.45 }}>
-                        {soh > 0 ? soh.toLocaleString('en-AU', { maximumFractionDigits: 0 }) : '—'}
+                        {soh > 0 ? soh.toLocaleString('en-AU', { maximumFractionDigits: 0 }) : 'â€”'}
                       </td>
                     );
                   })}
@@ -10624,10 +10625,10 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
             <button
               onClick={() => goPage(page - 1)} disabled={page <= 1 || loading}
               style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.4 : 1, fontSize: 13, color: 'var(--sv-text-main)' }}
-            >←</button>
+            >â†</button>
             {pageRange().map((p, i) =>
               p === '...' ?
-                <span key={`e${i}`} style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 4px' }}>…</span> :
+                <span key={`e${i}`} style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 4px' }}>â€¦</span> :
                 <button
                   key={p}
                   onClick={() => goPage(p as number)}
@@ -10638,10 +10639,10 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
             <button
               onClick={() => goPage(page + 1)} disabled={page >= totalPages || loading}
               style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', cursor: page >= totalPages ? 'not-allowed' : 'pointer', opacity: page >= totalPages ? 0.4 : 1, fontSize: 13, color: 'var(--sv-text-main)' }}
-            >→</button>
+            >â†’</button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--sv-text-dim)' }}>
-            <span>Page {page} of {totalPages} · {total.toLocaleString()} variants</span>
+            <span>Page {page} of {totalPages} Â· {total.toLocaleString()} variants</span>
             <select
               value={pageSize} onChange={e => changePageSize(Number(e.target.value))}
               style={{ height: 28, padding: '0 6px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12, cursor: 'pointer' }}
@@ -10655,9 +10656,9 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Sales Search Report — all sales in a period, partial product-name search
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Sales Search Report â€” all sales in a period, partial product-name search
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function SalesSearchView({ onBack }: { onBack: () => void }) {
   const [rows, setRows]       = useState<any[]>([]);
@@ -10768,7 +10769,7 @@ function SalesSearchView({ onBack }: { onBack: () => void }) {
           value={q}
           onChange={e => setQ(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') run(); }}
-          placeholder="Search words in product name / SKU…"
+          placeholder="Search words in product name / SKUâ€¦"
           style={{ height: 34, flex: '1 1 240px', minWidth: 200, padding: '0 12px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 13 }}
         />
         <button onClick={() => run()} disabled={loading} style={{ height: 34, padding: '0 14px', borderRadius: 6, border: 'none', background: 'var(--sv-action)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Search</button>
@@ -10781,12 +10782,12 @@ function SalesSearchView({ onBack }: { onBack: () => void }) {
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
           <input type="date" value={from} onChange={e => setFrom(e.target.value)}
             style={{ height: 34, padding: '0 8px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: usingCustom ? 'var(--sv-bg-0)' : 'var(--sv-bg-2)', color: 'var(--sv-text-main)', fontSize: 12 }} />
-          <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>→</span>
+          <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>â†’</span>
           <input type="date" value={to} onChange={e => setTo(e.target.value)}
             style={{ height: 34, padding: '0 8px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: usingCustom ? 'var(--sv-bg-0)' : 'var(--sv-bg-2)', color: 'var(--sv-text-main)', fontSize: 12 }} />
           {usingCustom && <button onClick={() => run()} disabled={loading} style={{ height: 34, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12, cursor: 'pointer' }}>Apply</button>}
         </div>
-        <button onClick={downloadCsv} disabled={rows.length === 0} style={{ height: 34, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12, cursor: rows.length === 0 ? 'not-allowed' : 'pointer', opacity: rows.length === 0 ? 0.5 : 1 }}>⬇ CSV</button>
+        <button onClick={downloadCsv} disabled={rows.length === 0} style={{ height: 34, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12, cursor: rows.length === 0 ? 'not-allowed' : 'pointer', opacity: rows.length === 0 ? 0.5 : 1 }}>â¬‡ CSV</button>
       </div>
 
       {/* Summary */}
@@ -10805,7 +10806,7 @@ function SalesSearchView({ onBack }: { onBack: () => void }) {
         </div>
         <div style={{ flex: '1 1 200px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '12px 16px' }}>
           <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Period</div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--sv-text-main)', marginTop: 4 }}>{range ? `${range.from} → ${range.to}` : '—'}</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--sv-text-main)', marginTop: 4 }}>{range ? `${range.from} â†’ ${range.to}` : 'â€”'}</div>
         </div>
       </div>
 
@@ -10832,7 +10833,7 @@ function SalesSearchView({ onBack }: { onBack: () => void }) {
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={10} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
+              <tr><td colSpan={10} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>Loadingâ€¦</td></tr>
             )}
             {!loading && rows.length === 0 && (
               <tr><td colSpan={10} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>No sales found for this search and period.</td></tr>
@@ -10845,14 +10846,14 @@ function SalesSearchView({ onBack }: { onBack: () => void }) {
                     <div style={{ fontWeight: 500, color: 'var(--sv-text-strong)' }}>{row.product_name}</div>
                     {row.option_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 1 }}>{row.option_label}</div>}
                   </td>
-                  <td style={{ ...cellStyle, color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 12 }}>{row.sku || '—'}</td>
-                  <td style={cellStyle}>{row.brand || '—'}</td>
-                  <td style={cellStyle}>{row.supplier_name || '—'}</td>
+                  <td style={{ ...cellStyle, color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 12 }}>{row.sku || 'â€”'}</td>
+                  <td style={cellStyle}>{row.brand || 'â€”'}</td>
+                  <td style={cellStyle}>{row.supplier_name || 'â€”'}</td>
                   <td style={{ ...numCell, color: row.qty > 0 ? 'var(--sv-mint)' : 'var(--sv-text-dim)', fontWeight: 600 }}>{Number(row.qty).toLocaleString('en-AU', { maximumFractionDigits: 0 })}</td>
-                  <td style={{ ...numCell, color: row.pos_qty > 0 ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', opacity: row.pos_qty > 0 ? 1 : 0.45 }}>{row.pos_qty > 0 ? Number(row.pos_qty).toLocaleString() : '—'}</td>
-                  <td style={{ ...numCell, color: row.online_qty > 0 ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', opacity: row.online_qty > 0 ? 1 : 0.45 }}>{row.online_qty > 0 ? Number(row.online_qty).toLocaleString() : '—'}</td>
-                  <td style={{ ...numCell, color: row.wholesale_qty > 0 ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', opacity: row.wholesale_qty > 0 ? 1 : 0.45 }}>{row.wholesale_qty > 0 ? Number(row.wholesale_qty).toLocaleString() : '—'}</td>
-                  <td style={{ ...numCell, color: row.history_qty > 0 ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', opacity: row.history_qty > 0 ? 1 : 0.45 }}>{row.history_qty > 0 ? Number(row.history_qty).toLocaleString() : '—'}</td>
+                  <td style={{ ...numCell, color: row.pos_qty > 0 ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', opacity: row.pos_qty > 0 ? 1 : 0.45 }}>{row.pos_qty > 0 ? Number(row.pos_qty).toLocaleString() : 'â€”'}</td>
+                  <td style={{ ...numCell, color: row.online_qty > 0 ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', opacity: row.online_qty > 0 ? 1 : 0.45 }}>{row.online_qty > 0 ? Number(row.online_qty).toLocaleString() : 'â€”'}</td>
+                  <td style={{ ...numCell, color: row.wholesale_qty > 0 ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', opacity: row.wholesale_qty > 0 ? 1 : 0.45 }}>{row.wholesale_qty > 0 ? Number(row.wholesale_qty).toLocaleString() : 'â€”'}</td>
+                  <td style={{ ...numCell, color: row.history_qty > 0 ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', opacity: row.history_qty > 0 ? 1 : 0.45 }}>{row.history_qty > 0 ? Number(row.history_qty).toLocaleString() : 'â€”'}</td>
                   <td style={{ ...numCell, fontWeight: 500 }}>{fmtCurrency(Number(row.revenue))}</td>
                 </tr>
               );
@@ -10865,16 +10866,16 @@ function SalesSearchView({ onBack }: { onBack: () => void }) {
       {totalPages > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, flexWrap: 'wrap', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <button onClick={() => goPage(page - 1)} disabled={page <= 1 || loading} style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.4 : 1, fontSize: 13, color: 'var(--sv-text-main)' }}>←</button>
+            <button onClick={() => goPage(page - 1)} disabled={page <= 1 || loading} style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.4 : 1, fontSize: 13, color: 'var(--sv-text-main)' }}>â†</button>
             {pageRange().map((p, i) =>
               p === '...' ?
-                <span key={`e${i}`} style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 4px' }}>…</span> :
+                <span key={`e${i}`} style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 4px' }}>â€¦</span> :
                 <button key={p} onClick={() => goPage(p as number)} disabled={loading} style={{ height: 30, minWidth: 30, borderRadius: 6, border: '1px solid var(--sv-etch)', background: p === page ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: p === page ? '#fff' : 'var(--sv-text-main)', fontWeight: p === page ? 600 : 400, cursor: 'pointer', fontSize: 13 }}>{p}</button>
             )}
-            <button onClick={() => goPage(page + 1)} disabled={page >= totalPages || loading} style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', cursor: page >= totalPages ? 'not-allowed' : 'pointer', opacity: page >= totalPages ? 0.4 : 1, fontSize: 13, color: 'var(--sv-text-main)' }}>→</button>
+            <button onClick={() => goPage(page + 1)} disabled={page >= totalPages || loading} style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', cursor: page >= totalPages ? 'not-allowed' : 'pointer', opacity: page >= totalPages ? 0.4 : 1, fontSize: 13, color: 'var(--sv-text-main)' }}>â†’</button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--sv-text-dim)' }}>
-            <span>Page {page} of {totalPages} · {total.toLocaleString()} products</span>
+            <span>Page {page} of {totalPages} Â· {total.toLocaleString()} products</span>
             <select value={pageSize} onChange={e => changePageSize(Number(e.target.value))} style={{ height: 28, padding: '0 6px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12, cursor: 'pointer' }}>
               {[25, 50, 100, 200].map(n => <option key={n} value={n}>{n} / page</option>)}
             </select>
@@ -10885,9 +10886,9 @@ function SalesSearchView({ onBack }: { onBack: () => void }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Inventory Valuation Report
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function InventoryValuationView({ onBack }: { onBack: () => void }) {
   const [rows, setRows] = useState<any[]>([]);
@@ -10937,19 +10938,19 @@ function InventoryValuationView({ onBack }: { onBack: () => void }) {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
         <div>
-          <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', padding: 0, marginBottom: 8, fontSize: 13 }}>← Back to Reports</button>
+          <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', padding: 0, marginBottom: 8, fontSize: 13 }}>â† Back to Reports</button>
           <h2 style={{ fontSize: 20, fontWeight: 600, color: 'var(--sv-text-strong)', margin: 0 }}>Inventory Valuation</h2>
           <div style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginTop: 4 }}>Total value of all physical stock on hand.</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={downloadCsv} disabled={rows.length === 0} style={btnStyle('ghost', 'sm')}>⬇ Export CSV</button>
+          <button onClick={downloadCsv} disabled={rows.length === 0} style={btnStyle('ghost', 'sm')}>â¬‡ Export CSV</button>
         </div>
       </div>
 
       {/* Filter */}
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
         <ReportMultiFilter filters={filters} onChange={handleFilterChange} />
-        {loading && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Loading…</span>}
+        {loading && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Loadingâ€¦</span>}
         {hasMultiFilter(filters) && <button onClick={() => handleFilterChange(EMPTY_MULTI)} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)' }}>Clear filters</button>}
       </div>
       
@@ -10984,7 +10985,7 @@ function InventoryValuationView({ onBack }: { onBack: () => void }) {
               <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' }}>
                 <td style={{ ...cellStyle, fontFamily: 'monospace' }}>{r.sku}</td>
                 <td style={{ ...cellStyle, fontWeight: 500 }}>{r.name}</td>
-                <td style={cellStyle}>{r.brand || '—'}</td>
+                <td style={cellStyle}>{r.brand || 'â€”'}</td>
                 <td style={numCell}>{fmtCurrency(r.cost)}</td>
                 <td style={numCell}>{r.soh.toLocaleString()}</td>
                 <td style={{ ...numCell, fontWeight: 600 }}>{fmtCurrency(r.total_value)}</td>
@@ -10997,9 +10998,9 @@ function InventoryValuationView({ onBack }: { onBack: () => void }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Product Margin Report
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ProductMarginView({ onBack }: { onBack: () => void }) {
   const [rows, setRows]       = useState<any[]>([]);
@@ -11071,17 +11072,17 @@ function ProductMarginView({ onBack }: { onBack: () => void }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
 
-      {/* ── Header row ── */}
+      {/* â”€â”€ Header row â”€â”€ */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
         <button onClick={onBack} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--sv-text-dim)', flexShrink: 0 }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
           Reports
         </button>
         <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Product Profitability</h1>
-        <button onClick={downloadCsv} disabled={rows.length === 0} style={btnStyle('ghost', 'sm')}>⬇ Export CSV</button>
+        <button onClick={downloadCsv} disabled={rows.length === 0} style={btnStyle('ghost', 'sm')}>â¬‡ Export CSV</button>
       </div>
 
-      {/* ── Filter + Window bar ── */}
+      {/* â”€â”€ Filter + Window bar â”€â”€ */}
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 12, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
         <ReportMultiFilter filters={filters} onChange={handleFilterChange} />
         <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
@@ -11094,14 +11095,14 @@ function ProductMarginView({ onBack }: { onBack: () => void }) {
             }}>{o.label}</button>
           ))}
         </div>
-        {loading && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Loading…</span>}
+        {loading && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Loadingâ€¦</span>}
         {!loading && total > 0 && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{total.toLocaleString()} results</span>}
         {hasMultiFilter(filters) && <button onClick={() => handleFilterChange(EMPTY_MULTI)} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Clear filters</button>}
       </div>
 
       {error && <div style={{ color: 'var(--sv-coral)', marginBottom: 12, fontSize: 13 }}>{error}</div>}
 
-      {/* ── Summary cards ── */}
+      {/* â”€â”€ Summary cards â”€â”€ */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 12, marginBottom: 12 }}>
         {[
           { label: `${winLabel} Revenue`,     value: fmtCurrency(totalRev),           color: 'var(--sv-text-strong)' },
@@ -11115,7 +11116,7 @@ function ProductMarginView({ onBack }: { onBack: () => void }) {
         ))}
       </div>
 
-      {/* ── Table — scrolls independently ── */}
+      {/* â”€â”€ Table â€” scrolls independently â”€â”€ */}
       <div style={{ flex: 1, overflow: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
@@ -11132,16 +11133,16 @@ function ProductMarginView({ onBack }: { onBack: () => void }) {
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={8} style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
+              <tr><td colSpan={8} style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loadingâ€¦</td></tr>
             )}
             {!loading && rows.length === 0 && (
               <tr><td colSpan={8} style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)' }}>No results found.</td></tr>
             )}
             {!loading && rows.map((r, i) => (
               <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' }}>
-                <td style={{ ...cellStyle, fontFamily: 'monospace', fontSize: 12, color: 'var(--sv-text-dim)' }}>{r.sku || '—'}</td>
+                <td style={{ ...cellStyle, fontFamily: 'monospace', fontSize: 12, color: 'var(--sv-text-dim)' }}>{r.sku || 'â€”'}</td>
                 <td style={{ ...cellStyle, fontWeight: 500 }}>{r.name}</td>
-                <td style={cellStyle}>{r.brand || '—'}</td>
+                <td style={cellStyle}>{r.brand || 'â€”'}</td>
                 <td style={numCell}>{r.qty.toLocaleString()}</td>
                 <td style={numCell}>{fmtCurrency(r.rev)}</td>
                 <td style={numCell}>{fmtCurrency(r.cogs)}</td>
@@ -11153,23 +11154,23 @@ function ProductMarginView({ onBack }: { onBack: () => void }) {
         </table>
       </div>
 
-      {/* ── Pagination ── */}
+      {/* â”€â”€ Pagination â”€â”€ */}
       {totalPages > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, flexWrap: 'wrap', gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <button onClick={() => goPage(page - 1)} disabled={page <= 1 || loading}
-              style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.4 : 1, fontSize: 13, color: 'var(--sv-text-main)' }}>←</button>
+              style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.4 : 1, fontSize: 13, color: 'var(--sv-text-main)' }}>â†</button>
             {pageRange().map((p, i) =>
               p === '...'
-                ? <span key={`e${i}`} style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 4px' }}>…</span>
+                ? <span key={`e${i}`} style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 4px' }}>â€¦</span>
                 : <button key={p} onClick={() => goPage(p as number)} disabled={loading}
                     style={{ height: 30, minWidth: 30, borderRadius: 6, border: '1px solid var(--sv-etch)', background: p === page ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: p === page ? '#fff' : 'var(--sv-text-main)', fontWeight: p === page ? 600 : 400, cursor: 'pointer', fontSize: 13 }}>{p}</button>
             )}
             <button onClick={() => goPage(page + 1)} disabled={page >= totalPages || loading}
-              style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', cursor: page >= totalPages ? 'not-allowed' : 'pointer', opacity: page >= totalPages ? 0.4 : 1, fontSize: 13, color: 'var(--sv-text-main)' }}>→</button>
+              style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', cursor: page >= totalPages ? 'not-allowed' : 'pointer', opacity: page >= totalPages ? 0.4 : 1, fontSize: 13, color: 'var(--sv-text-main)' }}>â†’</button>
           </div>
           <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>
-            Page {page} of {totalPages} · {total.toLocaleString()} results · 100 per page
+            Page {page} of {totalPages} Â· {total.toLocaleString()} results Â· 100 per page
           </span>
         </div>
       )}
@@ -11177,13 +11178,13 @@ function ProductMarginView({ onBack }: { onBack: () => void }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Xero Integration View
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Settings View
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function SettingsView() {
   const { settings, saveSettings } = useImsSettings();
@@ -11251,7 +11252,7 @@ function SettingsView() {
               style={{ ...inputStyle, width: 100 }}
               placeholder="e.g. 10"
             />
-            <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>%  — applied as default on new SO line items</span>
+            <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>%  â€” applied as default on new SO line items</span>
           </div>
         </Field>
 
@@ -11278,7 +11279,7 @@ function SettingsView() {
               style={{ ...inputStyle, width: 100 }}
               placeholder="e.g. 10"
             />
-            <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>%  — default for suppliers without an override</span>
+            <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>%  â€” default for suppliers without an override</span>
           </div>
         </Field>
 
@@ -11335,9 +11336,9 @@ function SettingsView() {
           onClick={handleSave} disabled={saving}
           style={{ padding: '9px 22px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 14 }}
         >
-          {saving ? 'Saving…' : 'Save Settings'}
+          {saving ? 'Savingâ€¦' : 'Save Settings'}
         </button>
-        {saved && <span style={{ fontSize: 13, color: '#34d399' }}>✓ Saved</span>}
+        {saved && <span style={{ fontSize: 13, color: '#34d399' }}>âœ“ Saved</span>}
       </div>
     </div>
   );
@@ -11370,13 +11371,13 @@ function XeroView({ businessId, isAdvisor = false, advisorMappingEnabled = false
   if (loading) return <div style={{ padding: 40, color: 'var(--sv-text-dim)' }}>Loading Xero status...</div>;
 
   // Advisor accounts are restricted to the Account & Tracking Mapping tab, and
-  // only when an administrator has granted access in Xero → Overview.
+  // only when an administrator has granted access in Xero â†’ Overview.
   if (isAdvisor) {
     const titleBar = (
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero — Account &amp; Tracking Mapping</h1>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero â€” Account &amp; Tracking Mapping</h1>
         {status?.connected && (
-          <span style={{ padding: '3px 10px', borderRadius: 99, fontSize: 12, fontWeight: 600, background: 'rgba(16,185,129,.15)', color: '#34d399' }}>Connected — {status.tenantName}</span>
+          <span style={{ padding: '3px 10px', borderRadius: 99, fontSize: 12, fontWeight: 600, background: 'rgba(16,185,129,.15)', color: '#34d399' }}>Connected â€” {status.tenantName}</span>
         )}
       </div>
     );
@@ -11385,7 +11386,7 @@ function XeroView({ businessId, isAdvisor = false, advisorMappingEnabled = false
         <div>
           {titleBar}
           <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', maxWidth: 560, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
-            🔒 Your account doesn&apos;t have access to Xero settings. Ask an administrator to enable <strong>Advisor access to Account &amp; Tracking Mapping</strong> in Xero → Overview.
+            ðŸ”’ Your account doesn&apos;t have access to Xero settings. Ask an administrator to enable <strong>Advisor access to Account &amp; Tracking Mapping</strong> in Xero â†’ Overview.
           </div>
         </div>
       );
@@ -11417,7 +11418,7 @@ function XeroView({ businessId, isAdvisor = false, advisorMappingEnabled = false
           background: status?.connected ? 'rgba(16,185,129,.15)' : 'rgba(248,113,113,.15)',
           color: status?.connected ? '#34d399' : '#f87171',
         }}>
-          {status?.connected ? `Connected — ${status.tenantName}` : 'Not Connected'}
+          {status?.connected ? `Connected â€” ${status.tenantName}` : 'Not Connected'}
         </span>
       </div>
 
@@ -11427,7 +11428,7 @@ function XeroView({ businessId, isAdvisor = false, advisorMappingEnabled = false
             Connect your Xero organisation to sync purchase orders, sales, and monthly COGS journals automatically.
           </p>
           {!status?.envConfigured ? (
-            <p style={{ color: '#f87171', fontSize: 13 }}>⚠️ Xero app credentials are not configured in .env (XERO_CLIENT_ID, XERO_REDIRECT_URI).</p>
+            <p style={{ color: '#f87171', fontSize: 13 }}>âš ï¸ Xero app credentials are not configured in .env (XERO_CLIENT_ID, XERO_REDIRECT_URI).</p>
           ) : (
             <button
               onClick={() => { window.location.href = `/api/xero/connect?databaseId=${encodeURIComponent(getBusinessId())}`; }}
@@ -11530,7 +11531,7 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
             color: testResult.ok ? '#34d399' : '#f87171',
             border: `1px solid ${testResult.ok ? 'rgba(16,185,129,.3)' : 'rgba(248,113,113,.3)'}`,
           }}>
-            {testResult.ok ? '✓' : '✗'} {testResult.message}
+            {testResult.ok ? 'âœ“' : 'âœ—'} {testResult.message}
           </div>
         )}
         {!testResult?.ok && testResult && (
@@ -11547,7 +11548,7 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
             disabled={testing}
             style={{ padding: '6px 14px', background: 'rgba(37,99,235,.15)', color: '#60a5fa', border: '1px solid rgba(37,99,235,.3)', borderRadius: 6, cursor: testing ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600, opacity: testing ? 0.7 : 1 }}
           >
-            {testing ? 'Testing…' : 'Test Connection'}
+            {testing ? 'Testingâ€¦' : 'Test Connection'}
           </button>
           <button
             onClick={() => {
@@ -11570,16 +11571,16 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
       <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
         <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sync Configuration</h3>
         <div style={{ fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 2 }}>
-          <div>• POs → Xero Bills <span style={{ color: 'var(--sv-text-dim)' }}>(on create/payment/receive)</span></div>
-          <div>• SOs → Xero Invoices <span style={{ color: 'var(--sv-text-dim)' }}>(wholesale: individual)</span></div>
-          <div>• POS Sales → Xero <span style={{ color: 'var(--sv-text-dim)' }}>(daily batch per location, ~1am)</span></div>
-          <div>• Online Sales — Shopify Payments → Xero <span style={{ color: 'var(--sv-text-dim)' }}>(one invoice per confirmed payout, ~11am)</span></div>
-          <div>• Online Sales — other gateways → Xero <span style={{ color: 'var(--sv-text-dim)' }}>(daily batch ~1am, split by gateway if clearing accounts configured)</span></div>
-          <div>• Credit Notes (manual) → Xero Credit Note <span style={{ color: 'var(--sv-text-dim)' }}>(on CN completion; Shopify refunds handled via payout)</span></div>
-          <div>• Monthly COGS Journal <span style={{ color: 'var(--sv-text-dim)' }}>(manual, end of month)</span></div>
+          <div>â€¢ POs â†’ Xero Bills <span style={{ color: 'var(--sv-text-dim)' }}>(on create/payment/receive)</span></div>
+          <div>â€¢ SOs â†’ Xero Invoices <span style={{ color: 'var(--sv-text-dim)' }}>(wholesale: individual)</span></div>
+          <div>â€¢ POS Sales â†’ Xero <span style={{ color: 'var(--sv-text-dim)' }}>(daily batch per location, ~1am)</span></div>
+          <div>â€¢ Online Sales â€” Shopify Payments â†’ Xero <span style={{ color: 'var(--sv-text-dim)' }}>(one invoice per confirmed payout, ~11am)</span></div>
+          <div>â€¢ Online Sales â€” other gateways â†’ Xero <span style={{ color: 'var(--sv-text-dim)' }}>(daily batch ~1am, split by gateway if clearing accounts configured)</span></div>
+          <div>â€¢ Credit Notes (manual) â†’ Xero Credit Note <span style={{ color: 'var(--sv-text-dim)' }}>(on CN completion; Shopify refunds handled via payout)</span></div>
+          <div>â€¢ Monthly COGS Journal <span style={{ color: 'var(--sv-text-dim)' }}>(manual, end of month)</span></div>
         </div>
         <div style={{ marginTop: 10, fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6, padding: '8px 10px', background: 'rgba(96,165,250,.07)', borderRadius: 6 }}>
-          💡 Shopify Payments orders are excluded from the nightly batch when payout sync is active — to prevent double-counting. Other gateways (PayPal, Afterpay) continue through the nightly batch unless you assign them a clearing account in <strong>Mapping → Online Gateway Clearing Accounts</strong>.
+          ðŸ’¡ Shopify Payments orders are excluded from the nightly batch when payout sync is active â€” to prevent double-counting. Other gateways (PayPal, Afterpay) continue through the nightly batch unless you assign them a clearing account in <strong>Mapping â†’ Online Gateway Clearing Accounts</strong>.
         </div>
       </div>
 
@@ -11606,7 +11607,7 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
       <div style={{ gridColumn: '1 / -1', padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
         <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Advisor Access</h3>
         <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6, maxWidth: 620 }}>
-          Allow <strong>Advisor</strong> (read-only) users to view and edit the <strong>Account &amp; Tracking Mapping</strong>. When enabled, Advisors see <em>only</em> this mapping page in the Xero section — no other Xero settings, sync actions, or connection controls.
+          Allow <strong>Advisor</strong> (read-only) users to view and edit the <strong>Account &amp; Tracking Mapping</strong>. When enabled, Advisors see <em>only</em> this mapping page in the Xero section â€” no other Xero settings, sync actions, or connection controls.
         </p>
         <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: advisorMapping === null || savingAdvisor ? 'default' : 'pointer' }}>
           <input
@@ -11617,18 +11618,18 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
             style={{ width: 16, height: 16, cursor: 'inherit' }}
           />
           <span style={{ fontSize: 13, color: 'var(--sv-text-main)' }}>
-            {advisorMapping === null ? 'Loading…' : advisorMapping
-              ? 'Enabled — Advisors can manage Account & Tracking Mapping'
-              : 'Disabled — Advisors cannot access Xero mappings'}
+            {advisorMapping === null ? 'Loadingâ€¦' : advisorMapping
+              ? 'Enabled â€” Advisors can manage Account & Tracking Mapping'
+              : 'Disabled â€” Advisors cannot access Xero mappings'}
           </span>
-          {savingAdvisor && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>saving…</span>}
+          {savingAdvisor && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>savingâ€¦</span>}
         </label>
       </div>
     </div>
   );
 }
 
-// ── Payment Methods name management (PO or SO settings) ──────────────────────
+// â”€â”€ Payment Methods name management (PO or SO settings) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function PaymentMethodsManageSection({ type }: { type: 'po' | 'so' }) {
   const [methods, setMethods] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -11687,9 +11688,9 @@ function PaymentMethodsManageSection({ type }: { type: 'po' | 'so' }) {
         {newName === null && <button onClick={() => setNewName('')} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 5, background: 'var(--sv-mint,#0c9)', color: '#fff', border: 'none', cursor: 'pointer' }}>+ Add</button>}
       </div>
       <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-        Payment options available when recording a {type === 'po' ? 'purchase' : 'sales'} order payment. Map each to a Xero bank account under Settings → Xero → Payment Methods.
+        Payment options available when recording a {type === 'po' ? 'purchase' : 'sales'} order payment. Map each to a Xero bank account under Settings â†’ Xero â†’ Payment Methods.
       </p>
-      {loading ? <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading…</div> : (
+      {loading ? <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Loadingâ€¦</div> : (
         <>
           {methods.length > 0 && (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 12 }}>
@@ -11742,7 +11743,7 @@ function PaymentMethodsManageSection({ type }: { type: 'po' | 'so' }) {
   );
 }
 
-// ── Xero payment method → bank account mapping (in Xero settings) ────────────
+// â”€â”€ Xero payment method â†’ bank account mapping (in Xero settings) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function XeroPaymentMappingSection({ type, label, accounts }: { type: 'po' | 'so'; label: string; accounts: { accountId: string; code: string; name: string; type: string }[] }) {
   const [methods, setMethods] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -11775,8 +11776,8 @@ function XeroPaymentMappingSection({ type, label, accounts }: { type: 'po' | 'so
       <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
         Map each payment method to a Xero bank account. Payments recorded with a mapped method are automatically synced to Xero. Methods with no mapping are saved locally only.
       </p>
-      {loading ? <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading…</div> : methods.length === 0 ? (
-        <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: 0 }}>No payment methods defined. Add them under Settings → {type === 'po' ? 'Purchase Orders' : 'Sales Orders'} → Payment Methods.</p>
+      {loading ? <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Loadingâ€¦</div> : methods.length === 0 ? (
+        <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: 0 }}>No payment methods defined. Add them under Settings â†’ {type === 'po' ? 'Purchase Orders' : 'Sales Orders'} â†’ Payment Methods.</p>
       ) : (
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead><tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
@@ -11791,7 +11792,7 @@ function XeroPaymentMappingSection({ type, label, accounts }: { type: 'po' | 'so
                 </td>
                 <td style={{ padding: '4px 8px' }}>
                   {bankAccounts.length === 0 ? (
-                    <span style={{ fontSize: 12, color: '#f87171' }}>No Xero bank accounts found — connect Xero first.</span>
+                    <span style={{ fontSize: 12, color: '#f87171' }}>No Xero bank accounts found â€” connect Xero first.</span>
                   ) : (
                     <select
                       value={m.xero_account_code || ''}
@@ -11799,7 +11800,7 @@ function XeroPaymentMappingSection({ type, label, accounts }: { type: 'po' | 'so
                       disabled={saving === m.id}
                       style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: m.xero_account_code ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontSize: 13, minWidth: 240 }}
                     >
-                      <option value="">— not mapped (local only) —</option>
+                      <option value="">â€” not mapped (local only) â€”</option>
                       {bankAccounts.map(a => (
                         <option key={a.accountId} value={a.code}>{a.name} ({a.code})</option>
                       ))}
@@ -11832,7 +11833,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
     { key: 'sales_revenue', label: 'Sales Revenue', desc: 'Income from sales (P&L)', filter: (a: any) => a.class === 'REVENUE' },
     { key: 'credit_note', label: 'Credit Notes (Customer Returns)', desc: 'Revenue/contra-revenue account for customer credit note lines (returns & refunds). Defaults to Sales Revenue if not set.', filter: (a: any) => a.class === 'REVENUE' },
     { key: 'freight', label: 'Freight / Shipping', desc: 'Freight Paid expense account (P&L). Only used when PO Freight Treatment = Expense.', filter: (a: any) => a.class === 'EXPENSE' },
-    { key: 'stock_adjustment', label: 'Stock Adjustment / Shrinkage', desc: 'Stocktake variance expense account (P&L) — used for stock write-offs and surpluses', filter: (a: any) => a.class === 'EXPENSE' },
+    { key: 'stock_adjustment', label: 'Stock Adjustment / Shrinkage', desc: 'Stocktake variance expense account (P&L) â€” used for stock write-offs and surpluses', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'merchant_fees', label: 'Merchant / Payment Fees', desc: 'Shopify Payments processing fees expense (P&L)', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'shopify_clearing', label: 'Shopify Payments Clearing', desc: 'Bank/clearing account that receives each payout; reconciles against the actual deposit', filter: (a: any) => a.type === 'BANK' },
     { key: 'supplier_credit_note', label: 'Supplier Credit Notes', desc: 'Account for non-stock supplier credit lines (rebates / overcharges). Returned-stock lines post to Inventory Asset. Defaults to COGS if unset.', filter: (a: any) => a.class === 'EXPENSE' || a.class === 'ASSET' },
@@ -11932,7 +11933,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
         </p>
         {freightTreatment === 'capitalise' && (
           <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--sv-mint)', background: 'rgba(16,185,129,.08)', border: '1px solid rgba(16,185,129,.25)', borderRadius: 6, padding: '8px 10px' }}>
-            Freight Treatment is set to <strong>Capitalise</strong>, so freight is added to stock value and posts to your <strong>Inventory Asset</strong> account automatically — no separate freight account needed.
+            Freight Treatment is set to <strong>Capitalise</strong>, so freight is added to stock value and posts to your <strong>Inventory Asset</strong> account automatically â€” no separate freight account needed.
           </p>
         )}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -11941,7 +11942,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
             const current = mappings[role.key];
             // Always keep the currently-mapped account selectable, even if the live
             // Xero account list is empty/incomplete (token refreshing) or the account
-            // was archived — otherwise a saved mapping would render blank on reload.
+            // was archived â€” otherwise a saved mapping would render blank on reload.
             const options = [...filtered];
             if (current?.xero_account_id && !filtered.some(a => a.accountId === current.xero_account_id)) {
               options.unshift({ accountId: current.xero_account_id, code: current.xero_account_code, name: current.xero_account_name, type: '', class: '' } as any);
@@ -11955,9 +11956,9 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
                   disabled={saving === role.key}
                   style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: 13 }}
                 >
-                  <option value="">— Select account —</option>
+                  <option value="">â€” Select account â€”</option>
                   {options.map(a => (
-                    <option key={a.accountId} value={a.accountId}>{a.code} — {a.name}</option>
+                    <option key={a.accountId} value={a.accountId}>{a.code} â€” {a.name}</option>
                   ))}
                 </select>
                 <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{role.desc}</span>
@@ -11998,7 +11999,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
                       }}
                       style={{ width: '100%', padding: '6px 8px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: 13 }}
                     >
-                      <option value="">— Select tracking option —</option>
+                      <option value="">â€” Select tracking option â€”</option>
                       {allTrackingOptions.map(o => (
                         <option key={o.trackingOptionId} value={o.trackingOptionId}>{o.categoryName}: {o.name}</option>
                       ))}
@@ -12018,8 +12019,8 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
       </div>
 
       {/* Payment Methods */}
-      <XeroPaymentMappingSection type="po" label="PO Payment Methods — Xero Bank Accounts" accounts={accounts} />
-      <XeroPaymentMappingSection type="so" label="SO Payment Methods — Xero Bank Accounts" accounts={accounts} />
+      <XeroPaymentMappingSection type="po" label="PO Payment Methods â€” Xero Bank Accounts" accounts={accounts} />
+      <XeroPaymentMappingSection type="so" label="SO Payment Methods â€” Xero Bank Accounts" accounts={accounts} />
 
       {/* Online Gateway Clearing Accounts */}
       <XeroGatewayClearingSection accounts={accounts} getBusinessId={getBusinessId} />
@@ -12027,7 +12028,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
   );
 }
 
-// ─── Online gateway clearing accounts (per-payment-gateway Xero mapping) ─────
+// â”€â”€â”€ Online gateway clearing accounts (per-payment-gateway Xero mapping) â”€â”€â”€â”€â”€
 
 function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any[]; getBusinessId: () => string }) {
   const [mappings, setMappings] = useState<any[]>([]);
@@ -12093,7 +12094,7 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
         <button onClick={() => setAdding(p => !p)} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer' }}>+ Add gateway</button>
       </div>
       <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
-        Maps each online payment gateway (PayPal, Afterpay, etc.) to a dedicated Xero bank/clearing account. When configured, the nightly batch posts a <strong>separate invoice per gateway per day</strong> and immediately applies a payment to the clearing account — ready for bank reconciliation. Gateways with no mapping still post to the combined daily invoice. Shopify Payments is handled separately via the payout sync.
+        Maps each online payment gateway (PayPal, Afterpay, etc.) to a dedicated Xero bank/clearing account. When configured, the nightly batch posts a <strong>separate invoice per gateway per day</strong> and immediately applies a payment to the clearing account â€” ready for bank reconciliation. Gateways with no mapping still post to the combined daily invoice. Shopify Payments is handled separately via the payout sync.
       </p>
 
       {mappings.length > 0 && (
@@ -12115,7 +12116,7 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
                 <td style={{ padding: '8px 12px', color: m.clearing_account_code ? 'var(--sv-text-main)' : 'var(--sv-red)', fontSize: 12 }}>
                   {m.clearing_account_name ?? m.clearing_account_code ?? <span style={{ color: 'var(--sv-red)' }}>Not mapped</span>}
                 </td>
-                <td style={{ padding: '8px 12px', color: 'var(--sv-text-dim)', fontSize: 12 }}>{m.fee_account_name ?? m.fee_account_code ?? '— manual'}</td>
+                <td style={{ padding: '8px 12px', color: 'var(--sv-text-dim)', fontSize: 12 }}>{m.fee_account_name ?? m.fee_account_code ?? 'â€” manual'}</td>
                 <td style={{ padding: '8px 12px' }}>
                   <button onClick={() => del(m.gateway_name, m.display_name)} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--sv-etch)', background: 'transparent', color: '#f87171', cursor: 'pointer' }}>Remove</button>
                 </td>
@@ -12147,21 +12148,21 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
               <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Clearing account (bank) *</label>
               <select value={newForm.clearing_account_code} onChange={e => selectAcc('clearing', e.target.value)}
                 style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12 }}>
-                <option value="">Select account…</option>
-                {bankAccounts.map((a: any) => <option key={a.accountId} value={a.code}>{a.code} — {a.name}</option>)}
+                <option value="">Select accountâ€¦</option>
+                {bankAccounts.map((a: any) => <option key={a.accountId} value={a.code}>{a.code} â€” {a.name}</option>)}
               </select>
             </div>
             <div>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Fee expense account (optional)</label>
               <select value={newForm.fee_account_code} onChange={e => selectAcc('fee', e.target.value)}
                 style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12 }}>
-                <option value="">Leave blank — handle fees manually</option>
-                {expenseAccounts.map((a: any) => <option key={a.accountId} value={a.code}>{a.code} — {a.name}</option>)}
+                <option value="">Leave blank â€” handle fees manually</option>
+                {expenseAccounts.map((a: any) => <option key={a.accountId} value={a.code}>{a.code} â€” {a.name}</option>)}
               </select>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={save} disabled={saving} style={{ fontSize: 12, padding: '5px 14px', borderRadius: 6, background: 'var(--sv-action)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600 }}>{saving ? 'Saving…' : 'Add Mapping'}</button>
+            <button onClick={save} disabled={saving} style={{ fontSize: 12, padding: '5px 14px', borderRadius: 6, background: 'var(--sv-action)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600 }}>{saving ? 'Savingâ€¦' : 'Add Mapping'}</button>
             <button onClick={() => setAdding(false)} style={{ fontSize: 12, padding: '5px 12px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer' }}>Cancel</button>
           </div>
         </div>
@@ -12237,7 +12238,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
   };
 
   const dismiss = async (type: 'po' | 'so', id: number, reference: string, key: string) => {
-    if (!confirm(`Remove "${reference}" from the Xero sync queue?\n\nThis will not sync it — it will be marked as dismissed. You can retry manually from the sync history if needed.`)) return;
+    if (!confirm(`Remove "${reference}" from the Xero sync queue?\n\nThis will not sync it â€” it will be marked as dismissed. You can retry manually from the sync history if needed.`)) return;
     setRetrying(r => ({ ...r, [key]: true }));
     try {
       await fetch('/api/ims/xero/dismiss', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, id }) });
@@ -12282,8 +12283,8 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
   };
 
   const fmtDate  = (d: string) => { try { return new Date(d).toLocaleString('en-AU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return d; } };
-  const fmtDay   = (d: string | null | undefined) => { if (!d) return '—'; try { const s = String(d); return new Date(s.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }); } catch { return String(d).slice(0, 10); } };
-  const fmtMoney = (v: number | null) => v != null ? `$${Number(v).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
+  const fmtDay   = (d: string | null | undefined) => { if (!d) return 'â€”'; try { const s = String(d); return new Date(s.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }); } catch { return String(d).slice(0, 10); } };
+  const fmtMoney = (v: number | null) => v != null ? `$${Number(v).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'â€”';
 
   const th: React.CSSProperties = { padding: '8px 10px', color: 'var(--sv-text-dim)', fontWeight: 600, fontSize: 11, textAlign: 'left', whiteSpace: 'nowrap' };
   const td: React.CSSProperties = { padding: '9px 10px', fontSize: 13, color: 'var(--sv-text-main)', verticalAlign: 'middle' };
@@ -12297,18 +12298,18 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
     ? entries.filter(e => (e.last_xero_state ?? '') === filterXeroState)
     : entries;
 
-  if (loading) return <div style={{ padding: 20, color: 'var(--sv-text-dim)' }}>Loading…</div>;
+  if (loading) return <div style={{ padding: 20, color: 'var(--sv-text-dim)' }}>Loadingâ€¦</div>;
 
   return (
     <div style={{ maxWidth: 960, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      {/* ── Queued panel ── */}
+      {/* â”€â”€ Queued panel â”€â”€ */}
       {queued.length > 0 && (
         <div style={{ padding: '16px 20px', background: 'rgba(251,191,36,.06)', borderRadius: 10, border: '1px solid rgba(251,191,36,.25)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24' }}>⚠ Queued for Xero Sync ({queued.length})</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24' }}>âš  Queued for Xero Sync ({queued.length})</span>
             <button onClick={pushAllQueued} disabled={pushAll} style={{ background: 'rgba(251,191,36,.15)', border: '1px solid rgba(251,191,36,.3)', borderRadius: 6, cursor: 'pointer', padding: '4px 12px', fontSize: 12, color: '#fbbf24', fontWeight: 600 }}>
-              {pushAll ? 'Pushing…' : 'Push All'}
+              {pushAll ? 'Pushingâ€¦' : 'Push All'}
             </button>
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -12322,16 +12323,16 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                   <tr key={key} style={{ borderBottom: '1px solid rgba(251,191,36,.1)' }}>
                     <td style={td}><span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: item.type === 'po' ? 'rgba(99,102,241,.15)' : 'rgba(16,185,129,.15)', color: item.type === 'po' ? '#818cf8' : '#34d399' }}>{item.type.toUpperCase()}</span></td>
                     <td style={{ ...td, fontWeight: 600 }}>{item.reference}</td>
-                    <td style={{ ...td, color: 'var(--sv-text-dim)' }}>{item.contact_name || '—'}</td>
-                    <td style={td}>{item.total_amount != null ? fmtMoney(item.total_amount) : '—'}</td>
-                    <td style={{ ...td, color: 'var(--sv-text-dim)', fontSize: 12 }}>{item.xero_synced_at ? fmtDate(item.xero_synced_at) : '—'}</td>
+                    <td style={{ ...td, color: 'var(--sv-text-dim)' }}>{item.contact_name || 'â€”'}</td>
+                    <td style={td}>{item.total_amount != null ? fmtMoney(item.total_amount) : 'â€”'}</td>
+                    <td style={{ ...td, color: 'var(--sv-text-dim)', fontSize: 12 }}>{item.xero_synced_at ? fmtDate(item.xero_synced_at) : 'â€”'}</td>
                     <td style={{ ...td, textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                         <button onClick={() => retry(item.type, item.id, key)} disabled={retrying[key]} style={{ background: 'rgba(251,191,36,.15)', border: '1px solid rgba(251,191,36,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 10px', fontSize: 12, color: '#fbbf24' }}>
-                          {retrying[key] ? 'Pushing…' : 'Push Now'}
+                          {retrying[key] ? 'Pushingâ€¦' : 'Push Now'}
                         </button>
                         <button onClick={() => dismiss(item.type, item.id, item.reference, key)} disabled={retrying[key]} title="Remove from queue without syncing" style={{ background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.25)', borderRadius: 5, cursor: 'pointer', padding: '3px 8px', fontSize: 12, color: '#f87171' }}>
-                          ✕
+                          âœ•
                         </button>
                       </div>
                     </td>
@@ -12343,7 +12344,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
         </div>
       )}
 
-      {/* ── Sync history ── */}
+      {/* â”€â”€ Sync history â”€â”€ */}
       <div style={{ background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Sync History (last 200)</span>
@@ -12359,7 +12360,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                 {!filterXeroState && entries.some(e => !e.last_xero_state) && <option value='__none'>Unknown / Pre-history</option>}
               </select>
             )}
-            <button onClick={loadData} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: 'pointer', padding: '4px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>↻ Refresh</button>
+            <button onClick={loadData} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: 'pointer', padding: '4px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>â†» Refresh</button>
           </div>
         </div>
 
@@ -12400,7 +12401,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                       <td style={{ ...td, textAlign: 'center', width: 28 }}>
                         {hasPayments && (
                           <button onClick={() => toggleExpand(ei)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 13, padding: 0, lineHeight: 1 }}>
-                            {isExpanded ? '▾' : '▸'}
+                            {isExpanded ? 'â–¾' : 'â–¸'}
                           </button>
                         )}
                       </td>
@@ -12412,7 +12413,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                       <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{fmtDay(entry.item_date)}</td>
                       <td style={{ ...td, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{entry.reference}</td>
                       <td style={{ ...td, color: 'var(--sv-text-dim)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {entry.contact_name ?? '—'}
+                        {entry.contact_name ?? 'â€”'}
                         {entry.xero_id && (
                           <a
                             href={xeroLink(entry.sync_type, entry.xero_id)}
@@ -12421,12 +12422,12 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                             title={`Open in Xero (${entry.xero_id})`}
                             style={{ display: 'block', fontSize: 11, color: '#38bdf8', textDecoration: 'none', fontFamily: 'monospace' }}
                           >
-                            ↗ {String(entry.xero_id).slice(0, 8)}…
+                            â†— {String(entry.xero_id).slice(0, 8)}â€¦
                           </a>
                         )}
                       </td>
                       <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtMoney(entry.amount)}</td>
-                      <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{entry.last_sync_at ? fmtDate(entry.last_sync_at) : '—'}</td>
+                      <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{entry.last_sync_at ? fmtDate(entry.last_sync_at) : 'â€”'}</td>
                       <td style={td}><XeroStatusBadge status={entry.last_sync_status} isHistorical={isHistorical} /></td>
                       <td style={td}><XeroStateBadge state={entry.last_xero_state ?? null} /></td>
                       <td style={{ ...td, textAlign: 'right' }}>
@@ -12436,7 +12437,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                             disabled={retrying[retryKey]}
                             style={{ background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: '#f87171', fontWeight: 600 }}
                           >
-                            {retrying[retryKey] ? '…' : '↻ Retry'}
+                            {retrying[retryKey] ? 'â€¦' : 'â†» Retry'}
                           </button>
                         )}
                         {entry.sync_type === 'online_batch' && !entry.last_sync_status && entry.item_date && (
@@ -12445,7 +12446,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                             disabled={retrying[retryKey]}
                             style={{ background: 'rgba(56,189,248,.12)', border: '1px solid rgba(56,189,248,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: '#38bdf8', fontWeight: 600 }}
                           >
-                            {retrying[retryKey] ? '…' : '↑ Sync Now'}
+                            {retrying[retryKey] ? 'â€¦' : 'â†‘ Sync Now'}
                           </button>
                         )}
                       </td>
@@ -12454,7 +12455,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                     {/* Payment child rows */}
                     {isExpanded && entry.payments.map((pay, pi) => {
                       const payKey = `pay-${pay.id}`;
-                      const payAmt = pay.amount != null ? fmtMoney(pay.amount) : (pay.detail ?? '—');
+                      const payAmt = pay.amount != null ? fmtMoney(pay.amount) : (pay.detail ?? 'â€”');
                       return (
                         <tr key={pay.id ?? pi} style={{ borderBottom: '1px solid var(--sv-etch)', background: 'rgba(99,102,241,.04)' }}>
                           <td style={td}></td>
@@ -12463,10 +12464,10 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                           </td>
                           <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{fmtDay(pay.payment_date)}</td>
                           <td style={{ ...td, color: 'var(--sv-text-dim)' }}>
-                            <span style={{ color: 'var(--sv-etch)', marginRight: 6 }}>└</span>
-                            {pay.notes ?? pay.detail ?? '—'}
+                            <span style={{ color: 'var(--sv-etch)', marginRight: 6 }}>â””</span>
+                            {pay.notes ?? pay.detail ?? 'â€”'}
                           </td>
-                          <td style={{ ...td, color: 'var(--sv-text-dim)', fontSize: 12 }}>{pay.notes ?? pay.detail ?? '—'}</td>
+                          <td style={{ ...td, color: 'var(--sv-text-dim)', fontSize: 12 }}>{pay.notes ?? pay.detail ?? 'â€”'}</td>
                           <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{payAmt}</td>
                           <td style={{ ...td, color: 'var(--sv-text-dim)', fontSize: 12, whiteSpace: 'nowrap' }}>{fmtDate(pay.synced_at)}</td>
                           <td style={td}><XeroStatusBadge status={pay.status} /></td>
@@ -12478,7 +12479,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                                 disabled={retrying[payKey]}
                                 style={{ background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: '#f87171', fontWeight: 600 }}
                               >
-                                {retrying[payKey] ? '…' : '↻ Retry'}
+                                {retrying[payKey] ? 'â€¦' : 'â†» Retry'}
                               </button>
                             )}
                           </td>
@@ -12496,9 +12497,9 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Bulk Edit View
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type BulkEditRow = {
   product_id: string;
@@ -12555,10 +12556,10 @@ function BulkEditView() {
   const [brandFilter, setBrandFilter] = useState('');
   const [supplierFilter, setSupplierFilter] = useState('');
 
-  // Local edits: product_id → draft fields
+  // Local edits: product_id â†’ draft fields
   const [edits, setEdits] = useState<Record<string, BulkEditDraft>>({});
   
-  // Variant edits: `${product_id}|${variant_id}` → variant draft
+  // Variant edits: `${product_id}|${variant_id}` â†’ variant draft
   const [variantEdits, setVariantEdits] = useState<Record<string, VariantEditDraft>>({});
   
   // Expanded products
@@ -12724,7 +12725,7 @@ function BulkEditView() {
           onClick={handleSave}
           disabled={!isDirty || saving}
           style={{ padding: '7px 18px', background: isDirty ? 'var(--sv-action)' : 'var(--sv-bg-3)', color: isDirty ? '#fff' : 'var(--sv-text-dim)', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: isDirty ? 'pointer' : 'default', opacity: saving ? 0.6 : 1 }}
-        >{saving ? 'Saving…' : 'Save Changes'}</button>
+        >{saving ? 'Savingâ€¦' : 'Save Changes'}</button>
       </div>
 
       {/* Filter bar */}
@@ -12737,7 +12738,7 @@ function BulkEditView() {
 
         {/* Text search */}
         <input
-          value={q} onChange={e => setQ(e.target.value)} placeholder="Search name / SKU…"
+          value={q} onChange={e => setQ(e.target.value)} placeholder="Search name / SKUâ€¦"
           style={{ ...inputSt, width: 180, marginBottom: 0 }}
         />
 
@@ -12769,7 +12770,7 @@ function BulkEditView() {
         {(q || quickFilter || brandFilter || supplierFilter) && (
           <button onClick={() => { setQ(''); setQuickFilter(''); setBrandFilter(''); setSupplierFilter(''); }}
             style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer' }}>
-            × Clear
+            Ã— Clear
           </button>
         )}
 
@@ -12794,7 +12795,7 @@ function BulkEditView() {
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={showZoneBin ? 8 : 6} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
+              <tr><td colSpan={showZoneBin ? 8 : 6} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loadingâ€¦</td></tr>
             )}
             {!loading && loadError && (
               <tr><td colSpan={showZoneBin ? 8 : 6} style={{ padding: '32px', textAlign: 'center', color: 'var(--sv-red)' }}>Error: {loadError}</td></tr>
@@ -12850,7 +12851,7 @@ function BulkEditView() {
                         })}
                         style={{ padding: '2px 6px', minWidth: 28, background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 3, color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
                       >
-                        {isExpanded ? '▼' : '▶'}
+                        {isExpanded ? 'â–¼' : 'â–¶'}
                       </button>
                       <input
                         value={nameVal}
@@ -12865,12 +12866,12 @@ function BulkEditView() {
                         <input
                           value={barcodeVal || firstVariantBarcode || ''}
                           onChange={e => setEdit(row.product_id, 'barcode', e.target.value)}
-                          placeholder="—"
+                          placeholder="â€”"
                           style={barcodeDirty ? dirtyInputSt : inputSt}
                         />
                       ) : (
                         <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>
-                          {firstVariantBarcode ? `${firstVariantBarcode}*` : '—'}
+                          {firstVariantBarcode ? `${firstVariantBarcode}*` : 'â€”'}
                         </span>
                       )}
                     </td>
@@ -12895,18 +12896,18 @@ function BulkEditView() {
                       />
                     </td>
 
-                    {/* Zone / Bin — editable for single-variant; expand hint for multi-variant */}
+                    {/* Zone / Bin â€” editable for single-variant; expand hint for multi-variant */}
                     {showZoneBin && (
                       <td style={{ padding: '4px 8px' }}>
                         {isSingleVariant ? (
                           <input
                             value={getVariantValue(row.product_id, row.variants[0]?.variant_id, 'zone', firstVariantZone)}
                             onChange={e => setVariantEdit(row.product_id, row.variants[0]?.variant_id, 'zone', e.target.value)}
-                            placeholder="—"
+                            placeholder="â€”"
                             style={(variantEdits[`${row.product_id}|${row.variants[0]?.variant_id}`] && 'zone' in (variantEdits[`${row.product_id}|${row.variants[0]?.variant_id}`] ?? {})) ? dirtyInputSt : inputSt}
                           />
                         ) : (
-                          <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{firstVariantZone || '—'}</span>
+                          <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{firstVariantZone || 'â€”'}</span>
                         )}
                       </td>
                     )}
@@ -12916,11 +12917,11 @@ function BulkEditView() {
                           <input
                             value={getVariantValue(row.product_id, row.variants[0]?.variant_id, 'bin', firstVariantBin)}
                             onChange={e => setVariantEdit(row.product_id, row.variants[0]?.variant_id, 'bin', e.target.value)}
-                            placeholder="—"
+                            placeholder="â€”"
                             style={(variantEdits[`${row.product_id}|${row.variants[0]?.variant_id}`] && 'bin' in (variantEdits[`${row.product_id}|${row.variants[0]?.variant_id}`] ?? {})) ? dirtyInputSt : inputSt}
                           />
                         ) : (
-                          <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{firstVariantBin || '—'}</span>
+                          <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{firstVariantBin || 'â€”'}</span>
                         )}
                       </td>
                     )}
@@ -12932,7 +12933,7 @@ function BulkEditView() {
                         onChange={e => setEdit(row.product_id, 'supplier_contact_id', e.target.value ? Number(e.target.value) : null)}
                         style={supplierDirty ? dirtyInputSt : inputSt}
                       >
-                        <option value=''>— none —</option>
+                        <option value=''>â€” none â€”</option>
                         {suppliers.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
                       </select>
                     </td>
@@ -12943,7 +12944,7 @@ function BulkEditView() {
                         list="be-brands-list"
                         value={brandVal}
                         onChange={e => setEdit(row.product_id, 'brand', e.target.value)}
-                        placeholder="—"
+                        placeholder="â€”"
                         style={brandDirty ? dirtyInputSt : inputSt}
                       />
                     </td>
@@ -12970,7 +12971,7 @@ function BulkEditView() {
                           <input
                             value={vBarcodeVal}
                             onChange={e => setVariantEdit(row.product_id, variant.variant_id, 'barcode', e.target.value)}
-                            placeholder={variant.barcode || '—'}
+                            placeholder={variant.barcode || 'â€”'}
                             style={vBarcodeDirty ? dirtyInputSt : inputSt}
                             title={`Barcode for variant ${variant.sku}`}
                           />
@@ -12985,7 +12986,7 @@ function BulkEditView() {
                             <input
                               value={vZoneVal}
                               onChange={e => setVariantEdit(row.product_id, variant.variant_id, 'zone', e.target.value)}
-                              placeholder={'—'}
+                              placeholder={'â€”'}
                               style={vZoneDirty ? dirtyInputSt : inputSt}
                               title={`Zone for variant ${variant.sku} at this branch`}
                             />
@@ -12998,7 +12999,7 @@ function BulkEditView() {
                             <input
                               value={vBinVal}
                               onChange={e => setVariantEdit(row.product_id, variant.variant_id, 'bin', e.target.value)}
-                              placeholder={'—'}
+                              placeholder={'â€”'}
                               style={vBinDirty ? dirtyInputSt : inputSt}
                               title={`Bin for variant ${variant.sku} at this branch`}
                             />
@@ -13025,8 +13026,8 @@ function BulkEditView() {
       {/* Pagination */}
       {totalPages > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center', paddingTop: 4 }}>
-          <button onClick={() => setPage(1)} disabled={page === 1} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: page === 1 ? 'var(--sv-text-dim)' : 'var(--sv-text-main)', cursor: page === 1 ? 'default' : 'pointer' }}>«</button>
-          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: page === 1 ? 'var(--sv-text-dim)' : 'var(--sv-text-main)', cursor: page === 1 ? 'default' : 'pointer' }}>‹ Prev</button>
+          <button onClick={() => setPage(1)} disabled={page === 1} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: page === 1 ? 'var(--sv-text-dim)' : 'var(--sv-text-main)', cursor: page === 1 ? 'default' : 'pointer' }}>Â«</button>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: page === 1 ? 'var(--sv-text-dim)' : 'var(--sv-text-main)', cursor: page === 1 ? 'default' : 'pointer' }}>â€¹ Prev</button>
           {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
             const start = Math.max(1, Math.min(page - 3, totalPages - 6));
             const p = start + i;
@@ -13035,8 +13036,8 @@ function BulkEditView() {
               <button key={p} onClick={() => setPage(p)} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: p === page ? '1px solid var(--sv-action)' : '1px solid var(--sv-etch)', background: p === page ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: p === page ? '#fff' : 'var(--sv-text-main)', cursor: 'pointer', fontWeight: p === page ? 700 : 400 }}>{p}</button>
             );
           })}
-          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: page === totalPages ? 'var(--sv-text-dim)' : 'var(--sv-text-main)', cursor: page === totalPages ? 'default' : 'pointer' }}>Next ›</button>
-          <button onClick={() => setPage(totalPages)} disabled={page === totalPages} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: page === totalPages ? 'var(--sv-text-dim)' : 'var(--sv-text-main)', cursor: page === totalPages ? 'default' : 'pointer' }}>»</button>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: page === totalPages ? 'var(--sv-text-dim)' : 'var(--sv-text-main)', cursor: page === totalPages ? 'default' : 'pointer' }}>Next â€º</button>
+          <button onClick={() => setPage(totalPages)} disabled={page === totalPages} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: page === totalPages ? 'var(--sv-text-dim)' : 'var(--sv-text-main)', cursor: page === totalPages ? 'default' : 'pointer' }}>Â»</button>
           <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginLeft: 8 }}>Page {page} of {totalPages}</span>
         </div>
       )}
@@ -13044,18 +13045,18 @@ function BulkEditView() {
       {/* Unsaved changes warning */}
       {isDirty && (
         <div style={{ padding: '10px 14px', background: 'color-mix(in srgb, var(--sv-action) 10%, var(--sv-bg-1))', borderRadius: 7, border: '1px solid var(--sv-action)', fontSize: 12, color: 'var(--sv-action)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 12 }}>
-          ⚠ You have {Object.keys(edits).length + Object.keys(variantEdits).length} unsaved change{Object.keys(edits).length + Object.keys(variantEdits).length !== 1 ? 's' : ''}. Navigate pages freely — edits persist until you save or refresh.
+          âš  You have {Object.keys(edits).length + Object.keys(variantEdits).length} unsaved change{Object.keys(edits).length + Object.keys(variantEdits).length !== 1 ? 's' : ''}. Navigate pages freely â€” edits persist until you save or refresh.
           <button onClick={() => { setEdits({}); setVariantEdits({}); }} style={{ marginLeft: 'auto', padding: '3px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--sv-action)', background: 'none', color: 'var(--sv-action)', cursor: 'pointer' }}>Discard</button>
-          <button onClick={handleSave} disabled={saving} style={{ padding: '3px 12px', fontSize: 12, borderRadius: 5, border: 'none', background: 'var(--sv-action)', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>{saving ? 'Saving…' : 'Save Now'}</button>
+          <button onClick={handleSave} disabled={saving} style={{ padding: '3px 12px', fontSize: 12, borderRadius: 5, border: 'none', background: 'var(--sv-action)', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>{saving ? 'Savingâ€¦' : 'Save Now'}</button>
         </div>
       )}
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Settings — section type and context helper
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Settings â€” section type and context helper
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type SettingsSection = 'general' | 'business-profile' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations';
 
 function sectionFromView(v: ImsView): SettingsSection {
@@ -13067,9 +13068,9 @@ function sectionFromView(v: ImsView): SettingsSection {
   return 'general';
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// UsersListView — shown under Settings → Users
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// UsersListView â€” shown under Settings â†’ Users
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const TIER_COLORS: Record<string, string> = {
   SuperAdmin: '#e05252',
   Admin: '#3eb8b0',
@@ -13109,14 +13110,14 @@ function UsersListView() {
     if (editForm.clearPin) body.pos_pin = '';
     else if (editForm.pos_pin) body.pos_pin = editForm.pos_pin;
     const r = await fetch(`/api/admin/users?userId=${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    if (r.ok) { flash('✓ User updated.'); setEditingUser(null); reload(); }
+    if (r.ok) { flash('âœ“ User updated.'); setEditingUser(null); reload(); }
     else { const e = await r.json(); flash(`Error: ${e.error}`); }
   };
 
   const deleteUser = async (id: number, email: string) => {
     if (!window.confirm(`Delete user ${email}?`)) return;
     const r = await fetch(`/api/admin/users?userId=${id}`, { method: 'DELETE' });
-    if (r.ok) { flash('✓ User deleted.'); reload(); }
+    if (r.ok) { flash('âœ“ User deleted.'); reload(); }
     else { const e = await r.json(); flash(`Error: ${e.error}`); }
   };
 
@@ -13124,7 +13125,7 @@ function UsersListView() {
     e.preventDefault();
     const r = await fetch('/api/admin/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(createForm) });
     if (r.ok) {
-      flash('✓ User created.');
+      flash('âœ“ User created.');
       setShowCreate(false);
       setCreateForm({ email: '', password: '', name: '', username: '', tier: 'StandardUser' });
       reload();
@@ -13137,7 +13138,7 @@ function UsersListView() {
 
   const tierLabel = (t: string) => ({ SuperAdmin: 'Super Admin', Admin: 'Admin', StandardUser: 'Standard User', Advisor: 'Advisor (Read-only)', PosManager: 'POS Manager', PosUser: 'POS User' }[t] ?? t);
 
-  if (loading) return <p style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>Loading…</p>;
+  if (loading) return <p style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>Loadingâ€¦</p>;
 
   return (
     <div>
@@ -13158,8 +13159,8 @@ function UsersListView() {
         <tbody>
           {users.map((u: any) => (
             <tr key={u.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-              <td style={{ padding: '10px 12px', color: 'var(--sv-text-strong)', fontFamily: 'monospace', fontSize: 12 }}>{u.username || '—'}</td>
-              <td style={{ padding: '10px 12px', color: 'var(--sv-text-strong)' }}>{u.name || '—'}</td>
+              <td style={{ padding: '10px 12px', color: 'var(--sv-text-strong)', fontFamily: 'monospace', fontSize: 12 }}>{u.username || 'â€”'}</td>
+              <td style={{ padding: '10px 12px', color: 'var(--sv-text-strong)' }}>{u.name || 'â€”'}</td>
               <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)' }}>{u.email}</td>
               <td style={{ padding: '10px 12px' }}>
                 <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 12, background: TIER_COLORS[u.tier] ?? '#888', color: '#fff', fontSize: 11, fontWeight: 600 }}>{tierLabel(u.tier)}</span>
@@ -13201,7 +13202,7 @@ function UsersListView() {
               <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.04em' }}>POS PIN</label>
               {editingUser.has_pos_pin && !editForm.clearPin && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                  <span style={{ fontSize: 12, color: 'var(--sv-mint)' }}>✓ PIN is set</span>
+                  <span style={{ fontSize: 12, color: 'var(--sv-mint)' }}>âœ“ PIN is set</span>
                   <button onClick={() => setEditForm(p => ({ ...p, clearPin: true, pos_pin: '' }))} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: '1px solid rgba(224,82,82,.5)', background: 'transparent', color: '#e05252', cursor: 'pointer' }}>Clear</button>
                 </div>
               )}
@@ -13212,7 +13213,7 @@ function UsersListView() {
                 </div>
               )}
               {!editForm.clearPin && (
-                <input type='password' maxLength={8} value={editForm.pos_pin} onChange={e => setEditForm(p => ({ ...p, pos_pin: e.target.value }))} style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-strong)', fontSize: 13, boxSizing: 'border-box' }} placeholder={editingUser.has_pos_pin ? 'New PIN (leave blank to keep current)' : '4–8 digit PIN for POS login'} />
+                <input type='password' maxLength={8} value={editForm.pos_pin} onChange={e => setEditForm(p => ({ ...p, pos_pin: e.target.value }))} style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-strong)', fontSize: 13, boxSizing: 'border-box' }} placeholder={editingUser.has_pos_pin ? 'New PIN (leave blank to keep current)' : '4â€“8 digit PIN for POS login'} />
               )}
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -13257,9 +13258,9 @@ function UsersListView() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Main Page
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function ImsPage() {
   const router = useRouter();
@@ -13285,7 +13286,7 @@ export default function ImsPage() {
   const [pendingOpenSO, setPendingOpenSO] = useState<number | null>(null);
   const [cnPrefill, setCnPrefill] = useState<any>(null);
 
-  // ── Notifications ────────────────────────────────────────────────────────
+  // â”€â”€ Notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [notifOpen, setNotifOpen]           = useState(false);
   const [notifications, setNotifications]   = useState<any[]>([]);
   const [notifUnread, setNotifUnread]       = useState(0);
@@ -13352,7 +13353,7 @@ export default function ImsPage() {
     setNotifExpanded(null);
   }, []);
 
-  // ── URL hash ↔ view sync ──────────────────────────────────────────────────
+  // â”€â”€ URL hash â†” view sync â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const VALID_VIEWS = useMemo(() => new Set<string>([
     'dashboard','products','stock','brands','bulk-edit','contacts','locations',
     'purchase-orders','sales-orders','credit-notes','supplier-credit-notes',
@@ -13427,7 +13428,7 @@ export default function ImsPage() {
     } catch (e: any) {
       setSyncLog(prev => [...prev, { step: 'error', status: 'error', message: e.message }]);
     } finally {
-      setSyncLog(prev => [...prev, { step: 'complete', status: 'done', message: '✓ Sync complete.' }]);
+      setSyncLog(prev => [...prev, { step: 'complete', status: 'done', message: 'âœ“ Sync complete.' }]);
       setSyncing(false);
       setSyncingSteps([]);
     }
@@ -13437,7 +13438,7 @@ export default function ImsPage() {
     fetch('/api/user/me').then(r => r.json()).then(d => {
       if (d.name) {
         setUser(d);
-        // Auto-sync unsynced online batch days — once per browser session, non-blocking.
+        // Auto-sync unsynced online batch days â€” once per browser session, non-blocking.
         const sessionKey = `online_auto_sync_${d.businessId ?? 'x'}`;
         if (!sessionStorage.getItem(sessionKey)) {
           sessionStorage.setItem(sessionKey, '1');
@@ -13500,14 +13501,14 @@ export default function ImsPage() {
       {/* Xero Queued Banner */}
       {xeroQueuedCount > 0 && (
         <div style={{ background: 'rgba(251,191,36,.15)', borderBottom: '1px solid rgba(251,191,36,.3)', padding: '7px 20px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: '#fbbf24', flexShrink: 0 }}>
-          <span style={{ fontWeight: 700 }}>⚠ {xeroQueuedCount} order{xeroQueuedCount !== 1 ? 's' : ''} queued for Xero sync</span>
+          <span style={{ fontWeight: 700 }}>âš  {xeroQueuedCount} order{xeroQueuedCount !== 1 ? 's' : ''} queued for Xero sync</span>
           <button
             onClick={() => { setView('xero'); }}
             style={{ background: 'none', border: '1px solid rgba(251,191,36,.4)', borderRadius: 4, cursor: 'pointer', padding: '2px 10px', fontSize: 11, color: '#fbbf24' }}
           >
-            View in Integrations →
+            View in Integrations â†’
           </button>
-          <button onClick={() => setXeroQueuedCount(0)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#fbbf24', fontSize: 14, lineHeight: 1 }}>×</button>
+          <button onClick={() => setXeroQueuedCount(0)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#fbbf24', fontSize: 14, lineHeight: 1 }}>Ã—</button>
         </div>
       )}
       {/* Header */}
@@ -13542,7 +13543,7 @@ export default function ImsPage() {
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17" strokeLinecap="round" strokeWidth="2.5"/></svg>
         </button>
-        {/* ── Notifications bell ─────────────────────────────────────────── */}
+        {/* â”€â”€ Notifications bell â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div style={{ position: 'relative' }}>
           <button
             onClick={openNotifPanel}
@@ -13580,7 +13581,7 @@ export default function ImsPage() {
                 </div>
                 {/* Notification list */}
                 <div style={{ overflowY: 'auto', flex: 1 }}>
-                  {notifLoading && <div style={{ padding: 24, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>Loading…</div>}
+                  {notifLoading && <div style={{ padding: 24, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>Loadingâ€¦</div>}
                   {!notifLoading && notifications.length === 0 && (
                     <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>
                       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ opacity: 0.3, marginBottom: 8, display: 'block', margin: '0 auto 8px' }}><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
@@ -13666,7 +13667,7 @@ export default function ImsPage() {
             onMouseLeave={e => (e.currentTarget.style.background = 'none')}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-            {syncing ? 'Syncing…' : 'Sync'}
+            {syncing ? 'Syncingâ€¦' : 'Sync'}
           </button>
         )}
         <button
@@ -13692,7 +13693,7 @@ export default function ImsPage() {
               {user.name ? user.name[0].toUpperCase() : '?'}
             </span>
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-main)' }}>{user.name || 'User'}</span>
-            <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>▾</span>
+            <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>â–¾</span>
           </button>
           {userMenuOpen && (
             <>
@@ -13823,9 +13824,9 @@ export default function ImsPage() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Receive Branch Transfer Modal (shared between IMS and Receive Transfers view)
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ReceiveBranchTransferModal({ bt, onClose, onDone }: { bt: any; onClose: () => void; onDone: () => void }) {
   const [receiveQtys, setReceiveQtys] = useState<Record<number, number>>(() => {
@@ -13861,7 +13862,7 @@ function ReceiveBranchTransferModal({ bt, onClose, onDone }: { bt: any; onClose:
     const match = items.find(i => (i.barcode && i.barcode === trimmed) || (i.sku && i.sku === trimmed));
     if (!match) {
       playErrorBeep();
-      setScanError(`No item found matching "${trimmed}" — check barcode/SKU`);
+      setScanError(`No item found matching "${trimmed}" â€” check barcode/SKU`);
       setLastScanned(null);
       setTimeout(() => setScanError(null), 5000);
       scanRef.current?.focus();
@@ -13890,15 +13891,15 @@ function ReceiveBranchTransferModal({ bt, onClose, onDone }: { bt: any; onClose:
     if (notReceived.length > 0 || partialReceived.length > 0) {
       const lines: string[] = [];
       if (notReceived.length > 0) {
-        lines.push(`Not received (0 qty — stock stays at ${bt.from_location_name}):`);
-        notReceived.forEach(i => lines.push(`  • ${i.sku || i.product_name}${i.variant_label ? ` — ${i.variant_label}` : ''} (sent: ${Number(i.qty_sent)})`));
+        lines.push(`Not received (0 qty â€” stock stays at ${bt.from_location_name}):`);
+        notReceived.forEach(i => lines.push(`  â€¢ ${i.sku || i.product_name}${i.variant_label ? ` â€” ${i.variant_label}` : ''} (sent: ${Number(i.qty_sent)})`));
       }
       if (partialReceived.length > 0) {
         lines.push('');
         lines.push('Partially received (remainder stays at source):');
         partialReceived.forEach(i => {
           const rcvd = receiveQtys[i.id] ?? 0;
-          lines.push(`  • ${i.sku || i.product_name}${i.variant_label ? ` — ${i.variant_label}` : ''} (sent: ${Number(i.qty_sent)}, receiving: ${rcvd})`);
+          lines.push(`  â€¢ ${i.sku || i.product_name}${i.variant_label ? ` â€” ${i.variant_label}` : ''} (sent: ${Number(i.qty_sent)}, receiving: ${rcvd})`);
         });
       }
       lines.push('');
@@ -13941,10 +13942,10 @@ function ReceiveBranchTransferModal({ bt, onClose, onDone }: { bt: any; onClose:
   };
 
   return (
-    <Modal title={`Confirm Receipt — ${bt.transfer_number}`} onClose={onClose} wide>
+    <Modal title={`Confirm Receipt â€” ${bt.transfer_number}`} onClose={onClose} wide>
       {/* Info banner */}
       <div style={{ marginBottom: 16, padding: '10px 14px', background: 'rgba(139,92,246,.08)', border: '1px solid rgba(139,92,246,.25)', borderRadius: 8, fontSize: 13, color: 'var(--sv-text-dim)' }}>
-        <strong>{bt.from_location_name}</strong> → <strong>{bt.to_location_name}</strong>.&ensp;
+        <strong>{bt.from_location_name}</strong> â†’ <strong>{bt.to_location_name}</strong>.&ensp;
         Qty received defaults to <strong>0</strong>. Scan items or adjust manually, then confirm to move stock.
       </div>
 
@@ -13965,12 +13966,12 @@ function ReceiveBranchTransferModal({ bt, onClose, onDone }: { bt: any; onClose:
             const diff = rcvd !== Number(item.qty_sent);
             return (
               <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)', background: isLast ? 'rgba(16,185,129,.07)' : diff ? 'rgba(248,113,113,.04)' : 'transparent' }}>
-                <td style={{ padding: '8px 10px' }}><code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{item.sku || '—'}</code></td>
+                <td style={{ padding: '8px 10px' }}><code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{item.sku || 'â€”'}</code></td>
                 <td style={{ padding: '8px 10px', fontSize: 13 }}>
                   <div>{item.product_name}</div>
                   {item.variant_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{item.variant_label}</div>}
                 </td>
-                <td style={{ padding: '8px 10px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{item.price_rrp ? fmtCurrency(Number(item.price_rrp)) : '—'}</td>
+                <td style={{ padding: '8px 10px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{item.price_rrp ? fmtCurrency(Number(item.price_rrp)) : 'â€”'}</td>
                 <td style={{ padding: '8px 10px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{fmtQty(item.qty_sent)}</td>
                 <td style={{ padding: '8px 10px', width: 110 }}>
                   <input
@@ -13981,7 +13982,7 @@ function ReceiveBranchTransferModal({ bt, onClose, onDone }: { bt: any; onClose:
                   />
                 </td>
                 <td style={{ padding: '8px 10px', fontSize: 13, fontWeight: 600, color: awaiting > 0 ? '#fbbf24' : '#34d399' }}>
-                  {awaiting > 0 ? fmtQty(awaiting) : '✓'}
+                  {awaiting > 0 ? fmtQty(awaiting) : 'âœ“'}
                 </td>
               </tr>
             );
@@ -13991,12 +13992,12 @@ function ReceiveBranchTransferModal({ bt, onClose, onDone }: { bt: any; onClose:
 
       {/* Receive by Scanning Items */}
       <div style={{ padding: 16, background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
-        <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--sv-text-strong)', marginBottom: 10 }}>📷 Receive by Scanning Items</div>
+        <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--sv-text-strong)', marginBottom: 10 }}>ðŸ“· Receive by Scanning Items</div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
           <input
             ref={scanRef}
             type="text"
-            placeholder="Scan barcode or type SKU, then press Enter…"
+            placeholder="Scan barcode or type SKU, then press Enterâ€¦"
             value={scanInput}
             onChange={e => setScanInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleScan(scanInput); } }}
@@ -14008,7 +14009,7 @@ function ReceiveBranchTransferModal({ bt, onClose, onDone }: { bt: any; onClose:
 
         {scanError && (
           <div style={{ marginBottom: 10, padding: '8px 12px', background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.4)', borderRadius: 6, fontSize: 13, color: '#f87171' }}>
-            ⚠ {scanError}
+            âš  {scanError}
           </div>
         )}
 
@@ -14016,10 +14017,10 @@ function ReceiveBranchTransferModal({ bt, onClose, onDone }: { bt: any; onClose:
           <div style={{ padding: '12px 14px', background: 'rgba(16,185,129,.08)', border: '1px solid rgba(16,185,129,.3)', borderRadius: 8 }}>
             <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Last Scanned</div>
             <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--sv-text-strong)', marginBottom: 6 }}>
-              {lastScanned.product_name}{lastScanned.variant_label ? ` — ${lastScanned.variant_label}` : ''}
+              {lastScanned.product_name}{lastScanned.variant_label ? ` â€” ${lastScanned.variant_label}` : ''}
             </div>
             <div style={{ display: 'flex', gap: 24, fontSize: 13, flexWrap: 'wrap' }}>
-              <span><span style={{ color: 'var(--sv-text-dim)' }}>RRP: </span><strong style={{ color: '#34d399', fontSize: 15 }}>{lastScanned.price_rrp ? fmtCurrency(Number(lastScanned.price_rrp)) : '—'}</strong></span>
+              <span><span style={{ color: 'var(--sv-text-dim)' }}>RRP: </span><strong style={{ color: '#34d399', fontSize: 15 }}>{lastScanned.price_rrp ? fmtCurrency(Number(lastScanned.price_rrp)) : 'â€”'}</strong></span>
               <span><span style={{ color: 'var(--sv-text-dim)' }}>Qty Sent: </span><strong>{fmtQty(lastScanned.qty_sent)}</strong></span>
               <span><span style={{ color: 'var(--sv-text-dim)' }}>Qty Received: </span><strong style={{ color: '#34d399' }}>{receiveQtys[lastScanned.id] ?? 0}</strong></span>
               <span><span style={{ color: 'var(--sv-text-dim)' }}>Qty Awaiting: </span>
@@ -14039,10 +14040,10 @@ function ReceiveBranchTransferModal({ bt, onClose, onDone }: { bt: any; onClose:
         <div style={{ display: 'flex', gap: 8 }}>
           <button type="button" onClick={onClose} disabled={receiving} style={btnStyle('ghost')}>Cancel</button>
           <button type="button" onClick={handleSaveLater} disabled={receiving} style={btnStyle('action')}>
-            {receivingMode === 'partial' ? 'Saving…' : '💾 Save & Continue Later'}
+            {receivingMode === 'partial' ? 'Savingâ€¦' : 'ðŸ’¾ Save & Continue Later'}
           </button>
           <button type="button" onClick={handleSubmit} disabled={receiving} style={btnStyle('mint')}>
-            {receivingMode === 'final' ? 'Processing…' : 'Confirm Receipt & Move Stock'}
+            {receivingMode === 'final' ? 'Processingâ€¦' : 'Confirm Receipt & Move Stock'}
           </button>
         </div>
       </div>
@@ -14050,9 +14051,9 @@ function ReceiveBranchTransferModal({ bt, onClose, onDone }: { bt: any; onClose:
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Branch Transfers View
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
   const [transfers, setTransfers]   = useState<any[]>([]);
@@ -14081,7 +14082,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
   // Partial BT management modal
   const [activeBtForManage, setActiveBtForManage]   = useState<any | null>(null);
 
-  // ── Replenish Wizard ──────────────────────────────────────────────────────
+  // â”€â”€ Replenish Wizard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   type ReplenishItem = {
     variant_id: string; sku: string | null; brand_name: string | null; product_name: string; variant_label: string | null;
     need: number; min_qty: number; reorder_qty: number; branch_soh: number; warehouse_soh: number; allocated: number; unit_cost: number;
@@ -14209,7 +14210,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
 
   const createDraftTransfers = async () => {
     const activeBranches = rpPlan.filter(b => b.items.some(i => i.allocated > 0));
-    if (activeBranches.length === 0) { alert('No items to transfer — all allocated quantities are 0.'); return; }
+    if (activeBranches.length === 0) { alert('No items to transfer â€” all allocated quantities are 0.'); return; }
     if (!confirm(`Create ${activeBranches.length} draft branch transfer${activeBranches.length !== 1 ? 's' : ''}?`)) return;
     setRpCreating(true);
     const results: string[] = [];
@@ -14234,9 +14235,9 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
               items,
             }),
           });
-          results.push(`✓ ${branch.location_name}: BT created (${items.length} line${items.length !== 1 ? 's' : ''})`);
+          results.push(`âœ“ ${branch.location_name}: BT created (${items.length} line${items.length !== 1 ? 's' : ''})`);
         } catch (e: any) {
-          results.push(`✗ ${branch.location_name}: ${e.message || 'Failed'}`);
+          results.push(`âœ— ${branch.location_name}: ${e.message || 'Failed'}`);
         }
       }
       setRpCreateResults(results);
@@ -14372,7 +14373,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
   };
   const SortIcon = ({ col }: { col: string }) => (
     <span style={{ opacity: sortCol === col ? 1 : 0.3, fontSize: 10 }}>
-      {sortCol === col ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ' ↕'}
+      {sortCol === col ? (sortDir === 'asc' ? ' â†‘' : ' â†“') : ' â†•'}
     </span>
   );
 
@@ -14410,7 +14411,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
           <div style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginTop: 2 }}>{filtered.length} transfer{filtered.length !== 1 ? 's' : ''}</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={openReplenish} style={btnStyle('secondary')}>⟳ Replenish from Warehouse</button>
+          <button onClick={openReplenish} style={btnStyle('secondary')}>âŸ³ Replenish from Warehouse</button>
           {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New Transfer</button>}
         </div>
       </div>
@@ -14418,7 +14419,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
       {/* Filters */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <input
-          placeholder="Search transfer #, location…"
+          placeholder="Search transfer #, locationâ€¦"
           value={filterSearch}
           onChange={e => { setFilterSearch(e.target.value); setPage(1); }}
           style={{ ...inputStyle, width: 240, flex: 'none' }}
@@ -14463,7 +14464,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
                     <span style={{ fontWeight: 600, color: 'var(--sv-action)', fontSize: 13 }}>{bt.transfer_number}</span>
                   </td>
                   <td style={{ padding: '10px 12px', fontSize: 13 }}>{bt.from_location_name}</td>
-                  <td style={{ padding: '10px 12px', fontSize: 13 }}>→ {bt.to_location_name}</td>
+                  <td style={{ padding: '10px 12px', fontSize: 13 }}>â†’ {bt.to_location_name}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13 }}>{bt.transfer_date?.slice(0, 10)}</td>
                   <td style={{ padding: '10px 12px' }}><StatusBadge status={bt.status} /></td>
                   <td style={{ padding: '10px 12px', fontSize: 13 }}>{fmtCurrency(bt.total_value)}</td>
@@ -14483,11 +14484,11 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
       {/* Pagination */}
       {!loading && totalPages > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14 }}>
-          <button onClick={() => setPage(1)} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>«</button>
-          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>‹ Prev</button>
+          <button onClick={() => setPage(1)} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>Â«</button>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>â€¹ Prev</button>
           <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 8px' }}>Page {safePage} of {totalPages} ({sorted.length} transfers)</span>
-          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>Next ›</button>
-          <button onClick={() => setPage(totalPages)} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>»</button>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>Next â€º</button>
+          <button onClick={() => setPage(totalPages)} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>Â»</button>
         </div>
       )}
 
@@ -14498,13 +14499,13 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
             <Row3>
               <Field label="Source Location *">
                 <select required value={form.from_location_id} onChange={sf('from_location_id')} style={inputStyle}>
-                  <option value="">— Select —</option>
+                  <option value="">â€” Select â€”</option>
                   {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
               </Field>
               <Field label="Destination Location *">
                 <select required value={form.to_location_id} onChange={sf('to_location_id')} style={inputStyle}>
-                  <option value="">— Select —</option>
+                  <option value="">â€” Select â€”</option>
                   {locations.filter(l => String(l.id) !== String(form.from_location_id)).map(l => (
                     <option key={l.id} value={l.id}>{l.name}</option>
                   ))}
@@ -14519,7 +14520,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
               <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>LINE ITEMS</span>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button type="button" onClick={() => setImportOpen(true)} style={btnStyle('secondary', 'xs')}>⬆ Import</button>
+                  <button type="button" onClick={() => setImportOpen(true)} style={btnStyle('secondary', 'xs')}>â¬† Import</button>
                   <button type="button" onClick={addLine} style={btnStyle('ghost', 'xs')}>+ Add Line</button>
                 </div>
               </div>
@@ -14537,8 +14538,8 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
                       const meta = (modal.edit?.items ?? []).find((x: any) => x.variant_id === item.variant_id);
                       return (
                       <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                        <td style={{ padding: '4px 8px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{meta?.zone || '—'}</td>
-                        <td style={{ padding: '4px 8px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{meta?.bin || '—'}</td>
+                        <td style={{ padding: '4px 8px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{meta?.zone || 'â€”'}</td>
+                        <td style={{ padding: '4px 8px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{meta?.bin || 'â€”'}</td>
                         <td style={{ padding: 4 }}>
                           <VariantSearch
                             value={item.variant_id}
@@ -14554,7 +14555,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
                         </td>
                         <td style={{ padding: '4px 8px', width: 100, color: 'var(--sv-text-main)', fontSize: 13 }}>{fmtCurrency(lineTotal(item))}</td>
                         <td style={{ padding: 4, width: 30 }}>
-                          <button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16 }}>×</button>
+                          <button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16 }}>Ã—</button>
                         </td>
                       </tr>
                       );
@@ -14583,7 +14584,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
 
       {/* View Transfer Modal */}
       {viewModal.open && viewModal.bt && (
-        <Modal title={`${viewModal.bt.transfer_number} — ${viewModal.bt.status}`} onClose={() => setViewModal({ open: false, bt: null })} wide>
+        <Modal title={`${viewModal.bt.transfer_number} â€” ${viewModal.bt.status}`} onClose={() => setViewModal({ open: false, bt: null })} wide>
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <BTActions
               isAdvisor={isAdvisor}
@@ -14601,7 +14602,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
             <div><div style={labelStyle}>To Location</div><div>{viewModal.bt.to_location_name}</div></div>
             <div><div style={labelStyle}>Status</div><StatusBadge status={viewModal.bt.status} /></div>
             <div><div style={labelStyle}>Transfer Date</div><div>{viewModal.bt.transfer_date?.slice(0, 10)}</div></div>
-            <div><div style={labelStyle}>Received Date</div><div>{viewModal.bt.received_date?.slice(0, 10) || '—'}</div></div>
+            <div><div style={labelStyle}>Received Date</div><div>{viewModal.bt.received_date?.slice(0, 10) || 'â€”'}</div></div>
             <div><div style={labelStyle}>Total Value</div><div style={{ fontWeight: 600 }}>{fmtCurrency(viewModal.bt.total_value)}</div></div>
           </div>
           {viewModal.bt.notes && <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--sv-bg-2)', borderRadius: 6, fontSize: 13, color: 'var(--sv-text-dim)' }}>{viewModal.bt.notes}</div>}
@@ -14618,14 +14619,14 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
                 const hasDiscrepancy = item.qty_received != null && Number(item.qty_received) !== Number(item.qty_sent);
                 return (
                   <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                    <td style={{ padding: '8px 10px' }}><code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{item.sku || '—'}</code></td>
+                    <td style={{ padding: '8px 10px' }}><code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{item.sku || 'â€”'}</code></td>
                     <td style={{ padding: '8px 10px', fontSize: 13 }}>{item.product_name}</td>
                     <td style={{ padding: '8px 10px', fontSize: 13 }}>{item.variant_label || 'Default'}</td>
                     <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtQty(item.qty_sent)}</td>
                     <td style={{ padding: '8px 10px', fontSize: 13 }}>
-                      {item.qty_received == null ? <span style={{ color: 'var(--sv-text-dim)' }}>—</span> : (
+                      {item.qty_received == null ? <span style={{ color: 'var(--sv-text-dim)' }}>â€”</span> : (
                         <span style={{ color: hasDiscrepancy ? '#f87171' : 'inherit', fontWeight: hasDiscrepancy ? 700 : 400 }}>
-                          {fmtQty(item.qty_received)}{hasDiscrepancy && ' ⚠'}
+                          {fmtQty(item.qty_received)}{hasDiscrepancy && ' âš '}
                         </span>
                       )}
                     </td>
@@ -14677,7 +14678,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
 
       {btPrintId && <BTPrintModal id={btPrintId} onClose={() => setBtPrintId(null)} />}
 
-      {/* ── Replenish Wizard Modal ─────────────────────────────────────────── */}
+      {/* â”€â”€ Replenish Wizard Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {rpOpen && (
         <Modal title={rpStep === 1 ? 'Replenish Stores from Warehouse' : 'Review Allocation'} onClose={() => setRpOpen(false)} width={rpStep === 2 ? (showMinCols ? 1150 : 900) : 560}>
           {rpStep === 1 && (
@@ -14697,7 +14698,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
                   }}
                   style={{ ...inputStyle, maxWidth: 280 }}
                 >
-                  <option value="">— select warehouse —</option>
+                  <option value="">â€” select warehouse â€”</option>
                   {locations.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
               </div>
@@ -14758,7 +14759,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
                     <input type="radio" checked={rpReorderMode === 'top_up'} onChange={() => setRpReorderMode('top_up')} style={{ marginTop: 2 }} />
                     <div>
                       <span style={{ fontWeight: 600 }}>Top up to Reorder Qty</span>
-                      <span style={{ color: 'var(--sv-text-dim)', marginLeft: 6 }}>Treat Reorder Qty as the target level — only send what's needed to reach it</span>
+                      <span style={{ color: 'var(--sv-text-dim)', marginLeft: 6 }}>Treat Reorder Qty as the target level â€” only send what's needed to reach it</span>
                     </div>
                   </label>
                 </div>
@@ -14810,8 +14811,8 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
                           <div key={branchId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--sv-bg-2)', borderRadius: 6, border: '1px solid var(--sv-etch)', fontSize: 13 }}>
                             <span style={{ fontWeight: 600, color: 'var(--sv-text-dim)', width: 20, textAlign: 'right', flexShrink: 0 }}>{idx + 1}.</span>
                             <span style={{ flex: 1 }}>{loc.name}</span>
-                            <button type="button" onClick={() => movePriority(branchId, -1)} disabled={idx === 0} style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? 'var(--sv-text-muted)' : 'var(--sv-text-dim)', fontSize: 16, lineHeight: 1, padding: '0 4px' }} title="Move up">↑</button>
-                            <button type="button" onClick={() => movePriority(branchId, 1)} disabled={idx === orderedIds.length - 1} style={{ background: 'none', border: 'none', cursor: idx === orderedIds.length - 1 ? 'default' : 'pointer', color: idx === orderedIds.length - 1 ? 'var(--sv-text-muted)' : 'var(--sv-text-dim)', fontSize: 16, lineHeight: 1, padding: '0 4px' }} title="Move down">↓</button>
+                            <button type="button" onClick={() => movePriority(branchId, -1)} disabled={idx === 0} style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? 'var(--sv-text-muted)' : 'var(--sv-text-dim)', fontSize: 16, lineHeight: 1, padding: '0 4px' }} title="Move up">â†‘</button>
+                            <button type="button" onClick={() => movePriority(branchId, 1)} disabled={idx === orderedIds.length - 1} style={{ background: 'none', border: 'none', cursor: idx === orderedIds.length - 1 ? 'default' : 'pointer', color: idx === orderedIds.length - 1 ? 'var(--sv-text-muted)' : 'var(--sv-text-dim)', fontSize: 16, lineHeight: 1, padding: '0 4px' }} title="Move down">â†“</button>
                           </div>
                         );
                       })}
@@ -14827,7 +14828,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
                   disabled={rpCalculating || !rpWarehouseId || rpBranchIds.length === 0}
                   onClick={calculateReplenish}
                   style={btnStyle('action')}
-                >{rpCalculating ? 'Calculating…' : 'Calculate →'}</button>
+                >{rpCalculating ? 'Calculatingâ€¦' : 'Calculate â†’'}</button>
               </div>
             </div>
           )}
@@ -14839,7 +14840,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
                 <div>
                   <div style={{ marginBottom: 16 }}>
                     {rpCreateResults.map((r, i) => (
-                      <div key={i} style={{ fontSize: 13, padding: '4px 0', color: r.startsWith('✓') ? 'var(--sv-mint)' : 'var(--sv-red)' }}>{r}</div>
+                      <div key={i} style={{ fontSize: 13, padding: '4px 0', color: r.startsWith('âœ“') ? 'var(--sv-mint)' : 'var(--sv-red)' }}>{r}</div>
                     ))}
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -14854,7 +14855,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
                     const zeros = rpPlan.flatMap(b => b.items.filter(i => i.allocated === 0 && i.need > 0));
                     return (shortfalls.length > 0 && (
                       <div style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--sv-amber-tint)', border: '1px solid var(--sv-amber-border)', marginBottom: 16, fontSize: 13 }}>
-                        ⚠ {zeros.length > 0 ? `${zeros.length} line${zeros.length !== 1 ? 's' : ''} cannot be filled (0 warehouse stock). ` : ''}
+                        âš  {zeros.length > 0 ? `${zeros.length} line${zeros.length !== 1 ? 's' : ''} cannot be filled (0 warehouse stock). ` : ''}
                         {shortfalls.length - zeros.length > 0 ? `${shortfalls.length - zeros.length} line${shortfalls.length - zeros.length !== 1 ? 's' : ''} partially filled due to insufficient warehouse stock. ` : ''}
                         You can adjust allocations manually below.
                       </div>
@@ -14886,15 +14887,15 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
                               <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, whiteSpace: 'nowrap' }}>Allocate</th>
                               {showMinCols ? (
                                 <>
-                                  <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, whiteSpace: 'nowrap', borderLeft: '2px solid var(--sv-accent)', color: 'var(--sv-accent)' }}>Min Qty ✎</th>
-                                  <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, whiteSpace: 'nowrap', color: 'var(--sv-accent)' }}>Reorder Qty ✎</th>
+                                  <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, whiteSpace: 'nowrap', borderLeft: '2px solid var(--sv-accent)', color: 'var(--sv-accent)' }}>Min Qty âœŽ</th>
+                                  <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, whiteSpace: 'nowrap', color: 'var(--sv-accent)' }}>Reorder Qty âœŽ</th>
                                   <th style={{ padding: '4px 6px' }}>
-                                    <button onClick={() => { setShowMinCols(false); setMinQtyEdits({}); }} title="Collapse" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--sv-text-muted)', padding: '2px 4px' }}>✕</button>
+                                    <button onClick={() => { setShowMinCols(false); setMinQtyEdits({}); }} title="Collapse" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--sv-text-muted)', padding: '2px 4px' }}>âœ•</button>
                                   </th>
                                 </>
                               ) : (
                                 <th style={{ padding: '4px 6px', borderLeft: '2px solid var(--sv-etch)' }}>
-                                  <button onClick={() => setShowMinCols(true)} title="Edit Min/Reorder Qty" style={{ background: 'none', border: '1px solid var(--sv-border)', borderRadius: 4, cursor: 'pointer', fontSize: 11, color: 'var(--sv-text-muted)', padding: '3px 7px', whiteSpace: 'nowrap' }}>✎ Min/Reorder</button>
+                                  <button onClick={() => setShowMinCols(true)} title="Edit Min/Reorder Qty" style={{ background: 'none', border: '1px solid var(--sv-border)', borderRadius: 4, cursor: 'pointer', fontSize: 11, color: 'var(--sv-text-muted)', padding: '3px 7px', whiteSpace: 'nowrap' }}>âœŽ Min/Reorder</button>
                                 </th>
                               )}
                             </tr>
@@ -14906,9 +14907,9 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
                               const isZero  = item.allocated === 0;
                               return (
                                 <tr key={item.variant_id} style={{ borderBottom: '1px solid var(--sv-etch)', background: isZero ? 'rgba(239,68,68,.05)' : isShort ? 'rgba(245,158,11,.05)' : 'transparent' }}>
-                                  <td style={{ padding: '6px 10px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{item.brand_name ?? '—'}</td>
+                                  <td style={{ padding: '6px 10px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{item.brand_name ?? 'â€”'}</td>
                                   <td style={{ padding: '6px 10px' }}>
-                                    <div style={{ fontWeight: 500, color: isZero ? 'var(--sv-text-dim)' : 'var(--sv-text-strong)' }}>{item.product_name}{item.variant_label ? ` — ${item.variant_label}` : ''}</div>
+                                    <div style={{ fontWeight: 500, color: isZero ? 'var(--sv-text-dim)' : 'var(--sv-text-strong)' }}>{item.product_name}{item.variant_label ? ` â€” ${item.variant_label}` : ''}</div>
                                     {item.sku && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{item.sku}</div>}
                                   </td>
                                   <td style={{ textAlign: 'right', padding: '6px 10px', color: 'var(--sv-text-dim)' }}>{item.branch_soh ?? 0}</td>
@@ -14917,7 +14918,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
                                   <td style={{ textAlign: 'right', padding: '6px 10px', color: item.warehouse_soh === 0 ? 'var(--sv-red)' : item.warehouse_soh < item.need ? 'var(--sv-amber)' : 'var(--sv-mint)', fontWeight: 600 }}>{item.warehouse_soh}</td>
                                   <td style={{ textAlign: 'right', padding: '6px 4px' }}>
                                     {item.warehouse_soh === 0 ? (
-                                      <span style={{ fontSize: 12, color: 'var(--sv-text-muted)', padding: '4px 6px' }}>—</span>
+                                      <span style={{ fontSize: 12, color: 'var(--sv-text-muted)', padding: '4px 6px' }}>â€”</span>
                                     ) : (
                                       <input
                                         type="number"
@@ -14962,27 +14963,27 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, paddingTop: 14, borderTop: '1px solid var(--sv-etch)', marginTop: 4 }}>
-                    <button type="button" onClick={() => setRpStep(1)} style={btnStyle('ghost')}>← Back</button>
+                    <button type="button" onClick={() => setRpStep(1)} style={btnStyle('ghost')}>â† Back</button>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       {showMinCols && Object.keys(minQtyEdits).length > 0 && (
                         <button type="button" onClick={saveMinQtyEdits} disabled={savingMinQtys}
                           style={{ ...btnStyle('action'), background: 'var(--sv-accent)', opacity: savingMinQtys ? 0.7 : 1 }}>
-                          {savingMinQtys ? 'Saving…' : `Save Min/Reorder (${Object.keys(minQtyEdits).length})`}
+                          {savingMinQtys ? 'Savingâ€¦' : `Save Min/Reorder (${Object.keys(minQtyEdits).length})`}
                         </button>
                       )}
                       <button
                         type="button"
                         onClick={() => setRpHideZeroWh(v => !v)}
                         style={{ ...btnStyle('ghost'), fontSize: 12, padding: '5px 10px', opacity: rpHideZeroWh ? 1 : 0.6 }}
-                        title={rpHideZeroWh ? 'Currently hiding lines with 0 warehouse stock — click to show all' : 'Currently showing all lines — click to hide zero-stock lines'}
-                      >{rpHideZeroWh ? '🚫 WH=0 hidden' : '👁 Show all'}</button>
+                        title={rpHideZeroWh ? 'Currently hiding lines with 0 warehouse stock â€” click to show all' : 'Currently showing all lines â€” click to hide zero-stock lines'}
+                      >{rpHideZeroWh ? 'ðŸš« WH=0 hidden' : 'ðŸ‘ Show all'}</button>
                       <button type="button" onClick={() => setRpOpen(false)} style={btnStyle('ghost')}>Cancel</button>
                       <button
                         type="button"
                         disabled={rpCreating || rpPlan.every(b => b.items.every(i => i.allocated === 0))}
                         onClick={createDraftTransfers}
                         style={btnStyle('action')}
-                      >{rpCreating ? 'Creating…' : `Create ${rpPlan.filter(b => b.items.some(i => i.allocated > 0)).length} Draft Transfer${rpPlan.filter(b => b.items.some(i => i.allocated > 0)).length !== 1 ? 's' : ''}`}</button>
+                      >{rpCreating ? 'Creatingâ€¦' : `Create ${rpPlan.filter(b => b.items.some(i => i.allocated > 0)).length} Draft Transfer${rpPlan.filter(b => b.items.some(i => i.allocated > 0)).length !== 1 ? 's' : ''}`}</button>
                     </div>
                   </div>
                 </>
@@ -15001,7 +15002,7 @@ function BTActions({ bt, onEdit, onDelete, onStatus, onReceive, onPrint, onManag
   onManage?: () => void; isAdvisor?: boolean;
 }) {
   const btns: React.ReactNode[] = [];
-  btns.push(<button key="p" onClick={onPrint} style={btnStyle('secondary', 'xs')}>🖨 Print</button>);
+  btns.push(<button key="p" onClick={onPrint} style={btnStyle('secondary', 'xs')}>ðŸ–¨ Print</button>);
   if (bt.status === 'draft') {
     if (!isAdvisor) { btns.push(<button key="e" onClick={onEdit} style={btnStyle('secondary', 'xs')}>Edit</button>); }
     if (!isAdvisor) { btns.push(<button key="s" onClick={() => onStatus(bt, 'sent')} style={btnStyle('action', 'xs')}>Mark Sent</button>); }
@@ -15020,9 +15021,9 @@ function BTActions({ bt, onEdit, onDelete, onStatus, onReceive, onPrint, onManag
   return <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{btns}</div>;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Partial BT Manage Modal
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function PartialBTManageModal({ bt: initialBt, onClose, onDone }: { bt: any; onClose: () => void; onDone: () => void }) {
   const [items, setItems]   = useState<any[]>(() =>
@@ -15064,7 +15065,7 @@ function PartialBTManageModal({ bt: initialBt, onClose, onDone }: { bt: any; onC
     );
     if (!match) {
       playErrorBeep();
-      setScanError(`No item found matching "${value.trim()}" — check barcode/SKU`);
+      setScanError(`No item found matching "${value.trim()}" â€” check barcode/SKU`);
       setLastScanned(null);
       setTimeout(() => setScanError(null), 5000);
       scanRef.current?.focus();
@@ -15088,7 +15089,7 @@ function PartialBTManageModal({ bt: initialBt, onClose, onDone }: { bt: any; onC
     setItems(prev => prev.map((i: any) =>
       i.id === itemId ? { ...i, qty_received: Math.max(0, Math.min(Number(i.qty_sent), val)) } : i));
 
-  // Remove a line entirely — any already-received stock is returned to source.
+  // Remove a line entirely â€” any already-received stock is returned to source.
   const removeItem = async (itemId: number) => {
     const item = items.find((i: any) => i.id === itemId);
     const rcvd = Number(item?.qty_received ?? 0);
@@ -15131,9 +15132,9 @@ function PartialBTManageModal({ bt: initialBt, onClose, onDone }: { bt: any; onC
   };
 
   return (
-    <Modal title={`Manage Partial Transfer — ${initialBt.transfer_number}`} onClose={onClose} wide>
+    <Modal title={`Manage Partial Transfer â€” ${initialBt.transfer_number}`} onClose={onClose} wide>
       <div style={{ marginBottom: 14, padding: '10px 14px', background: 'rgba(251,146,60,.08)', border: '1px solid rgba(251,146,60,.3)', borderRadius: 8, fontSize: 13 }}>
-        <strong style={{ color: '#f97316' }}>Partially Received</strong> — {initialBt.from_location_name} → {initialBt.to_location_name}.<br />
+        <strong style={{ color: '#f97316' }}>Partially Received</strong> â€” {initialBt.from_location_name} â†’ {initialBt.to_location_name}.<br />
         <span style={{ color: 'var(--sv-text-dim)' }}>
           <strong>Qty Sent</strong> is the dispatch record and can't be changed. Edit <strong>Qty Received / Transferred</strong> to match what actually arrived
           (stock and line value follow the received figure), or <strong>delete</strong> a line. Then mark the transfer fully received.
@@ -15157,7 +15158,7 @@ function PartialBTManageModal({ bt: initialBt, onClose, onDone }: { bt: any; onC
               const isBusy = busyId === item.id;
               return (
                 <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)', background: short > 0 ? 'rgba(251,146,60,.04)' : 'transparent' }}>
-                  <td style={{ padding: '8px 10px' }}><code style={{ fontSize: 12, color: 'var(--sv-mint)' }}>{item.sku || '—'}</code></td>
+                  <td style={{ padding: '8px 10px' }}><code style={{ fontSize: 12, color: 'var(--sv-mint)' }}>{item.sku || 'â€”'}</code></td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>
                     <div>{item.product_name}</div>
                     {item.variant_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{item.variant_label}</div>}
@@ -15173,7 +15174,7 @@ function PartialBTManageModal({ bt: initialBt, onClose, onDone }: { bt: any; onC
                       style={{ ...inputStyle, fontSize: 13, width: 90, textAlign: 'right' }}
                     />
                   </td>
-                  <td style={{ padding: '8px 10px', fontSize: 13, textAlign: 'right', fontWeight: 600, color: short > 0 ? '#fbbf24' : 'var(--sv-text-dim)' }}>{short > 0 ? fmtQty(short) : '—'}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13, textAlign: 'right', fontWeight: 600, color: short > 0 ? '#fbbf24' : 'var(--sv-text-dim)' }}>{short > 0 ? fmtQty(short) : 'â€”'}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13, textAlign: 'right' }}>{fmtMoney(lineValueOf(item))}</td>
                   <td style={{ padding: '8px 10px' }}>
                     <button type="button" disabled={isBusy} onClick={() => removeItem(item.id)} style={btnStyle('danger', 'xs')} title="Remove this line from the transfer">Delete</button>
@@ -15208,7 +15209,7 @@ function PartialBTManageModal({ bt: initialBt, onClose, onDone }: { bt: any; onC
         <div style={{ display: 'flex', gap: 8 }}>
           <button type="button" onClick={onClose} style={btnStyle('ghost')}>Close</button>
           <button type="button" onClick={markReceived} disabled={saving || items.length === 0} style={btnStyle('mint')}>
-            {saving ? 'Processing…' : '✓ Apply & Mark Received'}
+            {saving ? 'Processingâ€¦' : 'âœ“ Apply & Mark Received'}
           </button>
         </div>
       </div>
@@ -15221,19 +15222,19 @@ function PartialBTManageModal({ bt: initialBt, onClose, onDone }: { bt: any; onC
 function _PartialBTScanPanel({ items, scanInput, setScanInput, scanError, lastScanned, scanRef, handleScan }: any) {
   return (
     <div style={{ padding: 14, background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
-      <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--sv-text-strong)', marginBottom: 10 }}>📷 Continue Receiving — Scan Items</div>
+      <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--sv-text-strong)', marginBottom: 10 }}>ðŸ“· Continue Receiving â€” Scan Items</div>
       <div style={{ display: 'flex', gap: 8, marginBottom: scanError || lastScanned ? 10 : 0 }}>
-        <input ref={scanRef} type="text" placeholder="Scan barcode or type SKU, then press Enter…" value={scanInput}
+        <input ref={scanRef} type="text" placeholder="Scan barcode or type SKU, then press Enterâ€¦" value={scanInput}
           onChange={e => setScanInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleScan(scanInput); } }}
           autoFocus style={{ ...inputStyle, flex: 1, fontSize: 14, fontFamily: 'monospace' }} />
         <button type="button" onClick={() => handleScan(scanInput)} style={btnStyle('action')}>Scan</button>
       </div>
-      {scanError && <div style={{ padding: '8px 12px', background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.4)', borderRadius: 6, fontSize: 13, color: '#f87171', marginBottom: 8 }}>⚠ {scanError}</div>}
+      {scanError && <div style={{ padding: '8px 12px', background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.4)', borderRadius: 6, fontSize: 13, color: '#f87171', marginBottom: 8 }}>âš  {scanError}</div>}
       {lastScanned && (
         <div style={{ padding: '10px 14px', background: 'rgba(16,185,129,.08)', border: '1px solid rgba(16,185,129,.3)', borderRadius: 8 }}>
           <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Last Scanned</div>
-          <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--sv-text-strong)' }}>{lastScanned.product_name}{lastScanned.variant_label ? ` — ${lastScanned.variant_label}` : ''}</div>
+          <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--sv-text-strong)' }}>{lastScanned.product_name}{lastScanned.variant_label ? ` â€” ${lastScanned.variant_label}` : ''}</div>
           <div style={{ fontSize: 13, marginTop: 4 }}><span style={{ color: 'var(--sv-text-dim)' }}>Now received: </span><strong style={{ color: '#34d399' }}>{lastScanned.qty_received}</strong> / {lastScanned.qty_sent}</div>
         </div>
       )}
@@ -15241,9 +15242,9 @@ function _PartialBTScanPanel({ items, scanInput, setScanInput, scanError, lastSc
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Receive Transfers View  (POS-friendly — shows "sent" transfers awaiting receipt)
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Receive Transfers View  (POS-friendly â€” shows "sent" transfers awaiting receipt)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ReceiveTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
   const [transfers, setTransfers]     = useState<any[]>([]);
@@ -15286,12 +15287,12 @@ function ReceiveTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {
     <div style={{ padding: '24px 28px', maxWidth: 960 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>📦 Receive Branch Transfers</h1>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>ðŸ“¦ Receive Branch Transfers</h1>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--sv-text-dim)' }}>
             Transfers with status <strong>Sent</strong> or <strong>Partially Received</strong> awaiting receipt. Select a branch to filter by destination.
           </p>
         </div>
-        <button onClick={load} style={btnStyle('ghost')}>↻ Refresh</button>
+        <button onClick={load} style={btnStyle('ghost')}>â†» Refresh</button>
       </div>
 
       <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -15301,13 +15302,13 @@ function ReceiveTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {
           onChange={e => setLocationFilter(e.target.value ? Number(e.target.value) : '')}
           style={{ ...inputStyle, width: 220 }}
         >
-          <option value="">— All branches —</option>
+          <option value="">â€” All branches â€”</option>
           {locations.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
       </div>
 
       {loading ? (
-        <div style={{ color: 'var(--sv-text-dim)', padding: 20 }}>Loading…</div>
+        <div style={{ color: 'var(--sv-text-dim)', padding: 20 }}>Loadingâ€¦</div>
       ) : filtered.length === 0 ? (
         <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--sv-text-dim)', background: 'var(--sv-bg-1)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
           No sent transfers awaiting receipt{locationFilter ? ' for the selected branch' : ''}.
@@ -15361,9 +15362,9 @@ function ReceiveTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // BT Print Modal
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
   const [data,        setData]        = useState<any | null>(null);
@@ -15382,13 +15383,13 @@ function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
   }, [id]);
 
   const barcode = (raw: string | null) => {
-    if (!raw) return '—';
+    if (!raw) return 'â€”';
     return shortCode ? raw.slice(-4) : raw;
   };
 
   return (
     <>
-      {/* Print-only CSS — no overflow, no fixed/scroll, flows naturally to fill A4 */}
+      {/* Print-only CSS â€” no overflow, no fixed/scroll, flows naturally to fill A4 */}
       <style>{`
         @media print {
           @page { margin: 12mm; }
@@ -15417,10 +15418,10 @@ function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
 
       <div id="bt-print-zone" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 10, width: 'min(98vw, 1100px)', maxHeight: '92vh', overflowY: 'auto', zIndex: 1001, padding: 24 }}>
 
-        {/* Header row — screen only */}
+        {/* Header row â€” screen only */}
         <div className="bt-print-no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
-            {loading ? 'Loading…' : data ? `Branch Transfer — ${data.transfer_number}` : 'Print'}
+            {loading ? 'Loadingâ€¦' : data ? `Branch Transfer â€” ${data.transfer_number}` : 'Print'}
           </h2>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
@@ -15438,12 +15439,12 @@ function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
             <button
               onClick={() => window.print()}
               style={{ padding: '7px 18px', borderRadius: 6, border: 'none', background: '#2563eb', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
-            >🖨 Print</button>
-            <button onClick={onClose} style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', cursor: 'pointer', fontSize: 13 }}>✕ Close</button>
+            >ðŸ–¨ Print</button>
+            <button onClick={onClose} style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', cursor: 'pointer', fontSize: 13 }}>âœ• Close</button>
           </div>
         </div>
 
-        {loading && <div style={{ padding: 40, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</div>}
+        {loading && <div style={{ padding: 40, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loadingâ€¦</div>}
         {error   && <div style={{ padding: 40, textAlign: 'center', color: 'var(--sv-red)' }}>{error}</div>}
 
         {data && (
@@ -15472,8 +15473,8 @@ function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
               <tbody>
                 {data.items.map((item: any, i: number) => (
                   <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i % 2 === 1 ? '#f8fafc' : '#fff' }}>
-                    <td style={{ padding: '4px 8px', color: '#6b7280', whiteSpace: 'nowrap' }}>{item.zone || '—'}</td>
-                    <td style={{ padding: '4px 8px', color: '#6b7280', whiteSpace: 'nowrap' }}>{item.bin  || '—'}</td>
+                    <td style={{ padding: '4px 8px', color: '#6b7280', whiteSpace: 'nowrap' }}>{item.zone || 'â€”'}</td>
+                    <td style={{ padding: '4px 8px', color: '#6b7280', whiteSpace: 'nowrap' }}>{item.bin  || 'â€”'}</td>
                     <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 800, fontSize: 16, color: '#111827', whiteSpace: 'nowrap' }}>{Number(item.qty_sent)}</td>
                     <td style={{ padding: '4px 8px', fontFamily: 'monospace', fontWeight: 800, fontSize: 16, whiteSpace: 'nowrap' }}>{barcode(item.barcode)}</td>
                     <td style={{ padding: '4px 8px' }}>
@@ -15482,8 +15483,8 @@ function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
                     </td>
                     <td style={{ padding: '4px 8px', textAlign: 'right', color: '#374151' }}>{Number(item.branch_soh)}</td>
                     <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 800, fontSize: 16, color: Number(item.wh_qty) <= 0 ? '#ef4444' : '#6b7280' }}>{Number(item.wh_qty)}</td>
-                    {showCode  && <td style={{ padding: '4px 8px', fontFamily: 'monospace', color: '#0369a1', whiteSpace: 'nowrap' }}>{item.sku || '—'}</td>}
-                    {showBrand && <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>{item.brand || '—'}</td>}
+                    {showCode  && <td style={{ padding: '4px 8px', fontFamily: 'monospace', color: '#0369a1', whiteSpace: 'nowrap' }}>{item.sku || 'â€”'}</td>}
+                    {showBrand && <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>{item.brand || 'â€”'}</td>}
                   </tr>
                 ))}
               </tbody>
@@ -15497,11 +15498,11 @@ function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Stocktakes
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-/** Inline dropdown variant search for adding items to a stocktake — same UX as VariantSearch */
+/** Inline dropdown variant search for adding items to a stocktake â€” same UX as VariantSearch */
 function StocktakeVariantSearch({ stocktakeId, locationId, onAdd }: {
   stocktakeId: number;
   locationId: number;
@@ -15566,13 +15567,13 @@ function StocktakeVariantSearch({ stocktakeId, locationId, onAdd }: {
         ref={inputRef}
         type="text"
         value={query}
-        placeholder="Search variant…"
+        placeholder="Search variantâ€¦"
         onFocus={() => { updatePos(); if (matches.length) setOpen(true); }}
         onChange={handleChange}
         style={{ ...inputStyle, fontSize: 12, width: '100%', marginBottom: 0 }}
       />
       {searching && (
-        <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--sv-text-dim)', pointerEvents: 'none' }}>…</span>
+        <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--sv-text-dim)', pointerEvents: 'none' }}>â€¦</span>
       )}
       {open && (
         <div style={{
@@ -15710,7 +15711,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
   const openDetail = async (st: any) => {
     const res = await fetch(`/api/ims/stocktakes/${st.id}`);
     const d   = await res.json();
-    // Auto-start: silently move draft → in_progress so counting can begin immediately
+    // Auto-start: silently move draft â†’ in_progress so counting can begin immediately
     let stocktakeData = d;
     if (d.status === 'draft') {
       await fetch(`/api/ims/stocktakes/${st.id}`, {
@@ -15786,7 +15787,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
     // Warn if uncounted items
     const uncounted = detailItems.filter((i: any) => i.counted_qty === null && (i.counted_input === '' || i.counted_input == null));
     if (uncounted.length > 0) {
-      if (!confirm(`⚠ ${uncounted.length} item${uncounted.length !== 1 ? 's' : ''} have not been counted and will be IGNORED — their stock quantities will remain unchanged.\n\nContinue anyway? (Or cancel and use “Apply 0 to uncounted” if you meant to count them as zero.)`)) return;
+      if (!confirm(`âš  ${uncounted.length} item${uncounted.length !== 1 ? 's' : ''} have not been counted and will be IGNORED â€” their stock quantities will remain unchanged.\n\nContinue anyway? (Or cancel and use â€œApply 0 to uncountedâ€ if you meant to count them as zero.)`)) return;
     }
     if (!confirm('Mark complete and apply counted quantities to stock? This will update qty_on_hand for all counted items.')) return;
     setApplying(true);
@@ -15827,11 +15828,11 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
           body: JSON.stringify({ databaseId: businessId, stocktakeId: id }),
         });
         const xd = await xeroRes.json();
-        if (!xeroRes.ok) xeroMsg = `\n\n⚠ Xero sync failed: ${xd.error || 'Unknown'}. Retry from the accounting panel.`;
+        if (!xeroRes.ok) xeroMsg = `\n\nâš  Xero sync failed: ${xd.error || 'Unknown'}. Retry from the accounting panel.`;
         else if (xd.lines === 0) xeroMsg = '\n\nXero: no variances to post.';
-        else xeroMsg = `\n\n✓ Xero journal posted: ${xd.lines} variance line${xd.lines !== 1 ? 's' : ''}, total $${Number(xd.totalValue).toFixed(2)}.`;
+        else xeroMsg = `\n\nâœ“ Xero journal posted: ${xd.lines} variance line${xd.lines !== 1 ? 's' : ''}, total $${Number(xd.totalValue).toFixed(2)}.`;
       } catch (xe: any) {
-        xeroMsg = `\n\n⚠ Xero sync error: ${xe.message}.`;
+        xeroMsg = `\n\nâš  Xero sync error: ${xe.message}.`;
       } finally { setXeroSyncing(false); }
       alert(`Stocktake complete. Applied ${d.applied} items, ${d.variances} variance${d.variances !== 1 ? 's' : ''} recorded.${xeroMsg}`);
       load();
@@ -15949,7 +15950,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
     setPage(1);
   };
   const SortIcon = ({ col }: { col: string }) => sortCol !== col ? null : (
-    <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
+    <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? 'â†‘' : 'â†“'}</span>
   );
 
   return (
@@ -15966,7 +15967,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
           {locations.map(l => <option key={l.id} value={String(l.id)}>{l.name}</option>)}
         </select>
         <input
-          placeholder="Search reference…"
+          placeholder="Search referenceâ€¦"
           value={filterText}
           onChange={e => { setFilterText(e.target.value); setPage(1); }}
           style={{ ...inputStyle, minWidth: 180, flex: '1 1 180px' }}
@@ -16009,7 +16010,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13 }}>{st.item_count ?? 0}</td>
                   <td style={{ padding: '10px 12px', color: Number(st.variance_count) > 0 ? 'var(--sv-warn,#fbbf24)' : 'var(--sv-text-dim)', fontSize: 13, fontWeight: Number(st.variance_count) > 0 ? 600 : 400 }}>{st.variance_count ?? 0}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{st.created_at?.slice(0, 10)}</td>
-                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{st.completed_at?.slice(0, 10) || '—'}</td>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{st.completed_at?.slice(0, 10) || 'â€”'}</td>
                   <td style={{ padding: '10px 12px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <button onClick={() => openDetail(st)} style={btnStyle('ghost', 'xs')}>View</button>
                     {!isAdvisor && st.status === 'draft'       && <button onClick={() => changeStatus(st.id, 'in_progress')} style={btnStyle('action', 'xs')}>Start</button>}
@@ -16027,11 +16028,11 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
 
       {!loading && totalPages > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14 }}>
-          <button onClick={() => setPage(1)} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>«</button>
-          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>‹ Prev</button>
+          <button onClick={() => setPage(1)} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>Â«</button>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>â€¹ Prev</button>
           <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 8px' }}>Page {safePage} of {totalPages} ({sorted.length} stocktakes)</span>
-          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>Next ›</button>
-          <button onClick={() => setPage(totalPages)} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>»</button>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>Next â€º</button>
+          <button onClick={() => setPage(totalPages)} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>Â»</button>
         </div>
       )}
 
@@ -16045,7 +16046,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
               </Field>
               <Field label="Location *">
                 <select required value={createForm.location_id} onChange={cf('location_id')} style={inputStyle}>
-                  <option value="">— Select —</option>
+                  <option value="">â€” Select â€”</option>
                   {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
               </Field>
@@ -16064,7 +16065,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
 
             {!createForm.blank && (
               <>
-                <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 6 }}>PRODUCT FILTERS (optional — leave blank to include all active variants)</div>
+                <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 6 }}>PRODUCT FILTERS (optional â€” leave blank to include all active variants)</div>
                 <Row3>
                   <Field label="Brand">
                     <select value={createForm.brand_id} onChange={cf('brand_id')} style={inputStyle}>
@@ -16087,7 +16088,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                 </Row3>
                 {createForm.location_id && (
                   <div style={{ marginBottom: 14, padding: '8px 12px', background: 'var(--sv-bg-1)', borderRadius: 6, border: '1px solid var(--sv-etch)', fontSize: 13 }}>
-                    {previewLoading ? 'Counting variants…' : previewCount !== null ? (
+                    {previewLoading ? 'Counting variantsâ€¦' : previewCount !== null ? (
                       <span style={{ color: previewCount > 0 ? 'var(--sv-text-main)' : 'var(--sv-text-dim)' }}>
                         <strong>{previewCount}</strong> active variant{previewCount !== 1 ? 's' : ''} will be included
                       </span>
@@ -16106,7 +16107,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
             </Field>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button type="button" onClick={() => setCreateModal(false)} style={btnStyle('secondary')}>Cancel</button>
-              <button type="submit" disabled={saving} style={btnStyle('action')}>{saving ? 'Creating…' : 'Next → Start Stocktake'}</button>
+              <button type="submit" disabled={saving} style={btnStyle('action')}>{saving ? 'Creatingâ€¦' : 'Next â†’ Start Stocktake'}</button>
             </div>
           </form>
         </Modal>
@@ -16118,11 +16119,11 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
           <div style={{ marginBottom: 12, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             <StatusBadge status={detailModal.st.status} />
             <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>{detailModal.st.location_name}</span>
-            {detailModal.st.notes && <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>— {detailModal.st.notes}</span>}
+            {detailModal.st.notes && <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>â€” {detailModal.st.notes}</span>}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               {detailModal.st.status === 'in_progress' && !isAdvisor && (
-                <button onClick={handleSaveDraft} disabled={savingDraft || applying} style={btnStyle('secondary', 'sm')} title="Flush any pending counts and close — stocktake stays in progress so you can continue later">
-                  {savingDraft ? 'Saving…' : '💾 Save & Close'}
+                <button onClick={handleSaveDraft} disabled={savingDraft || applying} style={btnStyle('secondary', 'sm')} title="Flush any pending counts and close â€” stocktake stays in progress so you can continue later">
+                  {savingDraft ? 'Savingâ€¦' : 'ðŸ’¾ Save & Close'}
                 </button>
               )}
               {detailModal.st.status === 'in_progress' && !isAdvisor && <button onClick={() => handleComplete(detailModal.st.id)} disabled={applying || savingDraft} style={btnStyle('action', 'sm')}>Mark Complete</button>}
@@ -16141,13 +16142,13 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
             ))}
           </div>
 
-          {/* Uncounted items banner — shown when counting is active */}
+          {/* Uncounted items banner â€” shown when counting is active */}
           {(detailModal.st.status === 'draft' || detailModal.st.status === 'in_progress') && (() => {
             const uncountedCount = detailItems.filter((i: any) => i.counted_qty === null && (i.counted_input === '' || i.counted_input == null)).length;
             if (!uncountedCount) return null;
             return (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, padding: '9px 14px', background: 'rgba(251,191,36,.1)', border: '1px solid rgba(251,191,36,.4)', borderRadius: 8 }}>
-                <span style={{ fontSize: 13, color: '#fbbf24', flex: 1 }}>⚠ <strong>{uncountedCount}</strong> item{uncountedCount !== 1 ? 's' : ''} not yet counted — will be <strong>ignored</strong> when you mark complete (stock qty unchanged).</span>
+                <span style={{ fontSize: 13, color: '#fbbf24', flex: 1 }}>âš  <strong>{uncountedCount}</strong> item{uncountedCount !== 1 ? 's' : ''} not yet counted â€” will be <strong>ignored</strong> when you mark complete (stock qty unchanged).</span>
                 <button type="button" onClick={handleApplyZeroCounts} style={{ ...btnStyle('secondary', 'xs'), whiteSpace: 'nowrap', borderColor: '#fbbf24', color: '#fbbf24' }}>
                   Apply 0 to uncounted
                 </button>
@@ -16157,7 +16158,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
 
           {detailTab === 'manual' && (
             <div>
-              {/* Add product bar — shown when editable */}
+              {/* Add product bar â€” shown when editable */}
               {(detailModal.st.status === 'draft' || detailModal.st.status === 'in_progress') && (
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, padding: '8px 12px', background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
                   <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Add item:</span>
@@ -16184,10 +16185,10 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                     const editable = detailModal.st.status === 'draft' || detailModal.st.status === 'in_progress';
                     return (
                       <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                        <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{item.sku || '—'}</td>
+                        <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{item.sku || 'â€”'}</td>
                         <td style={{ padding: '6px 10px', fontSize: 12, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.product_name}</td>
                         <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{item.variant_label || 'Default'}</td>
-                        <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{item.barcode || '—'}</td>
+                        <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{item.barcode || 'â€”'}</td>
                         <td style={{ padding: '6px 10px', fontSize: 12, whiteSpace: 'nowrap' }}>{Number(item.expected_qty)}</td>
                         <td style={{ padding: '6px 10px' }}>
                           {editable ? (
@@ -16197,14 +16198,14 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                               onChange={e => setDetailItems(p => p.map((i: any) => i.id === item.id ? { ...i, counted_input: e.target.value } : i))}
                               onBlur={e => saveItemCount(item, e.target.value)}
                               style={{ ...inputStyle, width: 80, padding: '4px 6px', fontSize: 12 }}
-                              placeholder="—"
+                              placeholder="â€”"
                             />
                           ) : (
-                            <span style={{ fontSize: 12 }}>{item.counted_qty !== null ? Number(item.counted_qty) : '—'}</span>
+                            <span style={{ fontSize: 12 }}>{item.counted_qty !== null ? Number(item.counted_qty) : 'â€”'}</span>
                           )}
                         </td>
                         <td style={{ padding: '6px 10px', fontSize: 12, color: varColor, fontWeight: variance !== null && variance !== 0 ? 600 : 400, whiteSpace: 'nowrap' }}>
-                          {variance !== null ? (variance >= 0 ? '+' : '') + Math.round(variance * 10000) / 10000 : '—'}
+                          {variance !== null ? (variance >= 0 ? '+' : '') + Math.round(variance * 10000) / 10000 : 'â€”'}
                         </td>
                         <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{item.notes || ''}</td>
                         <td style={{ padding: '6px 4px' }}>
@@ -16215,7 +16216,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                                 body: JSON.stringify({ action: 'remove_item', item_id: item.id }),
                               });
                               setDetailItems(p => p.filter((i: any) => i.id !== item.id));
-                            }} style={{ background: 'none', border: 'none', color: 'var(--sv-red)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '2px 4px', opacity: .7 }}>×</button>
+                            }} style={{ background: 'none', border: 'none', color: 'var(--sv-red)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '2px 4px', opacity: .7 }}>Ã—</button>
                           )}
                         </td>
                       </tr>
@@ -16230,14 +16231,14 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
           {detailTab === 'barcode' && (
             <div>
               <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 10 }}>
-                Paste or scan barcodes/SKUs below — one per line, or comma/tab separated. Duplicate entries are summed as a count.
+                Paste or scan barcodes/SKUs below â€” one per line, or comma/tab separated. Duplicate entries are summed as a count.
               </p>
               <textarea
                 rows={8}
                 value={barcodeText}
                 onChange={e => setBarcodeText(e.target.value)}
                 style={{ ...inputStyle, fontFamily: 'monospace', resize: 'vertical', marginBottom: 8 }}
-                placeholder="Scan or paste barcodes here…"
+                placeholder="Scan or paste barcodes hereâ€¦"
               />
               <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
                 <button type="button" onClick={processBarcodes} style={btnStyle('action', 'sm')}>Process</button>
@@ -16262,8 +16263,8 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                           <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)', background: r.matched ? undefined : 'rgba(248,113,113,.06)' }}>
                             <td style={{ padding: '6px 10px', fontSize: 12, fontFamily: 'monospace' }}>{r.code}</td>
                             <td style={{ padding: '6px 10px', fontSize: 12 }}>{r.qty}</td>
-                            <td style={{ padding: '6px 10px', fontSize: 12 }}>{r.matched ? '✓' : <span style={{ color: '#f87171' }}>✗ Not found</span>}</td>
-                            <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{r.item ? `${r.item.sku} — ${r.item.product_name}` : '—'}</td>
+                            <td style={{ padding: '6px 10px', fontSize: 12 }}>{r.matched ? 'âœ“' : <span style={{ color: '#f87171' }}>âœ— Not found</span>}</td>
+                            <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{r.item ? `${r.item.sku} â€” ${r.item.product_name}` : 'â€”'}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -16277,7 +16278,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
             </div>
           )}
 
-          {/* ── Accounting / Xero panel ── shown for completed stocktakes ── */}
+          {/* â”€â”€ Accounting / Xero panel â”€â”€ shown for completed stocktakes â”€â”€ */}
           {detailModal.st.status === 'completed' && (() => {
             const varItems = detailItems.filter((i: any) => i.counted_qty !== null && Number(i.counted_qty) !== Number(i.expected_qty));
             const netValue = varItems.reduce((s: number, i: any) => s + (Number(i.counted_qty) - Number(i.expected_qty)) * Number(i.avg_cost ?? 0), 0);
@@ -16287,9 +16288,9 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
               <div style={{ marginTop: 20, padding: '14px 16px', background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
                   <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--sv-text-strong)' }}>Accounting / Xero</span>
-                  {ss === 'synced' && <span style={{ fontSize: 12, color: '#34d399', fontWeight: 600 }}>✓ Synced to Xero{detailModal.st.xero_synced_at ? ` — ${String(detailModal.st.xero_synced_at).slice(0, 10)}` : ''}</span>}
-                  {ss === 'error'  && <span style={{ fontSize: 12, color: '#f87171', fontWeight: 600 }}>⚠ Sync failed</span>}
-                  {!ss            && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>○ Not yet synced to Xero</span>}
+                  {ss === 'synced' && <span style={{ fontSize: 12, color: '#34d399', fontWeight: 600 }}>âœ“ Synced to Xero{detailModal.st.xero_synced_at ? ` â€” ${String(detailModal.st.xero_synced_at).slice(0, 10)}` : ''}</span>}
+                  {ss === 'error'  && <span style={{ fontSize: 12, color: '#f87171', fontWeight: 600 }}>âš  Sync failed</span>}
+                  {!ss            && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>â—‹ Not yet synced to Xero</span>}
                   {ss !== 'synced' && (
                     <button type="button" disabled={applying || xeroSyncing} onClick={async () => {
                       setXeroSyncing(true);
@@ -16300,7 +16301,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                         });
                         const j = await res.json();
                         if (!res.ok) throw new Error(j.error || 'Sync failed');
-                        alert(j.lines === 0 ? 'No variances to post to Xero.' : `✓ Journal posted: ${j.lines} line${j.lines !== 1 ? 's' : ''}, total $${Number(j.totalValue).toFixed(2)}`);
+                        alert(j.lines === 0 ? 'No variances to post to Xero.' : `âœ“ Journal posted: ${j.lines} line${j.lines !== 1 ? 's' : ''}, total $${Number(j.totalValue).toFixed(2)}`);
                         const r2 = await fetch(`/api/ims/stocktakes/${detailModal.st.id}`);
                         const d2 = await r2.json();
                         setDetailModal({ open: true, st: d2 });
@@ -16311,12 +16312,12 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                       } catch (e: any) { alert(e.message); }
                       finally { setXeroSyncing(false); }
                     }} style={btnStyle('action', 'sm')}>
-                      {xeroSyncing ? '…' : ss === 'error' ? 'Retry Xero Sync' : 'Sync to Xero'}
+                      {xeroSyncing ? 'â€¦' : ss === 'error' ? 'Retry Xero Sync' : 'Sync to Xero'}
                     </button>
                   )}
                 </div>
                 {varItems.length === 0
-                  ? <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>No variances — all counted quantities matched expected. Nothing to post to Xero.</div>
+                  ? <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>No variances â€” all counted quantities matched expected. Nothing to post to Xero.</div>
                   : (
                     <div style={{ overflowX: 'auto' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -16334,13 +16335,13 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                             const col = vq < 0 ? '#f87171' : '#34d399';
                             return (
                               <tr key={i.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                                <td style={{ padding: '4px 10px', color: 'var(--sv-text-dim)' }}>{i.sku || '—'}</td>
+                                <td style={{ padding: '4px 10px', color: 'var(--sv-text-dim)' }}>{i.sku || 'â€”'}</td>
                                 <td style={{ padding: '4px 10px', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.product_name}</td>
                                 <td style={{ padding: '4px 10px', textAlign: 'right' }}>{Number(i.expected_qty)}</td>
                                 <td style={{ padding: '4px 10px', textAlign: 'right' }}>{Number(i.counted_qty)}</td>
                                 <td style={{ padding: '4px 10px', textAlign: 'right', color: col, fontWeight: 600 }}>{vq > 0 ? '+' : ''}{vq}</td>
                                 <td style={{ padding: '4px 10px', textAlign: 'right', color: Number(i.avg_cost ?? 0) === 0 ? '#fbbf24' : undefined }}>
-                                  {Number(i.avg_cost ?? 0) === 0 ? <span title="No avg cost — will post $0">$0 ⚠</span> : `$${Number(i.avg_cost).toFixed(2)}`}
+                                  {Number(i.avg_cost ?? 0) === 0 ? <span title="No avg cost â€” will post $0">$0 âš </span> : `$${Number(i.avg_cost).toFixed(2)}`}
                                 </td>
                                 <td style={{ padding: '4px 10px', textAlign: 'right', color: col, fontWeight: 600 }}>{val < 0 ? '-' : ''}${Math.abs(val).toFixed(2)}</td>
                               </tr>
@@ -16357,7 +16358,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                           </tr>
                         </tfoot>
                       </table>
-                      {hasZeroCost && <div style={{ marginTop: 8, fontSize: 12, color: '#fbbf24' }}>⚠ Some items have avg cost $0 — their lines will post as $0 to Xero. Check Cin7 cost sync.</div>}
+                      {hasZeroCost && <div style={{ marginTop: 8, fontSize: 12, color: '#fbbf24' }}>âš  Some items have avg cost $0 â€” their lines will post as $0 to Xero. Check Cin7 cost sync.</div>}
                     </div>
                   )
                 }
@@ -16370,9 +16371,9 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Settings Modal
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function useImportRunner(endpoint: string) {
   const [running, setRunning]   = useState(false);
@@ -16383,7 +16384,7 @@ function useImportRunner(endpoint: string) {
     if (running) return;
     setRunning(true);
     setDone(false);
-    setMessages(['Starting…']);
+    setMessages(['Startingâ€¦']);
     fetch(endpoint, { method: 'POST' }).then(res => {
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
@@ -16409,7 +16410,7 @@ function useImportRunner(endpoint: string) {
 
 interface SetupSection { key: string; label: string; description: string; endpoint: string; }
 
-// ── Stock Cost CSV Import Card ────────────────────────────────────────────────
+// â”€â”€ Stock Cost CSV Import Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function StockCostImportCard() {
   const [file, setFile]       = useState<File | null>(null);
   const [running, setRunning] = useState(false);
@@ -16440,8 +16441,8 @@ function StockCostImportCard() {
     <div style={{ background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 14, marginBottom: 10 }}>
       <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Import Average Landed Costs (CSV)</div>
       <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 12 }}>
-        Upload a CSV (or tab-separated) stock export. Average cost is calculated as <em>Stock Value ÷ Stock Qty</em> and written to all matching variants.
-        Accepts <strong>variant-level SKUs</strong> (e.g. <em>MT-RCA70sSurf-SM</em>) or <strong>product-level codes</strong> (e.g. <em>MT-RCA70sSurf</em>) — if a product code is used, the cost is applied to every variant of that product.
+        Upload a CSV (or tab-separated) stock export. Average cost is calculated as <em>Stock Value Ã· Stock Qty</em> and written to all matching variants.
+        Accepts <strong>variant-level SKUs</strong> (e.g. <em>MT-RCA70sSurf-SM</em>) or <strong>product-level codes</strong> (e.g. <em>MT-RCA70sSurf</em>) â€” if a product code is used, the cost is applied to every variant of that product.
         Requires columns: <strong>Size Code</strong> (or SKU/Code), <strong>Stock Qty</strong>, <strong>Stock Value</strong>.
       </div>
 
@@ -16458,7 +16459,7 @@ function StockCostImportCard() {
           disabled={!file || running}
           style={{ padding: '6px 14px', borderRadius: 6, border: 'none', cursor: (!file || running) ? 'not-allowed' : 'pointer', background: result ? 'var(--sv-mint)' : 'var(--sv-action)', color: '#fff', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap', opacity: (!file || running) ? 0.6 : 1, flexShrink: 0 }}
         >
-          {running ? 'Importing…' : result ? 'Done ✓' : 'Import'}
+          {running ? 'Importingâ€¦' : result ? 'Done âœ“' : 'Import'}
         </button>
       </div>
 
@@ -16468,19 +16469,19 @@ function StockCostImportCard() {
 
       {result && (
         <div style={{ marginTop: 10, background: '#111', borderRadius: 6, padding: '8px 12px', fontSize: 12, fontFamily: 'monospace', color: '#aaa', lineHeight: 1.7 }}>
-          <div style={{ color: '#22c55e', fontWeight: 700 }}>✓ Import complete</div>
+          <div style={{ color: '#22c55e', fontWeight: 700 }}>âœ“ Import complete</div>
           <div>CSV rows read:    {result.summary.csvRowsRead}</div>
           <div>Unique SKUs:       {result.summary.uniqueSkus}</div>
           <div style={{ color: '#22c55e' }}>Updated:          {result.summary.updated}</div>
           {result.summary.skippedZeroQty  > 0 && <div style={{ color: '#f59e0b' }}>Skipped (qty=0):  {result.summary.skippedZeroQty}</div>}
-          {result.summary.skippedNotFound > 0 && <div style={{ color: '#f87171' }}>Not found in IMS: {result.summary.skippedNotFound}{result.notFound?.length ? ` — e.g. ${result.notFound.slice(0,5).join(', ')}` : ''}</div>}
+          {result.summary.skippedNotFound > 0 && <div style={{ color: '#f87171' }}>Not found in IMS: {result.summary.skippedNotFound}{result.notFound?.length ? ` â€” e.g. ${result.notFound.slice(0,5).join(', ')}` : ''}</div>}
         </div>
       )}
     </div>
   );
 }
 
-// ── Stock Min Qty / Reorder Qty CSV Import Card ───────────────────────────────
+// â”€â”€ Stock Min Qty / Reorder Qty CSV Import Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function StockMinsImportCard() {
   const [file, setFile]         = useState<File | null>(null);
   const [running, setRunning]   = useState(false);
@@ -16519,8 +16520,8 @@ function StockMinsImportCard() {
     <div style={{ background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 14, marginBottom: 10 }}>
       <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Import Min Stock & Reorder Qty (CSV)</div>
       <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 12 }}>
-        Upload a CSV exported from <strong>Cin7 Omni → Stocktake Master</strong> (Update Mode: <em>Replenishment Values</em>).
-        Columns <strong>SafetyStockQty</strong> → Min Qty and <strong>OptimumStockQty</strong> → Reorder Qty are imported per branch
+        Upload a CSV exported from <strong>Cin7 Omni â†’ Stocktake Master</strong> (Update Mode: <em>Replenishment Values</em>).
+        Columns <strong>SafetyStockQty</strong> â†’ Min Qty and <strong>OptimumStockQty</strong> â†’ Reorder Qty are imported per branch
         using <strong>BranchName</strong> or <strong>BranchId</strong> columns. If no branch column is present, values apply to all locations for each SKU.
         Also accepts generic CSVs with "Min Qty" / "Reorder Qty" / "Location" columns.
       </div>
@@ -16528,14 +16529,14 @@ function StockMinsImportCard() {
       {locations.length > 0 && (
         <div style={{ marginBottom: 10 }}>
           <label style={{ fontSize: 12, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>
-            Location override <span style={{ color: 'var(--sv-text-dim)', fontWeight: 400 }}>(use when BranchId in CSV doesn&apos;t match IMS — leaves blank to use CSV branch column)</span>
+            Location override <span style={{ color: 'var(--sv-text-dim)', fontWeight: 400 }}>(use when BranchId in CSV doesn&apos;t match IMS â€” leaves blank to use CSV branch column)</span>
           </label>
           <select
             value={locOverride}
             onChange={e => setLocOverride(e.target.value)}
             style={{ fontSize: 12, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', width: '100%' }}
           >
-            <option value=''>— Use branch column from CSV —</option>
+            <option value=''>â€” Use branch column from CSV â€”</option>
             {locations.map(l => <option key={l.id} value={String(l.id)}>{l.name}</option>)}
           </select>
         </div>
@@ -16553,7 +16554,7 @@ function StockMinsImportCard() {
           disabled={!file || running}
           style={{ padding: '6px 14px', borderRadius: 6, border: 'none', cursor: (!file || running) ? 'not-allowed' : 'pointer', background: result ? 'var(--sv-mint)' : 'var(--sv-action)', color: '#fff', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap', opacity: (!file || running) ? 0.6 : 1, flexShrink: 0 }}
         >
-          {running ? 'Importing…' : result ? 'Done ✓' : 'Import'}
+          {running ? 'Importingâ€¦' : result ? 'Done âœ“' : 'Import'}
         </button>
       </div>
 
@@ -16563,7 +16564,7 @@ function StockMinsImportCard() {
 
       {result && (
         <div style={{ marginTop: 10, background: '#111', borderRadius: 6, padding: '8px 12px', fontSize: 12, fontFamily: 'monospace', color: '#aaa', lineHeight: 1.7 }}>
-          <div style={{ color: '#22c55e', fontWeight: 700 }}>✓ Import complete</div>
+          <div style={{ color: '#22c55e', fontWeight: 700 }}>âœ“ Import complete</div>
           <div>CSV rows read: {result.summary.csvRowsRead}</div>
           <div style={{ color: '#22c55e' }}>Stock rows updated: {result.summary.updated}</div>
           {result.summary.matchedByNoSpaces > 0 && <div style={{ color: '#86efac' }}>Matched (spaces stripped): {result.summary.matchedByNoSpaces}</div>}
@@ -16575,7 +16576,7 @@ function StockMinsImportCard() {
               {Object.entries(result.notFoundByReason ?? {}).map(([reason, rows]: [string, any]) => {
                 const labels: Record<string, string> = {
                   not_in_ims:                  'SKU & barcode not in IMS',
-                  sku_has_spaces_no_match:      'SKU has spaces — no match even after stripping',
+                  sku_has_spaces_no_match:      'SKU has spaces â€” no match even after stripping',
                   barcode_also_not_in_ims:      'SKU not found, barcode also not in IMS',
                   location_not_matched:         'Variant found but location not matched',
                   no_stock_row_for_location:    'Variant found but no stock row for that location',
@@ -16585,7 +16586,7 @@ function StockMinsImportCard() {
                   <div key={reason} style={{ marginLeft: 12, color: '#fca5a5' }}>
                     {labels[reason] ?? reason}: {(rows as any[]).length}
                     {(rows as any[]).length <= 5 && (
-                      <span style={{ color: '#9ca3af' }}> — {(rows as any[]).map((r: any) => r.code).join(', ')}</span>
+                      <span style={{ color: '#9ca3af' }}> â€” {(rows as any[]).map((r: any) => r.code).join(', ')}</span>
                     )}
                   </div>
                 );
@@ -16600,7 +16601,7 @@ function StockMinsImportCard() {
                   a.download = 'stock-mins-unmatched.csv'; a.click();
                 }}
                 style={{ marginTop: 8, padding: '4px 10px', borderRadius: 5, border: 'none', background: '#374151', color: '#d1d5db', cursor: 'pointer', fontSize: 11, fontFamily: 'sans-serif' }}
-              >⬇ Download full unmatched list ({result.summary.skippedNotFound} rows)</button>
+              >â¬‡ Download full unmatched list ({result.summary.skippedNotFound} rows)</button>
             </>
           )}
         </div>
@@ -16651,8 +16652,8 @@ function DataResetCard() {
   return (
     <div style={{ background: '#1a0a0a', border: '1px solid rgba(248,113,113,.35)', borderRadius: 8, padding: 14, marginBottom: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <span style={{ fontSize: 16 }}>🗑</span>
-        <strong style={{ color: '#f87171', fontSize: 13 }}>Start Over — Delete Transactional Data</strong>
+        <span style={{ fontSize: 16 }}>ðŸ—‘</span>
+        <strong style={{ color: '#f87171', fontSize: 13 }}>Start Over â€” Delete Transactional Data</strong>
       </div>
       <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: '0 0 12px', lineHeight: 1.55 }}>
         Permanently deletes selected transactional data for this business. Use this to clean up test data before going live.{' '}
@@ -16672,7 +16673,7 @@ function DataResetCard() {
             />
             <span style={{ fontSize: 12 }}>
               <span style={{ color: 'var(--sv-text-strong)', fontWeight: 600 }}>{t.label}</span>
-              <span style={{ color: 'var(--sv-text-dim)', marginLeft: 6 }}>— {t.note}</span>
+              <span style={{ color: 'var(--sv-text-dim)', marginLeft: 6 }}>â€” {t.note}</span>
             </span>
           </label>
         ))}
@@ -16691,7 +16692,7 @@ function DataResetCard() {
           onClick={run}
           style={{ ...btnStyle('danger', 'sm'), opacity: ready ? 1 : 0.45 }}
         >
-          {running ? 'Deleting…' : 'Delete Selected Data'}
+          {running ? 'Deletingâ€¦' : 'Delete Selected Data'}
         </button>
       </div>
 
@@ -16700,7 +16701,7 @@ function DataResetCard() {
       {result && (
         <div style={{ background: 'rgba(74,222,128,.08)', border: '1px solid rgba(74,222,128,.25)', borderRadius: 6, padding: '8px 12px', fontSize: 12, color: '#4ade80' }}>
           Done. Records deleted:{' '}
-          {Object.entries(result.deleted).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(' · ')}
+          {Object.entries(result.deleted).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(' Â· ')}
         </div>
       )}
     </div>
@@ -16719,7 +16720,7 @@ function SetupImportCard({ section }: { section: SetupSection }) {
           <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{section.description}</div>
         </div>
         <button onClick={run} disabled={running} style={{ padding: '6px 14px', borderRadius: 6, border: 'none', cursor: running ? 'not-allowed' : 'pointer', background: done ? 'var(--sv-mint)' : 'var(--sv-action)', color: '#fff', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap', opacity: running ? 0.7 : 1 }}>
-          {running ? 'Running…' : done ? 'Done ✓' : 'Run Import'}
+          {running ? 'Runningâ€¦' : done ? 'Done âœ“' : 'Run Import'}
         </button>
       </div>
       {messages.length > 0 && (
@@ -16748,9 +16749,9 @@ interface SettingsModalProps {
   setPoMonthsInput: (v: number) => void;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Utilities — Sync Zone/Bin
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Utilities â€” Sync Zone/Bin
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type ZoneBinStatus = 'healthy' | 'fill_variant' | 'fill_product' | 'conflict';
 
@@ -16831,10 +16832,10 @@ function SyncZoneBinUtility() {
   const fillDiffs      = changedDiffs.filter(d => d.zone_status !== 'conflict' && d.bin_status !== 'conflict');
 
   const statusBadge = (status: ZoneBinStatus, fill: string | null) => {
-    if (status === 'healthy')       return <span style={{ color: 'var(--sv-mint)', fontSize: 11, fontWeight: 600 }}>✓</span>;
-    if (status === 'fill_variant')  return <span style={{ color: 'var(--sv-action)', fontSize: 11, fontWeight: 600 }}>→ variant: <em>{fill}</em></span>;
-    if (status === 'fill_product')  return <span style={{ color: 'var(--sv-action)', fontSize: 11, fontWeight: 600 }}>→ product: <em>{fill}</em></span>;
-    return <span style={{ color: 'var(--sv-red)', fontSize: 11, fontWeight: 700 }}>⚡ conflict</span>;
+    if (status === 'healthy')       return <span style={{ color: 'var(--sv-mint)', fontSize: 11, fontWeight: 600 }}>âœ“</span>;
+    if (status === 'fill_variant')  return <span style={{ color: 'var(--sv-action)', fontSize: 11, fontWeight: 600 }}>â†’ variant: <em>{fill}</em></span>;
+    if (status === 'fill_product')  return <span style={{ color: 'var(--sv-action)', fontSize: 11, fontWeight: 600 }}>â†’ product: <em>{fill}</em></span>;
+    return <span style={{ color: 'var(--sv-red)', fontSize: 11, fontWeight: 700 }}>âš¡ conflict</span>;
   };
 
   const labelSt: React.CSSProperties = { fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: 0.6, color: 'var(--sv-text-dim)', marginBottom: 4, display: 'block' };
@@ -16845,7 +16846,7 @@ function SyncZoneBinUtility() {
       {/* Header */}
       <div style={{ background: 'var(--sv-bg-2)', padding: '14px 18px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 3 }}>🗃️ Sync Default Zone &amp; Bin with Location</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 3 }}>ðŸ—ƒï¸ Sync Default Zone &amp; Bin with Location</div>
           <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.5, maxWidth: 520 }}>
             Zone and bin are stored at both <strong>product level</strong> (shown in the stock panel) and <strong>variant level</strong> (per individual variant).
             This utility compares the two for all variants stocked at a chosen location, fills in missing values from whichever side has one, and flags any where they differ.
@@ -16862,7 +16863,7 @@ function SyncZoneBinUtility() {
             onChange={e => { setLocationId(e.target.value ? Number(e.target.value) : ''); setDiffs(null); setResult(null); }}
             style={inputStyle}
           >
-            <option value="">— select a location —</option>
+            <option value="">â€” select a location â€”</option>
             {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         </div>
@@ -16871,7 +16872,7 @@ function SyncZoneBinUtility() {
           disabled={!locationId || analysing}
           style={{ ...btnStyle('action', 'sm'), height: 36, whiteSpace: 'nowrap' }}
         >
-          {analysing ? 'Analysing…' : '🔍 Analyse Differences'}
+          {analysing ? 'Analysingâ€¦' : 'ðŸ” Analyse Differences'}
         </button>
       </div>
 
@@ -16885,7 +16886,7 @@ function SyncZoneBinUtility() {
       {/* Success result */}
       {result && (
         <div style={{ margin: '14px 18px', padding: '12px 16px', background: 'color-mix(in srgb, var(--sv-mint) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sv-mint) 30%, transparent)', borderRadius: 8, fontSize: 13, color: 'var(--sv-mint)', fontWeight: 600 }}>
-          ✓ Done — {result.updatedVariants} variant{result.updatedVariants !== 1 ? 's' : ''} and {result.updatedProducts} product{result.updatedProducts !== 1 ? 's' : ''} updated
+          âœ“ Done â€” {result.updatedVariants} variant{result.updatedVariants !== 1 ? 's' : ''} and {result.updatedProducts} product{result.updatedProducts !== 1 ? 's' : ''} updated
           {result.updatedStockRows > 0 && <>, {result.updatedStockRows} stock row{result.updatedStockRows !== 1 ? 's' : ''} updated at chosen location</>}.
         </div>
       )}
@@ -16899,7 +16900,7 @@ function SyncZoneBinUtility() {
               { label: 'Total variants at location', val: localDiffs.length, color: 'var(--sv-text-dim)' },
               { label: 'Already in sync', val: localDiffs.filter(d => d.zone_status === 'healthy' && d.bin_status === 'healthy').length, color: 'var(--sv-mint)' },
               { label: 'Will be filled', val: fillDiffs.length, color: 'var(--sv-action)' },
-              { label: 'Conflicts — need your input', val: conflictDiffs.length, color: 'var(--sv-red)' },
+              { label: 'Conflicts â€” need your input', val: conflictDiffs.length, color: 'var(--sv-red)' },
             ].map(({ label, val, color }) => (
               <div key={label} style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '8px 14px' }}>
                 <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 2 }}>{label}</div>
@@ -16910,15 +16911,15 @@ function SyncZoneBinUtility() {
 
           {changedDiffs.length === 0 ? (
             <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--sv-mint)', fontWeight: 600, fontSize: 14 }}>
-              ✓ All zones and bins are already in sync for this location — nothing to do.
+              âœ“ All zones and bins are already in sync for this location â€” nothing to do.
             </div>
           ) : (
             <>
-              {/* Conflicts first — need user input */}
+              {/* Conflicts first â€” need user input */}
               {conflictDiffs.length > 0 && (
                 <div style={cardSt}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-red)', marginBottom: 10 }}>
-                    ⚡ Conflicts ({conflictDiffs.length}) — both sides have different values. Choose which to use:
+                    âš¡ Conflicts ({conflictDiffs.length}) â€” both sides have different values. Choose which to use:
                   </div>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                     <thead>
@@ -16938,11 +16939,11 @@ function SyncZoneBinUtility() {
                             <tr key={key} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
                               <td style={{ padding: '8px 10px' }}>
                                 <div style={{ fontWeight: 600 }}>{d.product_name}</div>
-                                <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{[d.sku, d.variant_label].filter(Boolean).join(' · ')}</div>
+                                <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{[d.sku, d.variant_label].filter(Boolean).join(' Â· ')}</div>
                               </td>
                               <td style={{ padding: '8px 10px', fontWeight: 600, textTransform: 'uppercase' as const, fontSize: 11 }}>{field}</td>
-                              <td style={{ padding: '8px 10px', color: 'var(--sv-text-main)', fontFamily: 'monospace' }}>{prodVal || '—'}</td>
-                              <td style={{ padding: '8px 10px', color: 'var(--sv-text-main)', fontFamily: 'monospace' }}>{varVal || '—'}</td>
+                              <td style={{ padding: '8px 10px', color: 'var(--sv-text-main)', fontFamily: 'monospace' }}>{prodVal || 'â€”'}</td>
+                              <td style={{ padding: '8px 10px', color: 'var(--sv-text-main)', fontFamily: 'monospace' }}>{varVal || 'â€”'}</td>
                               <td style={{ padding: '6px 10px' }}>
                                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                                   <button
@@ -16953,7 +16954,7 @@ function SyncZoneBinUtility() {
                                     onClick={() => setConflictChoice(d.variant_id, field, varVal ?? '')}
                                     style={{ padding: '4px 10px', borderRadius: 5, border: `1px solid ${resolution === varVal ? 'var(--sv-action)' : 'var(--sv-etch)'}`, background: resolution === varVal ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: resolution === varVal ? '#fff' : 'var(--sv-text-main)', cursor: 'pointer', fontSize: 12, fontFamily: 'monospace', fontWeight: 600 }}
                                   >{varVal}</button>
-                                  {!resolution && <span style={{ fontSize: 11, color: 'var(--sv-red)', fontWeight: 600 }}>← choose</span>}
+                                  {!resolution && <span style={{ fontSize: 11, color: 'var(--sv-red)', fontWeight: 600 }}>â† choose</span>}
                                 </div>
                               </td>
                             </tr>
@@ -16972,7 +16973,7 @@ function SyncZoneBinUtility() {
               {fillDiffs.length > 0 && (
                 <div style={cardSt}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-action)', marginBottom: 10 }}>
-                    Auto-fill ({fillDiffs.length}) — one side was blank, value will be copied across:
+                    Auto-fill ({fillDiffs.length}) â€” one side was blank, value will be copied across:
                   </div>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                     <thead>
@@ -16987,7 +16988,7 @@ function SyncZoneBinUtility() {
                         <tr key={d.variant_id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
                           <td style={{ padding: '7px 10px' }}>
                             <div style={{ fontWeight: 600 }}>{d.product_name}</div>
-                            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{[d.sku, d.variant_label].filter(Boolean).join(' · ')}</div>
+                            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{[d.sku, d.variant_label].filter(Boolean).join(' Â· ')}</div>
                           </td>
                           <td style={{ padding: '7px 10px' }}>{statusBadge(d.zone_status, d.zone_resolution)}</td>
                           <td style={{ padding: '7px 10px' }}>{statusBadge(d.bin_status,  d.bin_resolution)}</td>
@@ -17010,7 +17011,7 @@ function SyncZoneBinUtility() {
                   })}
                   style={{ ...btnStyle('action', 'sm'), height: 36 }}
                 >
-                  {applying ? 'Applying…' : `✓ Apply ${changedDiffs.length} Change${changedDiffs.length !== 1 ? 's' : ''}`}
+                  {applying ? 'Applyingâ€¦' : `âœ“ Apply ${changedDiffs.length} Change${changedDiffs.length !== 1 ? 's' : ''}`}
                 </button>
               </div>
             </>
@@ -17021,9 +17022,9 @@ function SyncZoneBinUtility() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// ─── Locations Settings Section ──────────────────────────────────────────────
+// â”€â”€â”€ Locations Settings Section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function LocationsSettingsSection({ settings, saveSettings }: { settings: Record<string, string>; saveSettings: (u: Record<string, string>) => Promise<void> }) {
   const [locs, setLocs]     = useState<Array<{ id: number; name: string }>>([]);
@@ -17068,12 +17069,12 @@ function LocationsSettingsSection({ settings, saveSettings }: { settings: Record
           The default location pre-selected across the IMS when no other location is specified. Used as the default for:
         </p>
         <ul style={{ margin: '0 0 14px', paddingLeft: 20, fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.9 }}>
-          <li><strong style={{ color: 'var(--sv-text-main)' }}>Branch Transfers</strong> — pre-filled as the &ldquo;From&rdquo; location when creating a new transfer</li>
-          <li><strong style={{ color: 'var(--sv-text-main)' }}>Zone &amp; Bin assignment</strong> — the location whose stock is shown when editing zone/bin on a product</li>
-          <li><strong style={{ color: 'var(--sv-text-main)' }}>Min Qty &amp; Reorder Qty</strong> — the location whose thresholds are set when managing low-stock alerts</li>
+          <li><strong style={{ color: 'var(--sv-text-main)' }}>Branch Transfers</strong> â€” pre-filled as the &ldquo;From&rdquo; location when creating a new transfer</li>
+          <li><strong style={{ color: 'var(--sv-text-main)' }}>Zone &amp; Bin assignment</strong> â€” the location whose stock is shown when editing zone/bin on a product</li>
+          <li><strong style={{ color: 'var(--sv-text-main)' }}>Min Qty &amp; Reorder Qty</strong> â€” the location whose thresholds are set when managing low-stock alerts</li>
         </ul>
         {locs.length === 0 ? (
-          <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', fontStyle: 'italic' }}>Loading locations…</p>
+          <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', fontStyle: 'italic' }}>Loading locationsâ€¦</p>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <select
@@ -17082,11 +17083,11 @@ function LocationsSettingsSection({ settings, saveSettings }: { settings: Record
               disabled={saving}
               style={{ padding: '8px 12px', borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: current ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontSize: 13, minWidth: 240, cursor: 'pointer' }}
             >
-              <option value="">— No default set —</option>
+              <option value="">â€” No default set â€”</option>
               {locs.map(l => <option key={l.id} value={String(l.id)}>{l.name}</option>)}
             </select>
-            {saving && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Saving…</span>}
-            {saved  && <span style={{ fontSize: 12, color: 'var(--sv-mint)' }}>✓ Saved</span>}
+            {saving && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Savingâ€¦</span>}
+            {saved  && <span style={{ fontSize: 12, color: 'var(--sv-mint)' }}>âœ“ Saved</span>}
           </div>
         )}
         {current && locs.length > 0 && (
@@ -17138,7 +17139,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
     await saveSettings(taxDraft);
     setTaxSaving(false);
   };
-  // Display helpers (decimal stored → % shown)
+  // Display helpers (decimal stored â†’ % shown)
   const taxRateDisplay = (key: string) => {
     const v = taxDraft[key];
     return v != null && v !== '' ? String(Number(v) * 100) : '';
@@ -17235,23 +17236,23 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   };
   const CollHeader = ({ label, open, toggle }: { label: string; open: boolean; toggle: () => void }) => (
     <div onClick={toggle} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 16px', cursor: 'pointer', userSelect: 'none', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: open ? '8px 8px 0 0' : 8, fontWeight: 600, fontSize: 14, color: 'var(--sv-text-strong)' }}>
-      <span>{label}</span><span style={{ fontSize: 16 }}>{open ? '▲' : '▼'}</span>
+      <span>{label}</span><span style={{ fontSize: 16 }}>{open ? 'â–²' : 'â–¼'}</span>
     </div>
   );
 
   if (!isOpen) return null;
 
   const NAV_ITEMS_DRAWER: { id: SettingsSection; label: string; icon: string }[] = [
-    { id: 'general',          label: 'General',          icon: '⚙' },
-    { id: 'business-profile', label: 'Business Profile', icon: '🏢' },
-    { id: 'locations',        label: 'Locations',        icon: '🏗' },
-    { id: 'users',           label: 'Users',           icon: '👥' },
-    { id: 'purchase-orders', label: 'Purchase Orders', icon: '📦' },
-    { id: 'sales-orders',    label: 'Sales Orders',    icon: '🧾' },
-    { id: 'pos',             label: 'Point of Sale',   icon: '🖥' },
-    { id: 'xero',            label: 'Xero',            icon: '🔗' },
-    { id: 'sync',            label: 'Sync & Import',   icon: '🔄' },
-    { id: 'utilities',       label: 'Utilities',       icon: '🛠️' },
+    { id: 'general',          label: 'General',          icon: 'âš™' },
+    { id: 'business-profile', label: 'Business Profile', icon: 'ðŸ¢' },
+    { id: 'locations',        label: 'Locations',        icon: 'ðŸ—' },
+    { id: 'users',           label: 'Users',           icon: 'ðŸ‘¥' },
+    { id: 'purchase-orders', label: 'Purchase Orders', icon: 'ðŸ“¦' },
+    { id: 'sales-orders',    label: 'Sales Orders',    icon: 'ðŸ§¾' },
+    { id: 'pos',             label: 'Point of Sale',   icon: 'ðŸ–¥' },
+    { id: 'xero',            label: 'Xero',            icon: 'ðŸ”—' },
+    { id: 'sync',            label: 'Sync & Import',   icon: 'ðŸ”„' },
+    { id: 'utilities',       label: 'Utilities',       icon: 'ðŸ› ï¸' },
   ];
 
   return (
@@ -17260,7 +17261,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
       <div style={{ width: 210, background: 'var(--sv-bg-0)', borderRight: '1px solid var(--sv-etch)', display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 16px 14px' }}>
           <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--sv-text-strong)' }}>Settings</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 22, lineHeight: 1, padding: 0 }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 22, lineHeight: 1, padding: 0 }}>Ã—</button>
         </div>
         <div style={{ height: 1, background: 'var(--sv-etch)', margin: '0 0 8px' }} />
         {NAV_ITEMS_DRAWER.map(item => {
@@ -17276,7 +17277,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
       {/* Right content */}
       <div style={{ flex: 1, background: 'var(--sv-bg-1)', overflow: 'auto', minWidth: 0 }}>
-        {/* ── Users ── */}
+        {/* â”€â”€ Users â”€â”€ */}
         {active === 'users' && (
           <div style={{ padding: 32 }}>
             <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Organization Users</h2>
@@ -17284,7 +17285,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
           </div>
         )}
 
-        {/* ── Purchase Orders ── */}
+        {/* â”€â”€ Purchase Orders â”€â”€ */}
         {active === 'purchase-orders' && (
           <div style={{ padding: 32 }}>
             <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Purchase Order Settings</h2>
@@ -17305,15 +17306,15 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                     return <button key={opt} type="button" onClick={() => setPoDraft(p => ({ ...p, freight_treatment: opt }))} style={{ padding: '7px 18px', fontSize: 13, fontWeight: isOpt ? 600 : 400, background: isOpt ? 'var(--sv-mint)' : 'var(--sv-bg-1)', color: isOpt ? '#0a0f1a' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer' }}>{opt === 'expense' ? 'Expense (P&L immediately)' : 'Capitalise into avg. cost'}</button>;
                   })}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 5 }}>{(poDraft['freight_treatment'] || 'expense') === 'expense' ? 'Freight posts to Freight Paid account. Set under Xero → Chart of Accounts.' : 'Freight spreads into product avg. costs and posts to Inventory Asset in Xero automatically.'}</div>
+                <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 5 }}>{(poDraft['freight_treatment'] || 'expense') === 'expense' ? 'Freight posts to Freight Paid account. Set under Xero â†’ Chart of Accounts.' : 'Freight spreads into product avg. costs and posts to Inventory Asset in Xero automatically.'}</div>
               </div>
             </div>
-            <button onClick={async () => { setPoSaving(true); await saveSettings(poDraft); setPoSaving(false); }} disabled={poSaving} style={btnStyle('action', 'sm')}>{poSaving ? 'Saving…' : 'Save'}</button>
+            <button onClick={async () => { setPoSaving(true); await saveSettings(poDraft); setPoSaving(false); }} disabled={poSaving} style={btnStyle('action', 'sm')}>{poSaving ? 'Savingâ€¦' : 'Save'}</button>
             <PaymentMethodsManageSection type="po" />
           </div>
         )}
 
-        {/* ── Sales Orders ── */}
+        {/* â”€â”€ Sales Orders â”€â”€ */}
         {active === 'sales-orders' && (
           <div style={{ padding: 32 }}>
             <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Sales Order Settings</h2>
@@ -17327,19 +17328,19 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
               <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>PDF Settings</h3>
               <div><label style={labelStyle}>Terms &amp; Conditions (printed at the bottom of the Tax Invoice PDF)</label><textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' as const }} value={soDraft['so_terms'] || ''} onChange={e => setSoDraft(p => ({ ...p, so_terms: e.target.value }))} placeholder="e.g. Payment due 14 days from invoice date." /></div>
             </div>
-            <button onClick={async () => { setSoSaving(true); await saveSettings(soDraft); setSoSaving(false); }} disabled={soSaving} style={btnStyle('action', 'sm')}>{soSaving ? 'Saving…' : 'Save'}</button>
+            <button onClick={async () => { setSoSaving(true); await saveSettings(soDraft); setSoSaving(false); }} disabled={soSaving} style={btnStyle('action', 'sm')}>{soSaving ? 'Savingâ€¦' : 'Save'}</button>
             <PaymentMethodsManageSection type="so" />
           </div>
         )}
 
-        {/* ── Xero ── */}
+        {/* â”€â”€ Xero â”€â”€ */}
         {active === 'xero' && (
           <div style={{ padding: 32 }}>
             <XeroMappingTab getBusinessId={() => businessId} />
           </div>
         )}
 
-        {/* ── Utilities ── */}
+        {/* â”€â”€ Utilities â”€â”€ */}
         {active === 'utilities' && (
           <div style={{ padding: 32, maxWidth: 820 }}>
             <h2 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Utilities</h2>
@@ -17350,12 +17351,12 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
           </div>
         )}
 
-        {/* ── Locations ── */}
+        {/* â”€â”€ Locations â”€â”€ */}
         {active === 'locations' && (
           <LocationsSettingsSection settings={settings} saveSettings={saveSettings} />
         )}
 
-        {/* ── Business Profile ── */}
+        {/* â”€â”€ Business Profile â”€â”€ */}
         {active === 'business-profile' && (
           <div style={{ padding: 32, maxWidth: 640 }}>
             <h2 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Business Profile</h2>
@@ -17375,7 +17376,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
               <input style={inputStyle} value={profileDraft['business_abn'] || ''} onChange={e => setProfileDraft(p => ({ ...p, business_abn: e.target.value }))} placeholder="e.g. 11 222 333 444" />
             </div>
             <div style={{ marginBottom: 24 }}>
-              <label style={labelStyle}>Logo for PDF (PNG/JPG — max ~500 KB)</label>
+              <label style={labelStyle}>Logo for PDF (PNG/JPG â€” max ~500 KB)</label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" onChange={e => {
                   const file = e.target.files?.[0];
@@ -17393,16 +17394,16 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="button" onClick={() => setProfileDraft(settings)} style={btnStyle('ghost', 'sm')}>Cancel</button>
-              <button type="button" disabled={profileSaving} onClick={async () => { setProfileSaving(true); await saveSettings(profileDraft); setProfileSaving(false); }} style={btnStyle('action', 'sm')}>{profileSaving ? 'Saving…' : 'Save Profile'}</button>
+              <button type="button" disabled={profileSaving} onClick={async () => { setProfileSaving(true); await saveSettings(profileDraft); setProfileSaving(false); }} style={btnStyle('action', 'sm')}>{profileSaving ? 'Savingâ€¦' : 'Save Profile'}</button>
             </div>
           </div>
         )}
 
-        {/* ── General / POS / Sync ── legacy accordion body ── */}
+        {/* â”€â”€ General / POS / Sync â”€â”€ legacy accordion body â”€â”€ */}
         <div style={{ padding: 20, overflowY: 'auto', display: (active === 'general' || active === 'pos' || active === 'sync') ? undefined : 'none' }}>
-          {/* ── SYNC SECTION ── */}
+          {/* â”€â”€ SYNC SECTION â”€â”€ */}
           <div style={{ display: active === 'sync' ? undefined : 'none' }}>
-          {/* ── Cin7 Sync ── */}
+          {/* â”€â”€ Cin7 Sync â”€â”€ */}
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, color: 'var(--sv-text-dim)', marginBottom: 10 }}>Cin7 Sync</div>
 
           {/* Locations & Contacts */}
@@ -17493,30 +17494,30 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
             </div>
           )}
 
-          {/* ── One-time Setup ── */}
+          {/* â”€â”€ One-time Setup â”€â”€ */}
           <div style={{ marginBottom: 8 }}>
-            <CollHeader label="⚙️ One-time Setup" open={setupOpen} toggle={() => setSetupOpen(o => !o)} />
+            <CollHeader label="âš™ï¸ One-time Setup" open={setupOpen} toggle={() => setSetupOpen(o => !o)} />
             {setupOpen && (
               <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
                 <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 14, marginTop: 0 }}>
-                  These imports are for initial setup only — not covered by the regular Cin7 sync above.
+                  These imports are for initial setup only â€” not covered by the regular Cin7 sync above.
                 </p>
-                <SetupImportCard section={{ key: 'stock-snapshot', label: 'Opening Stock Snapshot', description: '⚠ Run last. Sets opening stock on hand and incoming quantities from Cin7. Overwrites existing stock balances — use once during initial setup only.', endpoint: '/api/ims/import/stock-snapshot' }} />
+                <SetupImportCard section={{ key: 'stock-snapshot', label: 'Opening Stock Snapshot', description: 'âš  Run last. Sets opening stock on hand and incoming quantities from Cin7. Overwrites existing stock balances â€” use once during initial setup only.', endpoint: '/api/ims/import/stock-snapshot' }} />
 
-                {/* ── Stock Cost CSV Import ── */}
+                {/* â”€â”€ Stock Cost CSV Import â”€â”€ */}
                 <StockCostImportCard />
 
-                {/* ── Stock Min / Reorder Qty CSV Import ── */}
+                {/* â”€â”€ Stock Min / Reorder Qty CSV Import â”€â”€ */}
                 <StockMinsImportCard />
 
-                {/* ── Start Over / Data Reset ── */}
+                {/* â”€â”€ Start Over / Data Reset â”€â”€ */}
                 <DataResetCard />
               </div>
             )}
           </div>
-          </div>{/* ─ end sync ─ */}
+          </div>{/* â”€ end sync â”€ */}
 
-          {/* ── GENERAL SECTION ── */}
+          {/* â”€â”€ GENERAL SECTION â”€â”€ */}
           <div style={{ display: active === 'general' ? undefined : 'none' }}>
             <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>General Settings</h2>
 
@@ -17595,16 +17596,16 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
             </div>
 
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <button type="button" disabled={taxSaving} onClick={saveTaxSettings} style={btnStyle('action', 'sm')}>{taxSaving ? 'Saving…' : 'Save Settings'}</button>
+              <button type="button" disabled={taxSaving} onClick={saveTaxSettings} style={btnStyle('action', 'sm')}>{taxSaving ? 'Savingâ€¦' : 'Save Settings'}</button>
             </div>
-          </div>{/* ─ end general ─ */}
+          </div>{/* â”€ end general â”€ */}
 
-          {/* ── POS SECTION ── */}
+          {/* â”€â”€ POS SECTION â”€â”€ */}
           <div style={{ display: active === 'pos' ? undefined : 'none' }}>
 
-          {/* ── Orders / Payment Types ── */}
+          {/* â”€â”€ Orders / Payment Types â”€â”€ */}
           <div style={{ marginBottom: 8 }}>
-            <CollHeader label="🧾 Orders" open={ordersOpen} toggle={() => setOrdersOpen(o => !o)} />
+            <CollHeader label="ðŸ§¾ Orders" open={ordersOpen} toggle={() => setOrdersOpen(o => !o)} />
             {ordersOpen && (
               <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
                 <label style={{ ...labelStyle, display: 'block', fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Payment Types</label>
@@ -17613,14 +17614,14 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                   {paymentTypes.map(pt => (
                     <div key={pt} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 99, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', fontSize: 13 }}>
                       <span>{pt}</span>
-                      <button type="button" onClick={() => savePaymentTypes(paymentTypes.filter(t => t !== pt))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 16, lineHeight: 1, padding: '0 2px' }} title="Remove">×</button>
+                      <button type="button" onClick={() => savePaymentTypes(paymentTypes.filter(t => t !== pt))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 16, lineHeight: 1, padding: '0 2px' }} title="Remove">Ã—</button>
                     </div>
                   ))}
                   {paymentTypes.length === 0 && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>No payment types configured.</span>}
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input style={{ ...inputStyle, flex: 1, maxWidth: 220 }} value={newPaymentType} onChange={e => setNewPaymentType(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && newPaymentType.trim()) { savePaymentTypes([...paymentTypes, newPaymentType.trim()]); setNewPaymentType(''); } }} placeholder="Add payment type…" />
-                  <button type="button" disabled={!newPaymentType.trim() || ptSaving} onClick={() => { if (newPaymentType.trim()) { savePaymentTypes([...paymentTypes, newPaymentType.trim()]); setNewPaymentType(''); } }} style={btnStyle('action', 'sm')}>{ptSaving ? 'Saving…' : 'Add'}</button>
+                  <input style={{ ...inputStyle, flex: 1, maxWidth: 220 }} value={newPaymentType} onChange={e => setNewPaymentType(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && newPaymentType.trim()) { savePaymentTypes([...paymentTypes, newPaymentType.trim()]); setNewPaymentType(''); } }} placeholder="Add payment typeâ€¦" />
+                  <button type="button" disabled={!newPaymentType.trim() || ptSaving} onClick={() => { if (newPaymentType.trim()) { savePaymentTypes([...paymentTypes, newPaymentType.trim()]); setNewPaymentType(''); } }} style={btnStyle('action', 'sm')}>{ptSaving ? 'Savingâ€¦' : 'Add'}</button>
                 </div>
                 <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--sv-etch)' }}>
                   <label style={{ ...labelStyle, display: 'block', fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Default Cash Float</label>
@@ -17628,7 +17629,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <span style={{ fontSize: 14, color: 'var(--sv-text-dim)' }}>$</span>
                     <input type="number" min="0" step="0.01" style={{ ...inputStyle, width: 120 }} value={defaultFloatInput} onChange={e => setDefaultFloatInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') saveDefaultFloat(); }} />
-                    <button type="button" disabled={defaultFloatSaving} onClick={saveDefaultFloat} style={btnStyle('action', 'sm')}>{defaultFloatSaving ? 'Saving…' : 'Save'}</button>
+                    <button type="button" disabled={defaultFloatSaving} onClick={saveDefaultFloat} style={btnStyle('action', 'sm')}>{defaultFloatSaving ? 'Savingâ€¦' : 'Save'}</button>
                     {defaultFloat > 0 && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Current: ${defaultFloat.toFixed(2)}</span>}
                   </div>
                 </div>
@@ -17636,9 +17637,9 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
             )}
           </div>
 
-          {/* ── POS Display ── */}
+          {/* â”€â”€ POS Display â”€â”€ */}
           <div style={{ marginBottom: 8 }}>
-            <CollHeader label="🖥️ POS Display" open={posDisplayOpen} toggle={() => setPosDisplayOpen(o => !o)} />
+            <CollHeader label="ðŸ–¥ï¸ POS Display" open={posDisplayOpen} toggle={() => setPosDisplayOpen(o => !o)} />
             {posDisplayOpen && (
               <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
                 <label style={{ ...labelStyle, display: 'block', fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Default Product View</label>
@@ -17674,7 +17675,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                           style={{ ...inputStyle, display: 'block', marginTop: 6, maxWidth: 220 }}
                           value={posDisplayBrandInput}
                           onChange={e => { setPosDisplayBrandInput(e.target.value); setPosDisplayView(`brand:${e.target.value}`); }}
-                          placeholder="Brand name exactly as in Cin7…"
+                          placeholder="Brand name exactly as in Cin7â€¦"
                         />
                       )}
                     </div>
@@ -17694,13 +17695,13 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
                               {posDisplayVariants.map(v => (
                                 <div key={v.variant_id} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px 3px 10px', borderRadius: 99, border: `1px solid ${v.name === '[Unknown product]' ? 'var(--sv-red)' : 'var(--sv-etch)'}`, background: v.name === '[Unknown product]' ? 'var(--sv-red-tint)' : 'var(--sv-bg-2)', fontSize: 12 }}>
-                                  <span style={{ color: v.name === '[Unknown product]' ? 'var(--sv-red)' : 'var(--sv-text-strong)', fontWeight: 600 }}>{v.name === '[Unknown product]' ? '⚠ Unknown (remove)' : v.name}</span>
-                                  {v.sku && v.name !== '[Unknown product]' && <span style={{ color: 'var(--sv-text-dim)' }}>· {v.sku}</span>}
+                                  <span style={{ color: v.name === '[Unknown product]' ? 'var(--sv-red)' : 'var(--sv-text-strong)', fontWeight: 600 }}>{v.name === '[Unknown product]' ? 'âš  Unknown (remove)' : v.name}</span>
+                                  {v.sku && v.name !== '[Unknown product]' && <span style={{ color: 'var(--sv-text-dim)' }}>Â· {v.sku}</span>}
                                   <button type="button" onClick={() => {
                                     const next = posDisplayVariants.filter(x => x.variant_id !== v.variant_id);
                                     setPosDisplayVariants(next);
                                     setPosDisplayView(next.length ? `variants:${next.map(x => x.variant_id).join(',')}` : 'variants:');
-                                  }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 15, lineHeight: 1, padding: '0 1px', marginLeft: 2 }}>×</button>
+                                  }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 15, lineHeight: 1, padding: '0 1px', marginLeft: 2 }}>Ã—</button>
                                 </div>
                               ))}
                             </div>
@@ -17711,7 +17712,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                             <input
                               style={{ ...inputStyle, marginBottom: 0, paddingRight: 32 }}
                               value={posPickerSearch}
-                              placeholder="Search by name, SKU or brand…"
+                              placeholder="Search by name, SKU or brandâ€¦"
                               onChange={e => {
                                 const q = e.target.value;
                                 setPosPickerSearch(q);
@@ -17732,7 +17733,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                               onFocus={() => { if (posPickerResults.length) setPosPickerOpen(true); }}
                             />
                             {posPickerSearch && (
-                              <button type="button" onClick={() => { setPosPickerSearch(''); setPosPickerResults([]); setPosPickerOpen(false); }} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
+                              <button type="button" onClick={() => { setPosPickerSearch(''); setPosPickerResults([]); setPosPickerOpen(false); }} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 16, lineHeight: 1, padding: 0 }}>Ã—</button>
                             )}
                             {posPickerOpen && posPickerResults.length > 0 && (
                               <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 60, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,.35)', maxHeight: 240, overflowY: 'auto' }}>
@@ -17744,9 +17745,9 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                                       onMouseDown={e => {
                                         e.preventDefault();
                                         if (alreadyAdded) return;
-                                        // Extract clean product name from label ("Product: Name — Variant  ·  Brand: X")
-                                        const namePart = r.label.replace(/^Product:\s*/, '').replace(/\s*·\s*Brand:.*$/, '').trim();
-                                        const skuMatch = (r.meta ?? '').match(/SKU:\s*([^\s·]+)/);
+                                        // Extract clean product name from label ("Product: Name â€” Variant  Â·  Brand: X")
+                                        const namePart = r.label.replace(/^Product:\s*/, '').replace(/\s*Â·\s*Brand:.*$/, '').trim();
+                                        const skuMatch = (r.meta ?? '').match(/SKU:\s*([^\sÂ·]+)/);
                                         const sku = skuMatch ? skuMatch[1] : null;
                                         const next = [...posDisplayVariants, { variant_id: r.value, name: namePart, sku }];
                                         setPosDisplayVariants(next);
@@ -17760,8 +17761,8 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                                       onMouseLeave={e => { if (!alreadyAdded) e.currentTarget.style.background = 'transparent'; }}
                                     >
                                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {r.label.replace(/^Product:\s*/, '').replace(/\s*·\s*Brand:.*$/, '').trim()}
-                                        {alreadyAdded && <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--sv-mint)', fontWeight: 400 }}>✓ added</span>}
+                                        {r.label.replace(/^Product:\s*/, '').replace(/\s*Â·\s*Brand:.*$/, '').trim()}
+                                        {alreadyAdded && <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--sv-mint)', fontWeight: 400 }}>âœ“ added</span>}
                                       </div>
                                       {r.meta && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.meta}</div>}
                                     </div>
@@ -17788,14 +17789,14 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                   }
                   onClick={() => savePosDisplayView(posDisplayView)}
                   style={btnStyle('action', 'sm')}
-                >{posDisplaySaving ? 'Saving…' : 'Save'}</button>
+                >{posDisplaySaving ? 'Savingâ€¦' : 'Save'}</button>
               </div>
             )}
           </div>
 
-          {/* ── POS Config ── */}
+          {/* â”€â”€ POS Config â”€â”€ */}
           <div style={{ marginBottom: 8 }}>
-            <CollHeader label="🛒 POS Config" open={posConfigOpen} toggle={() => setPosConfigOpen(o => !o)} />
+            <CollHeader label="ðŸ›’ POS Config" open={posConfigOpen} toggle={() => setPosConfigOpen(o => !o)} />
             {posConfigOpen && (
               <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
 
@@ -17808,7 +17809,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                     onChange={async e => { await saveSettings({ pos_bt_access: e.target.value }); }}
                     style={{ ...inputStyle, maxWidth: 280 }}
                   >
-                    <option value="disabled">Disabled — not accessible from POS</option>
+                    <option value="disabled">Disabled â€” not accessible from POS</option>
                     <option value="manager">Manager &amp; above only (PosManager, StandardUser, Admin)</option>
                     <option value="all">All POS users (including regular staff)</option>
                   </select>
@@ -17823,8 +17824,8 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                     onChange={async e => { await saveSettings({ advisor_sync_enabled: e.target.value }); }}
                     style={{ ...inputStyle, maxWidth: 280 }}
                   >
-                    <option value="false">Disabled — Advisors cannot trigger syncs</option>
-                    <option value="true">Enabled — Advisors can sync latest products &amp; stock</option>
+                    <option value="false">Disabled â€” Advisors cannot trigger syncs</option>
+                    <option value="true">Enabled â€” Advisors can sync latest products &amp; stock</option>
                   </select>
                 </div>
                 <div style={{ marginBottom: 16 }}>
@@ -17847,10 +17848,10 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                     placeholder="We hope this gift brings you joy and happiness!" 
                   />
                 </div>
-                {/* ── Receipt Logo ── */}
+                {/* â”€â”€ Receipt Logo â”€â”€ */}
                 <div style={{ marginBottom: 16 }}>
                   <label style={labelStyle}>Receipt Logo</label>
-                  <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 8, marginTop: 0 }}>Displayed at the top of printed receipts. PNG or JPG recommended. Max displayed size: 180×80px.</p>
+                  <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 8, marginTop: 0 }}>Displayed at the top of printed receipts. PNG or JPG recommended. Max displayed size: 180Ã—80px.</p>
                   {settings['pos_receipt_logo'] && (
                     <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
                       <img src={settings['pos_receipt_logo']} alt="Receipt logo preview" style={{ maxWidth: 180, maxHeight: 80, objectFit: 'contain', border: '1px solid var(--sv-etch)', borderRadius: 4, background: '#fff', padding: 4 }} />
@@ -17859,7 +17860,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                         disabled={logoSaving}
                         onClick={async () => { setLogoSaving(true); await saveSettings({ pos_receipt_logo: '' }); setLogoSaving(false); }}
                         style={btnStyle('ghost', 'sm')}
-                      >{logoSaving ? 'Removing…' : 'Remove logo'}</button>
+                      >{logoSaving ? 'Removingâ€¦' : 'Remove logo'}</button>
                     </div>
                   )}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -17891,20 +17892,20 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                         e.target.value = '';
                       }}
                     />
-                    {logoSaving && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Saving…</span>}
+                    {logoSaving && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Savingâ€¦</span>}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                   <button type="button" onClick={() => setProfileDraft(settings)} style={btnStyle('ghost', 'sm')}>Cancel</button>
-                  <button type="button" disabled={profileSaving} onClick={async () => { setProfileSaving(true); await saveSettings(profileDraft); setProfileSaving(false); }} style={btnStyle('action', 'sm')}>{profileSaving ? 'Saving…' : 'Save Header/Footer'}</button>
+                  <button type="button" disabled={profileSaving} onClick={async () => { setProfileSaving(true); await saveSettings(profileDraft); setProfileSaving(false); }} style={btnStyle('action', 'sm')}>{profileSaving ? 'Savingâ€¦' : 'Save Header/Footer'}</button>
                 </div>
               </div>
             )}
           </div>
 
-          {/* ── Online Pick Locations ── */}
+          {/* â”€â”€ Online Pick Locations â”€â”€ */}
           <div style={{ marginBottom: 8 }}>
-            <CollHeader label="🌐 Online Pick Locations" open={onlinePickOpen} toggle={() => setOnlinePickOpen(o => !o)} />
+            <CollHeader label="ðŸŒ Online Pick Locations" open={onlinePickOpen} toggle={() => setOnlinePickOpen(o => !o)} />
             {onlinePickOpen && (() => {
               let priority: number[] = [];
               try { const arr = JSON.parse(settings['online_pick_priority'] ?? '[]'); if (Array.isArray(arr)) priority = arr.map(Number).filter(Boolean); } catch {}
@@ -17929,7 +17930,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
               return (
                 <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
                   <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', margin: '0 0 14px', lineHeight: 1.6 }}>
-                    Choose which locations online store orders are picked from, in priority order. When an order comes in, IMS looks at the location ranked <strong>1</strong> first — if it has enough available stock, that becomes the pick location. If not, it tries <strong>2</strong>, then <strong>3</strong>, and so on. If none of your pick locations have the item available, the order is flagged with <strong style={{ color: 'var(--sv-red)' }}>⚠ Missing stock</strong> and the #1 location is shown as the intended pick-from. Leave a location blank to exclude it from online picking.
+                    Choose which locations online store orders are picked from, in priority order. When an order comes in, IMS looks at the location ranked <strong>1</strong> first â€” if it has enough available stock, that becomes the pick location. If not, it tries <strong>2</strong>, then <strong>3</strong>, and so on. If none of your pick locations have the item available, the order is flagged with <strong style={{ color: 'var(--sv-red)' }}>âš  Missing stock</strong> and the #1 location is shown as the intended pick-from. Leave a location blank to exclude it from online picking.
                   </p>
                   <table style={{ width: '100%', maxWidth: 480, borderCollapse: 'collapse', fontSize: 13 }}>
                     <thead>
@@ -17947,7 +17948,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                               type="number" min={1} max={pickLocations.length}
                               value={rankOf(loc.id)}
                               onChange={e => setPriority(loc.id, e.target.value)}
-                              placeholder="—"
+                              placeholder="â€”"
                               style={{ width: 64, padding: '5px 8px', textAlign: 'center', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: 13 }}
                             />
                           </td>
@@ -17963,9 +17964,9 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
             })()}
           </div>
 
-          {/* ── Card Terminals ── */}
+          {/* â”€â”€ Card Terminals â”€â”€ */}
           <div style={{ marginBottom: 8 }}>
-            <CollHeader label="💳 Card Terminals" open={cardTermOpen} toggle={async () => {
+            <CollHeader label="ðŸ’³ Card Terminals" open={cardTermOpen} toggle={async () => {
               if (!cardTermOpen && cardTermRegs.length === 0) {
                 setCardTermLoading(true);
                 try {
@@ -17987,9 +17988,9 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
             }} />
             {cardTermOpen && (
               <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
-                {cardTermLoading && <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading registers…</div>}
+                {cardTermLoading && <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading registersâ€¦</div>}
                 {!cardTermLoading && cardTermRegs.length === 0 && (
-                  <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>No registers found. Create registers in Locations → Registers first.</div>
+                  <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>No registers found. Create registers in Locations â†’ Registers first.</div>
                 )}
                 {cardTermRegs.map((reg, idx) => {
                   const updateReg = (patch: Record<string, any>) =>
@@ -17997,7 +17998,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                   return (
                     <div key={reg.id} style={{ marginBottom: 16, padding: 14, border: '1px solid var(--sv-etch)', borderRadius: 8, background: 'var(--sv-bg-2)' }}>
                       <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: 'var(--sv-text-strong)' }}>
-                        {reg.location_name} — {reg.name}
+                        {reg.location_name} â€” {reg.name}
                       </div>
 
                       {/* Enable/Disable toggle */}
@@ -18037,9 +18038,9 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                         <div style={{ marginBottom: 10 }}>
                           <label style={labelStyle}>
                             API Key
-                            {reg.zeller_api_key === '****' && <span style={{ fontWeight: 400, color: 'var(--sv-text-dim)', marginLeft: 6 }}>— currently set, enter new value to change</span>}
+                            {reg.zeller_api_key === '****' && <span style={{ fontWeight: 400, color: 'var(--sv-text-dim)', marginLeft: 6 }}>â€” currently set, enter new value to change</span>}
                           </label>
-                          <input type="password" style={{ ...inputStyle, maxWidth: 340 }} value={reg._apiKey} onChange={e => updateReg({ _apiKey: e.target.value })} placeholder={reg.zeller_api_key === '****' ? '••••••••' : 'Enter API key…'} autoComplete="new-password" />
+                          <input type="password" style={{ ...inputStyle, maxWidth: 340 }} value={reg._apiKey} onChange={e => updateReg({ _apiKey: e.target.value })} placeholder={reg.zeller_api_key === '****' ? 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢' : 'Enter API keyâ€¦'} autoComplete="new-password" />
                         </div>
                         <div style={{ marginBottom: 10 }}>
                           <label style={labelStyle}>Payment Methods That Trigger This Terminal</label>
@@ -18083,16 +18084,16 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                           finally { setSavingTerminalId(null); }
                         }}
                         style={btnStyle('action', 'sm')}
-                      >{savingTerminalId === reg.id ? 'Saving…' : 'Save'}</button>
+                      >{savingTerminalId === reg.id ? 'Savingâ€¦' : 'Save'}</button>
                     </div>
                   );
                 })}
               </div>
             )}
           </div>
-          </div>{/* ─ end pos ─ */}
-        </div>{/* ─ end legacy body ─ */}
-      </div>{/* ─ end right content ─ */}
+          </div>{/* â”€ end pos â”€ */}
+        </div>{/* â”€ end legacy body â”€ */}
+      </div>{/* â”€ end right content â”€ */}
     </div>
   );
 }
@@ -18100,9 +18101,9 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
 
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HelpModal — context-aware documentation, mirrors SettingsModal structure
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// HelpModal â€” context-aware documentation, mirrors SettingsModal structure
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClose: () => void; defaultSection: SettingsSection }) {
   const [active, setActive] = useState<SettingsSection>(defaultSection);
@@ -18111,14 +18112,14 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
   if (!isOpen) return null;
 
   const NAV_ITEMS: { id: SettingsSection; label: string; icon: string }[] = [
-    { id: 'general',         label: 'General',         icon: '📖' },
-    { id: 'purchase-orders', label: 'Purchase Orders', icon: '📦' },
-    { id: 'sales-orders',    label: 'Sales Orders',    icon: '🧾' },
-    { id: 'pos',             label: 'Point of Sale',   icon: '🖥' },
-    { id: 'shopify',         label: 'Shopify',         icon: '🛒' },
-    { id: 'xero',            label: 'Xero',            icon: '🔗' },
-    { id: 'sync',            label: 'Sync & Import',   icon: '🔄' },
-    { id: 'users',           label: 'Users',           icon: '👥' },
+    { id: 'general',         label: 'General',         icon: 'ðŸ“–' },
+    { id: 'purchase-orders', label: 'Purchase Orders', icon: 'ðŸ“¦' },
+    { id: 'sales-orders',    label: 'Sales Orders',    icon: 'ðŸ§¾' },
+    { id: 'pos',             label: 'Point of Sale',   icon: 'ðŸ–¥' },
+    { id: 'shopify',         label: 'Shopify',         icon: 'ðŸ›’' },
+    { id: 'xero',            label: 'Xero',            icon: 'ðŸ”—' },
+    { id: 'sync',            label: 'Sync & Import',   icon: 'ðŸ”„' },
+    { id: 'users',           label: 'Users',           icon: 'ðŸ‘¥' },
   ];
 
   const h2: React.CSSProperties = { margin: '0 0 6px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' };
@@ -18179,7 +18180,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
   );
 
   const Content = () => {
-    // ── Utilities ─────────────────────────────────────────────────────────────
+    // â”€â”€ Utilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (active === 'utilities') return (
       <div style={{ padding: 32, maxWidth: 820 }}>
         <h2 style={h2}>Utilities</h2>
@@ -18190,29 +18191,29 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
       </div>
     );
 
-    // ── General ───────────────────────────────────────────────────────────────
+    // â”€â”€ General â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (active === 'general') return (
       <div style={{ padding: 32, maxWidth: 760 }}>
         <h2 style={h2}>IMS Overview</h2>
         <p style={{ ...p, color: 'var(--sv-text-dim)', marginBottom: 16 }}>The Inventory Management System (IMS) is Marketoir's central hub for managing stock, orders, contacts, and financial integrations.</p>
         <h3 style={h3}>What IMS manages</h3>
         <ul style={ul}>
-          <li><strong>Products & variants</strong> — SKU catalog with multi-option variants, brand grouping, and bulk editing</li>
-          <li><strong>Stock levels</strong> — Per-location stock quantities, low-stock alerts, and sales cache for fast reporting</li>
-          <li><strong>Purchase Orders</strong> — Supplier orders, landed cost tracking, freight treatment, and Xero bill sync</li>
-          <li><strong>Sales Orders</strong> — Wholesale invoicing with Xero sync; POS and online sales tracked separately</li>
-          <li><strong>Point of Sale</strong> — In-store POS transactions batched daily for Xero reconciliation</li>
-          <li><strong>Contacts</strong> — Shared supplier and customer records used across POs and SOs</li>
-          <li><strong>Locations</strong> — Physical branches; used for stock allocation, POS, and Xero tracking categories</li>
-          <li><strong>Xero integration</strong> — Automated bill, invoice, payment, and journal sync (see Xero help for full detail)</li>
-          <li><strong>Stocktakes</strong> — Periodic physical count imports to adjust stock levels</li>
+          <li><strong>Products & variants</strong> â€” SKU catalog with multi-option variants, brand grouping, and bulk editing</li>
+          <li><strong>Stock levels</strong> â€” Per-location stock quantities, low-stock alerts, and sales cache for fast reporting</li>
+          <li><strong>Purchase Orders</strong> â€” Supplier orders, landed cost tracking, freight treatment, and Xero bill sync</li>
+          <li><strong>Sales Orders</strong> â€” Wholesale invoicing with Xero sync; POS and online sales tracked separately</li>
+          <li><strong>Point of Sale</strong> â€” In-store POS transactions batched daily for Xero reconciliation</li>
+          <li><strong>Contacts</strong> â€” Shared supplier and customer records used across POs and SOs</li>
+          <li><strong>Locations</strong> â€” Physical branches; used for stock allocation, POS, and Xero tracking categories</li>
+          <li><strong>Xero integration</strong> â€” Automated bill, invoice, payment, and journal sync (see Xero help for full detail)</li>
+          <li><strong>Stocktakes</strong> â€” Periodic physical count imports to adjust stock levels</li>
         </ul>
         <h3 style={h3}>Context-aware Help &amp; Settings</h3>
-        <p style={p}>Both the <strong>Help</strong> (?) and <strong>Settings</strong> (⚙) buttons in the top-right header open to the section most relevant to your current view. For example: clicking Help or Settings while in the Purchase Orders view opens directly to the Purchase Orders tab.</p>
+        <p style={p}>Both the <strong>Help</strong> (?) and <strong>Settings</strong> (âš™) buttons in the top-right header open to the section most relevant to your current view. For example: clicking Help or Settings while in the Purchase Orders view opens directly to the Purchase Orders tab.</p>
       </div>
     );
 
-    // ── Purchase Orders ───────────────────────────────────────────────────────
+    // â”€â”€ Purchase Orders â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (active === 'purchase-orders') return (
       <div style={{ padding: 32, maxWidth: 760 }}>
         <h2 style={h2}>Purchase Orders</h2>
@@ -18220,64 +18221,64 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
 
         <h3 style={h3}>Status lifecycle</h3>
         <ul style={ul}>
-          <li><strong>Draft</strong> — Created, not yet sent to supplier. No stock impact. No Xero action.</li>
-          <li><strong>Confirmed</strong> — PO placed with supplier. Increments <em>qty_incoming</em> in stock. Triggers a <em>Draft Bill</em> in Xero (ACCPAY).</li>
-          <li><strong>Partially Received</strong> — Some items have been scanned in via the smart device receive page but the PO is not yet complete. Stock levels are updated per item as each receive session is saved. The Xero bill stays in <em>Draft</em> until fully received.</li>
-          <li><strong>Received</strong> — All goods received into stock. Xero bill moves to <em>Authorised</em>; if deposits were recorded, a journal transfers cost from <em>Inventory In Transit</em> to <em>Inventory Asset</em>.</li>
-          <li><strong>Cancelled</strong> — PO cancelled. Stock impacts are fully reversed. If a Xero bill exists, it is voided automatically.</li>
+          <li><strong>Draft</strong> â€” Created, not yet sent to supplier. No stock impact. No Xero action.</li>
+          <li><strong>Confirmed</strong> â€” PO placed with supplier. Increments <em>qty_incoming</em> in stock. Triggers a <em>Draft Bill</em> in Xero (ACCPAY).</li>
+          <li><strong>Partially Received</strong> â€” Some items have been scanned in via the smart device receive page but the PO is not yet complete. Stock levels are updated per item as each receive session is saved. The Xero bill stays in <em>Draft</em> until fully received.</li>
+          <li><strong>Received</strong> â€” All goods received into stock. Xero bill moves to <em>Authorised</em>; if deposits were recorded, a journal transfers cost from <em>Inventory In Transit</em> to <em>Inventory Asset</em>.</li>
+          <li><strong>Cancelled</strong> â€” PO cancelled. Stock impacts are fully reversed. If a Xero bill exists, it is voided automatically.</li>
         </ul>
 
         <h3 style={h3}>Partial receives &amp; backorder POs</h3>
-        <p style={p}>When receiving via the <strong>📱 Smart Device Receive</strong> page:</p>
+        <p style={p}>When receiving via the <strong>ðŸ“± Smart Device Receive</strong> page:</p>
         <ul style={ul}>
-          <li><strong>Save Progress</strong> — Records the quantities scanned so far. The PO moves to <em>Partially Received</em> and the receive page reloads, showing updated counts. You can return and scan more items in multiple sessions.</li>
-          <li><strong>Mark as Received</strong> — Finalises the PO as fully received. If any items are short, you are prompted to create a <strong>Backorder PO</strong> for the missing stock.</li>
+          <li><strong>Save Progress</strong> â€” Records the quantities scanned so far. The PO moves to <em>Partially Received</em> and the receive page reloads, showing updated counts. You can return and scan more items in multiple sessions.</li>
+          <li><strong>Mark as Received</strong> â€” Finalises the PO as fully received. If any items are short, you are prompted to create a <strong>Backorder PO</strong> for the missing stock.</li>
           <li>Backorder POs are named <span style={code}>{'{original}-B'}</span> (e.g. <span style={code}>PO-2025-0042-B</span>) and start in <em>Draft</em> status, ready to approve and track separately.</li>
-          <li>You can also click <strong>Mark Received</strong> directly from the IMS PO list or view modal — this force-completes a partially received PO, processing the remaining unscanned items at their full ordered quantity.</li>
+          <li>You can also click <strong>Mark Received</strong> directly from the IMS PO list or view modal â€” this force-completes a partially received PO, processing the remaining unscanned items at their full ordered quantity.</li>
         </ul>
 
         <h3 style={h3}>Reverting a partially received PO</h3>
-        <p style={p}>From the PO view modal, <strong>Revert to Confirmed</strong> fully undoes all partial stock updates — <em>qty_on_hand</em> is decremented and <em>qty_incoming</em> is restored for each item received so far. No Xero action is taken (the original draft bill remains).</p>
+        <p style={p}>From the PO view modal, <strong>Revert to Confirmed</strong> fully undoes all partial stock updates â€” <em>qty_on_hand</em> is decremented and <em>qty_incoming</em> is restored for each item received so far. No Xero action is taken (the original draft bill remains).</p>
 
         <h3 style={h3}>Freight treatment</h3>
-        <p style={p}>Configurable in Settings → Purchase Orders:</p>
+        <p style={p}>Configurable in Settings â†’ Purchase Orders:</p>
         <ul style={ul}>
-          <li><strong>Expense (default)</strong> — Freight posts as a separate line to the mapped freight account; cost hits P&amp;L immediately on approval.</li>
-          <li><strong>Capitalise</strong> — Freight is added to the inventory asset account, increasing the average landed cost of received stock.</li>
+          <li><strong>Expense (default)</strong> â€” Freight posts as a separate line to the mapped freight account; cost hits P&amp;L immediately on approval.</li>
+          <li><strong>Capitalise</strong> â€” Freight is added to the inventory asset account, increasing the average landed cost of received stock.</li>
         </ul>
 
         <h3 style={h3}>Email &amp; PDF templates</h3>
-        <p style={p}>Email subject, body, and PDF terms are configurable in Settings → Purchase Orders. Template variables: <span style={code}>{'{{'+'order_number}}'}</span> <span style={code}>{'{{'+'contact_name}}'}</span> <span style={code}>{'{{'+'total}}'}</span> <span style={code}>{'{{'+'date}}'}</span></p>
+        <p style={p}>Email subject, body, and PDF terms are configurable in Settings â†’ Purchase Orders. Template variables: <span style={code}>{'{{'+'order_number}}'}</span> <span style={code}>{'{{'+'contact_name}}'}</span> <span style={code}>{'{{'+'total}}'}</span> <span style={code}>{'{{'+'date}}'}</span></p>
 
         <h3 style={h3}>Landed costs</h3>
         <p style={p}>Additional landed costs (customs, duties, brokerage) can be added to a PO after creation. These are factored into average cost calculations on receive. Note: landed cost distribution applies when receiving via the IMS list; the smart device receive page uses a simplified cost update.</p>
       </div>
     );
 
-    // ── Sales Orders ──────────────────────────────────────────────────────────
+    // â”€â”€ Sales Orders â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (active === 'sales-orders') return (
       <div style={{ padding: 32, maxWidth: 760 }}>
         <h2 style={h2}>Sales Orders</h2>
         <p style={p}>Sales Orders track wholesale invoices issued to customers. POS and online sales are tracked separately and batched to Xero daily rather than per-transaction.</p>
         <h3 style={h3}>Status lifecycle</h3>
         <ul style={ul}>
-          <li><strong>Draft</strong> — Created, not yet finalised. No Xero action.</li>
-          <li><strong>Confirmed</strong> — Wholesale SO confirmed. Triggers an <em>Authorised Invoice</em> in Xero (ACCREC) immediately.</li>
-          <li><strong>Fulfilled</strong> — Goods dispatched. Stock levels adjusted. No additional Xero action.</li>
-          <li><strong>Closed</strong> — Fully processed and paid.</li>
+          <li><strong>Draft</strong> â€” Created, not yet finalised. No Xero action.</li>
+          <li><strong>Confirmed</strong> â€” Wholesale SO confirmed. Triggers an <em>Authorised Invoice</em> in Xero (ACCREC) immediately.</li>
+          <li><strong>Fulfilled</strong> â€” Goods dispatched. Stock levels adjusted. No additional Xero action.</li>
+          <li><strong>Closed</strong> â€” Fully processed and paid.</li>
         </ul>
         <h3 style={h3}>Wholesale vs. POS vs. Online</h3>
         <ul style={ul}>
-          <li><strong>Wholesale SOs</strong> — Individual invoices; each confirmation triggers a Xero invoice sync immediately.</li>
-          <li><strong>POS sales</strong> — In-store POS transactions; grouped by location and day, batched to Xero as a single summary invoice. Not individually synced.</li>
-          <li><strong>Online sales</strong> — Shopify/e-commerce orders; grouped by day across all locations, batched as a single Xero invoice. Not individually synced.</li>
+          <li><strong>Wholesale SOs</strong> â€” Individual invoices; each confirmation triggers a Xero invoice sync immediately.</li>
+          <li><strong>POS sales</strong> â€” In-store POS transactions; grouped by location and day, batched to Xero as a single summary invoice. Not individually synced.</li>
+          <li><strong>Online sales</strong> â€” Shopify/e-commerce orders; grouped by day across all locations, batched as a single Xero invoice. Not individually synced.</li>
         </ul>
         <h3 style={h3}>Payments</h3>
         <p style={p}>Payments recorded against a SO are synced to Xero as Payment records attached to the corresponding invoice, updating the balance outstanding in both systems.</p>
       </div>
     );
 
-    // ── POS ───────────────────────────────────────────────────────────────────
+    // â”€â”€ POS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (active === 'pos') return (
       <div style={{ padding: 32, maxWidth: 760 }}>
         <h2 style={h2}>Point of Sale</h2>
@@ -18286,44 +18287,44 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <p style={p}>POS sales are not individually synced to Xero. Instead, a single <em>summary invoice</em> is created in Xero per location per day. This keeps your Xero ledger clean while maintaining full transaction detail in IMS.</p>
         <ul style={ul}>
           <li>Reference format: <span style={code}>POS-YYYY-MM-DD-L{'{locationId}'}</span></li>
-          <li>Description: <em>"POS Sales 2026-06-16 — Store 1 (42 transactions)"</em></li>
+          <li>Description: <em>"POS Sales 2026-06-16 â€” Store 1 (42 transactions)"</em></li>
           <li>Tracking category maps the location to your Xero dimension</li>
           <li>Status: AUTHORISED immediately on creation</li>
         </ul>
         <h3 style={h3}>POS Users vs IMS Users</h3>
-        <p style={p}>POS users are PIN-based terminal operators — they are separate from IMS web users. POS users are managed in Settings → Point of Sale. IMS web users (with email login) are managed in Settings → Users.</p>
+        <p style={p}>POS users are PIN-based terminal operators â€” they are separate from IMS web users. POS users are managed in Settings â†’ Point of Sale. IMS web users (with email login) are managed in Settings â†’ Users.</p>
         <h3 style={h3}>Product display settings</h3>
-        <p style={p}>The POS product browser can be configured to show specific product subsets per location. This is managed in Settings → Point of Sale → Product Display.</p>
+        <p style={p}>The POS product browser can be configured to show specific product subsets per location. This is managed in Settings â†’ Point of Sale â†’ Product Display.</p>
 
         <h3 style={h3}>Register sessions</h3>
-        <p style={p}>A <strong>register session</strong> is one continuous period that a till is open — from the moment a cashier opens the register (entering the opening cash float) to the moment it is closed at end of day. Every sale is stamped with the session it was rung up in, not just the calendar date. This is the backbone of accurate cash reconciliation.</p>
+        <p style={p}>A <strong>register session</strong> is one continuous period that a till is open â€” from the moment a cashier opens the register (entering the opening cash float) to the moment it is closed at end of day. Every sale is stamped with the session it was rung up in, not just the calendar date. This is the backbone of accurate cash reconciliation.</p>
         <ul style={ul}>
-          <li><strong>Opening</strong> — On first login of the day the operator opens the register and counts the starting float (cash drawer denominations). This establishes the session.</li>
-          <li><strong>During the shift</strong> — Each completed sale is attached to the open session. Cash, card and other tenders are tracked per session.</li>
-          <li><strong>Closing</strong> — At end of day the operator counts the drawer and the system reconciles expected vs counted takings, then marks the session closed.</li>
+          <li><strong>Opening</strong> â€” On first login of the day the operator opens the register and counts the starting float (cash drawer denominations). This establishes the session.</li>
+          <li><strong>During the shift</strong> â€” Each completed sale is attached to the open session. Cash, card and other tenders are tracked per session.</li>
+          <li><strong>Closing</strong> â€” At end of day the operator counts the drawer and the system reconciles expected vs counted takings, then marks the session closed.</li>
         </ul>
 
         <h3 style={h3}>Reconciling by session window (not calendar date)</h3>
-        <p style={p}>End-of-day reconciliation sums takings over the <strong>session window</strong> — every sale belonging to that specific open→close session — rather than simply "all sales dated today". This matters in two common situations:</p>
+        <p style={p}>End-of-day reconciliation sums takings over the <strong>session window</strong> â€” every sale belonging to that specific openâ†’close session â€” rather than simply "all sales dated today". This matters in two common situations:</p>
         <ul style={ul}>
-          <li><strong>Trading past midnight</strong> — If a session opens in the evening and a sale rings through after midnight, that sale still belongs to the session it was made in. Reconciliation keeps it with the right day's takings instead of splitting the shift across two calendar dates.</li>
-          <li><strong>A register left open overnight</strong> — Yesterday's still-open session won't silently absorb today's sales. The system detects the stale session at login (see below) so each day's cash is counted against its own float.</li>
+          <li><strong>Trading past midnight</strong> â€” If a session opens in the evening and a sale rings through after midnight, that sale still belongs to the session it was made in. Reconciliation keeps it with the right day's takings instead of splitting the shift across two calendar dates.</li>
+          <li><strong>A register left open overnight</strong> â€” Yesterday's still-open session won't silently absorb today's sales. The system detects the stale session at login (see below) so each day's cash is counted against its own float.</li>
         </ul>
         <p style={p}>The end-of-day screen shows <strong>expected</strong> (calculated from the session's sales, grouped by payment method) against <strong>counted</strong> (what the operator physically tallies), with the variance highlighted. The reconciliation date recorded is the session's open date, so the daily Xero batch lines up correctly.</p>
 
         <h3 style={h3}>Register left open / prior-day sessions</h3>
         <p style={p}>If a register was opened on a previous day and never closed, the next operator to log in sees a <strong>"Register Left Open"</strong> prompt. When the open session is from an earlier day this is flagged in red, because continuing it would book today's sales against yesterday's float. Two choices are offered:</p>
         <ul style={ul}>
-          <li><strong>Close Register &amp; Open New</strong> (recommended for a prior day) — closes the stale session and starts a fresh one for today with a new float count.</li>
-          <li><strong>Continue Session</strong> — keeps recording against the original session. Only use this if you genuinely intend to keep the prior day's session running.</li>
+          <li><strong>Close Register &amp; Open New</strong> (recommended for a prior day) â€” closes the stale session and starts a fresh one for today with a new float count.</li>
+          <li><strong>Continue Session</strong> â€” keeps recording against the original session. Only use this if you genuinely intend to keep the prior day's session running.</li>
         </ul>
 
         <h3 style={h3}>Offline mode &amp; the sale queue</h3>
         <p style={p}>The POS keeps working when the internet drops. A local product cache lets operators keep ringing up sales, and completed sales are written to an on-device queue that uploads automatically once the connection returns.</p>
         <ul style={ul}>
-          <li><strong>Queued</strong> (amber badge in the header) — sales waiting to upload. They drain automatically when back online.</li>
-          <li><strong>Failed</strong> (red badge) — a sale that repeatedly failed to upload is moved to a "dead-letter" store rather than being discarded. <strong>Sales are never silently dropped.</strong> Tap the red badge to retry uploading them.</li>
-          <li>Each sale carries a unique local ID, so even if a queued sale is sent twice it can only ever be recorded once — there are no duplicate sales from retries.</li>
+          <li><strong>Queued</strong> (amber badge in the header) â€” sales waiting to upload. They drain automatically when back online.</li>
+          <li><strong>Failed</strong> (red badge) â€” a sale that repeatedly failed to upload is moved to a "dead-letter" store rather than being discarded. <strong>Sales are never silently dropped.</strong> Tap the red badge to retry uploading them.</li>
+          <li>Each sale carries a unique local ID, so even if a queued sale is sent twice it can only ever be recorded once â€” there are no duplicate sales from retries.</li>
         </ul>
         <p style={p}>Because offline sales live on the device until they sync, <strong>logging out while sales are still pending shows a warning</strong>. Don't clear browser data or switch devices until the queue is empty.</p>
 
@@ -18336,30 +18337,30 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
       </div>
     );
 
-    // ── Xero ──────────────────────────────────────────────────────────────────
+    // â”€â”€ Xero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (active === 'xero') return (
       <div style={{ padding: 32, maxWidth: 820 }}>
         <h2 style={h2}>Xero Integration</h2>
-        <p style={{ ...p, color: 'var(--sv-text-dim)', fontSize: 13 }}>IMS connects to Xero via OAuth 2.0 (PKCE). The integration is <strong>unidirectional</strong> — data flows from IMS into Xero only. Xero does not push data back into IMS.</p>
+        <p style={{ ...p, color: 'var(--sv-text-dim)', fontSize: 13 }}>IMS connects to Xero via OAuth 2.0 (PKCE). The integration is <strong>unidirectional</strong> â€” data flows from IMS into Xero only. Xero does not push data back into IMS.</p>
 
         <h3 style={h3}>Connection</h3>
-        <p style={p}>Connect your Xero organisation from the <strong>Xero</strong> tab in IMS. You'll be redirected to Xero to authorise. Once connected, the integration stores an access token and refresh token. Tokens are automatically refreshed — you won't need to reconnect unless you explicitly disconnect or revoke access in Xero.</p>
+        <p style={p}>Connect your Xero organisation from the <strong>Xero</strong> tab in IMS. You'll be redirected to Xero to authorise. Once connected, the integration stores an access token and refresh token. Tokens are automatically refreshed â€” you won't need to reconnect unless you explicitly disconnect or revoke access in Xero.</p>
 
-        <h3 style={h3}>What gets synced — trigger table</h3>
+        <h3 style={h3}>What gets synced â€” trigger table</h3>
         <TriggerTable rows={[
-          { trigger: 'PO status → Ordered',           object: 'Bill (ACCPAY)',        status: 'DRAFT',        notes: 'One bill per PO; line items per SKU + optional freight line. Bill is updated automatically if you edit the PO before receiving.' },
-          { trigger: 'PO status → Partially Received', object: 'Bill (ACCPAY)',       status: 'DRAFT',        notes: 'Bill remains DRAFT and is re-synced on any edit. Approved only on full receive.' },
-          { trigger: 'PO status → Received',          object: 'Bill (ACCPAY)',        status: 'AUTHORISED',   notes: 'Bill approved; if deposits exist, journal transfers In Transit → Inventory Asset' },
-          { trigger: 'PO received — edit or delete',  object: 'Bill (ACCPAY)',        status: 'Manual',       notes: '⚠️ Xero bill is AUTHORISED — changes do not auto-sync. A warning with a bookkeeper draft message is shown.' },
-          { trigger: 'PO reverted or cancelled',      object: 'Bill (ACCPAY)',        status: 'VOIDED',       notes: 'Draft bill is voided automatically — safe because no payments can be on a draft bill' },
+          { trigger: 'PO status â†’ Ordered',           object: 'Bill (ACCPAY)',        status: 'DRAFT',        notes: 'One bill per PO; line items per SKU + optional freight line. Bill is updated automatically if you edit the PO before receiving.' },
+          { trigger: 'PO status â†’ Partially Received', object: 'Bill (ACCPAY)',       status: 'DRAFT',        notes: 'Bill remains DRAFT and is re-synced on any edit. Approved only on full receive.' },
+          { trigger: 'PO status â†’ Received',          object: 'Bill (ACCPAY)',        status: 'AUTHORISED',   notes: 'Bill approved; if deposits exist, journal transfers In Transit â†’ Inventory Asset' },
+          { trigger: 'PO received â€” edit or delete',  object: 'Bill (ACCPAY)',        status: 'Manual',       notes: 'âš ï¸ Xero bill is AUTHORISED â€” changes do not auto-sync. A warning with a bookkeeper draft message is shown.' },
+          { trigger: 'PO reverted or cancelled',      object: 'Bill (ACCPAY)',        status: 'VOIDED',       notes: 'Draft bill is voided automatically â€” safe because no payments can be on a draft bill' },
           { trigger: 'Payment added to PO',           object: 'Payment',              status: 'Applied',      notes: 'Applied to the Xero bill; bill approved if not already' },
-          { trigger: 'SO (wholesale) → Confirmed',    object: 'Invoice (ACCREC)',     status: 'DRAFT',        notes: 'Created as DRAFT; auto-syncs on edit. Approved to AUTHORISED when SO is fulfilled.' },
-          { trigger: 'SO (wholesale) → Fulfilled',    object: 'Invoice (ACCREC)',     status: 'AUTHORISED',   notes: 'Invoice approved on fulfilment.' },
-          { trigger: 'SO fulfilled — edit or delete', object: 'Invoice (ACCREC)',     status: 'Manual',       notes: '⚠️ Xero invoice is AUTHORISED — changes do not auto-sync. A warning with a bookkeeper draft message is shown.' },
+          { trigger: 'SO (wholesale) â†’ Confirmed',    object: 'Invoice (ACCREC)',     status: 'DRAFT',        notes: 'Created as DRAFT; auto-syncs on edit. Approved to AUTHORISED when SO is fulfilled.' },
+          { trigger: 'SO (wholesale) â†’ Fulfilled',    object: 'Invoice (ACCREC)',     status: 'AUTHORISED',   notes: 'Invoice approved on fulfilment.' },
+          { trigger: 'SO fulfilled â€” edit or delete', object: 'Invoice (ACCREC)',     status: 'Manual',       notes: 'âš ï¸ Xero invoice is AUTHORISED â€” changes do not auto-sync. A warning with a bookkeeper draft message is shown.' },
           { trigger: 'SO reverted or cancelled',      object: 'Invoice (ACCREC)',     status: 'VOIDED',       notes: 'Voided automatically if no payments applied; warning shown if payments exist (manual action required)' },
           { trigger: 'Payment added to SO',           object: 'Payment',              status: 'Applied',      notes: 'Applied to the Xero invoice' },
-          { trigger: 'Daily batch (manual/scheduled)',object: 'Invoice (ACCREC)',     status: 'AUTHORISED',   notes: 'One invoice per location per day for POS; one per day for online (non-Shopify-Payments). If gateway clearing accounts are configured, one invoice per (day × gateway) with payment into clearing account.' },
-          { trigger: 'Shopify Payments payout',       object: 'Invoice (ACCREC)',     status: 'PAID',         notes: 'One invoice per confirmed payout (~11am daily). Revenue − fees − refunds = bank deposit. Payment applied to shopify_clearing bank account. Fee line posts ex-GST with claimable INPUT tax.' },
+          { trigger: 'Daily batch (manual/scheduled)',object: 'Invoice (ACCREC)',     status: 'AUTHORISED',   notes: 'One invoice per location per day for POS; one per day for online (non-Shopify-Payments). If gateway clearing accounts are configured, one invoice per (day Ã— gateway) with payment into clearing account.' },
+          { trigger: 'Shopify Payments payout',       object: 'Invoice (ACCREC)',     status: 'PAID',         notes: 'One invoice per confirmed payout (~11am daily). Revenue âˆ’ fees âˆ’ refunds = bank deposit. Payment applied to shopify_clearing bank account. Fee line posts ex-GST with claimable INPUT tax.' },
           { trigger: 'Credit note completed',         object: 'Credit Note (ACCREC)', status: 'AUTHORISED',   notes: 'Shopify-sourced returns do NOT post a credit note (accounted via payout). Manual/wholesale returns post an ACCREC credit note.' },
           { trigger: 'Monthly COGS (manual)',         object: 'Manual Journal',       status: 'Posted',       notes: 'DR Cost of Goods Sold / CR Inventory Asset; one journal per branch' },
         ]} />
@@ -18370,15 +18371,15 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <h3 style={h3}>Account mappings</h3>
         <p style={p}>Five account roles must be mapped to accounts in your Xero chart of accounts. All are required for full sync functionality. If a required mapping is missing, the affected sync is skipped and logged as "skipped".</p>
         <AccountTable rows={[
-          { role: 'inventory_asset',       type: 'Asset',   description: 'Stock on hand — used for PO bill lines and inventory journals', required: true },
-          { role: 'inventory_in_transit',  type: 'Asset',   description: 'Goods ordered but not yet received — used when a PO has deposits/prepayments', required: true },
-          { role: 'cogs',                  type: 'Expense', description: 'Cost of goods sold — debited in monthly COGS journals', required: true },
-          { role: 'sales_revenue',         type: 'Revenue', description: 'Sales income — used for SO and batch POS/online invoice lines', required: true },
-          { role: 'merchant_fees',         type: 'Expense', description: 'Shopify payment processing fees — posted as a negative ex-GST line on each payout invoice (GST claimable as INPUT tax)', required: false },
-          { role: 'shopify_clearing',      type: 'Bank',    description: 'Shopify Payments bank/clearing account — payout invoice payments are applied here, matching the actual bank deposit', required: false },
-          { role: 'freight',               type: 'Expense', description: 'Freight / shipping expense — used when freight treatment is set to "Expense"', required: false },
-          { role: 'credit_note',           type: 'Revenue', description: 'Account for manual credit note lines — defaults to sales_revenue if not set', required: false },
-          { role: 'stock_adjustment',      type: 'Expense', description: 'Stocktake variance account — debited on write-offs, credited on surpluses', required: false },
+          { role: 'inventory_asset',       type: 'Asset',   description: 'Stock on hand â€” used for PO bill lines and inventory journals', required: true },
+          { role: 'inventory_in_transit',  type: 'Asset',   description: 'Goods ordered but not yet received â€” used when a PO has deposits/prepayments', required: true },
+          { role: 'cogs',                  type: 'Expense', description: 'Cost of goods sold â€” debited in monthly COGS journals', required: true },
+          { role: 'sales_revenue',         type: 'Revenue', description: 'Sales income â€” used for SO and batch POS/online invoice lines', required: true },
+          { role: 'merchant_fees',         type: 'Expense', description: 'Shopify payment processing fees â€” posted as a negative ex-GST line on each payout invoice (GST claimable as INPUT tax)', required: false },
+          { role: 'shopify_clearing',      type: 'Bank',    description: 'Shopify Payments bank/clearing account â€” payout invoice payments are applied here, matching the actual bank deposit', required: false },
+          { role: 'freight',               type: 'Expense', description: 'Freight / shipping expense â€” used when freight treatment is set to "Expense"', required: false },
+          { role: 'credit_note',           type: 'Revenue', description: 'Account for manual credit note lines â€” defaults to sales_revenue if not set', required: false },
+          { role: 'stock_adjustment',      type: 'Expense', description: 'Stocktake variance account â€” debited on write-offs, credited on surpluses', required: false },
         ]} />
 
         <h3 style={h3}>Tracking categories</h3>
@@ -18386,50 +18387,50 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <ul style={ul}>
           <li><strong>Both location and channel</strong> tracking are applied simultaneously when mapped to <em>different</em> Xero Tracking Categories (Xero allows up to 2 per line). If both resolve to the same category, location takes priority.</li>
           <li><strong>Channels:</strong> <span style={code}>pos</span>, <span style={code}>online</span>, <span style={code}>wholesale</span> (plus any IMS location)</li>
-          <li>Tracking is optional — bills and invoices post fine without it, just won't appear in dimension reports in Xero.</li>
+          <li>Tracking is optional â€” bills and invoices post fine without it, just won't appear in dimension reports in Xero.</li>
         </ul>
 
         <h3 style={h3}>Freight treatment</h3>
-        <p style={p}>Controlled in Settings → Purchase Orders → Freight Treatment:</p>
+        <p style={p}>Controlled in Settings â†’ Purchase Orders â†’ Freight Treatment:</p>
         <ul style={ul}>
-          <li><strong>Expense (default)</strong> — Freight posts as a separate line to the <span style={code}>freight</span> account. Cost hits P&amp;L immediately.</li>
-          <li><strong>Capitalise</strong> — Freight is added to the <span style={code}>inventory_asset</span> account. No separate line; the freight amount increases the average landed cost of the received stock.</li>
+          <li><strong>Expense (default)</strong> â€” Freight posts as a separate line to the <span style={code}>freight</span> account. Cost hits P&amp;L immediately.</li>
+          <li><strong>Capitalise</strong> â€” Freight is added to the <span style={code}>inventory_asset</span> account. No separate line; the freight amount increases the average landed cost of the received stock.</li>
         </ul>
 
         <h3 style={h3}>In-transit accounting (deposits &amp; prepayments)</h3>
         <p style={p}>When a PO has payments recorded before the goods arrive:</p>
         <ul style={ul}>
           <li>PO bill line items code to <span style={code}>inventory_in_transit</span> (instead of <span style={code}>inventory_asset</span>)</li>
-          <li>On receive (PO status → Received), a Xero Manual Journal is automatically created: <strong>DR Inventory Asset / CR Inventory In Transit</strong></li>
+          <li>On receive (PO status â†’ Received), a Xero Manual Journal is automatically created: <strong>DR Inventory Asset / CR Inventory In Transit</strong></li>
           <li>This correctly moves the cost from a transit holding account to on-hand stock at the moment goods arrive</li>
         </ul>
 
         <h3 style={h3}>Queued / retry system</h3>
-        <p style={p}>All Xero syncs are <strong>non-blocking</strong> — a sync failure never interrupts IMS operations. The retry flow:</p>
+        <p style={p}>All Xero syncs are <strong>non-blocking</strong> â€” a sync failure never interrupts IMS operations. The retry flow:</p>
         <ul style={ul}>
-          <li><strong>Attempt 1</strong> — Sync fires immediately on the triggering action</li>
-          <li><strong>2 second wait</strong> — If attempt 1 fails</li>
-          <li><strong>Attempt 2</strong> — One automatic retry</li>
-          <li><strong>Queued</strong> — If both attempts fail, the item is marked as queued in the database</li>
-          <li><strong>Manual retry</strong> — From the Xero tab: click <em>Retry</em> on a single item, or <em>Push All</em> to retry all queued items at once</li>
+          <li><strong>Attempt 1</strong> â€” Sync fires immediately on the triggering action</li>
+          <li><strong>2 second wait</strong> â€” If attempt 1 fails</li>
+          <li><strong>Attempt 2</strong> â€” One automatic retry</li>
+          <li><strong>Queued</strong> â€” If both attempts fail, the item is marked as queued in the database</li>
+          <li><strong>Manual retry</strong> â€” From the Xero tab: click <em>Retry</em> on a single item, or <em>Push All</em> to retry all queued items at once</li>
         </ul>
         <p style={p}>The sync log (accessible from the Xero tab) shows every attempt with status, timestamp, and error detail for diagnosis.</p>
 
         <h3 style={h3}>Reversals &amp; cancellations</h3>
         <p style={p}>When a PO or SO is reverted to Draft or Cancelled, IMS automatically attempts to void the corresponding Xero document:</p>
         <ul style={ul}>
-          <li><strong>PO revert / cancel</strong> — The Xero Draft Bill is voided. This is always safe: Draft Bills cannot have payments applied, so voiding never disrupts reconciliation.</li>
-          <li><strong>SO revert / cancel (no payments)</strong> — The Xero Invoice is voided automatically if no payments have been applied yet.</li>
-          <li><strong>SO revert / cancel (with payments)</strong> — The invoice cannot be auto-voided. IMS will show a warning: <em>"Xero invoice has payments applied — please void or raise a credit note manually in Xero."</em> You must resolve this in Xero before your accounts will reconcile correctly.</li>
+          <li><strong>PO revert / cancel</strong> â€” The Xero Draft Bill is voided. This is always safe: Draft Bills cannot have payments applied, so voiding never disrupts reconciliation.</li>
+          <li><strong>SO revert / cancel (no payments)</strong> â€” The Xero Invoice is voided automatically if no payments have been applied yet.</li>
+          <li><strong>SO revert / cancel (with payments)</strong> â€” The invoice cannot be auto-voided. IMS will show a warning: <em>"Xero invoice has payments applied â€” please void or raise a credit note manually in Xero."</em> You must resolve this in Xero before your accounts will reconcile correctly.</li>
         </ul>
-        <p style={p}>Both operations are <strong>non-blocking</strong>. If a void fails (e.g. Xero outage), the IMS revert still completes successfully. The failed void is logged to the Xero sync log and a warning is shown — follow up manually in Xero when connectivity is restored.</p>
+        <p style={p}>Both operations are <strong>non-blocking</strong>. If a void fails (e.g. Xero outage), the IMS revert still completes successfully. The failed void is logged to the Xero sync log and a warning is shown â€” follow up manually in Xero when connectivity is restored.</p>
 
         <h3 style={h3}>Tax types</h3>
         <p style={p}>Xero tax type codes are configurable in IMS Settings. Defaults that work for most Australian Xero organisations:</p>
         <ul style={ul}>
-          <li><span style={code}>xero_tax_type_sales</span> — <span style={code}>OUTPUT</span> (GST on income)</li>
-          <li><span style={code}>xero_tax_type_purchases</span> — <span style={code}>INPUT</span> (GST on expenses)</li>
-          <li><span style={code}>xero_tax_type_exempt</span> — <span style={code}>NONE</span> (GST-free / exempt)</li>
+          <li><span style={code}>xero_tax_type_sales</span> â€” <span style={code}>OUTPUT</span> (GST on income)</li>
+          <li><span style={code}>xero_tax_type_purchases</span> â€” <span style={code}>INPUT</span> (GST on expenses)</li>
+          <li><span style={code}>xero_tax_type_exempt</span> â€” <span style={code}>NONE</span> (GST-free / exempt)</li>
         </ul>
         <p style={p}>If your Xero organisation uses different tax codes (e.g. UK VAT codes), update these in settings before syncing.</p>
 
@@ -18439,26 +18440,26 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           <li><strong>Debit:</strong> Cost of Goods Sold (<span style={code}>cogs</span> account)</li>
           <li><strong>Credit:</strong> Inventory Asset (<span style={code}>inventory_asset</span> account)</li>
           <li>Amount is the total cost of all stock sold that month for that branch</li>
-          <li>Narration format: <span style={code}>Monthly COGS — YYYY-MM</span></li>
+          <li>Narration format: <span style={code}>Monthly COGS â€” YYYY-MM</span></li>
           <li>Tracking category applied per branch if mapped</li>
         </ul>
-        <p style={p}>Run this once per month after closing your month-end. It is safe to run multiple times — each run creates a new journal; duplicate detection and reversal must be managed in Xero if needed.</p>
+        <p style={p}>Run this once per month after closing your month-end. It is safe to run multiple times â€” each run creates a new journal; duplicate detection and reversal must be managed in Xero if needed.</p>
       </div>
     );
 
-    // ── Shopify ───────────────────────────────────────────────────────────────
+    // â”€â”€ Shopify â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (active === 'shopify') return (
       <div style={{ padding: 32, maxWidth: 820 }}>
         <h2 style={h2}>Shopify Integration</h2>
         <p style={{ ...p, color: 'var(--sv-text-dim)', fontSize: 13 }}>
-          The Shopify integration is a <strong>three-way sync</strong>: orders and refunds flow <em>Shopify → IMS</em>, stock levels flow <em>IMS → Shopify</em>, and financial summaries flow <em>IMS → Xero</em> via two separate paths depending on how the customer paid.
+          The Shopify integration is a <strong>three-way sync</strong>: orders and refunds flow <em>Shopify â†’ IMS</em>, stock levels flow <em>IMS â†’ Shopify</em>, and financial summaries flow <em>IMS â†’ Xero</em> via two separate paths depending on how the customer paid.
         </p>
 
-        <h3 style={h3}>Before you start — setup checklist</h3>
+        <h3 style={h3}>Before you start â€” setup checklist</h3>
         <ul style={ul}>
-          <li>✅ Enter your Shopify Store URL and Access Token in <strong>Setup → Connections</strong>. The token needs scopes: <span style={code}>read_orders</span>, <span style={code}>read_products</span>, <span style={code}>write_inventory</span>, <span style={code}>read_fulfillments</span>, <span style={code}>read_shopify_payments_payouts</span>.</li>
-          <li>✅ Run <strong>Reconcile products</strong> in the Shopify tab to link your IMS product catalog to Shopify variants by SKU.</li>
-          <li>✅ Register the following webhook topics in <strong>Shopify Admin → Settings → Notifications → Webhooks</strong>. Use the URL shown in the Shopify → Orders tab. All webhooks must share the same signing secret, which you then paste into Settings → IMS Settings → Shopify webhook secret.
+          <li>âœ… Enter your Shopify Store URL and Access Token in <strong>Setup â†’ Connections</strong>. The token needs scopes: <span style={code}>read_orders</span>, <span style={code}>read_products</span>, <span style={code}>write_inventory</span>, <span style={code}>read_fulfillments</span>, <span style={code}>read_shopify_payments_payouts</span>.</li>
+          <li>âœ… Run <strong>Reconcile products</strong> in the Shopify tab to link your IMS product catalog to Shopify variants by SKU.</li>
+          <li>âœ… Register the following webhook topics in <strong>Shopify Admin â†’ Settings â†’ Notifications â†’ Webhooks</strong>. Use the URL shown in the Shopify â†’ Orders tab. All webhooks must share the same signing secret, which you then paste into Settings â†’ IMS Settings â†’ Shopify webhook secret.
             <div style={{ marginTop: 8, background: 'var(--sv-bg-0)', borderRadius: 6, padding: '8px 12px', fontFamily: 'monospace', fontSize: 11, color: 'var(--sv-mint)', lineHeight: 1.9 }}>
               orders/create<br/>orders/updated<br/>orders/cancelled<br/>fulfillments/create<br/>refunds/create
             </div>
@@ -18466,97 +18467,97 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
               <strong>Note:</strong> Shopify's <code style={code}>returns/*</code> webhooks require the <code style={code}>returns</code> access scope and Shopify/Advanced/Plus plan, and must be registered via the API (not the UI). <code style={code}>refunds/create</code> covers all refund + return scenarios without them.
             </div>
           </li>
-          <li>✅ Set the <strong>Online pick location</strong> in Settings → IMS Settings — the warehouse location orders are picked from.</li>
-          <li>✅ To push stock back to Shopify, go to Shopify → Orders → Inventory Sync, enable the toggle, and select the Shopify inventory location.</li>
-          <li>✅ For Shopify Payments payout-to-Xero, map three Xero accounts in Xero → Mapping: <span style={code}>sales_revenue</span>, <span style={code}>merchant_fees</span>, <span style={code}>shopify_clearing</span> (a bank account).</li>
+          <li>âœ… Set the <strong>Online pick location</strong> in Settings â†’ IMS Settings â€” the warehouse location orders are picked from.</li>
+          <li>âœ… To push stock back to Shopify, go to Shopify â†’ Orders â†’ Inventory Sync, enable the toggle, and select the Shopify inventory location.</li>
+          <li>âœ… For Shopify Payments payout-to-Xero, map three Xero accounts in Xero â†’ Mapping: <span style={code}>sales_revenue</span>, <span style={code}>merchant_fees</span>, <span style={code}>shopify_clearing</span> (a bank account).</li>
         </ul>
 
-        <h3 style={h3}>1 — Orders: Shopify → IMS</h3>
+        <h3 style={h3}>1 â€” Orders: Shopify â†’ IMS</h3>
         <p style={p}>Orders arrive in IMS in real time (webhook) or via the manual <strong>Import from Shopify</strong> button, which is useful for a first-time backfill or catching any missed events.</p>
         <TriggerTable rows={[
           { trigger: 'New order placed',        object: 'IMS Sales Order',     status: 'Confirmed',  notes: 'Linked variants are matched by shopify_variant_id. Unmatched line items are silently skipped (run Reconcile if variants are missing). Stock is committed (qty_committed) immediately.' },
           { trigger: 'Order edited',            object: 'IMS Sales Order',     status: 'Updated',    notes: 'Financial totals (price, tax, freight, discount) updated immediately. Line items re-synced only if the SO is still Draft.' },
-          { trigger: 'Order fulfilled',         object: 'IMS Sales Order',     status: 'Fulfilled',  notes: 'Stock moved from committed → on hand via a fulfilled movement. Occurs on fulfillments/create or orders/fulfilled topic.' },
+          { trigger: 'Order fulfilled',         object: 'IMS Sales Order',     status: 'Fulfilled',  notes: 'Stock moved from committed â†’ on hand via a fulfilled movement. Occurs on fulfillments/create or orders/fulfilled topic.' },
           { trigger: 'Order cancelled/voided',  object: 'IMS Sales Order',     status: 'Cancelled',  notes: 'Committed stock released. Triggered by orders/cancelled or financial_status = voided.' },
-          { trigger: 'Refund issued (refunds/create)', object: 'IMS Credit Note', status: 'Complete', notes: 'Handles all three scenarios: (1) goodwill/no-restock, (2) return + immediate refund, (3) deferred refund after return. Lines with restock_type = return/cancel are restocked; no_restock lines credit value only. No Xero credit note — accounted via payout.' },
+          { trigger: 'Refund issued (refunds/create)', object: 'IMS Credit Note', status: 'Complete', notes: 'Handles all three scenarios: (1) goodwill/no-restock, (2) return + immediate refund, (3) deferred refund after return. Lines with restock_type = return/cancel are restocked; no_restock lines credit value only. No Xero credit note â€” accounted via payout.' },
         ]} />
 
-        <h3 style={h3}>2 — Returns & refunds in detail</h3>
-        <p style={p}><strong>Rule:</strong> All returns for Shopify orders must be initiated in Shopify Admin. The Return button in IMS Online Sales will link you to the Shopify order. Everything is driven by the <span style={code}>refunds/create</span> webhook — Shopify sends this whenever a refund is issued, and it includes per-line <span style={code}>restock_type</span> flags:</p>
+        <h3 style={h3}>2 â€” Returns & refunds in detail</h3>
+        <p style={p}><strong>Rule:</strong> All returns for Shopify orders must be initiated in Shopify Admin. The Return button in IMS Online Sales will link you to the Shopify order. Everything is driven by the <span style={code}>refunds/create</span> webhook â€” Shopify sends this whenever a refund is issued, and it includes per-line <span style={code}>restock_type</span> flags:</p>
         <ul style={ul}>
-          <li><strong>Instant refund, no physical return</strong> (e.g. goodwill refund, damaged goods) — <span style={code}>restock_type: no_restock</span>. IMS creates a completed credit note. Money is credited but stock is NOT restocked.</li>
-          <li><strong>Return + refund at the same time</strong> — <span style={code}>restock_type: return</span> or <span style={code}>cancel</span>. IMS creates a completed credit note and immediately restocks the returned items.</li>
-          <li><strong>Wait for goods before refunding</strong> — Shopify doesn't fire <span style={code}>refunds/create</span> until you process the refund. Once you do (after receiving the goods), IMS creates and completes the credit note, restocking the items. To track the physical return in IMS before money moves, you can manually open a draft credit note in <strong>IMS → Credit Notes / Returns</strong> and set it to <em>Awaiting product</em> status.</li>
+          <li><strong>Instant refund, no physical return</strong> (e.g. goodwill refund, damaged goods) â€” <span style={code}>restock_type: no_restock</span>. IMS creates a completed credit note. Money is credited but stock is NOT restocked.</li>
+          <li><strong>Return + refund at the same time</strong> â€” <span style={code}>restock_type: return</span> or <span style={code}>cancel</span>. IMS creates a completed credit note and immediately restocks the returned items.</li>
+          <li><strong>Wait for goods before refunding</strong> â€” Shopify doesn't fire <span style={code}>refunds/create</span> until you process the refund. Once you do (after receiving the goods), IMS creates and completes the credit note, restocking the items. To track the physical return in IMS before money moves, you can manually open a draft credit note in <strong>IMS â†’ Credit Notes / Returns</strong> and set it to <em>Awaiting product</em> status.</li>
         </ul>
         <p style={p}><strong>Note on Returns webhooks:</strong> Shopify's <span style={code}>returns/*</span> webhook topics (which would enable automatic "Awaiting product" tracking) require the separate <span style={code}>returns</span> access scope, a Shopify/Advanced/Plus plan, and must be registered via the Shopify Admin API rather than the UI. For now, <span style={code}>refunds/create</span> covers all scenarios and the awaiting state is set manually when needed.</p>
-        <p style={p}>All returns — both Shopify-sourced and manual — appear in <strong>IMS → Credit Notes / Returns</strong>. Shopify-sourced credit notes are read-only and show a Shopify badge. Manual returns (for wholesale or non-Shopify online orders) are created directly in IMS.</p>
+        <p style={p}>All returns â€” both Shopify-sourced and manual â€” appear in <strong>IMS â†’ Credit Notes / Returns</strong>. Shopify-sourced credit notes are read-only and show a Shopify badge. Manual returns (for wholesale or non-Shopify online orders) are created directly in IMS.</p>
 
-        <h3 style={h3}>3 — Stock levels: IMS → Shopify</h3>
+        <h3 style={h3}>3 â€” Stock levels: IMS â†’ Shopify</h3>
         <p style={p}>IMS is the source of truth for stock. Every stock movement (PO received, order fulfilled, POS sale, stocktake, return, transfer) automatically queues the affected variant for a Shopify stock update. The sync then drains that queue every 15 minutes.</p>
         <ul style={ul}>
-          <li><strong>What's pushed:</strong> Available stock = sum of <span style={code}>qty_on_hand − qty_committed</span> across all configured <em>Online Pick Locations</em>. Negative values are floored to 0.</li>
-          <li><strong>How it works:</strong> IMS <em>sets</em> the absolute number (not adjusts by delta), so it self-corrects on every sync — no drift, no compounding errors.</li>
+          <li><strong>What's pushed:</strong> Available stock = sum of <span style={code}>qty_on_hand âˆ’ qty_committed</span> across all configured <em>Online Pick Locations</em>. Negative values are floored to 0.</li>
+          <li><strong>How it works:</strong> IMS <em>sets</em> the absolute number (not adjusts by delta), so it self-corrects on every sync â€” no drift, no compounding errors.</li>
           <li><strong>Lag:</strong> Up to 15 minutes between a stock movement and the Shopify storefront reflecting it. In most cases it's under 8 minutes (average of the 15-minute cycle).</li>
-          <li><strong>Opt-in:</strong> The sync is disabled by default. Enable it in Shopify → Orders → <em>Inventory Sync → Auto-sync enabled</em>.</li>
+          <li><strong>Opt-in:</strong> The sync is disabled by default. Enable it in Shopify â†’ Orders â†’ <em>Inventory Sync â†’ Auto-sync enabled</em>.</li>
           <li><strong>Preview first:</strong> Use the Preview button to see exactly what IMS would push before enabling, to verify the pick-location stock is correct.</li>
         </ul>
 
-        <h3 style={h3}>4 — Money: Shopify → Xero</h3>
+        <h3 style={h3}>4 â€” Money: Shopify â†’ Xero</h3>
         <p style={p}>Revenue flows to Xero via two different paths depending on how the customer paid:</p>
-        <p style={{ ...p, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 4 }}>Path A — Shopify Payments (card payments Shopify settles)</p>
+        <p style={{ ...p, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 4 }}>Path A â€” Shopify Payments (card payments Shopify settles)</p>
         <ul style={ul}>
           <li>Shopify holds funds and releases them as a <strong>Payout</strong> every business day at ~10am Sydney time.</li>
           <li>IMS checks for confirmed payouts each morning (~11am) and posts one Xero invoice per payout.</li>
-          <li>The invoice equals the exact bank deposit: <em>sales (ex-GST) + GST − processing fees (ex-GST, with claimable INPUT tax) ± adjustments</em>. A payment is immediately applied to your <span style={code}>shopify_clearing</span> bank account, ready for bank reconciliation.</li>
-          <li>Refunds within the payout period reduce the deposit and are netted into the payout invoice — no separate Xero credit note is posted for Shopify refunds.</li>
-          <li>Enable in Shopify → Orders → <em>Shopify Payments → Xero (payouts)</em> toggle, and choose <em>Cash basis</em> (recommended) or <em>Accrual</em>.</li>
+          <li>The invoice equals the exact bank deposit: <em>sales (ex-GST) + GST âˆ’ processing fees (ex-GST, with claimable INPUT tax) Â± adjustments</em>. A payment is immediately applied to your <span style={code}>shopify_clearing</span> bank account, ready for bank reconciliation.</li>
+          <li>Refunds within the payout period reduce the deposit and are netted into the payout invoice â€” no separate Xero credit note is posted for Shopify refunds.</li>
+          <li>Enable in Shopify â†’ Orders â†’ <em>Shopify Payments â†’ Xero (payouts)</em> toggle, and choose <em>Cash basis</em> (recommended) or <em>Accrual</em>.</li>
         </ul>
-        <p style={{ ...p, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 4 }}>Path B — Other gateways (PayPal, Afterpay, etc.)</p>
+        <p style={{ ...p, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 4 }}>Path B â€” Other gateways (PayPal, Afterpay, etc.)</p>
         <ul style={ul}>
           <li>Each gateway that IS NOT Shopify Payments posts via the <strong>nightly sales batch</strong> (1am AEST).</li>
-          <li>If you've configured a clearing account for a gateway in <em>Xero → Mapping → Online Gateway Clearing Accounts</em>, that gateway gets its own invoice per day and a payment is applied to its clearing account.</li>
-          <li>Gateways with no clearing account mapped still post as a combined daily invoice to your Sales Revenue account (no payment applied — bookkeeper reconciles manually).</li>
+          <li>If you've configured a clearing account for a gateway in <em>Xero â†’ Mapping â†’ Online Gateway Clearing Accounts</em>, that gateway gets its own invoice per day and a payment is applied to its clearing account.</li>
+          <li>Gateways with no clearing account mapped still post as a combined daily invoice to your Sales Revenue account (no payment applied â€” bookkeeper reconciles manually).</li>
           <li>Shopify Payments orders are automatically excluded from this batch when payout sync is active, to prevent double-counting.</li>
         </ul>
 
-        <h3 style={h3}>5 — The Xero sync log</h3>
-        <p style={p}>Every payout posted to Xero is recorded in the Xero sync log (IMS → Xero → Sync History tab). If a sync fails (e.g. missing account mapping, Xero API issue), it appears there with the error detail and can be retried.</p>
+        <h3 style={h3}>5 â€” The Xero sync log</h3>
+        <p style={p}>Every payout posted to Xero is recorded in the Xero sync log (IMS â†’ Xero â†’ Sync History tab). If a sync fails (e.g. missing account mapping, Xero API issue), it appears there with the error detail and can be retried.</p>
 
         <h3 style={h3}>Common issues</h3>
         <ul style={ul}>
-          <li><strong>"No linked variants" / order has 0 items</strong> — The Shopify variants aren't linked to IMS products yet. Run <em>Shopify → Reconcile Products</em> to link them by SKU, then re-import the affected order.</li>
-          <li><strong>Stock not updating in Shopify</strong> — Check that: (1) Inventory Sync is enabled, (2) a Shopify inventory location is selected, and (3) your pick location has stock. Use Preview to diagnose.</li>
-          <li><strong>Payout sync skipped</strong> — Check that all three Xero account roles (<span style={code}>sales_revenue</span>, <span style={code}>merchant_fees</span>, <span style={code}>shopify_clearing</span>) are mapped in Xero → Mapping.</li>
-          <li><strong>Duplicate revenue</strong> — If you see the same day's sales appearing twice in Xero, Shopify Payments orders may be in both the payout invoice and the daily batch. Ensure payout sync is enabled and set to Cash basis — IMS will then exclude those orders from the nightly batch.</li>
-          <li><strong>Return shows as a manual return in IMS</strong> — This is correct if the return was initiated in IMS rather than in Shopify. Shopify-sourced returns show a green "Shopify" badge. Manual returns show a "Manual" badge and do post a separate Xero credit note.</li>
-          <li><strong>Webhook not firing</strong> — Verify the webhook URL and signing secret match exactly. Check Shopify Admin → Settings → Notifications → Webhooks for delivery failures.</li>
+          <li><strong>"No linked variants" / order has 0 items</strong> â€” The Shopify variants aren't linked to IMS products yet. Run <em>Shopify â†’ Reconcile Products</em> to link them by SKU, then re-import the affected order.</li>
+          <li><strong>Stock not updating in Shopify</strong> â€” Check that: (1) Inventory Sync is enabled, (2) a Shopify inventory location is selected, and (3) your pick location has stock. Use Preview to diagnose.</li>
+          <li><strong>Payout sync skipped</strong> â€” Check that all three Xero account roles (<span style={code}>sales_revenue</span>, <span style={code}>merchant_fees</span>, <span style={code}>shopify_clearing</span>) are mapped in Xero â†’ Mapping.</li>
+          <li><strong>Duplicate revenue</strong> â€” If you see the same day's sales appearing twice in Xero, Shopify Payments orders may be in both the payout invoice and the daily batch. Ensure payout sync is enabled and set to Cash basis â€” IMS will then exclude those orders from the nightly batch.</li>
+          <li><strong>Return shows as a manual return in IMS</strong> â€” This is correct if the return was initiated in IMS rather than in Shopify. Shopify-sourced returns show a green "Shopify" badge. Manual returns show a "Manual" badge and do post a separate Xero credit note.</li>
+          <li><strong>Webhook not firing</strong> â€” Verify the webhook URL and signing secret match exactly. Check Shopify Admin â†’ Settings â†’ Notifications â†’ Webhooks for delivery failures.</li>
         </ul>
       </div>
     );
 
-    // ── Sync & Import ─────────────────────────────────────────────────────────
+    // â”€â”€ Sync & Import â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (active === 'sync') return (
       <div style={{ padding: 32, maxWidth: 760 }}>
         <h2 style={h2}>Sync &amp; Import</h2>
-        <p style={p}>IMS can import historical and ongoing data from Cin7 Core and Shopify. Syncs are initiated manually from the Settings → Sync &amp; Import panel.</p>
+        <p style={p}>IMS can import historical and ongoing data from Cin7 Core and Shopify. Syncs are initiated manually from the Settings â†’ Sync &amp; Import panel.</p>
         <h3 style={h3}>Cin7 Core import</h3>
         <ul style={ul}>
-          <li><strong>Products</strong> — Imports full product and variant catalog from Cin7. Existing IMS products with matching SKUs are updated; new SKUs are created.</li>
-          <li><strong>Sales (historical)</strong> — Imports Cin7 sales order history. Configurable date range in months.</li>
-          <li><strong>Purchase Orders (historical)</strong> — Imports Cin7 PO history. Configurable date range in months.</li>
-          <li><strong>Full sync</strong> — Re-imports everything from scratch, overwriting existing data. Use with caution.</li>
-          <li><strong>Latest sync</strong> — Imports only records created or updated since the last sync run.</li>
+          <li><strong>Products</strong> â€” Imports full product and variant catalog from Cin7. Existing IMS products with matching SKUs are updated; new SKUs are created.</li>
+          <li><strong>Sales (historical)</strong> â€” Imports Cin7 sales order history. Configurable date range in months.</li>
+          <li><strong>Purchase Orders (historical)</strong> â€” Imports Cin7 PO history. Configurable date range in months.</li>
+          <li><strong>Full sync</strong> â€” Re-imports everything from scratch, overwriting existing data. Use with caution.</li>
+          <li><strong>Latest sync</strong> â€” Imports only records created or updated since the last sync run.</li>
         </ul>
         <h3 style={h3}>Shopify catalog sync</h3>
-        <p style={p}>Syncs the Shopify product catalog (variants + SKUs) into the IMS products table. Used to cross-reference Shopify orders with IMS stock. Requires a Shopify connection configured in Connections → Shopify.</p>
+        <p style={p}>Syncs the Shopify product catalog (variants + SKUs) into the IMS products table. Used to cross-reference Shopify orders with IMS stock. Requires a Shopify connection configured in Connections â†’ Shopify.</p>
         <h3 style={h3}>Import Products (spreadsheet)</h3>
-        <p style={p}>From <strong>Products → Import Products</strong>, paste tab-separated data (from Excel or Google Sheets) to bulk-create or update products and variants. Key columns:</p>
+        <p style={p}>From <strong>Products â†’ Import Products</strong>, paste tab-separated data (from Excel or Google Sheets) to bulk-create or update products and variants. Key columns:</p>
         <ul style={ul}>
-          <li><strong style={{ color: 'var(--sv-text-main)' }}>Product_SKU</strong> — The <em>product-level</em> identifier that groups multiple variant rows under a single product (e.g. <span style={code}>MT-RCAK</span>). Rows sharing the same Product_SKU become variants of the same product. For single-variant products, Product_SKU and SKU are typically identical. This maps to the <em>Product SKU</em> field in the Edit Product modal.</li>
-          <li><strong style={{ color: 'var(--sv-text-main)' }}>SKU</strong> — The <em>variant-level</em> unique identifier (e.g. <span style={code}>MT-RCAKMemphis-2 to 3 years</span>). A matching SKU updates that variant; an unrecognised SKU creates a new variant under the product identified by Product_SKU (or a new product if also unrecognised).</li>
-          <li><strong>Product_Name</strong> — Fallback grouping key when Product_SKU is blank. Must match exactly for variants to group correctly.</li>
-          <li><strong>Option1_Name / Option1_Value</strong> — Defines the variant dimension (e.g. Size / Small). Up to 3 option axes per product.</li>
-          <li><strong>Per-location columns</strong> — Min Qty, Reorder Qty, Zone, and Bin for each branch. The default warehouse location appears first; remaining branches are alphabetical.</li>
+          <li><strong style={{ color: 'var(--sv-text-main)' }}>Product_SKU</strong> â€” The <em>product-level</em> identifier that groups multiple variant rows under a single product (e.g. <span style={code}>MT-RCAK</span>). Rows sharing the same Product_SKU become variants of the same product. For single-variant products, Product_SKU and SKU are typically identical. This maps to the <em>Product SKU</em> field in the Edit Product modal.</li>
+          <li><strong style={{ color: 'var(--sv-text-main)' }}>SKU</strong> â€” The <em>variant-level</em> unique identifier (e.g. <span style={code}>MT-RCAKMemphis-2 to 3 years</span>). A matching SKU updates that variant; an unrecognised SKU creates a new variant under the product identified by Product_SKU (or a new product if also unrecognised).</li>
+          <li><strong>Product_Name</strong> â€” Fallback grouping key when Product_SKU is blank. Must match exactly for variants to group correctly.</li>
+          <li><strong>Option1_Name / Option1_Value</strong> â€” Defines the variant dimension (e.g. Size / Small). Up to 3 option axes per product.</li>
+          <li><strong>Per-location columns</strong> â€” Min Qty, Reorder Qty, Zone, and Bin for each branch. The default warehouse location appears first; remaining branches are alphabetical.</li>
         </ul>
         <p style={p}>Rows classified as <em>New Product</em> create a fresh product and its first variant. Rows classified as <em>New Variant</em> add a variant to an existing product. Rows classified as <em>Update</em> modify the matched variant's fields. Review the full classification before confirming the import.</p>
         <h3 style={h3}>Sales cache</h3>
@@ -18564,7 +18565,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
       </div>
     );
 
-    // ── Users ─────────────────────────────────────────────────────────────────
+    // â”€â”€ Users â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (active === 'users') return (
       <div style={{ padding: 32, maxWidth: 760 }}>
         <h2 style={h2}>Users</h2>
@@ -18572,13 +18573,13 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <h3 style={h3}>IMS web users</h3>
         <p style={p}>Full-access users who log in with email and password at the Marketoir web app. They can access all IMS views, orders, reports, and settings based on their role.</p>
         <ul style={ul}>
-          <li><strong>Admin</strong> — Full access including user management and settings</li>
-          <li><strong>Standard</strong> — Access to all operational views (orders, stock, contacts) but not user admin</li>
+          <li><strong>Admin</strong> â€” Full access including user management and settings</li>
+          <li><strong>Standard</strong> â€” Access to all operational views (orders, stock, contacts) but not user admin</li>
         </ul>
-        <p style={p}>Invite new IMS users from Settings → Users → Add User. They receive an email with a one-time invite link to set their password.</p>
+        <p style={p}>Invite new IMS users from Settings â†’ Users â†’ Add User. They receive an email with a one-time invite link to set their password.</p>
         <h3 style={h3}>POS terminal users</h3>
-        <p style={p}>PIN-based operators for the in-store POS terminal. These are <strong>separate</strong> from IMS web users — they do not have web app access. POS users are assigned to one or more locations and authenticate with a short PIN on the POS screen.</p>
-        <p style={p}>Manage POS users from Settings → Point of Sale → Users.</p>
+        <p style={p}>PIN-based operators for the in-store POS terminal. These are <strong>separate</strong> from IMS web users â€” they do not have web app access. POS users are assigned to one or more locations and authenticate with a short PIN on the POS screen.</p>
+        <p style={p}>Manage POS users from Settings â†’ Point of Sale â†’ Users.</p>
         <h3 style={h3}>Business isolation</h3>
         <p style={p}>All IMS data is scoped to your business. Users from different businesses cannot see each other's data. Multiple users within the same business share the same view of all orders, stock, and settings.</p>
       </div>
@@ -18593,7 +18594,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
       <div style={{ width: 210, background: 'var(--sv-bg-0)', borderRight: '1px solid var(--sv-etch)', display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 16px 14px' }}>
           <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--sv-text-strong)' }}>Help</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 22, lineHeight: 1, padding: 0 }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 22, lineHeight: 1, padding: 0 }}>Ã—</button>
         </div>
         <div style={{ height: 1, background: 'var(--sv-etch)', margin: '0 0 8px' }} />
         {NAV_ITEMS.map(item => {
