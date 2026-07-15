@@ -51,7 +51,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const ext      = EXT_MAP[file.type] ?? 'jpg';
     const safeId   = params.id.replace(/[^a-zA-Z0-9_-]/g, '_');
     const filename = `${safeId}-${Date.now()}.${ext}`;
-    const dir      = getImagesDir(session.userSpreadsheetId);
+    const dir      = getImagesDir(session.businessId ?? session.userSpreadsheetId ?? '');
     fs.mkdirSync(dir, { recursive: true });
     const buffer   = Buffer.from(await file.arrayBuffer());
     fs.writeFileSync(path.join(dir, filename), buffer);
