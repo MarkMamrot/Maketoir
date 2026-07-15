@@ -1898,7 +1898,8 @@ function ImportProductsModal({
               <strong>SKU</strong> — The individual variant barcode-style SKU (e.g. <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>MT-RCAKMemphis-2 to 3 years</code>). A matching SKU updates that variant; a non-matching SKU creates a new one.<br />
               <strong>Product_Name</strong> — Used as a fallback grouping key if <em>Product_SKU</em> is blank.{' '}
               {showCategories ? 'Category and Subcategory columns are also included. ' : ''}
-              The columns at the end —{showZoneBin ? ' Zone, Bin,' : ''} Min Qty and Reorder Qty — are per location and saved against that location’s stock. The default warehouse location appears first.
+              The columns at the end —{showZoneBin ? ' Zone, Bin,' : ''} Min Qty and Reorder Qty — are per location and saved against that location’s stock. The default warehouse location appears first.{' '}
+              <br /><strong>Variant Options</strong>{' — '}Use <em>Option1_Name</em> / <em>Option1_Value</em> to define what makes each row a distinct variant. For example, set <em>Option1_Name</em> to <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>Size</code> and <em>Option1_Value</em> to <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>S</code>, <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>M</code>, or <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>L</code> on successive rows that all share the same <em>Product_SKU</em>. Use Option2 / Option3 for additional dimensions such as Colour.
             </div>
             <textarea
               value={pasteText}
