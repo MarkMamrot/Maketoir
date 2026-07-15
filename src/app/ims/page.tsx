@@ -3590,8 +3590,8 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               {showCols.created && <col style={{ width: 100, minWidth: 100 }} />}{/* created */}
             </colgroup>
             <thead>
-              <tr style={{ background: 'var(--sv-bg-2)', position: 'sticky', top: 56, zIndex: 10 }}>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid var(--sv-etch)', position: 'sticky', top: 56, background: 'var(--sv-bg-2)', zIndex: 10 }}>
+              <tr style={{ background: 'var(--sv-bg-2)', position: 'sticky', top: 0, zIndex: 10, boxShadow: '0 -120px 0 120px var(--sv-bg-2), 0 1px 0 0 var(--sv-etch)' }}>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid var(--sv-etch)', position: 'sticky', top: 0, background: 'var(--sv-bg-2)', zIndex: 10 }}>
                   <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAll} style={{ cursor: 'pointer' }} />
                 </th>
                 {([
@@ -3611,7 +3611,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                   ...(showCols.created ? [['created_at','Created']] : [])
                 ] as [string,string][]).map(([col, label]) => (
                   <th key={col} onClick={() => toggleSort(col)}
-                    style={{ padding: '10px 12px', borderBottom: '1px solid var(--sv-etch)', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', position: 'sticky', top: 56, background: 'var(--sv-bg-2)', zIndex: 10 }}>
+                    style={{ padding: '10px 12px', borderBottom: '1px solid var(--sv-etch)', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', position: 'sticky', top: 0, background: 'var(--sv-bg-2)', zIndex: 10 }}>
                     {label}<SortIcon col={col} />
                   </th>
                 ))}
