@@ -3590,7 +3590,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               {showCols.created && <col style={{ width: 100, minWidth: 100 }} />}{/* created */}
             </colgroup>
             <thead>
-              <tr style={{ background: 'var(--sv-bg-2)', position: 'sticky', top: 0, zIndex: 10, boxShadow: '0 -120px 0 120px var(--sv-bg-2), 0 1px 0 0 var(--sv-etch)' }}>
+              <tr style={{ background: 'var(--sv-bg-2)', position: 'sticky', top: 0, zIndex: 10, boxShadow: '0 1px 0 0 var(--sv-etch)' }}>
                 <th style={{ padding: '10px 8px', borderBottom: '1px solid var(--sv-etch)', position: 'sticky', top: 0, background: 'var(--sv-bg-2)', zIndex: 10 }}>
                   <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAll} style={{ cursor: 'pointer' }} />
                 </th>
