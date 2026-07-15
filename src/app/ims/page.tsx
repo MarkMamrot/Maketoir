@@ -3580,7 +3580,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             <colgroup>
               <col style={{ width: 32, minWidth: 32 }} />{/* checkbox */}
               {showCols.sku && <col style={{ width: 90, minWidth: 90 }} />}{/* SKU */}
-              <col style={{ minWidth: 240 }} />{/* name */}
+              <col style={{ minWidth: 384 }} />{/* name */}
               {showCols.barcode && <col style={{ width: 120, minWidth: 120 }} />}{/* barcode */}
               {showCols.product_type && <col style={{ width: 140, minWidth: 140 }} />}{/* product type */}
               {showCols.brand && <col style={{ width: 130, minWidth: 130 }} />}{/* brand */}
