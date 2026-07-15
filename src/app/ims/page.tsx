@@ -2909,6 +2909,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const [activeCurrencies, setActiveCurrencies] = useState<string[]>([]);
   const [stockHistoryModal, setStockHistoryModal] = useState<{ productId: string; productName: string } | null>(null);
   const [showThumbnails, setShowThumbnails] = useState(false);
+  const [showCols, setShowCols] = useState<{ [key: string]: boolean }>({ thumbnails: false, product_type: false, supplier: false, ws_price: false, online: false });
   const [primaryImages, setPrimaryImages] = useState<Record<string, string>>({});
   const [importProductsOpen, setImportProductsOpen] = useState(false);
   const [contacts, setContacts] = useState<{ id: number; name: string; type: string }[]>([]);
@@ -3423,11 +3424,39 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         {(filter || filterBrand || filterSupplier || filterType || filterActive !== 'all') && (
           <button onClick={() => { setFilter(''); setFilterBrand(''); setFilterSupplier(''); setFilterType(''); setFilterActive('all'); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
         )}
-        <button
-          onClick={() => setShowThumbnails(v => !v)}
-          title={showThumbnails ? 'Hide product photos' : 'Show product photos'}
-          style={{ flexShrink: 0, padding: '5px 10px', borderRadius: 6, border: `1px solid ${showThumbnails ? 'var(--sv-action)' : 'var(--sv-etch)'}`, background: showThumbnails ? 'color-mix(in srgb, var(--sv-action) 12%, transparent)' : 'transparent', color: showThumbnails ? 'var(--sv-action)' : 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}
-        >🖼 Photos</button>
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => {
+              const el = document.getElementById('products-fields-dropdown');
+              if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+            }}
+            style={{ flexShrink: 0, padding: '5px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}
+          >
+            Show Fields ▾
+          </button>
+          <div id="products-fields-dropdown" style={{ display: 'none', position: 'absolute', top: '100%', right: 0, zIndex: 100, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '12px 14px', marginTop: 4, minWidth: 200, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+            <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={showCols.thumbnails} onChange={e => setShowCols(s => ({ ...s, thumbnails: e.target.checked }))} style={{ marginRight: 8 }} />
+              Product Photos
+            </label>
+            <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={showCols.product_type} onChange={e => setShowCols(s => ({ ...s, product_type: e.target.checked }))} style={{ marginRight: 8 }} />
+              Product Type
+            </label>
+            <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={showCols.supplier} onChange={e => setShowCols(s => ({ ...s, supplier: e.target.checked }))} style={{ marginRight: 8 }} />
+              Supplier
+            </label>
+            <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={showCols.ws_price} onChange={e => setShowCols(s => ({ ...s, ws_price: e.target.checked }))} style={{ marginRight: 8 }} />
+              Wholesale Price
+            </label>
+            <label style={{ display: 'block', fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={showCols.online} onChange={e => setShowCols(s => ({ ...s, online: e.target.checked }))} style={{ marginRight: 8 }} />
+              Available Online
+            </label>
+          </div>
+        </div>
       </div>
 
       {/* ── Bulk actions bar ── */}
@@ -3442,21 +3471,26 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
       )}
 
       {loading ? <Spinner /> : sortedFiltered.length === 0 ? <EmptyState text="No products match your filters." /> : (
-        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto' }}>
+          <table style={{ minWidth: '100%', borderCollapse: 'collapse' }}>
             <colgroup>
-              <col style={{ width: 36 }} />{/* expand */}
-              <col style={{ width: 32 }} />{/* checkbox */}
-              <col />{/* name — fills remaining */}
-              <col style={{ width: 150 }} />{/* product type */}
-              <col style={{ width: 130 }} />{/* brand */}
-              <col style={{ width: 80 }} />{/* variants */}
-              <col style={{ width: 70 }} />{/* active */}
-              <col style={{ width: 100 }} />{/* created */}
+              <col style={{ width: 36, minWidth: 36 }} />{/* expand */}
+              <col style={{ width: 32, minWidth: 32 }} />{/* checkbox */}
+              <col style={{ minWidth: 200 }} />{/* name */}
+              {showCols.product_type && <col style={{ width: 140, minWidth: 140 }} />}{/* product type */}
+              <col style={{ width: 130, minWidth: 130 }} />{/* brand */}
+              {showCols.supplier && <col style={{ width: 140, minWidth: 140 }} />}{/* supplier */}
+              <col style={{ width: 120, minWidth: 120 }} />{/* Sell Price */}
+              {showCols.ws_price && <col style={{ width: 120, minWidth: 120 }} />}{/* WS Price */}
+              <col style={{ width: 100, minWidth: 100 }} />{/* SOH */}
+              <col style={{ width: 80, minWidth: 80 }} />{/* variants */}
+              {showCols.online && <col style={{ width: 80, minWidth: 80 }} />}{/* online */}
+              <col style={{ width: 70, minWidth: 70 }} />{/* active */}
+              <col style={{ width: 100, minWidth: 100 }} />{/* created */}
             </colgroup>
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
-                <th style={{ padding: '10px 8px 10px 12px' }}>
+              <tr style={{ background: 'var(--sv-bg-2)', position: 'sticky', top: 0, zIndex: 10 }}>
+                <th style={{ padding: '10px 8px 10px 12px', borderBottom: '1px solid var(--sv-etch)' }}>
                   {expandableVisibleIds.length > 0 && (
                     <button
                       onClick={() => {
@@ -3480,22 +3514,43 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                     </button>
                   )}
                 </th>
-                <th style={{ padding: '10px 8px' }}>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid var(--sv-etch)' }}>
                   <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAll} style={{ cursor: 'pointer' }} />
                 </th>
-                {([['name','Product'],['product_type','Product Type'],['brand','Brand'],['variants','Variants'],['is_active','Active'],['created_at','Created']] as [string,string][]).map(([col, label]) => (
+                {([
+                  ['name','Product'],
+                  ...(showCols.product_type ? [['product_type','Product Type']] : []),
+                  ['brand','Brand'],
+                  ...(showCols.supplier ? [['supplier_name','Supplier']] : []),
+                  ['price','Sell Price'],
+                  ...(showCols.ws_price ? [['ws_price','WS Price']] : []),
+                  ['stock','SOH / Avail'],
+                  ['variants','Variants'],
+                  ...(showCols.online ? [['is_online','Online']] : []),
+                  ['is_active','Active'],
+                  ['created_at','Created']
+                ] as [string,string][]).map(([col, label]) => (
                   <th key={col} onClick={() => toggleSort(col)}
-                    style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                    style={{ padding: '10px 12px', borderBottom: '1px solid var(--sv-etch)', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
                     {label}<SortIcon col={col} />
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {visible.map((p, i) => (
-                <>
-                  <tr key={p.product_id} style={{ borderTop: '1px solid var(--sv-etch)', background: selected.has(p.product_id) ? 'color-mix(in srgb, var(--sv-action) 10%, transparent)' : i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}>
-                    <td style={{ padding: '10px 8px 10px 12px' }}>
+              {visible.map((p, i) => {
+                const variants = p.variants || [];
+                const firstVar = variants[0];
+                const hasDiscount = firstVar?.price_rrp_sale != null && Number(firstVar?.price_rrp_sale) > 0;
+                
+                // Aggregated stock for product level (sum of all variants)
+                const aggSoh = stockSoh !== null ? variants.reduce((sum: number, v: any) => sum + (stockSoh[v.variant_id] ?? 0), 0) : null;
+                const aggAvail = stockSoh !== null ? variants.reduce((sum: number, v: any) => sum + (stockAvail[v.variant_id] ?? 0), 0) : null;
+
+                return (
+                <React.Fragment key={p.product_id}>
+                  <tr style={{ background: selected.has(p.product_id) ? 'color-mix(in srgb, var(--sv-action) 10%, transparent)' : i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}>
+                    <td style={{ padding: '10px 8px 10px 12px', borderTop: '1px solid var(--sv-etch)' }}>
                       {(p.variants || []).length > 0 && (
                         <button onClick={() => handleExpand(p.product_id)}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', padding: 0 }}>
@@ -3523,36 +3578,88 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                         >{p.name}</strong>
                       </div>
                     </td>
-                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.product_type || '—'}</td>
-                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.brand || '—'}</td>
-                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13 }}>{(p.variants || []).length}</td>
-                    <td style={{ padding: '10px 12px' }}><ActiveDot active={p.is_active} /></td>
-                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{p.created_at ? String(p.created_at).slice(0, 10) : '—'}</td>
+                    {showCols.product_type && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.product_type || '—'}</td>}
+                    <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.brand || '—'}</td>
+                    {showCols.supplier && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.supplier_name || '—'}</td>}
+                    
+                    <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', fontSize: 13 }}>
+                      {firstVar ? (
+                        hasDiscount ? (
+                          <>
+                            <span style={{ textDecoration: 'line-through', color: 'var(--sv-text-dim)', marginRight: 5 }}>{fmtCurrency(firstVar.price_rrp)}</span>
+                            <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>{fmtCurrency(firstVar.price_rrp_sale)}</span>
+                          </>
+                        ) : (
+                          <span style={{ color: 'var(--sv-text-dim)' }}>{fmtCurrency(firstVar.price_rrp)}</span>
+                        )
+                      ) : '—'}
+                    </td>
+                    {showCols.ws_price && (
+                      <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', fontSize: 13, color: 'var(--sv-text-dim)' }}>
+                        {firstVar?.price_wholesale != null ? fmtCurrency(firstVar.price_wholesale) : '—'}
+                      </td>
+                    )}
+
+                    <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
+                      {aggSoh === null
+                        ? (stockSohLoading ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>loading…</span> : '—')
+                        : (
+                          <span style={{ color: aggSoh === 0 ? 'var(--sv-text-dim)' : 'var(--sv-text-main)', fontWeight: 600 }}>
+                            {fmtQty(aggSoh)}
+                          </span>
+                        )
+                      }
+                      {aggSoh !== null && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 400, marginLeft: 3 }}>SOH</span>}
+                      {aggSoh !== null && (() => { 
+                        const av = aggAvail ?? 0; return (
+                        <span style={{ marginLeft: 6, fontSize: 13, fontWeight: 600, color: av <= 0 ? 'var(--sv-red)' : 'var(--sv-mint)' }}>
+                          {fmtQty(av)}<span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 400, marginLeft: 3 }}>avail</span>
+                        </span>
+                      ); })()}
+                    </td>
+
+                    <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13 }}>{variants.length}</td>
+                    {showCols.online && (
+                      <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)' }}>
+                        {p.is_online ? <span style={{ color: 'var(--sv-mint)', fontSize: 13, fontWeight: 600 }}>Yes</span> : <span style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>No</span>}
+                      </td>
+                    )}
+                    <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)' }}><ActiveDot active={p.is_active} /></td>
+                    <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{p.created_at ? String(p.created_at).slice(0, 10) : '—'}</td>
                   </tr>
-                  {expandedIds.has(p.product_id) && (p.variants || []).map((v: any) => {
-                    const hasDiscount = v.price_rrp_sale != null && Number(v.price_rrp_sale) > 0;
+                  {expandedIds.has(p.product_id) && variants.map((v: any) => {
+                    const vHasDiscount = v.price_rrp_sale != null && Number(v.price_rrp_sale) > 0;
                     return (
-                      <tr key={v.variant_id} style={{ background: 'var(--sv-bg-1)', borderTop: '1px solid var(--sv-etch)' }}>
-                        <td />{/* expand */}
-                        <td />{/* checkbox */}
-                        <td style={{ padding: '8px 12px 8px 28px', fontSize: 13, color: 'var(--sv-text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <tr key={v.variant_id} style={{ background: 'var(--sv-bg-1)', opacity: 0.9 }}>
+                        <td style={{ borderTop: '1px solid color-mix(in srgb, var(--sv-etch) 40%, transparent)' }} />{/* expand */}
+                        <td style={{ borderTop: '1px solid color-mix(in srgb, var(--sv-etch) 40%, transparent)' }} />{/* checkbox */}
+                        <td style={{ borderTop: '1px solid color-mix(in srgb, var(--sv-etch) 40%, transparent)', padding: '8px 12px 8px 36px', fontSize: 13, color: 'var(--sv-text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           <code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{v.sku || '—'}</code>
                           {v.barcode && <span style={{ color: 'var(--sv-text-dim)', fontSize: 11, marginLeft: 6 }}>#{v.barcode}</span>}
                           {' '}{[v.option1_value, v.option2_value, v.option3_value].filter(Boolean).join(' / ')}
-                          {p.product_type && <span style={{ color: 'var(--sv-text-dim)', fontSize: 11, marginLeft: 8, background: 'var(--sv-bg-2)', borderRadius: 4, padding: '1px 6px' }}>{p.product_type}</span>}
                         </td>
-                        <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{fmtCurrency(v.cost_aud)} cost</td>
-                        <td style={{ padding: '8px 12px', fontSize: 13 }}>
-                          {hasDiscount ? (
+                        {showCols.product_type && <td style={{ borderTop: '1px solid color-mix(in srgb, var(--sv-etch) 40%, transparent)' }} />}
+                        <td style={{ borderTop: '1px solid color-mix(in srgb, var(--sv-etch) 40%, transparent)' }} />
+                        {showCols.supplier && <td style={{ borderTop: '1px solid color-mix(in srgb, var(--sv-etch) 40%, transparent)' }} />}
+                        
+                        <td style={{ borderTop: '1px solid color-mix(in srgb, var(--sv-etch) 40%, transparent)', padding: '8px 12px', fontSize: 13 }}>
+                          {vHasDiscount ? (
                             <>
                               <span style={{ textDecoration: 'line-through', color: 'var(--sv-text-dim)', marginRight: 5 }}>{fmtCurrency(v.price_rrp)}</span>
                               <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>{fmtCurrency(v.price_rrp_sale)}</span>
                             </>
                           ) : (
-                            <span style={{ color: 'var(--sv-text-dim)' }}>{fmtCurrency(v.price_rrp)} sell</span>
+                            <span style={{ color: 'var(--sv-text-dim)' }}>{fmtCurrency(v.price_rrp)}</span>
                           )}
                         </td>
-                        <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
+                        
+                        {showCols.ws_price && (
+                          <td style={{ borderTop: '1px solid color-mix(in srgb, var(--sv-etch) 40%, transparent)', padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>
+                            {v.price_wholesale != null ? fmtCurrency(v.price_wholesale) : '—'}
+                          </td>
+                        )}
+
+                        <td style={{ borderTop: '1px solid color-mix(in srgb, var(--sv-etch) 40%, transparent)', padding: '8px 12px', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
                           {stockSoh === null
                             ? (stockSohLoading ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>loading…</span> : '—')
                             : (
@@ -3572,12 +3679,13 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                             </span>
                           ); })()}
                         </td>
-                        <td />
+
+                        <td colSpan={showCols.online ? 4 : 3} style={{ borderTop: '1px solid color-mix(in srgb, var(--sv-etch) 40%, transparent)' }} />
                       </tr>
                     );
                   })}
-                </>
-              ))}
+                </React.Fragment>
+              )})}
             </tbody>
           </table>
         </div>
