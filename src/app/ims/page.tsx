@@ -2644,13 +2644,17 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
         }),
       });
       const d = await res.json();
-      if (!res.ok || d.error) { setError(d.error ?? 'Generate failed'); return; }
+      if (!res.ok || d.error) { setError(d.error ?? `Generate failed (HTTP ${res.status})`); return; }
+      if (!d.content && !d.title) {
+        setError(`Unexpected response shape: ${JSON.stringify(d).slice(0, 200)}`);
+        return;
+      }
       setGenerated({
         title:              d.content?.title               ?? d.title               ?? '',
         websiteDescription: d.content?.websiteDescription  ?? d.websiteDescription  ?? '',
         tags:               d.content?.tags                ?? d.tags                ?? '',
       });
-    } catch (e: any) { setError(e.message); }
+    } catch (e: any) { setError(`Network or parse error: ${e.message}`); }
     finally { setGenerating(false); }
   };
 
@@ -2847,45 +2851,42 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
 
               {generated && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {generated.title && (
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                        <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Title</span>
-                        <button
-                          onClick={() => onApplyContent(generated.title || null, null, null)}
-                          title="Apply title to product name field"
-                          style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
-                        >↙ Apply</button>
-                      </div>
-                      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 13, color: 'var(--sv-text-strong)' }}>{generated.title}</div>
+                  {/* Title */}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                      <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Title</span>
+                      <button
+                        onClick={() => onApplyContent(generated.title || null, null, null)}
+                        title="Apply title to product name field"
+                        style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
+                      >↙ Apply</button>
                     </div>
-                  )}
-                  {generated.websiteDescription && (
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                        <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Description (HTML)</span>
-                        <button
-                          onClick={() => onApplyContent(null, generated.websiteDescription || null, null)}
-                          title="Apply description to product description field"
-                          style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
-                        >↙ Apply</button>
-                      </div>
-                      <pre style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 11, color: 'var(--sv-text-main)', overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 140, overflowY: 'auto', margin: 0 }}>{generated.websiteDescription}</pre>
+                    <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 13, color: generated.title ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontStyle: generated.title ? 'normal' : 'italic' }}>{generated.title || 'No title generated'}</div>
+                  </div>
+                  {/* Description */}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                      <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Description (HTML)</span>
+                      <button
+                        onClick={() => onApplyContent(null, generated.websiteDescription || null, null)}
+                        title="Apply description to product description field"
+                        style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
+                      >↙ Apply</button>
                     </div>
-                  )}
-                  {generated.tags && (
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                        <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Tags</span>
-                        <button
-                          onClick={() => onApplyContent(null, null, generated.tags || null)}
-                          title="Apply tags to product tags field"
-                          style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
-                        >↙ Apply</button>
-                      </div>
-                      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 12, color: 'var(--sv-text-main)' }}>{generated.tags}</div>
+                    <pre style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 11, color: generated.websiteDescription ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontStyle: generated.websiteDescription ? 'normal' : 'italic', overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 140, overflowY: 'auto', margin: 0 }}>{generated.websiteDescription || 'No description generated'}</pre>
+                  </div>
+                  {/* Tags */}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                      <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Tags</span>
+                      <button
+                        onClick={() => onApplyContent(null, null, generated.tags || null)}
+                        title="Apply tags to product tags field"
+                        style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
+                      >↙ Apply</button>
                     </div>
-                  )}
+                    <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 12, color: generated.tags ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontStyle: generated.tags ? 'normal' : 'italic' }}>{generated.tags || 'No tags generated'}</div>
+                  </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <button onClick={handleApply} style={btnStyle('action', 'sm')}>Apply All to Product</button>
                     <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Applies all fields — or use ↙ Apply on individual fields above</span>
