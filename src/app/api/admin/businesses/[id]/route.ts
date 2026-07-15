@@ -25,10 +25,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const body = await req.json();
   const sets: string[] = [];
   const vals: any[] = [];
-  if (body.name !== undefined)         { sets.push('name = ?');         vals.push(body.name.trim()); }
-  if (body.has_foresight !== undefined) { sets.push('has_foresight = ?'); vals.push(body.has_foresight ? 1 : 0); }
-  if (body.has_ims !== undefined)       { sets.push('has_ims = ?');       vals.push(body.has_ims ? 1 : 0); }
-  if (body.has_pos !== undefined)       { sets.push('has_pos = ?');       vals.push(body.has_pos ? 1 : 0); }
+  if (body.name !== undefined)              { sets.push('name = ?');              vals.push(body.name.trim()); }
+  if (body.has_foresight !== undefined)     { sets.push('has_foresight = ?');     vals.push(body.has_foresight ? 1 : 0); }
+  if (body.has_ims !== undefined)           { sets.push('has_ims = ?');           vals.push(body.has_ims ? 1 : 0); }
+  if (body.has_pos !== undefined)           { sets.push('has_pos = ?');           vals.push(body.has_pos ? 1 : 0); }
+  if (body.max_locations !== undefined)     { sets.push('max_locations = ?');     vals.push(body.max_locations === '' || body.max_locations === null ? null : Number(body.max_locations)); }
+  if (body.max_users !== undefined)         { sets.push('max_users = ?');         vals.push(body.max_users === '' || body.max_users === null ? null : Number(body.max_users)); }
+  if (body.cost_per_location !== undefined) { sets.push('cost_per_location = ?'); vals.push(body.cost_per_location === '' || body.cost_per_location === null ? null : Number(body.cost_per_location)); }
   if (!sets.length) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
   sets.push('updated_at = NOW()');
   vals.push(params.id);

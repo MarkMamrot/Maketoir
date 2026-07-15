@@ -52,12 +52,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'An active invite already exists for this email.' }, { status: 409 });
     }
 
-    // Look up business name
-    const businesses = await query<{ name: string }>(
-      'SELECT name FROM businesses WHERE business_id = ? AND deleted_at IS NULL LIMIT 1',
+    // Enforce max_users cap
+    const bizRows = await query<{ name: string; max_users: number | null }>(
+      'SELECT name, max_users FROM businesses WHERE business_id = ? AND deleted_at IS NULL LIMIT 1',
       [user.businessId],
     );
-    const businessName = businesses[0]?.name ?? 'Solvantis';
+    const cap = bizRows[0]?.max_users ?? null;
+    if (cap !== null) {
+      const [countRow] = await query<{ cnt: number }>(
+        'SELECT COUNT(*) AS cnt FROM users WHERE business_id = ? AND deleted_at IS NULL',
+        [user.businessId],
+      );
+      if ((countRow?.cnt ?? 0) >= cap) {
+        return NextResponse.json(
+          { success: false, error: `User limit reached. Your plan allows a maximum of ${cap} user${cap !== 1 ? 's' : ''}.` },
+          { status: 403 },
+        );
+      }
+    }
+
+    // Look up business name (already fetched above)
+    const businessName = bizRows[0]?.name ?? 'Solvantis';
 
     // Generate token, expires in 48 hours
     const token = randomBytes(32).toString('hex');

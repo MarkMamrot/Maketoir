@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 interface Business {
   business_id: string; name: string; drive_folder_id: string | null;
   has_foresight: number; has_ims: number; has_pos: number;
+  max_locations: number | null; max_users: number | null; cost_per_location: number | null;
   created_at: string; deleted_at: string | null;
 }
 interface User {
@@ -114,7 +115,13 @@ function DeleteBusinessModal({ biz, onClose, onDeleted }: { biz: Business; onClo
 
 // ── Business Settings Modal ───────────────────────────────────────────────────
 function BusinessSettingsModal({ biz, onClose, onSaved }: { biz: Business; onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState({ name: biz.name, has_foresight: !!biz.has_foresight, has_ims: !!biz.has_ims, has_pos: !!biz.has_pos });
+  const [form, setForm] = useState({
+    name: biz.name,
+    has_foresight: !!biz.has_foresight, has_ims: !!biz.has_ims, has_pos: !!biz.has_pos,
+    max_locations: biz.max_locations !== null && biz.max_locations !== undefined ? String(biz.max_locations) : '',
+    max_users: biz.max_users !== null && biz.max_users !== undefined ? String(biz.max_users) : '',
+    cost_per_location: biz.cost_per_location !== null && biz.cost_per_location !== undefined ? String(biz.cost_per_location) : '',
+  });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
 
@@ -122,7 +129,13 @@ function BusinessSettingsModal({ biz, onClose, onSaved }: { biz: Business; onClo
     setSaving(true); setErr('');
     const res = await fetch(`/api/admin/businesses/${biz.business_id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify({
+        name: form.name,
+        has_foresight: form.has_foresight, has_ims: form.has_ims, has_pos: form.has_pos,
+        max_locations: form.max_locations.trim() === '' ? null : Number(form.max_locations),
+        max_users: form.max_users.trim() === '' ? null : Number(form.max_users),
+        cost_per_location: form.cost_per_location.trim() === '' ? null : Number(form.cost_per_location),
+      }),
     });
     const d = await res.json();
     if (d.success) { onSaved(); onClose(); }
@@ -159,6 +172,41 @@ function BusinessSettingsModal({ biz, onClose, onSaved }: { biz: Business; onClo
         <AccessCheck label="Foresight (BI Dashboard)" field="has_foresight" />
         <AccessCheck label="IMS (Inventory Management)" field="has_ims" />
         <AccessCheck label="POS (Point of Sale)" field="has_pos" />
+
+        <div style={{ height: 1, background: 'var(--sv-etch,rgba(255,255,255,.1))', margin: '18px 0' }} />
+        <label style={S.label}>Plan Limits & Billing</label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 4 }}>
+          <div>
+            <label style={{ ...S.label, marginBottom: 4 }}>Max Locations</label>
+            <input
+              type="number" min={1} value={form.max_locations}
+              onChange={e => setForm(p => ({ ...p, max_locations: e.target.value }))}
+              placeholder="Unlimited"
+              style={S.input}
+            />
+          </div>
+          <div>
+            <label style={{ ...S.label, marginBottom: 4 }}>Max Users</label>
+            <input
+              type="number" min={1} value={form.max_users}
+              onChange={e => setForm(p => ({ ...p, max_users: e.target.value }))}
+              placeholder="Unlimited"
+              style={S.input}
+            />
+          </div>
+          <div>
+            <label style={{ ...S.label, marginBottom: 4 }}>Cost / Location ($/mo)</label>
+            <input
+              type="number" min={0} step={0.01} value={form.cost_per_location}
+              onChange={e => setForm(p => ({ ...p, cost_per_location: e.target.value }))}
+              placeholder="0.00"
+              style={S.input}
+            />
+          </div>
+        </div>
+        <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--sv-text-dim,#94a3b8)' }}>
+          Leave blank for unlimited. Limits are enforced when creating new locations or inviting users.
+        </p>
 
         {err && <p style={{ color: '#ef4444', fontSize: 12, margin: '12px 0 0' }}>{err}</p>}
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>

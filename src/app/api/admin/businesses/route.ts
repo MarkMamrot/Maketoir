@@ -18,7 +18,8 @@ function getSuperAdminSession() {
 export async function GET() {
   if (!getSuperAdminSession()) return NextResponse.json({ error: 'SuperAdmin access required.' }, { status: 403 });
   const rows = await query<any>(
-    `SELECT business_id, name, drive_folder_id, has_foresight, has_ims, has_pos, created_at, deleted_at
+    `SELECT business_id, name, drive_folder_id, has_foresight, has_ims, has_pos,
+            max_locations, max_users, cost_per_location, created_at, deleted_at
      FROM businesses ORDER BY name`,
   );
   return NextResponse.json({ success: true, businesses: rows });
