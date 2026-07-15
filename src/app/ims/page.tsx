@@ -1610,12 +1610,16 @@ function ImportProductsModal({
 
     // Detect if first line is headers (contains known header keywords, no purely numeric values)
     const firstCells = lines[0].split('\t');
-    const headerSet = templateHeaders.map(h => h.toLowerCase());
-    const isHeaderLine = firstCells.some(c => headerSet.includes(c.trim().toLowerCase()));
+    const headerSet = new Set(templateHeaders.map(h => h.toLowerCase()));
+    const isHeaderLine = firstCells.some(c => headerSet.has(c.trim().toLowerCase()));
     const headers = isHeaderLine
       ? firstCells.map(h => h.trim().toLowerCase())
-      : headerSet;
-    const dataLines = isHeaderLine ? lines.slice(1) : lines;
+      : templateHeaders.map(h => h.toLowerCase());
+    // Filter out any duplicate/extra header rows that sneak into the data
+    // (happens when user pastes header+data into a textarea that already has the header)
+    const looksLikeHeader = (line: string) =>
+      line.split('\t').filter(c => headerSet.has(c.trim().toLowerCase())).length >= 2;
+    const dataLines = (isHeaderLine ? lines.slice(1) : lines).filter(l => !looksLikeHeader(l));
 
     // Build variant lookup map from products
     const variantBySkuMap = new Map<string, { variant: any; product: any }>();
@@ -1724,6 +1728,23 @@ function ImportProductsModal({
 
       return { raw, product_name, sku, action, existing_variant_id, existing_product_id, changedFields };
     }).filter(r => r.product_name || r.sku || r.action === 'error');
+
+    // Post-pass: when multiple rows share the same product_sku and all would create a
+    // new product (product doesn't exist in DB yet), keep only the first as new_product
+    // and reclassify the rest as new_variant. The API's createdProductIds map links them.
+    const batchSeenSkus = new Map<string, true>();
+    for (const row of rows) {
+      if (row.action === 'new_product') {
+        const ps = normStr(row.raw['product_sku'] || '');
+        if (ps) {
+          if (batchSeenSkus.has(ps)) {
+            (row as any).action = 'new_variant';
+          } else {
+            batchSeenSkus.set(ps, true);
+          }
+        }
+      }
+    }
 
     setUnknownBrands([...foundUnknownBrands]);
     setUnknownSuppliers([...foundUnknownSuppliers]);
