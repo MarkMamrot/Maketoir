@@ -17,11 +17,11 @@ import { cookies } from 'next/headers';
  * Returns: { success: true, urls: string[] }
  */
 
-async function serperQuery(query: string, apiKey: string, num = 20): Promise<string[]> {
+async function serperQuery(query: string, apiKey: string, num = 20, searchAuOnly = true): Promise<string[]> {
   const res = await fetch('https://google.serper.dev/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-API-KEY': apiKey },
-    body: JSON.stringify(search_au_only ? { q: query, gl: 'au', num } : { q: query, num }),
+    body: JSON.stringify(searchAuOnly ? { q: query, gl: 'au', num } : { q: query, num }),
     signal: AbortSignal.timeout(15000),
   });
   if (!res.ok) return [];
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
     )];
 
     // Single search — pull top 20 results as the pool to reorder from
-    const rawUrls = await serperQuery(baseQuery, apiKey, 20);
+    const rawUrls = await serperQuery(baseQuery, apiKey, 20, search_au_only);
 
     // Strip any URL whose domain is in the excluded list
     const allUrls = excludedDomains.length
