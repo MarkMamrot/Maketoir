@@ -3002,6 +3002,9 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
 
   useEffect(() => { load(); loadBrands(); loadContacts(); }, [load, loadBrands, loadContacts]);
 
+  // Auto-load stock levels when the products view mounts
+  useEffect(() => { ensureStockSohLoaded(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((p: any) => ({ ...p, [k]: e.target.value }));
 
   const openNew = () => {
@@ -3503,8 +3506,8 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             <colgroup>
               <col style={{ width: 36, minWidth: 36 }} />{/* expand */}
               <col style={{ width: 32, minWidth: 32 }} />{/* checkbox */}
-              <col style={{ width: 140, minWidth: 140 }} />{/* SKU */}
-              <col style={{ minWidth: 200 }} />{/* name */}
+              <col style={{ width: 90, minWidth: 90 }} />{/* SKU */}
+              <col style={{ width: 180, minWidth: 160 }} />{/* name */}
               <col style={{ width: 120, minWidth: 120 }} />{/* barcode */}
               {showCols.product_type && <col style={{ width: 140, minWidth: 140 }} />}{/* product type */}
               <col style={{ width: 130, minWidth: 130 }} />{/* brand */}
