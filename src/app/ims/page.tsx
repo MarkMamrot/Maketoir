@@ -2646,9 +2646,9 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
       const d = await res.json();
       if (!res.ok || d.error) { setError(d.error ?? 'Generate failed'); return; }
       setGenerated({
-        title:              d.title               ?? '',
-        websiteDescription: d.websiteDescription  ?? '',
-        tags:               d.tags                ?? '',
+        title:              d.content?.title               ?? d.title               ?? '',
+        websiteDescription: d.content?.websiteDescription  ?? d.websiteDescription  ?? '',
+        tags:               d.content?.tags                ?? d.tags                ?? '',
       });
     } catch (e: any) { setError(e.message); }
     finally { setGenerating(false); }
