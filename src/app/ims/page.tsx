@@ -2935,6 +2935,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
       supplier: false,
       ws_price: false,
       online: false,
+      shopify_synced: false,
     };
   });
 
@@ -3550,9 +3551,13 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               <input type="checkbox" checked={showCols.ws_price} onChange={e => setShowCols(s => ({ ...s, ws_price: e.target.checked }))} style={{ marginRight: 8 }} />
               Wholesale Price
             </label>
-            <label style={{ display: 'block', fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
+            <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
               <input type="checkbox" checked={showCols.online} onChange={e => setShowCols(s => ({ ...s, online: e.target.checked }))} style={{ marginRight: 8 }} />
-              Available Online
+              Website Product
+            </label>
+            <label style={{ display: 'block', fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={showCols.shopify_synced} onChange={e => setShowCols(s => ({ ...s, shopify_synced: e.target.checked }))} style={{ marginRight: 8 }} />
+              Shopify Synced
             </label>
           </div>
         </div>
@@ -3585,7 +3590,8 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               {showCols.ws_price && <col style={{ width: 120, minWidth: 120 }} />}{/* WS Price */}
               {showCols.soh && <col style={{ width: 120, minWidth: 120 }} />}{/* SOH */}
               {showCols.variants && <col style={{ width: 80, minWidth: 80 }} />}{/* variants */}
-              {showCols.online && <col style={{ width: 80, minWidth: 80 }} />}{/* online */}
+              {showCols.online && <col style={{ width: 90, minWidth: 90 }} />}{/* online */}
+              {showCols.shopify_synced && <col style={{ width: 90, minWidth: 90 }} />}{/* shopify */}
               {showCols.active && <col style={{ width: 70, minWidth: 70 }} />}{/* active */}
               {showCols.created && <col style={{ width: 100, minWidth: 100 }} />}{/* created */}
             </colgroup>
@@ -3606,7 +3612,8 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                   ...(showCols.ws_price ? [['ws_price','WS Price']] : []),
                   ...(showCols.soh ? [['stock','SOH / Avail']] : []),
                   ...(showCols.variants ? [['variants','Variants']] : []),
-                  ...(showCols.online ? [['is_online','Online']] : []),
+                  ...(showCols.online ? [['is_online','Website Product']] : []),
+                  ...(showCols.shopify_synced ? [['shopify_product_id','Shopify Synced']] : []),
                   ...(showCols.active ? [['is_active','Active']] : []),
                   ...(showCols.created ? [['created_at','Created']] : [])
                 ] as [string,string][]).map(([col, label]) => (
@@ -3682,16 +3689,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                         ? (stockSohLoading ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>loading…</span> : '—')
                         : (
                           <span 
-                            onClick={async () => {
-                               // Get fresh history when clicked
-                               setHistoryLoading(true);
-                               setHistoryModal({ open: true, product_id: p.product_id, variant_id: variants[0]?.variant_id ?? null });
-                               try {
-                                 const res = await apiFetch(`/api/ims/stock/history?productId=${p.product_id}${variants[0]?.variant_id ? `&variantId=${variants[0].variant_id}` : ''}`);
-                                 setHistory(res?.data || []);
-                               } catch (e: any) { alert(e.message || 'Failed to fetch history'); }
-                               finally { setHistoryLoading(false); }
-                            }}
+                            onClick={() => setStockHistoryModal({ productId: p.product_id, productName: p.name })}
                             style={{ color: aggSoh === 0 ? 'var(--sv-text-dim)' : 'var(--sv-action)', fontWeight: 600, cursor: 'pointer' }}>
                             {fmtQty(aggSoh)}
                           </span>
@@ -3710,6 +3708,13 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                     {showCols.online && (
                       <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)' }}>
                         {p.is_online ? <span style={{ color: 'var(--sv-mint)', fontSize: 13, fontWeight: 600 }}>Yes</span> : <span style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>No</span>}
+                      </td>
+                    )}
+                    {showCols.shopify_synced && (
+                      <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)' }}>
+                        {p.shopify_product_id
+                          ? <span style={{ color: 'var(--sv-mint)', fontSize: 13, fontWeight: 600 }}>Yes</span>
+                          : <span style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>No</span>}
                       </td>
                     )}
                     <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)' }}><ActiveDot active={p.is_active} /></td>
