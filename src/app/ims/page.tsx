@@ -2020,7 +2020,7 @@ function ImportProductsModal({
 }
 
 
-function OnlineStoreSection({ productId, isReadOnly = false }: { productId: string; isReadOnly?: boolean }) {
+function OnlineStoreSection({ productId, isOnline, onChangeIsOnline, isReadOnly = false }: { productId: string; isOnline?: boolean; onChangeIsOnline?: (val: boolean) => void; isReadOnly?: boolean }) {
   const [status, setStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [pushing, setPushing] = useState(false);
@@ -2060,6 +2060,19 @@ function OnlineStoreSection({ productId, isReadOnly = false }: { productId: stri
         <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
         <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Online Store</span>
         <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+      </div>
+
+      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={isOnline}
+            onChange={(e) => onChangeIsOnline?.(e.target.checked)}
+            disabled={isReadOnly}
+            style={{ margin: 0, width: 16, height: 16 }}
+          />
+          Available on Online Store
+        </label>
       </div>
 
       <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
@@ -3803,7 +3816,15 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
 
           {/* ── Online Store ── */}
           {modal.edit?.product_id && (
-            <OnlineStoreSection productId={modal.edit.product_id} isReadOnly={isAdvisor} />
+            <OnlineStoreSection
+              productId={modal.edit.product_id}
+              isOnline={!!modal.edit.is_online}
+              onChangeIsOnline={(checked) => {
+                setForm((p: any) => ({ ...p, is_online: checked ? 1 : 0 }));
+                setModal((prev) => prev.edit ? { ...prev, edit: { ...prev.edit, is_online: checked ? 1 : 0 } } : prev);
+              }}
+              isReadOnly={isAdvisor}
+            />
           )}
 
           {/* ── Foresight: Supplier URL finder + Research + Generate Content ── */}
