@@ -11,6 +11,7 @@ import { cookies } from 'next/headers';
  * Body: {
  *   product: { name: string, brand: string }
  *   preferred_sites?: string[]   // full URLs or domains to prioritise (only enabled ones)
+ *   excluded_sites?:  string[]   // full URLs or domains to exclude entirely (unchecked sources)
  *   include_general?: boolean    // default true — include non-preferred results
  * }
  * Returns: { success: true, urls: string[] }
@@ -50,7 +51,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { product, preferred_sites = [], include_general = true } = body;
+    const { product, preferred_sites = [], excluded_sites = [], include_general = true } = body;
     if (!product?.name || !product?.brand) {
       return NextResponse.json(
         { error: 'product.name and product.brand are required.' },
@@ -70,8 +71,18 @@ export async function POST(req: Request) {
       (preferred_sites as string[]).map(extractDomain).filter(Boolean) as string[]
     )].slice(0, 2);
 
+    // Domains that are explicitly excluded (unchecked sources — never appear in results)
+    const excludedDomains = [...new Set(
+      (excluded_sites as string[]).map(extractDomain).filter(Boolean) as string[]
+    )];
+
     // Single search — pull top 20 results as the pool to reorder from
-    const allUrls = await serperQuery(baseQuery, apiKey, 20);
+    const rawUrls = await serperQuery(baseQuery, apiKey, 20);
+
+    // Strip any URL whose domain is in the excluded list
+    const allUrls = excludedDomains.length
+      ? rawUrls.filter(url => !excludedDomains.some(d => urlMatchesDomain(url, d)))
+      : rawUrls;
 
     const seen = new Set<string>();
     const urls: string[] = [];

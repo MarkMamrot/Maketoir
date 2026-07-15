@@ -2504,12 +2504,18 @@ function ForesightProductSection({ product, businessId, onApplyContent }: {
         ...(useSupplierSite && supplierSite ? [supplierSite] : []),
         ...(useBrandSite && brandSite ? [brandSite] : []),
       ];
+      // Sites that are unchecked should be excluded from general results too
+      const excludedSites: string[] = [
+        ...(!useSupplierSite && supplierSite ? [supplierSite] : []),
+        ...(!useBrandSite && brandSite ? [brandSite] : []),
+      ];
       const res = await fetch('/api/website/serper-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           product: { name: product.name, brand: product.brand ?? '' },
           preferred_sites: activePrefSites,
+          excluded_sites: excludedSites,
           include_general: useGeneralResults,
         }),
       });
