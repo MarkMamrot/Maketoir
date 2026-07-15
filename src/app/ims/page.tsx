@@ -2455,7 +2455,21 @@ function ForesightProductSection({ product, businessId, onApplyContent }: {
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState<{ title: string; websiteDescription: string; tags: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [preferredSites, setPreferredSites] = useState<string[]>([]);
+
+  // Preferred site URLs loaded from IMS contacts/brands
+  const [supplierSite, setSupplierSite] = useState<string | null>(null);
+  const [brandSite, setBrandSite] = useState<string | null>(null);
+
+  // Search source checkboxes (all enabled by default)
+  const [useSupplierSite, setUseSupplierSite] = useState(true);
+  const [useBrandSite, setUseBrandSite] = useState(true);
+  const [useGeneralResults, setUseGeneralResults] = useState(true);
+
+  // Extract bare domain for display
+  const getDomain = (url: string) => {
+    try { return new URL(url.startsWith('http') ? url : `https://${url}`).hostname.replace(/^www\./, ''); }
+    catch { return url; }
+  };
 
   // Load supplier + brand website URLs when section opens
   useEffect(() => {
@@ -2470,8 +2484,8 @@ function ForesightProductSection({ product, businessId, onApplyContent }: {
       .then(r => r.json())
       .then(d => {
         if (d.success) {
-          const sites = [d.brand_url, d.supplier_url].filter(Boolean) as string[];
-          setPreferredSites(sites);
+          setSupplierSite(d.supplier_url ?? null);
+          setBrandSite(d.brand_url ?? null);
         }
       })
       .catch(() => {});
@@ -2486,12 +2500,17 @@ function ForesightProductSection({ product, businessId, onApplyContent }: {
   const handleFindUrls = async () => {
     setFindingUrls(true); setError(null);
     try {
+      const activePrefSites: string[] = [
+        ...(useSupplierSite && supplierSite ? [supplierSite] : []),
+        ...(useBrandSite && brandSite ? [brandSite] : []),
+      ];
       const res = await fetch('/api/website/serper-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           product: { name: product.name, brand: product.brand ?? '' },
-          preferred_sites: preferredSites,
+          preferred_sites: activePrefSites,
+          include_general: useGeneralResults,
         }),
       });
       const d = await res.json();
@@ -2608,6 +2627,30 @@ function ForesightProductSection({ product, businessId, onApplyContent }: {
                 {error}
               </div>
             )}
+
+            {/* Search source toggles */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 14, padding: '8px 10px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6 }}>
+              <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, whiteSpace: 'nowrap' }}>Search sources:</span>
+              {supplierSite && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer', color: 'var(--sv-text)' }}>
+                  <input type="checkbox" checked={useSupplierSite} onChange={e => setUseSupplierSite(e.target.checked)} style={{ cursor: 'pointer' }} />
+                  Supplier ({getDomain(supplierSite)})
+                </label>
+              )}
+              {brandSite && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer', color: 'var(--sv-text)' }}>
+                  <input type="checkbox" checked={useBrandSite} onChange={e => setUseBrandSite(e.target.checked)} style={{ cursor: 'pointer' }} />
+                  Brand ({getDomain(brandSite)})
+                </label>
+              )}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer', color: 'var(--sv-text)' }}>
+                <input type="checkbox" checked={useGeneralResults} onChange={e => setUseGeneralResults(e.target.checked)} style={{ cursor: 'pointer' }} />
+                General web
+              </label>
+              {!supplierSite && !brandSite && (
+                <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontStyle: 'italic' }}>Add supplier / brand URLs on the Contacts &amp; Brands pages to prioritise their sites</span>
+              )}
+            </div>
 
             {/* Step 1: URLs */}
             <div style={{ marginBottom: 14 }}>

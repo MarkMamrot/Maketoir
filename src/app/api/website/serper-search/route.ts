@@ -4,20 +4,24 @@ import { cookies } from 'next/headers';
 /**
  * POST /api/website/serper-search
  *
- * Queries the Serper (Google Search) API for the top 3 organic product URLs.
- * Optionally accepts preferred_sites (array of URLs/domains) — runs site-specific
- * searches first so those domains are prioritised in the 3-URL result set.
+ * Single Serper (Google Search) query — fetches the top 20 organic results,
+ * then reorders them so any preferred-domain URLs appear first (one per domain),
+ * followed by the remaining general results to fill up to 3.
  *
- * Body: { product: { name: string, brand: string }, preferred_sites?: string[] }
+ * Body: {
+ *   product: { name: string, brand: string }
+ *   preferred_sites?: string[]   // full URLs or domains to prioritise (only enabled ones)
+ *   include_general?: boolean    // default true — include non-preferred results
+ * }
  * Returns: { success: true, urls: string[] }
  */
 
-async function serperQuery(query: string, apiKey: string): Promise<string[]> {
+async function serperQuery(query: string, apiKey: string, num = 20): Promise<string[]> {
   const res = await fetch('https://google.serper.dev/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-API-KEY': apiKey },
-    body: JSON.stringify({ q: query, gl: 'au' }),
-    signal: AbortSignal.timeout(12000),
+    body: JSON.stringify({ q: query, gl: 'au', num }),
+    signal: AbortSignal.timeout(15000),
   });
   if (!res.ok) return [];
   const data = await res.json();
@@ -31,6 +35,13 @@ function extractDomain(url: string): string | null {
   } catch { return null; }
 }
 
+function urlMatchesDomain(url: string, domain: string): boolean {
+  try {
+    const h = new URL(url).hostname.replace(/^www\./, '');
+    return h === domain || h.endsWith(`.${domain}`);
+  } catch { return false; }
+}
+
 export async function POST(req: Request) {
   try {
     const session = cookies().get('marketoir_session');
@@ -39,7 +50,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { product, preferred_sites = [] } = body;
+    const { product, preferred_sites = [], include_general = true } = body;
     if (!product?.name || !product?.brand) {
       return NextResponse.json(
         { error: 'product.name and product.brand are required.' },
@@ -54,37 +65,26 @@ export async function POST(req: Request) {
 
     const baseQuery = `${product.name} ${product.brand}`;
 
-    // Extract unique domains from preferred_sites (max 2)
+    // Extract unique preferred domains (only from explicitly-enabled URLs, max 2)
     const preferredDomains = [...new Set(
       (preferred_sites as string[]).map(extractDomain).filter(Boolean) as string[]
     )].slice(0, 2);
 
-    // Run all searches in parallel: one per preferred domain + one general
-    const searches: Promise<string[]>[] = [
-      ...preferredDomains.map(domain => serperQuery(`${baseQuery} site:${domain}`, apiKey)),
-      serperQuery(baseQuery, apiKey),
-    ];
-    const results = await Promise.allSettled(searches);
+    // Single search — pull top 20 results as the pool to reorder from
+    const allUrls = await serperQuery(baseQuery, apiKey, 20);
 
-    // Merge: up to 1 result per preferred domain first, then fill from general search
     const seen = new Set<string>();
     const urls: string[] = [];
 
-    // First: take the best result from each domain-specific search
-    for (let i = 0; i < preferredDomains.length; i++) {
-      const r = results[i];
-      if (r.status === 'fulfilled') {
-        for (const url of r.value) {
-          if (!seen.has(url)) { seen.add(url); urls.push(url); break; }
-        }
-      }
+    // First: pick the first result in the pool that matches each preferred domain
+    for (const domain of preferredDomains) {
+      const match = allUrls.find(url => urlMatchesDomain(url, domain) && !seen.has(url));
+      if (match) { seen.add(match); urls.push(match); }
     }
 
-    // Then: fill remaining slots from the general search
-    const generalIdx = preferredDomains.length;
-    const generalResult = results[generalIdx];
-    if (generalResult?.status === 'fulfilled') {
-      for (const url of generalResult.value) {
+    // Then: fill remaining slots from the general pool (skip already-chosen)
+    if (include_general) {
+      for (const url of allUrls) {
         if (urls.length >= 3) break;
         if (!seen.has(url)) { seen.add(url); urls.push(url); }
       }
@@ -95,3 +95,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: e.message ?? 'Unexpected error' }, { status: 500 });
   }
 }
+
