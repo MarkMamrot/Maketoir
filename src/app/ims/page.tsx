@@ -1496,7 +1496,7 @@ function ImportLineItemsModal({
 // ─────────────────────────────────────────────────────────────────────────────
 
 const IMPORT_BASE_HEADERS = [
-  'Product_Name','Product_SKU','SKU','Barcode','Description','Brand','Supplier','Product_Type',
+  'Product_Name','Product_SKU','Barcode','Description','Brand','Supplier','Product_Type',
   'Tags','Online','Pack_Size',
   'Option1_Name','Option1_Value','Option2_Name','Option2_Value','Option3_Name','Option3_Value',
   'RRP','price_wholesale','Cost_AUD','Cost_USD','Cost_EUR','Cost_GBP','Cost_THB','Cost_CNY','Cost_JPY','Weight_KG',
@@ -1825,7 +1825,16 @@ function ImportProductsModal({
         category: raw['category'] || undefined,
         subcategory: raw['subcategory'] || undefined,
         is_online: raw['online'] !== '' ? (raw['online'] === '1' || raw['online'].toLowerCase() === 'yes' ? 1 : 0) : undefined,
-        sku: raw['sku'] || undefined,
+        sku: (() => {
+          // If SKU is provided, use it directly
+          if (raw['sku']) return raw['sku'];
+          // Auto-generate from Product_SKU + option values (same logic as the Edit Product modal)
+          const baseSku = (raw['product_sku'] || '').trim();
+          if (!baseSku) return undefined;
+          const suffix = [raw['option1_value'], raw['option2_value'], raw['option3_value']]
+            .filter(Boolean).join('-').replace(/\s+/g, '');
+          return suffix ? `${baseSku}-${suffix}` : baseSku;
+        })(),
         barcode: raw['barcode'] || undefined,
         cost_aud: numOrNull(raw['cost_aud'] ?? ''),
         price_rrp: numOrNull(raw['rrp'] ?? ''),
@@ -1917,10 +1926,10 @@ function ImportProductsModal({
             <div style={{ margin: '4px 0 8px', padding: '10px 14px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.7 }}>
               <strong style={{ color: 'var(--sv-text-main)' }}>Key columns:</strong><br />
               <strong>Product_SKU</strong> — The product-level identifier that groups variants under the same product (e.g. <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>MT-RCAK</code>). Rows sharing the same <em>Product_SKU</em> will be added as variants of one product. For a single-variant product, <em>Product_SKU</em> and <em>SKU</em> are typically identical.<br />
-              <strong>SKU</strong> — The individual variant barcode-style SKU (e.g. <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>MT-RCAKMemphis-2 to 3 years</code>). A matching SKU updates that variant; a non-matching SKU creates a new one.<br />
+              <strong>SKU</strong> — Optional. The individual variant SKU. If left blank, it is auto-generated from <em>Product_SKU</em> + option values (e.g. <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>MT-RCAK-S</code>). A matching SKU updates that variant; a new SKU creates one.<br />
               <strong>Product_Name</strong> — Used as a fallback grouping key if <em>Product_SKU</em> is blank.{' '}
               {showCategories ? 'Category and Subcategory columns are also included. ' : ''}
-              The columns at the end —{showZoneBin ? ' Zone, Bin,' : ''} Min Qty and Reorder Qty — are per location and saved against that location’s stock. The default warehouse location appears first.{' '}
+              <br /><strong>{showZoneBin ? 'Zone, Bin, Min Qty and Reorder Qty' : 'Min Qty and Reorder Qty'}</strong>{' — '}per location columns saved against each location’s stock. The default warehouse location appears first.
               <br /><strong>Variant Options</strong>{' — '}Use <em>Option1_Name</em> / <em>Option1_Value</em> to define what makes each row a distinct variant. For example, set <em>Option1_Name</em> to <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>Size</code> and <em>Option1_Value</em> to <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>S</code>, <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>M</code>, or <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>L</code> on successive rows that all share the same <em>Product_SKU</em>. Use Option2 / Option3 for additional dimensions such as Colour.
             </div>
             <textarea
@@ -3503,7 +3512,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New Product</button>}
       </div>
       {/* ── Filter bar ── */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         <input placeholder="Search products or SKUs…" value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 220, flex: '1 1 220px' }} />
         <input
           list="brand-filter-list"
@@ -4679,7 +4688,7 @@ function StockView() {
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Stock Levels</h1>
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         <input
           placeholder="Search SKU, product or location…"
           value={filter}
@@ -5526,7 +5535,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Purchase Orders</h1>
         {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New PO</button>}
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         {['','draft','confirmed','partially_received','complete','cancelled'].map(s => (
           <button key={s} onClick={() => { setStatusFilter(s); setPage(1); }} style={btnStyle(statusFilter === s ? 'action' : 'ghost', 'sm')}>
             {s === 'partially_received' ? 'partially received' : (s || 'All')}
@@ -7933,7 +7942,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Sales Orders</h1>
         {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New SO</button>}
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         {['','draft','confirmed','fulfilled','cancelled'].map(s => (
           <button key={s} onClick={() => { setStatusFilter(s); setPage(1); }} style={btnStyle(statusFilter === s ? 'action' : 'ghost', 'sm')}>
             {s || 'All'}
@@ -10396,7 +10405,12 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState('');
 
-  const [filters, setFilters]  = useState<MultiFilter>(EMPTY_MULTI);
+  const [filterText,     setFilterText]     = useState('');
+  const [filterBrand,    setFilterBrand]    = useState('');
+  const [filterSupplier, setFilterSupplier] = useState('');
+  const [filterType,     setFilterType]     = useState('');
+  const [brandsOptions,  setBrandsOptions]  = useState<string[]>([]);
+  const [suppliersOptions, setSuppliersOptions] = useState<{ id: number; name: string }[]>([]);
   const [dateRange, setDateRange] = useState<SBDateRange>({ kind: 'window', window: 90, label: '90 Days' });
   const [page,     setPage]    = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -10411,11 +10425,15 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
 
   const totalPages = Math.ceil(total / pageSize) || 1;
 
-  const load = useCallback(async (pg: number, f: MultiFilter, dr: SBDateRange, ps: number, bid: number | null = null) => {
+  const load = useCallback(async (pg: number, ft: string, fb: string, fs_: string, ftype: string, dr: SBDateRange, ps: number, bid: number | null = null) => {
     setLoading(true);
     setError('');
     try {
-      const params = new URLSearchParams({ page: String(pg), pageSize: String(ps), ...multiFilterParams(f) });
+      const params = new URLSearchParams({ page: String(pg), pageSize: String(ps) });
+      if (ft)    params.set('q',            ft);
+      if (fb)    params.set('brand',         fb);
+      if (fs_)   params.set('supplierName',  fs_);
+      if (ftype) params.set('productType',   ftype);
       if (dr.kind === 'window') {
         params.set('window', String(dr.window));
       } else {
@@ -10427,6 +10445,8 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
       setRows(data.rows ?? []);
       setTotal(data.total ?? 0);
       setLocations(data.locations ?? []);
+      if (data.brands)    setBrandsOptions(data.brands);
+      if (data.suppliers) setSuppliersOptions(data.suppliers);
     } catch (e: any) {
       setError(e.message ?? 'Failed to load report');
     } finally {
@@ -10434,13 +10454,14 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
     }
   }, []);
 
-  useEffect(() => { load(1, EMPTY_MULTI, { kind: 'window', window: 90, label: '90 Days' }, 25, null); }, [load]);
+  useEffect(() => { load(1, '', '', '', '', { kind: 'window', window: 90, label: '90 Days' }, 25, null); }, [load]);
 
-  const handleFilterChange = (f: MultiFilter) => { setFilters(f); setPage(1); load(1, f, dateRange, pageSize, branchFilter); };
-  const handleDateChange   = (dr: SBDateRange) => { setDateRange(dr); setPage(1); load(1, filters, dr, pageSize, branchFilter); };
-  const handleBranchChange = (bid: number | null) => { setBranchFilter(bid); setPage(1); load(1, filters, dateRange, pageSize, bid); };
-  const goPage             = (pg: number)       => { setPage(pg); load(pg, filters, dateRange, pageSize, branchFilter); };
-  const changePageSize     = (ps: number)       => { setPageSize(ps); setPage(1); load(1, filters, dateRange, ps, branchFilter); };
+  const reloadWith = (ft: string, fb: string, fs_: string, ftype: string, dr: SBDateRange, ps: number, bid: number | null) =>
+    load(1, ft, fb, fs_, ftype, dr, ps, bid);
+  const handleDateChange   = (dr: SBDateRange) => { setDateRange(dr); setPage(1); load(1, filterText, filterBrand, filterSupplier, filterType, dr, pageSize, branchFilter); };
+  const handleBranchChange = (bid: number | null) => { setBranchFilter(bid); setPage(1); load(1, filterText, filterBrand, filterSupplier, filterType, dateRange, pageSize, bid); };
+  const goPage             = (pg: number)       => { setPage(pg); load(pg, filterText, filterBrand, filterSupplier, filterType, dateRange, pageSize, branchFilter); };
+  const changePageSize     = (ps: number)       => { setPageSize(ps); setPage(1); load(1, filterText, filterBrand, filterSupplier, filterType, dateRange, ps, branchFilter); };
 
   // Which column to read for sales quantity
   const salesKey = dateRange.kind === 'range'
@@ -10559,7 +10580,32 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
           <option value="">All Branches</option>
           {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
-        <ReportMultiFilter filters={filters} onChange={handleFilterChange} showCategories={showCategories} />
+        <input
+          placeholder="Search product or SKU…"
+          value={filterText}
+          onChange={e => { const v = e.target.value; setFilterText(v); setPage(1); load(1, v, filterBrand, filterSupplier, filterType, dateRange, pageSize, branchFilter); }}
+          style={{ height: 34, padding: '0 10px', borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: filterText ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontSize: 12, flex: '1 1 180px', minWidth: 160 }}
+        />
+        <input
+          list="sbb-brand-list"
+          placeholder="All Brands"
+          value={filterBrand}
+          onChange={e => { const v = e.target.value; setFilterBrand(v); setPage(1); load(1, filterText, v, filterSupplier, filterType, dateRange, pageSize, branchFilter); }}
+          style={{ height: 34, padding: '0 10px', borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: filterBrand ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontSize: 12, minWidth: 130 }}
+        />
+        <datalist id="sbb-brand-list">
+          {brandsOptions.map(b => <option key={b} value={b} />)}
+        </datalist>
+        <input
+          list="sbb-supplier-list"
+          placeholder="All Suppliers"
+          value={filterSupplier}
+          onChange={e => { const v = e.target.value; setFilterSupplier(v); setPage(1); load(1, filterText, filterBrand, v, filterType, dateRange, pageSize, branchFilter); }}
+          style={{ height: 34, padding: '0 10px', borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: filterSupplier ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontSize: 12, minWidth: 130 }}
+        />
+        <datalist id="sbb-supplier-list">
+          {suppliersOptions.map(s => <option key={s.id} value={s.name} />)}
+        </datalist>
         <SBDatePicker value={dateRange} onChange={handleDateChange} />
         {!loading && total > 0 && (
           <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
@@ -10567,8 +10613,8 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
           </span>
         )}
         {loading && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Loading…</span>}
-        {(hasMultiFilter(filters) || branchFilter !== null) && (
-          <button onClick={() => { setBranchFilter(null); handleFilterChange(EMPTY_MULTI); }} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
+        {(filterText || filterBrand || filterSupplier || filterType || branchFilter !== null) && (
+          <button onClick={() => { setFilterText(''); setFilterBrand(''); setFilterSupplier(''); setFilterType(''); setBranchFilter(null); setPage(1); load(1, '', '', '', '', dateRange, pageSize, null); }} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
             Clear filters
           </button>
         )}
@@ -15988,7 +16034,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
       </div>
 
       {/* Filters */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         <select value={filterLocation} onChange={e => { setFilterLocation(e.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 160, flex: '0 0 auto' }}>
           <option value="">All Locations</option>
           {locations.map(l => <option key={l.id} value={String(l.id)}>{l.name}</option>)}
