@@ -2,6 +2,14 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 
+// Settings whose changes affect the inventory qty pushed to Shopify.
+// When any of these keys change we must re-enqueue every linked variant so the
+// next cron run re-syncs them with the new buffer / new pick-location set.
+const INVENTORY_SENSITIVE_KEYS = new Set([
+  'shopify_inventory_buffer',
+  'online_pick_priority',
+]);
+
 function getSession() {
   const c = cookies().get('marketoir_session');
   if (!c?.value) return null;
@@ -46,6 +54,23 @@ export async function PUT(req: Request) {
         [businessId, key, value ?? null]
       );
     }
+
+    // If any inventory-sync setting changed, re-enqueue all Shopify-linked variants
+    // so the next cron run applies the new buffer / pick-locations immediately.
+    const inventoryAffected = Object.keys(pairs).some(k => INVENTORY_SENSITIVE_KEYS.has(k));
+    if (inventoryAffected) {
+      await imsExecute(
+        `INSERT IGNORE INTO ims_shopify_inventory_queue (variant_id, queued_at)
+         SELECT v.variant_id, NOW()
+           FROM ims_product_variants v
+           JOIN ims_products p ON p.product_id = v.product_id
+          WHERE p.business_id = ?
+            AND v.shopify_inventory_item_id IS NOT NULL
+            AND v.shopify_inventory_item_id <> ''`,
+        [businessId],
+      );
+    }
+
     return NextResponse.json({ success: true });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
