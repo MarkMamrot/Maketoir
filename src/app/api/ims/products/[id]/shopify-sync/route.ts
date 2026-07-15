@@ -32,31 +32,21 @@ async function getShopify(businessId: string) {
 
 /**
  * Resolve a product image URL to a Shopify-compatible image payload.
- * Local API route images (e.g. /api/ims/products/.../images/.../file) are fetched
- * server-side with the session cookie and sent as a base64 attachment.
- * External public URLs are sent as-is via src.
+ * Local API routes become absolute src URLs (endpoint is now public).
+ * External public URLs are passed as-is.
  */
 async function resolveImagePayload(
   url: string,
   reqOrigin: string,
-  cookieHeader: string,
+  _cookieHeader: string,
   alt: string,
 ): Promise<{ src?: string; attachment?: string; alt: string } | null> {
   if (/^https?:\/\//i.test(url)) {
     return { src: url, alt };
   }
   if (url.startsWith('/')) {
-    // Local route — fetch with auth cookie and convert to base64
-    try {
-      const absUrl = `${reqOrigin}${url}`;
-      const res = await fetch(absUrl, { headers: { cookie: cookieHeader } });
-      if (!res.ok) return null;
-      const buf = await res.arrayBuffer();
-      const attachment = Buffer.from(buf).toString('base64');
-      return { attachment, alt };
-    } catch {
-      return null;
-    }
+    // Construct absolute URL — the file endpoint is now publicly accessible
+    return { src: `${reqOrigin}${url}`, alt };
   }
   return null;
 }
@@ -161,24 +151,33 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         variants: shopifyVariants.length > 0 ? shopifyVariants : [{ price: String(firstPriced?.price_rrp ?? '0.00') }],
         options: options.length > 0 ? options : undefined,
       };
-      // Resolve images — local API routes become base64 attachments; external URLs are passed as src
-      if (images.length > 0) {
-        const resolved = (await Promise.all(
-          images.map((img, i) => resolveImagePayload(img.url, reqOrigin, cookieHeader, img.alt_text ?? '').then(p => p ? { ...p, position: i + 1 } : null))
-        )).filter(Boolean);
-        if (resolved.length > 0) payload.images = resolved;
-      }
       const created = await shop.service.createProduct(payload);
       await ImsShopifyRepo.linkProduct(params.id, String(created.id), session.businessId);
       for (let i = 0; i < variants.length; i++) {
         const sv = created.variants?.[i];
         if (sv) await ImsShopifyRepo.linkVariant(variants[i].variant_id, String(sv.id), String(sv.inventory_item_id ?? ''), session.businessId);
       }
+      // Push images one-by-one so we can update IMS URLs to Shopify CDN URLs (prevents re-upload on future syncs)
+      let imagesAdded = 0;
+      const imageErrors: string[] = [];
+      for (const img of images) {
+        const imgPayload = await resolveImagePayload(img.url, reqOrigin, cookieHeader, img.alt_text ?? '');
+        if (!imgPayload) { imageErrors.push(`Image ${img.id}: could not resolve URL`); continue; }
+        try {
+          const createdImg = await shop.service.createProductImage(String(created.id), imgPayload);
+          imagesAdded++;
+          // Replace IMS URL with Shopify CDN URL — prevents duplicate on next push
+          if (createdImg?.src) await ImsImagesRepo.updateUrl(img.id, createdImg.src).catch(() => {});
+        } catch (imgErr: any) {
+          const detail = imgErr.response?.body?.errors ?? imgErr.message ?? 'unknown';
+          imageErrors.push(`Image ${img.id}: ${JSON.stringify(detail).slice(0, 100)}`);
+        }
+      }
       // Push inventory quantities using the same pick-location + buffer logic as the live sync
       const variantIds = variants.map(v => v.variant_id);
       const invResult = await pushInventoryForBusiness(session.businessId, { variantIds, force: true }).catch(() => ({ pushed: 0, skipped: 0, errors: ['Inventory push failed'], locationId: null }));
-      await ImsShopifyRepo.logAction('upload', 'success', `Created "${product.name}" on Shopify (inventory pushed: ${invResult.pushed})`, session.businessId, { product_id: params.id }).catch(() => {});
-      return NextResponse.json({ success: true, created: true, shopifyProductId: String(created.id), inventoryPushed: invResult.pushed, inventoryErrors: invResult.errors });
+      await ImsShopifyRepo.logAction('upload', 'success', `Created "${product.name}" on Shopify (inventory pushed: ${invResult.pushed}, images: ${imagesAdded}${imageErrors.length ? `, ${imageErrors.length} image error(s)` : ''})`, session.businessId, { product_id: params.id }).catch(() => {});
+      return NextResponse.json({ success: true, created: true, shopifyProductId: String(created.id), inventoryPushed: invResult.pushed, inventoryErrors: invResult.errors, imagesAdded, imageErrors });
     }
 
     // ── Already linked → update title / description / tags / price / images ──
@@ -212,13 +211,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         const base = String(img.url).split('?')[0];
         if (existing.has(base)) continue;
         const imgPayload = await resolveImagePayload(img.url, reqOrigin, cookieHeader, img.alt_text ?? '');
-        if (!imgPayload) { imageErrors.push(`${base.slice(-40)}: could not resolve URL`); continue; }
+        if (!imgPayload) { imageErrors.push(`Image ${img.id}: could not resolve URL`); continue; }
         try {
-          await shop.service.createProductImage(shopifyProductId, imgPayload);
+          const createdImg = await shop.service.createProductImage(shopifyProductId, imgPayload);
           imagesAdded++;
+          // Replace IMS URL with Shopify CDN URL — prevents duplicate upload on next push
+          if (createdImg?.src) await ImsImagesRepo.updateUrl(img.id, createdImg.src).catch(() => {});
         } catch (imgErr: any) {
           const detail = imgErr.response?.body?.errors ?? imgErr.message ?? 'unknown';
-          imageErrors.push(`${base.slice(-40)}: ${JSON.stringify(detail).slice(0, 100)}`);
+          imageErrors.push(`Image ${img.id}: ${JSON.stringify(detail).slice(0, 100)}`);
         }
       }
     } catch {}
