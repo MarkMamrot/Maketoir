@@ -428,7 +428,7 @@ export const ImsProductsRepo = {
   },
 
   async update(productId: string, data: Partial<ImsProduct>): Promise<void> {
-    const fields = ['name','description','product_type','brand','tags','category','subcategory','is_active','shopify_product_id','style_code','base_sku','is_online','supplier_contact_id','cin7_product_id'];
+    const fields = ['name','description','product_type','brand','tags','category','subcategory','is_active','style_code','base_sku','is_online','supplier_contact_id','cin7_product_id'];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of fields) {

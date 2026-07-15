@@ -164,6 +164,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
     // Append IMS images not already on the Shopify product (compare by URL, ignoring ?v= params)
     let imagesAdded = 0;
+    const imageErrors: string[] = [];
     try {
       const sp = await shop.service.getProduct(shopifyProductId);
       const existing = new Set<string>((sp?.images ?? []).map((im: any) => String(im.src).split('?')[0]));
@@ -171,18 +172,24 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
         const base = String(img.url).split('?')[0];
         // Only push publicly reachable URLs (Shopify must be able to fetch the src)
         if (!existing.has(base) && /^https?:\/\//i.test(img.url)) {
-          try { await shop.service.createProductImage(shopifyProductId, { src: img.url, alt: img.alt_text ?? '' }); imagesAdded++; } catch {}
+          try {
+            await shop.service.createProductImage(shopifyProductId, { src: img.url, alt: img.alt_text ?? '' });
+            imagesAdded++;
+          } catch (imgErr: any) {
+            const detail = imgErr.response?.body?.errors ?? imgErr.message ?? 'unknown';
+            imageErrors.push(`${base.slice(-40)}: ${JSON.stringify(detail).slice(0, 100)}`);
+          }
         }
       }
     } catch {}
 
-    await ImsShopifyRepo.logAction('resync', 'success', `Pushed "${product.name}" to Shopify (prices: ${pricesUpdated}, images: +${imagesAdded})`, session.businessId, { product_id: params.id }).catch(() => {});
+    await ImsShopifyRepo.logAction('resync', 'success', `Pushed "${product.name}" to Shopify (prices: ${pricesUpdated}, images: +${imagesAdded}${imageErrors.length ? `, ${imageErrors.length} image error(s)` : ''})`, session.businessId, { product_id: params.id }).catch(() => {});
 
     // Push inventory quantities using the same pick-location + buffer logic as the live sync
     const linkedVariantIds = variants.filter(v => v.shopify_variant_id).map(v => v.variant_id);
     const invResult = await pushInventoryForBusiness(session.businessId, { variantIds: linkedVariantIds, force: true }).catch(() => ({ pushed: 0, skipped: 0, errors: ['Inventory push failed'], locationId: null }));
 
-    return NextResponse.json({ success: true, updated: true, pricesUpdated, imagesAdded, inventoryPushed: invResult.pushed, inventoryErrors: invResult.errors });
+    return NextResponse.json({ success: true, updated: true, pricesUpdated, imagesAdded, imageErrors, inventoryPushed: invResult.pushed, inventoryErrors: invResult.errors });
   } catch (e: any) {
     // Surface the actual Shopify validation errors when available (e.g. 422 details)
     const shopifyErrors = e.response?.body?.errors ?? e.response?.body ?? null;

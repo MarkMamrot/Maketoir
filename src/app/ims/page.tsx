@@ -2121,9 +2121,10 @@ function OnlineStoreSection({ productId, isOnline, onChangeIsOnline, isReadOnly 
       const d = await r.json();
       if (d.success) {
         const invMsg = d.inventoryPushed > 0 ? `, inventory: ${d.inventoryPushed} variant${d.inventoryPushed !== 1 ? 's' : ''} synced` : (d.inventoryErrors?.length ? ` (inventory: ${d.inventoryErrors[0]})` : '');
+        const imgErrMsg = d.imageErrors?.length ? ` ⚠ ${d.imageErrors.length} image(s) failed — URLs may not be publicly accessible` : '';
         setMsg(d.created
-          ? `✓ Created on the online shop${invMsg}`
-          : `✓ Pushed — prices updated: ${d.pricesUpdated}, images added: ${d.imagesAdded}${invMsg}`);
+          ? `✓ Created on the online shop${invMsg}${imgErrMsg}`
+          : `✓ Pushed — prices updated: ${d.pricesUpdated}, images added: ${d.imagesAdded}${invMsg}${imgErrMsg}`);
         await load();
       }
       else setMsg(`⚠️ ${d.error || 'Push failed'}`);
@@ -3149,7 +3150,9 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         base_sku = commonLen > 0 ? splitSkus[0].slice(0, commonLen).join('-') : '';
       }
     }
-    setForm({ ...BLANK_PRODUCT, ...p, base_sku });
+    // Strip system-managed fields (shopify/cin7 IDs) so they are never overwritten by a form save
+    const { shopify_product_id: _sid, cin7_product_id: _cid, ...productFields } = p as any;
+    setForm({ ...BLANK_PRODUCT, ...productFields, base_sku });
     const variants: any[] = p.variants || [];
     const sets: OptionSet[] = [1, 2, 3].map(i => {
       const nameKey = `option${i}_name`;
@@ -3281,7 +3284,11 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         }
       }
       load();
-      setModal({ open: false, edit: null });
+      // Stay open — refresh modal.edit with updated product data
+      try {
+        const fresh = await apiFetch(`/api/ims/products/${productId}`);
+        if (fresh?.data) setModal({ open: true, edit: fresh.data });
+      } catch { /* keep modal as-is */ }
     } catch (e: any) { alert(e.message); }
     finally { setSaving(false); }
   };
@@ -4142,7 +4149,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
 
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
             {modal.edit && <button type="button" onClick={() => setBarcodeLabelOpen(true)} style={{ ...btnStyle('ghost'), marginRight: 'auto' }}>🏷 Print Labels</button>}
-            <button type="button" onClick={() => setModal({ open: false, edit: null })} style={btnStyle('ghost')}>Cancel</button>
+            <button type="button" onClick={() => setModal({ open: false, edit: null })} style={btnStyle('ghost')}>Close</button>
             {!isAdvisor && <button type="button" onClick={handleSaveAll} disabled={saving} style={btnStyle('action')}>{saving ? 'Saving…' : 'Save All'}</button>}
           </div>
         </Modal>
