@@ -2908,7 +2908,40 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const [brandPromptSelected, setBrandPromptSelected] = useState('');
   const [activeCurrencies, setActiveCurrencies] = useState<string[]>([]);
   const [stockHistoryModal, setStockHistoryModal] = useState<{ productId: string; productName: string } | null>(null);
-  const [showCols, setShowCols] = useState<{ [key: string]: boolean }>({ thumbnails: true, sku: true, barcode: true, brand: true, sell_price: true, soh: true, variants: true, active: true, created: true, product_type: true, supplier: true, ws_price: true, cb_cost: true, online: true });
+
+  // Initialize columns with saved preferences or defaults
+  const [showCols, setShowCols] = useState<{ [key: string]: boolean }>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('marketoir:imsProductsColumns');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {}
+      }
+    }
+    // Default columns visible initially
+    return {
+      sku: true,
+      barcode: true,
+      brand: true,
+      sell_price: true,
+      soh: true,
+      variants: true,
+      active: true,
+      created: true,
+      thumbnails: false,     // Extra fields disabled by default
+      cb_cost: false,
+      product_type: false,
+      supplier: false,
+      ws_price: false,
+      online: false,
+    };
+  });
+
+  // Save changes to localStorage
+  useEffect(() => {
+    localStorage.setItem('marketoir:imsProductsColumns', JSON.stringify(showCols));
+  }, [showCols]);
 
   // Handle closing fields dropdown on outside click
   useEffect(() => {
@@ -3461,6 +3494,10 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             Show Fields ▾
           </button>
           <div id="products-fields-dropdown" style={{ display: 'none', position: 'absolute', top: '100%', right: 0, zIndex: 100, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '12px 14px', marginTop: 4, minWidth: 200, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+            <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-dim)', cursor: 'not-allowed', opacity: 0.6 }}>
+              <input type="checkbox" checked={true} disabled readOnly style={{ marginRight: 8, cursor: 'not-allowed' }} />
+              Product Name (fixed)
+            </label>
             <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
               <input type="checkbox" checked={showCols.sku} onChange={e => setShowCols(s => ({ ...s, sku: e.target.checked }))} style={{ marginRight: 8 }} />
               SKU
