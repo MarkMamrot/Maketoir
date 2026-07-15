@@ -125,22 +125,22 @@ export default function Landing() {
                   priority
                 />
               </div>
-              {/* Badge: offline */}
-              <div className="absolute -bottom-5 -left-4 bg-white rounded-xl shadow-xl px-4 py-2.5 flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              {/* Badge: AI — oval pill */}
+              <div className="absolute -bottom-5 -left-4 bg-white rounded-full shadow-xl px-5 py-3 flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-violet-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <svg className="w-4 h-4 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
                   </svg>
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-slate-900">Works Offline</p>
-                  <p className="text-xs text-slate-500">POS never stops</p>
+                  <p className="text-xs font-bold text-slate-900">Automate your Most Tedious Tasks</p>
+                  <p className="text-xs text-slate-500">with Smart AI</p>
                 </div>
               </div>
-              {/* Badge: stores */}
-              <div className="absolute -top-4 -right-4 bg-blue-600 text-white rounded-xl shadow-xl px-4 py-2.5 text-center">
-                <p className="text-sm font-black leading-none">500+</p>
-                <p className="text-xs opacity-80 mt-0.5">Retail Stores</p>
+              {/* Badge: support — oval pill */}
+              <div className="absolute -top-4 -right-4 bg-blue-600 text-white rounded-full shadow-xl px-5 py-3 text-center">
+                <p className="text-sm font-black leading-none">100% Aussie</p>
+                <p className="text-xs opacity-80 mt-0.5">Phone Support</p>
               </div>
             </div>
           </div>
@@ -170,16 +170,18 @@ export default function Landing() {
       <section className="bg-white py-16 border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center">
-            {[
-              { value: '500+', label: 'Retail Stores' },
-              { value: '10M+', label: 'Transactions Processed' },
-              { value: '99.9%', label: 'Platform Uptime' },
-            ].map((s) => (
-              <div key={s.label}>
-                <p className="text-4xl font-black text-blue-600">{s.value}</p>
-                <p className="text-sm text-slate-500 mt-1 font-medium">{s.label}</p>
-              </div>
-            ))}
+            <div>
+              <p className="text-4xl font-black text-blue-600 leading-tight">Australia Based</p>
+              <p className="text-sm text-slate-500 mt-1 font-medium">Support Team</p>
+            </div>
+            <div>
+              <p className="text-3xl font-black text-blue-600 leading-tight">Customised Functions</p>
+              <p className="text-sm text-slate-500 mt-1 font-medium">Because every Retailer is Different</p>
+            </div>
+            <div>
+              <p className="text-4xl font-black text-blue-600">99.9%</p>
+              <p className="text-sm text-slate-500 mt-1 font-medium">Platform Uptime</p>
+            </div>
           </div>
         </div>
       </section>
@@ -264,7 +266,7 @@ export default function Landing() {
                   </svg>
                 ),
                 title: 'Analytics & Forecasting',
-                desc: 'Real-time dashboards, stock turnover analysis, demand forecasting, and margin optimisation across all locations.',
+                desc: 'Real-time dashboards, custom built reports, stock turnover analysis, demand forecasting, and margin optimisation across all locations.',
               },
               {
                 icon: (

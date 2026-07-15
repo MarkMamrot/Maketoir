@@ -620,14 +620,13 @@ export default function AdminPage() {
       <div style={S.topbar}>
         <svg width="20" height="20" viewBox="0 0 28 28" fill="none"><path d="M14 2L24 7.5V20.5L14 26L4 20.5V7.5L14 2Z" fill="#1ea8c2" fillOpacity=".15" stroke="#1ea8c2" strokeWidth="1.5"/><path d="M16.5 8H12L10.5 14H13.5L11.5 20L19 12.5H15L16.5 8Z" fill="#1ea8c2"/></svg>
         <span style={{ color: '#1ea8c2', fontWeight: 700, fontSize: 15, letterSpacing: -.3 }}>Solvantis</span>
-        <span style={{ fontWeight: 700, fontSize: 14, letterSpacing: -.3, color: '#e2e8f0', marginLeft: 4 }}>Admin</span>
-        <span style={{ color: 'rgba(255,255,255,.2)', margin: '0 6px', fontSize: 12 }}>|</span>
-        {[{ label: 'Foresight', href: '/dashboard' }, { label: 'IMS', href: '/ims' }, { label: 'POS', href: '/pos' }].map(item => (
-          <a key={item.href} href={item.href} style={{ fontSize: 13, color: 'rgba(255,255,255,.45)', textDecoration: 'none', fontWeight: 500 }}
-            onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,.85)')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,.45)')}
-          >{item.label}</a>
-        ))}
+        <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: -.3, color: '#e2e8f0', marginLeft: 2 }}>Admin</span>
+        <span style={{ color: 'var(--sv-text-muted,rgba(255,255,255,.2))', margin: '0 8px', fontSize: 13, opacity: .4 }}>|</span>
+        <a href="/ims" style={{ fontSize: 13, color: 'var(--sv-text-dim,#94a3b8)', textDecoration: 'none', fontWeight: 500, opacity: .6, transition: 'opacity .15s' }} onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '.6')}>IMS</a>
+        <span style={{ color: 'var(--sv-text-muted,rgba(255,255,255,.2))', margin: '0 8px', fontSize: 13, opacity: .4 }}>|</span>
+        <a href="/dashboard" style={{ fontSize: 13, color: 'var(--sv-text-dim,#94a3b8)', textDecoration: 'none', fontWeight: 500, opacity: .6, transition: 'opacity .15s' }} onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '.6')}>Foresight</a>
+        <span style={{ color: 'var(--sv-text-muted,rgba(255,255,255,.2))', margin: '0 8px', fontSize: 13, opacity: .4 }}>|</span>
+        <a href="/pos" target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: 'var(--sv-text-dim,#94a3b8)', textDecoration: 'none', fontWeight: 500, opacity: .6, transition: 'opacity .15s' }} onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '.6')}>POS</a>
         <span style={{ flex: 1 }} />
         <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: 'rgba(224,82,82,.2)', color: '#fca5a5', fontWeight: 700 }}>SUPER ADMIN</span>
       </div>
