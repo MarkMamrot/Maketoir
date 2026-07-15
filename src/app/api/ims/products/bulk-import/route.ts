@@ -17,6 +17,7 @@ export interface BulkImportRow {
   brand?: string;
   supplier_name?: string;
   tags?: string;
+  base_sku?: string;
   style_code?: string;
   category?: string;
   subcategory?: string;
@@ -114,7 +115,8 @@ export async function POST(req: Request) {
 
   // 4. Process rows
   // Track newly created products within this batch so multi-variant imports work
-  const createdProductIds = new Map<string, string>(); // lowercased name ? product_id
+  // Keyed by BOTH lowercased product name AND lowercased base_sku
+  const createdProductIds = new Map<string, string>();
 
   for (const row of rows) {
     try {
@@ -134,6 +136,7 @@ export async function POST(req: Request) {
           product_type: row.product_type,
           brand: row.brand,
           tags: row.tags,
+          base_sku: row.base_sku,
           style_code: row.style_code,
           category: row.category,
           subcategory: row.subcategory,
@@ -142,6 +145,7 @@ export async function POST(req: Request) {
           is_active: 1,
         }, businessId);
         createdProductIds.set(row.product_name.trim().toLowerCase(), productId);
+        if (row.base_sku?.trim()) createdProductIds.set(row.base_sku.trim().toLowerCase(), productId);
         // Create variant
         const newVariantId = await ImsVariantsRepo.create({
           variant_id: '',
@@ -168,7 +172,13 @@ export async function POST(req: Request) {
 
       } else if (row.action === 'new_variant') {
         // Find existing product (from this batch or DB)
-        let productId = createdProductIds.get(row.product_name.trim().toLowerCase());
+        // Priority: base_sku match > product name match
+        let productId = (row.base_sku?.trim() ? createdProductIds.get(row.base_sku.trim().toLowerCase()) : undefined)
+          ?? createdProductIds.get(row.product_name.trim().toLowerCase());
+        if (!productId && row.base_sku?.trim()) {
+          const existing = await ImsProductsRepo.findByBaseSku(row.base_sku.trim(), businessId);
+          productId = existing?.product_id;
+        }
         if (!productId) {
           const existing = await ImsProductsRepo.findByName(row.product_name);
           productId = existing?.product_id;

@@ -88,7 +88,7 @@ export interface ImsLocation {
 export interface ImsProduct {
   id: number; product_id: string; name: string; description?: string;
   product_type?: string; brand?: string; tags?: string; category?: string; subcategory?: string;
-  style_code?: string; is_online?: number; supplier_contact_id?: number; cin7_product_id?: number;
+  style_code?: string; base_sku?: string; is_online?: number; supplier_contact_id?: number; cin7_product_id?: number;
   is_active: number; shopify_product_id?: string; created_at?: string; updated_at?: string;
   variants?: ImsVariant[];
 }
@@ -418,17 +418,17 @@ export const ImsProductsRepo = {
   ): Promise<string> {
     const product_id = data.product_id || uuidv4();
     await imsExecute(
-      `INSERT INTO ims_products (business_id,product_id,name,description,product_type,brand,tags,category,subcategory,is_active,shopify_product_id,style_code,is_online,supplier_contact_id,cin7_product_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO ims_products (business_id,product_id,name,description,product_type,brand,tags,category,subcategory,is_active,shopify_product_id,style_code,base_sku,is_online,supplier_contact_id,cin7_product_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [businessId ?? '', product_id, data.name, data.description ?? null, data.product_type ?? null, data.brand ?? null,
        data.tags ?? null, data.category ?? null, data.subcategory ?? null, data.is_active ?? 1, data.shopify_product_id ?? null,
-       data.style_code ?? null, data.is_online ?? 1, data.supplier_contact_id ?? null, data.cin7_product_id ?? null]
+       data.style_code ?? null, data.base_sku ?? null, data.is_online ?? 1, data.supplier_contact_id ?? null, data.cin7_product_id ?? null]
     );
     return product_id;
   },
 
   async update(productId: string, data: Partial<ImsProduct>): Promise<void> {
-    const fields = ['name','description','product_type','brand','tags','category','subcategory','is_active','shopify_product_id','style_code','is_online','supplier_contact_id','cin7_product_id'];
+    const fields = ['name','description','product_type','brand','tags','category','subcategory','is_active','shopify_product_id','style_code','base_sku','is_online','supplier_contact_id','cin7_product_id'];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of fields) {
@@ -479,6 +479,15 @@ export const ImsProductsRepo = {
       `SELECT * FROM ims_products WHERE LOWER(name) = LOWER(?) LIMIT 1`,
       [name]
     );
+    return rows[0] ?? null;
+  },
+
+  async findByBaseSku(baseSku: string, businessId?: string): Promise<ImsProduct | null> {
+    const where = businessId
+      ? 'WHERE LOWER(base_sku) = LOWER(?) AND business_id = ? LIMIT 1'
+      : 'WHERE LOWER(base_sku) = LOWER(?) LIMIT 1';
+    const params = businessId ? [baseSku, businessId] : [baseSku];
+    const rows = await imsQuery<ImsProduct>(`SELECT * FROM ims_products ${where}`, params);
     return rows[0] ?? null;
   },
 };

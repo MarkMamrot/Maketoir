@@ -1496,8 +1496,8 @@ function ImportLineItemsModal({
 // ─────────────────────────────────────────────────────────────────────────────
 
 const IMPORT_BASE_HEADERS = [
-  'Product_Name','SKU','Barcode','Description','Brand','Supplier','Product_Type',
-  'Tags','Style_Code','Online','Pack_Size',
+  'Product_Name','Product_SKU','SKU','Barcode','Description','Brand','Supplier','Product_Type',
+  'Tags','Online','Pack_Size',
   'Option1_Name','Option1_Value','Option2_Name','Option2_Value','Option3_Name','Option3_Value',
   'RRP','price_wholesale','Cost_AUD','Cost_USD','Cost_EUR','Cost_GBP','Cost_THB','Cost_CNY','Cost_JPY','Weight_KG',
 ];
@@ -1577,13 +1577,20 @@ function ImportProductsModal({
     return m;
   }, [locations, showZoneBin]);
 
-  // Load locations
+  // Load locations — sorted with default warehouse first, then alphabetical
   useEffect(() => {
     fetch('/api/ims/locations').then(r => r.json()).then(d => {
       if (!d.success) return;
-      setLocations(d.data ?? []);
+      const defaultId = Number(importSettings.default_warehouse_location_id ?? 0);
+      const sorted = (d.data ?? []).slice().sort((a: any, b: any) => {
+        if (a.id === defaultId) return -1;
+        if (b.id === defaultId) return 1;
+        return a.name.localeCompare(b.name);
+      });
+      setLocations(sorted);
     }).catch(() => {});
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importSettings.default_warehouse_location_id]);
 
   // Pre-fill / refresh the header row whenever the template changes — but only while
   // the user hasn't pasted any data rows yet (textarea holds ≤ 1 line).
@@ -1613,8 +1620,11 @@ function ImportProductsModal({
     // Build variant lookup map from products
     const variantBySkuMap = new Map<string, { variant: any; product: any }>();
     const productByNameMap = new Map<string, any>();
+    const productByBaseSkuMap = new Map<string, any>(); // keyed by base_sku OR style_code
     for (const p of products) {
       productByNameMap.set(normStr(p.name), p);
+      if (p.base_sku)   productByBaseSkuMap.set(normStr(p.base_sku), p);
+      if (p.style_code) productByBaseSkuMap.set(normStr(p.style_code), p); // fallback
       for (const v of (p.variants || [])) {
         if (v.sku) variantBySkuMap.set(normStr(v.sku), { variant: v, product: p });
       }
@@ -1633,6 +1643,7 @@ function ImportProductsModal({
 
       const product_name = raw['product_name'] || '';
       const sku = raw['sku'] || '';
+      const product_sku = raw['product_sku'] || ''; // Product_SKU grouping key
       const brand = raw['brand'] || '';
       const supplier = raw['supplier'] || '';
 
@@ -1665,9 +1676,11 @@ function ImportProductsModal({
           if (raw['barcode'] !== '' && raw['barcode'] !== (v.barcode ?? '')) changedFields.push('Barcode');
           if (raw['brand'] !== '' && raw['brand'] !== (p.brand ?? '')) changedFields.push('Brand');
         } else {
-          // SKU not found — new variant or new product
-          const existingProduct = productByNameMap.get(normStr(product_name));
-          if (existingProduct && product_name) {
+          // SKU not found — check by Product_SKU column, then product name
+          const existingProduct =
+            (product_sku && productByBaseSkuMap.get(normStr(product_sku))) ||
+            (product_name && productByNameMap.get(normStr(product_name)));
+          if (existingProduct) {
             action = 'new_variant';
             existing_product_id = existingProduct.product_id;
           } else {
@@ -1675,8 +1688,10 @@ function ImportProductsModal({
           }
         }
       } else {
-        // No SKU — can only create
-        const existingProduct = productByNameMap.get(normStr(product_name));
+        // No SKU — check by Product_SKU column, then product name
+        const existingProduct =
+          (product_sku && productByBaseSkuMap.get(normStr(product_sku))) ||
+          (product_name && productByNameMap.get(normStr(product_name)));
         if (existingProduct) {
           action = 'new_variant';
           existing_product_id = existingProduct.product_id;
@@ -1783,7 +1798,8 @@ function ImportProductsModal({
         brand: resolvedBrand || undefined,
         supplier_name: resolvedSupplier || undefined,
         tags: raw['tags'] || undefined,
-        style_code: raw['style_code'] || undefined,
+        base_sku: raw['product_sku'] || undefined,
+        style_code: undefined,
         category: raw['category'] || undefined,
         subcategory: raw['subcategory'] || undefined,
         is_online: raw['online'] !== '' ? (raw['online'] === '1' || raw['online'].toLowerCase() === 'yes' ? 1 : 0) : undefined,
@@ -1874,9 +1890,16 @@ function ImportProductsModal({
         {stage === 'paste' && (
           <>
             <p style={{ margin: 0, fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
-              The field headers are pre-filled below. <strong style={{ color: 'var(--sv-text-main)' }}>Copy them into Excel or Google Sheets</strong>, fill your data in the rows below the headers, then paste everything back here. SKU is used to match existing products — rows with a matching SKU will update that variant; rows without a matching SKU will create new products.
-              {' '}The columns at the end{showCategories ? ' include Category and Subcategory, and' : ' —'}{showZoneBin ? ' Zone, Bin,' : ''} Min Qty and Reorder Qty are per location and are saved against that location's stock.
+              The field headers are pre-filled below. <strong style={{ color: 'var(--sv-text-main)' }}>Copy them into Excel or Google Sheets</strong>, fill your data in the rows below the headers, then paste everything back here.
             </p>
+            <div style={{ margin: '4px 0 8px', padding: '10px 14px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.7 }}>
+              <strong style={{ color: 'var(--sv-text-main)' }}>Key columns:</strong><br />
+              <strong>Product_SKU</strong> — The product-level identifier that groups variants under the same product (e.g. <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>MT-RCAK</code>). Rows sharing the same <em>Product_SKU</em> will be added as variants of one product. For a single-variant product, <em>Product_SKU</em> and <em>SKU</em> are typically identical.<br />
+              <strong>SKU</strong> — The individual variant barcode-style SKU (e.g. <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>MT-RCAKMemphis-2 to 3 years</code>). A matching SKU updates that variant; a non-matching SKU creates a new one.<br />
+              <strong>Product_Name</strong> — Used as a fallback grouping key if <em>Product_SKU</em> is blank.{' '}
+              {showCategories ? 'Category and Subcategory columns are also included. ' : ''}
+              The columns at the end —{showZoneBin ? ' Zone, Bin,' : ''} Min Qty and Reorder Qty — are per location and saved against that location’s stock. The default warehouse location appears first.
+            </div>
             <textarea
               value={pasteText}
               onChange={e => setPasteText(e.target.value)}
@@ -3357,7 +3380,12 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         if (s.location_name) locationMap.set(s.location_id, s.location_name);
       }
       const locs = Array.from(locationMap.entries())
-        .sort((a, b) => a[1].localeCompare(b[1]))
+        .sort((a, b) => {
+          const defaultId = Number(productSettings.default_warehouse_location_id ?? 0);
+          if (a[0] === defaultId) return -1;
+          if (b[0] === defaultId) return 1;
+          return a[1].localeCompare(b[1]);
+        })
         .map(([id, name]) => ({ id, name }));
 
       // Build headers — same structure as the import template
@@ -3382,6 +3410,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
 
           const cells: any[] = [
             p.name,
+            p.base_sku ?? '',
             v.sku ?? '',
             v.barcode ?? '',
             p.description ?? '',
@@ -3389,7 +3418,6 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             p.supplier_name ?? '',
             p.product_type ?? '',
             p.tags ?? '',
-            p.style_code ?? '',
             p.is_online ? 'yes' : 'no',
             v.pack_size ?? '',
             v.option1_name ?? '',
@@ -18518,6 +18546,16 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         </ul>
         <h3 style={h3}>Shopify catalog sync</h3>
         <p style={p}>Syncs the Shopify product catalog (variants + SKUs) into the IMS products table. Used to cross-reference Shopify orders with IMS stock. Requires a Shopify connection configured in Connections → Shopify.</p>
+        <h3 style={h3}>Import Products (spreadsheet)</h3>
+        <p style={p}>From <strong>Products → Import Products</strong>, paste tab-separated data (from Excel or Google Sheets) to bulk-create or update products and variants. Key columns:</p>
+        <ul style={ul}>
+          <li><strong style={{ color: 'var(--sv-text-main)' }}>Product_SKU</strong> — The <em>product-level</em> identifier that groups multiple variant rows under a single product (e.g. <span style={code}>MT-RCAK</span>). Rows sharing the same Product_SKU become variants of the same product. For single-variant products, Product_SKU and SKU are typically identical. This maps to the <em>Product SKU</em> field in the Edit Product modal.</li>
+          <li><strong style={{ color: 'var(--sv-text-main)' }}>SKU</strong> — The <em>variant-level</em> unique identifier (e.g. <span style={code}>MT-RCAKMemphis-2 to 3 years</span>). A matching SKU updates that variant; an unrecognised SKU creates a new variant under the product identified by Product_SKU (or a new product if also unrecognised).</li>
+          <li><strong>Product_Name</strong> — Fallback grouping key when Product_SKU is blank. Must match exactly for variants to group correctly.</li>
+          <li><strong>Option1_Name / Option1_Value</strong> — Defines the variant dimension (e.g. Size / Small). Up to 3 option axes per product.</li>
+          <li><strong>Per-location columns</strong> — Min Qty, Reorder Qty, Zone, and Bin for each branch. The default warehouse location appears first; remaining branches are alphabetical.</li>
+        </ul>
+        <p style={p}>Rows classified as <em>New Product</em> create a fresh product and its first variant. Rows classified as <em>New Variant</em> add a variant to an existing product. Rows classified as <em>Update</em> modify the matched variant's fields. Review the full classification before confirming the import.</p>
         <h3 style={h3}>Sales cache</h3>
         <p style={p}>The IMS maintains an internal sales cache (<span style={code}>ims_sales_cache</span>) that pre-aggregates variant-level sales and stock metrics for fast reporting. The cache is updated automatically on key events (PO/SO status changes, POS transactions) but can be manually rebuilt from the Sync panel if data appears stale.</p>
       </div>
