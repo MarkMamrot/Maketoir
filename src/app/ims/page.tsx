@@ -2908,7 +2908,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const [brandPromptSelected, setBrandPromptSelected] = useState('');
   const [activeCurrencies, setActiveCurrencies] = useState<string[]>([]);
   const [stockHistoryModal, setStockHistoryModal] = useState<{ productId: string; productName: string } | null>(null);
-  const [showCols, setShowCols] = useState<{ [key: string]: boolean }>({ thumbnails: false, product_type: false, supplier: false, ws_price: false, cb_cost: false, online: false });
+  const [showCols, setShowCols] = useState<{ [key: string]: boolean }>({ thumbnails: true, sku: true, barcode: true, brand: true, sell_price: true, soh: true, variants: true, active: true, created: true, product_type: true, supplier: true, ws_price: true, cb_cost: true, online: true });
 
   // Handle closing fields dropdown on outside click
   useEffect(() => {
@@ -3456,11 +3456,43 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               const el = document.getElementById('products-fields-dropdown');
               if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
             }}
-            style={{ flexShrink: 0, padding: '5px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}
+            style={btnStyle('secondary', 'sm')}
           >
             Show Fields ▾
           </button>
           <div id="products-fields-dropdown" style={{ display: 'none', position: 'absolute', top: '100%', right: 0, zIndex: 100, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '12px 14px', marginTop: 4, minWidth: 200, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+            <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={showCols.sku} onChange={e => setShowCols(s => ({ ...s, sku: e.target.checked }))} style={{ marginRight: 8 }} />
+              SKU
+            </label>
+            <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={showCols.barcode} onChange={e => setShowCols(s => ({ ...s, barcode: e.target.checked }))} style={{ marginRight: 8 }} />
+              Barcode
+            </label>
+            <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={showCols.brand} onChange={e => setShowCols(s => ({ ...s, brand: e.target.checked }))} style={{ marginRight: 8 }} />
+              Brand
+            </label>
+            <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={showCols.sell_price} onChange={e => setShowCols(s => ({ ...s, sell_price: e.target.checked }))} style={{ marginRight: 8 }} />
+              Sell Price
+            </label>
+            <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={showCols.soh} onChange={e => setShowCols(s => ({ ...s, soh: e.target.checked }))} style={{ marginRight: 8 }} />
+              SOH / Avail
+            </label>
+            <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={showCols.variants} onChange={e => setShowCols(s => ({ ...s, variants: e.target.checked }))} style={{ marginRight: 8 }} />
+              Variants
+            </label>
+            <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={showCols.active} onChange={e => setShowCols(s => ({ ...s, active: e.target.checked }))} style={{ marginRight: 8 }} />
+              Active
+            </label>
+            <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={showCols.created} onChange={e => setShowCols(s => ({ ...s, created: e.target.checked }))} style={{ marginRight: 8 }} />
+              Created
+            </label>
             <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
               <input type="checkbox" checked={showCols.thumbnails} onChange={e => setShowCols(s => ({ ...s, thumbnails: e.target.checked }))} style={{ marginRight: 8 }} />
               Product Photos
@@ -3505,44 +3537,44 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: 32, minWidth: 32 }} />{/* checkbox */}
-              <col style={{ width: 90, minWidth: 90 }} />{/* SKU */}
+              {showCols.sku && <col style={{ width: 90, minWidth: 90 }} />}{/* SKU */}
               <col />{/* name */}
-              <col style={{ width: 120, minWidth: 120 }} />{/* barcode */}
+              {showCols.barcode && <col style={{ width: 120, minWidth: 120 }} />}{/* barcode */}
               {showCols.product_type && <col style={{ width: 140, minWidth: 140 }} />}{/* product type */}
-              <col style={{ width: 130, minWidth: 130 }} />{/* brand */}
+              {showCols.brand && <col style={{ width: 130, minWidth: 130 }} />}{/* brand */}
               {showCols.supplier && <col style={{ width: 140, minWidth: 140 }} />}{/* supplier */}
               {showCols.cb_cost && <col style={{ width: 100, minWidth: 100 }} />}{/* Cost Price */}
-              <col style={{ width: 120, minWidth: 120 }} />{/* Sell Price */}
+              {showCols.sell_price && <col style={{ width: 120, minWidth: 120 }} />}{/* Sell Price */}
               {showCols.ws_price && <col style={{ width: 120, minWidth: 120 }} />}{/* WS Price */}
-              <col style={{ width: 120, minWidth: 120 }} />{/* SOH */}
-              <col style={{ width: 80, minWidth: 80 }} />{/* variants */}
+              {showCols.soh && <col style={{ width: 120, minWidth: 120 }} />}{/* SOH */}
+              {showCols.variants && <col style={{ width: 80, minWidth: 80 }} />}{/* variants */}
               {showCols.online && <col style={{ width: 80, minWidth: 80 }} />}{/* online */}
-              <col style={{ width: 70, minWidth: 70 }} />{/* active */}
-              <col style={{ width: 100, minWidth: 100 }} />{/* created */}
+              {showCols.active && <col style={{ width: 70, minWidth: 70 }} />}{/* active */}
+              {showCols.created && <col style={{ width: 100, minWidth: 100 }} />}{/* created */}
             </colgroup>
             <thead>
-              <tr style={{ background: 'var(--sv-bg-2)', position: 'sticky', top: 0, zIndex: 10 }}>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid var(--sv-etch)', position: 'sticky', top: 0, background: 'var(--sv-bg-2)', zIndex: 10 }}>
+              <tr style={{ background: 'var(--sv-bg-2)', position: 'sticky', top: 56, zIndex: 10 }}>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid var(--sv-etch)', position: 'sticky', top: 56, background: 'var(--sv-bg-2)', zIndex: 10 }}>
                   <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAll} style={{ cursor: 'pointer' }} />
                 </th>
                 {([
-                  ['sku','SKU'],
+                  ...(showCols.sku ? [['sku','SKU']] : []),
                   ['name','Product'],
-                  ['barcode','Barcode'],
+                  ...(showCols.barcode ? [['barcode','Barcode']] : []),
                   ...(showCols.product_type ? [['product_type','Product Type']] : []),
-                  ['brand','Brand'],
+                  ...(showCols.brand ? [['brand','Brand']] : []),
                   ...(showCols.supplier ? [['supplier_name','Supplier']] : []),
                   ...(showCols.cb_cost ? [['cost_aud','Cost']] : []),
-                  ['price','Sell Price'],
+                  ...(showCols.sell_price ? [['price','Sell Price']] : []),
                   ...(showCols.ws_price ? [['ws_price','WS Price']] : []),
-                  ['stock','SOH / Avail'],
-                  ['variants','Variants'],
+                  ...(showCols.soh ? [['stock','SOH / Avail']] : []),
+                  ...(showCols.variants ? [['variants','Variants']] : []),
                   ...(showCols.online ? [['is_online','Online']] : []),
-                  ['is_active','Active'],
-                  ['created_at','Created']
+                  ...(showCols.active ? [['is_active','Active']] : []),
+                  ...(showCols.created ? [['created_at','Created']] : [])
                 ] as [string,string][]).map(([col, label]) => (
                   <th key={col} onClick={() => toggleSort(col)}
-                    style={{ padding: '10px 12px', borderBottom: '1px solid var(--sv-etch)', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', position: 'sticky', top: 0, background: 'var(--sv-bg-2)', zIndex: 10 }}>
+                    style={{ padding: '10px 12px', borderBottom: '1px solid var(--sv-etch)', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', position: 'sticky', top: 56, background: 'var(--sv-bg-2)', zIndex: 10 }}>
                     {label}<SortIcon col={col} />
                   </th>
                 ))}
@@ -3564,9 +3596,9 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                     <td style={{ padding: '10px 8px' }}>
                       <input type="checkbox" checked={selected.has(p.product_id)} onChange={() => toggleSelect(p.product_id)} style={{ cursor: 'pointer' }} />
                     </td>
-                    <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {showCols.sku && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       <code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{firstVar?.sku || '—'}</code>
-                    </td>
+                    </td>}
                     <td style={{ padding: '10px 12px', overflow: 'hidden' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
                         {showCols.thumbnails && (
@@ -3583,14 +3615,14 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                         >{p.name}</strong>
                       </div>
                     </td>
-                    <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {showCols.barcode && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {firstVar?.barcode && <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>#{firstVar.barcode}</span>}
-                    </td>
+                    </td>}
                     {showCols.product_type && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.product_type || '—'}</td>}
-                    <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.brand || '—'}</td>
+                    {showCols.brand && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.brand || '—'}</td>}
                     {showCols.supplier && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.supplier_name || '—'}</td>}
                     {showCols.cb_cost && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13 }}>{fmtCurrency(firstVar?.cost_aud)}</td>}
-                    <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', fontSize: 13 }}>
+                    {showCols.sell_price && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', fontSize: 13 }}>
                       {firstVar ? (
                         hasDiscount ? (
                           <>
@@ -3601,19 +3633,28 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                           <span style={{ color: 'var(--sv-text-dim)' }}>{fmtCurrency(firstVar.price_rrp)}</span>
                         )
                       ) : '—'}
-                    </td>
+                    </td>}
                     {showCols.ws_price && (
                       <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', fontSize: 13, color: 'var(--sv-text-dim)' }}>
                         {firstVar?.price_wholesale != null ? fmtCurrency(firstVar.price_wholesale) : '—'}
                       </td>
                     )}
 
-                    <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
+                    {showCols.soh && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
                       {aggSoh === null
                         ? (stockSohLoading ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>loading…</span> : '—')
                         : (
                           <span 
-                            onClick={() => openHistory(p.product_id, variants[0]?.variant_id)}
+                            onClick={async () => {
+                               // Get fresh history when clicked
+                               setHistoryLoading(true);
+                               setHistoryModal({ open: true, product_id: p.product_id, variant_id: variants[0]?.variant_id ?? null });
+                               try {
+                                 const res = await apiFetch(`/api/ims/stock/history?productId=${p.product_id}${variants[0]?.variant_id ? `&variantId=${variants[0].variant_id}` : ''}`);
+                                 setHistory(res?.data || []);
+                               } catch (e: any) { alert(e.message || 'Failed to fetch history'); }
+                               finally { setHistoryLoading(false); }
+                            }}
                             style={{ color: aggSoh === 0 ? 'var(--sv-text-dim)' : 'var(--sv-action)', fontWeight: 600, cursor: 'pointer' }}>
                             {fmtQty(aggSoh)}
                           </span>
@@ -3626,9 +3667,9 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                           {fmtQty(av)}<span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 400, marginLeft: 3 }}>avail</span>
                         </span>
                       ); })()}
-                    </td>
+                    </td>}
 
-                    <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13 }}>{variants.length}</td>
+                    {showCols.variants && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13 }}>{variants.length}</td>}
                     {showCols.online && (
                       <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)' }}>
                         {p.is_online ? <span style={{ color: 'var(--sv-mint)', fontSize: 13, fontWeight: 600 }}>Yes</span> : <span style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>No</span>}
