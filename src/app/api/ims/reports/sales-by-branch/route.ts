@@ -9,7 +9,9 @@ function getSession() {
 }
 
 export async function GET(req: Request) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = getSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const businessId = session.businessId as string | undefined;
 
   const { searchParams } = new URL(req.url);
   const brand       = searchParams.get('brand')       ?? '';
@@ -35,6 +37,7 @@ export async function GET(req: Request) {
     // Build WHERE clause
     const conds: string[] = ['v.is_active = 1', 'p.is_active = 1'];
     const params: any[]   = [];
+    if (businessId)  { conds.push('p.business_id = ?');          params.push(businessId); }
     if (productId)   { conds.push('v.variant_id = ?');           params.push(productId); }
     if (brand)       { conds.push('p.brand = ?');                params.push(brand); }
     if (supplierId)  { conds.push('p.supplier_contact_id = ?');  params.push(Number(supplierId)); }

@@ -53,9 +53,10 @@ export async function GET(req: Request) {
         FROM ims_contacts c
         JOIN ims_products p ON p.supplier_contact_id = c.id AND p.is_active = 1
         WHERE c.is_active = 1 AND c.name LIKE ?
+          ${businessId ? 'AND p.business_id = ?' : ''}
         ORDER BY CASE WHEN c.name LIKE ? THEN 0 ELSE 1 END, c.name
         LIMIT ?
-      `, [like, exactLike, limit]);
+      `, businessId ? [like, businessId, exactLike, limit] : [like, exactLike, limit]);
       supplierSuggestions = rows.map(r => ({
         type: 'supplier' as const,
         value: String(r.id),
@@ -72,9 +73,10 @@ export async function GET(req: Request) {
       const rows = await imsQuery<{ brand: string }>(`
         SELECT DISTINCT brand FROM ims_products
         WHERE is_active = 1 AND brand IS NOT NULL AND brand != '' AND brand LIKE ?
+          ${businessId ? 'AND business_id = ?' : ''}
         ORDER BY CASE WHEN brand LIKE ? THEN 0 ELSE 1 END, brand
         LIMIT ?
-      `, [like, exactLike, limit]);
+      `, businessId ? [like, businessId, exactLike, limit] : [like, exactLike, limit]);
       brandSuggestions = rows.map(r => ({
         type: 'brand' as const,
         value: r.brand,
@@ -91,9 +93,10 @@ export async function GET(req: Request) {
       const rows = await imsQuery<{ product_type: string }>(`
         SELECT DISTINCT product_type FROM ims_products
         WHERE is_active = 1 AND product_type IS NOT NULL AND product_type != '' AND product_type LIKE ?
+          ${businessId ? 'AND business_id = ?' : ''}
         ORDER BY CASE WHEN product_type LIKE ? THEN 0 ELSE 1 END, product_type
         LIMIT ?
-      `, [like, exactLike, limit]);
+      `, businessId ? [like, businessId, exactLike, limit] : [like, exactLike, limit]);
       typeSuggestions = rows.map(r => ({
         type: 'product_type' as const,
         value: r.product_type,
@@ -154,9 +157,10 @@ export async function GET(req: Request) {
       const rows = await imsQuery<{ category: string }>(`
         SELECT DISTINCT category FROM ims_products
         WHERE is_active = 1 AND category IS NOT NULL AND category != '' AND category LIKE ?
+          ${businessId ? 'AND business_id = ?' : ''}
         ORDER BY CASE WHEN category LIKE ? THEN 0 ELSE 1 END, category
         LIMIT ?
-      `, [like, exactLike, limit]);
+      `, businessId ? [like, businessId, exactLike, limit] : [like, exactLike, limit]);
       const cats: FilterSuggestion[] = rows.map(r => ({
         type: 'category' as const, value: r.category,
         label: `Category: ${r.category}`, meta: 'Filter by category',
@@ -171,9 +175,10 @@ export async function GET(req: Request) {
       const rows = await imsQuery<{ subcategory: string }>(`
         SELECT DISTINCT subcategory FROM ims_products
         WHERE is_active = 1 AND subcategory IS NOT NULL AND subcategory != '' AND subcategory LIKE ?
+          ${businessId ? 'AND business_id = ?' : ''}
         ORDER BY CASE WHEN subcategory LIKE ? THEN 0 ELSE 1 END, subcategory
         LIMIT ?
-      `, [like, exactLike, limit]);
+      `, businessId ? [like, businessId, exactLike, limit] : [like, exactLike, limit]);
       const subs: FilterSuggestion[] = rows.map(r => ({
         type: 'subcategory' as const, value: r.subcategory,
         label: `Subcategory: ${r.subcategory}`, meta: 'Filter by subcategory',
