@@ -2121,7 +2121,7 @@ function OnlineStoreSection({ productId, isOnline, onChangeIsOnline, isReadOnly 
       const d = await r.json();
       if (d.success) {
         const invMsg = d.inventoryPushed > 0 ? `, inventory: ${d.inventoryPushed} variant${d.inventoryPushed !== 1 ? 's' : ''} synced` : (d.inventoryErrors?.length ? ` (inventory: ${d.inventoryErrors[0]})` : '');
-        const imgErrMsg = d.imageErrors?.length ? ` ⚠ ${d.imageErrors.length} image(s) failed — URLs may not be publicly accessible` : '';
+        const imgErrMsg = d.imageErrors?.length ? ` ⚠ ${d.imageErrors.length} image(s) failed: ${d.imageErrors[0]}` : '';
         setMsg(d.created
           ? `✓ Created on the online shop${invMsg}${imgErrMsg}`
           : `✓ Pushed — prices updated: ${d.pricesUpdated}, images added: ${d.imagesAdded}${invMsg}${imgErrMsg}`);

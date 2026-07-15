@@ -33,30 +33,26 @@ async function getShopify(businessId: string) {
 }
 
 /**
- * Resolve a product image URL to a Shopify-compatible image payload.
- * - External/CDN URLs (https://...) → passed as src directly.
- * - Local volume images (/api/ims/products/.../images/.../file) → read from disk
- *   using businessId so there is no HTTP round-trip and no database context issue.
+ * Resolve a product image to a Shopify-compatible payload.
+ * Accepts the full ImsProductImage record so no secondary DB lookup is needed.
+ * - External/CDN URLs (https://...) → passed as src.
+ * - Volume images (source='volume') → read from disk using businessId as directory.
  */
-async function resolveImagePayload(
-  url: string,
+function resolveImagePayload(
+  img: { url: string; source: string; drive_file_id?: string; alt_text?: string },
   businessId: string,
-  alt: string,
-): Promise<{ src?: string; attachment?: string; alt: string } | null> {
-  if (/^https?:\/\//i.test(url)) {
-    return { src: url, alt };
+): { src?: string; attachment?: string; alt: string } | null {
+  const alt = img.alt_text ?? '';
+  if (/^https?:\/\//i.test(img.url)) {
+    return { src: img.url, alt };
   }
-  // Local volume image — parse the imageId from the URL and read directly from disk
-  const imageIdMatch = url.match(/\/images\/(\d+)\/file/);
-  if (imageIdMatch) {
+  if (img.source === 'volume' && img.drive_file_id) {
     try {
-      const record = await ImsImagesRepo.get(Number(imageIdMatch[1]));
-      if (!record || record.source !== 'volume' || !record.drive_file_id) return null;
       const filePath = path.join(
         process.env.UPLOAD_BASE_PATH ?? './uploads',
         businessId,
         'product-images',
-        record.drive_file_id,
+        img.drive_file_id,
       );
       if (!fs.existsSync(filePath)) return null;
       const attachment = fs.readFileSync(filePath).toString('base64');
@@ -175,7 +171,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       let imagesAdded = 0;
       const imageErrors: string[] = [];
       for (const img of images) {
-        const imgPayload = await resolveImagePayload(img.url, session.businessId, img.alt_text ?? '');
+        const imgPayload = resolveImagePayload(img, session.businessId);
         if (!imgPayload) { imageErrors.push(`Image ${img.id}: could not resolve URL`); continue; }
         try {
           const createdImg = await shop.service.createProductImage(String(created.id), imgPayload);
@@ -224,7 +220,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       for (const img of images) {
         const base = String(img.url).split('?')[0];
         if (existing.has(base)) continue;
-        const imgPayload = await resolveImagePayload(img.url, session.businessId, img.alt_text ?? '');
+        const imgPayload = resolveImagePayload(img, session.businessId);
         if (!imgPayload) { imageErrors.push(`Image ${img.id}: could not resolve URL`); continue; }
         try {
           const createdImg = await shop.service.createProductImage(shopifyProductId, imgPayload);
