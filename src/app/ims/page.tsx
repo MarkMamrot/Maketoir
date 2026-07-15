@@ -3074,18 +3074,20 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   };
 
   const openEdit = (p: any) => {
-    // Derive base_sku from the common prefix of variant SKUs
-    const skus = ((p.variants || []) as any[]).map((v: any) => v.sku).filter(Boolean) as string[];
-    let base_sku = '';
-    if (skus.length > 0) {
-      const splitSkus = skus.map(s => s.split('-'));
-      const minLen = Math.min(...splitSkus.map(p => p.length)) - 1;
-      let commonLen = 0;
-      for (let i = 0; i < minLen; i++) {
-        if (splitSkus.every(p => p[i] === splitSkus[0][i])) commonLen = i + 1;
-        else break;
+    // Prefer DB-stored base_sku; fall back to deriving from variant SKU common prefix
+    let base_sku = p.base_sku || '';
+    if (!base_sku) {
+      const skus = ((p.variants || []) as any[]).map((v: any) => v.sku).filter(Boolean) as string[];
+      if (skus.length > 0) {
+        const splitSkus = skus.map(s => s.split('-'));
+        const minLen = Math.min(...splitSkus.map(p => p.length)) - 1;
+        let commonLen = 0;
+        for (let i = 0; i < minLen; i++) {
+          if (splitSkus.every(p => p[i] === splitSkus[0][i])) commonLen = i + 1;
+          else break;
+        }
+        base_sku = commonLen > 0 ? splitSkus[0].slice(0, commonLen).join('-') : '';
       }
-      base_sku = commonLen > 0 ? splitSkus[0].slice(0, commonLen).join('-') : '';
     }
     setForm({ ...BLANK_PRODUCT, ...p, base_sku });
     const variants: any[] = p.variants || [];
