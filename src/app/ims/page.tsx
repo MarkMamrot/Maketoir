@@ -1636,14 +1636,36 @@ function ImportProductsModal({
     const foundUnknownBrands = new Set<string>();
     const foundUnknownSuppliers = new Set<string>();
 
+    // Pre-pass: cache product-level fields from the first row of each Product_SKU group so
+    // subsequent variant rows can omit Product_Name, Brand, Supplier, Description etc.
+    const batchProductFields = new Map<string, Record<string, string>>();
+    for (const dline of dataLines) {
+      const dcells = dline.split('\t');
+      const draw: Record<string, string> = {};
+      headers.forEach((h, i) => { draw[h] = (dcells[i] ?? '').trim(); });
+      const dps = normStr(draw['product_sku'] || '');
+      if (dps && !batchProductFields.has(dps) && (draw['product_name'] || '').trim()) {
+        batchProductFields.set(dps, draw);
+      }
+    }
+
     const rows: ParsedImportRow[] = dataLines.map(line => {
       const cells = line.split('\t');
       const raw: Record<string, string> = {};
       headers.forEach((h, i) => { raw[h] = (cells[i] ?? '').trim(); });
 
+      const product_sku = raw['product_sku'] || ''; // Product_SKU grouping key
+
+      // Inherit missing product-level fields from the first row with the same Product_SKU
+      const cached = product_sku ? batchProductFields.get(normStr(product_sku)) : undefined;
+      if (cached) {
+        for (const field of ['product_name','description','product_type','brand','supplier','tags','category','subcategory']) {
+          if (!raw[field] && cached[field]) raw[field] = cached[field];
+        }
+      }
+
       const product_name = raw['product_name'] || '';
       const sku = raw['sku'] || '';
-      const product_sku = raw['product_sku'] || ''; // Product_SKU grouping key
       const brand = raw['brand'] || '';
       const supplier = raw['supplier'] || '';
 
@@ -3997,7 +4019,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)' }}>
-                    {['Variant','SKU','Barcode','Cost $','Wt kg',
+                    {['Variant','SKU','Barcode','RRP $','Wholesale $','Sale $','Sale From','Sale To','Cost $','Wt kg',
                       ...activeCurrencies.map(c => c),
                       '✓',''].map((h, i) => (
                       <th key={i} style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, whiteSpace: 'nowrap' }}>
@@ -4020,6 +4042,11 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                         <td style={{ padding: '4px 8px', whiteSpace: 'nowrap', color: 'var(--sv-text-dim)', fontWeight: 500, minWidth: 80 }}>{label}</td>
                         <td style={{ padding: '2px 4px', minWidth: 80 }}><input value={row.sku} onChange={e => updateRow(row._tempId, 'sku', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 90 }}><input value={row.barcode} onChange={e => updateRow(row._tempId, 'barcode', e.target.value)} style={cellInput} /></td>
+                        <td style={{ padding: '2px 4px', minWidth: 72 }}><input type="number" step="0.01" min="0" value={row.price_rrp} onChange={e => updateRow(row._tempId, 'price_rrp', e.target.value)} style={cellInput} placeholder="0.00" /></td>
+                        <td style={{ padding: '2px 4px', minWidth: 80 }}><input type="number" step="0.01" min="0" value={row.price_wholesale} onChange={e => updateRow(row._tempId, 'price_wholesale', e.target.value)} style={cellInput} /></td>
+                        <td style={{ padding: '2px 4px', minWidth: 72 }}><input type="number" step="0.01" min="0" value={row.price_rrp_sale} onChange={e => updateRow(row._tempId, 'price_rrp_sale', e.target.value)} style={cellInput} /></td>
+                        <td style={{ padding: '2px 4px', minWidth: 108 }}><input type="date" value={row.discount_start_date} onChange={e => updateRow(row._tempId, 'discount_start_date', e.target.value)} style={cellInput} /></td>
+                        <td style={{ padding: '2px 4px', minWidth: 108 }}><input type="date" value={row.discount_end_date} onChange={e => updateRow(row._tempId, 'discount_end_date', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 72 }}><input type="number" step="0.0001" min="0" value={row.cost_aud} onChange={e => updateRow(row._tempId, 'cost_aud', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 60 }}><input type="number" step="0.001" min="0" value={row.weight_kg} onChange={e => updateRow(row._tempId, 'weight_kg', e.target.value)} style={cellInput} /></td>
                         {activeCurrencies.map(cur => (
