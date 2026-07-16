@@ -1845,7 +1845,7 @@ function ImportProductsModal({
         style_code: undefined,
         category: raw['category'] || undefined,
         subcategory: raw['subcategory'] || undefined,
-        is_online: raw['online'] !== '' ? (raw['online'] === '1' || raw['online'].toLowerCase() === 'yes' ? 1 : 0) : undefined,
+        is_online: raw['online'] != null && raw['online'] !== '' ? (raw['online'] === '1' || raw['online'].toLowerCase() === 'yes' ? 1 : 0) : undefined,
         sku: (() => {
           // If SKU is provided, use it directly
           if (raw['sku']) return raw['sku'];
