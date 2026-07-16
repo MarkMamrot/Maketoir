@@ -157,7 +157,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
       const payload: any = {
         title: product.website_title?.trim() || product.name,
-        body_html: product.description ?? '',,
+        body_html: product.description ?? '',
         vendor: product.brand ?? '',
         product_type: product.product_type ?? '',
         tags: product.tags ?? '',

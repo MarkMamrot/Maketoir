@@ -2560,6 +2560,29 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
   const [addingImages, setAddingImages] = useState<Set<string>>(new Set());
   const [addedImages,  setAddedImages]  = useState<Set<string>>(new Set());
 
+  // Scraped images (HTML scraper — fallback to direct fetch when Tavily can't reach the page)
+  const [scrapedImages, setScrapedImages]   = useState<string[]>([]);
+  const [scraping, setScraping]             = useState(false);
+  const [scrapeError, setScrapeError]       = useState<string | null>(null);
+
+  const handleScrapeImages = async () => {
+    const activeUrls = urls.filter(u => u.trim());
+    if (!activeUrls.length) return;
+    setScraping(true); setScrapeError(null);
+    try {
+      const res = await fetch('/api/website/scrape-photos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: activeUrls }),
+      });
+      const d = await res.json();
+      if (!res.ok || d.error) { setScrapeError(d.error ?? 'Scrape failed'); return; }
+      // Merge with existing, deduplicate
+      setScrapedImages(prev => [...new Set([...prev, ...(d.images ?? [])])]);
+    } catch (e: any) { setScrapeError(e.message); }
+    finally { setScraping(false); }
+  };
+
   const handleAddImage = async (url: string) => {
     const productId = product.product_id;
     if (!productId) return;
@@ -2884,6 +2907,72 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+            </div>
+
+            {/* Pull More Images — HTML scraper (complements Tavily research images) */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>More Images</span>
+                <button
+                  onClick={handleScrapeImages}
+                  disabled={scraping || !urls.some(u => u.trim())}
+                  style={{ ...btnStyle('ghost', 'xs'), opacity: scraping || !urls.some(u => u.trim()) ? .6 : 1 }}
+                  title="Scrapes images directly from the URLs in Step 1 — useful when Tavily research misses product photos"
+                >
+                  {scraping ? '⏳ Scraping…' : '📸 Pull More Images from URL'}
+                </button>
+                <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>HTML scrape of Step 1 URLs</span>
+              </div>
+              {scrapeError && <div style={{ fontSize: 12, color: 'var(--sv-red)', marginBottom: 6 }}>{scrapeError}</div>}
+              {scrapedImages.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                    Scraped ({scrapedImages.length})
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {scrapedImages.map((imgUrl, idx) => (
+                      <div key={idx} style={{ flexShrink: 0, position: 'relative', width: 90, height: 90 }}>
+                        <a
+                          href={imgUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={imgUrl}
+                          style={{ display: 'block', width: 90, height: 90, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}
+                        >
+                          <img
+                            src={imgUrl}
+                            alt={`Scraped image ${idx + 1}`}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                            onError={e => { (e.currentTarget.closest('div') as HTMLElement).style.display = 'none'; }}
+                          />
+                        </a>
+                        <button
+                          onClick={() => handleAddImage(imgUrl)}
+                          disabled={addingImages.has(imgUrl) || addedImages.has(imgUrl)}
+                          title={addedImages.has(imgUrl) ? 'Already added to product images' : 'Add to product images'}
+                          style={{
+                            position: 'absolute', bottom: 4, right: 4,
+                            width: 22, height: 22, borderRadius: '50%',
+                            background: addedImages.has(imgUrl) ? 'rgba(16,185,129,.85)' : 'rgba(0,0,0,.65)',
+                            color: '#fff', border: 'none',
+                            cursor: addedImages.has(imgUrl) ? 'default' : 'pointer',
+                            fontSize: addedImages.has(imgUrl) ? 12 : 16, lineHeight: '22px',
+                            textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {addingImages.has(imgUrl) ? '…' : addedImages.has(imgUrl) ? '✓' : '+'}
+                        </button>
+                        <button
+                          onClick={() => setScrapedImages(prev => prev.filter((_, i) => i !== idx))}
+                          style={{ position: 'absolute', top: 2, right: 2, width: 18, height: 18, borderRadius: '50%', background: 'rgba(0,0,0,.55)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 11, lineHeight: '18px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          title="Remove"
+                        >×</button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
