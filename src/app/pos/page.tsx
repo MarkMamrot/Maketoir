@@ -4044,11 +4044,20 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
             {/* Items */}
             <div style={{ marginBottom: '.75rem', fontSize: '.8rem' }}>
               {sale.items.map(i => (
-                <div key={i.localId} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.2rem', gap: '.4rem' }}>
-                  <span style={{ flex: 1, wordBreak: 'break-word' }}>
-                    {i.qty}x {i.name}
-                  </span>
-                  <span>${fmt(i.line_total)}</span>
+                <div key={i.localId} style={{ marginBottom: '.2rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '.4rem' }}>
+                    <span style={{ flex: 1, wordBreak: 'break-word' }}>{i.qty}x {i.name}</span>
+                    <span style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {i.original_price != null && i.original_price !== i.unit_price && (
+                        <span style={{ textDecoration: 'line-through', color: '#999', marginRight: '4px', fontSize: '.73rem' }}>
+                          ${fmt(i.original_price * Math.abs(i.qty))}
+                        </span>
+                      )}
+                      <span style={i.original_price != null && i.original_price !== i.unit_price ? { color: '#d97706', fontWeight: 700 } : {}}>
+                        ${fmt(i.line_total)}
+                      </span>
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>

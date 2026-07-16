@@ -1694,13 +1694,14 @@ function ImportProductsModal({
           // Compute changed fields for display
           const v = match.variant;
           const p = match.product;
-          const numOrNull = (s: string) => s === '' ? null : Number(s);
-          if (raw['rrp'] !== '' && numOrNull(raw['rrp']) !== (v.price_rrp ?? null)) changedFields.push('RRP');
-          if (raw['cost_aud'] !== '' && numOrNull(raw['cost_aud']) !== (v.cost_aud ?? null)) changedFields.push('Cost');
-          if (raw['price_wholesale'] !== '' && numOrNull(raw['price_wholesale']) !== (v.price_wholesale ?? null)) changedFields.push('Wholesale');
-          if (raw['weight_kg'] !== '' && numOrNull(raw['weight_kg']) !== (v.weight_kg ?? null)) changedFields.push('Weight');
-          if (raw['barcode'] !== '' && raw['barcode'] !== (v.barcode ?? '')) changedFields.push('Barcode');
-          if (raw['brand'] !== '' && raw['brand'] !== (p.brand ?? '')) changedFields.push('Brand');
+          // numOrNull: treat undefined AND '' as null (undefined happens when the column is absent from the CSV)
+          const numOrNull = (s: string | undefined) => (s == null || s === '') ? null : Number(s);
+          if (raw['rrp'] != null && raw['rrp'] !== '' && numOrNull(raw['rrp']) !== (v.price_rrp ?? null)) changedFields.push('RRP');
+          if (raw['cost_aud'] != null && raw['cost_aud'] !== '' && numOrNull(raw['cost_aud']) !== (v.cost_aud ?? null)) changedFields.push('Cost');
+          if (raw['price_wholesale'] != null && raw['price_wholesale'] !== '' && numOrNull(raw['price_wholesale']) !== (v.price_wholesale ?? null)) changedFields.push('Wholesale');
+          if (raw['weight_kg'] != null && raw['weight_kg'] !== '' && numOrNull(raw['weight_kg']) !== (v.weight_kg ?? null)) changedFields.push('Weight');
+          if (raw['barcode'] != null && raw['barcode'] !== '' && raw['barcode'] !== (v.barcode ?? '')) changedFields.push('Barcode');
+          if (raw['brand'] != null && raw['brand'] !== '' && raw['brand'] !== (p.brand ?? '')) changedFields.push('Brand');
         } else {
           // SKU not found — check by Product_SKU column, then product name
           const existingProduct =
@@ -1804,7 +1805,7 @@ function ImportProductsModal({
     return parsedRows.map(r => {
       if (r.action === 'error') return { ...r.raw, action: 'error' };
       const raw = r.raw;
-      const numOrNull = (s: string) => s === '' ? null : Number(s);
+      const numOrNull = (s: string | undefined) => (s == null || s === '') ? null : Number(s);
 
       // Build cost_foreign from Cost_XXX columns
       const foreignCosts: Record<string, number> = {};
@@ -1857,11 +1858,11 @@ function ImportProductsModal({
           return suffix ? `${baseSku}-${suffix}` : baseSku;
         })(),
         barcode: raw['barcode'] || undefined,
-        cost_aud: numOrNull(raw['cost_aud'] ?? ''),
-        price_rrp: numOrNull(raw['rrp'] ?? ''),
-        price_wholesale: numOrNull(raw['price_wholesale'] ?? ''),
-        weight_kg: numOrNull(raw['weight_kg'] ?? ''),
-        pack_size: numOrNull(raw['pack_size'] ?? ''),
+        cost_aud: numOrNull(raw['cost_aud']),
+        price_rrp: numOrNull(raw['rrp']),
+        price_wholesale: numOrNull(raw['price_wholesale']),
+        weight_kg: numOrNull(raw['weight_kg']),
+        pack_size: numOrNull(raw['pack_size']),
         option1_name: raw['option1_name'] || undefined,
         option1_value: raw['option1_value'] || undefined,
         option2_name: raw['option2_name'] || undefined,

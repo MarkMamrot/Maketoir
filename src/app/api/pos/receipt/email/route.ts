@@ -54,12 +54,18 @@ export async function POST(req: Request) {
   const changeDue = body.changeDue ?? 0;
   const total     = (sale.total ?? 0) + (sale.cash_rounding ?? 0);
 
-  const itemRows = (sale.items ?? []).map((i: any) => `
+  const itemRows = (sale.items ?? []).map((i: any) => {
+    const isOnSale = i.original_price != null && i.original_price !== i.unit_price;
+    const origAmt  = isOnSale ? fmt((i.original_price ?? 0) * Math.abs(i.qty ?? 1)) : '';
+    return `
     <tr>
-      <td style="padding:4px 0;font-size:13px;">${i.qty}× ${i.name ?? ''}</td>
-      <td style="padding:4px 0;font-size:13px;text-align:right;">$${fmt(i.line_total ?? 0)}</td>
-    </tr>
-  `).join('');
+      <td style="padding:4px 0;font-size:13px;">${i.qty}&times; ${i.name ?? ''}</td>
+      <td style="padding:4px 0;font-size:13px;text-align:right;white-space:nowrap;">
+        ${isOnSale ? `<span style="text-decoration:line-through;color:#9ca3af;margin-right:5px;font-size:11px;">$${origAmt}</span>` : ''}
+        <span style="${isOnSale ? 'color:#d97706;font-weight:700;' : ''}">$${fmt(i.line_total ?? 0)}</span>
+      </td>
+    </tr>`;
+  }).join('');
 
   const paymentRows = (sale.payments ?? []).map((p: any) => `
     <tr>
