@@ -29,7 +29,8 @@ async function getShopify(businessId: string) {
   if (!rawShopId || !encToken) return null;
   const shopName = rawShopId.replace(/\.myshopify\.com$/, '');
   if (!/^[a-zA-Z0-9-]+$/.test(shopName)) return null;
-  return { service: new ShopifyService(shopName, decrypt(encToken)), shopName, shopDomain: `${shopName}.myshopify.com` };
+  const accessToken = decrypt(encToken);
+  return { service: new ShopifyService(shopName, accessToken), shopName, shopDomain: `${shopName}.myshopify.com`, accessToken };
 }
 
 /**
@@ -200,20 +201,36 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       tags: product.tags ?? '',
     });
 
-    // Prices, SKU and barcode per linked variant
+    // Prices, SKU and barcode per linked variant.
+    // Use direct fetch (not the shopify-api-node wrapper) so sku + barcode fields are
+    // not silently dropped by the library's type mapping.
     let pricesUpdated = 0;
+    const variantErrors: string[] = [];
     for (const v of variants) {
-      if (v.shopify_variant_id) {
-        try {
-          const variantPayload: Record<string, any> = {
-            ...shopifyVariantPricePayload(v.price_rrp, v.price_rrp_sale),
-          };
-          // Always sync SKU and barcode so they don't get lost after the initial create
-          if (v.sku)     variantPayload.sku     = v.sku;
-          if (v.barcode) variantPayload.barcode = v.barcode;
-          await shop.service.updateVariant(v.shopify_variant_id, variantPayload);
+      if (!v.shopify_variant_id) continue;
+      const variantPayload: Record<string, any> = {
+        ...shopifyVariantPricePayload(v.price_rrp, v.price_rrp_sale),
+      };
+      if (v.sku)     variantPayload.sku     = v.sku;
+      if (v.barcode) variantPayload.barcode = v.barcode;
+      try {
+        const vRes = await fetch(
+          `https://${shop.shopName}.myshopify.com/admin/api/2024-01/variants/${v.shopify_variant_id}.json`,
+          {
+            method: 'PUT',
+            headers: { 'X-Shopify-Access-Token': shop.accessToken, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ variant: { id: Number(v.shopify_variant_id), ...variantPayload } }),
+            signal: AbortSignal.timeout(15000),
+          },
+        );
+        if (!vRes.ok) {
+          const errText = await vRes.text();
+          variantErrors.push(`Variant ${v.shopify_variant_id}: HTTP ${vRes.status} — ${errText.slice(0, 120)}`);
+        } else {
           pricesUpdated++;
-        } catch {}
+        }
+      } catch (vErr: any) {
+        variantErrors.push(`Variant ${v.shopify_variant_id}: ${vErr.message}`);
       }
     }
 
@@ -240,13 +257,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       }
     } catch {}
 
-    await ImsShopifyRepo.logAction('resync', 'success', `Pushed "${product.name}" to Shopify (prices: ${pricesUpdated}, images: +${imagesAdded}${imageErrors.length ? `, ${imageErrors.length} image error(s)` : ''})`, session.businessId, { product_id: params.id }).catch(() => {});
+    await ImsShopifyRepo.logAction('resync', 'success', `Pushed "${product.name}" to Shopify (prices/sku/barcode: ${pricesUpdated}${variantErrors.length ? `, ${variantErrors.length} variant error(s)` : ''}, images: +${imagesAdded}${imageErrors.length ? `, ${imageErrors.length} image error(s)` : ''})`, session.businessId, { product_id: params.id }).catch(() => {});
 
     // Push inventory quantities using the same pick-location + buffer logic as the live sync
     const linkedVariantIds = variants.filter(v => v.shopify_variant_id).map(v => v.variant_id);
     const invResult = await pushInventoryForBusiness(session.businessId, { variantIds: linkedVariantIds, force: true }).catch(() => ({ pushed: 0, skipped: 0, errors: ['Inventory push failed'], locationId: null }));
 
-    return NextResponse.json({ success: true, updated: true, pricesUpdated, imagesAdded, imageErrors, inventoryPushed: invResult.pushed, inventoryErrors: invResult.errors });
+    return NextResponse.json({ success: true, updated: true, pricesUpdated, variantErrors, imagesAdded, imageErrors, inventoryPushed: invResult.pushed, inventoryErrors: invResult.errors });
   } catch (e: any) {
     // Surface the actual Shopify validation errors when available (e.g. 422 details)
     const shopifyErrors = e.response?.body?.errors ?? e.response?.body ?? null;
