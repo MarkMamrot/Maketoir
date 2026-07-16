@@ -3081,6 +3081,14 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const [filterSupplier, setFilterSupplier] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterActive, setFilterActive] = useState<'all' | '1' | '0'>('all');
+  // Advanced Filters dropdown
+  const [filtersOpen, setFiltersOpen]         = useState(false);
+  const [filterWebsite, setFilterWebsite]     = useState<'all' | 'yes' | 'no'>('all');
+  const [filterShopify, setFilterShopify]     = useState<'all' | 'yes' | 'no'>('all');
+  const [filterSohOp,   setFilterSohOp]       = useState<'>=' | '<=' | '='>('>=');
+  const [filterSohVal,  setFilterSohVal]      = useState('');
+  const [filterAvailOp, setFilterAvailOp]     = useState<'>=' | '<=' | '='>('>=');
+  const [filterAvailVal, setFilterAvailVal]   = useState('');
   const [sortCol, setSortCol] = useState<string>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
@@ -3455,6 +3463,30 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
     if (filterSupplier && !(p.supplier_name || '').toLowerCase().includes(filterSupplier.toLowerCase())) return false;
     if (filterType  && p.product_type !== filterType) return false;
     if (filterActive !== 'all' && String(p.is_active) !== filterActive) return false;
+    // Advanced filters
+    if (filterWebsite === 'yes' && !p.is_online) return false;
+    if (filterWebsite === 'no'  && p.is_online)  return false;
+    if (filterShopify === 'yes' && !p.shopify_product_id) return false;
+    if (filterShopify === 'no'  &&  p.shopify_product_id) return false;
+    // SOH / Available filters — only when stockSoh is loaded and a value is entered
+    if (stockSoh !== null && filterSohVal !== '') {
+      const soh = Number(filterSohVal);
+      const pSoh = (p.variants ?? []).reduce((s: number, v: any) => s + (stockSoh![v.variant_id] ?? 0), 0);
+      if (!isNaN(soh)) {
+        if (filterSohOp === '>=' && pSoh < soh) return false;
+        if (filterSohOp === '<=' && pSoh > soh) return false;
+        if (filterSohOp === '=' && pSoh !== soh) return false;
+      }
+    }
+    if (stockSoh !== null && filterAvailVal !== '') {
+      const av = Number(filterAvailVal);
+      const pAvail = (p.variants ?? []).reduce((s: number, v: any) => s + (stockAvail[v.variant_id] ?? 0), 0);
+      if (!isNaN(av)) {
+        if (filterAvailOp === '>=' && pAvail < av) return false;
+        if (filterAvailOp === '<=' && pAvail > av) return false;
+        if (filterAvailOp === '=' && pAvail !== av) return false;
+      }
+    }
     if (filter) {
       const q = filter.toLowerCase();
       if (!p.name.toLowerCase().includes(q) &&
@@ -3683,14 +3715,112 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           <option value="">All Product Types</option>
           {typeOptions.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
-        <select value={filterActive} onChange={e => { setFilterActive(e.target.value as any); setPage(1); }} style={{ ...inputStyle, minWidth: 120, flex: '0 0 120px' }}>
-          <option value="all">All Status</option>
-          <option value="1">Active</option>
-          <option value="0">Inactive</option>
-        </select>
-        {(filter || filterBrand || filterSupplier || filterType || filterActive !== 'all') && (
-          <button onClick={() => { setFilter(''); setFilterBrand(''); setFilterSupplier(''); setFilterType(''); setFilterActive('all'); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
+        {(filter || filterBrand || filterSupplier || filterType || filterActive !== 'all' ||
+          filterWebsite !== 'all' || filterShopify !== 'all' || filterSohVal !== '' || filterAvailVal !== '') && (
+          <button onClick={() => {
+            setFilter(''); setFilterBrand(''); setFilterSupplier(''); setFilterType('');
+            setFilterActive('all'); setFilterWebsite('all'); setFilterShopify('all');
+            setFilterSohVal(''); setFilterAvailVal(''); setPage(1);
+          }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
         )}
+        {/* ── Filters dropdown ── */}
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setFiltersOpen(p => !p)}
+            style={{
+              ...btnStyle('secondary', 'sm'),
+              ...(filterActive !== 'all' || filterWebsite !== 'all' || filterShopify !== 'all' || filterSohVal !== '' || filterAvailVal !== ''
+                ? { background: 'color-mix(in srgb, var(--sv-action) 12%, var(--sv-bg-2))', borderColor: 'var(--sv-action)', color: 'var(--sv-action)' }
+                : {}),
+            }}
+          >
+            Filters ▾{(filterActive !== 'all' || filterWebsite !== 'all' || filterShopify !== 'all' || filterSohVal !== '' || filterAvailVal !== '') ? ' ●' : ''}
+          </button>
+          {filtersOpen && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setFiltersOpen(false)} />
+              <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 100, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px', marginTop: 4, minWidth: 280, boxShadow: '0 6px 20px rgba(0,0,0,0.14)' }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 12 }}>Filters</p>
+
+                {/* Status */}
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Status</label>
+                  <select value={filterActive} onChange={e => { setFilterActive(e.target.value as any); setPage(1); }} style={{ ...inputStyle, width: '100%' }}>
+                    <option value="all">All</option>
+                    <option value="1">Active</option>
+                    <option value="0">Inactive</option>
+                  </select>
+                </div>
+
+                {/* Website Product */}
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Website Product</label>
+                  <select value={filterWebsite} onChange={e => { setFilterWebsite(e.target.value as any); setPage(1); }} style={{ ...inputStyle, width: '100%' }}>
+                    <option value="all">All</option>
+                    <option value="yes">Yes — online</option>
+                    <option value="no">No — not online</option>
+                  </select>
+                </div>
+
+                {/* Shopify Synced */}
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Shopify Synced</label>
+                  <select value={filterShopify} onChange={e => { setFilterShopify(e.target.value as any); setPage(1); }} style={{ ...inputStyle, width: '100%' }}>
+                    <option value="all">All</option>
+                    <option value="yes">Yes — linked</option>
+                    <option value="no">No — not linked</option>
+                  </select>
+                </div>
+
+                {/* SOH */}
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>
+                    SOH {stockSoh === null && <span style={{ fontWeight: 400, fontStyle: 'italic' }}>(load stock to filter)</span>}
+                  </label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <select value={filterSohOp} onChange={e => { setFilterSohOp(e.target.value as any); setPage(1); }} style={{ ...inputStyle, width: 60 }}>
+                      <option value=">=">≥</option>
+                      <option value="<=">≤</option>
+                      <option value="=">=</option>
+                    </select>
+                    <input
+                      type="number"
+                      min={0}
+                      value={filterSohVal}
+                      onChange={e => { setFilterSohVal(e.target.value); setPage(1); }}
+                      placeholder="value"
+                      style={{ ...inputStyle, flex: 1 }}
+                    />
+                    {filterSohVal !== '' && <button onClick={() => { setFilterSohVal(''); setPage(1); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 16 }}>×</button>}
+                  </div>
+                </div>
+
+                {/* Stock Available */}
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>
+                    Stock Available {stockSoh === null && <span style={{ fontWeight: 400, fontStyle: 'italic' }}>(load stock to filter)</span>}
+                  </label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <select value={filterAvailOp} onChange={e => { setFilterAvailOp(e.target.value as any); setPage(1); }} style={{ ...inputStyle, width: 60 }}>
+                      <option value=">=">≥</option>
+                      <option value="<=">≤</option>
+                      <option value="=">=</option>
+                    </select>
+                    <input
+                      type="number"
+                      min={0}
+                      value={filterAvailVal}
+                      onChange={e => { setFilterAvailVal(e.target.value); setPage(1); }}
+                      placeholder="value"
+                      style={{ ...inputStyle, flex: 1 }}
+                    />
+                    {filterAvailVal !== '' && <button onClick={() => { setFilterAvailVal(''); setPage(1); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 16 }}>×</button>}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
         <div style={{ position: 'relative' }}>
           <button
             id="products-fields-btn"
