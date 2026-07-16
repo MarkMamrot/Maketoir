@@ -139,6 +139,12 @@ export async function POST(req: Request) {
 
   const prompt = `You are an expert invoice parser. Analyse the attached supplier invoice document and extract all data precisely.
 
+CRITICAL — determine the tax treatment of the line item prices FIRST:
+Look for clues: column headers like "Price (incl. GST)", "Inc GST", "Price (ex GST)", "Ex Tax", footnotes like "All prices include GST", or cross-check: if the sum of line_total values equals the invoice subtotal (ex-tax figure) then prices are ex_tax; if it equals the total_amount (inc-tax figure) then prices are inc_tax.
+Set "prices_include_tax" to exactly one of: "inc_tax" (line prices already include tax), "ex_tax" (line prices are before tax), "no_tax" (no tax applies).
+
+Return unit_price and line_total EXACTLY as they appear on the invoice — do NOT convert inc-tax prices to ex-tax. The system handles the tax arithmetic using prices_include_tax.
+
 Return ONLY a valid JSON object — no markdown fences, no extra text:
 {
   "supplier_name": "exact supplier name as printed on the invoice",
@@ -146,6 +152,7 @@ Return ONLY a valid JSON object — no markdown fences, no extra text:
   "invoice_date": "YYYY-MM-DD or null",
   "due_date": "YYYY-MM-DD or null",
   "currency": "3-letter code e.g. AUD, USD, GBP — default AUD if not shown",
+  "prices_include_tax": "inc_tax",
   "subtotal": 0.00,
   "tax_total": 0.00,
   "total_amount": 0.00,
@@ -160,7 +167,7 @@ Return ONLY a valid JSON object — no markdown fences, no extra text:
       "unit_price": 0.00,
       "discount_pct": 0,
       "line_total": 0.00,
-      "tax_rate": 0.0
+      "tax_rate": 0.1
     }
   ]
 }
@@ -168,8 +175,8 @@ Return ONLY a valid JSON object — no markdown fences, no extra text:
 Notes:
 - product_code = the supplier's code for the item (often labelled "Item Code", "Part No", "SKU", "Code", "Style" etc.)
 - Extract ALL line items even if there are many
-- If prices are inc-tax, estimate the ex-tax unit_price and set appropriate tax_rate (e.g. 0.1 for 10% GST)
-- For tax_rate: use 0.1 for Australian GST, 0 for GST-free
+- unit_price and line_total = values AS PRINTED on the invoice, never convert
+- tax_rate: 0.1 for Australian GST, 0 for GST-free items (applies even when prices_include_tax is inc_tax)
 
 IMS Supplier list — set matched_supplier_id to the numeric id of the best match, or null:
 ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
@@ -295,15 +302,16 @@ ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
   return NextResponse.json({
     success: true,
     invoice: {
-      supplier_name:  parsedInvoice.supplier_name  ?? null,
-      invoice_number: parsedInvoice.invoice_number ?? null,
-      invoice_date:   parsedInvoice.invoice_date   ?? null,
-      due_date:       parsedInvoice.due_date        ?? null,
-      currency:       parsedInvoice.currency        ?? 'AUD',
-      subtotal:       parsedInvoice.subtotal        ?? null,
-      tax_total:      parsedInvoice.tax_total       ?? null,
-      total_amount:   parsedInvoice.total_amount    ?? null,
-      payment_terms:  parsedInvoice.payment_terms   ?? null,
+      supplier_name:      parsedInvoice.supplier_name      ?? null,
+      invoice_number:     parsedInvoice.invoice_number     ?? null,
+      invoice_date:       parsedInvoice.invoice_date       ?? null,
+      due_date:           parsedInvoice.due_date           ?? null,
+      currency:           parsedInvoice.currency           ?? 'AUD',
+      prices_include_tax: (['inc_tax','ex_tax','no_tax'].includes(parsedInvoice.prices_include_tax) ? parsedInvoice.prices_include_tax : 'ex_tax') as 'inc_tax' | 'ex_tax' | 'no_tax',
+      subtotal:           parsedInvoice.subtotal           ?? null,
+      tax_total:          parsedInvoice.tax_total          ?? null,
+      total_amount:       parsedInvoice.total_amount       ?? null,
+      payment_terms:      parsedInvoice.payment_terms      ?? null,
     },
     matched_supplier: matchedSupplier,
     line_results:     lineResults,

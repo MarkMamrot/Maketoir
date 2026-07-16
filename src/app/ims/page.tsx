@@ -5138,7 +5138,7 @@ function StockView() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 type InvoiceParseResult = {
-  invoice: { supplier_name: string | null; invoice_number: string | null; invoice_date: string | null; currency: string; subtotal: number | null; tax_total: number | null; total_amount: number | null; payment_terms: string | null };
+  invoice: { supplier_name: string | null; invoice_number: string | null; invoice_date: string | null; currency: string; prices_include_tax: 'inc_tax' | 'ex_tax' | 'no_tax'; subtotal: number | null; tax_total: number | null; total_amount: number | null; payment_terms: string | null };
   matched_supplier: { id: number; name: string } | null;
   line_results: Array<{
     invoice_line: { product_code: string | null; product_name: string; qty: number; unit_price: number; discount_pct: number; line_total: number; tax_rate: number };
@@ -5153,7 +5153,7 @@ type InvoiceParseResult = {
 
 function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, variants, poId, pendingFile }: {
   onClose: () => void;
-  onImport?: (data: { supplier_id: number | ''; invoice_number: string; invoice_date: string; currency: string; payment_terms: string; line_items: Array<{ variant_id: string; qty_ordered: number; unit_cost: number; discount_pct: number; tax_rate: number }> }) => void;
+  onImport?: (data: { supplier_id: number | ''; invoice_number: string; invoice_date: string; currency: string; payment_terms: string; tax_treatment: 'inc_tax' | 'ex_tax' | 'no_tax'; line_items: Array<{ variant_id: string; qty_ordered: number; unit_cost: number; discount_pct: number; tax_rate: number }> }) => void;
   onPreFillReceive?: (qtys: Record<string, number>) => void;
   suppliers: any[]; variants: any[]; poId?: number | null; pendingFile?: File | null;
 }) {
@@ -5166,6 +5166,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
   const [invoiceDate, setInvoiceDate] = React.useState('');
   const [currency, setCurrency] = React.useState('AUD');
   const [payTerms, setPayTerms] = React.useState('');
+  const [taxTreatment, setTaxTreatment] = React.useState<'inc_tax' | 'ex_tax' | 'no_tax'>('ex_tax');
   const [overrides, setOverrides] = React.useState<Record<number, string>>({});
   const [skipped, setSkipped] = React.useState<Set<number>>(new Set());
   const [aiMatchLoading, setAiMatchLoading] = React.useState(false);
@@ -5194,6 +5195,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
       setInvoiceDate(r.invoice?.invoice_date ?? '');
       setCurrency(r.invoice?.currency ?? 'AUD');
       setPayTerms(r.invoice?.payment_terms ?? '');
+      setTaxTreatment(r.invoice?.prices_include_tax ?? 'ex_tax');
       setOverrides({}); setSkipped(new Set()); setStage('review');
     } catch (e: any) { setError(e.message ?? 'An error occurred'); setStage('idle'); }
   }
@@ -5220,7 +5222,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
       .filter((_, i) => !skipped.has(i))
       .map((lr, i) => { const vid = getVid(i, lr); return vid ? { variant_id: vid, qty_ordered: Number(lr.invoice_line.qty) || 1, unit_cost: Number(lr.invoice_line.unit_price) || 0, discount_pct: Number(lr.invoice_line.discount_pct) || 0, tax_rate: Number(lr.invoice_line.tax_rate) || 0.1 } : null; })
       .filter((x): x is NonNullable<typeof x> => x !== null);
-    onImport({ supplier_id: supplierId, invoice_number: invoiceNum, invoice_date: invoiceDate, currency, payment_terms: payTerms, line_items });
+    onImport({ supplier_id: supplierId, invoice_number: invoiceNum, invoice_date: invoiceDate, currency, payment_terms: payTerms, tax_treatment: taxTreatment, line_items });
     onClose();
   }
 
@@ -6589,6 +6591,8 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
               supplier_invoice_date: data.invoice_date,
               currency_code: data.currency || 'AUD',
               payment_terms: data.payment_terms || p.payment_terms,
+              // Apply AI-detected tax treatment so prices are stored exactly as on the invoice
+              tax_treatment: data.tax_treatment ?? p.tax_treatment,
             }));
             if (data.supplier_id) selectSupplier(String(data.supplier_id));
             if (data.line_items.length > 0) setLineItems(data.line_items);
