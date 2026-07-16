@@ -4731,6 +4731,8 @@ interface PendingOnlineProduct {
   id: string; code: string; product_id: string;
   name: string; brand: string; supplier_name: string;
   sku: string; styleCode: string; retailPrice: string;
+  is_online: number;      // 0 or 1 from IMS
+  shopify_linked: boolean; // shopify_product_id is set
 }
 
 interface ProductContent {
@@ -4760,6 +4762,22 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   const [useBrandSite, setUseBrandSite]       = useState(true);
   const [useGeneralResults, setUseGeneralResults] = useState(true);
   const [searchAuOnly, setSearchAuOnly]       = useState(true);
+
+  // Workflow mode: 'auto' = Auto Generate (hide manual step buttons)
+  //                'manual' = show individual Find URLs / Research / Format / Push buttons
+  // Persisted to localStorage so preference survives page reload.
+  const [workflowMode, setWorkflowMode] = useState<'auto' | 'manual'>(() => {
+    try { return (localStorage.getItem('lptw_workflow_mode') as 'auto' | 'manual') ?? 'manual'; }
+    catch { return 'manual'; }
+  });
+  const setAndPersistMode = (m: 'auto' | 'manual') => {
+    setWorkflowMode(m);
+    try { localStorage.setItem('lptw_workflow_mode', m); } catch {}
+  };
+
+  // Column filters: Website Product (is_online) and Shopify Synced
+  const [filterWebsite, setFilterWebsite] = useState<'yes' | 'no' | 'any'>('yes');
+  const [filterShopify, setFilterShopify] = useState<'yes' | 'no' | 'any'>('no');
 
   // Content state
   const [contentMap, setContentMap]     = useState<Record<string, ProductContent>>({});
@@ -4825,8 +4843,8 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
       const res = await fetch('/api/ims/shopify/products');
       const data = await res.json();
       if (!data.success) { setError(data.error ?? 'Unknown error'); return; }
+      // Fetch all IMS products (no pre-filter) so the UI filters work live
       const mapped: PendingOnlineProduct[] = ((data.data ?? []) as any[])
-        .filter(p => Number(p.is_online) === 1 && p.shopify_status === 'not_in_shopify')
         .map(p => ({
           id:            p.product_id,
           code:          p.product_id,
@@ -4837,6 +4855,8 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           sku:           p.variants?.[0]?.sku ?? p.base_sku ?? '',
           styleCode:     p.style_code ?? '',
           retailPrice:   String(p.variants?.[0]?.price_rrp ?? ''),
+          is_online:     Number(p.is_online ?? 0),
+          shopify_linked: !!(p.shopify_product_id),
         }));
       setProducts(mapped);
     } catch (e: any) {
@@ -5256,6 +5276,10 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
       const exc = brandExclude.toLowerCase();
       if (p.brand.toLowerCase().includes(exc)) return false;
     }
+    if (filterWebsite === 'yes'  && p.is_online !== 1)   return false;
+    if (filterWebsite === 'no'   && p.is_online === 1)   return false;
+    if (filterShopify === 'yes'  && !p.shopify_linked)   return false;
+    if (filterShopify === 'no'   && p.shopify_linked)    return false;
     return true;
   }) ?? [];
 
@@ -5283,21 +5307,64 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           {settingsOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setSettingsOpen(false)} />
-              <div className="absolute right-0 top-full mt-1 w-72 bg-white border border-gray-200 rounded-xl shadow-xl z-20 p-4">
+              <div className="absolute right-0 top-full mt-1 w-80 bg-white border border-gray-200 rounded-xl shadow-xl z-20 p-4">
                 <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-3">Settings</p>
-                <div className="space-y-4">
+                <div className="space-y-5">
+
+                  {/* Workflow mode */}
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 mb-2">Workflow mode</p>
+                    <div className="space-y-2">
+                      <label className="flex items-start gap-2.5 cursor-pointer group">
+                        <input type="radio" name="workflowMode" value="manual" checked={workflowMode === 'manual'} onChange={() => setAndPersistMode('manual')} className="mt-0.5 accent-blue-600 shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-700 group-hover:text-blue-700 leading-tight">Manual Steps</p>
+                          <p className="text-xs text-gray-400 mt-0.5">Find URLs, Get Images &amp; Research, Format Content, Push to Online Shop.</p>
+                        </div>
+                      </label>
+                      <label className="flex items-start gap-2.5 cursor-pointer group">
+                        <input type="radio" name="workflowMode" value="auto" checked={workflowMode === 'auto'} onChange={() => setAndPersistMode('auto')} className="mt-0.5 accent-blue-600 shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-700 group-hover:text-blue-700 leading-tight">Auto Generate</p>
+                          <p className="text-xs text-gray-400 mt-0.5">Generate Product Descriptions &amp; Images (full pipeline) and Push to Online Shop.</p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Search Sources */}
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 mb-2">Search Sources</p>
+                    <div className="space-y-1.5">
+                      <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                        <input type="checkbox" checked={useSupplierSite} onChange={e => setUseSupplierSite(e.target.checked)} className="w-4 h-4 rounded accent-indigo-600" />
+                        Supplier site
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                        <input type="checkbox" checked={useBrandSite} onChange={e => setUseBrandSite(e.target.checked)} className="w-4 h-4 rounded accent-indigo-600" />
+                        Brand site
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                        <input type="checkbox" checked={useGeneralResults} onChange={e => setUseGeneralResults(e.target.checked)} className="w-4 h-4 rounded accent-indigo-600" />
+                        General web
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none" title="Restrict search to Australian results">
+                        <input type="checkbox" checked={searchAuOnly} onChange={e => setSearchAuOnly(e.target.checked)} className="w-4 h-4 rounded accent-indigo-600" />
+                        🇦🇺 AU only
+                      </label>
+                      <p className="text-xs text-gray-400 italic mt-1">Supplier &amp; Brand URLs are looked up per product from your Contacts &amp; Brands.</p>
+                    </div>
+                  </div>
+
+                  {/* Scraper results */}
                   <label className="flex items-start gap-2.5 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={showPreflightDialog}
-                      onChange={e => setShowPreflightDialog(e.target.checked)}
-                      className="mt-0.5 accent-blue-600 shrink-0"
-                    />
+                    <input type="checkbox" checked={showPreflightDialog} onChange={e => setShowPreflightDialog(e.target.checked)} className="mt-0.5 accent-blue-600 shrink-0" />
                     <div>
                       <p className="text-sm font-medium text-gray-700 group-hover:text-blue-700 leading-tight">Show Scraper Results Dialog</p>
                       <p className="text-xs text-gray-400 mt-0.5">Display the raw Tavily search payload and response after each product research run.</p>
                     </div>
                   </label>
+
                 </div>
               </div>
             </>
@@ -5305,43 +5372,16 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         </div>
 
         <div className="flex flex-wrap items-end gap-4 mb-5">
-          <button
-            onClick={handleFind}
-            disabled={loading}
-            className="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-          >
+          <button onClick={handleFind} disabled={loading} className="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
             {loading ? 'Searching…' : 'Find Products Not On The Online Shop'}
           </button>
-        </div>
-
-        {/* Search Sources card — controls which sites Find URLs prioritises */}
-        <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl">
-          <span className="text-xs font-bold text-gray-600 uppercase tracking-wide">Search Sources</span>
-          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-            <input type="checkbox" checked={useSupplierSite} onChange={e => setUseSupplierSite(e.target.checked)} className="w-4 h-4 rounded accent-indigo-600" />
-            Supplier site
-          </label>
-          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-            <input type="checkbox" checked={useBrandSite} onChange={e => setUseBrandSite(e.target.checked)} className="w-4 h-4 rounded accent-indigo-600" />
-            Brand site
-          </label>
-          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-            <input type="checkbox" checked={useGeneralResults} onChange={e => setUseGeneralResults(e.target.checked)} className="w-4 h-4 rounded accent-indigo-600" />
-            General web
-          </label>
-          <span className="h-4 w-px bg-gray-300" />
-          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none" title="Restrict search to Australian results">
-            <input type="checkbox" checked={searchAuOnly} onChange={e => setSearchAuOnly(e.target.checked)} className="w-4 h-4 rounded accent-indigo-600" />
-            🇦🇺 AU only
-          </label>
-          <span className="text-xs text-gray-400 italic">Supplier &amp; Brand URLs are looked up per product from your Contacts &amp; Brands.</span>
         </div>
 
         {error && <p className="text-sm text-red-600 mb-3">❌ {error}</p>}
 
         {products !== null && (
           <div className="text-xs text-gray-500 mb-3 flex flex-wrap gap-x-4 gap-y-1">
-            <span><strong>{products.length}</strong> product{products.length !== 1 ? 's' : ''} ready to load to the online shop</span>
+            <span><strong>{filtered.length}</strong> of <strong>{products.length}</strong> product{products.length !== 1 ? 's' : ''} shown</span>
           </div>
         )}
 
@@ -5355,117 +5395,70 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
 
         {products !== null && products.length > 0 && (
           <>
-            <div className="mb-3 flex flex-wrap gap-2">
-              <input
-                type="text"
-                placeholder="Filter by name, SKU, brand or style code…"
-                value={filter}
-                onChange={e => setFilter(e.target.value)}
-                className="flex-1 min-w-[180px] max-w-sm px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-              <input
-                type="text"
-                placeholder="Brand excludes…"
-                value={brandExclude}
-                onChange={e => setBrandExclude(e.target.value)}
-                className="w-44 px-3 py-1.5 border border-red-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
-                title="Hide products whose brand contains this text"
-              />
+            <div className="mb-3 flex flex-wrap gap-2 items-center">
+              <input type="text" placeholder="Filter by name, SKU, brand or style code…" value={filter} onChange={e => setFilter(e.target.value)} className="flex-1 min-w-[180px] max-w-sm px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+              <input type="text" placeholder="Brand excludes…" value={brandExclude} onChange={e => setBrandExclude(e.target.value)} className="w-44 px-3 py-1.5 border border-red-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-400" title="Hide products whose brand contains this text" />
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-gray-500 whitespace-nowrap">Website Product:</span>
+                <select value={filterWebsite} onChange={e => setFilterWebsite(e.target.value as 'yes' | 'no' | 'any')} className="px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-400">
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                  <option value="any">Any</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-gray-500 whitespace-nowrap">Shopify Synced:</span>
+                <select value={filterShopify} onChange={e => setFilterShopify(e.target.value as 'yes' | 'no' | 'any')} className="px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-400">
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                  <option value="any">Any</option>
+                </select>
+              </div>
             </div>
 
             <div className="space-y-1">
-              {/* 🤖 Auto Retrieve row — above individual step buttons */}
-              <div className="flex items-center gap-3 mb-2 flex-wrap">
-                <button
-                  disabled={selectedKeys.size === 0}
-                  onClick={async () => {
-                    const targets = filtered.filter(p => selectedKeys.has(p.code || '') && !removedKeys.has(p.code || ''));
-                    for (const p of targets) await handleAutomatedRetrieval(p);
-                  }}
-                  className="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded-lg hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
-                  title="Find URLs → Tavily research per URL → AI judge URLs → Scrape images → Generate content"
-                >
-                  🤖 Auto Retrieve
-                </button>
-                <span className="text-xs text-gray-400 italic">Runs the full pipeline on selected products (Find URLs → Get Images &amp; Research → Format Content)</span>
-              </div>
-              {/* Bulk actions bar */}
               <div className="flex items-center gap-3 mb-2 flex-wrap">
                 <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={filtered.length > 0 && filtered.every(p => selectedKeys.has(p.code || ''))}
-                    ref={el => {
-                      if (el) el.indeterminate = filtered.some(p => selectedKeys.has(p.code || '')) && !filtered.every(p => selectedKeys.has(p.code || ''));
-                    }}
-                    onChange={e => {
-                      if (e.target.checked) {
-                        setSelectedKeys(new Set(filtered.map(p => p.code || '')));
-                      } else {
-                        setSelectedKeys(new Set());
-                      }
-                    }}
-                    className="w-4 h-4 rounded accent-indigo-600"
-                  />
-                  <span className="text-xs text-gray-500">
-                    {selectedKeys.size > 0 ? `${selectedKeys.size} selected` : 'Select all'}
-                  </span>
+                  <input type="checkbox" checked={filtered.length > 0 && filtered.every(p => selectedKeys.has(p.code || ''))} ref={el => { if (el) el.indeterminate = filtered.some(p => selectedKeys.has(p.code || '')) && !filtered.every(p => selectedKeys.has(p.code || '')); }} onChange={e => { if (e.target.checked) { setSelectedKeys(new Set(filtered.map(p => p.code || ''))); } else { setSelectedKeys(new Set()); } }} className="w-4 h-4 rounded accent-indigo-600" />
+                  <span className="text-xs text-gray-500">{selectedKeys.size > 0 ? `${selectedKeys.size} selected` : 'Select all'}</span>
                 </label>
-                <button
-                  disabled={selectedKeys.size === 0}
-                  onClick={async () => {
-                    const targets = filtered.filter(p => selectedKeys.has(p.code || '') && !removedKeys.has(p.code || ''));
-                    for (const p of targets) await handleFindUrls(p);
-                  }}
-                  className="px-3 py-1.5 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  🔍 Find URLs
-                </button>
-                <button
-                  disabled={selectedKeys.size === 0}
-                  onClick={async () => {
-                    const targets = filtered.filter(p => selectedKeys.has(p.code || '') && !removedKeys.has(p.code || ''));
-                    for (const p of targets) await handleRunPreflight(p);
-                  }}
-                  className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  �️ Get Images & Research
-                </button>
-                <button
-                  disabled={selectedKeys.size === 0}
-                  onClick={async () => {
-                    const targets = filtered.filter(p => selectedKeys.has(p.code || '') && !removedKeys.has(p.code || ''));
-                    for (const p of targets) {
-                      const key = p.code || '';
-                      const preflight = preflightMap[key];
-                      await handleGenerateContent(p, preflight);
-                    }
-                  }}
-                  className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  ✨ Format Content
-                </button>
-                <button
-                  disabled={selectedKeys.size === 0}
-                  onClick={async () => {
-                    const targets = filtered.filter(p => selectedKeys.has(p.code || '') && !removedKeys.has(p.code || '') && !!contentMap[p.code || '']);
-                    for (const p of targets) await handlePushToOnline(p);
-                  }}
-                  className="px-3 py-1.5 bg-violet-600 text-white text-xs font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  title="Push selected products (with generated content) to the online shop"
-                >
-                  🛍️ Push to Online Shop
-                </button>
+                {workflowMode === 'auto' ? (
+                  <>
+                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = filtered.filter(p => selectedKeys.has(p.code || '') && !removedKeys.has(p.code || '')); for (const p of targets) await handleAutomatedRetrieval(p); }} className="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded-lg hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm">
+                      🤖 Generate Product Descriptions &amp; Images
+                    </button>
+                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = filtered.filter(p => selectedKeys.has(p.code || '') && !removedKeys.has(p.code || '') && !!contentMap[p.code || '']); for (const p of targets) await handlePushToOnline(p); }} className="px-3 py-1.5 bg-violet-600 text-white text-xs font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                      🛍️ Push to Online Shop
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = filtered.filter(p => selectedKeys.has(p.code || '') && !removedKeys.has(p.code || '')); for (const p of targets) await handleFindUrls(p); }} className="px-3 py-1.5 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                      🔍 Find URLs
+                    </button>
+                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = filtered.filter(p => selectedKeys.has(p.code || '') && !removedKeys.has(p.code || '')); for (const p of targets) await handleRunPreflight(p); }} className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                      🖼️ Get Images &amp; Research
+                    </button>
+                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = filtered.filter(p => selectedKeys.has(p.code || '') && !removedKeys.has(p.code || '')); for (const p of targets) { const key = p.code || ''; const preflight = preflightMap[key]; await handleGenerateContent(p, preflight); } }} className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                      ✨ Format Content
+                    </button>
+                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = filtered.filter(p => selectedKeys.has(p.code || '') && !removedKeys.has(p.code || '') && !!contentMap[p.code || '']); for (const p of targets) await handlePushToOnline(p); }} className="px-3 py-1.5 bg-violet-600 text-white text-xs font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                      🛍️ Push to Online Shop
+                    </button>
+                  </>
+                )}
               </div>
 
-              {/* Table header */}
-              <div className="hidden md:grid grid-cols-[auto_1fr_1fr_2fr_1fr_auto_auto_auto] gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600">
+              {/* Table header — 10 cols: checkbox | SKU | Style Code | Name/Brand | Price | Status | Website | Shopify | action btn | expand */}
+              <div className="hidden md:grid grid-cols-[auto_minmax(80px,1fr)_minmax(80px,1fr)_minmax(160px,3fr)_80px_100px_80px_80px_auto_auto] gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600">
                 <span></span>
                 <span>SKU</span>
                 <span>Style Code</span>
                 <span>Name / Brand</span>
                 <span>Price</span>
                 <span>Status</span>
+                <span>Website</span>
+                <span>Shopify</span>
                 <span></span>
                 <span></span>
               </div>
@@ -5499,7 +5492,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 return (
                   <div key={key}>
                     <div
-                      className={`grid grid-cols-[auto_1fr_1fr_2fr_1fr_auto_auto_auto_auto] gap-2 px-3 py-2.5 rounded-lg border items-center text-sm cursor-pointer transition-colors ${
+                      className={`grid grid-cols-[auto_minmax(80px,1fr)_minmax(80px,1fr)_minmax(160px,3fr)_80px_100px_80px_80px_auto_auto] gap-2 px-3 py-2.5 rounded-lg border items-center text-sm cursor-pointer transition-colors ${
                         isExpanded ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-white hover:bg-gray-50'
                       }`}
                       onClick={() => setExpandedCode(isExpanded ? null : key)}
@@ -5530,20 +5523,33 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${overallStatus.cls}`}>
                         {overallStatus.icon} {overallStatus.label}
                       </span>
-                      <button
-                        onClick={e => { e.stopPropagation(); handleFindUrls(p); }}
-                        disabled={isBusy || serperSearchingSet.has(key)}
-                        className="px-3 py-1.5 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700 disabled:opacity-50 whitespace-nowrap transition-colors"
-                      >
-                        {serperSearchingSet.has(key) ? '⏳ Finding…' : '🔍 Find URLs'}
-                      </button>
-                      <button
-                        onClick={e => { e.stopPropagation(); handleRunPreflight(p); }}
-                        disabled={isBusy}
-                        className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50 whitespace-nowrap transition-colors"
-                      >
-                        {buttonLabel}
-                      </button>
+                      {/* Website Product chip */}
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap text-center ${p.is_online === 1 ? 'text-emerald-700 bg-emerald-50' : 'text-gray-500 bg-gray-100'}`}>
+                        {p.is_online === 1 ? '✓ Yes' : '✗ No'}
+                      </span>
+                      {/* Shopify Synced chip */}
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap text-center ${p.shopify_linked ? 'text-blue-700 bg-blue-50' : 'text-gray-500 bg-gray-100'}`}>
+                        {p.shopify_linked ? '✓ Yes' : '✗ No'}
+                      </span>
+                      {/* Per-row action button: Auto mode = auto retrieve, Manual mode = Find URLs */}
+                      {workflowMode === 'auto' ? (
+                        <button
+                          onClick={e => { e.stopPropagation(); handleAutomatedRetrieval(p); }}
+                          disabled={isBusy}
+                          className="px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 disabled:opacity-50 whitespace-nowrap transition-colors"
+                          title="Full pipeline: Find URLs → Research → Generate content"
+                        >
+                          {automatingSet.has(key) ? `⏳ ${autoStepMap[key]?.split(':')[0] ?? 'Running…'}` : '🤖 Generate'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={e => { e.stopPropagation(); handleFindUrls(p); }}
+                          disabled={isBusy || serperSearchingSet.has(key)}
+                          className="px-3 py-1.5 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700 disabled:opacity-50 whitespace-nowrap transition-colors"
+                        >
+                          {serperSearchingSet.has(key) ? '⏳ Finding…' : '🔍 Find URLs'}
+                        </button>
+                      )}
                       <button
                         onClick={e => { e.stopPropagation(); setExpandedCode(isExpanded ? null : key); }}
                         className="text-gray-400 hover:text-gray-600 text-xs px-1"
@@ -5585,7 +5591,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                           >
                             {automatingSet.has(key)
                               ? `⏳ ${autoStepMap[key] ?? 'Running…'}`
-                              : '🤖 Auto Retrieve — Full Pipeline'}
+                              : '🤖 Generate Product Descriptions & Images — Full Pipeline'}
                           </button>
                         </div>
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">AI Generation Inputs</p>
