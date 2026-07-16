@@ -13770,8 +13770,12 @@ export default function ImsPage() {
   }, [VALID_VIEWS]);
 
   // Keep hash in sync whenever the active view changes.
+  // Don't overwrite deep-link hashes like #products/<id> — ProductsView needs those intact.
   useEffect(() => {
-    window.history.pushState(null, '', `#${view}`);
+    const current = window.location.hash.replace(/^#/, '');
+    if (!current.startsWith(`${view}/`)) {
+      window.history.pushState(null, '', `#${view}`);
+    }
   }, [view]);
 
   useEffect(() => {
