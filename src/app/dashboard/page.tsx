@@ -4725,6 +4725,41 @@ const ShopifyOrdersSync = forwardRef<WebsiteSyncHandle, {
 });
 
 // ── Load Products To Website (IMS → Online Shop) ─────────────────────────────
+// Hover-zoom thumbnail — shows a 240×240 popup near the cursor
+function ZoomThumb({ src, className }: { src: string; className?: string }) {
+  const [mouse, setMouse] = React.useState<{ x: number; y: number } | null>(null);
+  const [err,   setErr]   = React.useState(false);
+  if (err) return null;
+  return (
+    <div
+      className={className}
+      style={{ position: 'relative', overflow: 'visible' }}
+      onMouseEnter={e => setMouse({ x: e.clientX, y: e.clientY })}
+      onMouseMove={e  => setMouse({ x: e.clientX, y: e.clientY })}
+      onMouseLeave={() => setMouse(null)}
+    >
+      <img src={src} alt="" className="w-full h-full object-cover" onError={() => setErr(true)} />
+      {mouse && (
+        <div style={{
+          position: 'fixed',
+          left: mouse.x + 18,
+          top:  Math.max(8, mouse.y - 120),
+          zIndex: 9999,
+          pointerEvents: 'none',
+          background: '#fff',
+          border: '1px solid #e5e7eb',
+          borderRadius: 10,
+          boxShadow: '0 12px 40px rgba(0,0,0,0.22)',
+          padding: 4,
+          width: 240, height: 240,
+        }}>
+          <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', borderRadius: 6 }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface PendingOnlineProduct {
   // `id` and `code` both hold the IMS product_id — `code` is the state map key
   // and `product_id` drives the Push to Online Shop / shopify-sync call.
@@ -5626,7 +5661,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                                     {urlPhotosMap[key][idx].map((photoUrl, pi) => (
                                       <div key={pi} className="relative w-10 h-10">
                                         <a href={photoUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
-                                          <img src={photoUrl} alt="" className="w-10 h-10 object-cover rounded border border-blue-200 hover:border-blue-400 transition-colors" onError={e => { (e.target as HTMLImageElement).parentElement!.parentElement!.style.display = 'none'; }} />
+                                          <ZoomThumb src={photoUrl} className="w-10 h-10 rounded border border-blue-200 overflow-hidden" />
                                         </a>
                                         <button
                                           onClick={e => { e.stopPropagation(); setUrlPhotosMap(prev => { const updated = [...(prev[key] ?? [[], [], []])]; updated[idx] = updated[idx].filter((_, i) => i !== pi); return { ...prev, [key]: updated }; }); }}
@@ -5664,7 +5699,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                                 {(tavilyPhotosMap[key] ?? []).map((url, idx) => (
                                   <div key={idx} className="relative w-16 h-16">
                                     <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
-                                      <img src={url} alt="" className="w-16 h-16 object-cover rounded border border-emerald-200 hover:border-emerald-400 transition-colors" onError={e => { (e.target as HTMLImageElement).parentElement!.style.display = 'none'; }} />
+                                      <ZoomThumb src={url} className="w-16 h-16 rounded border border-emerald-200 overflow-hidden" />
                                     </a>
                                     <button
                                       onClick={e => { e.stopPropagation(); setTavilyPhotosMap(prev => ({ ...prev, [key]: (prev[key] ?? []).filter((_, i) => i !== idx) })); }}
@@ -5684,7 +5719,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                                 {(scrapedPhotosMap[key] ?? []).map((url, idx) => (
                                   <div key={idx} className="relative w-16 h-16">
                                     <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
-                                      <img src={url} alt="" className="w-16 h-16 object-cover rounded border border-sky-200 hover:border-sky-400 transition-colors" onError={e => { (e.target as HTMLImageElement).parentElement!.style.display = 'none'; }} />
+                                      <ZoomThumb src={url} className="w-16 h-16 rounded border border-sky-200 overflow-hidden" />
                                     </a>
                                     <button
                                       onClick={e => { e.stopPropagation(); setScrapedPhotosMap(prev => ({ ...prev, [key]: (prev[key] ?? []).filter((_, i) => i !== idx) })); }}

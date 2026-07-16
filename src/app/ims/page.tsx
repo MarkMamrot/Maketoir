@@ -2531,6 +2531,45 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
 }
 
 
+// ── Hover-zoom image ──────────────────────────────────────────────────────────────
+function ZoomImg({ src, className: _cls, thumbStyle }: { src: string; className?: string; thumbStyle?: React.CSSProperties }) {
+  const [mouse, setMouse] = useState<{ x: number; y: number } | null>(null);
+  const [hidden, setHidden] = useState(false);
+  if (hidden) return null;
+  return (
+    <div
+      style={{ position: 'relative', width: '100%', height: '100%' }}
+      onMouseEnter={e => setMouse({ x: e.clientX, y: e.clientY })}
+      onMouseMove={e  => setMouse({ x: e.clientX, y: e.clientY })}
+      onMouseLeave={() => setMouse(null)}
+    >
+      <img
+        src={src}
+        alt=""
+        style={thumbStyle ?? { width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+        onError={() => setHidden(true)}
+      />
+      {mouse && (
+        <div style={{
+          position: 'fixed',
+          left: mouse.x + 18,
+          top:  Math.max(8, mouse.y - 120),
+          zIndex: 9999,
+          pointerEvents: 'none',
+          background: 'var(--sv-bg-card, #fff)',
+          border: '1px solid var(--sv-etch, #e5e7eb)',
+          borderRadius: 10,
+          boxShadow: '0 12px 40px rgba(0,0,0,0.22)',
+          padding: 4,
+          width: 240, height: 240,
+        }}>
+          <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', borderRadius: 6 }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ForesightProductSection({ product, businessId, onApplyContent, onImageAdded }: {
   product: any;
   businessId: string;
@@ -2877,12 +2916,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
                               title={imgUrl}
                               style={{ display: 'block', width: 90, height: 90, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}
                             >
-                              <img
-                                src={imgUrl}
-                                alt={`Product image ${idx + 1}`}
-                                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                                onError={e => { (e.currentTarget.closest('div') as HTMLElement).style.display = 'none'; }}
-                              />
+                              <ZoomImg src={imgUrl} />
                             </a>
                             {/* Quick-add to product images */}
                             <button
@@ -2941,12 +2975,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
                           title={imgUrl}
                           style={{ display: 'block', width: 90, height: 90, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}
                         >
-                          <img
-                            src={imgUrl}
-                            alt={`Scraped image ${idx + 1}`}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                            onError={e => { (e.currentTarget.closest('div') as HTMLElement).style.display = 'none'; }}
-                          />
+                          <ZoomImg src={imgUrl} />
                         </a>
                         <button
                           onClick={() => handleAddImage(imgUrl)}
