@@ -3211,8 +3211,10 @@ export const ImsShopifyRepo = {
   async listWithShopifyStatus(businessId: string): Promise<Array<ImsProduct & { shopify_status: 'linked' | 'not_in_shopify' }>> {
     const products = await imsQuery<any>(
       `SELECT p.*,
+         c.name AS supplier_name,
          IF(p.shopify_product_id IS NOT NULL, 'linked', 'not_in_shopify') AS shopify_status
        FROM ims_products p
+       LEFT JOIN ims_contacts c ON c.id = p.supplier_contact_id
        WHERE p.is_active = 1 AND p.business_id = ?
        ORDER BY p.name`,
       [businessId],

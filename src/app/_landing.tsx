@@ -171,11 +171,11 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center">
             <div>
-              <p className="text-4xl font-black text-blue-600 leading-tight">Australia Based</p>
+              <p className="text-4xl font-black text-blue-600 leading-tight">Aussie Based</p>
               <p className="text-sm text-slate-500 mt-1 font-medium">Support Team</p>
             </div>
             <div>
-              <p className="text-3xl font-black text-blue-600 leading-tight">Customised Functions</p>
+              <p className="text-4xl font-black text-blue-600 leading-tight">Custom Functions</p>
               <p className="text-sm text-slate-500 mt-1 font-medium">Because every Retailer is Different</p>
             </div>
             <div>

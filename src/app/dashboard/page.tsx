@@ -4724,335 +4724,42 @@ const ShopifyOrdersSync = forwardRef<WebsiteSyncHandle, {
   );
 });
 
-// ── Pending Online View ──────────────────────────────────────────────────────
+// ── Load Products To Website (IMS → Online Shop) ─────────────────────────────
 interface PendingOnlineProduct {
-  id: string; styleCode: string; name: string; brand: string;
-  optionId: string; code: string; cost: string; retailPrice: string; soh: string; barcode: string;
+  // `id` and `code` both hold the IMS product_id — `code` is the state map key
+  // and `product_id` drives the Push to Online Shop / shopify-sync call.
+  id: string; code: string; product_id: string;
+  name: string; brand: string; supplier_name: string;
+  sku: string; styleCode: string; retailPrice: string;
 }
 
 interface ProductContent {
   title: string;
   websiteDescription: string;
   tags: string;
-  cin7Description: string;
-  cin7Online: string;
-  cin7Channels: string;
   images: string[];
   scrapedUrls?: string[];
 }
 
 type PushStatus = 'idle' | 'pushing' | 'done' | 'error';
 
-// ── Content Editor for a single product ───────────────────────────────────────
-
-function ProductContentEditor({
-  product,
-  content,
-  cin7Status,
-  shopifyStatus,
-  onContentChange,
-  onReformulate,
-  onPushToCin7,
-  onPushToShopify,
-}: {
-  product: PendingOnlineProduct;
-  content: ProductContent;
-  cin7Status: PushStatus;
-  shopifyStatus: PushStatus;
-  onContentChange: (field: keyof ProductContent, value: any) => void;
-  onReformulate: (field: string, note: string) => void;
-  onPushToCin7: () => void;
-  onPushToShopify: () => void;
-}) {
-  const [reformulatingField, setReformulatingField] = useState<string | null>(null);
-  const [descPreview, setDescPreview] = useState(false);
-  const [reformulateNote, setReformulateNote] = useState('');
-  const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({});
-
-  const startReformulate = (field: string) => {
-    setReformulatingField(field);
-    setReformulateNote('');
-  };
-
-  const submitReformulate = () => {
-    if (!reformulatingField) return;
-    onReformulate(reformulatingField, reformulateNote);
-    setReformulatingField(null);
-    setReformulateNote('');
-  };
-
-  const fieldRow = (label: string, field: keyof ProductContent, type: 'input' | 'textarea' | 'readonly' = 'input', maxLen?: number) => (
-    <div className="mb-4">
-      <div className="flex items-center justify-between mb-1">
-        <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">{label}</label>
-        <div className="flex items-center gap-3">
-          {field === 'websiteDescription' && (
-            <button
-              onClick={() => setDescPreview(p => !p)}
-              className="text-xs text-gray-500 hover:text-gray-700 font-medium border border-gray-300 rounded px-2 py-0.5"
-            >
-              {descPreview ? '✎ Source' : '👁 Preview'}
-            </button>
-          )}
-          {type !== 'readonly' && (
-            <button
-              onClick={() => startReformulate(field)}
-              className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-            >
-              ✨ Ask AI to reformulate
-            </button>
-          )}
-        </div>
-      </div>
-      {type === 'textarea' ? (
-        <div className="relative">
-          {field === 'websiteDescription' && descPreview ? (
-            <div
-              className="w-full min-h-[12rem] px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white overflow-auto prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: String(content[field] ?? '') }}
-            />
-          ) : (
-            <textarea
-              value={String(content[field] ?? '')}
-              onChange={e => onContentChange(field, e.target.value)}
-              rows={field === 'websiteDescription' ? 8 : 3}
-              maxLength={maxLen}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y"
-            />
-          )}
-          {maxLen && (
-            <span className={`absolute bottom-2 right-3 text-xs ${String(content[field] ?? '').length > maxLen * 0.9 ? 'text-red-500' : 'text-gray-400'}`}>
-              {String(content[field] ?? '').length}/{maxLen}
-            </span>
-          )}
-        </div>
-      ) : type === 'readonly' ? (
-        <input
-          value={String(content[field] ?? '')}
-          readOnly
-          className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500"
-        />
-      ) : (
-        <input
-          value={String(content[field] ?? '')}
-          onChange={e => onContentChange(field, e.target.value)}
-          className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-        />
-      )}
-      {reformulatingField === field && (
-        <div className="mt-2 flex gap-2 items-center bg-indigo-50 border border-indigo-200 rounded-lg p-3">
-          <input
-            type="text"
-            placeholder="Optional note for the AI (e.g. make it more playful)"
-            value={reformulateNote}
-            onChange={e => setReformulateNote(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && submitReformulate()}
-            autoFocus
-            className="flex-1 px-3 py-1.5 text-sm border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          />
-          <button
-            onClick={submitReformulate}
-            className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700"
-          >
-            Reformulate
-          </button>
-          <button
-            onClick={() => setReformulatingField(null)}
-            className="px-2 py-1.5 text-xs text-gray-500 hover:text-gray-700"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-    </div>
-  );
-
-  const statusBadge = (status: PushStatus, label: string) => {
-    const cfg: Record<PushStatus, { cls: string; icon: string }> = {
-      idle:    { cls: 'bg-gray-100 text-gray-600',   icon: '' },
-      pushing: { cls: 'bg-amber-100 text-amber-700', icon: '⏳ ' },
-      done:    { cls: 'bg-green-100 text-green-700', icon: '✅ ' },
-      error:   { cls: 'bg-red-100 text-red-700',     icon: '❌ ' },
-    };
-    const { cls, icon } = cfg[status];
-    return status !== 'idle' ? (
-      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cls}`}>{icon}{label}</span>
-    ) : null;
-  };
-
-  return (
-    <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-5 mt-2 mb-4">
-      <h3 className="font-bold text-gray-800 text-sm mb-4">
-        Content Editor — <span className="text-indigo-700">{product.name}</span>
-        <span className="ml-2 font-mono text-xs text-gray-500">({product.code})</span>
-      </h3>
-
-      {/* Image Previews */}
-      <div className="mb-5">
-        <div className="flex items-center justify-between mb-2">
-          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Images (up to 10)</label>
-          <button
-            onClick={() => startReformulate('images')}
-            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-          >
-            ✨ Ask AI to find better images
-          </button>
-        </div>
-        <div className="flex flex-wrap gap-3 mb-2">
-          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => (
-            <div key={i} className="flex flex-col gap-1">
-              <div className="relative w-28 h-28 rounded-lg border border-gray-200 bg-gray-100 overflow-hidden flex items-center justify-center">
-                {content.images[i] && !imageErrors[i] ? (
-                  <img
-                    src={content.images[i]}
-                    alt={`Image ${i + 1}`}
-                    className="w-full h-full object-contain"
-                    referrerPolicy="no-referrer"
-                    onError={() => setImageErrors(prev => ({ ...prev, [i]: true }))}
-                  />
-                ) : (
-                  <span className="text-gray-400 text-xs text-center px-1">{imageErrors[i] ? 'Load error' : 'No image'}</span>
-                )}
-                {content.images[i] && (
-                  <button
-                    onClick={() => {
-                      const newImages = [...content.images];
-                      newImages.splice(i, 1);
-                      while (newImages.length < 10) newImages.push('');
-                      setImageErrors(prev => {
-                        const next: Record<number, boolean> = {};
-                        Object.entries(prev).forEach(([k, v]) => {
-                          const idx = parseInt(k);
-                          if (idx < i) next[idx] = v;
-                          else if (idx > i) next[idx - 1] = v;
-                        });
-                        return next;
-                      });
-                      onContentChange('images', newImages);
-                    }}
-                    title="Remove image"
-                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center hover:bg-red-600 leading-none"
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-              <input
-                value={content.images[i] ?? ''}
-                onChange={e => {
-                  const newImages = [...content.images];
-                  newImages[i] = e.target.value;
-                  setImageErrors(prev => ({ ...prev, [i]: false }));
-                  onContentChange('images', newImages);
-                }}
-                placeholder={`Image ${i + 1} URL`}
-                className="w-28 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
-              />
-            </div>
-          ))}
-        </div>
-        {reformulatingField === 'images' && (
-          <div className="flex gap-2 items-center bg-indigo-100 border border-indigo-300 rounded-lg p-3">
-            <input
-              type="text"
-              placeholder="Optional note (e.g. lifestyle photos only)"
-              value={reformulateNote}
-              onChange={e => setReformulateNote(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && submitReformulate()}
-              autoFocus
-              className="flex-1 px-3 py-1.5 text-sm border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            />
-            <button
-              onClick={submitReformulate}
-              className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700"
-            >
-              Find Images
-            </button>
-            <button
-              onClick={() => setReformulatingField(null)}
-              className="px-2 py-1.5 text-xs text-gray-500 hover:text-gray-700"
-            >
-              Cancel
-            </button>
-          </div>
-        )}
-      </div>
-
-      {content.scrapedUrls && content.scrapedUrls.length > 0 && (
-        <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-          <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">URLs scraped for images ({content.scrapedUrls.length})</p>
-          <ul className="text-xs text-blue-600 space-y-1">
-            {content.scrapedUrls.map((url, i) => (
-              <li key={i}>
-                <a href={url} target="_blank" rel="noopener noreferrer" className="hover:underline break-all">{url}</a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6">
-        <div>
-          {fieldRow('Title', 'title', 'input')}
-          {fieldRow('Tags', 'tags', 'input')}
-          {fieldRow('Cin7 Description (max 220 chars)', 'cin7Description', 'textarea', 220)}
-          {fieldRow('Cin7 Online Field', 'cin7Online', 'input')}
-          {fieldRow('Cin7 Channels', 'cin7Channels', 'input')}
-        </div>
-        <div>
-          {fieldRow('Website Description (HTML)', 'websiteDescription', 'textarea')}
-        </div>
-      </div>
-
-      {/* Action Bar */}
-      <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-indigo-200">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onPushToCin7}
-            disabled={cin7Status === 'pushing'}
-            className="px-4 py-2 bg-orange-600 text-white text-sm font-semibold rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-colors"
-          >
-            {cin7Status === 'pushing' ? '⏳ Pushing…' : '1. Push to Cin7'}
-          </button>
-          {statusBadge(cin7Status, cin7Status === 'done' ? 'Pushed to Cin7' : 'Cin7 error')}
-        </div>
-
-        {cin7Status === 'done' && (
-          <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
-            💡 Step 2: Go to Cin7 and sync the product to Shopify, then come back here.
-          </span>
-        )}
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onPushToShopify}
-            disabled={shopifyStatus === 'pushing'}
-            className="px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
-          >
-            {shopifyStatus === 'pushing' ? '⏳ Pushing…' : '3. Push to Shopify'}
-          </button>
-          {statusBadge(shopifyStatus, shopifyStatus === 'done' ? 'Pushed to Shopify' : 'Shopify error')}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Main view ─────────────────────────────────────────────────────────────────
 
 function PendingOnlineView({ databaseId }: { databaseId: string }) {
-  const [batchSize, setBatchSize]           = useState(50);
   const [settingsOpen, setSettingsOpen]     = useState(false);
   const [showPreflightDialog, setShowPreflightDialog] = useState(false);
   const [loading, setLoading]           = useState(false);
   const [error, setError]               = useState('');
   const [products, setProducts]         = useState<PendingOnlineProduct[] | null>(null);
-  const [totalOnline, setTotalOnline]   = useState<number | null>(null);
-  const [totalPending, setTotalPending] = useState<number | null>(null);
-  const [hasWebsiteSheet, setHasWebsiteSheet] = useState(true);
   const [filter, setFilter] = useState('');
   const [brandExclude, setBrandExclude] = useState('');
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+
+  // Search Sources — mirror the Edit Product modal's "Push to Online" toggles
+  const [useSupplierSite, setUseSupplierSite] = useState(true);
+  const [useBrandSite, setUseBrandSite]       = useState(true);
+  const [useGeneralResults, setUseGeneralResults] = useState(true);
+  const [searchAuOnly, setSearchAuOnly]       = useState(true);
 
   // Content state
   const [contentMap, setContentMap]     = useState<Record<string, ProductContent>>({});
@@ -5061,11 +4768,9 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   const [expandedCode, setExpandedCode] = useState<string | null>(null);
   const [generateError, setGenerateError] = useState<Record<string, string>>({});
 
-  // Push status
-  const [cin7Status, setCin7Status]     = useState<Record<string, PushStatus>>({});
-  const [cin7Message, setCin7Message]   = useState<Record<string, string>>({});
-  const [shopifyStatus, setShopifyStatus]   = useState<Record<string, PushStatus>>({});
-  const [shopifyMessage, setShopifyMessage] = useState<Record<string, string>>({});
+  // Push to Online Shop status
+  const [onlineStatus, setOnlineStatus]   = useState<Record<string, PushStatus>>({});
+  const [onlineMessage, setOnlineMessage] = useState<Record<string, string>>({});
 
   // Tavily preflight state — Step 1 before full generation
   type PreflightData = { answer: string; urls: string[] };
@@ -5091,11 +4796,8 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   const [automatingSet, setAutomatingSet] = useState<Set<string>>(new Set());
   const [autoStepMap, setAutoStepMap]     = useState<Record<string, string>>({});
 
-  // Products marked "Remove from Website List" — skipped in Research/Images/Generate/Shopify
+  // Products marked "Remove from Website List" — skipped in Research/Images/Generate/Push
   const [removedKeys, setRemovedKeys] = useState<Set<string>>(new Set());
-
-  // Per-product Cin7 push state
-  const getCin7Tags = (_k: string) => '';
 
   // Website description HTML preview toggle
   const [descPreviewKeys, setDescPreviewKeys] = useState<Set<string>>(new Set());
@@ -5104,10 +4806,6 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     next.has(k) ? next.delete(k) : next.add(k);
     return next;
   });
-
-  // Channel list modal
-  const [channelListOpen, setChannelListOpen] = useState(false);
-  const [channelListCopied, setChannelListCopied] = useState(false);
 
   // Scraper results panel (replaces per-product pop-up dialog)
   type TavilyEntry = { productName: string; payload: Record<string, any>; response?: Record<string, any>; timestamp: number };
@@ -5123,15 +4821,24 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     setContentMap({});
     setExpandedCode(null);
     try {
-      const res = await fetch(
-        `/api/website/pending-online?databaseId=${encodeURIComponent(databaseId)}&batchSize=${batchSize}`
-      );
+      // Source products from the IMS catalogue: marked online but not yet on Shopify
+      const res = await fetch('/api/ims/shopify/products');
       const data = await res.json();
       if (!data.success) { setError(data.error ?? 'Unknown error'); return; }
-      setProducts(data.products ?? []);
-      setTotalOnline(data.totalOnline ?? null);
-      setTotalPending(data.totalPending ?? null);
-      setHasWebsiteSheet(data.hasWebsiteSheet ?? true);
+      const mapped: PendingOnlineProduct[] = ((data.data ?? []) as any[])
+        .filter(p => Number(p.is_online) === 1 && p.shopify_status === 'not_in_shopify')
+        .map(p => ({
+          id:            p.product_id,
+          code:          p.product_id,
+          product_id:    p.product_id,
+          name:          p.name ?? '',
+          brand:         p.brand ?? '',
+          supplier_name: p.supplier_name ?? '',
+          sku:           p.variants?.[0]?.sku ?? p.base_sku ?? '',
+          styleCode:     p.style_code ?? '',
+          retailPrice:   String(p.variants?.[0]?.price_rrp ?? ''),
+        }));
+      setProducts(mapped);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -5139,30 +4846,50 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     }
   };
 
-  // Step 1a: Find URLs via Serper (Google Search)
+  // Step 1: Find URLs via Serper — same logic as the Edit Product modal, using
+  // the product's Supplier + Brand website URLs plus the Search Sources toggles.
   const handleFindUrls = async (product: PendingOnlineProduct) => {
     const key = product.code;
     if (removedKeys.has(key)) return;
+    if (!product.brand?.trim()) { console.warn('[find-urls] product has no brand — skipped'); return; }
     setSerperSearchingSet(prev => new Set(prev).add(key));
     setExpandedCode(key);
     try {
-      // Look up brand/supplier website URLs to prioritise in search results
-      let preferred_sites: string[] = [];
+      // Look up this product's supplier + brand website URLs
+      let supplierSite: string | null = null;
+      let brandSite: string | null = null;
       try {
-        const qs = product.brand ? `?brand=${encodeURIComponent(product.brand)}` : '';
-        if (qs) {
-          const siteRes = await fetch(`/api/ims/supplier-brand-urls${qs}`);
-          const siteData = await siteRes.json();
-          if (siteData.success) {
-            preferred_sites = [siteData.brand_url, siteData.supplier_url].filter(Boolean) as string[];
-          }
+        const qs = new URLSearchParams();
+        if (product.brand) qs.set('brand', product.brand);
+        if (product.supplier_name) qs.set('supplier', product.supplier_name);
+        const siteRes = await fetch(`/api/ims/supplier-brand-urls?${qs.toString()}`);
+        const siteData = await siteRes.json();
+        if (siteData.success) {
+          supplierSite = siteData.supplier_url ?? null;
+          brandSite    = siteData.brand_url ?? null;
         }
       } catch { /* non-fatal */ }
+
+      const preferred_sites: string[] = [
+        ...(useSupplierSite && supplierSite ? [supplierSite] : []),
+        ...(useBrandSite && brandSite ? [brandSite] : []),
+      ];
+      // Unchecked sources are excluded from general results too
+      const excluded_sites: string[] = [
+        ...(!useSupplierSite && supplierSite ? [supplierSite] : []),
+        ...(!useBrandSite && brandSite ? [brandSite] : []),
+      ];
 
       const res = await fetch('/api/website/serper-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ product, preferred_sites }),
+        body: JSON.stringify({
+          product: { name: product.name, brand: product.brand ?? '' },
+          preferred_sites,
+          excluded_sites,
+          include_general: useGeneralResults,
+          search_au_only: searchAuOnly,
+        }),
       });
       const data = await res.json();
       if (!res.ok || data.error) {
@@ -5387,7 +5114,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         setGenerateError(prev => ({ ...prev, [key]: '' }));
         setContentMap(prev => ({ ...prev, [key]: judgeGeneratedContent }));
         setPreflightMap(prev => { const n = { ...prev }; delete n[key]; return n; });
-        step('✅ Done — review content below, then Push to Cin7 & Shopify');
+        step('✅ Done — review content below, then Push to Online Shop');
         return;
       }
       // Fallback: call generate-content if judge-urls didn't return content
@@ -5406,7 +5133,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         } else {
           setContentMap(prev => ({ ...prev, [key]: genData.content }));
           setPreflightMap(prev => { const n = { ...prev }; delete n[key]; return n; });
-          step('✅ Done — review content below, then Push to Cin7 & Shopify');
+          step('✅ Done — review content below, then Push to Online Shop');
           return;
         }
       } catch (e: any) {
@@ -5457,44 +5184,6 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     }
   };
 
-  const handleReformulate = async (product: PendingOnlineProduct, field: string, note: string) => {
-    const key = product.code;
-    const reformKey = `${key}:${field}`;
-    setReformulatingSet(prev => new Set(prev).add(reformKey));
-    try {
-      const res = await fetch('/api/website/generate-content', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          databaseId,
-          product,
-          mode: 'reformulate',
-          field,
-          currentContent: contentMap[key],
-          userNote: note,
-        }),
-      });
-      const data = await res.json();
-      if (!data.success) {
-        setGenerateError(prev => ({ ...prev, [key]: data.error ?? 'Reformulation failed' }));
-        return;
-      }
-      setContentMap(prev => {
-        const current = { ...prev[key] };
-        if (field === 'images') {
-          current.images = Array.isArray(data.value) ? data.value : current.images;
-        } else {
-          (current as any)[field] = data.value ?? (data.raw?.[field] ?? '');
-        }
-        return { ...prev, [key]: current };
-      });
-    } catch (e: any) {
-      setGenerateError(prev => ({ ...prev, [key]: e.message }));
-    } finally {
-      setReformulatingSet(prev => { const s = new Set(prev); s.delete(reformKey); return s; });
-    }
-  };
-
   const handleContentChange = (code: string, field: keyof ProductContent, value: any) => {
     setContentMap(prev => ({
       ...prev,
@@ -5502,86 +5191,66 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     }));
   };
 
-  const handlePushToCin7 = async (product: PendingOnlineProduct) => {
-    const key = product.code;
-    const content = contentMap[key];
-    setCin7Status(prev => ({ ...prev, [key]: 'pushing' }));
-    setCin7Message(prev => ({ ...prev, [key]: '' }));
-    const cin7Controller = new AbortController();
-    const cin7Timer = setTimeout(() => cin7Controller.abort(), 90_000);
-    try {
-      const res = await fetch('/api/website/push-to-cin7', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: cin7Controller.signal,
-        body: JSON.stringify({
-          databaseId,
-          productId: product.id,
-          styleCode: product.styleCode,
-          title: content?.title,
-          cin7Description: content?.cin7Description,
-          images: [...(tavilyPhotosMap[key] ?? []), ...(scrapedPhotosMap[key] ?? [])],
-        }),
-      });
-      clearTimeout(cin7Timer);
-      const data = await res.json();
-      if (!data.success) {
-        setCin7Status(prev => ({ ...prev, [key]: 'error' }));
-        setCin7Message(prev => ({ ...prev, [key]: data.error ?? 'Unknown error' }));
-      } else {
-        setCin7Status(prev => ({ ...prev, [key]: 'done' }));
-        setCin7Message(prev => ({ ...prev, [key]: data.message ?? 'Done' }));
-      }
-    } catch (e: any) {
-      clearTimeout(cin7Timer);
-      setCin7Status(prev => ({ ...prev, [key]: 'error' }));
-      setCin7Message(prev => ({ ...prev, [key]: e.name === 'AbortError' ? 'Timed out — try again' : e.message }));
-    }
-  };
-
-  const handlePushToShopify = async (product: PendingOnlineProduct) => {
+  // Push to Online Shop — same mechanism as the Edit Product modal:
+  // persist the generated content + images to the IMS product, then create/update
+  // it on Shopify via shopify-sync.
+  const handlePushToOnline = async (product: PendingOnlineProduct) => {
     const key = product.code;
     if (removedKeys.has(key)) return;
     const content = contentMap[key];
     if (!content) return;
-    setShopifyStatus(prev => ({ ...prev, [key]: 'pushing' }));
-    setShopifyMessage(prev => ({ ...prev, [key]: '' }));
+    setOnlineStatus(prev => ({ ...prev, [key]: 'pushing' }));
+    setOnlineMessage(prev => ({ ...prev, [key]: '' }));
     try {
-      const res = await fetch('/api/website/push-to-shopify', {
-        method: 'POST',
+      // 1. Save generated content back to the IMS product
+      const putRes = await fetch(`/api/ims/products/${product.product_id}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          databaseId,
-          sku: product.code,
-          title: content.title,
-          websiteDescription: content.websiteDescription,
-          tags: content.tags,
-          images: [
-            ...new Set([
-              ...(urlPhotosMap[key]?.flat() ?? []),
-              ...(tavilyPhotosMap[key] ?? []),
-              ...(scrapedPhotosMap[key] ?? []),
-            ].filter(u => u?.trim())),
-          ],
+          name: content.title?.trim() || product.name,
+          description: content.websiteDescription ?? '',
+          tags: content.tags ?? '',
         }),
       });
-      const data = await res.json();
-      if (!data.success) {
-        setShopifyStatus(prev => ({ ...prev, [key]: 'error' }));
-        setShopifyMessage(prev => ({ ...prev, [key]: data.error ?? 'Unknown error' }));
-      } else {
-        setShopifyStatus(prev => ({ ...prev, [key]: 'done' }));
-        setShopifyMessage(prev => ({ ...prev, [key]: data.message ?? 'Done' }));
+      const putData = await putRes.json().catch(() => ({}));
+      if (!putRes.ok || putData.success === false) {
+        throw new Error(putData.error ?? 'Failed to save product content');
       }
+
+      // 2. Attach images (dedupe, http only) to the IMS product
+      const imageUrls = [...new Set([
+        ...(content.images ?? []),
+        ...(tavilyPhotosMap[key] ?? []),
+        ...(scrapedPhotosMap[key] ?? []),
+        ...(urlPhotosMap[key]?.flat() ?? []),
+      ].map(u => (u ?? '').trim()).filter(u => u.startsWith('http')))].slice(0, 10);
+      for (const url of imageUrls) {
+        try {
+          await fetch(`/api/ims/products/${product.product_id}/images`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url, source: 'external' }),
+          });
+        } catch { /* non-fatal per image */ }
+      }
+
+      // 3. Create/update the product on the online shop
+      const syncRes = await fetch(`/api/ims/products/${product.product_id}/shopify-sync`, { method: 'POST' });
+      const syncData = await syncRes.json().catch(() => ({}));
+      if (!syncRes.ok || syncData.success === false) {
+        throw new Error(syncData.error ?? 'Push to online shop failed');
+      }
+      setOnlineStatus(prev => ({ ...prev, [key]: 'done' }));
+      setOnlineMessage(prev => ({ ...prev, [key]: syncData.created ? '✓ Created on the online shop' : '✓ Pushed to the online shop' }));
     } catch (e: any) {
-      setShopifyStatus(prev => ({ ...prev, [key]: 'error' }));
-      setShopifyMessage(prev => ({ ...prev, [key]: e.message }));
+      setOnlineStatus(prev => ({ ...prev, [key]: 'error' }));
+      setOnlineMessage(prev => ({ ...prev, [key]: e.message }));
     }
   };
 
   const filtered = products?.filter(p => {
     const q = filter.toLowerCase();
-    if (q && !p.name.toLowerCase().includes(q) && !p.code.toLowerCase().includes(q) &&
+    if (q && !p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q) &&
         !p.brand.toLowerCase().includes(q) && !p.styleCode.toLowerCase().includes(q)) return false;
     if (brandExclude.trim()) {
       const exc = brandExclude.toLowerCase();
@@ -5597,7 +5266,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center text-xl">🌐</div>
           <div className="flex-1">
             <h2 className="font-bold text-gray-800 text-lg leading-tight">Load Products To Website</h2>
-            <p className="text-xs text-gray-500">Find Cin7 products marked online=1 that haven&apos;t yet been added to Shopify. Generate AI content, then push to Cin7 and Shopify.</p>
+            <p className="text-xs text-gray-500">Find products marked for the online store that aren&apos;t on the shop yet. Find URLs, get images &amp; research, format content, then push to the online shop.</p>
           </div>
           {/* Settings cog */}
           <button
@@ -5617,18 +5286,6 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
               <div className="absolute right-0 top-full mt-1 w-72 bg-white border border-gray-200 rounded-xl shadow-xl z-20 p-4">
                 <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-3">Settings</p>
                 <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Batch size</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={500}
-                      value={batchSize}
-                      onChange={e => setBatchSize(Math.max(1, Math.min(500, parseInt(e.target.value) || 50)))}
-                      className="w-28 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    />
-                    <p className="text-xs text-gray-400 mt-1">Max products loaded at once (1–500).</p>
-                  </div>
                   <label className="flex items-start gap-2.5 cursor-pointer group">
                     <input
                       type="checkbox"
@@ -5653,32 +5310,45 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
             disabled={loading}
             className="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
-            {loading ? 'Searching…' : 'Find Products Not Listed on Web'}
+            {loading ? 'Searching…' : 'Find Products Not On The Online Shop'}
           </button>
+        </div>
+
+        {/* Search Sources card — controls which sites Find URLs prioritises */}
+        <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl">
+          <span className="text-xs font-bold text-gray-600 uppercase tracking-wide">Search Sources</span>
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+            <input type="checkbox" checked={useSupplierSite} onChange={e => setUseSupplierSite(e.target.checked)} className="w-4 h-4 rounded accent-indigo-600" />
+            Supplier site
+          </label>
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+            <input type="checkbox" checked={useBrandSite} onChange={e => setUseBrandSite(e.target.checked)} className="w-4 h-4 rounded accent-indigo-600" />
+            Brand site
+          </label>
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+            <input type="checkbox" checked={useGeneralResults} onChange={e => setUseGeneralResults(e.target.checked)} className="w-4 h-4 rounded accent-indigo-600" />
+            General web
+          </label>
+          <span className="h-4 w-px bg-gray-300" />
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none" title="Restrict search to Australian results">
+            <input type="checkbox" checked={searchAuOnly} onChange={e => setSearchAuOnly(e.target.checked)} className="w-4 h-4 rounded accent-indigo-600" />
+            🇦🇺 AU only
+          </label>
+          <span className="text-xs text-gray-400 italic">Supplier &amp; Brand URLs are looked up per product from your Contacts &amp; Brands.</span>
         </div>
 
         {error && <p className="text-sm text-red-600 mb-3">❌ {error}</p>}
 
-        {!hasWebsiteSheet && products !== null && (
-          <p className="text-sm text-amber-600 mb-3">
-            ⚠️ No Shopify Products sheet found — run a Shopify sync first to get accurate results. Showing all online=1 products.
-          </p>
-        )}
-
         {products !== null && (
           <div className="text-xs text-gray-500 mb-3 flex flex-wrap gap-x-4 gap-y-1">
-            {totalOnline !== null && <span><strong>{totalOnline}</strong> total products with online=1</span>}
-            {totalPending !== null && <span><strong>{totalPending}</strong> not yet in Shopify</span>}
-            {totalPending !== null && totalPending > batchSize && (
-              <span className="text-amber-600">Showing first {batchSize} — increase batch size to see more.</span>
-            )}
+            <span><strong>{products.length}</strong> product{products.length !== 1 ? 's' : ''} ready to load to the online shop</span>
           </div>
         )}
 
         {products !== null && products.length === 0 && (
           <div className="flex flex-col items-center justify-center py-12 text-center text-gray-400">
             <span className="text-4xl mb-3">✅</span>
-            <p className="text-base font-semibold text-gray-500">All online products are already in Shopify</p>
+            <p className="text-base font-semibold text-gray-500">All online products are already on the shop</p>
             <p className="text-sm mt-1">No pending uploads found.</p>
           </div>
         )}
@@ -5717,7 +5387,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 >
                   🤖 Auto Retrieve
                 </button>
-                <span className="text-xs text-gray-400 italic">Runs full pipeline on selected products (Find URLs → Research → AI judge → Scrape → Generate)</span>
+                <span className="text-xs text-gray-400 italic">Runs the full pipeline on selected products (Find URLs → Get Images &amp; Research → Format Content)</span>
               </div>
               {/* Bulk actions bar */}
               <div className="flex items-center gap-3 mb-2 flex-wrap">
@@ -5759,17 +5429,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                   }}
                   className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
-                  🔍 Research Products
-                </button>
-                <button
-                  disabled={selectedKeys.size === 0}
-                  onClick={async () => {
-                    const targets = filtered.filter(p => selectedKeys.has(p.code || '') && !removedKeys.has(p.code || ''));
-                    for (const p of targets) await handleScrapePhotos(p);
-                  }}
-                  className="px-3 py-1.5 bg-sky-600 text-white text-xs font-semibold rounded-lg hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  📸 Pull Images
+                  �️ Get Images & Research
                 </button>
                 <button
                   disabled={selectedKeys.size === 0}
@@ -5783,31 +5443,18 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                   }}
                   className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
-                  ✨ Generate Content
-                </button>
-                <button
-                  disabled={selectedKeys.size === 0}
-                  onClick={async () => {
-                    const targets = filtered.filter(p => selectedKeys.has(p.code || ''));
-                    for (const p of targets) await handlePushToCin7(p);
-                    setChannelListCopied(false);
-                    setChannelListOpen(true);
-                  }}
-                  className="px-3 py-1.5 bg-emerald-700 text-white text-xs font-semibold rounded-lg hover:bg-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  title="Push selected products to Cin7"
-                >
-                  🚀 Push to Cin7
+                  ✨ Format Content
                 </button>
                 <button
                   disabled={selectedKeys.size === 0}
                   onClick={async () => {
                     const targets = filtered.filter(p => selectedKeys.has(p.code || '') && !removedKeys.has(p.code || '') && !!contentMap[p.code || '']);
-                    for (const p of targets) await handlePushToShopify(p);
+                    for (const p of targets) await handlePushToOnline(p);
                   }}
                   className="px-3 py-1.5 bg-violet-600 text-white text-xs font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  title="Push description + scraped photos to Shopify for all selected products that have generated content"
+                  title="Push selected products (with generated content) to the online shop"
                 >
-                  🛍️ Push to Shopify
+                  🛍️ Push to Online Shop
                 </button>
               </div>
 
@@ -5817,7 +5464,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 <span>SKU</span>
                 <span>Style Code</span>
                 <span>Name / Brand</span>
-                <span>SOH</span>
+                <span>Price</span>
                 <span>Status</span>
                 <span></span>
                 <span></span>
@@ -5833,13 +5480,11 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 const isReformulating = [...reformulatingSet].some(k => k.startsWith(key + ':'));
                 const genErr = generateError[key];
                 const pfErr = preflightError[key];
-                const c7s = cin7Status[key] ?? 'idle';
-                const shs = shopifyStatus[key] ?? 'idle';
+                const onl = onlineStatus[key] ?? 'idle';
                 const isBusy = isGenerating || isPreflight || isReformulating || automatingSet.has(key);
 
                 const overallStatus = (() => {
-                  if (shs === 'done') return { icon: '✅', label: 'In Shopify', cls: 'text-green-700 bg-green-50' };
-                  if (c7s === 'done') return { icon: '🔄', label: 'In Cin7', cls: 'text-orange-700 bg-orange-50' };
+                  if (onl === 'done') return { icon: '✅', label: 'On the shop', cls: 'text-green-700 bg-green-50' };
                   if (hasContent) return { icon: '✏️', label: 'Content ready', cls: 'text-indigo-700 bg-indigo-50' };
                   return { icon: '⏳', label: 'Pending', cls: 'text-gray-600 bg-gray-100' };
                 })();
@@ -5847,9 +5492,8 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 const buttonLabel = (() => {
                   if (isPreflight) return '⏳ Researching…';
                   if (isGenerating) return '⏳ Generating…';
-                  if (isReformulating) return '⏳ Reformulating…';
-                  if (hasContent) return '🔄 Regenerate';
-                  return '✨ Generate Content';
+                  if (hasContent) return '🔄 Reformat';
+                  return '✨ Format Content';
                 })();
 
                 return (
@@ -5874,14 +5518,14 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                         onClick={e => e.stopPropagation()}
                         className="w-4 h-4 rounded accent-indigo-600"
                       />
-                      <span className="font-mono text-xs text-gray-700 truncate">{p.code || '—'}</span>
+                      <span className="font-mono text-xs text-gray-700 truncate">{p.sku || '—'}</span>
                       <span className="text-xs text-gray-600 truncate">{p.styleCode || '—'}</span>
                       <div className="min-w-0">
                         <div className="font-medium text-gray-800 truncate text-xs">{p.name || '—'}</div>
                         <div className="text-xs text-gray-500 truncate">{p.brand || '—'}</div>
                       </div>
                       <span className="text-xs text-gray-700 font-medium">
-                        {p.soh ? `${parseFloat(p.soh).toFixed(0)} units` : '—'}
+                        {p.retailPrice ? `$${p.retailPrice}` : '—'}
                       </span>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${overallStatus.cls}`}>
                         {overallStatus.icon} {overallStatus.label}
@@ -5911,18 +5555,11 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                     {(genErr || pfErr) && (
                       <p className="text-xs text-red-600 px-3 py-1">❌ {genErr || pfErr}</p>
                     )}
-                    {(cin7Message[key] || shopifyMessage[key]) && (
+                    {onlineMessage[key] && (
                       <div className="px-3 py-1 flex gap-4">
-                        {cin7Message[key] && (
-                          <p className={`text-xs ${c7s === 'error' ? 'text-red-600' : 'text-green-700'}`}>
-                            Cin7: {cin7Message[key]}
-                          </p>
-                        )}
-                        {shopifyMessage[key] && (
-                          <p className={`text-xs ${shs === 'error' ? 'text-red-600' : 'text-green-700'}`}>
-                            Shopify: {shopifyMessage[key]}
-                          </p>
-                        )}
+                        <p className={`text-xs ${onl === 'error' ? 'text-red-600' : 'text-green-700'}`}>
+                          Online shop: {onlineMessage[key]}
+                        </p>
                       </div>
                     )}
 
@@ -6131,7 +5768,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                           disabled={isBusy}
                           className="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                         >
-                          {isGenerating ? '⏳ Generating…' : hasContent ? '🔄 Regenerate' : '✨ Generate Content'}
+                          {isGenerating ? '⏳ Generating…' : hasContent ? '🔄 Reformat Content' : '✨ Format Content'}
                         </button>
                       </div>
                     )}
@@ -6145,7 +5782,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                       </div>
                     )}
 
-                    {/* Step 2 result: generated content + push to Cin7 */}
+                    {/* Step 3 result: generated content + push to online shop */}
                     {isExpanded && !isGenerating && hasContent && (
                       <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-5 mt-2 mb-4 space-y-4" onClick={e => e.stopPropagation()}>
                         <h3 className="font-bold text-gray-800 text-sm">Generated Content — <span className="text-indigo-700">{p.name}</span></h3>
@@ -6160,14 +5797,13 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                           />
                         </div>
 
-                        {/* Cin7 Description */}
+                        {/* Tags */}
                         <div>
-                          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Cin7 Description</label>
-                          <textarea
-                            value={contentMap[key]?.cin7Description ?? ''}
-                            onChange={e => handleContentChange(key, 'cin7Description', e.target.value)}
-                            rows={3}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y"
+                          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Tags</label>
+                          <input
+                            value={contentMap[key]?.tags ?? ''}
+                            onChange={e => handleContentChange(key, 'tags', e.target.value)}
+                            className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                           />
                         </div>
 
@@ -6224,35 +5860,21 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                           </div>
                         )}
 
-                        {/* Push to Cin7 */}
+                        {/* Push to Online Shop */}
                         <div className="flex items-center gap-3 flex-wrap pt-1">
                           <button
-                            onClick={() => handlePushToCin7(p)}
-                            disabled={c7s === 'pushing'}
-                            className="px-5 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors"
-                          >
-                            {c7s === 'pushing' ? '⏳ Pushing to Cin7…' : c7s === 'done' ? '✅ Pushed to Cin7' : '🚀 Push to Cin7'}
-                          </button>
-                          {cin7Message[key] && (
-                            <span className={`text-xs ${c7s === 'error' ? 'text-red-600' : 'text-green-700'}`}>{cin7Message[key]}</span>
-                          )}
-                        </div>
-
-                        {/* Push description + photos to Shopify */}
-                        <div className="flex items-center gap-3 flex-wrap pt-1">
-                          <button
-                            onClick={() => handlePushToShopify(p)}
-                            disabled={removedKeys.has(key) || !contentMap[key] || shopifyStatus[key] === 'pushing'}
+                            onClick={() => handlePushToOnline(p)}
+                            disabled={removedKeys.has(key) || !contentMap[key] || onlineStatus[key] === 'pushing'}
                             className="px-5 py-2 bg-violet-600 text-white text-sm font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-50 transition-colors"
                           >
-                            {shopifyStatus[key] === 'pushing'
-                              ? '⏳ Pushing to Shopify…'
-                              : shopifyStatus[key] === 'done'
-                              ? '✅ Pushed to Shopify'
-                              : `🛍️ Push Description + Photos to Shopify (${(scrapedPhotosMap[key] ?? []).length} photos)`}
+                            {onlineStatus[key] === 'pushing'
+                              ? '⏳ Pushing to the online shop…'
+                              : onlineStatus[key] === 'done'
+                              ? '✅ Pushed to the online shop'
+                              : '🛍️ Push to Online Shop'}
                           </button>
-                          {shopifyMessage[key] && (
-                            <span className={`text-xs ${shopifyStatus[key] === 'error' ? 'text-red-600' : 'text-green-700'}`}>{shopifyMessage[key]}</span>
+                          {onlineMessage[key] && (
+                            <span className={`text-xs ${onlineStatus[key] === 'error' ? 'text-red-600' : 'text-green-700'}`}>{onlineMessage[key]}</span>
                           )}
                         </div>
                       </div>
@@ -6344,34 +5966,6 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           )}
         </div>
       )}
-
-      {/* Channel list modal */}
-      {channelListOpen && (() => {
-        const pushed = filtered.filter(p => selectedKeys.has(p.code || ''));
-        const tsv = ['Code\tOnline\tChannels', ...pushed.map(p => removedKeys.has(p.code || '') ? `${p.styleCode}\t-4\t` : `${p.styleCode}\t-4\tShopify https://monsterthreads.myshopify.com/`)].join('\n');
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setChannelListOpen(false)}>
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-                <div>
-                  <h3 className="font-bold text-gray-800">Channel List</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">{pushed.length} product{pushed.length !== 1 ? 's' : ''} — tab-delimited, ready to paste into a spreadsheet</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => { navigator.clipboard.writeText(tsv).then(() => { setChannelListCopied(true); setTimeout(() => setChannelListCopied(false), 2000); }); }}
-                    className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-colors"
-                  >
-                    {channelListCopied ? '✅ Copied!' : '📋 Copy'}
-                  </button>
-                  <button onClick={() => setChannelListOpen(false)} className="text-gray-400 hover:text-gray-700 text-xl leading-none px-1">✕</button>
-                </div>
-              </div>
-              <pre className="flex-1 overflow-auto px-5 py-4 text-xs font-mono text-gray-800 whitespace-pre select-all bg-gray-50 rounded-b-xl">{tsv}</pre>
-            </div>
-          </div>
-        );
-      })()}
     </div>
   );
 }
