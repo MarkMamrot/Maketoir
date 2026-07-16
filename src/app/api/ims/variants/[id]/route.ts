@@ -16,17 +16,23 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     const body = await req.json();
     await ImsVariantsRepo.update(params.id, body);
 
-    // Fire-and-forget Shopify price sync when price changes and variant is linked
-    if (body.price_rrp !== undefined || body.price_rrp_sale !== undefined) {
+    // Fire-and-forget Shopify sync when price, SKU, or barcode changes and variant is linked
+    if (body.price_rrp !== undefined || body.price_rrp_sale !== undefined ||
+        body.sku !== undefined || body.barcode !== undefined) {
       const variant = await ImsVariantsRepo.get(params.id);
       if (variant?.shopify_variant_id) {
         (async () => {
           try {
             const shopify = await getShopifyForBusiness(session.businessId);
             if (!shopify) return;
-            await shopify.updateVariant(variant.shopify_variant_id!, shopifyVariantPricePayload(variant.price_rrp, variant.price_rrp_sale));
+            const payload: Record<string, any> = {
+              ...shopifyVariantPricePayload(variant.price_rrp, variant.price_rrp_sale),
+            };
+            if (variant.sku)     payload.sku     = variant.sku;
+            if (variant.barcode) payload.barcode = variant.barcode;
+            await shopify.updateVariant(variant.shopify_variant_id!, payload);
           } catch (e) {
-            console.error('[variant PUT] Shopify price sync failed:', e);
+            console.error('[variant PUT] Shopify sync failed:', e);
           }
         })();
       }

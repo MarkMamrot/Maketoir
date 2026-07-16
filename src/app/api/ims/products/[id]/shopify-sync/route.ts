@@ -200,12 +200,18 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       tags: product.tags ?? '',
     });
 
-    // Prices per linked variant
+    // Prices, SKU and barcode per linked variant
     let pricesUpdated = 0;
     for (const v of variants) {
-      if (v.shopify_variant_id && v.price_rrp != null) {
+      if (v.shopify_variant_id) {
         try {
-          await shop.service.updateVariant(v.shopify_variant_id, shopifyVariantPricePayload(v.price_rrp, v.price_rrp_sale));
+          const variantPayload: Record<string, any> = {
+            ...shopifyVariantPricePayload(v.price_rrp, v.price_rrp_sale),
+          };
+          // Always sync SKU and barcode so they don't get lost after the initial create
+          if (v.sku)     variantPayload.sku     = v.sku;
+          if (v.barcode) variantPayload.barcode = v.barcode;
+          await shop.service.updateVariant(v.shopify_variant_id, variantPayload);
           pricesUpdated++;
         } catch {}
       }
