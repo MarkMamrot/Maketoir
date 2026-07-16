@@ -5450,7 +5450,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
               </div>
 
               {/* Table header — 10 cols: checkbox | SKU | Style Code | Name/Brand | Price | Status | Website | Shopify | action btn | expand */}
-              <div className="hidden md:grid grid-cols-[auto_minmax(80px,1fr)_minmax(80px,1fr)_minmax(160px,3fr)_80px_100px_80px_80px_auto_auto] gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600">
+              <div className="hidden md:grid grid-cols-[16px_minmax(80px,1fr)_minmax(80px,1fr)_minmax(160px,3fr)_80px_100px_80px_80px_auto_auto] gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600">
                 <span></span>
                 <span>SKU</span>
                 <span>Style Code</span>
@@ -5492,7 +5492,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 return (
                   <div key={key}>
                     <div
-                      className={`grid grid-cols-[auto_minmax(80px,1fr)_minmax(80px,1fr)_minmax(160px,3fr)_80px_100px_80px_80px_auto_auto] gap-2 px-3 py-2.5 rounded-lg border items-center text-sm cursor-pointer transition-colors ${
+                      className={`grid grid-cols-[16px_minmax(80px,1fr)_minmax(80px,1fr)_minmax(160px,3fr)_80px_100px_80px_80px_auto_auto] gap-2 px-3 py-2.5 rounded-lg border items-center text-sm cursor-pointer transition-colors ${
                         isExpanded ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-white hover:bg-gray-50'
                       }`}
                       onClick={() => setExpandedCode(isExpanded ? null : key)}
