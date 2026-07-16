@@ -3239,6 +3239,18 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
 
   useEffect(() => { load(); loadBrands(); loadContacts(); }, [load, loadBrands, loadContacts]);
 
+  // Deep-link: auto-open a product when the URL hash is #products/<product_id>
+  // Works on first load AND when navigating back/forward.
+  useEffect(() => {
+    if (products.length === 0) return;
+    const hash = window.location.hash.replace(/^#/, '');
+    const match = hash.match(/^products\/(.+)$/);
+    if (!match) return;
+    const targetId = decodeURIComponent(match[1]);
+    const found = products.find((p: any) => p.product_id === targetId);
+    if (found && !modal.open) openEdit(found);
+  }, [products]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-load stock levels when the products view mounts
   useEffect(() => { ensureStockSohLoaded(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -3317,6 +3329,9 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
     variants.forEach((v: any) => { try { Object.keys(JSON.parse(v.cost_foreign ?? '{}')).forEach(k => allKeys.add(k)); } catch {} });
     setActiveCurrencies([...allKeys]);
     setModal({ open: true, edit: p });
+    // Push a deep-link URL so right-click → Open in new tab works and the modal
+    // can be restored on reload / back navigation.
+    window.history.pushState(null, '', `#products/${encodeURIComponent(p.product_id)}`);
   };
 
   const handleGenerate = () => {
@@ -3990,11 +4005,17 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                         )}
                         <strong
                           title={p.name}
-                          onClick={() => openEdit(p)}
-                          style={{ color: 'var(--sv-text-strong)', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}
-                          onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
-                          onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
-                        >{p.name}</strong>
+                          style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}
+                        >
+                          <a
+                            href={`#products/${encodeURIComponent(p.product_id)}`}
+                            onClick={e => { e.preventDefault(); openEdit(p); }}
+                            style={{ color: 'var(--sv-text-strong)', textDecoration: 'none', cursor: 'pointer' }}
+                            onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
+                            onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
+                            title={`Right-click → Open in new tab to view ${p.name}`}
+                          >{p.name}</a>
+                        </strong>
                       </div>
                     </td>
                     {showCols.barcode && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -4146,7 +4167,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
 
       {/* ── Combined Product + Variants Modal ── */}
       {modal.open && (
-        <Modal title={modal.edit ? `Edit: ${form.name || 'Product'}` : 'New Product'} onClose={() => setModal({ open: false, edit: null })} wider>
+        <Modal title={modal.edit ? `Edit: ${form.name || 'Product'}` : 'New Product'} onClose={() => { setModal({ open: false, edit: null }); window.history.pushState(null, '', '#products'); }} wider>
           {/* ── Product Details ── */}
           <div style={{ marginBottom: 20 }}>
             {modal.edit?.product_id && (
@@ -13737,6 +13758,8 @@ export default function ImsPage() {
   useEffect(() => {
     const readHash = () => {
       const h = window.location.hash.replace(/^#/, '');
+      // Deep-link: #products/<id> → navigate to products view (ProductsView handles opening the modal)
+      if (h.startsWith('products/')) return 'products' as ImsView;
       return VALID_VIEWS.has(h) ? h as ImsView : 'dashboard';
     };
     const initial = readHash();
