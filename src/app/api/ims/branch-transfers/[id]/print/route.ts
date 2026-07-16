@@ -15,8 +15,10 @@ export interface BTPrintItem {
   product_name: string;
   brand: string | null;
   variant_label: string | null;
-  zone: string | null;
-  bin: string | null;
+  from_zone: string | null;   // source location stock zone
+  from_bin:  string | null;   // source location stock bin
+  to_zone:   string | null;   // destination location stock zone
+  to_bin:    string | null;   // destination location stock bin
   qty_sent: number;
   wh_qty: number;       // warehouse gross qty_on_hand (SOH in Warehouse)
   wh_available: number; // warehouse net available (SOH - committed)
@@ -73,8 +75,10 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
            NULLIF(TRIM(COALESCE(v.option2_value,'')), ''),
            NULLIF(TRIM(COALESCE(v.option3_value,'')), '')
          )), '') AS variant_label,
-         p.zone,
-         p.bin,
+         whs.zone AS from_zone,
+         whs.bin  AS from_bin,
+         brs.zone AS to_zone,
+         brs.bin  AS to_bin,
          bti.qty_sent,
          COALESCE(whs.qty_on_hand, 0)                                                          AS wh_qty,
          GREATEST(0, COALESCE(whs.qty_on_hand, 0) - COALESCE(whs.qty_committed, 0))           AS wh_available,
@@ -88,8 +92,8 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
        JOIN ims_locations tl        ON tl.id = ?
        WHERE bti.transfer_id = ?
        ORDER BY
-         COALESCE(NULLIF(TRIM(p.zone),''), '~~~'),
-         COALESCE(NULLIF(TRIM(p.bin),''),  '~~~'),
+         COALESCE(NULLIF(TRIM(whs.zone),''), '~~~'),
+         COALESCE(NULLIF(TRIM(whs.bin),''),  '~~~'),
          COALESCE(NULLIF(TRIM(p.brand),''), '~~~'),
          p.name`,
       [bt.from_location_id, bt.to_location_id, bt.to_location_id, id]

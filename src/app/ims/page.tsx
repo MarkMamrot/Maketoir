@@ -15774,6 +15774,25 @@ function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
   const [showCode,    setShowCode]    = useState(false);
   const [showBrand,   setShowBrand]   = useState(false);
 
+  const { settings: btSettings } = useImsSettings();
+  const useZoneBin = btSettings.use_zones_bins !== 'no';
+
+  const [showSrcZoneBin, setShowSrcZoneBin] = useState<boolean>(() => {
+    try { return localStorage.getItem('bt_print_show_src_zone') !== 'false'; } catch { return true; }
+  });
+  const [showDstZoneBin, setShowDstZoneBin] = useState<boolean>(() => {
+    try { return localStorage.getItem('bt_print_show_dst_zone') !== 'false'; } catch { return false; }
+  });
+
+  const toggleSrcZone = (v: boolean) => {
+    setShowSrcZoneBin(v);
+    try { localStorage.setItem('bt_print_show_src_zone', String(v)); } catch {}
+  };
+  const toggleDstZone = (v: boolean) => {
+    setShowDstZoneBin(v);
+    try { localStorage.setItem('bt_print_show_dst_zone', String(v)); } catch {}
+  };
+
   useEffect(() => {
     fetch(`/api/ims/branch-transfers/${id}/print`)
       .then(r => r.json())
@@ -15836,6 +15855,18 @@ function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
               <input type="checkbox" checked={showBrand} onChange={e => setShowBrand(e.target.checked)} />
               Show Brand
             </label>
+            {useZoneBin && (
+              <>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={showSrcZoneBin} onChange={e => toggleSrcZone(e.target.checked)} />
+                  Source Zone/Bin
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={showDstZoneBin} onChange={e => toggleDstZone(e.target.checked)} />
+                  Destination Zone/Bin
+                </label>
+              </>
+            )}
             <button
               onClick={() => window.print()}
               style={{ padding: '7px 18px', borderRadius: 6, border: 'none', background: '#2563eb', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
@@ -15861,8 +15892,11 @@ function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1' }}>
-                  {['Zone', 'Bin', 'Qty to Send', 'Barcode', 'Product / Variant',
+                  {[
+                    ...(showSrcZoneBin && useZoneBin ? ['Src Zone', 'Src Bin'] : []),
+                    'Qty to Send', 'Barcode', 'Product / Variant',
                     'SOH in Branch', 'SOH in Warehouse',
+                    ...(showDstZoneBin && useZoneBin ? ['Dst Zone', 'Dst Bin'] : []),
                     ...(showCode  ? ['Code']  : []),
                     ...(showBrand ? ['Brand'] : []),
                   ].map(h => (
@@ -15873,8 +15907,12 @@ function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
               <tbody>
                 {data.items.map((item: any, i: number) => (
                   <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i % 2 === 1 ? '#f8fafc' : '#fff' }}>
-                    <td style={{ padding: '4px 8px', color: '#6b7280', whiteSpace: 'nowrap' }}>{item.zone || '—'}</td>
-                    <td style={{ padding: '4px 8px', color: '#6b7280', whiteSpace: 'nowrap' }}>{item.bin  || '—'}</td>
+                    {showSrcZoneBin && useZoneBin && (
+                      <>
+                        <td style={{ padding: '4px 8px', color: '#6b7280', whiteSpace: 'nowrap' }}>{item.from_zone || '—'}</td>
+                        <td style={{ padding: '4px 8px', color: '#6b7280', whiteSpace: 'nowrap' }}>{item.from_bin  || '—'}</td>
+                      </>
+                    )}
                     <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 800, fontSize: 16, color: '#111827', whiteSpace: 'nowrap' }}>{Number(item.qty_sent)}</td>
                     <td style={{ padding: '4px 8px', fontFamily: 'monospace', fontWeight: 800, fontSize: 16, whiteSpace: 'nowrap' }}>{barcode(item.barcode)}</td>
                     <td style={{ padding: '4px 8px' }}>
@@ -15883,6 +15921,12 @@ function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
                     </td>
                     <td style={{ padding: '4px 8px', textAlign: 'right', color: '#374151' }}>{Number(item.branch_soh)}</td>
                     <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 800, fontSize: 16, color: Number(item.wh_qty) <= 0 ? '#ef4444' : '#6b7280' }}>{Number(item.wh_qty)}</td>
+                    {showDstZoneBin && useZoneBin && (
+                      <>
+                        <td style={{ padding: '4px 8px', color: '#6b7280', whiteSpace: 'nowrap' }}>{item.to_zone || '—'}</td>
+                        <td style={{ padding: '4px 8px', color: '#6b7280', whiteSpace: 'nowrap' }}>{item.to_bin  || '—'}</td>
+                      </>
+                    )}
                     {showCode  && <td style={{ padding: '4px 8px', fontFamily: 'monospace', color: '#0369a1', whiteSpace: 'nowrap' }}>{item.sku || '—'}</td>}
                     {showBrand && <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>{item.brand || '—'}</td>}
                   </tr>
