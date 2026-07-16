@@ -41,7 +41,12 @@ export async function POST(req: Request) {
       if (!product) { results.push({ product_id, name: '?', success: false, error: 'Not found' }); continue; }
 
       try {
-        // Build Shopify product payload from IMS data
+        // Build Shopify product payload from IMS data.
+        // Only create option axes that have real non-empty values — prevents spurious
+        // "Size: Default" / "Colour: Default" on single-variant / no-option products.
+        const hasOpt1 = (product.variants ?? []).some(v => v.option1_name?.trim() && v.option1_value?.trim());
+        const hasOpt2 = (product.variants ?? []).some(v => v.option2_name?.trim() && v.option2_value?.trim());
+        const hasOpt3 = (product.variants ?? []).some(v => v.option3_name?.trim() && v.option3_value?.trim());
         const shopifyVariants = (product.variants ?? []).map(v => ({
           sku:       v.sku ?? '',
           barcode:   v.barcode ?? undefined,
@@ -49,23 +54,17 @@ export async function POST(req: Request) {
           compare_at_price: v.price_rrp_sale ? String(v.price_rrp ?? '0.00') : undefined,
           weight:    v.weight_kg ? v.weight_kg * 1000 : undefined, // grams
           weight_unit: 'g',
-          option1:   v.option1_value ?? 'Default',
-          option2:   v.option2_value ?? undefined,
-          option3:   v.option3_value ?? undefined,
+          option1:   hasOpt1 ? (v.option1_value?.trim() || 'Default') : 'Default Title',
+          ...(hasOpt2 ? { option2: v.option2_value?.trim() || 'Default' } : {}),
+          ...(hasOpt3 ? { option3: v.option3_value?.trim() || 'Default' } : {}),
           inventory_management: 'shopify',
           inventory_policy: 'deny',
         }));
 
         const options = [];
-        if (product.variants?.some(v => v.option1_name)) {
-          options.push({ name: product.variants![0]?.option1_name ?? 'Option 1' });
-        }
-        if (product.variants?.some(v => v.option2_name)) {
-          options.push({ name: product.variants![0]?.option2_name ?? 'Option 2' });
-        }
-        if (product.variants?.some(v => v.option3_name)) {
-          options.push({ name: product.variants![0]?.option3_name ?? 'Option 3' });
-        }
+        if (hasOpt1) options.push({ name: product.variants!.find(v => v.option1_name?.trim())?.option1_name ?? 'Option 1' });
+        if (hasOpt2) options.push({ name: product.variants!.find(v => v.option2_name?.trim())?.option2_name ?? 'Option 2' });
+        if (hasOpt3) options.push({ name: product.variants!.find(v => v.option3_name?.trim())?.option3_name ?? 'Option 3' });
 
         const payload: any = {
           title:        product.name,

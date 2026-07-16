@@ -126,12 +126,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     // ── If not yet linked → create the product on Shopify ────────────────────
     if (!product.shopify_product_id) {
-      // Build options first so variant option slots match exactly what Shopify expects.
-      // Shopify rejects a 422 if variant option2/option3 are present but no matching product option.
+      // Build options: only include an option axis when at least one variant has
+      // a real non-empty value for it. This prevents single-variant products from
+      // getting spurious "Size: Default" / "Colour: Default" options in Shopify.
+      const hasOpt1 = variants.some(v => v.option1_name?.trim() && v.option1_value?.trim());
+      const hasOpt2 = variants.some(v => v.option2_name?.trim() && v.option2_value?.trim());
+      const hasOpt3 = variants.some(v => v.option3_name?.trim() && v.option3_value?.trim());
       const options: any[] = [];
-      if (variants.some(v => v.option1_name)) options.push({ name: variants[0]?.option1_name ?? 'Option 1' });
-      if (variants.some(v => v.option2_name)) options.push({ name: variants[0]?.option2_name ?? 'Option 2' });
-      if (variants.some(v => v.option3_name)) options.push({ name: variants[0]?.option3_name ?? 'Option 3' });
+      if (hasOpt1) options.push({ name: variants.find(v => v.option1_name?.trim())?.option1_name });
+      if (hasOpt2) options.push({ name: variants.find(v => v.option2_name?.trim())?.option2_name });
+      if (hasOpt3) options.push({ name: variants.find(v => v.option3_name?.trim())?.option3_name });
 
       const shopifyVariants = variants.map(v => {
         const { price, compare_at_price } = shopifyVariantPricePayload(v.price_rrp, v.price_rrp_sale);
@@ -142,13 +146,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           compare_at_price: compare_at_price ?? undefined,
           weight: v.weight_kg ? v.weight_kg * 1000 : undefined,
           weight_unit: 'g',
-          option1: v.option1_value || 'Default',
+          option1: hasOpt1 ? (v.option1_value?.trim() || 'Default') : 'Default Title',
           inventory_management: 'shopify',
           inventory_policy: 'deny',
         };
-        // Only include option2/option3 when the product-level option is also defined
-        if (options.length >= 2) vp.option2 = v.option2_value || 'Default';
-        if (options.length >= 3) vp.option3 = v.option3_value || 'Default';
+        if (hasOpt2) vp.option2 = v.option2_value?.trim() || 'Default';
+        if (hasOpt3) vp.option3 = v.option3_value?.trim() || 'Default';
         return vp;
       });
 
