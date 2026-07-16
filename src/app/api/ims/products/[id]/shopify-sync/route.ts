@@ -156,8 +156,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       });
 
       const payload: any = {
-        title: product.name,
-        body_html: product.description ?? '',
+        title: product.website_title?.trim() || product.name,
+        body_html: product.description ?? '',,
         vendor: product.brand ?? '',
         product_type: product.product_type ?? '',
         tags: product.tags ?? '',
@@ -197,7 +197,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     // ── Already linked → update title / description / tags / price / images ──
     const shopifyProductId = product.shopify_product_id;
     await shop.service.updateProduct(shopifyProductId, {
-      title: product.name,
+      title: product.website_title?.trim() || product.name,
       body_html: product.description ?? '',
       vendor: product.brand ?? '',
       product_type: product.product_type ?? '',

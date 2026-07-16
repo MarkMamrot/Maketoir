@@ -89,7 +89,7 @@ export interface ImsProduct {
   id: number; product_id: string; name: string; description?: string;
   product_type?: string; brand?: string; tags?: string; category?: string; subcategory?: string;
   style_code?: string; base_sku?: string; is_online?: number; supplier_contact_id?: number; cin7_product_id?: number;
-  is_active: number; shopify_product_id?: string; created_at?: string; updated_at?: string;
+  is_active: number; shopify_product_id?: string; website_title?: string; created_at?: string; updated_at?: string;
   variants?: ImsVariant[];
 }
 
@@ -428,7 +428,7 @@ export const ImsProductsRepo = {
   },
 
   async update(productId: string, data: Partial<ImsProduct>): Promise<void> {
-    const fields = ['name','description','product_type','brand','tags','category','subcategory','is_active','style_code','base_sku','is_online','supplier_contact_id','cin7_product_id'];
+    const fields = ['name','description','product_type','brand','tags','category','subcategory','is_active','style_code','base_sku','is_online','supplier_contact_id','cin7_product_id','website_title'];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of fields) {

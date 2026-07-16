@@ -2138,13 +2138,6 @@ function OnlineStoreSection({ productId, isOnline, onChangeIsOnline, isReadOnly 
 
   return (
     <>
-      {/* ── Section divider ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-        <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Online Store</span>
-        <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
-      </div>
-
       <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
           <input
@@ -4119,15 +4112,34 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
 
           {/* ── Online Store ── */}
           {modal.edit?.product_id && (
-            <OnlineStoreSection
-              productId={modal.edit.product_id}
-              isOnline={!!modal.edit.is_online}
-              onChangeIsOnline={(checked) => {
-                setForm((p: any) => ({ ...p, is_online: checked ? 1 : 0 }));
-                setModal((prev) => prev.edit ? { ...prev, edit: { ...prev.edit, is_online: checked ? 1 : 0 } } : prev);
-              }}
-              isReadOnly={isAdvisor}
-            />
+            <>
+              {/* Website Title — separate from the supplier product name */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Online Store</span>
+                <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+              </div>
+              <Field label="Website Title">
+                <input
+                  value={form.website_title ?? ''}
+                  onChange={sf('website_title')}
+                  style={inputStyle}
+                  placeholder={form.name ?? 'Uses Product Name if blank'}
+                />
+              </Field>
+              <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 14, marginTop: -6 }}>
+                Used as the Shopify product title instead of the Product Name above. Leave blank to use the Product Name.
+              </div>
+              <OnlineStoreSection
+                productId={modal.edit.product_id}
+                isOnline={!!modal.edit.is_online}
+                onChangeIsOnline={(checked) => {
+                  setForm((p: any) => ({ ...p, is_online: checked ? 1 : 0 }));
+                  setModal((prev) => prev.edit ? { ...prev, edit: { ...prev.edit, is_online: checked ? 1 : 0 } } : prev);
+                }}
+                isReadOnly={isAdvisor}
+              />
+            </>
           )}
 
           {/* ── Foresight: Supplier URL finder + Research + Generate Content ── */}
@@ -4138,9 +4150,10 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               onApplyContent={(title, description, tags) => {
                 setForm((p: any) => ({
                   ...p,
-                  ...(title       !== null ? { name:        title       } : {}),
-                  ...(description !== null ? { description: description } : {}),
-                  ...(tags        !== null ? { tags:        tags        } : {}),
+                  // Title from Foresight goes to website_title (keeps the supplier name intact)
+                  ...(title       !== null ? { website_title: title       } : {}),
+                  ...(description !== null ? { description:   description } : {}),
+                  ...(tags        !== null ? { tags:          tags        } : {}),
                 }));
               }}
               onImageAdded={() => setGalleryRefreshKey(k => k + 1)}

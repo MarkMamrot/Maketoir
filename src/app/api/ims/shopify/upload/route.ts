@@ -67,7 +67,7 @@ export async function POST(req: Request) {
         if (hasOpt3) options.push({ name: product.variants!.find(v => v.option3_name?.trim())?.option3_name ?? 'Option 3' });
 
         const payload: any = {
-          title:        product.name,
+          title:        (product as any).website_title?.trim() || product.name,
           vendor:       product.brand ?? '',
           product_type: product.product_type ?? '',
           tags:         product.tags ?? '',
