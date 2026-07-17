@@ -89,6 +89,7 @@ export interface ImsProduct {
   id: number; product_id: string; name: string; description?: string;
   product_type?: string; brand?: string; tags?: string; category?: string; subcategory?: string;
   style_code?: string; base_sku?: string; is_online?: number; supplier_contact_id?: number; cin7_product_id?: number;
+  allow_indent_wholesale?: number;
   is_active: number; shopify_product_id?: string; website_title?: string; created_at?: string; updated_at?: string;
   variants?: ImsVariant[];
 }
@@ -418,17 +419,18 @@ export const ImsProductsRepo = {
   ): Promise<string> {
     const product_id = data.product_id || uuidv4();
     await imsExecute(
-      `INSERT INTO ims_products (business_id,product_id,name,description,product_type,brand,tags,category,subcategory,is_active,shopify_product_id,style_code,base_sku,is_online,supplier_contact_id,cin7_product_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO ims_products (business_id,product_id,name,description,product_type,brand,tags,category,subcategory,is_active,shopify_product_id,style_code,base_sku,is_online,supplier_contact_id,cin7_product_id,allow_indent_wholesale)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [businessId ?? '', product_id, data.name, data.description ?? null, data.product_type ?? null, data.brand ?? null,
        data.tags ?? null, data.category ?? null, data.subcategory ?? null, data.is_active ?? 1, data.shopify_product_id ?? null,
-       data.style_code ?? null, data.base_sku ?? null, data.is_online ?? 1, data.supplier_contact_id ?? null, data.cin7_product_id ?? null]
+       data.style_code ?? null, data.base_sku ?? null, data.is_online ?? 1, data.supplier_contact_id ?? null, data.cin7_product_id ?? null,
+       data.allow_indent_wholesale ?? 0]
     );
     return product_id;
   },
 
   async update(productId: string, data: Partial<ImsProduct>): Promise<void> {
-    const fields = ['name','description','product_type','brand','tags','category','subcategory','is_active','style_code','base_sku','is_online','supplier_contact_id','cin7_product_id','website_title'];
+    const fields = ['name','description','product_type','brand','tags','category','subcategory','is_active','style_code','base_sku','is_online','supplier_contact_id','cin7_product_id','website_title','allow_indent_wholesale'];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of fields) {

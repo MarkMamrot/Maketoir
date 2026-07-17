@@ -87,7 +87,7 @@ export async function POST(req: Request) {
         }
 
         const created = await shopify.createProduct(payload);
-        await ImsShopifyRepo.linkProduct(product_id, String(created.id));
+        await ImsShopifyRepo.linkProduct(product_id, String(created.id), session.businessId);
 
         // Link each variant back
         for (let i = 0; i < (product.variants ?? []).length; i++) {
@@ -98,6 +98,7 @@ export async function POST(req: Request) {
               imsVariant.variant_id,
               String(shopifyVar.id),
               String(shopifyVar.inventory_item_id ?? ''),
+              session.businessId,
             );
           }
         }
@@ -111,11 +112,11 @@ export async function POST(req: Request) {
     const successCount = results.filter(r => r.success).length;
     const status = successCount === results.length ? 'success' : successCount > 0 ? 'partial' : 'error';
     await ImsShopifyRepo.logAction('upload', status,
-      `Uploaded ${successCount}/${results.length} products to Shopify`, { results });
+      `Uploaded ${successCount}/${results.length} products to Shopify`, session.businessId, { results });
 
     return NextResponse.json({ success: true, results, uploaded: successCount, total: results.length });
   } catch (e: any) {
-    await ImsShopifyRepo.logAction('upload', 'error', e.message).catch(() => {});
+    await ImsShopifyRepo.logAction('upload', 'error', e.message, session.businessId).catch(() => {});
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }

@@ -4412,6 +4412,44 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             </>
           )}
 
+          {/* ── Wholesale ── */}
+          {modal.edit?.product_id && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 14px' }}>
+                <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Wholesale</span>
+                <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, padding: '14px 16px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, marginBottom: 14 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-main)', marginBottom: 3 }}>Allow Indent Wholesale Orders</div>
+                  <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.5 }}>
+                    When enabled, wholesale customers can order this product even when stock is unavailable. The item will be flagged as an indent order (back-order / made-to-order). Leave off to prevent orders when stock is zero.
+                  </div>
+                </div>
+                <div
+                  title="Allow indent wholesale orders when stock is zero"
+                  onClick={() => {
+                    if (isAdvisor) return;
+                    const next = form.allow_indent_wholesale ? 0 : 1;
+                    setForm((p: any) => ({ ...p, allow_indent_wholesale: next }));
+                  }}
+                  style={{
+                    width: 40, height: 22, borderRadius: 99, flexShrink: 0,
+                    background: form.allow_indent_wholesale ? '#10b981' : 'var(--sv-etch)',
+                    position: 'relative', cursor: isAdvisor ? 'not-allowed' : 'pointer', transition: 'background .2s', marginTop: 2,
+                  }}
+                >
+                  <div style={{
+                    position: 'absolute', width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                    top: 3, left: form.allow_indent_wholesale ? 21 : 3, transition: 'left .2s',
+                    boxShadow: '0 1px 3px rgba(0,0,0,.3)',
+                  }} />
+                </div>
+              </div>
+            </>
+          )}
+
           {/* ── Foresight: Supplier URL finder + Research + Generate Content ── */}
           {hasForesight && modal.edit?.product_id && (
             <ForesightProductSection
@@ -13461,7 +13499,7 @@ function BulkEditView() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings — section type and context helper
 // ─────────────────────────────────────────────────────────────────────────────
-type SettingsSection = 'general' | 'business-profile' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations';
+type SettingsSection = 'general' | 'business-profile' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
 
 function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'purchase-orders') return 'purchase-orders';
@@ -17554,6 +17592,111 @@ function LocationsSettingsSection({ settings, saveSettings }: { settings: Record
   );
 }
 
+// ─── Wholesale Portal Settings Section ───────────────────────────────────────
+function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record<string, string>; saveSettings: (u: Record<string, string>) => Promise<void> }) {
+  const [draft, setDraft]   = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [saved,  setSaved]  = useState(false);
+
+  useEffect(() => {
+    setDraft({
+      wholesale_browse_mode:         'category',
+      wholesale_portal_title:        '',
+      wholesale_min_order_qty:       '1',
+      wholesale_show_rrp:            'yes',
+      wholesale_notification_email:  '',
+      ...settings,
+    });
+  }, [settings]);
+
+  const sd = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+    setDraft(p => ({ ...p, [k]: e.target.value }));
+
+  const handleSave = async () => {
+    setSaving(true); setSaved(false);
+    await saveSettings(draft);
+    setSaving(false); setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const card: React.CSSProperties = { background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '18px 20px', marginBottom: 16 };
+  const lbl: React.CSSProperties  = { fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', textTransform: 'uppercase' as const, letterSpacing: .5, display: 'block', marginBottom: 6 };
+
+  return (
+    <div style={{ padding: 32, maxWidth: 640 }}>
+      <h2 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Wholesale Portal</h2>
+      <p style={{ margin: '0 0 24px', fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.65 }}>
+        Configure how the wholesale ordering portal presents and filters products.
+        The portal is accessible at <code style={{ fontFamily: 'monospace', fontSize: 12, background: 'var(--sv-bg-0)', padding: '2px 6px', borderRadius: 4 }}>/wholesale/</code>.
+      </p>
+
+      <div style={card}>
+        <h3 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Product Browsing</h3>
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={lbl}>Browse Mode</label>
+          <select value={draft.wholesale_browse_mode ?? 'category'} onChange={sd('wholesale_browse_mode')} style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 13, width: '100%' }}>
+            <option value="category">By Category &amp; Subcategory</option>
+            <option value="product_type">By Product Type</option>
+          </select>
+          <p style={{ margin: '5px 0 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>
+            Controls how products are grouped in the left navigation of the portal.
+          </p>
+        </div>
+
+        <div style={{ marginBottom: 0 }}>
+          <label style={lbl}>Show RRP Alongside Wholesale Price</label>
+          <select value={draft.wholesale_show_rrp ?? 'yes'} onChange={sd('wholesale_show_rrp')} style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 13, width: 220 }}>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
+      </div>
+
+      <div style={card}>
+        <h3 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Order Notifications</h3>
+        <div>
+          <label style={lbl}>Notification Email</label>
+          <input
+            type="email"
+            value={draft.wholesale_notification_email ?? ''}
+            onChange={sd('wholesale_notification_email')}
+            placeholder="e.g. orders@yourbusiness.com"
+            style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 13, width: '100%' }}
+          />
+          <p style={{ margin: '5px 0 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>
+            When a customer submits an order, a notification email is sent here. Leave blank to skip email. A draft Sales Order is always created in IMS regardless.
+          </p>
+        </div>
+      </div>
+
+      <div style={card}>
+        <h3 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Portal Branding</h3>
+        <div>
+          <label style={lbl}>Portal Title (shown in header)</label>
+          <input
+            type="text"
+            value={draft.wholesale_portal_title ?? ''}
+            onChange={sd('wholesale_portal_title')}
+            placeholder="Wholesale Portal"
+            style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 13, width: '100%' }}
+          />
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 8 }}>
+        <button
+          onClick={handleSave} disabled={saving}
+          style={{ padding: '9px 22px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 14 }}
+        >
+          {saving ? 'Saving…' : 'Save Settings'}
+        </button>
+        {saved && <span style={{ fontSize: 13, color: '#34d399' }}>✓ Saved</span>}
+      </div>
+    </div>
+  );
+}
+
 function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, syncingSteps, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput }: SettingsModalProps) {
   const { settings, saveSettings } = useImsSettings();
   const [active, setActive] = useState<SettingsSection>(defaultSection);
@@ -17704,6 +17847,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
     { id: 'purchase-orders', label: 'Purchase Orders', icon: '📦' },
     { id: 'sales-orders',    label: 'Sales Orders',    icon: '🧾' },
     { id: 'pos',             label: 'Point of Sale',   icon: '🖥' },
+    { id: 'wholesale',       label: 'Wholesale Portal', icon: '🏪' },
     { id: 'xero',            label: 'Xero',            icon: '🔗' },
     { id: 'sync',            label: 'Sync & Import',   icon: '🔄' },
     { id: 'utilities',       label: 'Utilities',       icon: '🛠️' },
@@ -18546,6 +18690,10 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
             )}
           </div>
           </div>{/* ─ end pos ─ */}
+
+        {/* ── Wholesale Portal ── */}
+        {active === 'wholesale' && <WholesaleSettingsSection settings={settings} saveSettings={saveSettings} />}
+
         </div>{/* ─ end legacy body ─ */}
       </div>{/* ─ end right content ─ */}
     </div>
@@ -18571,6 +18719,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
     { id: 'sales-orders',    label: 'Sales Orders',    icon: '🧾' },
     { id: 'pos',             label: 'Point of Sale',   icon: '🖥' },
     { id: 'shopify',         label: 'Shopify',         icon: '🛒' },
+    { id: 'wholesale',       label: 'Wholesale Portal', icon: '🏪' },
     { id: 'xero',            label: 'Xero',            icon: '🔗' },
     { id: 'sync',            label: 'Sync & Import',   icon: '🔄' },
     { id: 'users',           label: 'Users',           icon: '👥' },
@@ -18634,6 +18783,51 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
   );
 
   const Content = () => {
+    // ── Wholesale Portal ──────────────────────────────────────────────────────
+    if (active === 'wholesale') return (
+      <div style={{ padding: 32, maxWidth: 760 }}>
+        <h2 style={h2}>Wholesale Portal</h2>
+        <p style={p}>The Wholesale Portal is a self-service ordering portal accessible at <code style={code}>/wholesale/</code>. Customers with a <strong>Wholesale</strong> contact type can log in to browse your product catalogue and place orders.</p>
+
+        <h3 style={h3}>How it works</h3>
+        <ul style={ul}>
+          <li><strong>Login</strong> — Customers log in with their email address and a password. On first login (or if no password is set), a password setup link is sent to their email.</li>
+          <li><strong>Product Catalogue</strong> — Only <em>Active</em> products with a wholesale price greater than $0 appear in the portal. Products are sorted newest first.</li>
+          <li><strong>Browsing Mode</strong> — Configured in <strong>Settings → Wholesale Portal</strong>. Choose between grouping products by <em>Category &amp; Subcategory</em> or by <em>Product Type</em>.</li>
+          <li><strong>Stock Control</strong> — Customers cannot order more than the available stock quantity unless <em>Allow Indent Wholesale Orders</em> is enabled on the product. Indent items show a badge and customers are informed stock is not immediately available.</li>
+          <li><strong>Draft Orders</strong> — Customers can save their cart as a draft order and return to it later. Multiple drafts can be saved simultaneously.</li>
+          <li><strong>Submitting Orders</strong> — When a customer submits an order, three things happen automatically: (1) a <strong>Draft Sales Order</strong> is created in IMS → Sales Orders for your team to review; (2) an <strong>in-app notification</strong> appears in the IMS bell icon; (3) a <strong>notification email</strong> is sent to the address configured in Settings → Wholesale Portal → Notification Email.</li>
+        </ul>
+
+        <h3 style={h3}>Setting up a wholesale customer</h3>
+        <ul style={ul}>
+          <li>Open the contact in <strong>IMS → Contacts</strong>.</li>
+          <li>Set the <strong>Type</strong> to <code style={code}>Wholesale</code>.</li>
+          <li>Ensure the contact has a valid <strong>Email</strong> address — this is the login credential.</li>
+          <li>On their first login attempt, the portal will detect that no password is set and automatically send a password setup link to the email.</li>
+          <li>You can also trigger a password reset from the Contacts view at any time.</li>
+        </ul>
+
+        <h3 style={h3}>Indent / back-order products</h3>
+        <p style={p}>By default, customers cannot add a product to their cart if it has zero available stock. To allow orders when stock is unavailable (e.g. for made-to-order or back-order items), enable <strong>Allow Indent Wholesale Orders</strong> on the product in <strong>IMS → Products</strong>. Indent items display a special badge in the portal so customers know the item will be ordered in.</p>
+
+        <h3 style={h3}>Product pricing in the portal</h3>
+        <ul style={ul}>
+          <li>Each product variant must have a <strong>Wholesale Price</strong> greater than $0 to appear in the portal.</li>
+          <li>Optionally, the RRP can also be shown alongside the wholesale price — toggle this in <strong>Settings → Wholesale Portal</strong>.</li>
+          <li>Pack size, if set, is displayed on each variant card.</li>
+        </ul>
+
+        <h3 style={h3}>Settings reference</h3>
+        <ul style={ul}>
+          <li><strong>Browse Mode</strong> — <em>By Category &amp; Subcategory</em> groups products using the category and subcategory fields on each product. <em>By Product Type</em> groups them by product type. Set in Settings → Wholesale Portal.</li>
+          <li><strong>Portal Title</strong> — Customise the header title shown in the portal (defaults to "Wholesale Portal").</li>
+          <li><strong>Show RRP</strong> — Whether to show the regular retail price alongside the wholesale price in the product catalogue.</li>
+          <li><strong>Notification Email</strong> — The email address that receives an order confirmation email when a wholesale customer submits an order. Uses the Resend integration (RESEND_API_KEY must be configured). Leave blank to disable email notifications — a Draft Sales Order is always created regardless.</li>
+        </ul>
+      </div>
+    );
+
     // ── Utilities ─────────────────────────────────────────────────────────────
     if (active === 'utilities') return (
       <div style={{ padding: 32, maxWidth: 820 }}>

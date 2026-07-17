@@ -14,11 +14,12 @@ export async function POST(req: Request) {
   const { user, response } = requireAdminSession();
   if (response) return response;
 
-  const { databaseId, poId, paymentId } = await req.json();
+  const { databaseId, poId, paymentId, xeroAccountCode } = await req.json();
   const denied = assertBusinessAccess(user, databaseId);
   if (denied) return denied;
 
   if (!poId || !paymentId) return NextResponse.json({ error: 'poId and paymentId are required.' }, { status: 400 });
+  if (!xeroAccountCode) return NextResponse.json({ error: 'xeroAccountCode is required.' }, { status: 400 });
 
   // Get the payment record
   const paymentRows = await query(
@@ -52,6 +53,7 @@ export async function POST(req: Request) {
       payment.amount,
       payment.payment_date,
       payment.currency_code || 'AUD',
+      xeroAccountCode,
     );
 
     return NextResponse.json({ success: !!xeroPaymentId, xeroPaymentId });

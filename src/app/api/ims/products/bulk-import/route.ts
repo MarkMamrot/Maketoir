@@ -68,7 +68,7 @@ export async function POST(req: Request) {
 
   // Ensure category/subcategory columns exist on ims_products.
   const anyCategories = rows.some(r => r.category || r.subcategory);
-  if (anyCategories) await ImsProductsRepo.ensureProductCategoryColumns();
+  if (anyCategories) await ImsStockRepo.ensureProductCategoryColumns();
 
   // Applies per-location zone/bin/min_qty/reorder_qty overrides for a variant.
   async function applyLocationStock(variantId: string, entries?: BulkImportRow['location_stock']) {

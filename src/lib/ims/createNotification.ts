@@ -12,13 +12,15 @@ export async function createNotification(
   title: string,
   message: string,
   detail?: Record<string, unknown> | null,
+  type = 'error',
 ): Promise<void> {
   if (!businessId) return;
   await imsExecute(
     `INSERT INTO ims_notifications (business_id, type, source, title, message, detail)
-     VALUES (?, 'error', ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?)`,
     [
       businessId,
+      type.slice(0, 19),
       source.slice(0, 63),
       title.slice(0, 254),
       message.slice(0, 5000),

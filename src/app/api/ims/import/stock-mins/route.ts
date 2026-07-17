@@ -225,7 +225,7 @@ export async function POST(req: Request) {
 
       if (locationKey && !locationId) {
         // Location column present but couldn't match — skip
-        notFoundRows.push({ code: sku, barcode: csvBarcode ?? '', reason: 'location_not_matched' });
+        notFoundRows.push({ code: sku, barcode: csvBarcode ?? '', reason: 'location_not_matched', product_name: '', brand: '' });
         continue;
       }
     }
