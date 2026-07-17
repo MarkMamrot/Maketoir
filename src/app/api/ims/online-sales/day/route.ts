@@ -83,15 +83,17 @@ export async function GET(req: NextRequest) {
       } catch {}
     }
 
-    // Build variant → location → available map for priority locations
+    // Build variant → location → available + on-hand map for priority locations
     const allVariantIds = [...new Set(items.map((i: any) => i.variant_id).filter(Boolean))];
-    const availByVarLoc = new Map<string, Map<number, number>>();
+    const availByVarLoc = new Map<string, Map<number, number>>();  // net available (on_hand - committed)
+    const sohByVarLoc   = new Map<string, Map<number, number>>();  // gross qty_on_hand
     const locNameById = new Map<number, string>();
     if (allVariantIds.length > 0 && priority.length > 0) {
       const vPh = allVariantIds.map(() => '?').join(',');
       const lPh = priority.map(() => '?').join(',');
-      const stockRows = await imsQuery<{ variant_id: string; location_id: number; available: number; location_name: string }>(
+      const stockRows = await imsQuery<{ variant_id: string; location_id: number; qty_on_hand: number; available: number; location_name: string }>(
         `SELECT s.variant_id, s.location_id,
+                s.qty_on_hand,
                 (s.qty_on_hand - COALESCE(s.qty_committed,0)) AS available,
                 l.name AS location_name
          FROM ims_stock s JOIN ims_locations l ON l.id = s.location_id
@@ -100,7 +102,9 @@ export async function GET(req: NextRequest) {
       );
       for (const r of stockRows) {
         if (!availByVarLoc.has(r.variant_id)) availByVarLoc.set(r.variant_id, new Map());
+        if (!sohByVarLoc.has(r.variant_id))   sohByVarLoc.set(r.variant_id, new Map());
         availByVarLoc.get(r.variant_id)!.set(r.location_id, Number(r.available));
+        sohByVarLoc.get(r.variant_id)!.set(r.location_id, Number(r.qty_on_hand));
         locNameById.set(r.location_id, r.location_name);
       }
     }
@@ -116,22 +120,52 @@ export async function GET(req: NextRequest) {
     }
 
     const resolvePick = (variantId: string, qtyOrdered: number) => {
-      const byLoc = availByVarLoc.get(variantId);
-      // First priority location that can fully satisfy
+      const byAvail = availByVarLoc.get(variantId);
+      const bySoh   = sohByVarLoc.get(variantId);
+
+      // ── Pass 1: first priority location with enough physical stock (qty_on_hand) ──
+      // Use qty_on_hand rather than net-available so that stock that is already
+      // committed to THIS order isn't wrongly treated as unavailable.
       for (const locId of priority) {
-        const avail = byLoc?.get(locId) ?? 0;
-        if (avail >= qtyOrdered && qtyOrdered > 0) {
-          return { pick_location_id: locId, pick_location_name: locNameById.get(locId) ?? '', warehouse_available: avail, missing: false };
+        const soh   = bySoh?.get(locId) ?? 0;
+        const avail = byAvail?.get(locId) ?? 0;
+        if (soh >= qtyOrdered && qtyOrdered > 0) {
+          // Physical stock is sufficient; flag as needing transfer only when the
+          // net-available figure is short (e.g. due to buffer / other commitments).
+          const needs_transfer = avail < qtyOrdered;
+          return {
+            pick_location_id:   locId,
+            pick_location_name: locNameById.get(locId) ?? '',
+            warehouse_available: avail,
+            missing: false,
+            needs_transfer,
+          };
         }
       }
-      // None satisfy — use first priority location, flag missing
-      const fallbackId = priority[0];
-      const fallbackAvail = fallbackId ? (byLoc?.get(fallbackId) ?? 0) : 0;
+
+      // ── Pass 2: first priority location with any physical stock (partial fill) ──
+      for (const locId of priority) {
+        const soh = bySoh?.get(locId) ?? 0;
+        if (soh > 0) {
+          return {
+            pick_location_id:   locId,
+            pick_location_name: locNameById.get(locId) ?? '',
+            warehouse_available: byAvail?.get(locId) ?? 0,
+            missing: true,
+            needs_transfer: true,
+          };
+        }
+      }
+
+      // ── Pass 3: no stock anywhere — fall back to first priority location ──
+      const fallbackId    = priority[0];
+      const fallbackAvail = fallbackId ? (byAvail?.get(fallbackId) ?? 0) : 0;
       return {
-        pick_location_id: fallbackId ?? null,
+        pick_location_id:   fallbackId ?? null,
         pick_location_name: fallbackId ? (locNameById.get(fallbackId) ?? '') : '',
         warehouse_available: fallbackAvail,
         missing: true,
+        needs_transfer: false,
       };
     };
 
@@ -140,8 +174,9 @@ export async function GET(req: NextRequest) {
         const pick = resolvePick(it.variant_id, Number(it.qty_ordered ?? 0));
         return { ...it, ...pick };
       });
-      const has_missing = its.some((it: any) => it.missing);
-      return { ...o, items: its, has_missing };
+      const has_missing  = its.some((it: any) => it.missing);
+      const has_transfer = its.some((it: any) => it.needs_transfer && !it.missing);
+      return { ...o, items: its, has_missing, has_transfer };
     });
 
     // Shop domain for building Shopify admin order links (returns are initiated there).

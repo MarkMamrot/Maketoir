@@ -9644,6 +9644,9 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
                         {order.has_missing && (
                           <span title="One or more items are not fully available at any pick location" style={{ fontSize: 11, padding: '1px 8px', borderRadius: 99, fontWeight: 700, background: 'rgba(239,68,68,.14)', color: 'var(--sv-red)', border: '1px solid rgba(239,68,68,.3)' }}>⚠ Missing stock</span>
                         )}
+                        {!order.has_missing && order.has_transfer && (
+                          <span title="One or more items need to be transferred from another location before dispatch" style={{ fontSize: 11, padding: '1px 8px', borderRadius: 99, fontWeight: 700, background: 'rgba(239,68,68,.14)', color: 'var(--sv-red)', border: '1px solid rgba(239,68,68,.3)' }}>⚠ Transfer required</span>
+                        )}
                         {order.location_name && !locationId && (
                           <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', padding: '1px 7px', borderRadius: 99, border: '1px solid var(--sv-etch)' }}>{order.location_name}</span>
                         )}
@@ -9670,7 +9673,7 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
                                 <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 500 }}>Product</th>
                                 <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 500 }}>SKU</th>
                                 <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Qty</th>
-                                <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 500 }}>Pick From</th>
+                                <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 500 }}>Transfer from</th>
                                 <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Avail</th>
                                 <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Unit</th>
                                 <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Total</th>
@@ -9686,7 +9689,14 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
                                   <td style={{ padding: '4px 6px', color: 'var(--sv-text-main)' }}>{item.product_name || item.name}</td>
                                   <td style={{ padding: '4px 6px', color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 11 }}>{item.sku || item.code || '—'}</td>
                                   <td style={{ padding: '4px 6px', textAlign: 'right' }}>{qty}</td>
-                                  <td style={{ padding: '4px 6px', color: short ? 'var(--sv-red)' : 'var(--sv-text-dim)', fontSize: 11 }}>{item.pick_location_name || '—'}</td>
+                                  <td style={{ padding: '4px 6px', fontSize: 11 }}>
+                                    <span style={{ color: short ? 'var(--sv-red)' : item.needs_transfer ? 'var(--sv-red)' : 'var(--sv-text-dim)' }}>
+                                      {item.pick_location_name || '—'}
+                                    </span>
+                                    {item.needs_transfer && !item.missing && (
+                                      <span title="Stock exists but a transfer or buffer adjustment is needed" style={{ marginLeft: 5, fontSize: 10, padding: '1px 5px', borderRadius: 99, fontWeight: 700, background: 'rgba(239,68,68,.14)', color: 'var(--sv-red)', border: '1px solid rgba(239,68,68,.3)', whiteSpace: 'nowrap' }}>Transfer required</span>
+                                    )}
+                                  </td>
                                   <td style={{ padding: '4px 6px', textAlign: 'right' }}>
                                     {item.product_id ? (
                                       <button
