@@ -18691,10 +18691,11 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
           </div>
           </div>{/* ─ end pos ─ */}
 
+        </div>{/* ─ end legacy body ─ */}
+
         {/* ── Wholesale Portal ── */}
         {active === 'wholesale' && <WholesaleSettingsSection settings={settings} saveSettings={saveSettings} />}
 
-        </div>{/* ─ end legacy body ─ */}
       </div>{/* ─ end right content ─ */}
     </div>
   );
