@@ -5112,8 +5112,15 @@ function ReceiveTransfersScreen({ session, onBack }: { session: PosSession; onBa
   );
 }
 
+const BT_DRAFT_KEY = (id: number) => `bt_receive_draft_${id}`;
+
 function ReceiveBtInline({ bt, onBack, onDone }: { bt: any; onBack: () => void; onDone: () => void }) {
   const [receiveQtys, setReceiveQtys] = useState<Record<number, number>>(() => {
+    // Restore from localStorage draft first (saved by "Save & Continue Later")
+    try {
+      const saved = localStorage.getItem(BT_DRAFT_KEY(bt.id));
+      if (saved) return JSON.parse(saved) as Record<number, number>;
+    } catch {}
     const init: Record<number, number> = {};
     for (const item of bt.items ?? []) {
       // Pre-populate from saved qty_received for partial (in-progress) transfers
@@ -5200,29 +5207,22 @@ function ReceiveBtInline({ bt, onBack, onDone }: { bt: any; onBack: () => void; 
         }),
       });
       if (!res.ok) { const d = await res.json(); alert(d.error ?? 'Failed'); return; }
+      // Clear any saved draft now that the transfer is fully submitted
+      try { localStorage.removeItem(BT_DRAFT_KEY(bt.id)); } catch {}
       onDone();
     } catch (e: any) { alert(e.message); }
     finally { setSubmitting(false); }
   };
 
-  async function _doSubmit(status: string) {
-    setSubmitting(true);
+  const handleSaveLater = () => {
+    // Save current qty entries to localStorage — does NOT touch the DB or change
+    // the transfer status. Staff can return to this transfer and quantities will
+    // be restored from the draft automatically.
     try {
-      const res = await fetch(`/api/ims/branch-transfers/${bt.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status,
-          receivedItems: Object.entries(receiveQtys).map(([id, qty]) => ({ item_id: Number(id), qty_received: qty })),
-        }),
-      });
-      if (!res.ok) { const d = await res.json(); alert(d.error ?? 'Failed'); return; }
-      onDone();
-    } catch (e: any) { alert(e.message); }
-    finally { setSubmitting(false); }
-  }
-
-  const handleSaveLater = () => _doSubmit('partial');
+      localStorage.setItem(BT_DRAFT_KEY(bt.id), JSON.stringify(receiveQtys));
+    } catch {}
+    onBack();
+  };
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', padding: '1.5rem', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)' }}>
