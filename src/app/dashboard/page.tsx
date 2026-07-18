@@ -7710,6 +7710,9 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
   // Rename state
   const [renamingId, setRenamingId]   = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  // Model reference photo (used when aiCategory === 'models')
+  const modelRefInputRef = useRef<HTMLInputElement>(null);
+  const [modelRefImage, setModelRefImage] = useState<{ data: string; mime: string } | null>(null);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -7752,6 +7755,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
     setContextSystemPrompt('');
     setContextPreviewDebug(null);
     setEditingSummary(false);
+    setModelRefImage(null);
     setAiOpen(true);
     // Fetch creative brief in background
     if (databaseId) {
@@ -7883,7 +7887,17 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
       const res = await fetch('/api/ai/brand-asset-generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, imageModel }),
+        body: JSON.stringify({
+          prompt,
+          imageModel,
+          ...(aiCategory === 'models' && {
+            forceWhiteBackground: true,
+            ...(modelRefImage && {
+              referenceImageData: modelRefImage.data,
+              referenceImageMime: modelRefImage.mime,
+            }),
+          }),
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -8187,6 +8201,59 @@ toggles: ${JSON.stringify(contextPreviewDebug.toggles)}`}
                 )}
               </select>
             </div>
+
+            {/* Model reference photo (models category only) */}
+            {aiCategory === 'models' && (
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', margin: '0 0 7px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>📸 Reference Photo</p>
+                {modelRefImage ? (
+                  <div style={{ position: 'relative' }}>
+                    <img
+                      src={`data:${modelRefImage.mime};base64,${modelRefImage.data}`}
+                      alt="Reference"
+                      style={{ width: '100%', borderRadius: 7, border: '1px solid #d1d5db', display: 'block' }}
+                    />
+                    <button
+                      onClick={() => setModelRefImage(null)}
+                      title="Remove reference photo"
+                      style={{ position: 'absolute', top: 5, right: 5, background: 'rgba(0,0,0,0.55)', border: 'none', borderRadius: 4, color: '#fff', fontSize: 14, cursor: 'pointer', padding: '1px 6px', lineHeight: 1.4 }}
+                    >×</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => modelRefInputRef.current?.click()}
+                    style={{ width: '100%', padding: '10px 8px', borderRadius: 7, border: '2px dashed #d1d5db', background: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 11, textAlign: 'center' }}
+                  >
+                    + Upload reference photo
+                  </button>
+                )}
+                <input
+                  ref={modelRefInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = ev => {
+                      const result = ev.target?.result as string;
+                      const [header, data] = result.split(',');
+                      const mime = header.split(':')[1].split(';')[0];
+                      setModelRefImage({ data, mime });
+                    };
+                    reader.readAsDataURL(file);
+                    e.target.value = '';
+                  }}
+                />
+                {modelRefImage ? (
+                  <p style={{ fontSize: 10, color: '#6b7280', margin: '5px 0 0', lineHeight: 1.4 }}>Model identity taken from this photo · <button onClick={() => modelRefInputRef.current?.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0ea5e9', fontSize: 10, padding: 0 }}>change</button></p>
+                ) : (
+                  <p style={{ fontSize: 10, color: '#9ca3af', margin: '5px 0 0', lineHeight: 1.4 }}>Optional — upload a photo to use that person&apos;s exact face &amp; identity.</p>
+                )}
+                <p style={{ fontSize: 10, color: '#0ea5e9', margin: '4px 0 0', fontWeight: 600 }}>✓ White background applied automatically to all model images</p>
+              </div>
+            )}
           </div>
 
           {/* Messages */}
