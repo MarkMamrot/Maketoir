@@ -58,6 +58,8 @@ const NAV: NavItem[] = [
     children: [
       { id: 'brand-assets-models',    label: 'Models'    },
       { id: 'brand-assets-backdrops', label: 'Backdrops' },
+      { id: 'brand-assets-poses',     label: 'Poses'     },
+      { id: 'brand-assets-scenes',    label: 'Scenes'    },
       { id: 'brand-assets-templates', label: 'Templates' },
     ],
   },
@@ -7621,16 +7623,30 @@ const BRAND_ASSET_CATEGORIES: BrandAssetCategory[] = [
   {
     id: 'models',
     label: 'Models',
-    description: 'Manage model images and profiles used across visual content and campaigns.',
+    description: 'Model reference photos for AI Creative. Name as Model-YourName so AI knows this is a person reference.',
     icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>`,
     accentColor: '#0ea5e9',
   },
   {
     id: 'backdrops',
     label: 'Backdrops',
-    description: 'Organise backdrop and background images for product and promotional photography.',
+    description: 'Background/backdrop references for AI Creative. Name as Backdrop-Description so AI places the product within this setting.',
     icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 15l-5-5L5 21"/></svg>`,
     accentColor: '#8b5cf6',
+  },
+  {
+    id: 'poses',
+    label: 'Poses',
+    description: 'Pose/stance references for models in AI Creative. Name as Pose-Description so AI directs the model into this pose.',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2a3 3 0 100 6 3 3 0 000-6zm-4 8a4 4 0 014-4h0a4 4 0 014 4v1H8v-1zm-2 3h12v9H6v-9z"/></svg>`,
+    accentColor: '#f97316',
+  },
+  {
+    id: 'scenes',
+    label: 'Scenes',
+    description: 'Scene/environment references for AI Creative. Name as Scene-Description so AI sets the composition in this environment.',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 22V12h6v10"/></svg>`,
+    accentColor: '#10b981',
   },
   {
     id: 'templates',
@@ -7649,7 +7665,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
     ? BRAND_ASSET_CATEGORIES.filter(c => c.id === activeCategory)
     : BRAND_ASSET_CATEGORIES;
 
-  const [assetsByCategory, setAssetsByCategory] = useState<Record<string, BrandAsset[]>>({ models: [], backdrops: [], templates: [] });
+  const [assetsByCategory, setAssetsByCategory] = useState<Record<string, BrandAsset[]>>({ models: [], backdrops: [], poses: [], scenes: [], templates: [] });
   const [assetsLoading, setAssetsLoading] = useState(false);
 
   // AI panel
@@ -7710,7 +7726,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
       const res = await fetch('/api/dashboard/brand-assets');
       const data = await res.json();
       if (data.success) {
-        const grouped: Record<string, BrandAsset[]> = { models: [], backdrops: [], templates: [] };
+        const grouped: Record<string, BrandAsset[]> = { models: [], backdrops: [], poses: [], scenes: [], templates: [] };
         for (const a of (data.assets as BrandAsset[])) {
           if (grouped[a.category]) grouped[a.category].push(a);
         }
@@ -8313,6 +8329,8 @@ export default function DashboardPage() {
     'brand-assets': 'Brand Assets',
     'brand-assets-models': 'Brand Assets — Models',
     'brand-assets-backdrops': 'Brand Assets — Backdrops',
+    'brand-assets-poses': 'Brand Assets — Poses',
+    'brand-assets-scenes': 'Brand Assets — Scenes',
     'brand-assets-templates': 'Brand Assets — Templates',
   };
 
@@ -8454,13 +8472,15 @@ export default function DashboardPage() {
           {activeView === 'brand-profile' && (
             <BrandProfileTab business={databaseId ? { name: businessName, userId: '', databaseId } : null} />
           )}
-          {(activeView === 'brand-assets' || activeView === 'brand-assets-models' || activeView === 'brand-assets-backdrops' || activeView === 'brand-assets-templates') && (
+          {(activeView === 'brand-assets' || activeView === 'brand-assets-models' || activeView === 'brand-assets-backdrops' || activeView === 'brand-assets-poses' || activeView === 'brand-assets-scenes' || activeView === 'brand-assets-templates') && (
             <BrandAssetsView
               databaseId={databaseId}
               activeCategory={
                 activeView === 'brand-assets' ? undefined
                   : activeView === 'brand-assets-models' ? 'models'
                   : activeView === 'brand-assets-backdrops' ? 'backdrops'
+                  : activeView === 'brand-assets-poses' ? 'poses'
+                  : activeView === 'brand-assets-scenes' ? 'scenes'
                   : 'templates'
               }
             />

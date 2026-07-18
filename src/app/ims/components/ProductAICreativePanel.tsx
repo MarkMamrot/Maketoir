@@ -76,6 +76,24 @@ function useModelPicker(lsKey: string, defaultVal: string) {
   return [value, set] as const;
 }
 
+// ── AI Quick Instruction Presets ─────────────────────────────────────────────
+const AI_CREATIVE_PRESETS = [
+  { id: 'whiteBg',       label: 'Clean White Background',           promptText: 'Use a perfectly clean, pure white studio background — no shadows, gradients, textures or props.' },
+  { id: 'varyBg',        label: 'Vary Backdrop for Product/Brand',  promptText: 'Choose a backdrop and background that naturally complements this specific product and the brand aesthetic.' },
+  { id: 'varyPose',      label: 'Vary Model Pose for Product',      promptText: '(If a model is present) Choose a natural, flattering pose that best showcases this product — it need not match any reference pose.' },
+  { id: 'varyOutfit',    label: 'Vary Model Outfit for Brand',      promptText: '(If a model is present) Style the model in an on-brand outfit that complements this product — do not copy the clothing from any reference image.' },
+  { id: 'varyModel',     label: 'Vary Model to Suit Brand',         promptText: '(If a model is present) Use a model whose appearance and styling represents the target demographic of this brand.' },
+  { id: 'studioLight',   label: 'Professional Studio Lighting',     promptText: 'Apply professional studio lighting: softbox diffused light, flattering highlights, clean minimal shadows.' },
+  { id: 'goldenHour',    label: 'Golden Hour / Warm Natural Light', promptText: 'Use warm golden-hour natural sunlight — soft, directional, flattering warmth.' },
+  { id: 'lifestyle',     label: 'Lifestyle / In-Use Shot',          promptText: 'Show the product being worn or used naturally in a real-world context, not a staged studio shot.' },
+  { id: 'flatLay',       label: 'Flat Lay / Top-Down',              promptText: 'Compose as an overhead flat-lay shot — product centred on a clean surface, top-down perspective, minimal props.' },
+  { id: 'noModel',       label: 'Product Only (No Model)',          promptText: 'Show the product only — no model, no person, no mannequin. Product-focus composition.' },
+  { id: 'brandColours',  label: 'Incorporate Brand Colours',        promptText: "Prominently incorporate the brand's colour palette in the backdrop, props or styling." },
+  { id: 'editorial',     label: 'Editorial / Magazine Style',       promptText: 'Compose in a high-fashion editorial style — dynamic, aspirational, suitable for a premium lifestyle magazine.' },
+  { id: 'varyExpression',label: 'Vary Model Expression',            promptText: '(If a model is present) Give the model a fresh, natural facial expression that differs subtly from any reference — e.g. a soft genuine smile or relaxed warm look.' },
+  { id: 'varyGaze',      label: 'Vary Model Gaze / Head Angle',     promptText: '(If a model is present) Introduce a subtle variation to the model head tilt and gaze — a gentle off-camera glance or slight head turn, keeping it flattering.' },
+];
+
 // ── Main component ────────────────────────────────────────────────────────────
 interface Props {
   productId:        string;
@@ -128,8 +146,13 @@ export default function ProductAICreativePanel({ productId, productName, busines
   const [includeWebTemplates, setIncludeWebTemplates] = useState(true);
   const [additionalInstructions, setAdditionalInstructions] = useState('');
   const [showMakePrompt, setShowMakePrompt] = useState(false);
-  const [varyExpression, setVaryExpression] = useState(false);
-  const [varyGaze, setVaryGaze]             = useState(false);
+  const [sectionsExpanded, setSectionsExpanded] = useState<Record<string, boolean>>({ models: true, backdrops: true, poses: true, scenes: true, productPhotos: true, otherProduct: false });
+  const [selectedPresets, setSelectedPresets]   = useState<Set<string>>(new Set());
+  const [otherProductQuery, setOtherProductQuery] = useState('');
+  const [otherProductResults, setOtherProductResults] = useState<{ product_id: string; name: string }[]>([]);
+  const [otherProductImages, setOtherProductImages]   = useState<Record<string, Array<{ id: number; url: string; is_primary: number; _productName: string }>>>({});
+  const [otherProductOpen, setOtherProductOpen] = useState(false);
+  const uploadRefInputRef = useRef<HTMLInputElement>(null);
   const [similarQuery, setSimilarQuery]     = useState('');
   const [similarResults, setSimilarResults] = useState<{ product_id: string; name: string }[]>([]);
   const [selectedSimilar, setSelectedSimilar] = useState<{ product_id: string; name: string }[]>([]);
@@ -185,7 +208,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
     } finally { setLoadingRefs(null); }
   }, []);
 
-  const addRefFromProductImage = useCallback(async (img: ProductImage) => {
+  const addRefFromProductImage = useCallback(async (img: ProductImage, label: string) => {
     setLoadingRefs(String(img.id));
     try {
       // Fetch server-side to avoid CORS issues with Shopify/CDN URLs
@@ -197,8 +220,72 @@ export default function ProductAICreativePanel({ productId, productName, busines
       if (d.success && d.data) {
         setSelectedRefs(p => {
           // Toggle: deselect if already selected
-          if (p.some(r => r.label === `Product #${img.id}`)) return p.filter(r => r.label !== `Product #${img.id}`);
-          return [...p, { data: d.data, mimeType: d.mimeType, label: `Product #${img.id}`, thumbnail: img.url }];
+          if (p.some(r => r.label === label)) return p.filter(r => r.label !== label);
+          return [...p, { data: d.data, mimeType: d.mimeType, label, thumbnail: img.url }];
+        });
+      }
+    } finally { setLoadingRefs(null); }
+  }, [productId]);
+
+  // ── Upload a reference photo from disk ────────────────────────────────────────────
+  const handleUploadRef = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = ev.target?.result as string;
+      const comma = result.indexOf(',');
+      const data = result.slice(comma + 1);
+      const mimeType = result.slice(5, comma).replace(';base64', '');
+      const suffix = file.name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 14) || String(Date.now());
+      const label = `UPLOADPhoto-${suffix}`;
+      setSelectedRefs(p => {
+        if (p.some(r => r.label === label)) return p;
+        return [...p, { data, mimeType, label, thumbnail: result }];
+      });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }, []);
+
+  // ── Search other products (for OTHERPRODUCT refs) ─────────────────────────────────
+  const searchOtherProducts = useCallback(async (q: string) => {
+    try {
+      const res = await fetch(`/api/ims/products/${productId}/ai-creative`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'search-products', query: q }),
+      });
+      const d = await parseJsonResponse(res);
+      if (d.success) setOtherProductResults(d.products ?? []);
+    } catch {}
+  }, [productId]);
+
+  const loadOtherProductImages = useCallback(async (pid: string, pname: string) => {
+    setLoadingRefs(`OTHERPRODUCT-${pid}`);
+    try {
+      const res = await fetch(`/api/ims/products/${pid}/images`);
+      const d = await res.json();
+      if (d.data?.length) {
+        setOtherProductImages(prev => ({ ...prev, [pid]: d.data.map((img: any) => ({ ...img, _productName: pname })) }));
+      }
+    } catch {}
+    setLoadingRefs(null);
+  }, []);
+
+  const addRefFromOtherProductImage = useCallback(async (imgUrl: string, productName: string) => {
+    const safeName = productName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 14);
+    const label = `OTHERPRODUCT-${safeName}`;
+    setLoadingRefs(label);
+    try {
+      const res = await fetch(`/api/ims/products/${productId}/ai-creative`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'fetch-ref-image', url: imgUrl }),
+      });
+      const d = await parseJsonResponse(res);
+      if (d.success && d.data) {
+        setSelectedRefs(p => {
+          if (p.some(r => r.label === label)) return p.filter(r => r.label !== label);
+          return [...p, { data: d.data, mimeType: d.mimeType, label, thumbnail: imgUrl }];
         });
       }
     } finally { setLoadingRefs(null); }
@@ -248,7 +335,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
             textModel,
             includeExistingText,
             includeWebTemplates,
-            additionalInstructions,
+            additionalInstructions: buildCombinedInstructions(),
             similarProductIds: selectedSimilar.map(s => s.product_id),
             existingTitle: productTitle,
             existingDescription: productDescription,
@@ -288,7 +375,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
           mode: tab,
           prompt: basePrompt,
           imageModel, videoModel, aspectRatio,
-          additionalInstructions,
+          additionalInstructions: buildCombinedInstructions(),
           similarProductIds: selectedSimilar.map(s => s.product_id),
           includeBrandProfile, includeBusinessInfo,
           referenceImages: selectedRefs.map(r => ({ data: r.data, mimeType: r.mimeType, label: r.label })),
@@ -323,6 +410,13 @@ export default function ProductAICreativePanel({ productId, productName, busines
   // Clear a stale prompt preview when switching creative type
   useEffect(() => { setPromptPreview(null); setShowPromptPreview(false); }, [tab]);
 
+  // Other-product search debounce
+  useEffect(() => {
+    if (!otherProductOpen) return;
+    const t = setTimeout(() => searchOtherProducts(otherProductQuery), 250);
+    return () => clearTimeout(t);
+  }, [otherProductQuery, otherProductOpen, searchOtherProducts]);
+
   const toggleSimilar = (p: { product_id: string; name: string }) => {
     setSelectedSimilar(prev => prev.some(x => x.product_id === p.product_id)
       ? prev.filter(x => x.product_id !== p.product_id)
@@ -338,7 +432,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
         ? {
             mode: 'text', previewOnly: true, textModel,
             referenceImages: selectedRefs.map(r => ({ mimeType: r.mimeType, label: r.label })),
-            includeExistingText, includeWebTemplates, additionalInstructions,
+            includeExistingText, includeWebTemplates, additionalInstructions: buildCombinedInstructions(),
             existingTitle: productTitle, existingDescription: productDescription, existingTags: productTags,
             includeBrandProfile, includeBusinessInfo, similarProductIds,
           }
@@ -347,7 +441,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
             prompt: ([...chatMsgs].reverse().find(m => m.role === 'assistant')?.text) || buildAutoPrompt(),
             imageModel, videoModel, aspectRatio,
             referenceImages: selectedRefs.map(r => ({ mimeType: r.mimeType, label: r.label })),
-            includeBrandProfile, includeBusinessInfo, additionalInstructions, similarProductIds,
+            includeBrandProfile, includeBusinessInfo, additionalInstructions: buildCombinedInstructions(), similarProductIds,
           };
       const res = await fetch(`/api/ims/products/${productId}/ai-creative`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -398,34 +492,92 @@ export default function ProductAICreativePanel({ productId, productName, busines
 
   // ── Build an auto compositing prompt from the selected references ──────────
   const buildAutoPrompt = (): string => {
-    const productRefs  = selectedRefs.filter(r => r.label.startsWith('Product'));
-    const templateRefs = selectedRefs.filter(r => !r.label.startsWith('Product'));
-    const templates    = templateRefs.map(r => r.label).join(', ');
-    const hasModel    = templateRefs.some(r => r.label.toLowerCase().includes('model'));
-    const hasBackdrop = templateRefs.some(r => r.label.toLowerCase().includes('backdrop'));
+    const productRefs      = selectedRefs.filter(r => r.label.startsWith('Product-') || r.label.startsWith('Product #') || r.label.startsWith('Product '));
+    const modelRefs        = selectedRefs.filter(r => r.label.startsWith('Model-') || (!r.label.startsWith('Product') && !r.label.startsWith('Backdrop-') && !r.label.startsWith('Pose-') && !r.label.startsWith('Scene-') && !r.label.startsWith('OTHERPRODUCT-') && !r.label.startsWith('UPLOADPhoto-') && r.label.toLowerCase().includes('model')));
+    const backdropRefs     = selectedRefs.filter(r => r.label.startsWith('Backdrop-') || (!r.label.startsWith('Product') && !r.label.startsWith('Model-') && !r.label.startsWith('Pose-') && !r.label.startsWith('Scene-') && !r.label.startsWith('OTHERPRODUCT-') && !r.label.startsWith('UPLOADPhoto-') && r.label.toLowerCase().includes('backdrop')));
+    const poseRefs         = selectedRefs.filter(r => r.label.startsWith('Pose-'));
+    const sceneRefs        = selectedRefs.filter(r => r.label.startsWith('Scene-'));
+    const otherProductRefs = selectedRefs.filter(r => r.label.startsWith('OTHERPRODUCT-'));
+    const uploadPhotoRefs  = selectedRefs.filter(r => r.label.startsWith('UPLOADPhoto-'));
 
-    return [
-      productRefs.length > 0
-        ? `You are given TWO kinds of reference images. The PRODUCT reference image(s) [${productRefs.map(r => r.label).join(', ')}] contain the ACTUAL product that must appear in the output — exactly as shown, with its real design, colours, textures, print/graphics and shape unchanged. The TEMPLATE reference image(s) [${templates}] provide ONLY the scene: the person (face, body, pose, skin) and/or the backdrop.`
-        : `Create an on-brand product image using the provided template reference${templates ? ` (${templates})` : ''}.`,
-      productRefs.length > 0
-        ? `CRITICAL: Take the product ONLY from the PRODUCT reference image. NEVER take, copy, or keep any product, garment, or item that appears in the template reference — the template's clothing/products must be completely replaced by the product from the PRODUCT reference.`
-        : ``,
-      hasModel
-        ? `This is a wearable/clothing item: dress the model (using the model's exact face, body, pose and skin from the template reference) in the product from the PRODUCT reference image. The model must be wearing the ACTUAL product from the product reference — not the garment shown in the template. Fit it naturally with correct scale, drape and proportion, matching the template's lighting.`
-        : ``,
-      hasModel && varyExpression
-        ? `Give the model a fresh, natural facial expression that differs subtly from the template (e.g. a soft genuine smile or a relaxed, warm look) while keeping the SAME person's identity, features and skin exactly.`
-        : ``,
-      hasModel && varyGaze
-        ? `Introduce a subtle, natural variation to the model's head tilt and gaze so they are NOT looking straight into the camera — a gentle off-camera glance or a slight head turn. Keep it subtle (a small, flattering adjustment), never a full turn or profile.`
-        : ``,
-      hasBackdrop
-        ? `Place the product from the PRODUCT reference within the backdrop scene from the template reference, in a natural, compelling position. Match the backdrop's lighting, shadows and perspective. Do not import any product from the backdrop template.`
-        : ``,
-      `Maintain photographic realism: the product's colours, materials, graphics and scale must match the PRODUCT reference exactly. Do not invent or alter the product.`,
-      `Produce a clean, premium, on-brand result suitable for product photography.`,
-    ].filter(Boolean).join(' ');
+    const hasProduct  = productRefs.length > 0;
+    const hasModel    = modelRefs.length > 0;
+    const hasBackdrop = backdropRefs.length > 0;
+    const hasPose     = poseRefs.length > 0;
+    const hasScene    = sceneRefs.length > 0;
+    const hasOther    = otherProductRefs.length > 0;
+    const hasUpload   = uploadPhotoRefs.length > 0;
+
+    const productLabel  = productRefs.map(r => r.label).join(', ');
+    const modelLabel    = modelRefs.map(r => r.label).join(', ');
+    const backdropLabel = backdropRefs.map(r => r.label).join(', ');
+    const poseLabel     = poseRefs.map(r => r.label).join(', ');
+    const sceneLabel    = sceneRefs.map(r => r.label).join(', ');
+    const otherLabel    = otherProductRefs.map(r => r.label).join(', ');
+    const uploadLabel   = uploadPhotoRefs.map(r => r.label).join(', ');
+
+    const parts: string[] = [];
+
+    if (hasProduct) {
+      parts.push(`PRODUCT reference(s) [${productLabel}]: These images contain the ACTUAL product that must appear in the output — reproduce it exactly with its real design, colours, textures, graphics, logo and shape completely unchanged.`);
+      parts.push(`CRITICAL: Take the product ONLY from the PRODUCT reference(s). NEVER keep, copy or import any product, garment or item shown in any other reference image.`);
+    }
+
+    if (hasModel) {
+      parts.push(`MODEL reference [${modelLabel}]: Use this person's exact face, body, skin tone and identity.${hasProduct ? ` Dress the model in the product from the PRODUCT reference — NOT the clothing from the MODEL reference. Fit it naturally with correct scale, drape and proportion.` : ` Feature this model in an on-brand composition.`}`);
+    }
+
+    if (hasPose) {
+      parts.push(`POSE reference [${poseLabel}]: ${hasModel ? `The model MUST adopt this specific pose — reproduce the stance, limb positions and body angle from this reference while maintaining the model's identity.` : `Any person in the image should be shown in this specific pose.`}`);
+    }
+
+    if (hasScene) {
+      parts.push(`SCENE reference [${sceneLabel}]: Set the composition within this type of scene/environment — match its mood, atmosphere and environmental context.`);
+    }
+
+    if (hasBackdrop) {
+      parts.push(`BACKDROP reference [${backdropLabel}]: ${hasProduct ? `Place the product from the PRODUCT reference on/within this backdrop in a natural, compelling position` : `Use this as the background/backdrop`}. Match the backdrop's lighting, shadows and perspective. Do NOT import any products or objects from the backdrop reference.`);
+    }
+
+    if (hasOther && hasProduct) {
+      parts.push(`OTHER PRODUCT reference [${otherLabel}]: Use this as a style and presentation guide. Present the product from the PRODUCT reference in a similar creative style, framing and context — but show ONLY the PRODUCT reference product.`);
+    } else if (hasOther) {
+      parts.push(`OTHER PRODUCT reference [${otherLabel}]: Match the creative style, framing, composition and presentation approach shown in this reference.`);
+    }
+
+    if (hasUpload && hasProduct) {
+      parts.push(`UPLOADED reference [${uploadLabel}]: Use this uploaded image as the primary creative/style reference. Present the product from the PRODUCT reference in a similar way — same setting, framing and presentation style.`);
+    } else if (hasUpload) {
+      parts.push(`UPLOADED reference [${uploadLabel}]: Use this as the creative brief — match its style, setting, composition and mood.`);
+    }
+
+    if (hasModel && selectedPresets.has('varyExpression')) {
+      parts.push(`Give the model a fresh, natural facial expression that differs subtly from the reference (e.g. a soft genuine smile or relaxed warm look) while keeping the SAME person's identity, features and skin exactly.`);
+    }
+
+    if (hasModel && selectedPresets.has('varyGaze')) {
+      parts.push(`Introduce a subtle, natural variation to the model's head tilt and gaze — a gentle off-camera glance or slight head turn. Keep it flattering, never a full turn or profile.`);
+    }
+
+    if (parts.length === 0) {
+      return `Create a clean, premium, on-brand product image suitable for professional product photography.`;
+    }
+
+    parts.push(`Maintain photographic realism throughout: accurate lighting, shadows and perspective. Produce a clean, premium, on-brand result suitable for product photography.`);
+    return parts.filter(Boolean).join(' ');
+  };
+
+  // ── Combine preset + free-text instructions for server ────────────────────
+  const buildCombinedInstructions = (): string => {
+    const presetTexts = AI_CREATIVE_PRESETS
+      .filter(p => selectedPresets.has(p.id))
+      .map(p => `• ${p.promptText}`);
+    const freeText = additionalInstructions.trim();
+    if (!presetTexts.length && !freeText) return '';
+    const parts: string[] = [];
+    if (presetTexts.length) parts.push(presetTexts.join('\n'));
+    if (freeText) parts.push(`USER OVERRIDE — Apply these specific instructions above all other defaults: ${freeText}`);
+    return parts.join('\n\n');
   };
 
   // ── Quick Improve: build compositing prompt and go straight to image ───────
@@ -490,6 +642,8 @@ export default function ProductAICreativePanel({ productId, productName, busines
 
   const assetModels    = assets.filter(a => a.category === 'models');
   const assetBackdrops = assets.filter(a => a.category === 'backdrops');
+  const assetPoses     = assets.filter(a => a.category === 'poses');
+  const assetScenes    = assets.filter(a => a.category === 'scenes');
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: bg0, zIndex: 2000, display: 'flex', flexDirection: 'column', fontFamily: 'system-ui,sans-serif', color: textMain }}>
@@ -537,74 +691,173 @@ export default function ProductAICreativePanel({ productId, productName, busines
             </div>
           )}
 
-          {/* Helper component for a portrait-grid template section */}
-          {(['models', 'backdrops'] as const).map(cat => {
-            const catAssets = cat === 'models' ? assetModels : assetBackdrops;
+          {/* Upload ref (hidden input) */}
+          <input type="file" ref={uploadRefInputRef} accept="image/*" style={{ display: 'none' }} onChange={handleUploadRef} />
+
+          {/* Upload button */}
+          <button
+            onClick={() => uploadRefInputRef.current?.click()}
+            title="Upload an image from your computer as a reference photo. It will be labelled UPLOADPhoto-filename and the AI will use it as a creative/style reference for the output."
+            style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, padding: '6px 11px', borderRadius: 7, background: bg2, border: `1px solid ${etch}`, color: textDim, cursor: 'pointer', width: '100%' }}>
+            📎 <span>Upload Reference Photo</span>
+            <span style={{ marginLeft: 'auto', fontSize: 10, color: textDim }}>UPLOADPhoto-xxx</span>
+          </button>
+
+          {/* Brand asset sections (collapsible) */}
+          {([
+            { key: 'models',    label: 'Models',    color: '#0ea5e9', icon: '👤', catAssets: assetModels,    tooltip: 'Model reference photos (Model-Name). AI uses this person\'s exact face/body. If a product ref is selected, the model will wear it.' },
+            { key: 'backdrops', label: 'Backdrops', color: '#8b5cf6', icon: '🌅', catAssets: assetBackdrops, tooltip: 'Background references (Backdrop-Name). The product will be placed on/within this backdrop.' },
+            { key: 'poses',     label: 'Poses',     color: '#f97316', icon: '🤸', catAssets: assetPoses,     tooltip: 'Pose references (Pose-Name). If a model is selected, they will adopt this specific pose and stance.' },
+            { key: 'scenes',    label: 'Scenes',    color: '#10b981', icon: '🏙️', catAssets: assetScenes,    tooltip: 'Scene/environment references (Scene-Name). Sets the environmental context and mood for the creative.' },
+          ] as const).map(({ key, label, color, icon, catAssets, tooltip }) => {
             if (catAssets.length === 0) return null;
-            const accentColor = cat === 'models' ? '#0ea5e9' : '#8b5cf6';
-            const icon = cat === 'models' ? '👤' : '🌅';
-            const label = cat === 'models' ? 'Model Templates' : 'Backdrop Templates';
+            const expanded = sectionsExpanded[key] !== false;
             return (
-              <div key={cat}>
-                <p style={{ fontSize: 10, fontWeight: 700, color: accentColor, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 8px' }}>{label}</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-                  {catAssets.map(a => {
-                    const sel = selectedRefs.some(r => r.label === a.name);
-                    const loading = loadingRefs === a.name;
-                    return (
-                      <div key={a.id} onClick={() => !loading && addRefFromAsset(a)} title={a.name}
-                        style={{ position: 'relative', cursor: loading ? 'wait' : 'pointer', borderRadius: 8, overflow: 'hidden',
-                          border: `2px solid ${sel ? accentColor : 'transparent'}`,
-                          boxShadow: sel ? `0 0 0 1px ${accentColor}` : 'none' }}>
-                        <div style={{ aspectRatio: '3/4', background: bg2, overflow: 'hidden' }}>
-                          {a.image_data ? (
-                            <img src={`data:${a.image_mime ?? 'image/jpeg'};base64,${a.image_data}`}
-                              alt={a.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                          ) : (
-                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>{icon}</div>
-                          )}
-                          {loading && (
-                            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#fff' }}>Loading…</div>
-                          )}
-                          {sel && (
-                            <div style={{ position: 'absolute', top: 5, right: 5, width: 20, height: 20, background: accentColor, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#fff', fontWeight: 700 }}>✓</div>
-                          )}
-                          {!a.image_data && (
-                            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,.6)', padding: '3px 5px', fontSize: 9, color: '#fbbf24' }}>No image yet</div>
-                          )}
+              <div key={key}>
+                <button
+                  onClick={() => setSectionsExpanded(p => ({ ...p, [key]: !expanded }))}
+                  title={tooltip}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', color, fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: .5 }}>
+                  <span style={{ fontSize: 13 }}>{icon}</span>
+                  <span style={{ flex: 1, textAlign: 'left' as const }}>{label} ({catAssets.length})</span>
+                  <span style={{ color: textDim, fontSize: 11 }}>{expanded ? '▾' : '▸'}</span>
+                  <span title={tooltip} style={{ color: textDim, fontSize: 11, cursor: 'help', marginLeft: 2 }}>ⓘ</span>
+                </button>
+                {expanded && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginTop: 6 }}>
+                    {catAssets.map(a => {
+                      const sel = selectedRefs.some(r => r.label === a.name);
+                      const loading = loadingRefs === a.name;
+                      return (
+                        <div key={a.id} onClick={() => !loading && addRefFromAsset(a)} title={`${a.name} — click to select`}
+                          style={{ position: 'relative', cursor: loading ? 'wait' : 'pointer', borderRadius: 8, overflow: 'hidden',
+                            border: `2px solid ${sel ? color : 'transparent'}`,
+                            boxShadow: sel ? `0 0 0 1px ${color}` : 'none' }}>
+                          <div style={{ aspectRatio: '3/4', background: bg2, overflow: 'hidden' }}>
+                            {a.image_data ? (
+                              <img src={`data:${a.image_mime ?? 'image/jpeg'};base64,${a.image_data}`}
+                                alt={a.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                            ) : (
+                              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>{icon}</div>
+                            )}
+                            {loading && (
+                              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#fff' }}>Loading…</div>
+                            )}
+                            {sel && (
+                              <div style={{ position: 'absolute', top: 5, right: 5, width: 20, height: 20, background: color, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#fff', fontWeight: 700 }}>✓</div>
+                            )}
+                            {!a.image_data && (
+                              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,.6)', padding: '3px 5px', fontSize: 9, color: '#fbbf24' }}>No image yet</div>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 9, color: sel ? color : textDim, padding: '3px 2px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, fontWeight: sel ? 700 : 400 }}>{a.name}</div>
                         </div>
-                        <div style={{ fontSize: 10, color: sel ? accentColor : textDim, padding: '4px 2px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: sel ? 700 : 400 }}>{a.name}</div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
 
-          {assetModels.length === 0 && assetBackdrops.length === 0 && (
-            <p style={{ fontSize: 12, color: textDim, lineHeight: 1.6, margin: 0 }}>No brand asset templates yet. Create models and backdrops in <strong>Foresight → Brand Assets</strong> first.</p>
+          {assetModels.length === 0 && assetBackdrops.length === 0 && assetPoses.length === 0 && assetScenes.length === 0 && (
+            <p style={{ fontSize: 12, color: textDim, lineHeight: 1.6, margin: 0 }}>No brand assets yet. Create <strong>Models</strong>, <strong>Backdrops</strong>, <strong>Poses</strong> and <strong>Scenes</strong> in <strong>Foresight → Brand Assets</strong> first. Name them <em>Model-Name</em>, <em>Backdrop-Name</em>, <em>Pose-Name</em>, <em>Scene-Name</em>.</p>
           )}
 
-          {/* Existing product photos */}
+          {/* Product Photos (collapsible) */}
           {productImages.length > 0 && (
             <div>
-              <p style={{ fontSize: 10, fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: .5, margin: '14px 0 6px' }}>Product Photos</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {productImages.map(img => {
-                  const sel = selectedRefs.some(r => r.label === `Product #${img.id}`);
-                  return (
-                    <div key={img.id} onClick={() => addRefFromProductImage(img)}
-                      style={{ position: 'relative', cursor: 'pointer' }}>
-                      <img src={img.url} alt="Product"
-                        style={{ width: 52, height: 52, objectFit: 'cover', borderRadius: 6, border: `2px solid ${sel ? '#f59e0b' : etch}`, opacity: loadingRefs === String(img.id) ? .5 : 1 }} />
-                      {sel && <div style={{ position: 'absolute', top: 2, right: 2, background: '#f59e0b', borderRadius: '50%', width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, color: '#fff' }}>✓</div>}
-                    </div>
-                  );
-                })}
-              </div>
+              <button
+                onClick={() => setSectionsExpanded(p => ({ ...p, productPhotos: p.productPhotos === false }))}
+                title="Your product's existing photos. Select to use as the PRODUCT reference — AI will reproduce this exact product in the output. Labelled Product-1, Product-2 etc."
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', color: '#f59e0b', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: .5, marginTop: 2 }}>
+                <span style={{ fontSize: 13 }}>🏷️</span>
+                <span style={{ flex: 1, textAlign: 'left' as const }}>Product Photos ({productImages.length})</span>
+                <span style={{ color: textDim, fontSize: 11 }}>{sectionsExpanded.productPhotos !== false ? '▾' : '▸'}</span>
+                <span title="Select a product photo to use as PRODUCT reference. AI will reproduce this exact product in the output." style={{ color: textDim, fontSize: 11, cursor: 'help', marginLeft: 2 }}>ⓘ</span>
+              </button>
+              {sectionsExpanded.productPhotos !== false && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                  {productImages.map((img, idx) => {
+                    const label = `Product-${idx + 1}`;
+                    const sel = selectedRefs.some(r => r.label === label);
+                    return (
+                      <div key={img.id} onClick={() => addRefFromProductImage(img, label)}
+                        title={`${label} — click to select as product reference`}
+                        style={{ position: 'relative', cursor: 'pointer' }}>
+                        <img src={img.url} alt={label}
+                          style={{ width: 52, height: 52, objectFit: 'cover', borderRadius: 6, border: `2px solid ${sel ? '#f59e0b' : etch}`, opacity: loadingRefs === String(img.id) ? .5 : 1 }} />
+                        {sel && <div style={{ position: 'absolute', top: 2, right: 2, background: '#f59e0b', borderRadius: '50%', width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, color: '#fff' }}>✓</div>}
+                        <div style={{ fontSize: 9, color: sel ? '#f59e0b' : textDim, textAlign: 'center' as const, marginTop: 2 }}>{label}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
+
+          {/* Other Product Reference (collapsible) */}
+          <div>
+            <button
+              onClick={() => setSectionsExpanded(p => ({ ...p, otherProduct: !p.otherProduct }))}
+              title="Search another product from your catalogue and pick one of its photos as a creative reference. Labelled OTHERPRODUCT-name. Great for matching the style/presentation of an existing successful product photo."
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', color: '#0ea5e9', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: .5, marginTop: 2 }}>
+              <span style={{ fontSize: 13 }}>🔗</span>
+              <span style={{ flex: 1, textAlign: 'left' as const }}>Other Product Reference {selectedRefs.some(r => r.label.startsWith('OTHERPRODUCT-')) ? '✓' : ''}</span>
+              <span style={{ color: textDim, fontSize: 11 }}>{sectionsExpanded.otherProduct ? '▾' : '▸'}</span>
+              <span title="Pick a photo from another product to use as a style reference (OTHERPRODUCT-name prefix)." style={{ color: textDim, fontSize: 11, cursor: 'help', marginLeft: 2 }}>ⓘ</span>
+            </button>
+            {sectionsExpanded.otherProduct && (
+              <div style={{ marginTop: 6 }}>
+                <p style={{ fontSize: 10, color: textDim, margin: '0 0 5px', lineHeight: 1.5 }}>Search your catalogue and click a product, then pick one of its photos as a creative reference (OTHERPRODUCT-xxx).</p>
+                <input
+                  value={otherProductQuery}
+                  onFocus={() => { setOtherProductOpen(true); if (otherProductResults.length === 0) searchOtherProducts(''); }}
+                  onChange={e => { setOtherProductQuery(e.target.value); setOtherProductOpen(true); }}
+                  placeholder="Search products…"
+                  style={{ width: '100%', fontSize: 11, padding: '6px 9px', borderRadius: 7, border: `1px solid ${etch}`, background: bg2, color: textMain, outline: 'none', boxSizing: 'border-box' as const }}
+                />
+                {otherProductOpen && otherProductResults.length > 0 && (
+                  <div style={{ marginTop: 3, background: bg0, border: `1px solid ${etch}`, borderRadius: 8, maxHeight: 160, overflow: 'auto' }}>
+                    {otherProductResults.map(p => (
+                      <div key={p.product_id}
+                        onClick={() => { loadOtherProductImages(p.product_id, p.name); setOtherProductOpen(false); }}
+                        style={{ padding: '5px 9px', fontSize: 11, cursor: 'pointer', color: textMain, borderBottom: `1px solid ${etch}` }}
+                        onMouseEnter={e => (e.currentTarget.style.background = bg2)}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                        {p.name}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {otherProductOpen && (
+                  <button onClick={() => setOtherProductOpen(false)} style={{ ...panelBtn(false), fontSize: 10, padding: '3px 8px', marginTop: 4 }}>Close</button>
+                )}
+                {Object.entries(otherProductImages).map(([pid, imgs]) => (
+                  <div key={pid} style={{ marginTop: 8 }}>
+                    <p style={{ fontSize: 10, color: '#0ea5e9', margin: '0 0 4px', fontWeight: 700 }}>{imgs[0]?._productName ?? pid} — select photo:</p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                      {imgs.map((img: any) => {
+                        const safeLabel = `OTHERPRODUCT-${(img._productName ?? pid).replace(/[^a-zA-Z0-9]/g, '').slice(0, 14)}`;
+                        const sel = selectedRefs.some(r => r.label === safeLabel);
+                        return (
+                          <div key={img.id}
+                            onClick={() => !loadingRefs && addRefFromOtherProductImage(img.url, img._productName ?? pid)}
+                            title={`Add as ${safeLabel}`}
+                            style={{ position: 'relative', cursor: loadingRefs === safeLabel ? 'wait' : 'pointer' }}>
+                            <img src={img.url} alt="Product photo"
+                              style={{ width: 50, height: 50, objectFit: 'cover', borderRadius: 6, border: `2px solid ${sel ? '#0ea5e9' : etch}`, opacity: loadingRefs === safeLabel ? .5 : 1 }} />
+                            {sel && <div style={{ position: 'absolute', top: 2, right: 2, background: '#0ea5e9', borderRadius: '50%', width: 13, height: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, color: '#fff' }}>✓</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ── RIGHT: Fresh Creatives (equal width) ── */}
@@ -621,11 +874,42 @@ export default function ProductAICreativePanel({ productId, productName, busines
               {selectedRefs.length > 0 && <span style={{ fontSize: 11, color: '#22c55e' }}>📎 {selectedRefs.length} reference{selectedRefs.length !== 1 ? 's' : ''} attached</span>}
             </div>
 
-            {/* Additional instructions — always shown, all creative types */}
+            {/* AI Quick Instructions — preset checkboxes */}
+            {tab !== 'text' && (
+              <div style={{ marginBottom: 12 }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 7px' }}>
+                  ⚡ Quick AI Instructions
+                  <span title="Tick instructions to include them in every generation. Additional Instructions (below) override all of these." style={{ marginLeft: 5, cursor: 'help', color: textDim }}>ⓘ</span>
+                </p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                  {AI_CREATIVE_PRESETS.map(preset => {
+                    const on = selectedPresets.has(preset.id);
+                    return (
+                      <button key={preset.id} title={preset.promptText}
+                        onClick={() => setSelectedPresets(p => { const n = new Set(p); if (n.has(preset.id)) n.delete(preset.id); else n.add(preset.id); return n; })}
+                        style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 20, cursor: 'pointer',
+                          border: `1px solid ${on ? '#22c55e' : etch}`,
+                          background: on ? '#22c55e20' : 'transparent',
+                          color: on ? '#22c55e' : textDim }}>
+                        {on ? '✓ ' : ''}{preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedPresets.size > 0 && (
+                  <button onClick={() => setSelectedPresets(new Set())} style={{ fontSize: 10, color: textDim, background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', marginTop: 4 }}>✕ Clear all</button>
+                )}
+              </div>
+            )}
+
+            {/* Additional instructions — always shown, overrides everything */}
             <div style={{ marginBottom: 12 }}>
-              <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 5px' }}>Additional Instructions for AI</p>
+              <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 5px' }}>
+                Additional Instructions for AI
+                <span title="Your free-text instructions here OVERRIDE all Quick Instructions and all auto-generated prompt defaults. Use this for specific requirements that take full control." style={{ marginLeft: 5, cursor: 'help', color: textDim }}>ⓘ</span>
+              </p>
               <textarea value={additionalInstructions} onChange={e => setAdditionalInstructions(e.target.value)}
-                placeholder={tab === 'text' ? 'e.g. emphasise sustainability, mention it ships gift-wrapped…' : 'e.g. golden-hour light, outdoor setting, minimal props…'}
+                placeholder={tab === 'text' ? 'e.g. emphasise sustainability, mention it ships gift-wrapped… (overrides all other instructions)' : 'e.g. specific shot requirements… These override all Quick Instructions above.'}
                 rows={2}
                 style={{ width: '100%', fontSize: 12, padding: '8px 10px', borderRadius: 8, border: `1px solid ${etch}`, background: bg2, color: textMain, resize: 'vertical', outline: 'none', lineHeight: 1.5, boxSizing: 'border-box' as const }} />
             </div>
@@ -849,18 +1133,6 @@ export default function ProductAICreativePanel({ productId, productName, busines
                     </button>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {/* Model variation quick options — only when a model reference is selected */}
-            {selectedRefs.some(r => r.label.toLowerCase().includes('model')) && (
-              <div style={{ marginBottom: 12 }}>
-                <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 5px' }}>Model Variations <span style={{ fontWeight: 400, textTransform: 'none' }}>(subtle)</span></p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  <button onClick={() => setVaryExpression(p => !p)} style={toggleStyle(varyExpression, '#ec4899')}>{varyExpression ? '✓ ' : ''}Vary Expression</button>
-                  <button onClick={() => setVaryGaze(p => !p)} style={toggleStyle(varyGaze, '#14b8a6')}>{varyGaze ? '✓ ' : ''}Vary Head Tilt & Gaze</button>
-                </div>
-                <p style={{ fontSize: 10, color: textDim, margin: '5px 0 0', lineHeight: 1.4 }}>Adds a subtle, natural change to the model's expression or off-camera glance so shots don't all look identical.</p>
               </div>
             )}
 

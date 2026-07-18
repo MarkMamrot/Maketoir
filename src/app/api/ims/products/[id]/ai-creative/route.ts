@@ -191,25 +191,46 @@ async function fetchSimilarProductsBlock(similarProductIds: string[]): Promise<s
 
 const IMAGE_SYSTEM_FRAMING = `You are a professional product photographer and retoucher creating a single on-brand product image.
 Follow the brand's visual identity, colour palette and aesthetic provided in the context.
-Reproduce the product from the PRODUCT reference exactly — never invent or alter the product's design, colours, graphics or shape.
-Take only the scene (person / backdrop) from any TEMPLATE reference — never keep the template's own products/garments.
-No watermarks, no invented text or logos, no distortion. Photographic realism, correct scale and natural lighting.`;
+
+Reference image naming conventions — honour the role indicated by the label prefix:
+• Product-N: The ACTUAL product — reproduce exactly (unchanged design/colours/graphics/shape).
+• Model-Name: Person reference — use their exact face/body/identity; if Product ref present, dress them in it.
+• Backdrop-Name: Background only — place product on/within it; do NOT copy any products from it.
+• Pose-Name: Pose reference — model adopts this exact stance/limb positions/body angle.
+• Scene-Name: Environment/scene reference — set composition in this scene's mood and atmosphere.
+• OTHERPRODUCT-Name: Style reference only — match framing/presentation; do NOT reproduce this product.
+• UPLOADPhoto-Name: Uploaded creative reference — match its style and context.
+
+Core rules:
+- Reproduce the PRODUCT reference exactly — never alter its design, colours, graphics or shape.
+- NEVER keep products/garments from any non-Product reference.
+- For wearable items: dress the model (exact face/body from MODEL ref) in the product from PRODUCT ref.
+- For backdrop: place the product on/in it naturally; do NOT import any objects from the backdrop.
+- Match reference lighting, shadows and perspective. No watermarks or invented text. Photographic realism.`;
 
 const SYSTEM_PROMPT = `You are an expert AI image prompt engineer specialising in product photography compositing.
 
-Your task is to write precise prompts for an AI image generator (Nano Banana / Gemini image model) that will composite the actual provided reference images — you are NOT inventing anything. The images fall into two roles:
-- PRODUCT reference (labelled "Product #..."): the ACTUAL product that MUST appear in the output, unchanged — its real design, colours, textures, print/graphics, logos and shape.
-- TEMPLATE reference (models, backdrops): provides ONLY the scene — the person (face, body, pose, skin) and/or the backdrop/environment.
+Your task is to write precise prompts for an AI image generator (Nano Banana / Gemini image model) that will composite the actual provided reference images.
+
+Reference image naming conventions — each label prefix defines the role:
+• Product-N: The ACTUAL product that MUST appear in the output, unchanged — its real design, colours, textures, print/graphics, logos and shape.
+• Model-Name: Person reference — provides ONLY the person's face, body, skin tone and identity.
+• Backdrop-Name: Background/setting reference — provides ONLY the backdrop/environment.
+• Pose-Name: Pose reference — the model should adopt this exact stance, limb positions and body angle.
+• Scene-Name: Scene/environment reference — sets the environmental context and mood.
+• OTHERPRODUCT-Name: Style/presentation reference — match its creative framing and composition style; do NOT reproduce the product shown in it.
+• UPLOADPhoto-Name: Uploaded reference — use as a creative/style brief.
 
 Core rules (state these explicitly in every prompt you write):
 - Use the product ONLY from the PRODUCT reference. Reproduce it exactly.
-- NEVER take, keep or copy any product/garment/item shown in a TEMPLATE reference. The clothing or product in the template must be completely REPLACED by the product from the PRODUCT reference.
-- For wearable/clothing products: the model (exact face, body, pose and skin from the template) must be shown WEARING the product from the PRODUCT reference — not the garment in the template. Fit naturally with correct scale, drape and proportion.
-- For backdrop compositing: place the PRODUCT-reference product within the template's scene naturally; do not import any product from the template.
-- Match the template's lighting, shadows and perspective. Maintain photographic realism and accurate product colours, materials and scale.
-- Keep the brand's visual identity, tone, and colour palette.
+- NEVER take, keep or copy any product/garment/item shown in any non-Product reference.
+- For wearable/clothing products: dress the model (exact face/body/skin from MODEL ref) in the product from PRODUCT ref — not the clothing in the MODEL ref. Fit naturally with correct scale and drape.
+- For backdrop compositing: place the PRODUCT-reference product within the backdrop naturally; do not import any product from the backdrop.
+- If a POSE ref is present: the model must adopt that pose.
+- If an OTHERPRODUCT or UPLOADPhoto ref is present: match their creative style and framing.
+- Match the reference lighting, shadows and perspective. Maintain photographic realism.
 
-Format: Write a single, detailed, ready-to-use generation prompt in a code block. Be explicit that the product comes from the PRODUCT reference and the person/scene comes from the TEMPLATE reference.`;
+Format: Write a single, detailed, ready-to-use generation prompt in a code block. Be explicit about each reference's role.`;
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = getSession();
@@ -393,11 +414,30 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       // Lead with the brand framing + context so the model factors it in
       input.push({ type: 'text', text: framing });
       for (const img of referenceImages) {
-        // Label each reference so the model knows its role (product vs template)
-        const isProduct = typeof img.label === 'string' && img.label.toLowerCase().startsWith('product');
+        // Label each reference with its role based on naming convention prefix
+        const label = typeof img.label === 'string' ? img.label : 'reference';
+        const isProduct      = label.startsWith('Product-') || label.startsWith('Product #') || label.startsWith('Product ');
+        const isModel        = label.startsWith('Model-');
+        const isBackdrop     = label.startsWith('Backdrop-');
+        const isPose         = label.startsWith('Pose-');
+        const isScene        = label.startsWith('Scene-');
+        const isOtherProduct = label.startsWith('OTHERPRODUCT-');
+        const isUpload       = label.startsWith('UPLOADPhoto-');
         const roleLabel = isProduct
-          ? `PRODUCT reference (${img.label}) — reproduce this exact product in the output:`
-          : `TEMPLATE reference (${img.label ?? 'template'}) — use only its scene/person/backdrop, NOT any product shown in it:`;
+          ? `PRODUCT reference (${label}) — reproduce this exact product in the output. Take its design, colours, graphics, textures and shape exactly as shown:`
+          : isModel
+          ? `MODEL reference (${label}) — use this person's exact face, body, skin tone and identity. Do NOT keep any clothing/product worn in this image:`
+          : isBackdrop
+          ? `BACKDROP reference (${label}) — use only this background/setting. Do NOT import any products or items shown in it:`
+          : isPose
+          ? `POSE reference (${label}) — the model should adopt this specific pose/stance/body angle exactly:`
+          : isScene
+          ? `SCENE reference (${label}) — set the composition within this type of scene/environment, matching its mood and atmosphere:`
+          : isOtherProduct
+          ? `OTHER PRODUCT STYLE reference (${label}) — use the creative style, framing, and presentation approach from this image. Do NOT reproduce the product shown here:`
+          : isUpload
+          ? `UPLOADED reference (${label}) — use this as a style/creative brief for the composition and context:`
+          : `TEMPLATE reference (${label}) — use only its scene/person/backdrop. Do NOT keep any product shown in it:`;
         input.push({ type: 'text', text: roleLabel });
         input.push({ type: 'image', data: img.data, mime_type: img.mimeType });
       }
