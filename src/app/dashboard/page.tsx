@@ -7707,6 +7707,9 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
   const [generatingImageIdx, setGeneratingImageIdx] = useState<number | null>(null);
   const [generatedImages, setGeneratedImages] = useState<Record<number, { data: string; mimeType: string }>>({});
   const [imageErrors, setImageErrors] = useState<Record<number, string>>({});
+  // Rename state
+  const [renamingId, setRenamingId]   = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -7850,6 +7853,28 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
     setAssetsByCategory(prev => ({ ...prev, [category]: (prev[category] ?? []).filter(a => a.id !== id) }));
   };
 
+  const startRename = (asset: BrandAsset, categoryPrefix: string) => {
+    // Pre-fill with prefix if the name doesn’t already start with it
+    const suggested = asset.name.startsWith(categoryPrefix) ? asset.name : `${categoryPrefix}${asset.name}`;
+    setRenameValue(suggested);
+    setRenamingId(asset.id);
+  };
+
+  const commitRename = async (id: number, category: string) => {
+    const trimmed = renameValue.trim();
+    if (!trimmed) return;
+    await fetch(`/api/dashboard/brand-assets/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: trimmed }),
+    });
+    setAssetsByCategory(prev => ({
+      ...prev,
+      [category]: (prev[category] ?? []).map(a => a.id === id ? { ...a, name: trimmed } : a),
+    }));
+    setRenamingId(null);
+  };
+
   const generateImage = async (msgIdx: number) => {
     const prompt = chatMsgs[msgIdx].text;
     setGeneratingImageIdx(msgIdx);
@@ -7924,8 +7949,13 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
               {/* Asset cards */}
               {catAssets.length > 0 && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 12, padding: 16 }}>
-                  {catAssets.map(asset => (
-                    <div key={asset.id} style={{ background: 'var(--sv-bg-1, #f9fafb)', border: '1px solid var(--sv-etch, #e5e7eb)', borderRadius: 10, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                  {catAssets.map(asset => {
+                    // Expected naming prefix for this category (e.g. "Model-", "Backdrop-")
+                    const prefix = cat.id === 'models' ? 'Model-' : cat.id === 'backdrops' ? 'Backdrop-' : cat.id === 'poses' ? 'Pose-' : cat.id === 'scenes' ? 'Scene-' : '';
+                    const needsRename = prefix && !asset.name.startsWith(prefix);
+                    const isRenaming = renamingId === asset.id;
+                    return (
+                    <div key={asset.id} style={{ background: 'var(--sv-bg-1, #f9fafb)', border: `1px solid ${needsRename && !isRenaming ? '#fde68a' : 'var(--sv-etch, #e5e7eb)'}`, borderRadius: 10, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                       {/* Image thumbnail */}
                       {asset.image_data && (
                         <img
@@ -7935,23 +7965,67 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
                         />
                       )}
                       <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                          <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--sv-text-strong, #111827)', lineHeight: 1.3 }}>{asset.name}</span>
-                          <button
-                            onClick={() => deleteAsset(asset.id, cat.id)}
-                            title="Remove asset"
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '2px 4px', borderRadius: 4, fontSize: 15, lineHeight: 1, flexShrink: 0 }}
-                            onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
-                            onMouseLeave={e => (e.currentTarget.style.color = '#9ca3af')}
-                          >×</button>
-                        </div>
-                        {!asset.image_data && (
+                        {isRenaming ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                            <input
+                              value={renameValue}
+                              onChange={e => setRenameValue(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') commitRename(asset.id, cat.id); if (e.key === 'Escape') setRenamingId(null); }}
+                              placeholder={`${prefix}name…`}
+                              // eslint-disable-next-line jsx-a11y/no-autofocus
+                              autoFocus
+                              style={{ fontSize: 12, padding: '5px 8px', borderRadius: 6, border: `1px solid ${cat.accentColor}66`, background: 'var(--sv-bg-2,#fff)', color: 'var(--sv-text-strong,#111827)', outline: 'none', width: '100%', boxSizing: 'border-box' as const }}
+                            />
+                            <div style={{ display: 'flex', gap: 5 }}>
+                              <button onClick={() => commitRename(asset.id, cat.id)} disabled={!renameValue.trim()} style={{ flex: 1, fontSize: 11, fontWeight: 700, padding: '4px 8px', borderRadius: 5, background: cat.accentColor, color: '#fff', border: 'none', cursor: 'pointer', opacity: renameValue.trim() ? 1 : .4 }}>Save</button>
+                              <button onClick={() => setRenamingId(null)} style={{ fontSize: 11, padding: '4px 8px', borderRadius: 5, background: 'none', border: '1px solid #e5e7eb', cursor: 'pointer', color: '#6b7280' }}>Cancel</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <span
+                                onClick={() => startRename(asset, prefix)}
+                                title={needsRename ? `Rename to follow convention: ${prefix}${asset.name}` : 'Click to rename'}
+                                style={{ fontWeight: 600, fontSize: 13, color: 'var(--sv-text-strong, #111827)', lineHeight: 1.3, cursor: 'pointer', borderBottom: '1px dashed transparent', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                onMouseEnter={e => (e.currentTarget.style.borderBottomColor = '#9ca3af')}
+                                onMouseLeave={e => (e.currentTarget.style.borderBottomColor = 'transparent')}
+                              >{asset.name}</span>
+                              {needsRename && (
+                                <button
+                                  onClick={() => startRename(asset, prefix)}
+                                  title={`Rename to follow convention. Suggested: ${prefix}${asset.name}`}
+                                  style={{ fontSize: 10, color: '#d97706', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginTop: 2, fontWeight: 600 }}>
+                                  ⚠ Rename to {prefix}{asset.name.slice(0, 20)}{asset.name.length > 20 ? '…' : ''}
+                                </button>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+                              <button
+                                onClick={() => startRename(asset, prefix)}
+                                title="Rename"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '2px 5px', borderRadius: 4, fontSize: 13, lineHeight: 1 }}
+                                onMouseEnter={e => (e.currentTarget.style.color = cat.accentColor)}
+                                onMouseLeave={e => (e.currentTarget.style.color = '#9ca3af')}
+                              >✎</button>
+                              <button
+                                onClick={() => deleteAsset(asset.id, cat.id)}
+                                title="Remove asset"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '2px 4px', borderRadius: 4, fontSize: 15, lineHeight: 1 }}
+                                onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+                                onMouseLeave={e => (e.currentTarget.style.color = '#9ca3af')}
+                              >×</button>
+                            </div>
+                          </div>
+                        )}
+                        {!isRenaming && !asset.image_data && (
                           <p style={{ fontSize: 11, color: 'var(--sv-text-dim, #6b7280)', lineHeight: 1.5, margin: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' } as any}>{asset.content}</p>
                         )}
-                        <span style={{ fontSize: 10, color: '#9ca3af' }}>{new Date(asset.created_at).toLocaleDateString()}</span>
+                        {!isRenaming && <span style={{ fontSize: 10, color: '#9ca3af' }}>{new Date(asset.created_at).toLocaleDateString()}</span>}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
