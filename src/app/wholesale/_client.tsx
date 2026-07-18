@@ -12,6 +12,7 @@ interface WholesaleVariant {
   variant_id: string;
   product_id: string;
   sku: string | null;
+  barcode: string | null;
   option1_value: string | null;
   option2_value: string | null;
   option3_value: string | null;
@@ -377,6 +378,16 @@ export default function WholesalePortalClient({ session }: { session: WholesaleS
   const [view, setView]               = useState<PortalView>('shop');
   const [activeFilter, setActiveFilter] = useState<string>('__all');
 
+  // Search & brand filter
+  const [searchQuery, setSearchQuery] = useState('');
+  const [brandFilter, setBrandFilter] = useState('__all');
+
+  const allBrands = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const p of allProducts) { if (p.brand) set.add(p.brand); }
+    return Array.from(set).sort();
+  }, [allProducts]);
+
   // Cart
   const [cartItems, setCartItems]   = useState<CartItem[]>(loadCart);
   const [cartOpen, setCartOpen]     = useState(false);
@@ -479,11 +490,31 @@ export default function WholesalePortalClient({ session }: { session: WholesaleS
   const handleLogout = async () => { await fetch('/api/wholesale/auth/logout', { method: 'POST' }); router.push('/wholesale/login'); };
 
   // Filtered products
-  const filteredProducts = allProducts.filter(p => {
-    if (activeFilter === '__all') return true;
-    if (browseMode === 'category') { const [cat, sub] = activeFilter.split('||'); return sub ? p.category === cat && p.subcategory === sub : p.category === cat; }
-    return p.product_type === activeFilter;
-  });
+  const filteredProducts = React.useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return allProducts.filter(p => {
+      // Sidebar filter
+      if (activeFilter !== '__all') {
+        if (browseMode === 'category') {
+          const [cat, sub] = activeFilter.split('||');
+          if (sub ? p.category !== cat || p.subcategory !== sub : p.category !== cat) return false;
+        } else {
+          if (p.product_type !== activeFilter) return false;
+        }
+      }
+      // Brand filter
+      if (brandFilter !== '__all' && p.brand !== brandFilter) return false;
+      // Search query — match product name, any variant SKU, any variant barcode
+      if (q) {
+        const nameMatch = p.name.toLowerCase().includes(q);
+        const variantMatch = p.variants.some(
+          v => (v.sku ?? '').toLowerCase().includes(q) || (v.barcode ?? '').toLowerCase().includes(q),
+        );
+        if (!nameMatch && !variantMatch) return false;
+      }
+      return true;
+    });
+  }, [allProducts, activeFilter, browseMode, brandFilter, searchQuery]);
 
   // Sidebar
   const SidebarItem = ({ id, label, indent }: { id: string; label: string; indent?: boolean }) => (
@@ -579,6 +610,37 @@ export default function WholesalePortalClient({ session }: { session: WholesaleS
 
             {/* Grid */}
             <main style={{ flex: 1, minWidth: 0 }}>
+              {/* Search & Brand filter bar */}
+              <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' as const }}>
+                <div style={{ position: 'relative' as const, flex: '1 1 260px', minWidth: 200 }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+                    <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+                  </svg>
+                  <input
+                    type="text"
+                    placeholder="Search by name, SKU or barcode…"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    style={{ width: '100%', paddingLeft: 34, paddingRight: searchQuery ? 32 : 12, paddingTop: 8, paddingBottom: 8, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', fontSize: 13, color: '#0f172a', boxSizing: 'border-box' as const, outline: 'none' }}
+                  />
+                  {searchQuery && (
+                    <button onClick={() => setSearchQuery('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
+                  )}
+                </div>
+                {allBrands.length > 0 && (
+                  <select
+                    value={brandFilter}
+                    onChange={e => setBrandFilter(e.target.value)}
+                    style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', fontSize: 13, color: brandFilter === '__all' ? '#94a3b8' : '#0f172a', flexShrink: 0, cursor: 'pointer' }}
+                  >
+                    <option value="__all">All Brands</option>
+                    {allBrands.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                )}
+                {(searchQuery || brandFilter !== '__all') && (
+                  <button onClick={() => { setSearchQuery(''); setBrandFilter('__all'); }} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>Clear</button>
+                )}
+              </div>
               {productsError ? (
                 <div style={{ padding: 24, color: '#ef4444', background: '#fef2f2', borderRadius: 10, border: '1px solid #fecaca' }}>{productsError}</div>
               ) : productsLoading ? (

@@ -70,11 +70,11 @@ export async function GET(req: Request) {
 
     // ── Variants (wholesale price > 0 only) ──────────────────────────────────
     const variants = await imsQuery<{
-      id: number; variant_id: string; product_id: string; sku: string | null;
+      id: number; variant_id: string; product_id: string; sku: string | null; barcode: string | null;
       option1_value: string | null; option2_value: string | null; option3_value: string | null;
       price_wholesale: number; pack_size: number | null;
     }>(
-      `SELECT id, variant_id, product_id, sku,
+      `SELECT id, variant_id, product_id, sku, barcode,
               option1_value, option2_value, option3_value,
               price_wholesale, pack_size
        FROM ims_product_variants
