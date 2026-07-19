@@ -269,9 +269,9 @@ export default function ProductImageGallery({ productId, productName = 'Product'
             </div>
 
             {videoMedia.length > 0 && (
-              <div style={{ minWidth: 140 }}>
+              <div style={{ minWidth: 150 }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .5, marginBottom: 4 }}>Videos</div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {videoMedia.map(img => (
                     <div
                       key={img.id}
@@ -280,15 +280,21 @@ export default function ProductImageGallery({ productId, productName = 'Product'
                       onDragOver={e => handleDragOver(e, img.id)}
                       onDragEnd={handleDragEnd}
                       onDrop={e => handleDrop(e, img.id)}
-                      style={{ width: 64, height: 64, borderRadius: 6, border: dragOverId === img.id ? '2px solid var(--sv-action)' : '1px solid var(--sv-etch)', overflow: 'hidden', position: 'relative', background: 'var(--sv-bg-2)', cursor: 'grab', flexShrink: 0, opacity: dragSrcId === img.id ? 0.45 : 1 }}
-                      title="Video media · drag to reorder"
+                      style={{ width: 140, borderRadius: 8, border: dragOverId === img.id ? '2px solid var(--sv-action)' : '1px solid var(--sv-etch)', overflow: 'hidden', position: 'relative', background: 'var(--sv-bg-2)', cursor: 'grab', flexShrink: 0, opacity: dragSrcId === img.id ? 0.45 : 1 }}
+                      title="Video media · use controls to play · drag to reorder"
                     >
-                      <video src={img.url} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} muted playsInline />
-                      <span style={{ position: 'absolute', bottom: 2, left: 2, fontSize: 9, background: 'rgba(0,0,0,0.5)', color: '#fff', borderRadius: 3, padding: '0 3px' }}>{sourceLabel(img.source)} Video</span>
+                      <video
+                        src={img.url}
+                        controls
+                        preload="metadata"
+                        playsInline
+                        style={{ width: '100%', height: 118, objectFit: 'cover', display: 'block', background: '#000' }}
+                      />
+                      <span style={{ position: 'absolute', bottom: 4, left: 4, fontSize: 9, background: 'rgba(0,0,0,0.62)', color: '#fff', borderRadius: 3, padding: '0 4px', pointerEvents: 'none' }}>{sourceLabel(img.source)} Video</span>
                       <button
-                        onClick={() => deleteImage(img.id)}
+                        onClick={e => { e.stopPropagation(); deleteImage(img.id); }}
                         title="Remove"
-                        style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.55)', color: '#fff', border: 'none', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', fontSize: 10, lineHeight: '18px', textAlign: 'center' }}
+                        style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.62)', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', fontSize: 11, lineHeight: '20px', textAlign: 'center' }}
                       >×</button>
                     </div>
                   ))}
