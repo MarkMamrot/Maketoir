@@ -595,7 +595,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         config: {
           numberOfVideos: 1,
           aspectRatio: veoAspectRatio,
-          enhancePrompt: true,
           negativePrompt: 'unrelated product, different product, wrong item, extra logo, watermark, captions, text overlay, distorted brand marks, random people, unrelated background',
           ...(videoRefs.length > 0 ? {
             referenceImages: videoRefs.map((img: any) => ({
