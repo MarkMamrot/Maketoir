@@ -211,18 +211,41 @@ export default function ProductAICreativePanel({ productId, productName, busines
   const addRefFromProductImage = useCallback(async (img: ProductImage, label: string) => {
     setLoadingRefs(String(img.id));
     try {
-      // Fetch server-side to avoid CORS issues with Shopify/CDN URLs
-      const res = await fetch(`/api/ims/products/${productId}/ai-creative`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'fetch-ref-image', url: img.url }),
-      });
-      const d = await parseJsonResponse(res);
-      if (d.success && d.data) {
-        setSelectedRefs(p => {
-          // Toggle: deselect if already selected
-          if (p.some(r => r.label === label)) return p.filter(r => r.label !== label);
-          return [...p, { data: d.data, mimeType: d.mimeType, label, thumbnail: img.url }];
+      if (img.url.startsWith('/')) {
+        // Volume-stored image: URL is a same-origin relative path — fetch directly in
+        // the browser (no CORS) rather than proxying through the server, which can't
+        // resolve relative URLs server-side.
+        const res = await fetch(img.url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        const mime = blob.type || 'image/jpeg';
+        const data = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = e => {
+            const r = e.target?.result as string;
+            resolve(r.slice(r.indexOf(',') + 1));
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
         });
+        setSelectedRefs(p => {
+          if (p.some(r => r.label === label)) return p.filter(r => r.label !== label);
+          return [...p, { data, mimeType: mime, label, thumbnail: img.url }];
+        });
+      } else {
+        // Remote URL (Shopify CDN etc.) — proxy via server to bypass browser CORS
+        const res = await fetch(`/api/ims/products/${productId}/ai-creative`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'fetch-ref-image', url: img.url }),
+        });
+        const d = await parseJsonResponse(res);
+        if (d.success && d.data) {
+          setSelectedRefs(p => {
+            // Toggle: deselect if already selected
+            if (p.some(r => r.label === label)) return p.filter(r => r.label !== label);
+            return [...p, { data: d.data, mimeType: d.mimeType, label, thumbnail: img.url }];
+          });
+        }
       }
     } finally { setLoadingRefs(null); }
   }, [productId]);
