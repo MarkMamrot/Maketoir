@@ -656,6 +656,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
       const d = await parseJsonResponse(res);
       if (!res.ok || !d.success) throw new Error(d.error ?? 'Save failed');
       setSavedUrl(d.url);
+      if (d.shopifyWarning) setGenError(`Saved to product media, but Shopify video upload failed: ${d.shopifyWarning}`);
       onImageAdded();
     } catch (e: any) { setGenError(e.message); }
     setSaving(false);

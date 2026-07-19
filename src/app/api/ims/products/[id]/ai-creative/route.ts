@@ -31,6 +31,92 @@ function getSession() {
   try { return JSON.parse(c.value); } catch { return null; }
 }
 
+function shopifyProductGid(productId: string): string {
+  return productId.startsWith('gid://') ? productId : `gid://shopify/Product/${productId}`;
+}
+
+async function shopifyGraphql<T>(shop: string, token: string, query: string, variables: Record<string, any>): Promise<T> {
+  const res = await fetch(`https://${shop}.myshopify.com/admin/api/2024-01/graphql.json`, {
+    method: 'POST',
+    headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, variables }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json.errors?.length) {
+    throw new Error(json.errors?.map((e: any) => e.message).join('; ') || `Shopify GraphQL HTTP ${res.status}`);
+  }
+  return json.data as T;
+}
+
+async function uploadVideoToShopifyProduct(args: {
+  shop: string;
+  token: string;
+  productId: string;
+  mediaData: string;
+  mediaType: string;
+  filename: string;
+  altText: string;
+}): Promise<{ id?: string; status?: string }> {
+  const buffer = Buffer.from(args.mediaData, 'base64');
+  const stagedData = await shopifyGraphql<{
+    stagedUploadsCreate: {
+      stagedTargets: Array<{ url: string; resourceUrl: string; parameters: Array<{ name: string; value: string }> }>;
+      userErrors: Array<{ message: string }>;
+    };
+  }>(args.shop, args.token, `
+    mutation StagedVideoUpload($input: [StagedUploadInput!]!) {
+      stagedUploadsCreate(input: $input) {
+        stagedTargets { url resourceUrl parameters { name value } }
+        userErrors { message }
+      }
+    }
+  `, {
+    input: [{
+      resource: 'VIDEO',
+      filename: args.filename,
+      mimeType: args.mediaType,
+      fileSize: String(buffer.length),
+      httpMethod: 'POST',
+    }],
+  });
+
+  const stagedErrors = stagedData.stagedUploadsCreate.userErrors ?? [];
+  if (stagedErrors.length) throw new Error(stagedErrors.map(e => e.message).join('; '));
+  const target = stagedData.stagedUploadsCreate.stagedTargets?.[0];
+  if (!target) throw new Error('Shopify did not return a staged upload target.');
+
+  const form = new FormData();
+  for (const param of target.parameters ?? []) form.append(param.name, param.value);
+  form.append('file', new Blob([new Uint8Array(buffer)], { type: args.mediaType }), args.filename);
+
+  const uploadRes = await fetch(target.url, { method: 'POST', body: form });
+  if (!uploadRes.ok) {
+    const errText = await uploadRes.text().catch(() => '');
+    throw new Error(`Shopify staged upload failed (${uploadRes.status}): ${errText.slice(0, 200)}`);
+  }
+
+  const mediaData = await shopifyGraphql<{
+    productCreateMedia: {
+      media: Array<{ id: string; status?: string }>;
+      mediaUserErrors: Array<{ field?: string[]; message: string }>;
+    };
+  }>(args.shop, args.token, `
+    mutation AttachVideoToProduct($productId: ID!, $media: [CreateMediaInput!]!) {
+      productCreateMedia(productId: $productId, media: $media) {
+        media { id status }
+        mediaUserErrors { field message }
+      }
+    }
+  `, {
+    productId: shopifyProductGid(args.productId),
+    media: [{ mediaContentType: 'VIDEO', originalSource: target.resourceUrl, alt: args.altText }],
+  });
+
+  const mediaErrors = mediaData.productCreateMedia.mediaUserErrors ?? [];
+  if (mediaErrors.length) throw new Error(mediaErrors.map(e => e.message).join('; '));
+  return mediaData.productCreateMedia.media?.[0] ?? {};
+}
+
 // ── Web Field Templates (from Foresight Google Sheets) ───────────────────────
 async function getWebFieldTemplates(databaseId: string): Promise<{ description: any; title: any; tags: any }> {
   const empty = { description: null, title: null, tags: null };
@@ -687,8 +773,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         'SELECT shopify_product_id FROM ims_products WHERE product_id = ?', [productId],
       );
       const shopifyProductId = pRows[0]?.shopify_product_id;
+      let shopifyVideo: { id?: string; status?: string } | null = null;
+      let shopifyWarning = '';
 
-      if (shopifyProductId && !isVideo) {
+      if (shopifyProductId) {
         try {
           const conn = await ConnectionsRepository.get(businessId) as any;
           const encToken = conn?.shopify_access_token ?? '';
@@ -697,25 +785,38 @@ export async function POST(req: Request, { params }: { params: { id: string } })
             const token = decrypt(encToken);
             const shop  = shopId.replace(/\.myshopify\.com$/, '');
             const ext   = isVideo ? 'mp4' : (mediaType.split('/')[1] ?? 'jpg');
-            const shopRes = await fetch(
-              `https://${shop}.myshopify.com/admin/api/2024-01/products/${shopifyProductId}/images.json`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token },
-                body: JSON.stringify({ image: { attachment: mediaData, filename: `ai-${Date.now()}.${ext}`, alt: altText } }),
-              },
-            );
-            if (shopRes.ok) {
-              const shopData = await shopRes.json();
-              const shopifyUrl = shopData.image?.src;
-              if (shopifyUrl) {
-                await ImsImagesRepo.add(productId, shopifyUrl, 'shopify', { altText, isPrimary: false });
-                return NextResponse.json({ success: true, url: shopifyUrl, source: 'shopify' });
+            if (isVideo) {
+              shopifyVideo = await uploadVideoToShopifyProduct({
+                shop,
+                token,
+                productId: shopifyProductId,
+                mediaData,
+                mediaType,
+                filename: `ai-${Date.now()}.${ext}`,
+                altText,
+              });
+            } else {
+              const shopRes = await fetch(
+                `https://${shop}.myshopify.com/admin/api/2024-01/products/${shopifyProductId}/images.json`,
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token },
+                  body: JSON.stringify({ image: { attachment: mediaData, filename: `ai-${Date.now()}.${ext}`, alt: altText } }),
+                },
+              );
+              if (shopRes.ok) {
+                const shopData = await shopRes.json();
+                const shopifyUrl = shopData.image?.src;
+                if (shopifyUrl) {
+                  await ImsImagesRepo.add(productId, shopifyUrl, 'shopify', { altText, isPrimary: false });
+                  return NextResponse.json({ success: true, url: shopifyUrl, source: 'shopify' });
+                }
               }
             }
           }
         } catch (shopErr: any) {
           console.error('[ai-creative save] Shopify push failed:', shopErr.message);
+          if (isVideo) shopifyWarning = shopErr?.message ?? 'Shopify video upload failed';
           // Fall through to local storage
         }
       }
@@ -736,7 +837,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       });
       const publicUrl = `/api/ims/products/${productId}/images/${imageId}/file`;
       await ImsImagesRepo.updateUrl(imageId, publicUrl);
-      return NextResponse.json({ success: true, url: publicUrl, source: 'volume' });
+      return NextResponse.json({
+        success: true,
+        url: publicUrl,
+        source: 'volume',
+        ...(isVideo ? { shopifyVideoPushed: !!shopifyVideo, shopifyMediaId: shopifyVideo?.id ?? null, shopifyMediaStatus: shopifyVideo?.status ?? null } : {}),
+        ...(shopifyWarning ? { shopifyWarning } : {}),
+      });
     } catch (e: any) {
       return NextResponse.json({ error: e?.message ?? 'Save failed' }, { status: 500 });
     }

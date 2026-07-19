@@ -51,9 +51,6 @@ export default function ProductImageGallery({ productId, productName = 'Product'
   // Re-fetch when an external caller adds an image (e.g. Foresight)
   useEffect(() => { if (imageAddedKey) fetchImages(); }, [imageAddedKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const primary  = images[0] ?? null; // first sorted image = primary
-  const thumbs   = images.filter(i => i.id !== primary?.id);
-
   const setPrimary = async (id: number) => {
     await fetch(`/api/ims/products/${productId}/images`, {
       method: 'PATCH',
@@ -114,6 +111,11 @@ export default function ProductImageGallery({ productId, productName = 'Product'
   const isVideoMedia = (img: ProductImage) =>
     /\.(mp4|mov|webm)(\?|$)/i.test(img.url) || /\.(mp4|mov|webm)$/i.test(img.drive_file_id ?? '');
 
+  const imageMedia = images.filter(img => !isVideoMedia(img));
+  const videoMedia = images.filter(isVideoMedia);
+  const primary    = imageMedia[0] ?? null; // first sorted image = primary image
+  const imageThumbs = imageMedia.filter(i => i.id !== primary?.id);
+
   // ── Drag-and-drop reorder ──────────────────────────────────────────────────
   const handleDragStart = (e: React.DragEvent, id: number) => {
     setDragSrcId(id);
@@ -158,6 +160,24 @@ export default function ProductImageGallery({ productId, productName = 'Product'
 
   return (
     <div>
+      <style>{`
+        .product-media-hover-tile {
+          overflow: visible;
+          position: relative;
+          z-index: 1;
+        }
+        .product-media-hover-tile:hover {
+          z-index: 30;
+        }
+        .product-media-hover-frame {
+          transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease;
+          transform-origin: center center;
+        }
+        .product-media-hover-tile:hover .product-media-hover-frame {
+          transform: scale(2.15);
+          box-shadow: 0 16px 42px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.18);
+        }
+      `}</style>
       {aiPanelOpen && (
         <ProductAICreativePanel
           productId={productId}
@@ -171,7 +191,7 @@ export default function ProductImageGallery({ productId, productName = 'Product'
           onImageAdded={() => { fetchImages(); }}
         />
       )}
-      {/* Primary media */}
+      {/* Primary image */}
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
         <div style={{
           width: 140, height: 140, flexShrink: 0,
@@ -182,9 +202,7 @@ export default function ProductImageGallery({ productId, productName = 'Product'
         }}>
           {primary ? (
             <>
-              {isVideoMedia(primary)
-                ? <video src={primary.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted playsInline controls />
-                : <img src={primary.url} alt={primary.alt_text ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+              <img src={primary.url} alt={primary.alt_text ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               <button
                 onClick={() => deleteImage(primary.id)}
                 title="Remove"
@@ -206,85 +224,75 @@ export default function ProductImageGallery({ productId, productName = 'Product'
           )}
         </div>
 
-        {/* Thumbnails */}
+        {/* Media */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {/* Show ALL media as draggable tiles; first = primary */}
-            {images.map((img, idx) => (
-              <div
-                key={img.id}
-                draggable
-                onDragStart={e => handleDragStart(e, img.id)}
-                onDragOver={e => handleDragOver(e, img.id)}
-                onDragEnd={handleDragEnd}
-                onDrop={e => handleDrop(e, img.id)}
-                style={{
-                  width: 64, height: 64, borderRadius: 6,
-                  border: dragOverId === img.id
-                    ? '2px solid var(--sv-action)'
-                    : idx === 0
-                      ? '2px solid var(--sv-mint)'
-                      : '1px solid var(--sv-etch)',
-                  overflow: 'hidden',
-                  position: 'relative', background: 'var(--sv-bg-2)',
-                  cursor: 'grab', flexShrink: 0,
-                  opacity: dragSrcId === img.id ? 0.45 : 1,
-                  transition: 'opacity .15s, border .1s',
-                }}
-                title={idx === 0 ? 'Primary media item (drag to reorder)' : 'Drag to reorder · click to set as primary'}
-              >
-                {isVideoMedia(img)
-                  ? <video
-                      src={img.url}
-                      onClick={() => idx > 0 && setPrimary(img.id)}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                      muted playsInline
-                    />
-                  : <img
-                      src={img.url} alt={img.alt_text ?? ''}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }}
-                    />
-                }
-                {/* Primary badge */}
-                {idx === 0 && (
-                  <span style={{
-                    position: 'absolute', bottom: 2, left: 2, fontSize: 9,
-                    background: 'rgba(16,185,129,.85)', color: '#fff', borderRadius: 3, padding: '0 3px',
-                  }}>★ Primary</span>
-                )}
-                {idx > 0 && (
-                  <span style={{
-                    position: 'absolute', bottom: 2, left: 2, fontSize: 9,
-                    background: 'rgba(0,0,0,0.5)', color: '#fff', borderRadius: 3, padding: '0 3px',
-                  }}>{sourceLabel(img.source)}</span>
-                )}
-                <button
-                  onClick={() => deleteImage(img.id)}
-                  title="Remove"
-                  style={{
-                    position: 'absolute', top: 2, right: 2,
-                    background: 'rgba(0,0,0,0.55)', color: '#fff',
-                    border: 'none', borderRadius: '50%', width: 18, height: 18,
-                    cursor: 'pointer', fontSize: 10, lineHeight: '18px', textAlign: 'center',
-                  }}
-                >×</button>
-              </div>
-            ))}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, flexWrap: 'wrap' }}>
+            <div style={{ minWidth: 140 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .5, marginBottom: 4 }}>Images</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', overflow: 'visible' }}>
+                {imageThumbs.map(img => (
+                  <div
+                    key={img.id}
+                    draggable
+                    onClick={() => setPrimary(img.id)}
+                    onDragStart={e => handleDragStart(e, img.id)}
+                    onDragOver={e => handleDragOver(e, img.id)}
+                    onDragEnd={handleDragEnd}
+                    onDrop={e => handleDrop(e, img.id)}
+                    className="product-media-hover-tile"
+                    style={{ width: 64, height: 64, cursor: 'grab', flexShrink: 0, opacity: dragSrcId === img.id ? 0.45 : 1 }}
+                    title="Drag to reorder · click to set as primary image"
+                  >
+                    <div className="product-media-hover-frame" style={{ width: 64, height: 64, borderRadius: 6, border: dragOverId === img.id ? '2px solid var(--sv-action)' : '1px solid var(--sv-etch)', overflow: 'hidden', background: 'var(--sv-bg-2)', position: 'relative' }}>
+                      <img src={img.url} alt={img.alt_text ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }} />
+                      <span style={{ position: 'absolute', bottom: 2, left: 2, fontSize: 9, background: 'rgba(0,0,0,0.5)', color: '#fff', borderRadius: 3, padding: '0 3px' }}>{sourceLabel(img.source)}</span>
+                    </div>
+                    <button
+                      onClick={e => { e.stopPropagation(); deleteImage(img.id); }}
+                      title="Remove"
+                      style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.55)', color: '#fff', border: 'none', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', fontSize: 10, lineHeight: '18px', textAlign: 'center' }}
+                    >×</button>
+                  </div>
+                ))}
 
-            {/* Add placeholder if < 8 */}
-            {images.length < 8 && (
-              <div
-                onClick={() => fileRef.current?.click()}
-                style={{
-                  width: 64, height: 64, borderRadius: 6,
-                  border: '2px dashed var(--sv-etch)', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center',
-                  cursor: uploading ? 'not-allowed' : 'pointer', opacity: uploading ? 0.5 : 1,
-                  color: 'var(--sv-text-dim)', fontSize: 22,
-                }}
-                title="Upload media"
-              >
-                {uploading ? '…' : '+'}
+                {/* Add placeholder if < 8 */}
+                {images.length < 8 && (
+                  <div
+                    onClick={() => fileRef.current?.click()}
+                    style={{ width: 64, height: 64, borderRadius: 6, border: '2px dashed var(--sv-etch)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: uploading ? 'not-allowed' : 'pointer', opacity: uploading ? 0.5 : 1, color: 'var(--sv-text-dim)', fontSize: 22 }}
+                    title="Upload media"
+                  >
+                    {uploading ? '…' : '+'}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {videoMedia.length > 0 && (
+              <div style={{ minWidth: 140 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .5, marginBottom: 4 }}>Videos</div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {videoMedia.map(img => (
+                    <div
+                      key={img.id}
+                      draggable
+                      onDragStart={e => handleDragStart(e, img.id)}
+                      onDragOver={e => handleDragOver(e, img.id)}
+                      onDragEnd={handleDragEnd}
+                      onDrop={e => handleDrop(e, img.id)}
+                      style={{ width: 64, height: 64, borderRadius: 6, border: dragOverId === img.id ? '2px solid var(--sv-action)' : '1px solid var(--sv-etch)', overflow: 'hidden', position: 'relative', background: 'var(--sv-bg-2)', cursor: 'grab', flexShrink: 0, opacity: dragSrcId === img.id ? 0.45 : 1 }}
+                      title="Video media · drag to reorder"
+                    >
+                      <video src={img.url} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} muted playsInline />
+                      <span style={{ position: 'absolute', bottom: 2, left: 2, fontSize: 9, background: 'rgba(0,0,0,0.5)', color: '#fff', borderRadius: 3, padding: '0 3px' }}>{sourceLabel(img.source)} Video</span>
+                      <button
+                        onClick={() => deleteImage(img.id)}
+                        title="Remove"
+                        style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.55)', color: '#fff', border: 'none', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', fontSize: 10, lineHeight: '18px', textAlign: 'center' }}
+                      >×</button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -349,7 +357,7 @@ export default function ProductImageGallery({ productId, productName = 'Product'
           )}
 
           <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>
-            {images.length}/8 media items · drag to reorder · first item = primary
+            {images.length}/8 media items · primary image shown once on the left · videos grouped to the right
           </div>
         </div>
       </div>
