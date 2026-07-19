@@ -5,7 +5,8 @@ import ProductAICreativePanel from './ProductAICreativePanel';
 interface ProductImage {
   id: number;
   url: string;
-  source: 'shopify' | 'google_drive' | 'external';
+  source: 'shopify' | 'google_drive' | 'external' | 'volume';
+  drive_file_id?: string | null;
   is_primary: number;
   sort_order: number;
   alt_text?: string;
@@ -68,7 +69,7 @@ export default function ProductImageGallery({ productId, productName = 'Product'
     let deleteFromShopify = false;
     if (img?.source === 'shopify') {
       const choice = window.confirm(
-        'This image is synced with Shopify.\n\nClick OK to also DELETE it from Shopify.\nClick Cancel to remove from IMS only (keeps it in Shopify).'
+        'This media item is synced with Shopify.\n\nClick OK to also DELETE it from Shopify.\nClick Cancel to remove from IMS only (keeps it in Shopify).'
       );
       deleteFromShopify = choice;
     }
@@ -108,7 +109,10 @@ export default function ProductImageGallery({ productId, productName = 'Product'
   };
 
   const sourceLabel = (s: string) =>
-    s === 'shopify' ? '🛍' : s === 'google_drive' ? '📁' : '🔗';
+    s === 'shopify' ? '🛍' : s === 'google_drive' ? '📁' : s === 'volume' ? '💾' : '🔗';
+
+  const isVideoMedia = (img: ProductImage) =>
+    /\.(mp4|mov|webm)(\?|$)/i.test(img.url) || /\.(mp4|mov|webm)$/i.test(img.drive_file_id ?? '');
 
   // ── Drag-and-drop reorder ──────────────────────────────────────────────────
   const handleDragStart = (e: React.DragEvent, id: number) => {
@@ -150,7 +154,7 @@ export default function ProductImageGallery({ productId, productName = 'Product'
     } catch {}
   };
 
-  if (loading) return <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', padding: '8px 0' }}>Loading images…</div>;
+  if (loading) return <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', padding: '8px 0' }}>Loading media…</div>;
 
   return (
     <div>
@@ -167,7 +171,7 @@ export default function ProductImageGallery({ productId, productName = 'Product'
           onImageAdded={() => { fetchImages(); }}
         />
       )}
-      {/* Primary image */}
+      {/* Primary media */}
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
         <div style={{
           width: 140, height: 140, flexShrink: 0,
@@ -178,8 +182,8 @@ export default function ProductImageGallery({ productId, productName = 'Product'
         }}>
           {primary ? (
             <>
-              {primary.url.match(/\.(mp4|mov|webm)$/i)
-                ? <video src={primary.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted playsInline />
+              {isVideoMedia(primary)
+                ? <video src={primary.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted playsInline controls />
                 : <img src={primary.url} alt={primary.alt_text ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
               <button
                 onClick={() => deleteImage(primary.id)}
@@ -205,7 +209,7 @@ export default function ProductImageGallery({ productId, productName = 'Product'
         {/* Thumbnails */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {/* Show ALL images as draggable tiles; first = primary */}
+            {/* Show ALL media as draggable tiles; first = primary */}
             {images.map((img, idx) => (
               <div
                 key={img.id}
@@ -227,11 +231,15 @@ export default function ProductImageGallery({ productId, productName = 'Product'
                   opacity: dragSrcId === img.id ? 0.45 : 1,
                   transition: 'opacity .15s, border .1s',
                 }}
-                title={idx === 0 ? 'Primary image (drag to reorder)' : 'Drag to reorder · click to set as primary'}
+                title={idx === 0 ? 'Primary media item (drag to reorder)' : 'Drag to reorder · click to set as primary'}
               >
-                {img.url.match(/\.(mp4|mov|webm)$/i)
-                  ? <div onClick={() => idx > 0 && setPrimary(img.id)}
-                      style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, background: 'var(--sv-bg-2)' }}>🎬</div>
+                {isVideoMedia(img)
+                  ? <video
+                      src={img.url}
+                      onClick={() => idx > 0 && setPrimary(img.id)}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      muted playsInline
+                    />
                   : <img
                       src={img.url} alt={img.alt_text ?? ''}
                       style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }}
@@ -264,7 +272,7 @@ export default function ProductImageGallery({ productId, productName = 'Product'
             ))}
 
             {/* Add placeholder if < 8 */}
-            {images.length < 5 && (
+            {images.length < 8 && (
               <div
                 onClick={() => fileRef.current?.click()}
                 style={{
@@ -274,7 +282,7 @@ export default function ProductImageGallery({ productId, productName = 'Product'
                   cursor: uploading ? 'not-allowed' : 'pointer', opacity: uploading ? 0.5 : 1,
                   color: 'var(--sv-text-dim)', fontSize: 22,
                 }}
-                title="Upload image"
+                title="Upload media"
               >
                 {uploading ? '…' : '+'}
               </div>
@@ -341,7 +349,7 @@ export default function ProductImageGallery({ productId, productName = 'Product'
           )}
 
           <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>
-            {images.length}/5 images · drag to reorder · first image = primary
+            {images.length}/8 media items · drag to reorder · first item = primary
           </div>
         </div>
       </div>

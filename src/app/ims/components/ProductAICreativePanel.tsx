@@ -5,7 +5,7 @@
  * Full-screen panel opened from the product photo gallery.
  * Lets staff generate on-brand AI images/videos using:
  *   - Foresight brand asset templates (models, backdrops)
- *   - Existing product photos as reference
+ *   - Existing product media as reference
  *   - AI chat for prompt refinement (same pattern as BrandAssetsView)
  *   - Nano Banana for images, Veo for videos
  *
@@ -92,6 +92,19 @@ const AI_CREATIVE_PRESETS = [
   { id: 'editorial',     label: 'Editorial / Magazine Style',       promptText: 'Compose in a high-fashion editorial style — dynamic, aspirational, suitable for a premium lifestyle magazine.' },
   { id: 'varyExpression',label: 'Vary Model Expression',            promptText: '(If a model is present) Give the model a fresh, natural facial expression that differs subtly from any reference — e.g. a soft genuine smile or relaxed warm look.' },
   { id: 'varyGaze',      label: 'Vary Model Gaze / Head Angle',     promptText: '(If a model is present) Introduce a subtle variation to the model head tilt and gaze — a gentle off-camera glance or slight head turn, keeping it flattering.' },
+];
+
+const AI_VIDEO_PROMO_PRESETS = [
+  { id: 'videoHeroSlowMove',     label: 'Slow Hero Product Reveal', promptText: 'Create a slow, premium product hero reveal with gentle camera movement, stable framing, and the product clearly visible as the main subject.' },
+  { id: 'videoNaturalHands',     label: 'Natural Hands / Use',      promptText: 'If hands or a person appear, make the action feel natural and physically plausible: relaxed gestures, correct grip, believable timing, and no warped fingers or unnatural movement.' },
+  { id: 'videoLifestyleUse',     label: 'Lifestyle In-Use Moment',  promptText: 'Show the product being worn, held, or used in a believable real-world moment with subtle movement rather than an exaggerated commercial pose.' },
+  { id: 'videoTextureDetail',    label: 'Texture / Detail Pass',    promptText: 'Include a close detail pass that shows the real product texture, stitching, material, finish, print, or key design detail without changing the product.' },
+  { id: 'videoSoftNaturalLight', label: 'Soft Natural Light',       promptText: 'Use soft natural lighting with realistic shadows, reflections, and exposure. Avoid over-glossy, plastic, or hyper-saturated AI-looking light.' },
+  { id: 'videoStudioTurntable',  label: 'Clean Studio Turntable',   promptText: 'Use a clean studio-style rotating or orbiting product shot with smooth controlled camera motion and no distracting background elements.' },
+  { id: 'videoSocialVertical',   label: 'Social Ad Energy',         promptText: 'Compose like a polished short-form product ad: immediate product clarity, simple motion, strong first frame, and a satisfying end frame for looping.' },
+  { id: 'videoNoText',           label: 'No Text / Logos Added',    promptText: 'Do not add captions, text overlays, fake labels, watermarks, extra logos, or invented packaging. Preserve only real product markings from the reference.' },
+  { id: 'videoOneShot',          label: 'Single Continuous Shot',   promptText: 'Use one continuous shot with smooth motion and no hard cuts unless the user explicitly asks for edits.' },
+  { id: 'videoCameraRealism',    label: 'Real Camera Feel',         promptText: 'Make the video feel filmed on a real camera: natural lens perspective, coherent depth of field, consistent shadows, stable object geometry, and realistic motion blur.' },
 ];
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -593,12 +606,15 @@ export default function ProductAICreativePanel({ productId, productName, busines
 
   // ── Combine preset + free-text instructions for server ────────────────────
   const buildCombinedInstructions = (): string => {
-    const presetTexts = AI_CREATIVE_PRESETS
+    const activePresets = tab === 'video' ? AI_VIDEO_PROMO_PRESETS : AI_CREATIVE_PRESETS;
+    const presetTexts = activePresets
       .filter(p => selectedPresets.has(p.id))
       .map(p => `• ${p.promptText}`);
     const freeText = additionalInstructions.trim();
-    if (!presetTexts.length && !freeText) return '';
     const parts: string[] = [];
+    if (tab === 'video') {
+      parts.push('VIDEO REALISM DEFAULTS — Make this look like a natural product promotional video, not an AI-generated clip: physically plausible motion, stable product geometry, coherent lighting, realistic shadows/reflections, natural human movement if people appear, no morphing, no flicker, no rubbery fabric, no invented text/logos, no uncanny faces or hands, and no unrelated objects. Keep the product clearly recognisable throughout.');
+    }
     if (presetTexts.length) parts.push(presetTexts.join('\n'));
     if (freeText) parts.push(`USER OVERRIDE — Apply these specific instructions above all other defaults: ${freeText}`);
     return parts.join('\n\n');
@@ -668,9 +684,119 @@ export default function ProductAICreativePanel({ productId, productName, busines
   const assetBackdrops = assets.filter(a => a.category === 'backdrops');
   const assetPoses     = assets.filter(a => a.category === 'poses');
   const assetScenes    = assets.filter(a => a.category === 'scenes');
+  const activeQuickPresets = tab === 'video' ? AI_VIDEO_PROMO_PRESETS : AI_CREATIVE_PRESETS;
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: bg0, zIndex: 2000, display: 'flex', flexDirection: 'column', fontFamily: 'system-ui,sans-serif', color: textMain }}>
+      <style>{`
+        .ai-creative-ref-grid {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          align-items: flex-start;
+          overflow: visible;
+        }
+        .ai-creative-ref-tile {
+          position: relative;
+          width: 58px;
+          cursor: pointer;
+          overflow: visible;
+          z-index: 1;
+        }
+        .ai-creative-ref-tile:hover {
+          z-index: 25;
+        }
+        .ai-creative-ref-thumb {
+          width: 58px;
+          height: 58px;
+          object-fit: cover;
+          border-radius: 6px;
+          display: block;
+          transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease;
+          transform-origin: center center;
+          background: ${bg2};
+        }
+        .ai-creative-ref-tile:hover .ai-creative-ref-thumb {
+          transform: scale(2.35);
+          box-shadow: 0 16px 44px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.18);
+        }
+        .ai-creative-ref-label {
+          font-size: 9px;
+          margin-top: 3px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          text-align: center;
+        }
+        .ai-creative-workbench {
+          padding: 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .ai-creative-hero {
+          border: 1px solid rgba(148,163,184,.24);
+          border-radius: 12px;
+          padding: 13px 14px;
+          background: linear-gradient(135deg, rgba(14,165,233,.16), rgba(34,197,94,.08)), ${bg2};
+        }
+        .ai-creative-panel-card {
+          border: 1px solid ${etch};
+          border-radius: 11px;
+          background: rgba(15,23,42,.22);
+          padding: 12px;
+          box-shadow: 0 10px 26px rgba(0,0,0,.12);
+        }
+        .ai-creative-card-head {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 10px;
+          margin-bottom: 9px;
+        }
+        .ai-creative-card-title {
+          margin: 0;
+          font-size: 11px;
+          font-weight: 800;
+          color: ${textMain};
+          text-transform: uppercase;
+          letter-spacing: .55px;
+        }
+        .ai-creative-card-subtitle {
+          margin: 3px 0 0;
+          font-size: 11px;
+          line-height: 1.45;
+          color: ${textDim};
+        }
+        .ai-creative-help {
+          flex-shrink: 0;
+          width: 20px;
+          height: 20px;
+          border-radius: 999px;
+          border: 1px solid ${etch};
+          color: ${textDim};
+          background: rgba(255,255,255,.03);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 11px;
+          cursor: help;
+        }
+        .ai-creative-chip-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          align-items: center;
+        }
+        .ai-creative-two-col {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          gap: 10px;
+        }
+        @media (max-width: 1100px) {
+          .ai-creative-two-col { grid-template-columns: 1fr; }
+        }
+      `}</style>
 
       {/* ── Topbar ── */}
       <div style={{ height: 50, background: bg1, borderBottom: `1px solid ${etch}`, display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, flexShrink: 0 }}>
@@ -748,33 +874,32 @@ export default function ProductAICreativePanel({ productId, productName, busines
                   <span title={tooltip} style={{ color: textDim, fontSize: 11, cursor: 'help', marginLeft: 2 }}>ⓘ</span>
                 </button>
                 {expanded && (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginTop: 6 }}>
+                  <div className="ai-creative-ref-grid" style={{ marginTop: 6 }}>
                     {catAssets.map(a => {
                       const sel = selectedRefs.some(r => r.label === a.name);
                       const loading = loadingRefs === a.name;
                       return (
                         <div key={a.id} onClick={() => !loading && addRefFromAsset(a)} title={`${a.name} — click to select`}
-                          style={{ position: 'relative', cursor: loading ? 'wait' : 'pointer', borderRadius: 8, overflow: 'hidden',
-                            border: `2px solid ${sel ? color : 'transparent'}`,
-                            boxShadow: sel ? `0 0 0 1px ${color}` : 'none' }}>
-                          <div style={{ aspectRatio: '3/4', background: bg2, overflow: 'hidden' }}>
+                          className="ai-creative-ref-tile"
+                          style={{ cursor: loading ? 'wait' : 'pointer' }}>
+                          <div className="ai-creative-ref-thumb" style={{ position: 'relative', overflow: 'hidden', border: `2px solid ${sel ? color : etch}`, boxShadow: sel ? `0 0 0 1px ${color}` : 'none' }}>
                             {a.image_data ? (
                               <img src={`data:${a.image_mime ?? 'image/jpeg'};base64,${a.image_data}`}
                                 alt={a.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                             ) : (
-                              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>{icon}</div>
+                              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>{icon}</div>
                             )}
                             {loading && (
-                              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#fff' }}>Loading…</div>
+                              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#fff' }}>Loading…</div>
                             )}
                             {sel && (
-                              <div style={{ position: 'absolute', top: 5, right: 5, width: 20, height: 20, background: color, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#fff', fontWeight: 700 }}>✓</div>
+                              <div style={{ position: 'absolute', top: 3, right: 3, width: 16, height: 16, background: color, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#fff', fontWeight: 700 }}>✓</div>
                             )}
                             {!a.image_data && (
                               <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,.6)', padding: '3px 5px', fontSize: 9, color: '#fbbf24' }}>No image yet</div>
                             )}
                           </div>
-                          <div style={{ fontSize: 9, color: sel ? color : textDim, padding: '3px 2px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, fontWeight: sel ? 700 : 400 }}>{a.name}</div>
+                          <div className="ai-creative-ref-label" style={{ color: sel ? color : textDim, fontWeight: sel ? 700 : 400 }}>{a.name}</div>
                         </div>
                       );
                     })}
@@ -788,7 +913,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
             <p style={{ fontSize: 12, color: textDim, lineHeight: 1.6, margin: 0 }}>No brand assets yet. Create <strong>Models</strong>, <strong>Backdrops</strong>, <strong>Poses</strong> and <strong>Scenes</strong> in <strong>Foresight → Brand Assets</strong> first. Name them <em>Model-Name</em>, <em>Backdrop-Name</em>, <em>Pose-Name</em>, <em>Scene-Name</em>.</p>
           )}
 
-          {/* Product Photos (collapsible) */}
+          {/* Product Media (collapsible) */}
           {productImages.length > 0 && (
             <div>
               <button
@@ -796,23 +921,24 @@ export default function ProductAICreativePanel({ productId, productName, busines
                 title="Your product's existing photos. Select to use as the PRODUCT reference — AI will reproduce this exact product in the output. Labelled Product-1, Product-2 etc."
                 style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', color: '#f59e0b', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: .5, marginTop: 2 }}>
                 <span style={{ fontSize: 13 }}>🏷️</span>
-                <span style={{ flex: 1, textAlign: 'left' as const }}>Product Photos ({productImages.length})</span>
+                <span style={{ flex: 1, textAlign: 'left' as const }}>Product Media ({productImages.length})</span>
                 <span style={{ color: textDim, fontSize: 11 }}>{sectionsExpanded.productPhotos !== false ? '▾' : '▸'}</span>
                 <span title="Select a product photo to use as PRODUCT reference. AI will reproduce this exact product in the output." style={{ color: textDim, fontSize: 11, cursor: 'help', marginLeft: 2 }}>ⓘ</span>
               </button>
               {sectionsExpanded.productPhotos !== false && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                <div className="ai-creative-ref-grid" style={{ marginTop: 6 }}>
                   {productImages.map((img, idx) => {
                     const label = `Product-${idx + 1}`;
                     const sel = selectedRefs.some(r => r.label === label);
                     return (
                       <div key={img.id} onClick={() => addRefFromProductImage(img, label)}
                         title={`${label} — click to select as product reference`}
-                        style={{ position: 'relative', cursor: 'pointer' }}>
+                        className="ai-creative-ref-tile">
                         <img src={img.url} alt={label}
-                          style={{ width: 52, height: 52, objectFit: 'cover', borderRadius: 6, border: `2px solid ${sel ? '#f59e0b' : etch}`, opacity: loadingRefs === String(img.id) ? .5 : 1 }} />
-                        {sel && <div style={{ position: 'absolute', top: 2, right: 2, background: '#f59e0b', borderRadius: '50%', width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, color: '#fff' }}>✓</div>}
-                        <div style={{ fontSize: 9, color: sel ? '#f59e0b' : textDim, textAlign: 'center' as const, marginTop: 2 }}>{label}</div>
+                          className="ai-creative-ref-thumb"
+                          style={{ border: `2px solid ${sel ? '#f59e0b' : etch}`, opacity: loadingRefs === String(img.id) ? .5 : 1 }} />
+                        {sel && <div style={{ position: 'absolute', top: 3, right: 3, background: '#f59e0b', borderRadius: '50%', width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#fff', fontWeight: 700 }}>✓</div>}
+                        <div className="ai-creative-ref-label" style={{ color: sel ? '#f59e0b' : textDim }}>{label}</div>
                       </div>
                     );
                   })}
@@ -861,7 +987,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
                 {Object.entries(otherProductImages).map(([pid, imgs]) => (
                   <div key={pid} style={{ marginTop: 8 }}>
                     <p style={{ fontSize: 10, color: '#0ea5e9', margin: '0 0 4px', fontWeight: 700 }}>{imgs[0]?._productName ?? pid} — select photo:</p>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                    <div className="ai-creative-ref-grid">
                       {imgs.map((img: any) => {
                         const safeLabel = `OTHERPRODUCT-${(img._productName ?? pid).replace(/[^a-zA-Z0-9]/g, '').slice(0, 14)}`;
                         const sel = selectedRefs.some(r => r.label === safeLabel);
@@ -869,10 +995,12 @@ export default function ProductAICreativePanel({ productId, productName, busines
                           <div key={img.id}
                             onClick={() => !loadingRefs && addRefFromOtherProductImage(img.url, img._productName ?? pid)}
                             title={`Add as ${safeLabel}`}
-                            style={{ position: 'relative', cursor: loadingRefs === safeLabel ? 'wait' : 'pointer' }}>
+                            className="ai-creative-ref-tile"
+                            style={{ cursor: loadingRefs === safeLabel ? 'wait' : 'pointer' }}>
                             <img src={img.url} alt="Product photo"
-                              style={{ width: 50, height: 50, objectFit: 'cover', borderRadius: 6, border: `2px solid ${sel ? '#0ea5e9' : etch}`, opacity: loadingRefs === safeLabel ? .5 : 1 }} />
-                            {sel && <div style={{ position: 'absolute', top: 2, right: 2, background: '#0ea5e9', borderRadius: '50%', width: 13, height: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, color: '#fff' }}>✓</div>}
+                              className="ai-creative-ref-thumb"
+                              style={{ border: `2px solid ${sel ? '#0ea5e9' : etch}`, opacity: loadingRefs === safeLabel ? .5 : 1 }} />
+                            {sel && <div style={{ position: 'absolute', top: 3, right: 3, background: '#0ea5e9', borderRadius: '50%', width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#fff', fontWeight: 700 }}>✓</div>}
                           </div>
                         );
                       })}
@@ -886,27 +1014,48 @@ export default function ProductAICreativePanel({ productId, productName, busines
 
         {/* ── RIGHT: Fresh Creatives (equal width) ── */}
         <div style={{ flex: 1, background: bg1, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
-          <div style={{ padding: 14 }}>
-            <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .6, margin: '0 0 10px' }}>✨ Fresh Creatives</p>
+          <div className="ai-creative-workbench">
+            <div className="ai-creative-hero">
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <p style={{ fontSize: 10, fontWeight: 800, color: '#7dd3fc', textTransform: 'uppercase', letterSpacing: .75, margin: '0 0 5px' }}>✨ Fresh Creatives</p>
+                  <h2 style={{ margin: 0, color: textMain, fontSize: 18, lineHeight: 1.2 }}>{tab === 'image' ? 'Generate a new product image' : tab === 'video' ? 'Generate a product promo video' : 'Write product content'}</h2>
+                  <p style={{ margin: '6px 0 0', color: textDim, fontSize: 12, lineHeight: 1.5 }}>{tab === 'image' ? 'Choose context, steer the look, then generate and add the result back to the product media.' : tab === 'video' ? 'Use references and video direction to create a natural-looking promotional clip for this product.' : 'Use product media, brand context, and web templates to draft title, description, tags, and image prompt ideas.'}</p>
+                </div>
+                <span title="This side controls what the AI generates. References are selected on the left; these controls decide context, style, model, and output." className="ai-creative-help">?</span>
+              </div>
+            </div>
 
             {/* Context selectors */}
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${etch}` }}>
+            <div className="ai-creative-panel-card">
+              <div className="ai-creative-card-head">
+                <div>
+                  <p className="ai-creative-card-title">1. Context</p>
+                  <p className="ai-creative-card-subtitle">Choose which product, brand, and website details should inform this generation.</p>
+                </div>
+                <span title="Turn context sources on or off. Selected references from the left are always passed separately as visual anchors." className="ai-creative-help">?</span>
+              </div>
+            <div className="ai-creative-chip-row">
               <button style={toggleStyle(includeBrandProfile, '#8b5cf6')} onClick={() => setIncludeBrandProfile(p => !p)}>{includeBrandProfile ? '✓ ' : ''}Brand Profile</button>
               <button style={toggleStyle(includeBusinessInfo,  '#0ea5e9')} onClick={() => setIncludeBusinessInfo(p => !p)} >{includeBusinessInfo  ? '✓ ' : ''}Business Info</button>
               <button style={toggleStyle(includeExistingText,  '#f59e0b')} onClick={() => setIncludeExistingText(p => !p)}>{includeExistingText  ? '✓ ' : ''}Existing Title/Desc/Tags</button>
               <button style={toggleStyle(includeWebTemplates,  '#10b981')} onClick={() => setIncludeWebTemplates(p => !p)}>{includeWebTemplates  ? '✓ ' : ''}Website Templates</button>
               {selectedRefs.length > 0 && <span style={{ fontSize: 11, color: '#22c55e' }}>📎 {selectedRefs.length} reference{selectedRefs.length !== 1 ? 's' : ''} attached</span>}
             </div>
+            </div>
 
             {/* AI Quick Instructions — preset checkboxes */}
             {tab !== 'text' && (
-              <div style={{ marginBottom: 12 }}>
-                <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 7px' }}>
-                  ⚡ Quick AI Instructions
-                  <span title="Tick instructions to include them in every generation. Additional Instructions (below) override all of these." style={{ marginLeft: 5, cursor: 'help', color: textDim }}>ⓘ</span>
-                </p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                  {AI_CREATIVE_PRESETS.map(preset => {
+              <div className="ai-creative-panel-card">
+                <div className="ai-creative-card-head">
+                  <div>
+                    <p className="ai-creative-card-title">2. Direction</p>
+                    <p className="ai-creative-card-subtitle">Fast style controls. These are added to the final prompt as generation instructions.</p>
+                  </div>
+                  <span title="Tick one or more directions. They are passed to the AI with the prompt. Free-text Additional Instructions below override these." className="ai-creative-help">?</span>
+                </div>
+                <div className="ai-creative-chip-row">
+                  {activeQuickPresets.map(preset => {
                     const on = selectedPresets.has(preset.id);
                     return (
                       <button key={preset.id} title={preset.promptText}
@@ -927,11 +1076,14 @@ export default function ProductAICreativePanel({ productId, productName, busines
             )}
 
             {/* Additional instructions — always shown, overrides everything */}
-            <div style={{ marginBottom: 12 }}>
-              <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 5px' }}>
-                Additional Instructions for AI
-                <span title="Your free-text instructions here OVERRIDE all Quick Instructions and all auto-generated prompt defaults. Use this for specific requirements that take full control." style={{ marginLeft: 5, cursor: 'help', color: textDim }}>ⓘ</span>
-              </p>
+            <div className="ai-creative-panel-card">
+              <div className="ai-creative-card-head">
+                <div>
+                  <p className="ai-creative-card-title">{tab === 'text' ? '2. Writing Notes' : '3. Specific Notes'}</p>
+                  <p className="ai-creative-card-subtitle">Use this when you need a particular angle, phrase, shot requirement, or constraint.</p>
+                </div>
+                <span title="Anything typed here is sent as a user override and should take priority over quick instruction chips and automatic prompt defaults." className="ai-creative-help">?</span>
+              </div>
               <textarea value={additionalInstructions} onChange={e => setAdditionalInstructions(e.target.value)}
                 placeholder={tab === 'text' ? 'e.g. emphasise sustainability, mention it ships gift-wrapped… (overrides all other instructions)' : 'e.g. specific shot requirements… These override all Quick Instructions above.'}
                 rows={2}
@@ -939,10 +1091,14 @@ export default function ProductAICreativePanel({ productId, productName, busines
             </div>
 
             {/* Similar products (same brand) — searchable multi-select */}
-            <div style={{ marginBottom: 12 }}>
-              <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 5px' }}>
-                Similar Products {similarBrand ? `· ${similarBrand}` : ''} {selectedSimilar.length > 0 ? `(${selectedSimilar.length} selected)` : ''}
-              </p>
+            <div className="ai-creative-panel-card">
+              <div className="ai-creative-card-head">
+                <div>
+                  <p className="ai-creative-card-title">{tab === 'text' ? '3. Style Sources' : '4. Style Sources'} {similarBrand ? `· ${similarBrand}` : ''} {selectedSimilar.length > 0 ? `(${selectedSimilar.length})` : ''}</p>
+                  <p className="ai-creative-card-subtitle">Optional: borrow language, styling, or presentation cues from similar products.</p>
+                </div>
+                <span title="Search same-brand catalogue items. Selected products are passed as additional context, not as the product being generated." className="ai-creative-help">?</span>
+              </div>
               {selectedSimilar.length > 0 && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 6 }}>
                   {selectedSimilar.map(s => (
@@ -978,7 +1134,14 @@ export default function ProductAICreativePanel({ productId, productName, busines
             </div>
 
             {/* Prompt preview — all modes */}
-            <div style={{ marginBottom: 12 }}>
+            <div className="ai-creative-panel-card">
+              <div className="ai-creative-card-head">
+                <div>
+                  <p className="ai-creative-card-title">Prompt Inspector</p>
+                  <p className="ai-creative-card-subtitle">See what context will be sent before you spend a generation.</p>
+                </div>
+                <span title="This preview assembles the model, references, brand context, quick instructions, and user notes without generating media." className="ai-creative-help">?</span>
+              </div>
               <button onClick={() => { const next = !showPromptPreview; setShowPromptPreview(next); if (next) fetchPromptPreview(); }}
                 style={{ width: '100%', textAlign: 'left', background: bg2, border: `1px solid ${etch}`, borderRadius: 7, padding: '7px 10px', cursor: 'pointer', color: textDim, fontSize: 11, fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>🔍 Preview full prompt {promptPreview?.templatesIncluded ? '· ✓ brand templates' : ''}</span>
@@ -1012,7 +1175,14 @@ export default function ProductAICreativePanel({ productId, productName, busines
 
             {/* Make detailed prompt — optional dropdown, image/video only */}
             {tab !== 'text' && (
-              <div style={{ marginBottom: 12 }}>
+              <div className="ai-creative-panel-card">
+                <div className="ai-creative-card-head">
+                  <div>
+                    <p className="ai-creative-card-title">Optional Prompt Builder</p>
+                    <p className="ai-creative-card-subtitle">Use this if you want AI to turn a short idea into a detailed generation prompt.</p>
+                  </div>
+                  <span title="This writes a detailed prompt from your brief. If used, that generated prompt becomes the main brief for Image or Video generation." className="ai-creative-help">?</span>
+                </div>
                 <button onClick={() => setShowMakePrompt(p => !p)}
                   style={{ width: '100%', textAlign: 'left', background: bg2, border: `1px solid ${etch}`, borderRadius: 8, padding: '8px 10px', cursor: 'pointer', color: textDim, fontSize: 11, fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>✍ Make detailed prompt (optional){chatMsgs.some(m => m.role === 'assistant') ? ' · ✓ prompt ready' : ''}</span>
@@ -1049,16 +1219,21 @@ export default function ProductAICreativePanel({ productId, productName, busines
 
             {/* ── Text Content tab ── */}
             {tab === 'text' && (
-              <div>
-                <p style={{ fontSize: 11, color: textDim, marginBottom: 10, lineHeight: 1.6 }}>
-                  Select product photos and/or enable <strong>Existing Title/Desc/Tags</strong> above. The AI analyses them with your brand context and website templates.
-                </p>
+              <div className="ai-creative-panel-card" style={{ borderColor: 'rgba(245,158,11,.38)', background: 'linear-gradient(180deg, rgba(245,158,11,.10), rgba(15,23,42,.20))' }}>
+                <div className="ai-creative-card-head">
+                  <div>
+                    <p className="ai-creative-card-title">4. Generate Copy</p>
+                    <p className="ai-creative-card-subtitle">Create product title, web description, tags, and a suggested image prompt from the context above.</p>
+                  </div>
+                  <span title="For text generation, select product media on the left or keep Existing Title/Desc/Tags enabled so the AI has enough product context." className="ai-creative-help">?</span>
+                </div>
                 {(() => { const hasProductRef = selectedRefs.filter(r => r.label.startsWith('Product')).length > 0; const canGenerate = hasProductRef || includeExistingText; return (
                 <>
                 <button onClick={() => generate()}
                   disabled={generating || !canGenerate}
-                  style={{ width: '100%', padding: '10px', borderRadius: 9, border: 'none', cursor: 'pointer', background: '#f59e0b', color: '#fff', fontWeight: 700, fontSize: 14,
-                    opacity: generating || !canGenerate ? .4 : 1, marginBottom: 8 }}>
+                  title="Generate copy using selected references, context toggles, web templates, similar products, and writing notes."
+                  style={{ width: '100%', padding: '12px', borderRadius: 10, border: 'none', cursor: 'pointer', background: '#f59e0b', color: '#fff', fontWeight: 800, fontSize: 14,
+                    opacity: generating || !canGenerate ? .4 : 1, marginBottom: 8, boxShadow: generating ? 'none' : '0 10px 24px rgba(245,158,11,.22)' }}>
                   {generating ? 'Generating text\u2026' : '\ud83d\udcdd Generate Title, Description & Tags'}
                 </button>
                 {!canGenerate && (
@@ -1067,7 +1242,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
                 </>) })()}
                 {/* Text model selector */}
                 <div style={{ marginBottom: 12 }}>
-                  <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 5px' }}>Text Model</p>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 5px' }} title="Choose the language model used for product copy. Flash is usually faster; Pro may be more detailed.">Text Model</p>
                   <select value={textModel} onChange={e => setTextModel(e.target.value)}
                     style={{ width: '100%', padding: '6px 8px', borderRadius: 7, border: `1px solid ${etch}`, background: bg2, color: textMain, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
                     {(textModels.length > 0 ? textModels : [
@@ -1130,10 +1305,17 @@ export default function ProductAICreativePanel({ productId, productName, busines
 
             {/* ── Image / Video generation ── */}
             {tab !== 'text' && (
-            <div>
+            <div className="ai-creative-panel-card" style={{ borderColor: 'rgba(14,165,233,.38)', background: 'linear-gradient(180deg, rgba(14,165,233,.10), rgba(15,23,42,.20))' }}>
+            <div className="ai-creative-card-head">
+              <div>
+                <p className="ai-creative-card-title">5. Generate</p>
+                <p className="ai-creative-card-subtitle">Pick the model and format, then create the final {tab === 'image' ? 'image' : 'video'} from your selected references and direction.</p>
+              </div>
+              <span title="Generate uses selected references, context toggles, quick instructions, specific notes, similar products, and any detailed prompt you made." className="ai-creative-help">?</span>
+            </div>
             {/* Model selector */}
             <div style={{ marginBottom: 10 }}>
-              <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 5px' }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 5px' }} title={tab === 'image' ? 'Choose which image generation model to use.' : 'Choose which video generation model to use. Veo models may take longer but are designed for video.'}>
                 {tab === 'image' ? 'Image Model' : 'Video Model'}
               </p>
               <select value={tab === 'image' ? imageModel : videoModel}
@@ -1148,7 +1330,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
             {/* Aspect ratio selector */}
             {tab === 'image' && (
               <div style={{ marginBottom: 12 }}>
-                <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 5px' }}>Aspect Ratio</p>
+                <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 5px' }} title="Choose the output crop before generating. Product and lifestyle assets often work best at 1:1 or 4:5; banners often use 16:9.">Aspect Ratio</p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                   {ASPECT_RATIOS.map(ar => (
                     <button key={ar.value} onClick={() => setAspectRatio(ar.value)}
@@ -1168,7 +1350,8 @@ export default function ProductAICreativePanel({ productId, productName, busines
             {/* Generate button */}
             <button onClick={() => generate()}
               disabled={generating || (selectedRefs.length === 0 && chatMsgs.filter(m => m.role === 'assistant').length === 0)}
-              style={{ width: '100%', padding: '10px', borderRadius: 9, border: 'none', cursor: 'pointer', background: action, color: '#fff', fontWeight: 700, fontSize: 14, opacity: generating || (selectedRefs.length === 0 && chatMsgs.filter(m => m.role === 'assistant').length === 0) ? .4 : 1, marginBottom: 6 }}>
+              title="Starts generation using all selected references and settings above."
+              style={{ width: '100%', padding: '12px', borderRadius: 10, border: 'none', cursor: 'pointer', background: action, color: '#fff', fontWeight: 800, fontSize: 14, opacity: generating || (selectedRefs.length === 0 && chatMsgs.filter(m => m.role === 'assistant').length === 0) ? .4 : 1, marginBottom: 6, boxShadow: generating ? 'none' : '0 10px 24px rgba(14,165,233,.24)' }}>
               {generating ? (tab === 'image' ? 'Generating image…' : 'Generating video… (may take 30–60s)') : `Generate ${tab === 'image' ? 'Image' : 'Video'}`}
             </button>
 
@@ -1176,7 +1359,8 @@ export default function ProductAICreativePanel({ productId, productName, busines
 
             {/* Preview */}
             {generatedImage && tab === 'image' && (
-              <div style={{ marginTop: 10 }}>
+              <div style={{ marginTop: 12, background: bg0, border: `1px solid ${etch}`, borderRadius: 10, padding: 10 }}>
+                <p style={{ fontSize: 10, fontWeight: 800, color: '#22c55e', textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 8px' }}>Result Preview</p>
                 <img src={`data:${generatedImage.mimeType};base64,${generatedImage.data}`} alt="Generated"
                   style={{ width: '100%', borderRadius: 10, border: `1px solid ${etch}`, display: 'block' }} />
                 {savedUrl ? (
@@ -1196,7 +1380,8 @@ export default function ProductAICreativePanel({ productId, productName, busines
             )}
 
             {generatedVideo && tab === 'video' && (
-              <div style={{ marginTop: 10 }}>
+              <div style={{ marginTop: 12, background: bg0, border: `1px solid ${etch}`, borderRadius: 10, padding: 10 }}>
+                <p style={{ fontSize: 10, fontWeight: 800, color: '#22c55e', textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 8px' }}>Result Preview</p>
                 {generatedVideo.data
                   ? <video src={`data:${generatedVideo.mimeType};base64,${generatedVideo.data}`} controls style={{ width: '100%', borderRadius: 10, border: `1px solid ${etch}` }} />
                   : <p style={{ fontSize: 12, color: textDim, padding: '12px 0', textAlign: 'center' }}>Video generated, but preview data was not returned. Please regenerate.</p>}

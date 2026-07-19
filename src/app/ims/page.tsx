@@ -4098,7 +4098,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             </label>
             <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
               <input type="checkbox" checked={showCols.thumbnails} onChange={e => setShowCols(s => ({ ...s, thumbnails: e.target.checked }))} style={{ marginRight: 8 }} />
-              Product Photos
+              Product Media
             </label>
             <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
               <input type="checkbox" checked={showCols.cb_cost} onChange={e => setShowCols(s => ({ ...s, cb_cost: e.target.checked }))} style={{ marginRight: 8 }} />
@@ -4470,12 +4470,12 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             </div>
           </div>
 
-          {/* ── Photos ── */}
+          {/* ── Media ── */}
           {modal.edit?.product_id && (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                 <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Photos</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Media</span>
                 <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
               </div>
               <div style={{ marginBottom: 20 }}>

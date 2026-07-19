@@ -6,6 +6,7 @@ import { imsQuery } from '@/services/IMSMySQLService';
 const MIME_MAP: Record<string, string> = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg',
   png: 'image/png', webp: 'image/webp', gif: 'image/gif',
+  mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm',
 };
 
 /**
@@ -14,7 +15,7 @@ const MIME_MAP: Record<string, string> = {
  * Publicly accessible — product images are publicly visible on the online store.
  */
 export async function GET(
-  _: Request,
+  req: Request,
   { params }: { params: { id: string; imageId: string } },
 ) {
   const imageId = Number(params.imageId);
@@ -44,11 +45,35 @@ export async function GET(
 
   const ext = record.drive_file_id.split('.').pop()?.toLowerCase() ?? 'jpg';
   const buffer = fs.readFileSync(filePath);
+  const contentType = MIME_MAP[ext] ?? 'application/octet-stream';
+
+  const range = req.headers.get('range');
+  if (range && contentType.startsWith('video/')) {
+    const match = range.match(/bytes=(\d+)-(\d*)/);
+    if (match) {
+      const start = Number(match[1]);
+      const end = match[2] ? Number(match[2]) : buffer.length - 1;
+      if (start >= 0 && end >= start && start < buffer.length) {
+        const chunk = buffer.subarray(start, Math.min(end, buffer.length - 1) + 1);
+        return new Response(chunk, {
+          status: 206,
+          headers: {
+            'Content-Type': contentType,
+            'Content-Length': String(chunk.length),
+            'Content-Range': `bytes ${start}-${start + chunk.length - 1}/${buffer.length}`,
+            'Accept-Ranges': 'bytes',
+            'Cache-Control': 'public, max-age=86400',
+          },
+        });
+      }
+    }
+  }
 
   return new Response(buffer, {
     headers: {
-      'Content-Type': MIME_MAP[ext] ?? 'application/octet-stream',
+      'Content-Type': contentType,
       'Content-Length': String(buffer.length),
+      'Accept-Ranges': contentType.startsWith('video/') ? 'bytes' : 'none',
       'Cache-Control': 'public, max-age=86400',
     },
   });

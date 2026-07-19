@@ -65,6 +65,12 @@ function resolveImagePayload(
   return null;
 }
 
+function isShopifyImageMedia(img: { url: string; drive_file_id?: string | null }): boolean {
+  const candidate = `${img.url ?? ''} ${img.drive_file_id ?? ''}`;
+  if (/\.(mp4|mov|webm)(\?|$|\s)/i.test(candidate)) return false;
+  return true;
+}
+
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -175,6 +181,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       let imagesAdded = 0;
       const imageErrors: string[] = [];
       for (const img of images) {
+        if (!isShopifyImageMedia(img)) continue;
         const imgPayload = resolveImagePayload(img, session.businessId);
         if (!imgPayload) { imageErrors.push(`Image ${img.id}: could not resolve URL`); continue; }
         try {
@@ -244,6 +251,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       const sp = await shop.service.getProduct(shopifyProductId);
       const existing = new Set<string>((sp?.images ?? []).map((im: any) => String(im.src).split('?')[0]));
       for (const img of images) {
+        if (!isShopifyImageMedia(img)) continue;
         const base = String(img.url).split('?')[0];
         if (existing.has(base)) continue;
         const imgPayload = resolveImagePayload(img, session.businessId);

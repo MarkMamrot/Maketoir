@@ -583,6 +583,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         framing,
         refLabels ? `=== SELECTED VISUAL REFERENCES PASSED TO VEO ===\n${refLabels}\n\nUse these images as visual anchors. If a Product-* reference is present, the exact product from that image must remain the hero subject throughout the video.` : '',
         `=== VIDEO BRIEF ===\n${cleanPrompt}`,
+        '=== NATURAL PRODUCT VIDEO REQUIREMENTS ===\nMake the output look like a real product promotional video, not a synthetic AI clip. Use physically plausible motion, stable product shape, coherent perspective, realistic shadows and reflections, natural camera movement, consistent lighting, believable fabric/material behavior, and natural human movement if people appear. Avoid morphing, flicker, melting details, rubbery motion, uncanny faces or hands, fake text, invented logos, extra packaging, and over-polished plastic lighting.',
         'Keep the video tightly related to the provided product, brand aesthetic, and selected references. Do not introduce unrelated products, logos, text overlays, watermarks, packaging, or background scenes that conflict with the references.',
       ].filter(Boolean).join('\n\n');
       const veoAspectRatio = aspectRatio === '9:16' ? '9:16' : '16:9';
@@ -629,7 +630,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         config: {
           numberOfVideos: 1,
           aspectRatio: veoAspectRatio,
-          negativePrompt: 'unrelated product, different product, wrong item, extra logo, watermark, captions, text overlay, distorted brand marks, random people, unrelated background',
+          negativePrompt: 'AI-looking video, synthetic motion, morphing, flicker, melting details, warped hands, extra fingers, uncanny face, rubbery fabric, unstable geometry, distorted product, unrelated product, different product, wrong item, extra logo, watermark, captions, text overlay, fake text, invented packaging, distorted brand marks, random people, unrelated background, over-glossy plastic lighting',
           ...(videoRefs.length > 0 ? {
             referenceImages: videoRefs.map((img: any) => ({
               image: { imageBytes: img.data, mimeType: img.mimeType },
@@ -687,7 +688,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       );
       const shopifyProductId = pRows[0]?.shopify_product_id;
 
-      if (shopifyProductId) {
+      if (shopifyProductId && !isVideo) {
         try {
           const conn = await ConnectionsRepository.get(businessId) as any;
           const encToken = conn?.shopify_access_token ?? '';
