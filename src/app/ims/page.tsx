@@ -3074,6 +3074,216 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
   );
 }
 
+function AiDescriptionBuilder({ product, currentTitle, currentDescription, currentTags, onApply, onClose }: {
+  product: any;
+  currentTitle: string;
+  currentDescription: string;
+  currentTags: string;
+  onApply: (description: string) => void;
+  onClose: () => void;
+}) {
+  const productId = product?.product_id;
+  const [includeImages, setIncludeImages] = useState(true);
+  const [includeExistingText, setIncludeExistingText] = useState(true);
+  const [includeBrandProfile, setIncludeBrandProfile] = useState(true);
+  const [includeBusinessInfo, setIncludeBusinessInfo] = useState(true);
+  const [images, setImages] = useState<Array<{ id: number; url: string; is_primary: number }>>([]);
+  const [selectedImageIds, setSelectedImageIds] = useState<Set<number>>(new Set());
+  const [refQuery, setRefQuery] = useState('');
+  const [refProducts, setRefProducts] = useState<Array<{ product_id: string; name: string; brand?: string; product_type?: string }>>([]);
+  const [selectedRefs, setSelectedRefs] = useState<Array<{ product_id: string; name: string }>>([]);
+  const [generatedDescription, setGeneratedDescription] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [loadingRefs, setLoadingRefs] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!productId) return;
+    fetch(`/api/ims/products/${productId}/images`)
+      .then(r => r.json())
+      .then(d => {
+        const list = d.data ?? [];
+        setImages(list);
+        setSelectedImageIds(new Set(list.map((img: any) => img.id)));
+      })
+      .catch(() => {});
+  }, [productId]);
+
+  useEffect(() => {
+    if (!productId) return;
+    const t = setTimeout(async () => {
+      setLoadingRefs(true);
+      try {
+        const res = await fetch(`/api/ims/products/${productId}/ai-creative`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'search-products', query: refQuery, sameTypeOnly: true }),
+        });
+        const d = await res.json();
+        if (d.success) setRefProducts(d.products ?? []);
+      } catch {}
+      setLoadingRefs(false);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [productId, refQuery]);
+
+  const responseJson = async (res: Response) => {
+    const text = await res.text();
+    try { return JSON.parse(text); }
+    catch { throw new Error(text.slice(0, 180) || `Request failed (HTTP ${res.status})`); }
+  };
+
+  const imageToRef = async (img: { id: number; url: string }, idx: number) => {
+    if (img.url.startsWith('/')) {
+      const res = await fetch(img.url);
+      if (!res.ok) throw new Error(`Image ${idx + 1} failed: HTTP ${res.status}`);
+      const blob = await res.blob();
+      const data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => {
+          const result = e.target?.result as string;
+          resolve(result.slice(result.indexOf(',') + 1));
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      return { data, mimeType: blob.type || 'image/jpeg', label: `Product-${idx + 1}` };
+    }
+    const res = await fetch(`/api/ims/products/${productId}/ai-creative`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'fetch-ref-image', url: img.url }),
+    });
+    const d = await responseJson(res);
+    if (!d.success || !d.data) throw new Error(d.error ?? `Image ${idx + 1} failed`);
+    return { data: d.data, mimeType: d.mimeType ?? 'image/jpeg', label: `Product-${idx + 1}` };
+  };
+
+  const generateDescription = async () => {
+    if (!productId) return;
+    setLoading(true); setError(''); setGeneratedDescription('');
+    try {
+      const chosenImages = includeImages ? images.filter(img => selectedImageIds.has(img.id)) : [];
+      const referenceImages = await Promise.all(chosenImages.map(imageToRef));
+      const res = await fetch(`/api/ims/products/${productId}/ai-creative`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'text',
+          referenceImages,
+          includeExistingText,
+          includeWebTemplates: true,
+          includeBrandProfile,
+          includeBusinessInfo,
+          existingTitle: currentTitle,
+          existingDescription: currentDescription,
+          existingTags: currentTags,
+          similarProductIds: selectedRefs.map(p => p.product_id),
+          additionalInstructions: 'Generate a new WEBSITE DESCRIPTION ONLY for the edit product description field. Follow the Foresight description template exactly, preserve accurate product facts, and use valid HTML. Do not include title or tags inside the description.',
+        }),
+      });
+      const d = await responseJson(res);
+      if (!res.ok || !d.success) throw new Error(d.error ?? 'Description generation failed');
+      if (!d.description?.trim()) throw new Error('AI returned no description. Try enabling existing text or product images.');
+      setGeneratedDescription(d.description);
+    } catch (e: any) {
+      setError(e.message ?? 'Description generation failed');
+    }
+    setLoading(false);
+  };
+
+  const toggleImage = (id: number) => setSelectedImageIds(prev => {
+    const n = new Set(prev);
+    n.has(id) ? n.delete(id) : n.add(id);
+    return n;
+  });
+
+  const toggleRefProduct = (p: { product_id: string; name: string }) => {
+    setSelectedRefs(prev => prev.some(x => x.product_id === p.product_id)
+      ? prev.filter(x => x.product_id !== p.product_id)
+      : [...prev, { product_id: p.product_id, name: p.name }]);
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 2500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ width: 'min(980px, 100%)', maxHeight: 'calc(100vh - 40px)', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 14, boxShadow: '0 24px 70px rgba(0,0,0,.28)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: '1px solid var(--sv-etch)' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>✨ AI Description Builder</div>
+            <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 2 }}>Uses product images, same-type references, existing content, and your Foresight description template.</div>
+          </div>
+          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 20, lineHeight: 1 }}>×</button>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', minHeight: 0, overflow: 'hidden' }}>
+          <div style={{ padding: 16, borderRight: '1px solid var(--sv-etch)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+              {[
+                ['includeImages', includeImages, setIncludeImages, `Use product images (${selectedImageIds.size}/${images.length})`],
+                ['includeExistingText', includeExistingText, setIncludeExistingText, 'Use existing description'],
+                ['includeBrandProfile', includeBrandProfile, setIncludeBrandProfile, 'Use brand profile'],
+                ['includeBusinessInfo', includeBusinessInfo, setIncludeBusinessInfo, 'Use business info'],
+              ].map(([key, checked, setter, label]: any) => (
+                <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={checked} onChange={e => setter(e.target.checked)} /> {label}
+                </label>
+              ))}
+            </div>
+
+            {images.length > 0 && includeImages && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', marginBottom: 7, textTransform: 'uppercase', letterSpacing: '.04em' }}>Existing Images</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 7 }}>
+                  {images.map((img, idx) => (
+                    <button key={img.id} type="button" onClick={() => toggleImage(img.id)} title={`Product-${idx + 1}`} style={{ border: selectedImageIds.has(img.id) ? '2px solid var(--sv-action)' : '1px solid var(--sv-etch)', padding: 0, borderRadius: 7, overflow: 'hidden', background: 'var(--sv-bg-1)', cursor: 'pointer', position: 'relative', aspectRatio: '1/1' }}>
+                      <img src={img.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                      {selectedImageIds.has(img.id) && <span style={{ position: 'absolute', top: 3, right: 3, width: 18, height: 18, borderRadius: '50%', background: 'var(--sv-action)', color: '#fff', fontSize: 11, lineHeight: '18px' }}>✓</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', marginBottom: 7, textTransform: 'uppercase', letterSpacing: '.04em' }}>Reference Product</div>
+              <input value={refQuery} onChange={e => setRefQuery(e.target.value)} placeholder="Search same type…" style={{ ...inputStyle, fontSize: 12, marginBottom: 7 }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 150, overflowY: 'auto' }}>
+                {loadingRefs && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Searching…</div>}
+                {refProducts.slice(0, 10).map(p => {
+                  const active = selectedRefs.some(x => x.product_id === p.product_id);
+                  return <button key={p.product_id} type="button" onClick={() => toggleRefProduct(p)} style={{ textAlign: 'left', border: `1px solid ${active ? 'var(--sv-action)' : 'var(--sv-etch)'}`, background: active ? 'color-mix(in srgb, var(--sv-action) 10%, var(--sv-bg-2))' : 'var(--sv-bg-1)', color: 'var(--sv-text-main)', borderRadius: 6, padding: '6px 8px', cursor: 'pointer', fontSize: 12 }}>
+                    {active ? '✓ ' : ''}{p.name}
+                    {p.product_type && <span style={{ display: 'block', fontSize: 10, color: 'var(--sv-text-dim)', marginTop: 2 }}>{p.product_type}</span>}
+                  </button>;
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {error && <div style={{ padding: '8px 10px', borderRadius: 7, border: '1px solid rgba(248,113,113,.35)', background: 'rgba(248,113,113,.12)', color: 'var(--sv-red)', fontSize: 12 }}>{error}</div>}
+            <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10 }}>
+              <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, marginBottom: 6 }}>Current description context</div>
+              <div style={{ fontSize: 12, color: currentDescription ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', maxHeight: 110, overflowY: 'auto', whiteSpace: 'pre-wrap' }}>{currentDescription || 'No existing description.'}</div>
+            </div>
+            <button type="button" onClick={generateDescription} disabled={loading} style={{ ...btnStyle('action', 'sm'), alignSelf: 'flex-start', opacity: loading ? .65 : 1 }}>
+              {loading ? '⏳ Building description…' : '✨ Build Description'}
+            </button>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.04em' }}>Generated Description HTML</div>
+              <textarea value={generatedDescription} onChange={e => setGeneratedDescription(e.target.value)} placeholder="Generated description will appear here…" rows={14} style={{ ...inputStyle, width: '100%', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button type="button" onClick={() => generatedDescription.trim() && onApply(generatedDescription.trim())} disabled={!generatedDescription.trim()} style={{ ...btnStyle('mint', 'sm'), opacity: generatedDescription.trim() ? 1 : .45 }}>Apply to Description</button>
+              <button type="button" onClick={onClose} style={btnStyle('ghost', 'sm')}>Close</button>
+              <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Applying updates the edit form; use Save All to persist changes.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, businessId = '', hasForesight = false }: { onNavigateToPO?: (id: number) => void; onNavigateToSO?: (id: number) => void; isAdvisor?: boolean; businessId?: string; hasForesight?: boolean } = {}) {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -3101,6 +3311,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const [stockSohLoading, setStockSohLoading] = useState(false);
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [descHtmlMode, setDescHtmlMode] = useState<'source' | 'preview'>('source');
+  const [descBuilderOpen, setDescBuilderOpen] = useState(false);
   const [form, setForm] = useState<any>({ ...BLANK_PRODUCT });
   const [productPrices, setProductPrices] = useState({ price_rrp: '', price_wholesale: '', price_rrp_sale: '', discount_start_date: '', discount_end_date: '' });
   const [optionSets, setOptionSets] = useState<OptionSet[]>([{ name: 'Size', values: '' }, { name: 'Colour', values: '' }]);
@@ -4215,7 +4426,17 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             </Field>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)' }}>Description</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)' }}>Description</label>
+                  {hasForesight && modal.edit?.product_id && (
+                    <button
+                      type="button"
+                      onClick={() => setDescBuilderOpen(true)}
+                      title="Build a new description using product images, same-type references, existing content and your Foresight template"
+                      style={{ border: '1px solid color-mix(in srgb, var(--sv-action) 35%, var(--sv-etch))', background: 'color-mix(in srgb, var(--sv-action) 10%, var(--sv-bg-2))', color: 'var(--sv-action)', borderRadius: 6, padding: '2px 7px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                    >✨</button>
+                  )}
+                </div>
                 <div style={{ display: 'flex', gap: 2 }}>
                   {(['source', 'preview'] as const).map(m => (
                     <button key={m} type="button" onClick={() => setDescHtmlMode(m)}
@@ -4231,6 +4452,20 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               ) : (
                 <div style={{ ...inputStyle, minHeight: 100, overflow: 'auto', lineHeight: 1.6, fontSize: 13 }}
                   dangerouslySetInnerHTML={{ __html: form.description || '<em style="opacity:.5">No description</em>' }} />
+              )}
+              {descBuilderOpen && modal.edit?.product_id && (
+                <AiDescriptionBuilder
+                  product={{ ...modal.edit, ...form, product_id: modal.edit.product_id }}
+                  currentTitle={form.name ?? ''}
+                  currentDescription={form.description ?? ''}
+                  currentTags={form.tags ?? ''}
+                  onApply={description => {
+                    setForm((p: any) => ({ ...p, description }));
+                    setDescHtmlMode('source');
+                    setDescBuilderOpen(false);
+                  }}
+                  onClose={() => setDescBuilderOpen(false)}
+                />
               )}
             </div>
           </div>

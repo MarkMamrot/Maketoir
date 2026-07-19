@@ -1198,9 +1198,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
               <div style={{ marginTop: 10 }}>
                 {generatedVideo.data
                   ? <video src={`data:${generatedVideo.mimeType};base64,${generatedVideo.data}`} controls style={{ width: '100%', borderRadius: 10, border: `1px solid ${etch}` }} />
-                  : generatedVideo.uri
-                    ? <p style={{ fontSize: 12, color: textDim, padding: '12px 0', textAlign: 'center' }}>Video ready: <a href={generatedVideo.uri} target="_blank" rel="noopener noreferrer" style={{ color: action }}>Open video →</a></p>
-                    : null}
+                  : <p style={{ fontSize: 12, color: textDim, padding: '12px 0', textAlign: 'center' }}>Video generated, but preview data was not returned. Please regenerate.</p>}
                 {!savedUrl && (
                   <button onClick={save} disabled={saving}
                     style={{ ...panelBtn(true), width: '100%', marginTop: 8, padding: '8px', fontSize: 13, opacity: saving ? .6 : 1 }}>

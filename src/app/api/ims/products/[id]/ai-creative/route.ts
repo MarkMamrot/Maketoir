@@ -18,6 +18,7 @@ import { GoogleSheetsService }   from '@/services/GoogleSheetsService';
 import { decrypt }               from '@/lib/encryption';
 import fs   from 'fs';
 import path from 'path';
+import os   from 'os';
 
 // Allow long-running AI generations (pro models with large prompts can take a while)
 // before the platform kills the request.
@@ -170,7 +171,7 @@ async function fetchBrandBlock(businessId: string, includeBusinessInfo: boolean,
   return sections.join('\n\n');
 }
 
-// Similar products on the site (same brand) — their text as a style reference.
+// Similar/reference products on the site — their text as a style reference.
 async function fetchSimilarProductsBlock(similarProductIds: string[]): Promise<string> {
   if (!Array.isArray(similarProductIds) || similarProductIds.length === 0) return '';
   try {
@@ -185,7 +186,7 @@ async function fetchSimilarProductsBlock(similarProductIds: string[]): Promise<s
       const plainDesc = String(r.description ?? '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 600);
       return `Sibling ${i + 1}: ${r.name}\nTags: ${r.tags ?? ''}\nDescription: ${plainDesc}`;
     });
-    return `=== SIMILAR PRODUCTS ON SITE (same brand — match their voice, structure, formatting and style; DO NOT copy their specific facts, designs or dimensions) ===\n${blocks.join('\n\n')}`;
+    return `=== REFERENCE PRODUCTS ON SITE (match their voice, structure, formatting and style; DO NOT copy their specific facts, designs or dimensions) ===\n${blocks.join('\n\n')}`;
   } catch { return ''; }
 }
 
@@ -298,18 +299,28 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   // ── SEARCH-PRODUCTS: type-to-filter list of same-brand products ────────────
   if (mode === 'search-products') {
     const q = String(body.query ?? '').trim();
+    const sameTypeOnly = !!body.sameTypeOnly;
     try {
-      // Resolve this product's brand
-      const cur = await imsQuery<{ brand: string | null }>(
-        'SELECT brand FROM ims_products WHERE product_id = ? LIMIT 1', [productId],
+      const cur = await imsQuery<{ brand: string | null; product_type: string | null; category: string | null; subcategory: string | null }>(
+        'SELECT brand, product_type, category, subcategory FROM ims_products WHERE product_id = ? LIMIT 1', [productId],
       );
       const brand = cur[0]?.brand ?? '';
       const params2: any[] = [businessId, productId];
       let where = 'business_id = ? AND product_id <> ? AND is_active = 1';
-      if (brand) { where += ' AND brand = ?'; params2.push(brand); }
+      if (sameTypeOnly) {
+        const type = cur[0]?.product_type?.trim();
+        const category = cur[0]?.category?.trim();
+        const subcategory = cur[0]?.subcategory?.trim();
+        if (type) { where += ' AND product_type = ?'; params2.push(type); }
+        else if (subcategory) { where += ' AND subcategory = ?'; params2.push(subcategory); }
+        else if (category) { where += ' AND category = ?'; params2.push(category); }
+        else if (brand) { where += ' AND brand = ?'; params2.push(brand); }
+      } else if (brand) {
+        where += ' AND brand = ?'; params2.push(brand);
+      }
       if (q) { where += ' AND (name LIKE ? OR tags LIKE ?)'; params2.push(`%${q}%`, `%${q}%`); }
       const rows = await imsQuery<any>(
-        `SELECT product_id, name, brand FROM ims_products WHERE ${where} ORDER BY name LIMIT 30`,
+        `SELECT product_id, name, brand, product_type, category, subcategory FROM ims_products WHERE ${where} ORDER BY name LIMIT 30`,
         params2,
       );
       return NextResponse.json({ success: true, brand, products: rows });
@@ -509,31 +520,21 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         return NextResponse.json({ error: 'No video returned. Try a shorter, more specific prompt.' }, { status: 500 });
       }
 
-      const video = videos[0];
-      // The URI may be nested differently depending on SDK version
-      const uri: string | undefined =
-        video?.uri ?? video?.video?.uri ?? video?.videoFile?.uri;
       const mimeType: string =
-        video?.mimeType ?? video?.video?.mimeType ?? 'video/mp4';
-
-      if (!uri) {
-        return NextResponse.json({ error: 'No video URL in response.' }, { status: 500 });
-      }
+        videos[0]?.mimeType ?? videos[0]?.video?.mimeType ?? 'video/mp4';
 
       // Download the video from Google Files API and return as base64 so the
-      // client can play / save it without exposing the API key.
+      // client can preview / save it without exposing a protected Gemini Files URI.
+      const tmpPath = path.join(os.tmpdir(), `marketoir-veo-${productId}-${Date.now()}.mp4`);
       try {
-        const videoRes = await fetch(`${uri}?key=${apiKey}`, {
-          headers: { Accept: 'video/mp4,video/*' },
-        });
-        if (videoRes.ok) {
-          const buf = Buffer.from(await videoRes.arrayBuffer());
-          return NextResponse.json({ success: true, videoData: buf.toString('base64'), mimeType });
-        }
-      } catch { /* fall through */ }
-
-      // Fallback: return URI for client to open in a new tab
-      return NextResponse.json({ success: true, videoUri: uri, mimeType });
+        await (ai as any).files.download({ file: videos[0], downloadPath: tmpPath });
+        const buf = fs.readFileSync(tmpPath);
+        return NextResponse.json({ success: true, videoData: buf.toString('base64'), mimeType });
+      } catch (downloadErr: any) {
+        return NextResponse.json({ error: `Video generated but could not be downloaded for preview: ${downloadErr?.message ?? 'download failed'}` }, { status: 500 });
+      } finally {
+        try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch {}
+      }
     } catch (e: any) {
       return NextResponse.json({ error: e?.message?.slice(0, 300) ?? 'Video generation failed' }, { status: 500 });
     }
