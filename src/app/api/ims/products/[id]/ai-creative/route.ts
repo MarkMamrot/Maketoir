@@ -485,23 +485,55 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
 
     try {
-      const parts: any[] = [];
-      parts.push({ text: framing });
-      for (const img of referenceImages) {
-        parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
-      }
-      parts.push({ text: cleanPrompt });
-
-      const result = await (ai as any).models.generateContent({
+      // Veo uses a long-running operation API — not generateContent.
+      // Start the generation, then poll until done.
+      let operation = await (ai as any).models.generateVideos({
         model: videoModel,
-        contents: [{ role: 'user', parts }],
-        generationConfig: { responseModalities: ['video'] },
+        prompt: cleanPrompt,
+        config: { numberOfVideos: 1 },
       });
-      for (const part of result?.candidates?.[0]?.content?.parts ?? []) {
-        if (part?.inlineData?.data)  return NextResponse.json({ success: true, videoData: part.inlineData.data, mimeType: part.inlineData.mimeType ?? 'video/mp4' });
-        if (part?.fileData?.fileUri) return NextResponse.json({ success: true, videoUri: part.fileData.fileUri, mimeType: part.fileData.mimeType ?? 'video/mp4' });
+
+      // Poll every 12 s; give up after ~240 s (leaving margin inside 300 s maxDuration)
+      const deadline = Date.now() + 240_000;
+      while (!operation.done && Date.now() < deadline) {
+        await new Promise<void>(r => setTimeout(r, 12_000));
+        operation = await (ai as any).operations.get({ operation });
       }
-      return NextResponse.json({ error: 'No video returned. Try a shorter, more specific prompt.' }, { status: 500 });
+
+      if (!operation.done) {
+        return NextResponse.json({ error: 'Video generation timed out. Please try again.' }, { status: 504 });
+      }
+
+      const videos: any[] = operation.response?.generatedVideos ?? [];
+      if (!videos.length) {
+        return NextResponse.json({ error: 'No video returned. Try a shorter, more specific prompt.' }, { status: 500 });
+      }
+
+      const video = videos[0];
+      // The URI may be nested differently depending on SDK version
+      const uri: string | undefined =
+        video?.uri ?? video?.video?.uri ?? video?.videoFile?.uri;
+      const mimeType: string =
+        video?.mimeType ?? video?.video?.mimeType ?? 'video/mp4';
+
+      if (!uri) {
+        return NextResponse.json({ error: 'No video URL in response.' }, { status: 500 });
+      }
+
+      // Download the video from Google Files API and return as base64 so the
+      // client can play / save it without exposing the API key.
+      try {
+        const videoRes = await fetch(`${uri}?key=${apiKey}`, {
+          headers: { Accept: 'video/mp4,video/*' },
+        });
+        if (videoRes.ok) {
+          const buf = Buffer.from(await videoRes.arrayBuffer());
+          return NextResponse.json({ success: true, videoData: buf.toString('base64'), mimeType });
+        }
+      } catch { /* fall through */ }
+
+      // Fallback: return URI for client to open in a new tab
+      return NextResponse.json({ success: true, videoUri: uri, mimeType });
     } catch (e: any) {
       return NextResponse.json({ error: e?.message?.slice(0, 300) ?? 'Video generation failed' }, { status: 500 });
     }
@@ -551,7 +583,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         }
       }
 
-      // Local volume storage
+      // Local volume storage — mirrors the /images/upload route pattern
       const ext      = isVideo ? 'mp4' : (mediaType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg');
       const safeId   = productId.replace(/[^a-zA-Z0-9_-]/g, '_');
       const filename = `${safeId}-ai-${Date.now()}.${ext}`;
@@ -559,8 +591,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(path.join(dir, filename), Buffer.from(mediaData, 'base64'));
 
-      const publicUrl = `/api/ims/media/${businessId}/product-images/${filename}`;
-      await ImsImagesRepo.add(productId, publicUrl, 'external', { altText, isPrimary: false });
+      // Register with source:'volume' + drive_file_id so the /file serve route can find it
+      const imageId = await ImsImagesRepo.add(productId, '', 'volume', {
+        driveFileId: filename,
+        altText,
+        isPrimary: false,
+      });
+      const publicUrl = `/api/ims/products/${productId}/images/${imageId}/file`;
+      await ImsImagesRepo.updateUrl(imageId, publicUrl);
       return NextResponse.json({ success: true, url: publicUrl, source: 'volume' });
     } catch (e: any) {
       return NextResponse.json({ error: e?.message ?? 'Save failed' }, { status: 500 });
