@@ -496,12 +496,35 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
 
     try {
+      const videoRefs = (Array.isArray(referenceImages) ? referenceImages : [])
+        .filter((img: any) => img?.data && img?.mimeType)
+        .slice(0, 3);
+      const refLabels = videoRefs.map((img: any, i: number) => `${i + 1}. ${img.label ?? `Reference-${i + 1}`}`).join('\n');
+      const videoPrompt = [
+        framing,
+        refLabels ? `=== SELECTED VISUAL REFERENCES PASSED TO VEO ===\n${refLabels}\n\nUse these images as visual anchors. If a Product-* reference is present, the exact product from that image must remain the hero subject throughout the video.` : '',
+        `=== VIDEO BRIEF ===\n${cleanPrompt}`,
+        'Keep the video tightly related to the provided product, brand aesthetic, and selected references. Do not introduce unrelated products, logos, text overlays, watermarks, packaging, or background scenes that conflict with the references.',
+      ].filter(Boolean).join('\n\n');
+      const veoAspectRatio = aspectRatio === '9:16' ? '9:16' : '16:9';
+
       // Veo uses a long-running operation API — not generateContent.
       // Start the generation, then poll until done.
       let operation = await (ai as any).models.generateVideos({
         model: videoModel,
-        prompt: cleanPrompt,
-        config: { numberOfVideos: 1 },
+        prompt: videoPrompt,
+        config: {
+          numberOfVideos: 1,
+          aspectRatio: veoAspectRatio,
+          enhancePrompt: true,
+          negativePrompt: 'unrelated product, different product, wrong item, extra logo, watermark, captions, text overlay, distorted brand marks, random people, unrelated background',
+          ...(videoRefs.length > 0 ? {
+            referenceImages: videoRefs.map((img: any) => ({
+              image: { imageBytes: img.data, mimeType: img.mimeType },
+              referenceType: String(img.label ?? '').startsWith('OTHERPRODUCT-') || String(img.label ?? '').startsWith('Scene-') || String(img.label ?? '').startsWith('Backdrop-') ? 'STYLE' : 'ASSET',
+            })),
+          } : {}),
+        },
       });
 
       // Poll every 12 s; give up after ~240 s (leaving margin inside 300 s maxDuration)
