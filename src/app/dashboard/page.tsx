@@ -7845,11 +7845,15 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'AI error');
+      const newAssistantIdx = nextMsgs.length;
       setChatMsgs(prev => [...prev, { role: 'assistant', text: data.response }]);
+      setChatLoading(false);
+      // Auto-generate image immediately in the background
+      generateImage(newAssistantIdx, data.response);
     } catch (e: any) {
       setChatError(e.message);
+      setChatLoading(false);
     }
-    setChatLoading(false);
   };
 
   const deleteAsset = async (id: number, category: string) => {
@@ -7879,8 +7883,8 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
     setRenamingId(null);
   };
 
-  const generateImage = async (msgIdx: number) => {
-    const prompt = chatMsgs[msgIdx].text;
+  const generateImage = async (msgIdx: number, promptOverride?: string) => {
+    const prompt = promptOverride ?? chatMsgs[msgIdx].text;
     setGeneratingImageIdx(msgIdx);
     setImageErrors(prev => { const n = { ...prev }; delete n[msgIdx]; return n; });
     try {
@@ -7938,9 +7942,9 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
   const catInfo = BRAND_ASSET_CATEGORIES.find(c => c.id === aiCategory);
 
   return (
-    <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
-      {/* Left: category sections */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+    <>
+      {/* Category sections */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {filteredCategories.map(cat => {
           const catAssets = assetsByCategory[cat.id] ?? [];
           return (
@@ -8053,15 +8057,16 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
         })}
       </div>
 
-      {/* Right: AI chat panel */}
+      {/* AI creation modal */}
       {aiOpen && catInfo && (
-        <div style={{ width: 420, flexShrink: 0, background: 'var(--sv-bg-2, #fff)', border: '1px solid var(--sv-etch, #e5e7eb)', borderRadius: 14, display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 180px)', position: 'sticky', top: 20 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ width: '100%', maxWidth: 1020, height: 'calc(100vh - 40px)', background: 'var(--sv-bg-2, #fff)', borderRadius: 16, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.28)' }}>
           {/* Panel header */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: '1px solid var(--sv-etch, #e5e7eb)', flexShrink: 0 }}>
             <span style={{ color: catInfo.accentColor, fontSize: 18 }}>✨</span>
             <div style={{ flex: 1 }}>
               <p style={{ fontWeight: 700, fontSize: 14, margin: 0, color: 'var(--sv-text-strong, #111827)' }}>Create {catInfo.label} Asset</p>
-              <p style={{ fontSize: 11, margin: 0, color: '#9ca3af' }}>Generates image generation prompts</p>
+              <p style={{ fontSize: 11, margin: 0, color: '#9ca3af' }}>Describe your vision — AI creates &amp; renders automatically</p>
             </div>
             <button
               onClick={() => {
@@ -8079,8 +8084,11 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
             >×</button>
           </div>
 
-          {/* Context toggles + image model */}
-          <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--sv-etch, #e5e7eb)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* Body: sidebar + chat */}
+          <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+
+          {/* Left: settings sidebar */}
+          <div style={{ width: 295, flexShrink: 0, overflowY: 'auto', padding: '14px 16px', borderRight: '1px solid var(--sv-etch, #e5e7eb)', display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
               <p style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', margin: '0 0 7px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pass brand context</p>
               <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
@@ -8256,16 +8264,19 @@ toggles: ${JSON.stringify(contextPreviewDebug.toggles)}`}
             )}
           </div>
 
+          {/* Right: chat column */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
           {/* Messages */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             {chatMsgs.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '28px 10px' }}>
-                <p style={{ fontSize: 22, margin: '0 0 10px' }}>✨</p>
-                <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 8px', lineHeight: 1.6 }}>
-                  Describe what you need and the AI will write a ready-to-use image generation prompt tailored to your brand.
+              <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                <p style={{ fontSize: 28, margin: '0 0 12px' }}>✨</p>
+                <p style={{ fontSize: 14, color: '#6b7280', margin: '0 0 8px', lineHeight: 1.6 }}>
+                  Describe what you need — the AI generates the prompt and renders the image automatically.
                 </p>
-                <p style={{ fontSize: 11, color: '#9ca3af', margin: 0, lineHeight: 1.5 }}>
-                  Copy the result into <strong>Nano Banana 2</strong>, Midjourney, DALL-E or any other image generator.
+                <p style={{ fontSize: 12, color: '#9ca3af', margin: 0, lineHeight: 1.5 }}>
+                  Just name and save the result when it looks right.
                 </p>
               </div>
             )}
@@ -8306,6 +8317,10 @@ toggles: ${JSON.stringify(contextPreviewDebug.toggles)}`}
                   <div style={{ marginTop: 6, maxWidth: '93%' }}>
                     {savedIdx === i ? (
                       <span style={{ fontSize: 11, color: '#10b981', fontWeight: 600 }}>✓ Saved to {catInfo.label}</span>
+                    ) : generatingImageIdx === i ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+                        <span style={{ fontSize: 12, color: '#9ca3af' }}>🎨 Rendering image…</span>
+                      </div>
                     ) : savingIdx === i ? (
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                         <input
@@ -8336,14 +8351,20 @@ toggles: ${JSON.stringify(contextPreviewDebug.toggles)}`}
                         </button>
                         <button
                           onClick={() => generateImage(i)}
-                          disabled={generatingImageIdx === i}
-                          style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6, background: generatingImageIdx === i ? '#f3f4f6' : catInfo.accentColor + '15', border: `1px solid ${catInfo.accentColor}44`, color: generatingImageIdx === i ? '#9ca3af' : catInfo.accentColor, cursor: generatingImageIdx === i ? 'not-allowed' : 'pointer', transition: 'all .15s' }}
+                          style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6, background: 'none', border: '1px solid #d1d5db', color: '#6b7280', cursor: 'pointer' }}
                         >
-                          {generatingImageIdx === i ? '⏳ Generating…' : '🎨 Generate Image'}
+                          🔄 Regenerate
                         </button>
-                        <button onClick={() => { setSavingIdx(i); setSaveName(''); }} style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6, background: 'none', border: `1px solid ${catInfo.accentColor}44`, color: catInfo.accentColor, cursor: 'pointer' }}>
-                          + Save as Asset
-                        </button>
+                        {generatedImages[i] && (
+                          <button onClick={() => { setSavingIdx(i); setSaveName(''); }} style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6, background: catInfo.accentColor, color: '#fff', border: 'none', cursor: 'pointer' }}>
+                            + Save as Asset
+                          </button>
+                        )}
+                        {!generatedImages[i] && !imageErrors[i] && (
+                          <button onClick={() => generateImage(i)} style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6, background: catInfo.accentColor + '15', border: `1px solid ${catInfo.accentColor}44`, color: catInfo.accentColor, cursor: 'pointer' }}>
+                            🎨 Generate Image
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -8351,11 +8372,13 @@ toggles: ${JSON.stringify(contextPreviewDebug.toggles)}`}
               </div>
             ))}
 
-            {chatLoading && (
+            {(chatLoading || generatingImageIdx !== null) && (
               <div style={{ display: 'flex' }}>
                 <div style={{ borderRadius: 12, padding: '10px 14px', background: 'var(--sv-bg-1, #f9fafb)', border: '1px solid var(--sv-etch, #e5e7eb)' }}>
                   <p style={{ fontSize: 10, fontWeight: 700, margin: '0 0 4px', color: '#9ca3af' }}>AI Creative Director</p>
-                  <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>Creating your prompt…</p>
+                  <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>
+                    {chatLoading ? '✨ Crafting your prompt…' : '🎨 Rendering image…'}
+                  </p>
                 </div>
               </div>
             )}
@@ -8386,9 +8409,12 @@ toggles: ${JSON.stringify(contextPreviewDebug.toggles)}`}
             </div>
             <p style={{ fontSize: 10, color: '#9ca3af', margin: '5px 0 0' }}>Enter to send · Shift+Enter for new line</p>
           </div>
+          </div>
+          </div>
+          </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
