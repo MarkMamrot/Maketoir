@@ -88,6 +88,85 @@ function extractFirstJsonObject(input: string): string | null {
   return null;
 }
 
+function parseJsonLike(input: string): any | null {
+  const jsonStr = extractFirstJsonObject(input);
+  if (!jsonStr) return null;
+  try { return JSON.parse(jsonStr); } catch {}
+  try {
+    return JSON.parse(jsonStr.replace(/,\s*([}\]])/g, '$1'));
+  } catch { return null; }
+}
+
+function coerceText(value: any): string {
+  if (value == null) return '';
+  if (typeof value === 'string') return value.trim();
+  if (Array.isArray(value)) return value.map(coerceText).filter(Boolean).join('\n');
+  if (typeof value === 'object') {
+    for (const key of ['html', 'bodyHtml', 'body_html', 'content', 'text', 'value', 'description']) {
+      const nested = coerceText(value[key]);
+      if (nested) return nested;
+    }
+  }
+  return '';
+}
+
+function pickText(obj: any, paths: string[][]): string {
+  for (const path of paths) {
+    let cur = obj;
+    for (const key of path) cur = cur?.[key];
+    const text = coerceText(cur);
+    if (text) return text;
+  }
+  return '';
+}
+
+function buildDescriptionFromSections(obj: any): string {
+  const sections = obj?.sections ?? obj?.descriptionSections ?? obj?.description_sections;
+  if (!Array.isArray(sections)) return '';
+  return sections.map((section: any) => {
+    const heading = coerceText(section.heading ?? section.title ?? section.label);
+    const body = coerceText(section.body ?? section.content ?? section.text ?? section.paragraph);
+    const bullets = Array.isArray(section.bullets ?? section.items)
+      ? (section.bullets ?? section.items).map((b: any) => `<li>${coerceText(b)}</li>`).filter((b: string) => b !== '<li></li>').join('')
+      : '';
+    return [heading ? `<h3>${heading}</h3>` : '', body ? `<p>${body}</p>` : '', bullets ? `<ul>${bullets}</ul>` : ''].filter(Boolean).join('\n');
+  }).filter(Boolean).join('\n');
+}
+
+function extractQuotedJsonString(raw: string, keys: string[]): string {
+  for (const key of keys) {
+    const re = new RegExp(`"${key}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`, 'i');
+    const match = raw.match(re);
+    if (match?.[1]) {
+      try { return JSON.parse(`"${match[1]}"`); }
+      catch { return match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"'); }
+    }
+  }
+  return '';
+}
+
+function normaliseGeneratedText(parsedInput: any, raw: string) {
+  const parsed = Array.isArray(parsedInput) ? parsedInput[0] : parsedInput;
+  const title = pickText(parsed, [
+    ['title'], ['product_title'], ['productTitle'], ['name'], ['content', 'title'], ['generatedContent', 'title'],
+  ]);
+  const rawDescription = pickText(parsed, [
+    ['description'], ['websiteDescription'], ['website_description'], ['product_description'], ['productDescription'],
+    ['body_html'], ['bodyHtml'], ['htmlDescription'], ['descriptionHtml'], ['html'],
+    ['content', 'description'], ['content', 'websiteDescription'], ['generatedContent', 'description'], ['generatedContent', 'websiteDescription'],
+  ]) || buildDescriptionFromSections(parsed) || extractQuotedJsonString(raw, ['description', 'websiteDescription', 'website_description', 'body_html', 'bodyHtml']);
+  const rawTags = parsed?.tags ?? parsed?.product_tags ?? parsed?.productTags ?? parsed?.keywords ?? parsed?.content?.tags ?? parsed?.generatedContent?.tags ?? [];
+  const tags = Array.isArray(rawTags)
+    ? rawTags.map((t: any) => String(t).trim()).filter(Boolean)
+    : typeof rawTags === 'string'
+      ? rawTags.split(',').map(t => t.trim()).filter(Boolean)
+      : [];
+  const imagePrompt = pickText(parsed, [
+    ['imagePrompt'], ['image_prompt'], ['imageGenerationPrompt'], ['suggested_prompt'], ['suggestedPrompt'], ['content', 'imagePrompt'], ['generatedContent', 'imagePrompt'],
+  ]);
+  return { title, description: wrapBareParagraphs(rawDescription), tags, imagePrompt };
+}
+
 // Ensure every prose paragraph is wrapped in <p>…</p> so spacing renders correctly.
 // Models often return bare text between <h3> headings; the website generator wraps
 // prose in <p>. This normalises the AI-creative output to match.
@@ -742,27 +821,32 @@ Rules:
         model: textModelId,
         systemInstruction: textSystemPrompt,
         contents: [{ role: 'user', parts }],
-        config: { responseMimeType: 'application/json' },
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: 'object',
+            properties: {
+              title: { type: 'string' },
+              description: { type: 'string' },
+              tags: { type: 'array', items: { type: 'string' } },
+              imagePrompt: { type: 'string' },
+            },
+            required: ['title', 'description', 'tags', 'imagePrompt'],
+          },
+        },
       });
       const raw = (result.text ?? '').trim();
-      // Extract the first complete JSON object — robust against code fences,
-      // preamble prose, and trailing content after the closing brace.
-      const jsonStr = extractFirstJsonObject(raw);
-      if (!jsonStr) {
+      const parsed = parseJsonLike(raw);
+      if (!parsed) {
         return NextResponse.json({ error: `AI did not return JSON. Response started with: ${raw.slice(0, 80)}` }, { status: 500 });
       }
-      const parsed = JSON.parse(jsonStr);
-      // Normalise key names — models sometimes use alternatives
-      const title       = parsed.title       ?? parsed.product_title   ?? parsed.name          ?? '';
-      const description = wrapBareParagraphs(parsed.description ?? parsed.product_description ?? parsed.body_html ?? '');
-      const rawTags     = parsed.tags        ?? parsed.product_tags    ?? parsed.keywords      ?? [];
-      // Tags must always be an array of strings — models sometimes return a comma-separated string.
-      const tags = Array.isArray(rawTags)
-        ? rawTags.map((t: any) => String(t).trim()).filter(Boolean)
-        : typeof rawTags === 'string'
-          ? rawTags.split(',').map(t => t.trim()).filter(Boolean)
-          : [];
-      const imagePrompt = parsed.imagePrompt ?? parsed.image_prompt    ?? parsed.imageGenerationPrompt ?? parsed.suggested_prompt ?? '';
+      const { title, description, tags, imagePrompt } = normaliseGeneratedText(parsed, raw);
+      if (!description.trim()) {
+        return NextResponse.json({
+          error: 'AI returned JSON but no usable description field. Try enabling existing text or product images.',
+          debug: { returnedKeys: parsed && typeof parsed === 'object' ? Object.keys(Array.isArray(parsed) ? parsed[0] ?? {} : parsed) : [] },
+        }, { status: 500 });
+      }
       return NextResponse.json({ success: true, title, description, tags, imagePrompt, templatesIncluded: templatesFound });
     } catch (e: any) {
       return NextResponse.json({ error: e?.message?.slice(0, 300) ?? 'Text generation failed' }, { status: 500 });
