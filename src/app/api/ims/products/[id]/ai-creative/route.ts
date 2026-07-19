@@ -587,6 +587,40 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       ].filter(Boolean).join('\n\n');
       const veoAspectRatio = aspectRatio === '9:16' ? '9:16' : '16:9';
 
+      if (String(videoModel).startsWith('gemini-omni')) {
+        const omniInput: any[] = [];
+        for (const img of videoRefs) {
+          omniInput.push({ type: 'image', data: img.data, mime_type: img.mimeType });
+        }
+        const omniPrompt = [
+          videoRefs.length
+            ? `Use the ${videoRefs.length} provided image reference(s) as visual anchors for the video. ${videoRefs.map((img: any, i: number) => `<IMAGE_REF_${i}> = ${img.label ?? `Reference-${i + 1}`}`).join('; ')}.`
+            : '',
+          videoPrompt,
+          videoRefs.length ? 'Use the given image(s) as references for video generation. The images should not be used as unrelated inspiration; preserve the product and brand context. In a single continuous shot unless explicitly requested otherwise.' : 'In a single continuous shot unless explicitly requested otherwise.',
+        ].filter(Boolean).join('\n\n');
+        omniInput.push({ type: 'text', text: omniPrompt });
+
+        const interaction = await (ai as any).interactions.create({
+          model: videoModel,
+          input: omniInput.length > 1 ? omniInput : omniPrompt,
+          response_format: { type: 'video', aspect_ratio: veoAspectRatio },
+          generation_config: { video_config: { task: videoRefs.length ? 'reference_to_video' : 'text_to_video' } },
+        });
+        const outVideo = interaction?.output_video;
+        if (outVideo?.data) {
+          return NextResponse.json({ success: true, videoData: outVideo.data, mimeType: outVideo.mimeType ?? outVideo.mime_type ?? 'video/mp4' });
+        }
+        for (const step of (interaction?.steps ?? [])) {
+          for (const block of (step?.content ?? [])) {
+            if (block?.type === 'video' && block?.data) {
+              return NextResponse.json({ success: true, videoData: block.data, mimeType: block.mimeType ?? block.mime_type ?? 'video/mp4' });
+            }
+          }
+        }
+        return NextResponse.json({ error: 'No video returned by Gemini Omni. Try a shorter, more specific prompt.' }, { status: 500 });
+      }
+
       // Veo uses a long-running operation API — not generateContent.
       // Start the generation, then poll until done.
       let operation = await (ai as any).models.generateVideos({

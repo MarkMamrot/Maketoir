@@ -138,6 +138,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
   const [textModel,  setTextModel]      = useModelPicker(LS_TEXT_MODEL,  'gemini-2.5-flash');
   const [aspectRatio, setAspectRatio]   = useModelPicker(LS_ASPECT_RATIO, '1:1');
   const [videoModels]                   = useState([
+    { id: 'gemini-omni-flash-preview',    displayName: 'Gemini Omni Flash (Preview)' },
     { id: 'veo-3.1-generate-preview',      displayName: 'Veo 3.1 (Preview)' },
     { id: 'veo-3.1-lite-generate-preview', displayName: 'Veo 3.1 Lite (Preview)' },
   ]);

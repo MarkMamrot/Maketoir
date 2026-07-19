@@ -21,9 +21,12 @@ export async function GET() {
 
     const allModels: { name: string; displayName: string; description?: string }[] = data.models ?? [];
 
-    // Keep only image generation models (name contains 'image')
+    // Keep image generation models plus Gemini Omni generative media models.
     const imageModels = allModels
-      .filter(m => m.name.toLowerCase().includes('image'))
+      .filter(m => {
+        const id = m.name.toLowerCase();
+        return id.includes('image') || id.includes('omni');
+      })
       .map(m => ({
         id:          m.name.replace(/^models\//, ''),
         displayName: m.displayName ?? m.name.replace(/^models\//, ''),
@@ -55,6 +58,7 @@ export async function GET() {
     // On error return a safe static fallback so the UI doesn't break
     return NextResponse.json({
       models: [
+        { id: 'gemini-omni-flash-preview',   displayName: 'Gemini Omni Flash (Preview)' },
         { id: 'gemini-3.1-flash-image',      displayName: 'Nano Banana 2 (Gemini 3.1 Flash Image)' },
         { id: 'gemini-3.1-flash-lite-image',  displayName: 'Nano Banana Lite (Gemini 3.1 Flash Lite Image)' },
         { id: 'gemini-3-pro-image',           displayName: 'Nano Banana Pro (Gemini 3 Pro Image)' },

@@ -21,7 +21,7 @@ export async function GET() {
 
     const allModels: { name: string; displayName: string; supportedGenerationMethods?: string[] }[] = data.models ?? [];
 
-    const EXCLUDE = ['image', 'video', 'embed', 'aqa', 'vision', 'tts', 'audio', 'live', 'learnlm'];
+    const EXCLUDE = ['image', 'video', 'omni', 'embed', 'aqa', 'vision', 'tts', 'audio', 'live', 'learnlm'];
     const textModels = allModels
       .filter(m => {
         const id = m.name.toLowerCase();
