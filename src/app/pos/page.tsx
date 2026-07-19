@@ -3662,6 +3662,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
   const [reference, setReference] = useState('');
   const amountRef      = useRef<HTMLInputElement>(null);
 
+  const isZeroTotal = !isRefund && absTotal <= 0.001;
   const paid      = payments.reduce((s, p) => s + p.amount, 0);
   const remaining = Math.round((absTotal - paid) * 100) / 100;
   // Cash rounding: round the remaining balance to nearest 5c when paying with cash
@@ -3760,6 +3761,10 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
     setPayments(prev => prev.filter(p => p.localId !== localId));
   }
 
+  function completeZeroTotal() {
+    onComplete([{ localId: newLocalId(), method: 'No Charge', amount: 0, reference: '100% discount / giveaway' }]);
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: '1.5rem', width: 420, maxWidth: '95vw', boxShadow: '0 20px 60px rgba(0,0,0,.6)' }}>
@@ -3768,18 +3773,25 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
           <span style={{ float: 'right', color: isRefund ? 'var(--sv-red)' : 'var(--sv-action)' }}>{isRefund ? '−' : ''}${fmt(absTotal)}</span>
         </h2>
 
+        {isZeroTotal && (
+          <div style={{ marginBottom: '1rem', padding: '.85rem 1rem', background: 'rgba(34,197,94,.12)', border: '1px solid rgba(34,197,94,.35)', borderRadius: 8 }}>
+            <div style={{ color: 'var(--sv-mint)', fontWeight: 800, marginBottom: 3 }}>No payment required</div>
+            <div style={{ color: 'var(--sv-text-dim)', fontSize: '.9rem', lineHeight: 1.45 }}>This sale totals $0.00 after discounts. Complete it as a giveaway / no-charge sale.</div>
+          </div>
+        )}
+
         {/* Method buttons */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem', marginBottom: '1rem' }}>
+        {!isZeroTotal && <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem', marginBottom: '1rem' }}>
           {methods.map(m => (
             <button key={m} onClick={() => { setActiveMethod(m); amountRef.current?.focus(); }}
               style={{ padding: '.5rem 1rem', borderRadius: 8, border: '1px solid', borderColor: m === activeMethod ? 'var(--sv-action)' : 'var(--sv-etch)', background: m === activeMethod ? 'rgba(37,99,235,.18)' : 'var(--sv-bg-2)', color: m === activeMethod ? 'var(--sv-action)' : 'var(--sv-text-main)', cursor: 'pointer', fontWeight: m === activeMethod ? 700 : 400 }}>
               {m}
             </button>
           ))}
-        </div>
+        </div>}
 
         {/* Zeller Terminal payment UI */}
-        {isZellerActive && !isRefund ? (
+        {!isZeroTotal && isZellerActive && !isRefund ? (
           <div style={{ marginBottom: '.75rem' }}>
             {zellerError && (
               <div style={{ marginBottom: '.5rem', padding: '.5rem .75rem', background: 'rgba(239,68,68,.12)', border: '1px solid rgba(239,68,68,.3)', borderRadius: 6, color: 'var(--sv-red)', fontSize: '.85rem' }}>
@@ -3800,7 +3812,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
               Use manual entry instead
             </button>
           </div>
-        ) : (
+        ) : !isZeroTotal ? (
           <>
             {/* Amount input */}
             <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.75rem' }}>
@@ -3824,10 +3836,10 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
               </button>
             )}
           </>
-        )}
+        ) : null}
 
         {/* Quick amounts (Cash) */}
-        {activeMethod === 'Cash' && !isRefund && (
+        {activeMethod === 'Cash' && !isRefund && !isZeroTotal && (
           <div style={{ display: 'flex', gap: '.4rem', marginBottom: '.75rem', flexWrap: 'wrap' }}>
             {[Math.ceil(cashDue / 5) * 5, Math.ceil(cashDue / 10) * 10, Math.ceil(cashDue / 20) * 20, 50, 100].filter((v, i, a) => v >= cashDue && a.indexOf(v) === i).slice(0, 4).map(v => (
               <button key={v} onClick={() => { setAmount(String(v)); amountRef.current?.focus(); }}
@@ -3880,11 +3892,11 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
         <div style={{ display: 'flex', gap: '.75rem' }}>
           <button onClick={onCancel} style={{ ...smallBtn, flex: 1 }}>Cancel</button>
           <button
-            onClick={() => onComplete(isRefund ? payments.map(p => ({ ...p, amount: -p.amount })) : payments)}
+            onClick={() => isZeroTotal ? completeZeroTotal() : onComplete(isRefund ? payments.map(p => ({ ...p, amount: -p.amount })) : payments)}
             disabled={remaining > 0.001}
             style={{ flex: 2, padding: '.75rem', background: remaining <= 0.001 ? 'var(--sv-mint)' : 'var(--sv-bg-2)', border: 'none', borderRadius: 8, color: remaining <= 0.001 ? '#fff' : 'var(--sv-text-muted)', cursor: remaining <= 0.001 ? 'pointer' : 'not-allowed', fontWeight: 700, fontSize: '1rem' }}
           >
-            {isLayby ? `Save Layby` : isRefund ? `Complete Refund` : `Complete Sale`} ✓
+            {isZeroTotal ? 'Complete No-Charge Sale' : isLayby ? `Save Layby` : isRefund ? `Complete Refund` : `Complete Sale`} ✓
           </button>
         </div>
       </div>
