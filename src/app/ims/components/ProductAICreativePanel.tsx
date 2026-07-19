@@ -105,6 +105,16 @@ const AI_VIDEO_PROMO_PRESETS = [
   { id: 'videoNoText',           label: 'No Text / Logos Added',    promptText: 'Do not add captions, text overlays, fake labels, watermarks, extra logos, or invented packaging. Preserve only real product markings from the reference.' },
   { id: 'videoOneShot',          label: 'Single Continuous Shot',   promptText: 'Use one continuous shot with smooth motion and no hard cuts unless the user explicitly asks for edits.' },
   { id: 'videoCameraRealism',    label: 'Real Camera Feel',         promptText: 'Make the video feel filmed on a real camera: natural lens perspective, coherent depth of field, consistent shadows, stable object geometry, and realistic motion blur.' },
+  { id: 'videoUnboxing',         label: 'Unboxing / First Look',     promptText: 'Show a simple first-look or reveal moment with the product entering frame naturally. Keep packaging realistic and do not invent extra logos or labels.' },
+  { id: 'videoOnBodyFit',        label: 'On-Body Fit Check',         promptText: 'If this is wearable, show a natural on-body fit check with subtle movement that demonstrates drape, proportions, and how the product sits in real life.' },
+  { id: 'videoWalkByMotion',     label: 'Walk-By / Movement',        promptText: 'Use a gentle walk-by, turn, or small movement to show how the product looks in motion while keeping the product stable and recognisable.' },
+  { id: 'videoRackToHero',       label: 'Rack / Shelf to Hero',      promptText: 'Begin with the product in a believable retail or lifestyle setting, then move into a clear hero framing. Keep the transition smooth and natural.' },
+  { id: 'videoMacroMaterial',    label: 'Macro Material Shot',       promptText: 'Include a tasteful macro-style moment that shows material texture, weave, shine, stitching, print, or finish with realistic focus and lighting.' },
+  { id: 'videoLoopableEnd',      label: 'Loopable End Frame',        promptText: 'End on a clean, stable frame that could loop back to the start without feeling abrupt. Keep the product centred and clear.' },
+  { id: 'videoSubtleCameraPush', label: 'Subtle Camera Push-In',     promptText: 'Use a slow, subtle camera push-in toward the product. Avoid dramatic zooms, spinning, or unstable camera movement.' },
+  { id: 'videoSeasonalMood',     label: 'Seasonal Mood',             promptText: 'Add a seasonal or campaign mood through lighting, setting, or props while keeping the product as the hero and avoiding clutter.' },
+  { id: 'videoPremiumMinimal',   label: 'Premium Minimal',           promptText: 'Use restrained premium styling: clean composition, fewer props, quiet movement, controlled highlights, and a polished retail-campaign feel.' },
+  { id: 'videoUGCNatural',       label: 'Natural UGC Feel',          promptText: 'Make it feel like a high-quality real creator clip: natural handheld restraint, believable timing, relaxed interaction, and no overly perfect AI-commercial gloss.' },
 ];
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -698,7 +708,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
         }
         .ai-creative-ref-tile {
           position: relative;
-          width: 58px;
+          width: 72px;
           cursor: pointer;
           overflow: visible;
           z-index: 1;
@@ -707,8 +717,8 @@ export default function ProductAICreativePanel({ productId, productName, busines
           z-index: 25;
         }
         .ai-creative-ref-thumb {
-          width: 58px;
-          height: 58px;
+          width: 72px;
+          height: 72px;
           object-fit: cover;
           border-radius: 6px;
           display: block;
@@ -717,8 +727,8 @@ export default function ProductAICreativePanel({ productId, productName, busines
           background: ${bg2};
         }
         .ai-creative-ref-tile:hover .ai-creative-ref-thumb {
-          transform: scale(2.35);
-          box-shadow: 0 16px 44px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.18);
+          transform: scale(2.75);
+          box-shadow: 0 18px 52px rgba(0,0,0,.48), 0 0 0 1px rgba(255,255,255,.20);
         }
         .ai-creative-ref-label {
           font-size: 9px;
@@ -738,14 +748,14 @@ export default function ProductAICreativePanel({ productId, productName, busines
           border: 1px solid rgba(148,163,184,.24);
           border-radius: 12px;
           padding: 13px 14px;
-          background: linear-gradient(135deg, rgba(14,165,233,.16), rgba(34,197,94,.08)), ${bg2};
+          background: linear-gradient(135deg, rgba(14,165,233,.09), rgba(34,197,94,.04)), rgba(255,255,255,.025);
         }
         .ai-creative-panel-card {
           border: 1px solid ${etch};
           border-radius: 11px;
-          background: rgba(15,23,42,.22);
+          background: rgba(255,255,255,.025);
           padding: 12px;
-          box-shadow: 0 10px 26px rgba(0,0,0,.12);
+          box-shadow: 0 8px 20px rgba(0,0,0,.07);
         }
         .ai-creative-card-head {
           display: flex;
@@ -869,9 +879,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
                   title={tooltip}
                   style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', color, fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: .5 }}>
                   <span style={{ fontSize: 13 }}>{icon}</span>
-                  <span style={{ flex: 1, textAlign: 'left' as const }}>{label} ({catAssets.length})</span>
-                  <span style={{ color: textDim, fontSize: 11 }}>{expanded ? '▾' : '▸'}</span>
-                  <span title={tooltip} style={{ color: textDim, fontSize: 11, cursor: 'help', marginLeft: 2 }}>ⓘ</span>
+                  <span style={{ flex: 1, textAlign: 'left' as const }}>{label} ({catAssets.length}) <span style={{ color, fontSize: 11 }}>{expanded ? '▾' : '▸'}</span></span>
                 </button>
                 {expanded && (
                   <div className="ai-creative-ref-grid" style={{ marginTop: 6 }}>
@@ -921,9 +929,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
                 title="Your product's existing photos. Select to use as the PRODUCT reference — AI will reproduce this exact product in the output. Labelled Product-1, Product-2 etc."
                 style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', color: '#f59e0b', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: .5, marginTop: 2 }}>
                 <span style={{ fontSize: 13 }}>🏷️</span>
-                <span style={{ flex: 1, textAlign: 'left' as const }}>Product Media ({productImages.length})</span>
-                <span style={{ color: textDim, fontSize: 11 }}>{sectionsExpanded.productPhotos !== false ? '▾' : '▸'}</span>
-                <span title="Select a product photo to use as PRODUCT reference. AI will reproduce this exact product in the output." style={{ color: textDim, fontSize: 11, cursor: 'help', marginLeft: 2 }}>ⓘ</span>
+                <span style={{ flex: 1, textAlign: 'left' as const }}>Product Media ({productImages.length}) <span style={{ color: '#f59e0b', fontSize: 11 }}>{sectionsExpanded.productPhotos !== false ? '▾' : '▸'}</span></span>
               </button>
               {sectionsExpanded.productPhotos !== false && (
                 <div className="ai-creative-ref-grid" style={{ marginTop: 6 }}>
@@ -954,9 +960,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
               title="Search another product from your catalogue and pick one of its photos as a creative reference. Labelled OTHERPRODUCT-name. Great for matching the style/presentation of an existing successful product photo."
               style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', color: '#0ea5e9', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: .5, marginTop: 2 }}>
               <span style={{ fontSize: 13 }}>🔗</span>
-              <span style={{ flex: 1, textAlign: 'left' as const }}>Other Product Reference {selectedRefs.some(r => r.label.startsWith('OTHERPRODUCT-')) ? '✓' : ''}</span>
-              <span style={{ color: textDim, fontSize: 11 }}>{sectionsExpanded.otherProduct ? '▾' : '▸'}</span>
-              <span title="Pick a photo from another product to use as a style reference (OTHERPRODUCT-name prefix)." style={{ color: textDim, fontSize: 11, cursor: 'help', marginLeft: 2 }}>ⓘ</span>
+              <span style={{ flex: 1, textAlign: 'left' as const }}>Other Product Reference {selectedRefs.some(r => r.label.startsWith('OTHERPRODUCT-')) ? '✓' : ''} <span style={{ color: '#0ea5e9', fontSize: 11 }}>{sectionsExpanded.otherProduct ? '▾' : '▸'}</span></span>
             </button>
             {sectionsExpanded.otherProduct && (
               <div style={{ marginTop: 6 }}>
@@ -1219,7 +1223,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
 
             {/* ── Text Content tab ── */}
             {tab === 'text' && (
-              <div className="ai-creative-panel-card" style={{ borderColor: 'rgba(245,158,11,.38)', background: 'linear-gradient(180deg, rgba(245,158,11,.10), rgba(15,23,42,.20))' }}>
+              <div className="ai-creative-panel-card" style={{ borderColor: 'rgba(245,158,11,.32)', background: 'linear-gradient(180deg, rgba(245,158,11,.055), rgba(255,255,255,.018))' }}>
                 <div className="ai-creative-card-head">
                   <div>
                     <p className="ai-creative-card-title">4. Generate Copy</p>
@@ -1305,7 +1309,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
 
             {/* ── Image / Video generation ── */}
             {tab !== 'text' && (
-            <div className="ai-creative-panel-card" style={{ borderColor: 'rgba(14,165,233,.38)', background: 'linear-gradient(180deg, rgba(14,165,233,.10), rgba(15,23,42,.20))' }}>
+            <div className="ai-creative-panel-card" style={{ borderColor: 'rgba(14,165,233,.32)', background: 'linear-gradient(180deg, rgba(14,165,233,.055), rgba(255,255,255,.018))' }}>
             <div className="ai-creative-card-head">
               <div>
                 <p className="ai-creative-card-title">5. Generate</p>
