@@ -174,6 +174,7 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
   so_number        VARCHAR(50) NOT NULL UNIQUE,
   customer_id      INT,
   price_tier       ENUM('retail','wholesale') NOT NULL DEFAULT 'retail',
+  so_type          VARCHAR(10) NOT NULL DEFAULT 'b2b',
   location_id      INT NOT NULL,
   status           ENUM('draft','confirmed','fulfilled','cancelled') NOT NULL DEFAULT 'draft',
   order_date       DATE NOT NULL,

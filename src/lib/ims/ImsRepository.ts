@@ -1532,6 +1532,7 @@ export const ImsSORepo = {
   async ensureTaxTreatmentColumn(): Promise<void> {
     await imsExecute(`ALTER TABLE ims_sales_orders ADD COLUMN IF NOT EXISTS price_tier ENUM('retail','wholesale') NOT NULL DEFAULT 'retail' AFTER customer_id`);
     await imsExecute(`ALTER TABLE ims_sales_orders ADD COLUMN IF NOT EXISTS tax_treatment ENUM('ex_tax','inc_tax','no_tax') NOT NULL DEFAULT 'ex_tax' AFTER payment_terms`);
+    await imsExecute(`ALTER TABLE ims_sales_orders ADD COLUMN IF NOT EXISTS so_type VARCHAR(10) NOT NULL DEFAULT 'b2b'`);
   },
 
   calculateTotals(
@@ -1564,7 +1565,7 @@ export const ImsSORepo = {
 
   async list(status?: SOStatus, businessId?: string): Promise<ImsSO[]> {
     await this.ensureTaxTreatmentColumn();
-    const wheres: string[] = ["so.so_type = 'b2b'"];
+    const wheres: string[] = ["(so.so_type IS NULL OR so.so_type NOT IN ('online','pos'))"];
     const params: any[] = [];
     if (businessId) { wheres.push('so.business_id = ?'); params.push(businessId); }
     if (status) { wheres.push('so.status = ?'); params.push(status); }
@@ -1704,10 +1705,10 @@ export const ImsSORepo = {
 
     const res = await imsExecute(
       `INSERT INTO ims_sales_orders
-         (business_id,so_number,customer_id,customer_po_number,location_id,status,order_date,expected_date,notes,
+        (business_id,so_number,so_type,customer_id,customer_po_number,location_id,status,order_date,expected_date,notes,
          payment_terms,price_tier,tax_treatment,tax_code,freight,discount,subtotal,tax_amount,total_amount,shopify_order_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [businessId ?? '', so_number, data.customer_id ?? null, data.customer_po_number ?? null, data.location_id, 'draft',
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [businessId ?? '', so_number, 'b2b', data.customer_id ?? null, data.customer_po_number ?? null, data.location_id, 'draft',
        data.order_date, data.expected_date ?? null, data.notes ?? null,
        data.payment_terms ?? null, priceTier, taxTreatment, data.tax_code ?? null, soFreight, soDiscount,
        totals.subtotal, totals.tax_amount, totals.total_amount, data.shopify_order_id ?? null]
