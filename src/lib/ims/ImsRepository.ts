@@ -1529,10 +1529,39 @@ export const ImsPORepo = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const ImsSORepo = {
-  async ensureTaxTreatmentColumn(): Promise<void> {
-    await imsExecute(`ALTER TABLE ims_sales_orders ADD COLUMN IF NOT EXISTS price_tier ENUM('retail','wholesale') NOT NULL DEFAULT 'retail' AFTER customer_id`);
-    await imsExecute(`ALTER TABLE ims_sales_orders ADD COLUMN IF NOT EXISTS tax_treatment ENUM('ex_tax','inc_tax','no_tax') NOT NULL DEFAULT 'ex_tax' AFTER payment_terms`);
-    await imsExecute(`ALTER TABLE ims_sales_orders ADD COLUMN IF NOT EXISTS so_type VARCHAR(10) NOT NULL DEFAULT 'b2b'`);
+  async getSOColumns(): Promise<Set<string>> {
+    const rows = await imsQuery<{ Field: string }>('SHOW COLUMNS FROM ims_sales_orders');
+    return new Set(rows.map(row => row.Field));
+  },
+
+  async ensureListColumns(): Promise<Set<string>> {
+    const columns = await this.getSOColumns();
+    if (!columns.has('so_type')) {
+      try {
+        await imsExecute(`ALTER TABLE ims_sales_orders ADD COLUMN so_type VARCHAR(10) NOT NULL DEFAULT 'b2b'`);
+        columns.add('so_type');
+      } catch {
+        // Listing can still work without so_type; the query below will skip the channel filter.
+      }
+    }
+    return columns;
+  },
+
+  async ensureTaxTreatmentColumn(): Promise<Set<string>> {
+    const columns = await this.getSOColumns();
+    if (!columns.has('price_tier')) {
+      await imsExecute(`ALTER TABLE ims_sales_orders ADD COLUMN price_tier ENUM('retail','wholesale') NOT NULL DEFAULT 'retail' AFTER customer_id`);
+      columns.add('price_tier');
+    }
+    if (!columns.has('tax_treatment')) {
+      await imsExecute(`ALTER TABLE ims_sales_orders ADD COLUMN tax_treatment ENUM('ex_tax','inc_tax','no_tax') NOT NULL DEFAULT 'ex_tax' AFTER notes`);
+      columns.add('tax_treatment');
+    }
+    if (!columns.has('so_type')) {
+      await imsExecute(`ALTER TABLE ims_sales_orders ADD COLUMN so_type VARCHAR(10) NOT NULL DEFAULT 'b2b'`);
+      columns.add('so_type');
+    }
+    return columns;
   },
 
   calculateTotals(
@@ -1564,8 +1593,8 @@ export const ImsSORepo = {
   },
 
   async list(status?: SOStatus, businessId?: string): Promise<ImsSO[]> {
-    await this.ensureTaxTreatmentColumn();
-    const wheres: string[] = ["(so.so_type IS NULL OR so.so_type NOT IN ('online','pos'))"];
+    const columns = await this.ensureListColumns();
+    const wheres: string[] = columns.has('so_type') ? ["(so.so_type IS NULL OR so.so_type NOT IN ('online','pos'))"] : [];
     const params: any[] = [];
     if (businessId) { wheres.push('so.business_id = ?'); params.push(businessId); }
     if (status) { wheres.push('so.status = ?'); params.push(status); }

@@ -8372,6 +8372,7 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
 function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, onReturnOrder }: { pendingOpenId?: number | null; onPendingHandled?: () => void; isAdvisor?: boolean; onReturnOrder?: (prefill: any) => void } = {}) {
   const [sos, setSos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [viewModal, setViewModal] = useState<{ open: boolean; so: any | null }>({ open: false, so: null });
@@ -8394,9 +8395,11 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const { settings } = useImsSettings();
   const load = useCallback(() => {
     setLoading(true);
+    setLoadError('');
     fetch('/api/ims/sales-orders').then(r => r.json()).then(d => {
       if (d.success) setSos(d.data);
-    }).finally(() => setLoading(false));
+      else setLoadError(d.error || 'Failed to load sales orders.');
+    }).catch(e => setLoadError(e?.message || 'Failed to load sales orders.')).finally(() => setLoading(false));
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -8706,7 +8709,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
           <button onClick={() => { setStatusFilter(''); setFilterCustomer(''); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
         )}
       </div>
-      {loading ? <Spinner /> : sortedFilteredSOs.length === 0 ? <EmptyState text="No sales orders match your filters." /> : (
+      {loading ? <Spinner /> : loadError ? <EmptyState text={`Could not load sales orders: ${loadError}`} /> : sortedFilteredSOs.length === 0 ? <EmptyState text="No sales orders match your filters." /> : (
         <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
