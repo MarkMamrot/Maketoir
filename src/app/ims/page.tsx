@@ -9887,8 +9887,9 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
   };
 
   const getSourceBadge = (order: any): { label: string; bg: string; color: string } => {
-    if (order.shopify_order_id) return { label: 'Shopify', bg: 'rgba(16,185,129,.1)', color: 'var(--sv-mint)' };
-    if (order.cin7_order_id)    return { label: 'B2B', bg: 'rgba(99,102,241,.1)', color: '#818cf8' };
+    if (order.shopify_order_id)                      return { label: 'Shopify',  bg: 'rgba(16,185,129,.1)',   color: 'var(--sv-mint)' };
+    if (order.so_type === 'online' && order.cin7_order_id) return { label: 'Cin7 Online', bg: 'rgba(16,185,129,.07)', color: 'var(--sv-mint)' };
+    if (order.cin7_order_id && order.so_type !== 'online') return { label: 'B2B',     bg: 'rgba(99,102,241,.1)',   color: '#818cf8' };
     return { label: 'Manual', bg: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)' };
   };
 
@@ -9994,8 +9995,8 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
                 </span>
               )}
               {Number(day.b2b_count) > 0 && (
-                <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, border: '1px solid rgba(99,102,241,.3)', background: 'rgba(99,102,241,.1)', color: '#818cf8', flexShrink: 0 }}>
-                  {Number(day.b2b_count)} B2B
+                <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, border: '1px solid rgba(16,185,129,.2)', background: 'rgba(16,185,129,.07)', color: 'var(--sv-mint)', flexShrink: 0 }}>
+                  {Number(day.b2b_count)} Cin7 Online
                 </span>
               )}
               {/* Financial breakdown */}

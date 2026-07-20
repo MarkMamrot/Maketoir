@@ -719,10 +719,11 @@ export async function POST(req: Request) {
             'SELECT id, cin7_branch_id FROM ims_locations WHERE cin7_branch_id IS NOT NULL', [],
           );
           const soLocByBranch = new Map<number, number>(soLocRows.map(r => [r.cin7_branch_id!, r.id]));
-          const soCustRows = await imsQuery<{ id: number; cin7_customer_id: number | null }>(
-            'SELECT id, cin7_customer_id FROM ims_contacts WHERE cin7_customer_id IS NOT NULL', [],
+          const soCustRows = await imsQuery<{ id: number; cin7_customer_id: number | null; name: string | null }>(
+            'SELECT id, cin7_customer_id, name FROM ims_contacts WHERE cin7_customer_id IS NOT NULL', [],
           );
           const soCustByCin7 = new Map<number, number>(soCustRows.map(r => [r.cin7_customer_id!, r.id]));
+          const soCustNameByCin7 = new Map<number, string>((soCustRows.map(r => [r.cin7_customer_id!, r.name ?? ''])) as [number, string][]);
           const soUnknownLocId = await getOrCreateUnknownLoc();
 
           let salesOrderCount = 0;
@@ -771,9 +772,12 @@ export async function POST(req: Request) {
             }
 
             // Classify order type
+            const rawOrderCustomerId = Number(order.memberId ?? order.customerId ?? 0) || null;
+            const orderCustomerName = rawOrderCustomerId ? (soCustNameByCin7.get(rawOrderCustomerId) ?? '') : '';
             const orderSource = (order.source ?? '').toLowerCase();
             const orderProject = (order.projectName ?? '').toLowerCase();
             const soType = orderSource.startsWith('pos-') ? 'pos'
+              : orderCustomerName.toLowerCase() === 'online shop sales' ? 'online'
               : (orderSource.includes('shopify') || orderProject.includes('shopify')) ? 'online'
               : 'b2b';
 
@@ -843,7 +847,7 @@ export async function POST(req: Request) {
 
             // Write SO management record
             const { status: soStatus, isHistorical } = cinSoStageToIms(order.stage ?? '', order.status ?? '');
-            const soCustomerId = soCustByCin7.get(Number(order.memberId ?? order.customerId ?? 0)) ?? null;
+            const soCustomerId = rawOrderCustomerId ? (soCustByCin7.get(rawOrderCustomerId) ?? null) : null;
             const soLocationId = soLocByBranch.get(Number(order.branchId ?? 0)) ?? soUnknownLocId;
             const soNumber = (order.reference ?? '').trim() || `CIN7-${order.id}`;
             const rawExpected = order.deliveryDate ?? order.requiredDate ?? '';
@@ -875,6 +879,8 @@ export async function POST(req: Request) {
               : soBase * soTaxRate;
             const soCurrencyCode = (order.currencyCode ?? 'AUD').toUpperCase();
             const soExchangeRate = Number(order.exchangeRate ?? order.currencyRate ?? 1);
+            const soPriceTier = soType === 'online' ? 'retail' : 'wholesale';
+            const soTaxTreatment = soType === 'online' ? 'inc_tax' : soTaxRate === 0 ? 'no_tax' : 'ex_tax';
 
             let soInsertId: number;
             try {
@@ -883,11 +889,11 @@ export async function POST(req: Request) {
                 `INSERT INTO ims_sales_orders
                    (so_number, business_id, customer_id, location_id, status, order_date, expected_date,
                     fulfilled_date, freight, discount, subtotal, tax_amount, total_amount,
-                    cin7_order_id, is_historical, currency_code, exchange_rate, so_type, cin7_member_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  cin7_order_id, is_historical, currency_code, exchange_rate, so_type, price_tier, tax_treatment, cin7_member_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [soNumber, businessId, soCustomerId, soLocationId, soStatus, orderDate, expectedDateStr,
                  fulfilledDate, soFreight, soDiscount, subtotal, taxAmt, totalAmt,
-                 String(order.id), isHistorical, soCurrencyCode, soExchangeRate, soType, rawSoMemberId],
+                String(order.id), isHistorical, soCurrencyCode, soExchangeRate, soType, soPriceTier, soTaxTreatment, rawSoMemberId],
               );
               soInsertId = soRes.insertId;
             } catch {
@@ -896,11 +902,11 @@ export async function POST(req: Request) {
                 `INSERT INTO ims_sales_orders
                    (so_number, business_id, customer_id, location_id, status, order_date, expected_date,
                     fulfilled_date, freight, discount, subtotal, tax_amount, total_amount,
-                    cin7_order_id, is_historical, currency_code, exchange_rate, so_type, cin7_member_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  cin7_order_id, is_historical, currency_code, exchange_rate, so_type, price_tier, tax_treatment, cin7_member_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [`CIN7-${order.id}`, businessId, soCustomerId, soLocationId, soStatus, orderDate, expectedDateStr,
                  fulfilledDate, soFreight, soDiscount, subtotal, taxAmt, totalAmt,
-                 String(order.id), isHistorical, soCurrencyCode, soExchangeRate, soType, rawSoMemberId],
+                String(order.id), isHistorical, soCurrencyCode, soExchangeRate, soType, soPriceTier, soTaxTreatment, rawSoMemberId],
               );
               soInsertId = soRes.insertId;
             }
