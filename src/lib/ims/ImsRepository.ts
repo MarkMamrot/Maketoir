@@ -419,12 +419,12 @@ export const ImsProductsRepo = {
   ): Promise<string> {
     const product_id = data.product_id || uuidv4();
     await imsExecute(
-      `INSERT INTO ims_products (business_id,product_id,name,description,product_type,brand,tags,category,subcategory,is_active,shopify_product_id,style_code,base_sku,is_online,supplier_contact_id,cin7_product_id,allow_indent_wholesale)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO ims_products (business_id,product_id,name,description,product_type,brand,tags,category,subcategory,is_active,shopify_product_id,style_code,base_sku,is_online,supplier_contact_id,cin7_product_id,website_title,allow_indent_wholesale)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [businessId ?? '', product_id, data.name, data.description ?? null, data.product_type ?? null, data.brand ?? null,
        data.tags ?? null, data.category ?? null, data.subcategory ?? null, data.is_active ?? 1, data.shopify_product_id ?? null,
        data.style_code ?? null, data.base_sku ?? null, data.is_online ?? 1, data.supplier_contact_id ?? null, data.cin7_product_id ?? null,
-       data.allow_indent_wholesale ?? 0]
+       data.website_title ?? null, data.allow_indent_wholesale ?? 0]
     );
     return product_id;
   },

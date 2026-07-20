@@ -21,6 +21,8 @@ export interface BulkImportRow {
   style_code?: string;
   category?: string;
   subcategory?: string;
+  website_title?: string;
+  allow_indent_wholesale?: number;
   is_online?: number;
   // Variant-level
   sku?: string;
@@ -140,6 +142,8 @@ export async function POST(req: Request) {
           style_code: row.style_code,
           category: row.category,
           subcategory: row.subcategory,
+          website_title: row.website_title,
+          allow_indent_wholesale: row.allow_indent_wholesale ?? 0,
           is_online: row.is_online ?? 1,
           supplier_contact_id: supplierContactId,
           is_active: 1,
@@ -192,6 +196,8 @@ export async function POST(req: Request) {
         if (row.tags !== undefined && row.tags !== '') productUpdates.tags = row.tags;
         if (row.category    !== undefined && row.category    !== '') productUpdates.category    = row.category;
         if (row.subcategory !== undefined && row.subcategory !== '') productUpdates.subcategory = row.subcategory;
+        if (row.website_title !== undefined && row.website_title !== '') productUpdates.website_title = row.website_title;
+        if (row.allow_indent_wholesale !== undefined) productUpdates.allow_indent_wholesale = row.allow_indent_wholesale;
         if (supplierContactId) productUpdates.supplier_contact_id = supplierContactId;
         if (Object.keys(productUpdates).length) await ImsProductsRepo.update(productId, productUpdates);
 
@@ -254,6 +260,8 @@ export async function POST(req: Request) {
           if (row.style_code !== undefined && row.style_code !== '') productUpdates.style_code = row.style_code;
           if (row.category    !== undefined && row.category    !== '') productUpdates.category    = row.category;
           if (row.subcategory !== undefined && row.subcategory !== '') productUpdates.subcategory = row.subcategory;
+          if (row.website_title !== undefined && row.website_title !== '') productUpdates.website_title = row.website_title;
+          if (row.allow_indent_wholesale !== undefined) productUpdates.allow_indent_wholesale = row.allow_indent_wholesale;
           if (row.is_online !== undefined) productUpdates.is_online = row.is_online;
           if (supplierContactId) productUpdates.supplier_contact_id = supplierContactId;
           if (Object.keys(productUpdates).length) await ImsProductsRepo.update(row.existing_product_id, productUpdates);

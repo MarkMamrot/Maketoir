@@ -1497,7 +1497,7 @@ function ImportLineItemsModal({
 
 const IMPORT_BASE_HEADERS = [
   'Product_Name','Product_SKU','Barcode','Description','Brand','Supplier','Product_Type',
-  'Tags','Online','Pack_Size',
+  'Category','Subcategory','Website_Title','Allow_Indent_Wholesale_Orders','Tags','Online','Pack_Size',
   'Option1_Name','Option1_Value','Option2_Name','Option2_Value','Option3_Name','Option3_Value',
   'RRP','price_wholesale','Cost_AUD','Cost_USD','Cost_EUR','Cost_GBP','Cost_THB','Cost_CNY','Cost_JPY','Weight_KG',
 ];
@@ -1547,11 +1547,9 @@ function ImportProductsModal({
   const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
   const { settings: importSettings } = useImsSettings();
   const showZoneBin   = importSettings.use_zones_bins  !== 'no';
-  const showCategories = importSettings.use_categories === 'yes';
 
   // Full template header list: optional category cols + base columns + per-location stock columns.
   const templateHeaders = useMemo(() => {
-    const catCols: string[] = showCategories ? ['Category', 'Subcategory'] : [];
     const perLoc: string[] = [];
     for (const loc of locations) {
       if (showZoneBin) {
@@ -1559,8 +1557,8 @@ function ImportProductsModal({
       }
       perLoc.push(`${loc.name} - Min Qty`, `${loc.name} - Reorder Qty`);
     }
-    return [...IMPORT_BASE_HEADERS, ...catCols, ...perLoc];
-  }, [locations, showZoneBin, showCategories]);
+    return [...IMPORT_BASE_HEADERS, ...perLoc];
+  }, [locations, showZoneBin]);
 
   // Normalized header string → { location_id, field } for parsing per-location columns.
   const locHeaderMap = useMemo(() => {
@@ -1603,6 +1601,22 @@ function ImportProductsModal({
   }, [templateHeaders]);
 
   const normStr = (s: string) => (s || '').trim().toLowerCase();
+
+  const rawValue = (raw: Record<string, string>, ...keys: string[]) => {
+    for (const key of keys) {
+      const value = raw[key];
+      if (value !== undefined) return value;
+    }
+    return undefined;
+  };
+
+  const parseImportFlag = (value: string | undefined): number | undefined => {
+    if (value == null || value === '') return undefined;
+    const v = value.trim().toLowerCase();
+    if (['1', 'yes', 'y', 'true', 'on', 'allow', 'allowed', 'enabled'].includes(v)) return 1;
+    if (['0', 'no', 'n', 'false', 'off', 'disallow', 'disabled'].includes(v)) return 0;
+    return undefined;
+  };
 
   const parseAndClassify = (): ParsedImportRow[] => {
     const lines = pasteText.split('\n').map(l => l.trimEnd()).filter(l => l.trim());
@@ -1663,7 +1677,7 @@ function ImportProductsModal({
       // Inherit missing product-level fields from the first row with the same Product_SKU
       const cached = product_sku ? batchProductFields.get(normStr(product_sku)) : undefined;
       if (cached) {
-        for (const field of ['product_name','description','product_type','brand','supplier','tags','category','subcategory']) {
+        for (const field of ['product_name','description','product_type','brand','supplier','tags','category','subcategory','sub category','subcateogry','website_title','website title','allow_indent_wholesale_orders','allow indent wholesale orders','allow_indent_wholesale','allow indent wholesale']) {
           if (!raw[field] && cached[field]) raw[field] = cached[field];
         }
       }
@@ -1702,6 +1716,14 @@ function ImportProductsModal({
           if (raw['weight_kg'] != null && raw['weight_kg'] !== '' && numOrNull(raw['weight_kg']) !== (v.weight_kg ?? null)) changedFields.push('Weight');
           if (raw['barcode'] != null && raw['barcode'] !== '' && raw['barcode'] !== (v.barcode ?? '')) changedFields.push('Barcode');
           if (raw['brand'] != null && raw['brand'] !== '' && raw['brand'] !== (p.brand ?? '')) changedFields.push('Brand');
+          const websiteTitle = rawValue(raw, 'website_title', 'website title');
+          if (websiteTitle != null && websiteTitle !== '' && websiteTitle !== (p.website_title ?? '')) changedFields.push('Website Title');
+          const allowIndent = parseImportFlag(rawValue(raw, 'allow_indent_wholesale_orders', 'allow indent wholesale orders', 'allow_indent_wholesale', 'allow indent wholesale'));
+          if (allowIndent !== undefined && allowIndent !== Number(p.allow_indent_wholesale ?? 0)) changedFields.push('Indent Wholesale');
+          const category = rawValue(raw, 'category');
+          if (category != null && category !== '' && category !== (p.category ?? '')) changedFields.push('Category');
+          const subcategory = rawValue(raw, 'subcategory', 'sub category', 'subcateogry');
+          if (subcategory != null && subcategory !== '' && subcategory !== (p.subcategory ?? '')) changedFields.push('Subcategory');
         } else {
           // SKU not found — check by Product_SKU column, then product name
           const existingProduct =
@@ -1818,6 +1840,10 @@ function ImportProductsModal({
 
       const resolvedBrand = raw['brand'] ? (brandResolutions[raw['brand']] ?? raw['brand']) : '';
       const resolvedSupplier = raw['supplier'] ? (supplierResolutions[raw['supplier']] ?? raw['supplier']) : '';
+      const websiteTitle = rawValue(raw, 'website_title', 'website title');
+      const allowIndentWholesale = parseImportFlag(rawValue(raw, 'allow_indent_wholesale_orders', 'allow indent wholesale orders', 'allow_indent_wholesale', 'allow indent wholesale'));
+      const category = rawValue(raw, 'category');
+      const subcategory = rawValue(raw, 'subcategory', 'sub category', 'subcateogry');
 
       // Build per-location stock overrides from the appended location columns.
       const location_stock: Array<{ location_id: number; zone?: string; bin?: string; min_qty?: number; reorder_qty?: number }> = [];
@@ -1844,8 +1870,10 @@ function ImportProductsModal({
         tags: raw['tags'] || undefined,
         base_sku: raw['product_sku'] || undefined,
         style_code: undefined,
-        category: raw['category'] || undefined,
-        subcategory: raw['subcategory'] || undefined,
+        category: category || undefined,
+        subcategory: subcategory || undefined,
+        website_title: websiteTitle || undefined,
+        allow_indent_wholesale: allowIndentWholesale,
         is_online: raw['online'] != null && raw['online'] !== '' ? (raw['online'] === '1' || raw['online'].toLowerCase() === 'yes' ? 1 : 0) : undefined,
         sku: (() => {
           // If SKU is provided, use it directly
@@ -1950,7 +1978,7 @@ function ImportProductsModal({
               <strong>Product_SKU</strong> — The product-level identifier that groups variants under the same product (e.g. <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>MT-RCAK</code>). Rows sharing the same <em>Product_SKU</em> will be added as variants of one product. For a single-variant product, <em>Product_SKU</em> and <em>SKU</em> are typically identical.<br />
               <strong>SKU</strong> — Optional. The individual variant SKU. If left blank, it is auto-generated from <em>Product_SKU</em> + option values (e.g. <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>MT-RCAK-S</code>). A matching SKU updates that variant; a new SKU creates one.<br />
               <strong>Product_Name</strong> — Used as a fallback grouping key if <em>Product_SKU</em> is blank.{' '}
-              {showCategories ? 'Category and Subcategory columns are also included. ' : ''}
+              <strong>Category</strong> / <strong>Subcategory</strong> and <strong>Website_Title</strong> are product-level fields. <strong>Allow_Indent_Wholesale_Orders</strong> accepts Yes/No or 1/0.{' '}
               <br /><strong>{showZoneBin ? 'Zone, Bin, Min Qty and Reorder Qty' : 'Min Qty and Reorder Qty'}</strong>{' — '}per location columns saved against each location’s stock. The default warehouse location appears first.
               <br /><strong>Variant Options</strong>{' — '}Use <em>Option1_Name</em> / <em>Option1_Value</em> to define what makes each row a distinct variant. For example, set <em>Option1_Name</em> to <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>Size</code> and <em>Option1_Value</em> to <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>S</code>, <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>M</code>, or <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>L</code> on successive rows that all share the same <em>Product_SKU</em>. Use Option2 / Option3 for additional dimensions such as Colour.
             </div>
@@ -3369,7 +3397,6 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const [descHtmlMode, setDescHtmlMode] = useState<'source' | 'preview'>('source');
   const [descBuilderOpen, setDescBuilderOpen] = useState(false);
   const [form, setForm] = useState<any>({ ...BLANK_PRODUCT });
-  const [productPrices, setProductPrices] = useState({ price_rrp: '', price_wholesale: '', price_rrp_sale: '', discount_start_date: '', discount_end_date: '' });
   const [optionSets, setOptionSets] = useState<OptionSet[]>([{ name: 'Size', values: '' }, { name: 'Colour', values: '' }]);
   const [variantRows, setVariantRows] = useState<VariantRow[]>([]);
   const [saving, setSaving] = useState(false);
@@ -3526,7 +3553,6 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
 
   const openNew = () => {
     setForm({ ...BLANK_PRODUCT });
-    setProductPrices({ price_rrp: '', price_wholesale: '', price_rrp_sale: '', discount_start_date: '', discount_end_date: '' });
     setOptionSets([{ name: 'Size', values: '' }, { name: 'Colour', values: '' }]);
     setVariantRows([{ ...blankRow(), option1_value: 'Default' }]);
     setActiveCurrencies([]);
@@ -3561,15 +3587,6 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
       return { name: name || '', values: vals.join(', ') };
     });
     setOptionSets(sets);
-    // Read prices from first variant (all variants share the same price)
-    const fv = variants[0];
-    setProductPrices({
-      price_rrp:           fv?.price_rrp           != null ? String(fv.price_rrp)           : '',
-      price_wholesale:     fv?.price_wholesale     != null ? String(fv.price_wholesale)     : '',
-      price_rrp_sale:      fv?.price_rrp_sale      != null ? String(fv.price_rrp_sale)      : '',
-      discount_start_date: fv?.discount_start_date ? String(fv.discount_start_date).slice(0, 10) : '',
-      discount_end_date:   fv?.discount_end_date   ? String(fv.discount_end_date).slice(0, 10)   : '',
-    });
     setVariantRows(variants.map(v => {
       const fc: Record<string, string> = {};
       try { const j = JSON.parse(v.cost_foreign ?? '{}'); for (const [k, val] of Object.entries(j)) fc[k] = String(val); } catch {}
@@ -3627,10 +3644,14 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const updateRow = (tempId: string, field: string, value: any) =>
     setVariantRows(rows => rows.map(r => r._tempId === tempId ? { ...r, [field]: value } : r));
 
-  // Update a price field at product level — propagates to all variant rows
-  const updateProductPrice = (field: string, value: string) => {
-    setProductPrices(prev => ({ ...prev, [field]: value }));
-    setVariantRows(rows => rows.map(r => ({ ...r, [field]: value })));
+  const copyPricingToOtherVariants = (source: VariantRow) => {
+    const fields: Array<keyof VariantRow> = ['price_rrp', 'price_wholesale', 'price_rrp_sale', 'discount_start_date', 'discount_end_date'];
+    setVariantRows(rows => rows.map(row => {
+      if (row._tempId === source._tempId || row._delete) return row;
+      const next = { ...row };
+      for (const field of fields) next[field] = source[field] as any;
+      return next;
+    }));
   };
 
   const deleteRow = (tempId: string) =>
@@ -4554,20 +4575,6 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             </>
           )}
 
-          {/* ── Pricing ── */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-            <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
-            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Pricing</span>
-            <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
-          </div>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
-            <Field label="Price (RRP) $"><input type="number" step="0.01" min="0" value={productPrices.price_rrp} onChange={e => updateProductPrice('price_rrp', e.target.value)} style={{ ...inputStyle, width: 100 }} placeholder="0.00" /></Field>
-            <Field label="Wholesale $"><input type="number" step="0.01" min="0" value={productPrices.price_wholesale} onChange={e => updateProductPrice('price_wholesale', e.target.value)} style={{ ...inputStyle, width: 100 }} placeholder="—" /></Field>
-            <Field label="Disc. Price $"><input type="number" step="0.01" min="0" value={productPrices.price_rrp_sale} onChange={e => updateProductPrice('price_rrp_sale', e.target.value)} style={{ ...inputStyle, width: 100 }} placeholder="—" /></Field>
-            <Field label="Disc. From"><input type="date" value={productPrices.discount_start_date} onChange={e => updateProductPrice('discount_start_date', e.target.value)} style={{ ...inputStyle, width: 140 }} /></Field>
-            <Field label="Disc. To"><input type="date" value={productPrices.discount_end_date} onChange={e => updateProductPrice('discount_end_date', e.target.value)} style={{ ...inputStyle, width: 140 }} /></Field>
-          </div>
-
           {/* ── Section divider ── */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
             <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
@@ -4616,7 +4623,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)' }}>
-                    {['Variant','SKU','Barcode','RRP $','Wholesale $','Sale $','Sale From','Sale To','Cost $','Wt kg',
+                    {['Variant','SKU','Barcode','RRP $','Wholesale $','Sale $','Sale From','Sale To','Copy','Cost $','Wt kg',
                       ...activeCurrencies.map(c => c),
                       '✓',''].map((h, i) => (
                       <th key={i} style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, whiteSpace: 'nowrap' }}>
@@ -4644,6 +4651,26 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                         <td style={{ padding: '2px 4px', minWidth: 72 }}><input type="number" step="0.01" min="0" value={row.price_rrp_sale} onChange={e => updateRow(row._tempId, 'price_rrp_sale', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 108 }}><input type="date" value={row.discount_start_date} onChange={e => updateRow(row._tempId, 'discount_start_date', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 108 }}><input type="date" value={row.discount_end_date} onChange={e => updateRow(row._tempId, 'discount_end_date', e.target.value)} style={cellInput} /></td>
+                        <td style={{ padding: '2px 4px', minWidth: 74 }}>
+                          <button
+                            type="button"
+                            onClick={() => copyPricingToOtherVariants(row)}
+                            disabled={variantRows.filter(r => !r._delete).length < 2}
+                            title="Copy this row's RRP, wholesale, sale price and sale dates to the other variants"
+                            style={{
+                              border: '1px solid color-mix(in srgb, var(--sv-action) 30%, var(--sv-etch))',
+                              background: 'color-mix(in srgb, var(--sv-action) 8%, var(--sv-bg-1))',
+                              color: 'var(--sv-action)',
+                              borderRadius: 5,
+                              padding: '4px 7px',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: variantRows.filter(r => !r._delete).length < 2 ? 'not-allowed' : 'pointer',
+                              opacity: variantRows.filter(r => !r._delete).length < 2 ? 0.45 : 1,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >Copy ↓</button>
+                        </td>
                         <td style={{ padding: '2px 4px', minWidth: 72 }}><input type="number" step="0.0001" min="0" value={row.cost_aud} onChange={e => updateRow(row._tempId, 'cost_aud', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 60 }}><input type="number" step="0.001" min="0" value={row.weight_kg} onChange={e => updateRow(row._tempId, 'weight_kg', e.target.value)} style={cellInput} /></td>
                         {activeCurrencies.map(cur => (
@@ -18438,7 +18465,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
               <div style={{ marginBottom: 4 }}>
                 <label style={labelStyle}>Does your business organise products into Categories and Subcategories?</label>
-                <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--sv-text-dim)' }}>When enabled, Category and Subcategory fields appear in the product import template</p>
+                <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Category and Subcategory can always be imported; enable this for category-based browsing and reporting.</p>
                 <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', width: 'fit-content' }}>
                   {(['yes', 'no'] as const).map(opt => {
                     const isOpt = (taxDraft.use_categories ?? 'no') === opt;
