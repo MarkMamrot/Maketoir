@@ -106,6 +106,7 @@ export async function POST(req: Request, { params }: { params: { businessId: str
       const conn = await pool.getConnection();
       let soId: number;
       try {
+        await ImsSORepo.ensureTaxTreatmentColumn();
         const soNumber  = `ONL-${orderDate.replace(/-/g, '')}-${orderIdStr.slice(-6)}`;
         const orderDateTime = toBusinessDateTime(payload.created_at);
         const subtotal  = parseFloat(payload.subtotal_price ?? '0');
@@ -116,8 +117,8 @@ export async function POST(req: Request, { params }: { params: { businessId: str
         const [r] = await conn.execute<any>(
           `INSERT INTO ims_sales_orders
              (business_id, so_number, so_type, location_id, status, order_date, freight, discount,
-              subtotal, tax_amount, total_amount, shopify_order_id, shopify_order_name, payment_gateway, financial_status, notes)
-           VALUES (?, ?, 'online', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              subtotal, tax_amount, total_amount, shopify_order_id, shopify_order_name, payment_gateway, financial_status, price_tier, tax_treatment, notes)
+            VALUES (?, ?, 'online', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'retail', 'inc_tax', ?)`,
           [businessId, soNumber, config.locationId, orderDateTime, freight, discount,
            subtotal, taxAmount, parseFloat(payload.total_price ?? '0'), orderIdStr, payload.name ?? null,
            gateway, payload.financial_status ?? null,

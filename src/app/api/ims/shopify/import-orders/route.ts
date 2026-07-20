@@ -221,6 +221,7 @@ export async function POST(req: Request) {
 
     try {
       // Create as draft first (ImsSalesOrdersRepo.create doesn't set so_type)
+      await ImsSORepo.ensureTaxTreatmentColumn();
       const pool = await getIMSPool();
       const poolConn = await pool.getConnection();
       let soId: number;
@@ -237,8 +238,8 @@ export async function POST(req: Request) {
         const [result] = await poolConn.execute<any>(
           `INSERT INTO ims_sales_orders
              (business_id, so_number, so_type, customer_id, location_id, status, order_date, freight, discount,
-              subtotal, tax_amount, total_amount, shopify_order_id, shopify_order_name, payment_gateway, financial_status, notes)
-           VALUES (?, ?, 'online', ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              subtotal, tax_amount, total_amount, shopify_order_id, shopify_order_name, payment_gateway, financial_status, price_tier, tax_treatment, notes)
+            VALUES (?, ?, 'online', ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'retail', 'inc_tax', ?)`,
           [
             businessId, soNumber, onlineCustomerId, locationId, orderDateTime, freight, discount,
             subtotal, taxAmount, totalAmount, orderIdStr, order.name ?? null,

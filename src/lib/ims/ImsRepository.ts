@@ -181,7 +181,8 @@ export interface ImsSO {
   fulfilled_date?: string; notes?: string; subtotal: number;
   tax_amount: number; freight?: number; discount?: number; total_amount: number; is_historical?: number;
   shopify_order_id?: string; cin7_order_id?: string;
-  payment_terms?: string; tax_code?: string;
+  price_tier?: 'retail' | 'wholesale';
+  payment_terms?: string; tax_treatment?: 'ex_tax' | 'inc_tax' | 'no_tax'; tax_code?: string;
   currency_code?: string; exchange_rate?: number;
   amount_paid?: number; amount_paid_local?: number; balance?: number; balance_local?: number;
   created_at?: string; updated_at?: string;
@@ -1528,7 +1529,41 @@ export const ImsPORepo = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const ImsSORepo = {
+  async ensureTaxTreatmentColumn(): Promise<void> {
+    await imsExecute(`ALTER TABLE ims_sales_orders ADD COLUMN IF NOT EXISTS price_tier ENUM('retail','wholesale') NOT NULL DEFAULT 'retail' AFTER customer_id`);
+    await imsExecute(`ALTER TABLE ims_sales_orders ADD COLUMN IF NOT EXISTS tax_treatment ENUM('ex_tax','inc_tax','no_tax') NOT NULL DEFAULT 'ex_tax' AFTER payment_terms`);
+  },
+
+  calculateTotals(
+    items: Pick<ImsSOItem, 'qty_ordered' | 'unit_price' | 'discount_pct' | 'tax_rate'>[],
+    taxTreatment: 'ex_tax' | 'inc_tax' | 'no_tax',
+    freight = 0,
+    discount = 0,
+  ): { subtotal: number; tax_amount: number; total_amount: number } {
+    let subtotal = 0;
+    let tax_amount = 0;
+    for (const item of items) {
+      const line = Number(item.qty_ordered || 0) * Number(item.unit_price || 0) * (1 - Number(item.discount_pct ?? 0) / 100);
+      const rate = Number(item.tax_rate || 0);
+      if (taxTreatment === 'inc_tax' && rate > 0) {
+        const exTax = line / (1 + rate);
+        subtotal += Math.round(exTax * 100) / 100;
+        tax_amount += Math.round((line - exTax) * 100) / 100;
+      } else if (taxTreatment === 'ex_tax') {
+        subtotal += line;
+        tax_amount += Math.round(line * rate * 100) / 100;
+      } else {
+        subtotal += line;
+      }
+    }
+    subtotal = Math.round(subtotal * 100) / 100;
+    tax_amount = taxTreatment === 'no_tax' ? 0 : Math.round(tax_amount * 100) / 100;
+    const total_amount = Math.round((subtotal + tax_amount + Number(freight || 0) - Number(discount || 0)) * 100) / 100;
+    return { subtotal, tax_amount, total_amount };
+  },
+
   async list(status?: SOStatus, businessId?: string): Promise<ImsSO[]> {
+    await this.ensureTaxTreatmentColumn();
     const wheres: string[] = ["so.so_type = 'b2b'"];
     const params: any[] = [];
     if (businessId) { wheres.push('so.business_id = ?'); params.push(businessId); }
@@ -1571,6 +1606,7 @@ export const ImsSORepo = {
   },
 
   async get(id: number, businessId?: string): Promise<ImsSO | null> {
+    await this.ensureTaxTreatmentColumn();
     const bizFilter = businessId ? ' AND so.business_id = ?' : '';
     const bizParam = businessId ? [businessId] : [];
     let rows: ImsSO[];
@@ -1658,26 +1694,23 @@ export const ImsSORepo = {
     items: Omit<ImsSOItem, 'id' | 'so_id' | 'qty_fulfilled' | 'unit_cost' | 'sku' | 'product_name' | 'variant_label'>[],
     businessId?: string,
   ): Promise<number> {
+    await this.ensureTaxTreatmentColumn();
     const so_number = data.so_number || await nextSONumber();
-    let subtotal = 0, tax_amount = 0;
-    for (const item of items) {
-      const disc  = 1 - Number(item.discount_pct ?? 0) / 100;
-      const line  = Number(item.qty_ordered) * Number(item.unit_price) * disc;
-      subtotal   += line;
-      tax_amount += line * Number(item.tax_rate ?? 0);
-    }
+    const priceTier = data.price_tier === 'wholesale' ? 'wholesale' : 'retail';
+    const taxTreatment = data.tax_treatment ?? 'ex_tax';
     const soFreight  = Number(data.freight ?? 0);
     const soDiscount = Number(data.discount ?? 0);
+    const totals = this.calculateTotals(items, taxTreatment, soFreight, soDiscount);
 
     const res = await imsExecute(
       `INSERT INTO ims_sales_orders
          (business_id,so_number,customer_id,customer_po_number,location_id,status,order_date,expected_date,notes,
-          payment_terms,tax_code,freight,discount,subtotal,tax_amount,total_amount,shopify_order_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+         payment_terms,price_tier,tax_treatment,tax_code,freight,discount,subtotal,tax_amount,total_amount,shopify_order_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [businessId ?? '', so_number, data.customer_id ?? null, data.customer_po_number ?? null, data.location_id, 'draft',
        data.order_date, data.expected_date ?? null, data.notes ?? null,
-       data.payment_terms ?? null, data.tax_code ?? null, soFreight, soDiscount,
-       subtotal, tax_amount, subtotal + tax_amount + soFreight - soDiscount, data.shopify_order_id ?? null]
+       data.payment_terms ?? null, priceTier, taxTreatment, data.tax_code ?? null, soFreight, soDiscount,
+       totals.subtotal, totals.tax_amount, totals.total_amount, data.shopify_order_id ?? null]
     );
     const so_id = res.insertId;
     for (const item of items) {
@@ -1696,10 +1729,11 @@ export const ImsSORepo = {
 
   async update(
     id: number,
-    data: Partial<Pick<ImsSO, 'customer_id' | 'customer_po_number' | 'location_id' | 'order_date' | 'expected_date' | 'notes' | 'payment_terms' | 'tax_code' | 'freight' | 'discount'>>,
+    data: Partial<Pick<ImsSO, 'customer_id' | 'customer_po_number' | 'location_id' | 'order_date' | 'expected_date' | 'notes' | 'payment_terms' | 'price_tier' | 'tax_treatment' | 'tax_code' | 'freight' | 'discount'>>,
     items?: Omit<ImsSOItem, 'id' | 'so_id' | 'qty_fulfilled' | 'unit_cost' | 'sku' | 'product_name' | 'variant_label'>[],
   ): Promise<void> {
-    const fields = ['customer_id','customer_po_number','location_id','order_date','expected_date','notes','payment_terms','tax_code','freight','discount'];
+    await this.ensureTaxTreatmentColumn();
+    const fields = ['customer_id','customer_po_number','location_id','order_date','expected_date','notes','payment_terms','price_tier','tax_treatment','tax_code','freight','discount'];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of fields) {
@@ -1718,7 +1752,7 @@ export const ImsSORepo = {
       // qty_committed reflects the OLD lines at the OLD location; replacing the
       // lines below would strand that commitment, so we rebalance it here.
       const [[preEdit]] = await conn.execute<any[]>(
-        `SELECT status, location_id, business_id FROM ims_sales_orders WHERE id = ?`, [id]
+        `SELECT status, location_id, business_id, tax_treatment FROM ims_sales_orders WHERE id = ?`, [id]
       );
       const rebalanceCommitted = !!items && preEdit?.status === 'confirmed';
       let oldCommitItems: any[] = [];
@@ -1735,12 +1769,9 @@ export const ImsSORepo = {
 
       if (items) {
         await conn.execute(`DELETE FROM ims_sales_order_items WHERE so_id = ?`, [id]);
-        let subtotal = 0, tax_amount = 0;
         for (const item of items) {
           const disc      = 1 - Number(item.discount_pct ?? 0) / 100;
           const line_total = Number(item.qty_ordered) * Number(item.unit_price) * disc;
-          subtotal   += line_total;
-          tax_amount += line_total * Number(item.tax_rate ?? 0);
           await conn.execute(
             `INSERT INTO ims_sales_order_items
                (so_id,variant_id,qty_ordered,unit_price,discount_pct,tax_rate,line_total,notes)
@@ -1775,12 +1806,14 @@ export const ImsSORepo = {
           }
         }
 
-        const [[existingSo]] = await conn.execute<any[]>(`SELECT freight, discount FROM ims_sales_orders WHERE id=?`, [id]);
+        const [[existingSo]] = await conn.execute<any[]>(`SELECT freight, discount, tax_treatment FROM ims_sales_orders WHERE id=?`, [id]);
         const useSoFr = (typeof data.freight !== 'undefined') ? Number(data.freight) : Number(existingSo?.freight ?? 0);
         const useSoDi = (typeof data.discount !== 'undefined') ? Number(data.discount) : Number(existingSo?.discount ?? 0);
+        const useTaxTreatment = (data.tax_treatment ?? existingSo?.tax_treatment ?? preEdit?.tax_treatment ?? 'ex_tax') as 'ex_tax' | 'inc_tax' | 'no_tax';
+        const totals = this.calculateTotals(items, useTaxTreatment, useSoFr, useSoDi);
         await conn.execute(
           `UPDATE ims_sales_orders SET subtotal=?, tax_amount=?, total_amount=? WHERE id=?`,
-          [subtotal, tax_amount, subtotal + tax_amount + useSoFr - useSoDi, id]
+          [totals.subtotal, totals.tax_amount, totals.total_amount, id]
         );
       }
       await conn.commit();

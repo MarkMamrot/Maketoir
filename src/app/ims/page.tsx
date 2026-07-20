@@ -3645,12 +3645,16 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
     setVariantRows(rows => rows.map(r => r._tempId === tempId ? { ...r, [field]: value } : r));
 
   const copyPricingToOtherVariants = (source: VariantRow) => {
-    const fields: Array<keyof VariantRow> = ['price_rrp', 'price_wholesale', 'price_rrp_sale', 'discount_start_date', 'discount_end_date'];
     setVariantRows(rows => rows.map(row => {
       if (row._tempId === source._tempId || row._delete) return row;
-      const next = { ...row };
-      for (const field of fields) next[field] = source[field] as any;
-      return next;
+      return {
+        ...row,
+        price_rrp: source.price_rrp,
+        price_wholesale: source.price_wholesale,
+        price_rrp_sale: source.price_rrp_sale,
+        discount_start_date: source.discount_start_date,
+        discount_end_date: source.discount_end_date,
+      };
     }));
   };
 
@@ -6493,7 +6497,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                           </div>
                           <div>
                             <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Amount</div>
-                            <input type="number" min="0" step="0.01" value={lcForm.amount} onChange={e => setLcForm(f => f ? { ...f, amount: e.target.value } : f)} style={{ ...inputStyle, width: 100, fontSize: 12, textAlign: 'right' }} placeholder="0.00" />
+                            <input type="number" min="0" step="0.01" value={lcForm.amount} onChange={e => setLcForm(f => f ? { ...f, amount: e.target.value } : f)} style={{ ...inputStyle, width: 110, fontSize: 12 }} placeholder="0.00" />
                           </div>
                           <button type="button" onClick={() => { if (lcForm.label && Number(lcForm.amount) > 0) { setLandedCosts(p => [...p, lcForm]); setLcForm(null); } else alert('Enter a description and amount.'); }} style={btnStyle('mint', 'sm')}>Add</button>
                           <button type="button" onClick={() => setLcForm(null)} style={btnStyle('ghost', 'sm')}>Cancel</button>
@@ -7391,6 +7395,8 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
   const items: any[] = so.items || [];
   const freight = Number(so.freight || 0);
   const discount = Number(so.discount || 0);
+  const taxTreatment = (so.tax_treatment ?? 'ex_tax') as 'ex_tax' | 'inc_tax' | 'no_tax';
+  const lineAmountType = taxTreatment === 'inc_tax' ? 'Inclusive' : 'Exclusive';
 
   const lineItems = items.map((item: any) => {
     const qty = Number(item.qty_ordered);
@@ -7398,14 +7404,15 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
     const discPct = Number(item.discount_pct || 0);
     const taxRate = Number(item.tax_rate || 0);
     const netPrice = price * (1 - discPct / 100);
-    const lineNet = qty * netPrice;
-    const taxAmt = lineNet * taxRate;             // taxRate is decimal (0.1 = 10%)
+    const lineAmount = qty * netPrice;
+    const lineNet = taxTreatment === 'inc_tax' && taxRate > 0 ? lineAmount / (1 + taxRate) : lineAmount;
+    const taxAmt = taxTreatment === 'no_tax' ? 0 : taxTreatment === 'inc_tax' ? lineAmount - lineNet : lineNet * taxRate;
     const cogs = item.unit_cost != null ? qty * Number(item.unit_cost) : null;
-    return { ...item, qty, price, discPct, taxRate, netPrice, lineNet, taxAmt, cogs };
+    return { ...item, qty, price, discPct, taxRate, netPrice, lineAmount, lineNet, taxAmt, cogs };
   });
 
-  const revenueSubtotal = lineItems.reduce((s: number, i: any) => s + i.lineNet, 0);
-  const taxTotal = lineItems.reduce((s: number, i: any) => s + i.taxAmt, 0);
+  const revenueSubtotal = lineItems.reduce((s: number, i: any) => s + Math.round(i.lineNet * 100) / 100, 0);
+  const taxTotal = lineItems.reduce((s: number, i: any) => s + Math.round(i.taxAmt * 100) / 100, 0);
   const totalAud = Number(so.total_amount || 0) * rate;
   const revenueSubtotalAud = revenueSubtotal * rate;
   const hasCogs = lineItems.some((i: any) => i.cogs !== null);
@@ -7478,7 +7485,7 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
           </tr>
         </tfoot>
       </table>
-      <div style={{ ...dim, marginTop: 3 }}>= qty × unit_price × (1 − discount_pct%); tax_rate stored as decimal (0.1 = 10%)</div>
+      <div style={{ ...dim, marginTop: 3 }}>= qty × unit_price × (1 − discount_pct%){taxTreatment === 'inc_tax' ? '; tax extracted from inclusive line amount' : '; tax_rate stored as decimal (0.1 = 10%)'}</div>
 
       {/* B – Order Totals */}
       <div style={lbl}>B — Order Totals</div>
@@ -7494,7 +7501,7 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
         )}
         <tbody>
           <tr>
-            <td style={cell}>Revenue subtotal</td>
+            <td style={cell}>Revenue subtotal{taxTreatment === 'inc_tax' ? ' (ex-tax)' : ''}</td>
             <td style={num}>{fmtFx(revenueSubtotal, currency)}</td>
             {isFx && <td style={{ ...num, color: 'var(--sv-text-dim)' }}>{fmtCurrency(revenueSubtotalAud)}</td>}
           </tr>
@@ -7513,7 +7520,7 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
             </tr>
           )}
           <tr>
-            <td style={cell}>Tax</td>
+            <td style={cell}>Tax{taxTreatment === 'no_tax' ? ' (no tax)' : ''}</td>
             <td style={num}>{fmtFx(taxTotal, currency)}</td>
             {isFx && <td style={{ ...num, color: 'var(--sv-text-dim)' }}>{fmtCurrency(taxTotal * rate)}</td>}
           </tr>
@@ -7583,17 +7590,17 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
       {/* D – Xero Invoice */}
       <div style={lbl}>D — Xero Invoice (what will be sent)</div>
       <div style={{ ...dim, lineHeight: 1.7 }}>
-        <div><strong>Type:</strong> ACCREC (Accounts Receivable) · <strong>Status: <span style={{ color: 'var(--sv-amber,#f90)' }}>DRAFT</span></strong> (on confirm) → <strong><span style={{ color: 'var(--sv-mint,#0c9)' }}>AUTHORISED</span></strong> (on fulfil) · <strong>Lines:</strong> Exclusive</div>
+        <div><strong>Type:</strong> ACCREC (Accounts Receivable) · <strong>Status: <span style={{ color: 'var(--sv-amber,#f90)' }}>DRAFT</span></strong> (on confirm) → <strong><span style={{ color: 'var(--sv-mint,#0c9)' }}>AUTHORISED</span></strong> (on fulfil) · <strong>Lines:</strong> {lineAmountType}</div>
         <div><strong>Currency:</strong> {currency}{isFx ? ` · Xero fetches live rate at invoice date` : ''}</div>
         <div><strong>Contact:</strong> {so.customer_name || '—'} · <strong>Ref:</strong> {so.so_number}</div>
         <div>
-          <strong>Tax:</strong>{so.tax_code ? <> code <code>{so.tax_code}</code> · </> : ' '}
+          <strong>Tax:</strong> treatment <code>{taxTreatment}</code>{so.tax_code ? <> · code <code>{so.tax_code}</code></> : null}{' · '}
           taxed lines → Xero TaxType <code>OUTPUT</code>
           {' · '}exempt lines → <code>NONE</code>
         </div>
         <div style={{ marginTop: 2 }}>
           {lineItems.map((item: any, i: number) => (
-            <div key={i}>→ {item.sku || item.product_name || 'item'} ×{item.qty} @ {fmtFx(item.price, currency)}{item.discPct > 0 ? ` − ${item.discPct}%` : ''} = {fmtFx(item.lineNet, currency)} → <strong>Sales Revenue account</strong>{item.taxAmt > 0 ? ` + tax ${fmtFx(item.taxAmt, currency)}` : ''}</div>
+            <div key={i}>→ {item.sku || item.product_name || 'item'} ×{item.qty} @ {fmtFx(item.price, currency)}{item.discPct > 0 ? ` − ${item.discPct}%` : ''} = {fmtFx(taxTreatment === 'inc_tax' ? item.lineAmount : item.lineNet, currency)} → <strong>Sales Revenue account</strong>{item.taxAmt > 0 ? ` + tax ${fmtFx(item.taxAmt, currency)}` : ''}</div>
           ))}
           {freight > 0 && (
             <div>→ Freight {fmtFx(freight, currency)} → <strong>Freight account</strong></div>
@@ -8372,7 +8379,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const [customers, setCustomers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [variants, setVariants] = useState<any[]>([]);
-  const [form, setForm] = useState<any>({ customer_id: '', customer_po_number: '', location_id: '', order_date: today(), notes: '', payment_terms: '', freight: '', discount: '' });
+  const [form, setForm] = useState<any>({ customer_id: '', customer_po_number: '', location_id: '', order_date: today(), notes: '', payment_terms: '', price_tier: 'retail', tax_treatment: 'inc_tax', freight: '', discount: '' });
   const [lineItems, setLineItems] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -8403,9 +8410,67 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
 
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((p: any) => ({ ...p, [k]: e.target.value }));
 
+  const normalizeSOPriceTier = (value: any): 'retail' | 'wholesale' => value === 'wholesale' ? 'wholesale' : 'retail';
+  const soPriceTier = normalizeSOPriceTier(form.price_tier);
+  const soTaxTreatment = (form.tax_treatment ?? (soPriceTier === 'wholesale' ? 'ex_tax' : 'inc_tax')) as 'ex_tax' | 'inc_tax' | 'no_tax';
+  const soTaxEnabled = soTaxTreatment !== 'no_tax';
+  const salesTaxRate = soTaxEnabled ? Number(settings?.sales_tax_rate ?? 0) : 0;
+
+  const deriveSOPriceTier = (customerId: string | number | null | undefined) => {
+    const customer = customers.find((c: any) => String(c.id) === String(customerId));
+    return normalizeSOPriceTier(customer?.price_tier);
+  };
+
+  const deriveSOTaxTreatment = (customerId: string | number | null | undefined, priceTier = deriveSOPriceTier(customerId)) => {
+    const customer = customers.find((c: any) => String(c.id) === String(customerId));
+    if ((settings?.sales_tax_on_sales ?? 'yes') !== 'yes') return 'no_tax';
+    if (customer && !Number(customer.charges_tax ?? 1)) return 'no_tax';
+    return priceTier === 'wholesale' ? 'ex_tax' : 'inc_tax';
+  };
+
+  const priceForSOVariant = (variant: any, priceTier = soPriceTier, taxTreatment = soTaxTreatment) => {
+    const taxRate = taxTreatment === 'no_tax' ? 0 : Number(settings?.sales_tax_rate ?? 0);
+    if (priceTier === 'wholesale' && variant?.price_wholesale) {
+      const wholesaleEx = Number(variant.price_wholesale);
+      return taxTreatment === 'inc_tax' && taxRate > 0 ? Math.round(wholesaleEx * (1 + taxRate) * 10000) / 10000 : wholesaleEx;
+    }
+    const rrp = effectiveRRP(variant, today());
+    return taxTreatment === 'ex_tax' && taxRate > 0 ? Math.round((rrp / (1 + taxRate)) * 10000) / 10000 : rrp;
+  };
+
+  const applySODefaultPricing = (items: any[], priceTier = soPriceTier, taxTreatment = soTaxTreatment, taxRate = taxTreatment === 'no_tax' ? 0 : Number(settings?.sales_tax_rate ?? 0)) => {
+    return items.map(item => {
+      const variant = variants.find((v: any) => v.variant_id === item.variant_id);
+      return { ...item, unit_price: variant ? priceForSOVariant(variant, priceTier, taxTreatment) : item.unit_price, tax_rate: taxRate };
+    });
+  };
+
+  const handleSOCustomerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const customer_id = e.target.value;
+    const price_tier = deriveSOPriceTier(customer_id);
+    const tax_treatment = deriveSOTaxTreatment(customer_id, price_tier);
+    const taxRate = tax_treatment === 'no_tax' ? 0 : Number(settings?.sales_tax_rate ?? 0);
+    setForm((p: any) => ({ ...p, customer_id, price_tier, tax_treatment }));
+    setLineItems(items => applySODefaultPricing(items, price_tier, tax_treatment, taxRate));
+  };
+
+  const handleSOPriceTierChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const price_tier = normalizeSOPriceTier(e.target.value);
+    const tax_treatment = deriveSOTaxTreatment(form.customer_id, price_tier);
+    const taxRate = tax_treatment === 'no_tax' ? 0 : Number(settings?.sales_tax_rate ?? 0);
+    setForm((p: any) => ({ ...p, price_tier, tax_treatment }));
+    setLineItems(items => applySODefaultPricing(items, price_tier, tax_treatment, taxRate));
+  };
+
+  const handleSOTaxTreatmentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const tax_treatment = e.target.value as 'ex_tax' | 'inc_tax' | 'no_tax';
+    const taxRate = tax_treatment === 'no_tax' ? 0 : Number(settings?.sales_tax_rate ?? 0);
+    setForm((p: any) => ({ ...p, tax_treatment }));
+    setLineItems(items => items.map(item => ({ ...item, tax_rate: taxRate })));
+  };
+
   const addLine = () => {
-    const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
-    const taxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
+    const taxRate = soTaxEnabled ? salesTaxRate : 0;
     setLineItems(p => [...p, { variant_id: '', qty_ordered: 1, unit_price: 0, discount_pct: 0, tax_rate: taxRate, notes: '' }]);
   };
   const removeLine = (i: number) => setLineItems(p => p.filter((_, idx) => idx !== i));
@@ -8414,31 +8479,33 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   // Auto-fill unit_price from variant pricing based on customer tier
   const selectSOVariant = (i: number, variant_id: string) => {
     const v = variants.find((v: any) => v.variant_id === variant_id);
-    const customer = customers.find((c: any) => String(c.id) === String(form.customer_id));
-    const isWholesale = customer?.price_tier === 'wholesale';
-    const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
-    const taxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
-    let unit_price = 0;
-    if (v) {
-      if (isWholesale && v.price_wholesale) {
-        unit_price = Number(v.price_wholesale); // already ex-tax
-      } else {
-        const rrp = effectiveRRP(v, today());
-        unit_price = taxOn && taxRate > 0 ? Math.round((rrp / (1 + taxRate)) * 10000) / 10000 : rrp;
-      }
-    }
+    const taxRate = soTaxEnabled ? salesTaxRate : 0;
+    const unit_price = v ? priceForSOVariant(v) : 0;
     setLineItems(p => p.map((item, j) => j === i ? { ...item, variant_id, unit_price, tax_rate: taxRate } : item));
   };
 
   const lineTotal = (item: any) => Number(item.qty_ordered || 0) * Number(item.unit_price || 0) * (1 - Number(item.discount_pct || 0) / 100);
-  const soSubtotal = lineItems.reduce((s, i) => s + lineTotal(i), 0);
-  const soTax      = lineItems.reduce((s, i) => s + lineTotal(i) * Number(i.tax_rate || 0), 0);
+  const lineExTax = (item: any) => {
+    const line = lineTotal(item);
+    const rate = Number(item.tax_rate || 0);
+    return soTaxTreatment === 'inc_tax' && rate > 0 ? line / (1 + rate) : line;
+  };
+  const lineTax = (item: any) => {
+    if (soTaxTreatment === 'no_tax') return 0;
+    const line = lineTotal(item);
+    const rate = Number(item.tax_rate || 0);
+    if (soTaxTreatment === 'inc_tax' && rate > 0) return line - (line / (1 + rate));
+    return line * rate;
+  };
+  const soSubtotal = lineItems.reduce((s, i) => s + Math.round(lineExTax(i) * 100) / 100, 0);
+  const soTax      = lineItems.reduce((s, i) => s + Math.round(lineTax(i) * 100) / 100, 0);
   const grandTotal = soSubtotal + soTax + Number(form.freight || 0) - Number(form.discount || 0);
 
   const openNew = () => {
-    setForm({ customer_id: '', customer_po_number: '', location_id: '', order_date: today(), notes: '', payment_terms: '', freight: '', discount: '', tax_code: settings?.sales_tax_code ?? '' });
-    const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
-    const defaultTaxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
+    const price_tier = 'retail';
+    const tax_treatment = (settings?.sales_tax_on_sales ?? 'yes') === 'yes' ? 'inc_tax' : 'no_tax';
+    setForm({ customer_id: '', customer_po_number: '', location_id: '', order_date: today(), notes: '', payment_terms: '', price_tier, tax_treatment, freight: '', discount: '', tax_code: settings?.sales_tax_code ?? '' });
+    const defaultTaxRate = tax_treatment === 'no_tax' ? 0 : Number(settings?.sales_tax_rate ?? 0);
     setLineItems([{ variant_id: '', qty_ordered: 1, unit_price: 0, discount_pct: 0, tax_rate: defaultTaxRate, notes: '' }]);
     setModal({ open: true, edit: null });
   };
@@ -8448,7 +8515,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
 
   const openEdit = async (so: any) => {
     const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);
-    setForm({ customer_id: d.data.customer_id ?? '', customer_po_number: d.data.customer_po_number ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), notes: d.data.notes ?? '', payment_terms: d.data.payment_terms ?? '', freight: d.data.freight ?? '', discount: d.data.discount ?? '', tax_code: d.data.tax_code ?? settings?.sales_tax_code ?? '' });
+    setForm({ customer_id: d.data.customer_id ?? '', customer_po_number: d.data.customer_po_number ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), notes: d.data.notes ?? '', payment_terms: d.data.payment_terms ?? '', price_tier: normalizeSOPriceTier(d.data.price_tier), tax_treatment: d.data.tax_treatment ?? 'ex_tax', freight: d.data.freight ?? '', discount: d.data.discount ?? '', tax_code: d.data.tax_code ?? settings?.sales_tax_code ?? '' });
     setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_price: i.unit_price, discount_pct: i.discount_pct, tax_rate: i.tax_rate, notes: i.notes ?? '' })));
     setModal({ open: true, edit: d.data });
   };
@@ -8493,7 +8560,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     if (lineItems.length === 0 || lineItems.some(i => !i.variant_id)) { alert('Add at least one line item with a variant selected.'); return; }
     setSaving(true);
     try {
-      const items = lineItems.map(i => ({ ...i, line_total: lineTotal(i) }));
+      const items = lineItems.map(i => ({ ...i, tax_rate: soTaxTreatment === 'no_tax' ? 0 : i.tax_rate, line_total: lineTotal(i) }));
       if (modal.edit) {
         await apiFetch(`/api/ims/sales-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items }) });
       } else {
@@ -8581,7 +8648,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         original_so_number: detail.so_number,
         customer_id: detail.customer_id ?? null,
         location_id: detail.location_id,
-        tax_treatment: 'inc_tax',
+        tax_treatment: detail.tax_treatment ?? 'ex_tax',
         items,
       });
     } catch (e: any) {
@@ -8696,7 +8763,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
           <form onSubmit={handleSubmit}>
             <Row3>
               <Field label="Customer">
-                <select value={form.customer_id} onChange={sf('customer_id')} style={inputStyle}>
+                <select value={form.customer_id} onChange={handleSOCustomerChange} style={inputStyle}>
                   <option value="">— None —</option>
                   {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
@@ -8719,7 +8786,21 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                   {PAYMENT_TERMS.map(t => <option key={t} value={t}>{t || '— None —'}</option>)}
                 </select>
               </Field>
-              <div />
+              <Field label="Price Tier">
+                <select value={soPriceTier} onChange={handleSOPriceTierChange} style={inputStyle}>
+                  <option value="retail">Retail pricing</option>
+                  <option value="wholesale">Wholesale pricing</option>
+                </select>
+              </Field>
+            </Row2>
+            <Row2>
+              <Field label="Amounts Entered">
+                <select value={soTaxTreatment} onChange={handleSOTaxTreatmentChange} style={inputStyle}>
+                  <option value="ex_tax">Tax exclusive (tax added on top)</option>
+                  <option value="inc_tax">Tax inclusive (tax already included)</option>
+                  <option value="no_tax">No tax / zero-rated</option>
+                </select>
+              </Field>
             </Row2>
 
             <div style={{ marginBottom: 14 }}>
@@ -8741,7 +8822,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: 'var(--sv-bg-1)' }}>
-                      {['Variant','Qty','Unit Price','Disc %','Tax %','Line Total','Notes',''].map(h => (
+                      {['Variant','Qty',soTaxTreatment === 'inc_tax' ? 'Unit Price (inc)' : 'Unit Price','Disc %',...(soTaxTreatment !== 'no_tax' ? ['Tax %'] : []),'Line Total','Notes',''].map(h => (
                         <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600 }}>{h}</th>
                       ))}
                     </tr>
@@ -8759,7 +8840,9 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                         <td style={{ padding: 4, width: 70 }}><input type="number" min="1" step="1" value={Math.round(Number(item.qty_ordered || 0))} onChange={e => updateLine(i, 'qty_ordered', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} /></td>
                         <td style={{ padding: 4, width: 90 }}><input type="number" min="0" step="0.0001" value={item.unit_price} onChange={e => updateLine(i, 'unit_price', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} /></td>
                         <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="100" step="1" value={Math.round(Number(item.discount_pct || 0))} onChange={e => updateLine(i, 'discount_pct', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0" /></td>
-                        <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="100" step="1" value={Math.round(Number(item.tax_rate || 0) * 100)} onChange={e => updateLine(i, 'tax_rate', Number(e.target.value) / 100)} style={{ ...inputStyle, fontSize: 12 }} placeholder="10" /></td>
+                        {soTaxTreatment !== 'no_tax' && (
+                          <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="100" step="1" value={Math.round(Number(item.tax_rate || 0) * 100)} onChange={e => updateLine(i, 'tax_rate', Number(e.target.value) / 100)} style={{ ...inputStyle, fontSize: 12 }} placeholder="10" /></td>
+                        )}
                         <td style={{ padding: '4px 8px', width: 100, color: 'var(--sv-text-main)', fontSize: 13 }}>{fmtCurrency(lineTotal(item))}</td>
                         <td style={{ padding: 4 }}><input type="text" value={item.notes ?? ''} onChange={e => updateLine(i, 'notes', e.target.value)} style={{ ...inputStyle, fontSize: 12, minWidth: 100 }} placeholder="Notes…" /></td>
                         <td style={{ padding: 4, width: 30 }}><button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16 }}>×</button></td>
@@ -8771,7 +8854,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
               )}
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
                 <div style={{ minWidth: 280 }}>
-                  {[['Subtotal', fmtCurrency(soSubtotal)], ...((settings?.sales_tax_on_sales ?? 'yes') === 'yes' ? [['Tax', fmtCurrency(soTax)]] : [])].map(([l, v]) => (
+                  {[[`Subtotal${soTaxTreatment === 'inc_tax' ? ' (ex-tax)' : ''}`, fmtCurrency(soSubtotal)], ...(soTaxTreatment !== 'no_tax' ? [['Tax', fmtCurrency(soTax)]] : [])].map(([l, v]) => (
                     <div key={l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
                       <span>{l}</span><span>{v}</span>
                     </div>
@@ -8785,7 +8868,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                     <input type="number" min="0" step="0.01" value={form.freight} onChange={sf('freight')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)', borderTop: '1px solid var(--sv-etch)', paddingTop: 6 }}>
-                    <span>{(settings?.sales_tax_on_sales ?? 'yes') === 'yes' ? 'Total (inc. tax)' : 'Total'}</span><span>{fmtCurrency(grandTotal)}</span>
+                    <span>Total{soTaxTreatment === 'inc_tax' ? ' (inc. tax)' : ''}</span><span>{fmtCurrency(grandTotal)}</span>
                   </div>
                 </div>
               </div>
@@ -8799,17 +8882,10 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         <ImportLineItemsModal
           variants={variants}
           priceFn={(v) => {
-            const customer = customers.find((c: any) => String(c.id) === String(form.customer_id));
-            const isWholesale = customer?.price_tier === 'wholesale';
-            const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
-            const taxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
-            if (isWholesale && v.price_wholesale) return Number(v.price_wholesale);
-            const rrp = effectiveRRP(v, today());
-            return taxOn && taxRate > 0 ? rrp / (1 + taxRate) : rrp;
+            return priceForSOVariant(v);
           }}
           lineFactory={(v, qty, price) => {
-            const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
-            const taxRate = taxOn ? Number(settings?.sales_tax_rate ?? 0) : 0;
+            const taxRate = soTaxTreatment === 'no_tax' ? 0 : Number(settings?.sales_tax_rate ?? 0);
             return { variant_id: v.variant_id, qty_ordered: qty, unit_price: price, discount_pct: 0, tax_rate: taxRate, notes: '' };
           }}
           onImport={(items) => setLineItems(prev => [...prev.filter(i => i.variant_id), ...items])}
@@ -8906,7 +8982,8 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             <div><div style={labelStyle}>Fulfilled</div><div>{viewModal.so.fulfilled_date?.slice(0, 10) || '—'}</div></div>
             <div><div style={labelStyle}>Payment Terms</div><div>{viewModal.so.payment_terms || '—'}</div></div>
             <div><div style={labelStyle}>Due Date</div><div>{calcDueDate(viewModal.so.order_date, viewModal.so.payment_terms)}</div></div>
-            <div />
+            <div><div style={labelStyle}>Price Tier</div><div>{viewModal.so.price_tier === 'wholesale' ? 'Wholesale' : 'Retail'}</div></div>
+            <div><div style={labelStyle}>Amounts Entered</div><div>{viewModal.so.tax_treatment === 'inc_tax' ? 'Tax inclusive' : viewModal.so.tax_treatment === 'no_tax' ? 'No tax' : 'Tax exclusive'}</div></div>
           </div>
           {viewModal.so.notes && <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--sv-bg-2)', borderRadius: 6, fontSize: 13, color: 'var(--sv-text-dim)' }}>{viewModal.so.notes}</div>}
           <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
@@ -8936,7 +9013,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             <tfoot>
               {(Number(viewModal.so.tax_amount) > 0 || Number(viewModal.so.discount) > 0 || Number(viewModal.so.freight) > 0) && (
                 <tr style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                  <td colSpan={9} style={{ padding: '6px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Subtotal</td>
+                  <td colSpan={9} style={{ padding: '6px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Subtotal{viewModal.so.tax_treatment === 'inc_tax' ? ' (ex-tax)' : ''}</td>
                   <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtCurrency(viewModal.so.subtotal)}</td>
                 </tr>
               )}

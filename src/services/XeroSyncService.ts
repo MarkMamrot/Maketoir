@@ -678,6 +678,7 @@ interface SOForSync {
   discount?: number;
   total_amount: number;
   currency_code?: string;
+  tax_treatment?: 'ex_tax' | 'inc_tax' | 'no_tax';
   items?: {
     code?: string;
     name?: string;
@@ -703,6 +704,7 @@ export async function syncSOAsInvoice(businessId: string, so: SOForSync): Promis
   }
 
   const tracking = getTrackingForLocation(trackingMappings, so.location_id, 'wholesale');
+  const taxTreatment = so.tax_treatment ?? 'ex_tax';
 
   const lineItems = (so.items ?? []).map(item => ({
     Description: `${item.code || ''} ${item.name || ''}`.trim() || 'Sale',
@@ -710,7 +712,7 @@ export async function syncSOAsInvoice(businessId: string, so: SOForSync): Promis
     UnitAmount: item.unit_price,
     DiscountRate: item.discount_pct || 0,
     AccountCode: accounts.sales_revenue,
-    ...((item.tax_rate > 0 ? taxTypes.sales : taxTypes.exempt) ? { TaxType: item.tax_rate > 0 ? taxTypes.sales : taxTypes.exempt } : {}),
+    ...((taxTreatment !== 'no_tax' && item.tax_rate > 0 ? taxTypes.sales : taxTypes.exempt) ? { TaxType: taxTreatment !== 'no_tax' && item.tax_rate > 0 ? taxTypes.sales : taxTypes.exempt } : {}),
     Tracking: tracking,
   }));
 
@@ -733,7 +735,7 @@ export async function syncSOAsInvoice(businessId: string, so: SOForSync): Promis
     DueDate: so.expected_date || so.order_date,
     Reference: so.so_number,
     Status: 'DRAFT',
-    LineAmountTypes: 'Exclusive',
+    LineAmountTypes: taxTreatment === 'inc_tax' ? 'Inclusive' : 'Exclusive',
     CurrencyCode: so.currency_code || 'AUD',
     LineItems: lineItems,
   };
@@ -779,13 +781,14 @@ export async function updateXeroDraftInvoice(businessId: string, so: SOForSync, 
   }
 
   const tracking = getTrackingForLocation(trackingMappings, so.location_id, 'wholesale');
+  const taxTreatment = so.tax_treatment ?? 'ex_tax';
   const lineItems = (so.items ?? []).map(item => ({
     Description: `${item.code || ''} ${item.name || ''}`.trim() || 'Sale',
     Quantity: item.qty_ordered,
     UnitAmount: item.unit_price,
     DiscountRate: item.discount_pct || 0,
     AccountCode: accounts.sales_revenue,
-    ...((item.tax_rate > 0 ? taxTypes.sales : taxTypes.exempt) ? { TaxType: item.tax_rate > 0 ? taxTypes.sales : taxTypes.exempt } : {}),
+    ...((taxTreatment !== 'no_tax' && item.tax_rate > 0 ? taxTypes.sales : taxTypes.exempt) ? { TaxType: taxTreatment !== 'no_tax' && item.tax_rate > 0 ? taxTypes.sales : taxTypes.exempt } : {}),
     Tracking: tracking,
   }));
 
@@ -809,7 +812,7 @@ export async function updateXeroDraftInvoice(businessId: string, so: SOForSync, 
     DueDate: so.expected_date || so.order_date,
     Reference: so.so_number,
     Status: 'DRAFT',
-    LineAmountTypes: 'Exclusive',
+    LineAmountTypes: taxTreatment === 'inc_tax' ? 'Inclusive' : 'Exclusive',
     CurrencyCode: so.currency_code || 'AUD',
     LineItems: lineItems,
   };

@@ -66,6 +66,8 @@ async function runMigrations(): Promise<void> {
     'ALTER TABLE ims_sales_order_items MODIFY COLUMN variant_id VARCHAR(36) NULL',
     'ALTER TABLE ims_purchase_orders ADD COLUMN IF NOT EXISTS payment_terms VARCHAR(100) NULL',
     'ALTER TABLE ims_sales_orders ADD COLUMN IF NOT EXISTS payment_terms VARCHAR(100) NULL',
+    "ALTER TABLE ims_sales_orders ADD COLUMN IF NOT EXISTS price_tier ENUM('retail','wholesale') NOT NULL DEFAULT 'retail' AFTER customer_id",
+    "ALTER TABLE ims_sales_orders ADD COLUMN IF NOT EXISTS tax_treatment ENUM('ex_tax','inc_tax','no_tax') NOT NULL DEFAULT 'ex_tax' AFTER payment_terms",
     'ALTER TABLE ims_purchase_orders MODIFY COLUMN payment_terms VARCHAR(100) NULL',
     'ALTER TABLE ims_sales_orders MODIFY COLUMN payment_terms VARCHAR(100) NULL',
     "ALTER TABLE ims_sales_orders ADD COLUMN IF NOT EXISTS so_type VARCHAR(10) NOT NULL DEFAULT 'b2b'",
