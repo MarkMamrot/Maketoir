@@ -24,6 +24,37 @@ interface Props {
   onApplyText?: (fields: { title?: string; description?: string; tags?: string }) => void;
 }
 
+interface ImageSpec {
+  type?: string;
+  size?: string;
+  dimensions?: string;
+  dpi?: string;
+}
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return 'Unknown';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function inferImageType(src: string, headerType?: string | null): string {
+  const cleanHeader = headerType?.split(';')[0]?.trim();
+  if (cleanHeader?.startsWith('image/')) return cleanHeader.replace('image/', '').toUpperCase();
+  const dataType = src.match(/^data:image\/([^;]+)/i)?.[1];
+  if (dataType) return dataType.toUpperCase();
+  const ext = src.split('?')[0].split('#')[0].match(/\.([a-z0-9]+)$/i)?.[1];
+  return ext ? ext.toUpperCase().replace('JPG', 'JPEG') : 'Unknown';
+}
+
+function dataUrlBytes(src: string): number | null {
+  const match = src.match(/^data:[^,]+,(.*)$/);
+  if (!match) return null;
+  const payload = match[1];
+  if (src.includes(';base64,')) return Math.floor((payload.length * 3) / 4) - (payload.endsWith('==') ? 2 : payload.endsWith('=') ? 1 : 0);
+  return decodeURIComponent(payload).length;
+}
+
 export default function ProductImageGallery({ productId, productName = 'Product', businessId = '', productTitle = '', productDescription = '', productTags = '', imageAddedKey, onApplyText }: Props) {
   const [images, setImages]       = useState<ProductImage[]>([]);
   const [loading, setLoading]     = useState(true);
@@ -32,6 +63,7 @@ export default function ProductImageGallery({ productId, productName = 'Product'
   const [showUrl, setShowUrl]     = useState(false);
   const [error, setError]         = useState<string | null>(null);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [imageSpecs, setImageSpecs] = useState<Record<string, ImageSpec>>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Drag-and-drop reorder state
@@ -116,6 +148,29 @@ export default function ProductImageGallery({ productId, productName = 'Product'
   const primary    = imageMedia[0] ?? null; // first sorted image = primary image
   const imageThumbs = imageMedia.filter(i => i.id !== primary?.id);
 
+  const updateImageSpec = (src: string, patch: ImageSpec) => {
+    setImageSpecs(prev => ({ ...prev, [src]: { ...prev[src], ...patch, dpi: prev[src]?.dpi ?? patch.dpi ?? 'Unavailable' } }));
+  };
+
+  const enrichImageSpec = async (src: string) => {
+    if (imageSpecs[src]?.size && imageSpecs[src]?.type) return;
+    const dataBytes = dataUrlBytes(src);
+    if (dataBytes != null) {
+      updateImageSpec(src, { type: inferImageType(src), size: formatBytes(dataBytes), dpi: 'Unavailable' });
+      return;
+    }
+    try {
+      const res = await fetch(src, { method: 'HEAD' });
+      updateImageSpec(src, {
+        type: inferImageType(src, res.headers.get('content-type')),
+        size: res.headers.get('content-length') ? formatBytes(Number(res.headers.get('content-length'))) : 'Unknown',
+        dpi: 'Unavailable',
+      });
+    } catch {
+      updateImageSpec(src, { type: inferImageType(src), size: 'Unknown', dpi: 'Unavailable' });
+    }
+  };
+
   // ── Drag-and-drop reorder ──────────────────────────────────────────────────
   const handleDragStart = (e: React.DragEvent, id: number) => {
     setDragSrcId(id);
@@ -177,6 +232,27 @@ export default function ProductImageGallery({ productId, productName = 'Product'
           transform: scale(2.15);
           box-shadow: 0 16px 42px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.18);
         }
+        .product-media-specs {
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          padding: 4px 5px;
+          background: linear-gradient(180deg, transparent, rgba(0,0,0,.82) 18%, rgba(0,0,0,.88));
+          color: #fff;
+          font-size: 7px;
+          line-height: 1.25;
+          opacity: 0;
+          transition: opacity .12s ease;
+          pointer-events: none;
+          text-align: left;
+        }
+        .product-media-hover-tile:hover .product-media-specs {
+          opacity: 1;
+        }
+        .product-media-primary:hover .product-media-specs {
+          opacity: 1;
+        }
       `}</style>
       {aiPanelOpen && (
         <ProductAICreativePanel
@@ -199,10 +275,18 @@ export default function ProductImageGallery({ productId, productName = 'Product'
           border: '1px solid var(--sv-etch)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           overflow: 'hidden', position: 'relative',
-        }}>
+        }} className="product-media-primary" onMouseEnter={() => { if (primary) enrichImageSpec(primary.url); }}>
           {primary ? (
             <>
-              <img src={primary.url} alt={primary.alt_text ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img
+                src={primary.url}
+                alt={primary.alt_text ?? ''}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                onLoad={e => {
+                  updateImageSpec(primary.url, { dimensions: `${e.currentTarget.naturalWidth} × ${e.currentTarget.naturalHeight}px`, type: inferImageType(primary.url), dpi: 'Unavailable' });
+                  enrichImageSpec(primary.url);
+                }}
+              />
               <button
                 onClick={() => deleteImage(primary.id)}
                 title="Remove"
@@ -218,6 +302,11 @@ export default function ProductImageGallery({ productId, productName = 'Product'
                 fontSize: 10, background: 'rgba(0,0,0,0.5)', color: '#fff',
                 borderRadius: 4, padding: '1px 4px',
               }}>{sourceLabel(primary.source)} Primary</span>
+              <div className="product-media-specs">
+                <div>{imageSpecs[primary.url]?.type ?? inferImageType(primary.url)} · {imageSpecs[primary.url]?.size ?? 'Size unknown'}</div>
+                <div>{imageSpecs[primary.url]?.dimensions ?? 'Dimensions loading'}</div>
+                <div>DPI: {imageSpecs[primary.url]?.dpi ?? 'Unavailable'}</div>
+              </div>
             </>
           ) : (
             <span style={{ fontSize: 28, opacity: 0.25 }}>🖼</span>
@@ -244,8 +333,21 @@ export default function ProductImageGallery({ productId, productName = 'Product'
                     title="Drag to reorder · click to set as primary image"
                   >
                     <div className="product-media-hover-frame" style={{ width: 64, height: 64, borderRadius: 6, border: dragOverId === img.id ? '2px solid var(--sv-action)' : '1px solid var(--sv-etch)', overflow: 'hidden', background: 'var(--sv-bg-2)', position: 'relative' }}>
-                      <img src={img.url} alt={img.alt_text ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }} />
+                      <img
+                        src={img.url}
+                        alt={img.alt_text ?? ''}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }}
+                        onLoad={e => {
+                          updateImageSpec(img.url, { dimensions: `${e.currentTarget.naturalWidth} × ${e.currentTarget.naturalHeight}px`, type: inferImageType(img.url), dpi: 'Unavailable' });
+                          enrichImageSpec(img.url);
+                        }}
+                      />
                       <span style={{ position: 'absolute', bottom: 2, left: 2, fontSize: 9, background: 'rgba(0,0,0,0.5)', color: '#fff', borderRadius: 3, padding: '0 3px' }}>{sourceLabel(img.source)}</span>
+                      <div className="product-media-specs">
+                        <div>{imageSpecs[img.url]?.type ?? inferImageType(img.url)} · {imageSpecs[img.url]?.size ?? 'Size unknown'}</div>
+                        <div>{imageSpecs[img.url]?.dimensions ?? 'Dimensions loading'}</div>
+                        <div>DPI: {imageSpecs[img.url]?.dpi ?? 'Unavailable'}</div>
+                      </div>
                     </div>
                     <button
                       onClick={e => { e.stopPropagation(); deleteImage(img.id); }}

@@ -2533,14 +2533,62 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
 
 
 // ── Hover-zoom image ──────────────────────────────────────────────────────────────
+type HoverImageSpec = { type?: string; size?: string; dimensions?: string; dpi?: string };
+
+function formatHoverImageBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return 'Unknown';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function inferHoverImageType(src: string, headerType?: string | null): string {
+  const cleanHeader = headerType?.split(';')[0]?.trim();
+  if (cleanHeader?.startsWith('image/')) return cleanHeader.replace('image/', '').toUpperCase();
+  const dataType = src.match(/^data:image\/([^;]+)/i)?.[1];
+  if (dataType) return dataType.toUpperCase();
+  const ext = src.split('?')[0].split('#')[0].match(/\.([a-z0-9]+)$/i)?.[1];
+  return ext ? ext.toUpperCase().replace('JPG', 'JPEG') : 'Unknown';
+}
+
+function hoverDataUrlBytes(src: string): number | null {
+  const match = src.match(/^data:[^,]+,(.*)$/);
+  if (!match) return null;
+  const payload = match[1];
+  if (src.includes(';base64,')) return Math.floor((payload.length * 3) / 4) - (payload.endsWith('==') ? 2 : payload.endsWith('=') ? 1 : 0);
+  return decodeURIComponent(payload).length;
+}
+
 function ZoomImg({ src, className: _cls, thumbStyle }: { src: string; className?: string; thumbStyle?: React.CSSProperties }) {
   const [mouse, setMouse] = useState<{ x: number; y: number } | null>(null);
   const [hidden, setHidden] = useState(false);
+  const [spec, setSpec] = useState<HoverImageSpec>({ type: inferHoverImageType(src), dpi: 'Unavailable' });
+
+  const enrichSpec = async () => {
+    if (spec.size && spec.type) return;
+    const dataBytes = hoverDataUrlBytes(src);
+    if (dataBytes != null) {
+      setSpec(prev => ({ ...prev, type: inferHoverImageType(src), size: formatHoverImageBytes(dataBytes), dpi: prev.dpi ?? 'Unavailable' }));
+      return;
+    }
+    try {
+      const res = await fetch(src, { method: 'HEAD' });
+      setSpec(prev => ({
+        ...prev,
+        type: inferHoverImageType(src, res.headers.get('content-type')),
+        size: res.headers.get('content-length') ? formatHoverImageBytes(Number(res.headers.get('content-length'))) : 'Unknown',
+        dpi: prev.dpi ?? 'Unavailable',
+      }));
+    } catch {
+      setSpec(prev => ({ ...prev, type: inferHoverImageType(src), size: 'Unknown', dpi: prev.dpi ?? 'Unavailable' }));
+    }
+  };
+
   if (hidden) return null;
   return (
     <div
       style={{ position: 'relative', width: '100%', height: '100%' }}
-      onMouseEnter={e => setMouse({ x: e.clientX, y: e.clientY })}
+      onMouseEnter={e => { setMouse({ x: e.clientX, y: e.clientY }); enrichSpec(); }}
       onMouseMove={e  => setMouse({ x: e.clientX, y: e.clientY })}
       onMouseLeave={() => setMouse(null)}
     >
@@ -2548,6 +2596,7 @@ function ZoomImg({ src, className: _cls, thumbStyle }: { src: string; className?
         src={src}
         alt=""
         style={thumbStyle ?? { width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+        onLoad={e => setSpec(prev => ({ ...prev, dimensions: `${e.currentTarget.naturalWidth} × ${e.currentTarget.naturalHeight}px`, type: prev.type ?? inferHoverImageType(src), dpi: prev.dpi ?? 'Unavailable' }))}
         onError={() => setHidden(true)}
       />
       {mouse && (
@@ -2562,9 +2611,16 @@ function ZoomImg({ src, className: _cls, thumbStyle }: { src: string; className?
           borderRadius: 10,
           boxShadow: '0 12px 40px rgba(0,0,0,0.22)',
           padding: 4,
-          width: 240, height: 240,
+          width: 240,
         }}>
-          <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', borderRadius: 6 }} />
+          <div style={{ width: 232, height: 232, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <img src={src} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block', borderRadius: 6 }} />
+          </div>
+          <div style={{ marginTop: 4, padding: '6px 7px', borderRadius: 6, background: 'rgba(15,23,42,.92)', color: '#fff', fontSize: 10, lineHeight: 1.45 }}>
+            <div>{spec.type ?? inferHoverImageType(src)} · {spec.size ?? 'Size unknown'}</div>
+            <div>{spec.dimensions ?? 'Dimensions loading'}</div>
+            <div>DPI: {spec.dpi ?? 'Unavailable'}</div>
+          </div>
         </div>
       )}
     </div>
