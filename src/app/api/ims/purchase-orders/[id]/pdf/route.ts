@@ -1,14 +1,9 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsPORepo } from '@/lib/ims/ImsRepository';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { generateOrderPdf } from '@/lib/ims/generateOrderPdf';
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 async function getSettings(businessId: string): Promise<Record<string, string>> {
   const rows = await imsQuery<{ key: string; value: string }>(
@@ -21,7 +16,7 @@ async function getSettings(businessId: string): Promise<Record<string, string>> 
 }
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   try {

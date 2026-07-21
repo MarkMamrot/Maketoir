@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { getProductsWithSales, getSuppliers } from '@/lib/dataProvider';
 import type { StandardizedVariantWithSales, StandardizedContact } from '@/types/StandardizedData';
+import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 
 // ── Stock Turnover Efficiency ─────────────────────────────────────────────────
 //
@@ -121,10 +121,8 @@ const SALES_WINDOW_FIELDS: Record<number, keyof StandardizedVariantWithSales> = 
 };
 
 export async function POST(req: Request) {
-  const session = cookies().get('marketoir_session');
-  if (!session?.value) {
-    return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
-  }
+  const { user, response } = requireAdminSession();
+  if (response) return response;
 
   const body = await req.json();
   const databaseId: string      = String(body?.databaseId      ?? '').trim();
@@ -137,6 +135,8 @@ export async function POST(req: Request) {
   if (!databaseId) {
     return NextResponse.json({ success: false, error: 'databaseId is required.' }, { status: 400 });
   }
+  const denied = assertBusinessAccess(user, databaseId);
+  if (denied) return denied;
 
   let products: StandardizedVariantWithSales[];
   let suppliers: StandardizedContact[];

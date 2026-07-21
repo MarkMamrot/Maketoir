@@ -119,6 +119,7 @@ Always read this file when starting a new session or implementing a feature to u
 * `scripts/ims-schema.sql` is the source for fresh tenant schemas. Keep it aligned with live migrations, including `business_id` columns, POS register/session columns, `ims_sales_history`, and `trg_ims_stock_bizid` / `trg_ims_sales_cache_bizid` compatibility.
 * IMS API routes that touch IMS tables must call `getImsSession()` or `enterImsForBusiness()` before any `imsQuery`, `imsExecute`, `getIMSPool`, or `Ims*Repo` call. Local cookie parsing alone is not tenant-safe.
 * Sage was provisioned as `readyedu_SageIMS`; leak-prone tables verified empty after provisioning.
+* Dashboard onboarding is business-scoped via `/api/onboarding`; it stores progress in tenant `ims_settings.onboarding_completed_steps` and reuses existing IMS settings keys for business profile, operations, tax, Shopify, and Xero setup prompts.
 
 ---
 

@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { query } from '@/services/MySQLService';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { checkRateLimit, registerFailure, clearRateLimit } from '@/lib/posRateLimit';
+import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
 import bcrypt from 'bcryptjs';
 
 // POST /api/pos/auth/pin-login
@@ -29,17 +30,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Resolve the location's business so we can confirm the user belongs to it.
-    const locInfo = await imsQuery<{ name: string; business_id: string | null }>(
-      'SELECT name, business_id FROM ims_locations WHERE id = ? AND is_active = 1 LIMIT 1',
-      [Number(location_id)],
-    );
-    if (!locInfo[0]) {
-      return NextResponse.json({ error: 'Location not found.' }, { status: 404 });
-    }
-    const locationBusinessId = locInfo[0].business_id;
-    const locationName = locInfo[0].name ?? `Location ${location_id}`;
-
     const users = await query<{
       id: number;
       name: string | null;
@@ -56,6 +46,21 @@ export async function POST(req: Request) {
     if (!user) {
       return NextResponse.json({ error: 'User not found.' }, { status: 404 });
     }
+    if (!user.business_id) {
+      return NextResponse.json({ error: 'User is not assigned to a business.' }, { status: 403 });
+    }
+    await enterImsForBusiness(user.business_id);
+
+    // Resolve the location's business so we can confirm the user belongs to it.
+    const locInfo = await imsQuery<{ name: string; business_id: string | null }>(
+      'SELECT name, business_id FROM ims_locations WHERE id = ? AND business_id = ? AND is_active = 1 LIMIT 1',
+      [Number(location_id), user.business_id],
+    );
+    if (!locInfo[0]) {
+      return NextResponse.json({ error: 'Location not found.' }, { status: 404 });
+    }
+    const locationBusinessId = locInfo[0].business_id;
+    const locationName = locInfo[0].name ?? `Location ${location_id}`;
     // Authorisation: the user must belong to the same business as the location.
     if (locationBusinessId && user.business_id && user.business_id !== locationBusinessId) {
       return NextResponse.json(

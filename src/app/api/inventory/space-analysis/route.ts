@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { getInventorySource, getSuppliers } from '@/lib/dataProvider';
 import { ProductsRepository } from '@/lib/db/ProductsRepository';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
 import { getIMSPool } from '@/services/IMSMySQLService';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 // ── Best-practice space efficiency (Sales per Unit of Space) ──────────────────
 // Space Efficiency Index (SEI) = avgDailySales / volumeRating
@@ -35,8 +35,8 @@ function percentileRating(rank: number, total: number): { grade: string; stars: 
 }
 
 export async function POST(req: Request) {
-  const session = cookies().get('marketoir_session');
-  if (!session?.value) {
+  const session = await getImsSession();
+  if (!session) {
     return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
   }
 
@@ -49,6 +49,9 @@ export async function POST(req: Request) {
 
   if (!databaseId) {
     return NextResponse.json({ success: false, error: 'databaseId is required.' }, { status: 400 });
+  }
+  if (databaseId !== session.businessId) {
+    return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
   }
 
   const source = await getInventorySource(databaseId).catch(() => 'cin7');

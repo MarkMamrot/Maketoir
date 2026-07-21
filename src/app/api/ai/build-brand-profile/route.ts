@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { GoogleGenAI } from '@google/genai';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { SalesRepository } from '@/lib/db/SalesRepository';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
 import { decrypt } from '@/lib/encryption';
+import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 
 // ── Logo auto-detection ───────────────────────────────────────────────────────
 
@@ -301,13 +301,15 @@ ${PROFILE_SCHEMA}
 
 export async function POST(req: Request) {
   try {
-    const sessionCookie = cookies().get('marketoir_session');
-    if (!sessionCookie?.value) {
-      return NextResponse.json({ error: 'Unauthorized. Please log in.' }, { status: 401 });
-    }
+    const { user, response: authResponse } = requireAdminSession();
+    if (authResponse) return authResponse;
 
     const body = await req.json();
     const { brandUrl, brandName, databaseId, logoBase64, logoMimeType, mode, existingProfile, userComments, fieldKey } = body;
+    if (databaseId) {
+      const denied = assertBusinessAccess(user, databaseId);
+      if (denied) return denied;
+    }
 
     const isRefine = mode === 'refine';
     const isFieldRegen = mode === 'regenerate-field';

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { PosRegisterSessionRepo } from '@/lib/db/PosRepository';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -13,6 +14,7 @@ function getPosSession() {
 export async function POST(req: NextRequest) {
   const session = getPosSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  await getImsSession(['pos_session']);
 
   const body = await req.json();
   const registerId = Number(body.register_id ?? session.register_id);

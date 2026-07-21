@@ -9,28 +9,16 @@
  * do not surface to the user.
  */
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 import { syncDailySalesBatch } from '@/services/XeroSyncService';
+import { getImsSession } from '@/lib/auth/imsSession';
 
-function getBusinessId(): string | null {
-  // Accept any valid session — POS staff or IMS admin.
-  // The sync only needs businessId; it doesn't operate on behalf of the user.
-  for (const cookieName of ['marketoir_session', 'pos_session']) {
-    const raw = cookies().get(cookieName)?.value;
-    if (!raw) continue;
-    try {
-      const s = JSON.parse(raw);
-      const id = s.businessId ?? s.business_id ?? null;
-      if (id) return String(id);
-    } catch {}
-  }
-  return null;
-}
+const IMS_OR_POS_SESSION = ['marketoir_session', 'pos_session'];
 
 export async function POST() {
-  const businessId = getBusinessId();
+  const session = await getImsSession(IMS_OR_POS_SESSION);
+  const businessId = session?.businessId;
   if (!businessId) return NextResponse.json({ skipped: true, reason: 'unauthenticated' });
 
   const tz = process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney';

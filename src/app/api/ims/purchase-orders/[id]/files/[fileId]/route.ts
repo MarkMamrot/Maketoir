@@ -1,14 +1,9 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import fs from 'fs';
 import path from 'path';
 import { ImsPORepo, ImsPoFilesRepo } from '@/lib/ims/ImsRepository';
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 function getUploadDir(businessId: string, poNumber: string): string {
   const base = process.env.UPLOAD_BASE_PATH ?? './uploads';
@@ -24,7 +19,7 @@ export async function GET(
   _: Request,
   { params }: { params: { id: string; fileId: string } },
 ) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return new Response('Not authenticated', { status: 401 });
 
   const fileId = Number(params.fileId);
@@ -68,7 +63,7 @@ export async function DELETE(
   _: Request,
   { params }: { params: { id: string; fileId: string } },
 ) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const fileId = Number(params.fileId);

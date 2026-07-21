@@ -3213,12 +3213,75 @@ const ShopifyProductsView = forwardRef<WebsiteSyncHandle, {
 });
 
 // ── Home overview ────────────────────────────────────────────────────────────
-function HomeView({
-  setupComplete, setSetupComplete,
-  connectionsDone, setConnectionsDone,
-  businessInfoDone, setBusinessInfoDone,
-  databaseId,
-}: any) {
+type OnboardingStep = { id: string; title: string; completed: boolean; autoCompleted: boolean };
+
+const ONBOARDING_ACTIONS: Record<string, { href: string; label: string }> = {
+  business_profile: { href: '/ims#settings-business-profile', label: 'Open Business Profile' },
+  operations_tax: { href: '/ims#settings-general', label: 'Open IMS Settings' },
+  online_shop: { href: '/ims#shopify', label: 'Open Shopify' },
+  accounting: { href: '/ims#xero', label: 'Open Xero' },
+  users: { href: '/ims#settings-users', label: 'Add Users' },
+  locations: { href: '/ims#locations', label: 'Add Locations' },
+  products: { href: '/ims#products', label: 'Import Products' },
+  sales_orders: { href: '/ims#sales-orders', label: 'Import Sales Orders' },
+  purchase_orders: { href: '/ims#purchase-orders', label: 'Import Purchase Orders' },
+  opening_stock: { href: '/ims#settings-sync', label: 'Opening Stock Snapshot' },
+  pos_ready: { href: '/ims#settings-pos', label: 'Review POS Setup' },
+};
+
+function HomeView({ databaseId }: { databaseId: string }) {
+  const [onboarding, setOnboarding] = useState<any>(null);
+  const [onboardingLoading, setOnboardingLoading] = useState(false);
+  const [onboardingSaving, setOnboardingSaving] = useState(false);
+  const [onboardingDraft, setOnboardingDraft] = useState<Record<string, string>>({});
+
+  const loadOnboarding = () => {
+    if (!databaseId) return;
+    setOnboardingLoading(true);
+    fetch('/api/onboarding')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.success) {
+          setOnboarding(d);
+          setOnboardingDraft(d.settings ?? {});
+        }
+      })
+      .catch(() => {})
+      .finally(() => setOnboardingLoading(false));
+  };
+
+  useEffect(() => { loadOnboarding(); }, [databaseId]);
+
+  const saveOnboardingSettings = async () => {
+    setOnboardingSaving(true);
+    try {
+      await fetch('/api/onboarding', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: onboardingDraft, completeStep: 'business_profile' }),
+      });
+      await loadOnboarding();
+    } finally {
+      setOnboardingSaving(false);
+    }
+  };
+
+  const completeOnboardingStep = async (stepId: string) => {
+    setOnboardingSaving(true);
+    try {
+      await fetch('/api/onboarding', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completeStep: stepId }),
+      });
+      await loadOnboarding();
+    } finally {
+      setOnboardingSaving(false);
+    }
+  };
+
+  const setOnboardingField = (key: string, value: string) => setOnboardingDraft(p => ({ ...p, [key]: value }));
+
   // ── Top 10 brands (90d sales bar chart) ───────────────────────────────────
   const [brandChartData, setBrandChartData] = useState<{ name: string; sales90: number }[]>([]);
   const [brandChartLoading, setBrandChartLoading] = useState(false);
@@ -3275,35 +3338,131 @@ function HomeView({
 
   return (
     <>
-      {!setupComplete && (
-        <div className="bg-white shadow-sm rounded-xl p-6 mb-6 setup-todo-panel">
-          <div className="flex justify-between items-start mb-4">
+      {!onboarding?.complete && (
+        <div className="bg-white shadow-sm rounded-xl p-6 mb-6 setup-todo-panel border border-blue-100">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-5">
             <div>
-              <h2 className="text-xl font-bold text-gray-800">Set up to-do</h2>
-              <p className="text-sm text-gray-500 mt-0.5">Complete these steps to fully activate your workspace.</p>
+              <h2 className="text-xl font-bold text-gray-800">Onboarding helper</h2>
+              <p className="text-sm text-gray-500 mt-0.5">Complete the business profile, IMS setup, integrations, imports, and opening stock steps for this business.</p>
             </div>
-            <button onClick={() => setSetupComplete(true)} className="text-xs px-3 py-1 font-semibold text-gray-500 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded transition-colors">
-              Dismiss
-            </button>
+            <div className="min-w-[180px]">
+              <div className="flex justify-between text-xs font-semibold text-gray-500 mb-1">
+                <span>Progress</span>
+                <span>{onboardingLoading ? 'Loading…' : `${(onboarding?.steps ?? []).filter((s: OnboardingStep) => s.completed).length}/${onboarding?.steps?.length ?? 0}`}</span>
+              </div>
+              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-600 rounded-full transition-all duration-300"
+                  style={{ width: onboarding?.steps?.length ? `${((onboarding.steps.filter((s: OnboardingStep) => s.completed).length / onboarding.steps.length) * 100).toFixed(0)}%` : '0%' }}
+                />
+              </div>
+            </div>
           </div>
-          <ul className="space-y-3">
-            <li className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${connectionsDone ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-100'}`}>
-              <div onClick={() => setConnectionsDone((p: boolean) => !p)} className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center font-bold cursor-pointer">
-                {connectionsDone ? <span className="bg-green-500 text-white w-full h-full rounded-full flex items-center justify-center text-sm">✓</span> : <span className="bg-blue-100 text-blue-700 w-full h-full rounded-full flex items-center justify-center text-sm">1</span>}
+
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-5">
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-xs font-semibold text-gray-600">Business Name</span>
+                  <input value={onboardingDraft.business_name ?? ''} onChange={e => setOnboardingField('business_name', e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="Your company name" />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-gray-600">ABN</span>
+                  <input value={onboardingDraft.business_abn ?? ''} onChange={e => setOnboardingField('business_abn', e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="11 222 333 444" />
+                </label>
+                <label className="block md:col-span-2">
+                  <span className="text-xs font-semibold text-gray-600">Business Address</span>
+                  <input value={onboardingDraft.business_address ?? ''} onChange={e => setOnboardingField('business_address', e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="123 Main St, Sydney NSW 2000" />
+                </label>
               </div>
-              <Link href={connectionsDone ? '#' : '/setup?tab=connections'} className={`font-semibold ${connectionsDone ? 'text-green-700 line-through opacity-70' : 'text-blue-600 hover:underline'}`}>
-                Set up Connections
-              </Link>
-            </li>
-            <li className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${businessInfoDone ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-100'}`}>
-              <div onClick={() => setBusinessInfoDone((p: boolean) => !p)} className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center font-bold cursor-pointer">
-                {businessInfoDone ? <span className="bg-green-500 text-white w-full h-full rounded-full flex items-center justify-center text-sm">✓</span> : <span className="bg-blue-100 text-blue-700 w-full h-full rounded-full flex items-center justify-center text-sm">2</span>}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {[
+                  ['use_multiple_locations', 'Multiple locations?'],
+                  ['use_zones_bins', 'Use zones and bins?'],
+                  ['use_categories', 'Use categories/subcategories?'],
+                  ['use_foreign_currencies', 'Buy in foreign currencies?'],
+                  ['connect_online_shop', 'Connect an Online Shop?'],
+                  ['connect_accounting_software', 'Connect accounting software?'],
+                ].map(([key, label]) => (
+                  <label key={key} className="block">
+                    <span className="text-xs font-semibold text-gray-600">{label}</span>
+                    <select value={onboardingDraft[key] ?? 'no'} onChange={e => setOnboardingField(key, e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white">
+                      <option value="yes">Yes</option>
+                      <option value="no">No</option>
+                    </select>
+                  </label>
+                ))}
+                {onboardingDraft.connect_online_shop === 'yes' && (
+                  <label className="block">
+                    <span className="text-xs font-semibold text-gray-600">Online shop platform</span>
+                    <select value={onboardingDraft.online_shop_platform ?? 'shopify'} onChange={e => setOnboardingField('online_shop_platform', e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white">
+                      <option value="shopify">Shopify</option>
+                      <option disabled>WooCommerce - coming soon</option>
+                      <option disabled>BigCommerce - coming soon</option>
+                      <option disabled>Adobe Commerce - coming soon</option>
+                    </select>
+                  </label>
+                )}
+                {onboardingDraft.connect_accounting_software === 'yes' && (
+                  <label className="block">
+                    <span className="text-xs font-semibold text-gray-600">Accounting platform</span>
+                    <select value={onboardingDraft.accounting_software ?? 'xero'} onChange={e => setOnboardingField('accounting_software', e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white">
+                      <option value="xero">Xero</option>
+                      <option disabled>QuickBooks - coming soon</option>
+                    </select>
+                  </label>
+                )}
               </div>
-              <Link href={businessInfoDone ? '#' : '/setup?tab=business'} className={`font-semibold ${businessInfoDone ? 'text-green-700 line-through opacity-70 pointer-events-none' : 'text-blue-600 hover:underline'}`}>
-                Enter Business Key Information
-              </Link>
-            </li>
-          </ul>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-xs font-semibold text-gray-600">Charge Sales Tax on Sales Orders</span>
+                  <select value={onboardingDraft.sales_tax_on_sales ?? 'yes'} onChange={e => setOnboardingField('sales_tax_on_sales', e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white">
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-gray-600">Sales Tax Code</span>
+                  <input value={onboardingDraft.sales_tax_code ?? ''} onChange={e => setOnboardingField('sales_tax_code', e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="GST" />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-gray-600">Sales Tax Rate (%)</span>
+                  <input type="number" min="0" step="0.01" value={onboardingDraft.sales_tax_rate ? String(Number(onboardingDraft.sales_tax_rate) * 100) : ''} onChange={e => setOnboardingField('sales_tax_rate', e.target.value ? String(Number(e.target.value) / 100) : '')} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="10" />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-gray-600">Purchase Tax Rate (%)</span>
+                  <input type="number" min="0" step="0.01" value={onboardingDraft.purchase_tax_rate ? String(Number(onboardingDraft.purchase_tax_rate) * 100) : ''} onChange={e => setOnboardingField('purchase_tax_rate', e.target.value ? String(Number(e.target.value) / 100) : '')} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="10" />
+                </label>
+                <label className="block md:col-span-2">
+                  <span className="text-xs font-semibold text-gray-600">Purchase Tax Code</span>
+                  <input value={onboardingDraft.purchase_tax_code ?? ''} onChange={e => setOnboardingField('purchase_tax_code', e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="GST on Purchases" />
+                </label>
+              </div>
+
+              <button onClick={saveOnboardingSettings} disabled={onboardingSaving} className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                {onboardingSaving ? 'Saving…' : 'Save onboarding details'}
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {(onboarding?.steps ?? []).map((step: OnboardingStep, index: number) => {
+                const action = ONBOARDING_ACTIONS[step.id];
+                return (
+                  <div key={step.id} className={`flex items-center gap-3 p-3 rounded-lg border ${step.completed ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-100'}`}>
+                    <button onClick={() => completeOnboardingStep(step.id)} disabled={step.completed || onboardingSaving} className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center font-bold text-sm ${step.completed ? 'bg-green-500 text-white' : 'bg-blue-100 text-blue-700'}`}>
+                      {step.completed ? '✓' : index + 1}
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <div className={`text-sm font-semibold ${step.completed ? 'text-green-700 line-through opacity-75' : 'text-gray-800'}`}>{step.title}</div>
+                      {action && !step.completed && <Link href={action.href} className="text-xs font-semibold text-blue-600 hover:underline">{action.label}</Link>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 
@@ -8481,9 +8640,6 @@ toggles: ${JSON.stringify(contextPreviewDebug.toggles)}`}
 
 export default function DashboardPage() {
   const [activeView, setActiveView] = useState('home');
-  const [setupComplete, setSetupComplete] = useState(false);
-  const [connectionsDone, setConnectionsDone] = useState(false);
-  const [businessInfoDone, setBusinessInfoDone] = useState(false);
   const [databaseId, setDatabaseId] = useState('');
   const [userName, setUserName] = useState('');
   const [userTier, setUserTier]   = useState('');
@@ -8515,26 +8671,6 @@ export default function DashboardPage() {
       .then(d => { if (d?.name) { setUserName(d.name); setUserTier(d.tier ?? ''); } })
       .catch(() => {});
   }, []);
-
-  // Persist checklist state in localStorage
-  useEffect(() => {
-    const stored = localStorage.getItem('marketoir_setup_checklist');
-    if (stored) {
-      try {
-        const { setupComplete, connectionsDone, businessInfoDone } = JSON.parse(stored);
-        setSetupComplete(!!setupComplete);
-        setConnectionsDone(!!connectionsDone);
-        setBusinessInfoDone(!!businessInfoDone);
-      } catch {}
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(
-      'marketoir_setup_checklist',
-      JSON.stringify({ setupComplete, connectionsDone, businessInfoDone })
-    );
-  }, [setupComplete, connectionsDone, businessInfoDone]);
 
   const titles: Record<string, string> = {
     home: 'Reports',
@@ -8655,12 +8791,6 @@ export default function DashboardPage() {
           )}
           {activeView === 'home' && (
             <HomeView
-              setupComplete={setupComplete}
-              setSetupComplete={setSetupComplete}
-              connectionsDone={connectionsDone}
-              setConnectionsDone={setConnectionsDone}
-              businessInfoDone={businessInfoDone}
-              setBusinessInfoDone={setBusinessInfoDone}
               databaseId={databaseId}
             />
           )}

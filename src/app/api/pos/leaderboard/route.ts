@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 function getSession() {
   const pos = cookies().get('pos_session')?.value;
@@ -15,6 +16,7 @@ function getSession() {
 export async function GET() {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  const boundSession = await getImsSession(['pos_session', 'marketoir_session']);
 
   const locationId = parseInt(String(session.location_id ?? 0), 10);
   if (!locationId) return NextResponse.json({ error: 'No location in session.' }, { status: 400 });
@@ -31,6 +33,9 @@ export async function GET() {
     [locationId],
   );
   const businessId = locRows[0]?.business_id ?? '';
+  if (boundSession?.businessId && businessId && boundSession.businessId !== businessId) {
+    return NextResponse.json({ error: 'Unauthorised.' }, { status: 403 });
+  }
 
   // Active locations + today's completed sales + open register status
   const locations = await imsQuery<{
@@ -58,9 +63,9 @@ export async function GET() {
       FROM pos_register_sessions
       WHERE status = 'open'
     ) rs ON rs.location_id = l.id
-    WHERE l.is_active = 1
+    WHERE l.is_active = 1 AND l.business_id = ?
     ORDER BY today_sales DESC, l.name ASC
-  `, [today]);
+  `, [today, businessId]);
 
   // Batch-fetch all location settings for this business to extract avatars
   const settingsRows = await imsQuery<{ key: string; value: string }>(

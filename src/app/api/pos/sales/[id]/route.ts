@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { PosSalesRepo } from '@/lib/db/PosRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -12,6 +13,7 @@ function getPosSession() {
 // GET /api/pos/sales/[id]
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   if (!getPosSession()) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  await getImsSession(['pos_session']);
   const id = parseInt(params.id, 10);
   if (isNaN(id)) return NextResponse.json({ error: 'Invalid id.' }, { status: 400 });
   const data = await PosSalesRepo.get(id);
@@ -22,6 +24,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 // PUT /api/pos/sales/[id] — update status (void, park, complete layby)
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   if (!getPosSession()) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  await getImsSession(['pos_session']);
   const id = parseInt(params.id, 10);
   if (isNaN(id)) return NextResponse.json({ error: 'Invalid id.' }, { status: 400 });
 

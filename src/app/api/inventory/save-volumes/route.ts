@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { ProductsRepository } from '@/lib/db/ProductsRepository';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
 import { getInventorySource } from '@/lib/dataProvider';
 import { imsQuery, getIMSPool } from '@/services/IMSMySQLService';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 /**
  * POST /api/inventory/save-volumes
@@ -14,8 +14,8 @@ import { imsQuery, getIMSPool } from '@/services/IMSMySQLService';
  * IMS:   writes to `ims_product_variants.volume` (column is auto-added on first use).
  */
 export async function POST(req: Request) {
-  const session = cookies().get('marketoir_session');
-  if (!session?.value) {
+  const session = await getImsSession();
+  if (!session) {
     return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
   }
 
@@ -25,6 +25,9 @@ export async function POST(req: Request) {
 
   if (!databaseId) {
     return NextResponse.json({ success: false, error: 'databaseId is required.' }, { status: 400 });
+  }
+  if (databaseId !== session.businessId) {
+    return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
   }
   if (updates.length === 0) {
     return NextResponse.json({ success: false, error: 'No updates provided.' }, { status: 400 });

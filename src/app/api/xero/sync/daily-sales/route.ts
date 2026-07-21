@@ -10,6 +10,7 @@ import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 import { syncDailySalesBatch } from '@/services/XeroSyncService';
 import { query } from '@/services/MySQLService';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
 
 export async function POST(req: Request) {
   const { user, response } = requireAdminSession();
@@ -18,6 +19,7 @@ export async function POST(req: Request) {
   const { databaseId, date, channel, locationId } = await req.json();
   const denied = assertBusinessAccess(user, databaseId);
   if (denied) return denied;
+  await enterImsForBusiness(databaseId);
 
   if (!date || !channel) {
     return NextResponse.json({ error: 'date and channel are required.' }, { status: 400 });

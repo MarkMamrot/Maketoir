@@ -13,6 +13,7 @@ import { NextResponse } from 'next/server';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 import { syncDailySalesBatch } from '@/services/XeroSyncService';
+import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
 
 export const runtime = 'nodejs';
 
@@ -25,18 +26,15 @@ export async function POST(req: Request) {
   const tz = process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney';
   const today = new Date().toLocaleDateString('sv-SE', { timeZone: tz });
 
-  // Find all businesses that have online orders in the look-back window.
-  // Multi-tenant safe — each gets its own Xero sync using its own OAuth token.
+  // Iterate businesses from the main registry and bind each tenant's IMS schema
+  // before querying orders. Do not discover businesses from the default IMS DB.
   let businesses: { business_id: string }[];
   try {
-    businesses = await imsQuery<{ business_id: string }>(
-      `SELECT DISTINCT business_id
-       FROM ims_sales_orders
-       WHERE so_type = 'online'
-         AND (is_historical IS NULL OR is_historical = 0)
-         AND DATE_FORMAT(order_date, '%Y-%m-%d') >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-         AND DATE_FORMAT(order_date, '%Y-%m-%d') < ?`,
-      [today],
+    businesses = await query<{ business_id: string }>(
+      `SELECT business_id
+       FROM businesses
+       WHERE deleted_at IS NULL`,
+      [],
     );
   } catch (e: any) {
     console.error('[auto-sync-cron] failed to load businesses:', e?.message);
@@ -46,6 +44,20 @@ export async function POST(req: Request) {
   const results: { businessId: string; date: string; gateway?: string; success: boolean; error?: string }[] = [];
 
   for (const { business_id } of businesses) {
+    await enterImsForBusiness(business_id);
+
+    const hasRecentOrders = await imsQuery<{ c: number }>(
+      `SELECT COUNT(*) AS c
+       FROM ims_sales_orders
+       WHERE business_id = ?
+         AND so_type = 'online'
+         AND (is_historical IS NULL OR is_historical = 0)
+         AND DATE_FORMAT(order_date, '%Y-%m-%d') >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+         AND DATE_FORMAT(order_date, '%Y-%m-%d') < ?`,
+      [business_id, today],
+    ).catch(() => [] as { c: number }[]);
+    if (Number(hasRecentOrders[0]?.c ?? 0) === 0) continue;
+
     // When Shopify Payments payout sync is on (cash basis), those orders are
     // posted via the payout flow instead — exclude them here to avoid double-counting.
     const spSettings = await imsQuery<{ key: string; value: string }>(

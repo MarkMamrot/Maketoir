@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import fs from 'fs';
 import path from 'path';
 import { ImsPORepo, ImsPoFilesRepo } from '@/lib/ims/ImsRepository';
@@ -12,11 +12,6 @@ const EXT_MAP: Record<string, string> = {
   'image/png': 'png',
 };
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 function getUploadDir(businessId: string, poNumber: string): string {
   const base = process.env.UPLOAD_BASE_PATH ?? './uploads';
@@ -30,7 +25,7 @@ function getUploadDir(businessId: string, poNumber: string): string {
  * Body: multipart/form-data { file: File }
  */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const poId = Number(params.id);
@@ -83,7 +78,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
  * Returns the list of files for a PO.
  */
 export async function GET(_: Request, { params }: { params: { id: string } }) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!await getImsSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const poId = Number(params.id);
   if (isNaN(poId)) return NextResponse.json({ error: 'Invalid PO id' }, { status: 400 });
   const files = await ImsPoFilesRepo.list(poId).catch(() => []);

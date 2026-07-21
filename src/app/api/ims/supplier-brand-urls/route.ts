@@ -1,12 +1,7 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { imsQuery } from '@/services/IMSMySQLService';
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 /**
  * GET /api/ims/supplier-brand-urls?brand=X&supplier=Y
@@ -15,7 +10,7 @@ function getSession() {
  * used by the Find URLs function to prioritise results from these domains.
  */
 export async function GET(req: Request) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId: string = session.businessId;
 

@@ -1,16 +1,10 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { ImsVariantsRepo } from '@/lib/ims/ImsRepository';
 import { getShopifyForBusiness, shopifyVariantPricePayload } from '@/lib/ims/shopifyInventorySync';
-
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
+import { getImsSession } from '@/lib/auth/imsSession';
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
     const body = await req.json();
@@ -61,7 +55,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 }
 
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!await getImsSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
     await ImsVariantsRepo.delete(params.id);
     return NextResponse.json({ success: true });

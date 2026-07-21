@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
 import { YearlyRevenueRepository } from '@/lib/db/CalcReportsRepository';
 import { getInventorySource } from '@/lib/dataProvider';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 function getYearPeriods(): string[] {
   const y = new Date().getFullYear();
@@ -53,15 +53,13 @@ async function computeYearlyFromIMS(bizId: string): Promise<Record<string, Recor
 }
 
 export async function GET(req: Request) {
-  const session = cookies().get('marketoir_session');
-  if (!session?.value) return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
+  const session = await getImsSession();
+  if (!session) return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const databaseId = searchParams.get('databaseId');
   if (!databaseId) return NextResponse.json({ success: false, error: 'databaseId required.' }, { status: 400 });
-
-  const _cu = JSON.parse(session.value);
-  if (databaseId !== _cu.businessId) return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
+  if (databaseId !== session.businessId) return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
 
   try {
     const source = await getInventorySource(databaseId);
@@ -89,12 +87,11 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const session = cookies().get('marketoir_session');
-  if (!session?.value) return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
+  const session = await getImsSession();
+  if (!session) return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
 
   const { databaseId, data } = await req.json();
-  const _cu = JSON.parse(session.value);
-  if (!databaseId || typeof data !== 'object' || databaseId !== _cu.businessId) {
+  if (!databaseId || typeof data !== 'object' || databaseId !== session.businessId) {
     return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
   }
 

@@ -1,12 +1,7 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsProductsRepo } from '@/lib/ims/ImsRepository';
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 /** GET /api/ims/products/primary-images[?ids=id1,id2,...]
  *  Returns { [productId]: url } for products that have at least one image.
@@ -14,7 +9,7 @@ function getSession() {
  *  Without ?ids= the full set is returned (used for pre-warming).
  */
 export async function GET(req: Request) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
     const { searchParams } = new URL(req.url);

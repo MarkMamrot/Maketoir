@@ -1,24 +1,15 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { imsQuery, imsExecute, getIMSPool } from '@/services/IMSMySQLService';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
-
-function getBusinessId(): string | null {
-  try {
-    const s = cookies().get('marketoir_session');
-    if (!s?.value) return null;
-    return JSON.parse(s.value)?.businessId ?? null;
-  } catch {
-    return null;
-  }
-}
+import { getImsSession } from '@/lib/auth/imsSession';
 
 /** GET — returns cache status: row count + last updated_at */
 export async function GET() {
-  const businessId = getBusinessId();
-  if (!businessId) {
+  const session = await getImsSession();
+  if (!session) {
     return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
   }
+  const businessId = session.businessId;
   try {
     const rows = await imsQuery<{ count: number; updatedAt: string | null }>(
       `SELECT COUNT(*) AS count, MAX(updated_at) AS updatedAt FROM ims_sales_cache WHERE business_id = ?`,
@@ -35,7 +26,8 @@ export async function GET() {
 
 /** POST — recomputes sales aggregates + global stock and upserts into ims_sales_cache */
 export async function POST() {
-  if (!getBusinessId()) {
+  const session = await getImsSession();
+  if (!session) {
     return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
   }
   try {

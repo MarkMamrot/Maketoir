@@ -3,19 +3,20 @@
  * POST /api/dashboard/creative-summary  — manual overwrite of summary text
  */
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { query, execute } from '@/services/MySQLService';
+import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 
 function wordCount(text: string): number {
   return text.trim() ? text.trim().split(/\s+/).length : 0;
 }
 
 export async function GET(req: Request) {
-  const sessionCookie = cookies().get('marketoir_session');
-  if (!sessionCookie?.value) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+  const { user, response } = requireAdminSession();
+  if (response) return response;
 
   const databaseId = new URL(req.url).searchParams.get('databaseId') ?? '';
-  if (!databaseId) return NextResponse.json({ error: 'databaseId required' }, { status: 400 });
+  const denied = assertBusinessAccess(user, databaseId);
+  if (denied) return denied;
 
   const rows = await query<{ summary: string | null; pending_buffer: string | null; updated_at: string }>(
     'SELECT summary, pending_buffer, updated_at FROM creative_summaries WHERE business_id = ?',
@@ -30,11 +31,12 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const sessionCookie = cookies().get('marketoir_session');
-  if (!sessionCookie?.value) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+  const { user, response } = requireAdminSession();
+  if (response) return response;
 
   const { databaseId, summary } = await req.json();
-  if (!databaseId) return NextResponse.json({ error: 'databaseId required' }, { status: 400 });
+  const denied = assertBusinessAccess(user, databaseId);
+  if (denied) return denied;
 
   await execute(
     `INSERT INTO creative_summaries (business_id, summary) VALUES (?, ?)

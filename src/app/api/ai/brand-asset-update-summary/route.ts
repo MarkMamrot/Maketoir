@@ -7,9 +7,9 @@
  * the buffer. Otherwise just stores the buffer — no Gemini call, no cost.
  */
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { GoogleGenAI } from '@google/genai';
 import { query, execute } from '@/services/MySQLService';
+import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 
 const PENDING_THRESHOLD = 500; // words before we summarise
 const SYSTEM_PROMPT = `You are a creative knowledge curator for a fashion/lifestyle retail brand's visual content team.
@@ -45,8 +45,8 @@ function conversationToText(msgs: { role: string; text: string }[]): string {
 }
 
 export async function POST(req: Request) {
-  const sessionCookie = cookies().get('marketoir_session');
-  if (!sessionCookie?.value) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+  const { user, response } = requireAdminSession();
+  if (response) return response;
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 });
@@ -55,6 +55,8 @@ export async function POST(req: Request) {
   if (!databaseId || !Array.isArray(conversation) || conversation.length < 2) {
     return NextResponse.json({ queued: false, reason: 'insufficient data' });
   }
+  const denied = assertBusinessAccess(user, databaseId);
+  if (denied) return denied;
 
   // ── 1. Build new conversation text ─────────────────────────────────────────
   const newText = conversationToText(conversation);

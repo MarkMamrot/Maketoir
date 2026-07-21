@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { PosRegistersRepo } from '@/lib/db/PosRepository';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 function getAdminSession() {
   const raw = cookies().get('marketoir_session')?.value;
@@ -22,6 +23,7 @@ export async function GET(req: NextRequest) {
   if (searchParams.get('all') === 'true') {
     const session = getAdminSession();
     if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+    await getImsSession(['marketoir_session']);
     const registers = await PosRegistersRepo.listAll(session.businessId as string);
     // Mask API key in admin settings view
     return NextResponse.json({ registers: registers.map(r => ({ ...r, zeller_api_key: r.zeller_api_key ? '****' : null })) });
@@ -31,19 +33,17 @@ export async function GET(req: NextRequest) {
   if (!locationId || isNaN(locationId)) {
     return NextResponse.json({ error: 'location_id required.' }, { status: 400 });
   }
-  // Public — device setup calls this before any session exists.
-  // Only return the Zeller API key when an authenticated session is present.
   const session = getAnySession();
+  if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  await getImsSession(['pos_session', 'marketoir_session']);
   const registers = await PosRegistersRepo.listForLocation(locationId);
-  const safeRegisters = session
-    ? registers
-    : registers.map(r => ({ ...r, zeller_api_key: null }));
-  return NextResponse.json({ registers: safeRegisters });
+  return NextResponse.json({ registers });
 }
 
 // POST /api/pos/registers — create a new register (admin only)
 export async function POST(req: NextRequest) {
   if (!getAdminSession()) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  await getImsSession(['marketoir_session']);
   const body = await req.json();
   const { location_id, name, default_float } = body;
   if (!location_id || !name?.trim()) {

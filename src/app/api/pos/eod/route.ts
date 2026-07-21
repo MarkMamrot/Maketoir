@@ -4,6 +4,7 @@ import { PosEodRepo } from '@/lib/db/PosRepository';
 import { ConfigRepository } from '@/lib/db/ConfigRepository';
 import { triggerEodXeroSync } from '@/services/XeroSyncService';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -15,6 +16,7 @@ function getPosSession() {
 export async function GET(req: Request) {
   const session = getPosSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  await getImsSession(['pos_session']);
 
   const { searchParams } = new URL(req.url);
   const rawId    = searchParams.get('location_id') ?? String(session.location_id);
@@ -96,6 +98,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = getPosSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  await getImsSession(['pos_session']);
 
   try {
     const body = await req.json();

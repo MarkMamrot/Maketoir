@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { PosSalesRepo, PosRegisterSessionRepo } from '@/lib/db/PosRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { createNotification } from '@/lib/ims/createNotification';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -14,6 +15,7 @@ function getPosSession() {
 export async function GET(req: Request) {
   const session = getPosSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  await getImsSession(['pos_session']);
 
   const { searchParams } = new URL(req.url);
   const locationId = parseInt(searchParams.get('location_id') ?? String(session.location_id), 10);
@@ -33,6 +35,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = getPosSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  await getImsSession(['pos_session']);
 
   try {
     const body = await req.json();

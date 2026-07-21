@@ -1,14 +1,9 @@
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { getCin7Credentials, cin7FetchAllPages } from '@/lib/cin7Helpers';
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 export async function GET() {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return Response.json({ error: 'Not authenticated' }, { status: 401 });
 
   const businessId: string = session.businessId;

@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 export async function GET(req: Request) {
   // 1. Check for existing POS session (cashier login)
   const posRaw = cookies().get('pos_session')?.value;
   if (posRaw) {
     try {
+      await getImsSession(['pos_session']);
       const session = JSON.parse(posRaw);
       return NextResponse.json({ session });
     } catch {}
@@ -19,6 +21,7 @@ export async function GET(req: Request) {
 
   let adminSession: any;
   try { adminSession = JSON.parse(adminRaw); } catch { return NextResponse.json({ session: null }); }
+  await getImsSession(['marketoir_session']);
 
   // Need location_id from the device config (passed as query param by the POS page)
   const { searchParams } = new URL(req.url);
@@ -30,7 +33,7 @@ export async function GET(req: Request) {
   let locationBusinessId: string | null = adminSession.businessId ?? null;
   try {
     const rows = await imsQuery<{ name: string; business_id: string | null }>(
-      'SELECT name, business_id FROM ims_locations WHERE id = ? LIMIT 1', [locationId]
+      'SELECT name, business_id FROM ims_locations WHERE id = ? AND business_id = ? LIMIT 1', [locationId, adminSession.businessId]
     );
     if (rows[0]) {
       locationName = rows[0].name;

@@ -15,6 +15,7 @@ import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
 export interface MarketoirSession {
   businessId: string;
   userId?: number;
+  pos_user_id?: number;
   role?: string;
   tier?: string;
   email?: string;
@@ -23,15 +24,18 @@ export interface MarketoirSession {
 }
 
 /** Read the session cookie without touching IMS context. */
-export function readSession(): MarketoirSession | null {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value) as MarketoirSession; } catch { return null; }
+export function readSession(cookieNames: string[] = ['marketoir_session']): MarketoirSession | null {
+  for (const cookieName of cookieNames) {
+    const c = cookies().get(cookieName);
+    if (!c?.value) continue;
+    try { return JSON.parse(c.value) as MarketoirSession; } catch { return null; }
+  }
+  return null;
 }
 
 /** Read the session and bind the business's IMS schema for this request. */
-export async function getImsSession(): Promise<MarketoirSession | null> {
-  const session = readSession();
+export async function getImsSession(cookieNames?: string[]): Promise<MarketoirSession | null> {
+  const session = readSession(cookieNames);
   if (session?.businessId) await enterImsForBusiness(session.businessId);
   return session;
 }

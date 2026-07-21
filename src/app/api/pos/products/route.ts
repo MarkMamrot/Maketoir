@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -19,6 +20,7 @@ export async function GET(req: Request) {
   const adminSession = getAdminSession();
   const session      = posSession ?? adminSession;
   if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  await getImsSession(['pos_session', 'marketoir_session']);
 
   const { searchParams } = new URL(req.url);
   const rawId    = searchParams.get('location_id') ?? String(session.location_id ?? 0);
@@ -86,9 +88,9 @@ export async function GET(req: Request) {
      FROM ims_product_variants v
      JOIN ims_products p ON p.product_id = v.product_id
      LEFT JOIN ims_stock s ON s.variant_id = v.variant_id AND s.location_id = ?
-     WHERE v.is_active = 1 AND p.is_active = 1
+     WHERE v.is_active = 1 AND p.is_active = 1 AND p.business_id = ?
      ORDER BY p.name, v.sku`,
-    [locationId],
+    [locationId, session.businessId],
   );
 
   // Today in the business timezone (discount_start/end dates are plain DATE fields,

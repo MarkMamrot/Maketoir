@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 // GET /api/ims/online-sales/day?date=YYYY-MM-DD&location_id=X
 // Returns all sales orders (with items) for a given day.
 export async function GET(req: NextRequest) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!await getImsSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const date = searchParams.get('date');
@@ -61,7 +56,7 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Resolve pick location per line item ──────────────────────────────────
-    const session = getSession();
+    const session = await getImsSession();
     const businessId = session?.businessId as string | undefined;
 
     // Priority-ordered pick location list (from settings), fall back to has_online locations

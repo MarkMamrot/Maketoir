@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 function getSession() {
   const pos = cookies().get('pos_session')?.value;
@@ -37,6 +38,7 @@ async function ensureDmColumn() {
 export async function GET(req: Request) {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  await getImsSession(['pos_session', 'marketoir_session']);
 
   await ensureDmColumn();
 
@@ -74,6 +76,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  await getImsSession(['pos_session', 'marketoir_session']);
 
   await ensureDmColumn();
 

@@ -11,6 +11,7 @@ import { cookies } from 'next/headers';
 import { PosEodRepo } from '@/lib/db/PosRepository';
 import { triggerEodXeroSync } from '@/services/XeroSyncService';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 export async function POST(req: Request) {
   // Accept either marketoir_session (admin) or pos_session (POS staff).
@@ -22,6 +23,7 @@ export async function POST(req: Request) {
   if (!adminSession && !posSession) {
     return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
   }
+  const boundSession = await getImsSession(['marketoir_session', 'pos_session']);
 
   const { locationId, date, registerId } = await req.json();
   if (!locationId || !date) {
@@ -35,6 +37,9 @@ export async function POST(req: Request) {
     );
     const locationName = locs[0]?.name ?? `Location ${locationId}`;
     const businessId = adminSession?.businessId ?? locs[0]?.business_id ?? null;
+    if (boundSession?.businessId && businessId && boundSession.businessId !== businessId) {
+      return NextResponse.json({ error: 'Unauthorised.' }, { status: 403 });
+    }
     if (!businessId) {
       return NextResponse.json({ error: 'Could not determine business for this location.' }, { status: 400 });
     }

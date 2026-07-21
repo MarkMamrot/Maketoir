@@ -10,7 +10,6 @@
  */
 
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { GoogleAnalyticsService } from '@/services/GoogleAnalyticsService';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
 import { ProductsRepository } from '@/lib/db/ProductsRepository';
@@ -18,6 +17,7 @@ import { SalesRepository } from '@/lib/db/SalesRepository';
 import { ConfigRepository } from '@/lib/db/ConfigRepository';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { CalcReportsRepository, YearlyRevenueRepository } from '@/lib/db/CalcReportsRepository';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 // -- helpers -------------------------------------------------------------------
 
@@ -452,12 +452,13 @@ async function calcMonthlyRetention(inventorySystemId: string): Promise<MonthlyR
 // -- POST: aggregate and save --------------------------------------------------
 
 export async function POST(req: Request) {
-  const session = cookies().get('marketoir_session');
-  if (!session?.value) return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
+  const session = await getImsSession();
+  if (!session) return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const databaseId = searchParams.get('databaseId');
   if (!databaseId) return NextResponse.json({ success: false, error: 'databaseId required.' }, { status: 400 });
+  if (databaseId !== session.businessId) return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
 
   try {
     const inventorySystemId = await resolveInventorySystemId(databaseId);
@@ -551,15 +552,13 @@ export async function POST(req: Request) {
 // -- GET: read saved reports ? structured data + text -------------------------
 
 export async function GET(req: Request) {
-  const session = cookies().get('marketoir_session');
-  if (!session?.value) return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
+  const session = await getImsSession();
+  if (!session) return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const databaseId = searchParams.get('databaseId');
   if (!databaseId) return NextResponse.json({ success: false, error: 'databaseId required.' }, { status: 400 });
-
-  const _cr = JSON.parse(session.value);
-  if (databaseId !== _cr.businessId) return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
+  if (databaseId !== session.businessId) return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
 
   try {
     const inventorySystemId = await resolveInventorySystemId(databaseId);

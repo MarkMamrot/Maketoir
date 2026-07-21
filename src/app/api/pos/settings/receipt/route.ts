@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 function getAdminSession() {
   const raw = cookies().get('marketoir_session')?.value;
@@ -19,11 +20,11 @@ export async function GET(req: Request) {
     const adminSession = getAdminSession();
     const posSession   = getPosSession();
     const businessId = (adminSession?.businessId ?? posSession?.businessId) as string | undefined;
+    if (!businessId) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
+    await getImsSession(['marketoir_session', 'pos_session']);
     const rows = await imsQuery<{ key: string; value: string }>(
-      businessId
-        ? 'SELECT `key`, `value` FROM ims_settings WHERE business_id = ?'
-        : 'SELECT `key`, `value` FROM ims_settings WHERE business_id IS NULL OR business_id = \'\'',
-      businessId ? [businessId] : undefined
+      'SELECT `key`, `value` FROM ims_settings WHERE business_id = ?',
+      [businessId]
     );
     const settings: Record<string, string> = {};
     for (const row of rows) {
@@ -45,8 +46,8 @@ export async function GET(req: Request) {
       if (!isNaN(locationId) && locationId > 0) {
         // Fetch branch details
         const locDetailRows = await imsQuery<{ address: string | null; city: string | null; state: string | null; postcode: string | null; phone: string | null }>(
-          'SELECT address, city, state, postcode, phone FROM ims_locations WHERE id = ? LIMIT 1',
-          [locationId],
+          'SELECT address, city, state, postcode, phone FROM ims_locations WHERE id = ? AND business_id = ? LIMIT 1',
+          [locationId, businessId],
         );
         if (locDetailRows[0]) {
           const loc = locDetailRows[0];
@@ -57,8 +58,8 @@ export async function GET(req: Request) {
 
         // Merge per-location receipt text overrides
         const locRows = await imsQuery<{ value: string }>(
-          'SELECT `value` FROM ims_settings WHERE `key` = ? LIMIT 1',
-          [`pos_loc_${locationId}_settings`],
+          'SELECT `value` FROM ims_settings WHERE business_id = ? AND `key` = ? LIMIT 1',
+          [businessId, `pos_loc_${locationId}_settings`],
         );
         if (locRows[0]?.value) {
           try {

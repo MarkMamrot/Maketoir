@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { BrandProfileRepository } from '@/lib/db/BrandProfileRepository';
 import { ConfigRepository } from '@/lib/db/ConfigRepository';
+import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 
 function parsePhysicalBranches(raw: any) {
   if (!raw) return '';
@@ -20,16 +20,13 @@ function parsePhysicalBranches(raw: any) {
 
 export async function GET(req: Request) {
   try {
-    const sessionCookie = cookies().get('marketoir_session');
-    if (!sessionCookie?.value) {
-      return NextResponse.json({ error: 'Unauthorized. Please log in.' }, { status: 401 });
-    }
+    const { user, response } = requireAdminSession();
+    if (response) return response;
 
     const { searchParams } = new URL(req.url);
     const databaseId = searchParams.get('databaseId');
-    if (!databaseId) {
-      return NextResponse.json({ error: 'Missing databaseId.' }, { status: 400 });
-    }
+    const denied = assertBusinessAccess(user, databaseId);
+    if (denied) return denied;
 
     const row = await BrandProfileRepository.get(databaseId);
     if (!row) return NextResponse.json({});
@@ -65,10 +62,8 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const sessionCookie = cookies().get('marketoir_session');
-    if (!sessionCookie?.value) {
-      return NextResponse.json({ error: 'Unauthorized. Please log in.' }, { status: 401 });
-    }
+    const { user, response } = requireAdminSession();
+    if (response) return response;
 
     const body = await req.json();
     const {
@@ -81,6 +76,8 @@ export async function POST(req: Request) {
     if (!databaseId) {
       return NextResponse.json({ error: 'Missing databaseId.' }, { status: 400 });
     }
+    const denied = assertBusinessAccess(user, databaseId);
+    if (denied) return denied;
 
     // Upload logo to Drive if provided
     let finalLogoUrl: string = logoUrl || '';

@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { execute } from '@/services/MySQLService';
 import { getProductsWithSales, getSuppliers, getBranches, getStockPerBranch } from '@/lib/dataProvider';
 import type { StandardizedVariantWithSales, StandardizedContact, StandardizedLocation, VariantBranchStock } from '@/types/StandardizedData';
+import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -346,10 +346,8 @@ async function saveDraftOrder(args: {
 }
 
 export async function POST(req: Request) {
-  const session = cookies().get('marketoir_session');
-  if (!session?.value) {
-    return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
-  }
+  const { user, response } = requireAdminSession();
+  if (response) return response;
 
   const body = await req.json();
   const action = String(body?.action ?? 'preview');
@@ -371,6 +369,8 @@ export async function POST(req: Request) {
   if (!databaseId) {
     return NextResponse.json({ success: false, error: 'databaseId is required.' }, { status: 400 });
   }
+  const denied = assertBusinessAccess(user, databaseId);
+  if (denied) return denied;
 
   try {
     const context = await loadContext(databaseId);

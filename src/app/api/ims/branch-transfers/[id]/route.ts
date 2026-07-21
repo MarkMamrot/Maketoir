@@ -1,16 +1,12 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { ImsBTRepo } from '@/lib/ims/ImsRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
+import { getImsSession } from '@/lib/auth/imsSession';
 
-function getSession() {
-  const raw = cookies().get('marketoir_session')?.value ?? cookies().get('pos_session')?.value;
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
-}
+const IMS_OR_POS_SESSION = ['marketoir_session', 'pos_session'];
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!await getImsSession(IMS_OR_POS_SESSION)) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
     const data = await ImsBTRepo.get(Number(params.id));
     if (!data) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
@@ -21,7 +17,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
 }
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!await getImsSession(IMS_OR_POS_SESSION)) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
     const body = await req.json();
     const { items, status, receivedItems, action, item_id, ...btData } = body;
@@ -74,7 +70,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 }
 
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!await getImsSession(IMS_OR_POS_SESSION)) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
     const existing = await ImsBTRepo.get(Number(params.id));
     await ImsBTRepo.delete(Number(params.id));

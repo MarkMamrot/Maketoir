@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { PosRegistersRepo } from '@/lib/db/PosRepository';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 function getAdminSession() {
   const raw = cookies().get('marketoir_session')?.value;
@@ -11,6 +12,7 @@ function getAdminSession() {
 // PUT /api/pos/registers/[id] — update name, default_float, is_active, or card terminal settings
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   if (!getAdminSession()) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  await getImsSession(['marketoir_session']);
   const id = parseInt(params.id, 10);
   if (!id) return NextResponse.json({ error: 'Invalid id.' }, { status: 400 });
   const body = await req.json();

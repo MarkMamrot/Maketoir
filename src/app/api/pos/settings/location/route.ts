@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -56,6 +57,7 @@ export async function GET(req: Request) {
   if (!posSession && !adminSession) {
     return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
   }
+  const boundSession = await getImsSession(['pos_session', 'marketoir_session']);
 
   const { searchParams } = new URL(req.url);
   const rawId = searchParams.get('location_id') ?? String(posSession?.location_id ?? 0);
@@ -66,8 +68,8 @@ export async function GET(req: Request) {
 
   // Resolve business_id so we scope reads to the right business
   const locRows = await imsQuery<{ business_id: string | null }>(
-    'SELECT business_id FROM ims_locations WHERE id = ? LIMIT 1',
-    [locationId],
+    'SELECT business_id FROM ims_locations WHERE id = ? AND business_id = ? LIMIT 1',
+    [locationId, boundSession?.businessId ?? ''],
   );
   const businessId = locRows[0]?.business_id ?? '';
 
@@ -89,6 +91,7 @@ export async function GET(req: Request) {
 export async function PUT(req: Request) {
   const posSession   = getPosSession();
   const adminSession = getAdminSession();
+  const boundSession = await getImsSession(['pos_session', 'marketoir_session']);
 
   // Only POS Manager+ or admin can write
   const tier = posSession?.tier ?? posSession?.role ?? null;
@@ -106,8 +109,8 @@ export async function PUT(req: Request) {
   }
 
   const locRows = await imsQuery<{ business_id: string | null }>(
-    'SELECT business_id FROM ims_locations WHERE id = ? LIMIT 1',
-    [locationId],
+    'SELECT business_id FROM ims_locations WHERE id = ? AND business_id = ? LIMIT 1',
+    [locationId, boundSession?.businessId ?? ''],
   );
   const businessId = locRows[0]?.business_id ?? '';
 

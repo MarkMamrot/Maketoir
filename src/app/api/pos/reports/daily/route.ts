@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { PosReportsRepo } from '@/lib/db/PosRepository';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 function getAnySession() {
   const raw = cookies().get('pos_session')?.value ?? cookies().get('marketoir_session')?.value;
@@ -11,6 +12,7 @@ function getAnySession() {
 // GET /api/pos/reports/daily?location_id=3&date=2025-06-02
 export async function GET(req: Request) {
   if (!getAnySession()) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  await getImsSession(['pos_session', 'marketoir_session']);
 
   const { searchParams } = new URL(req.url);
   const session = getAnySession();

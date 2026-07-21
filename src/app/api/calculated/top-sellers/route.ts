@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
 import { ProductsRepository } from '@/lib/db/ProductsRepository';
 import { SalesRepository } from '@/lib/db/SalesRepository';
 import { getInventorySource, getProductsWithSales } from '@/lib/dataProvider';
+import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 
 function parseNum(v: unknown): number {
   const n = parseFloat(String(v ?? '').replace(/[$,\s]/g, ''));
@@ -11,12 +11,13 @@ function parseNum(v: unknown): number {
 }
 
 export async function GET(req: Request) {
-  const session = cookies().get('marketoir_session');
-  if (!session?.value) return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
+  const { user, response } = requireAdminSession();
+  if (response) return response;
 
   const { searchParams } = new URL(req.url);
   const databaseId = searchParams.get('databaseId');
-  if (!databaseId) return NextResponse.json({ success: false, error: 'databaseId required.' }, { status: 400 });
+  const denied = assertBusinessAccess(user, databaseId);
+  if (denied) return denied;
 
   const limit = Math.min(parseInt(searchParams.get('limit') ?? '20', 10), 200);
   const period = searchParams.get('period') ?? '90d';

@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { GoogleGenAI } from '@google/genai';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
 import { ProductsRepository } from '@/lib/db/ProductsRepository';
 import { getIMSPool } from '@/services/IMSMySQLService';
 import { getInventorySource } from '@/lib/dataProvider';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 const BATCH_SIZE = 50;
 
 export async function POST(req: Request) {
-  const session = cookies().get('marketoir_session');
-  if (!session?.value) {
+  const session = await getImsSession();
+  if (!session) {
     return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
   }
 
@@ -26,6 +26,9 @@ export async function POST(req: Request) {
 
   if (!databaseId) {
     return NextResponse.json({ success: false, error: 'databaseId is required.' }, { status: 400 });
+  }
+  if (databaseId !== session.businessId) {
+    return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
   }
 
   let inventorySystemId = databaseId;

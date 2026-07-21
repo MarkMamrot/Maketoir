@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { imsExecute, getIMSPool } from '@/services/IMSMySQLService';
-
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
+import { getImsSession } from '@/lib/auth/imsSession';
 
 /**
  * POST /api/ims/data-reset
@@ -19,7 +13,7 @@ function getSession() {
  * are never touched.
  */
 export async function POST(req: NextRequest) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
 
   const businessId: string = session.businessId;

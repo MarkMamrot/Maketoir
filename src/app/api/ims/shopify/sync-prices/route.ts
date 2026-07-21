@@ -1,20 +1,15 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsShopifyRepo } from '@/lib/ims/ImsRepository';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { getShopifyForBusiness, shopifyVariantPricePayload } from '@/lib/ims/shopifyInventorySync';
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 // ─── GET — return the full list of IMS product IDs that have Shopify links ────
 // The frontend calls this once to discover what needs syncing, then drives the
 // work itself by POSTing small batches — no long-lived connection needed.
 export async function GET() {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   try {
@@ -45,7 +40,7 @@ export async function GET() {
 const MAX_BATCH = 30;
 
 export async function POST(req: Request) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   try {

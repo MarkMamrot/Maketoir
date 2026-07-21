@@ -1,12 +1,7 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { imsQuery } from '@/services/IMSMySQLService';
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 export interface BTPrintItem {
   variant_id: string;
@@ -37,7 +32,7 @@ export interface BTPrintData {
 }
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!await getImsSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
     const id = Number(params.id);
 

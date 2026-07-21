@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { PosSalesRepo } from '@/lib/db/PosRepository';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -11,6 +12,7 @@ function getPosSession() {
 // POST /api/pos/sales/[id]/payments — add a payment to an existing sale
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   if (!getPosSession()) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  await getImsSession(['pos_session']);
   const saleId = parseInt(params.id, 10);
   if (isNaN(saleId)) return NextResponse.json({ error: 'Invalid id.' }, { status: 400 });
 
@@ -30,6 +32,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 // PUT /api/pos/sales/[id]/payments — replace payment split (total must remain unchanged)
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   if (!getPosSession()) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  await getImsSession(['pos_session']);
   const saleId = parseInt(params.id, 10);
   if (isNaN(saleId)) return NextResponse.json({ error: 'Invalid id.' }, { status: 400 });
 

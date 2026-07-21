@@ -1,12 +1,7 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 // ── CSV parser ────────────────────────────────────────────────────────────────
 function parseCsv(text: string): string[][] {
@@ -65,7 +60,7 @@ function findCol(row: string[], ...names: string[]): number {
  *   OptimumStockQty → reorder_qty (target/optimum stock level)
  */
 export async function POST(req: Request) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId: string = session.businessId ?? '';
 

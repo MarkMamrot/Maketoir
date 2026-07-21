@@ -15,7 +15,7 @@
  * Auth: authenticated IMS session.
  */
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { getShopifyForBusiness } from '@/lib/ims/shopifyInventorySync';
 
 export const runtime = 'nodejs';
@@ -23,11 +23,6 @@ export const maxDuration = 60;
 
 const TZ = 'Australia/Sydney';
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 /** Format a Shopify timestamp in the business timezone for readability. */
 function local(ts: string | null | undefined): string {
@@ -40,7 +35,7 @@ function local(ts: string | null | undefined): string {
 }
 
 export async function GET(req: Request) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = session.businessId as string;
 

@@ -1,14 +1,9 @@
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { v4 as uuidv4 } from 'uuid';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { getCin7Credentials, cin7FetchAllPages, cin7ForEachPage } from '@/lib/cin7Helpers';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 async function getImsSetting(businessId: string, key: string): Promise<string | null> {
   const rows = await imsQuery<{ value: string }>(
@@ -143,7 +138,7 @@ async function getOrCreateUnknownLoc(): Promise<number> {
 }
 
 export async function POST(req: Request) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) {
     return new Response(JSON.stringify({ error: 'Not authenticated' }), { status: 401 });
   }

@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { getInventorySource } from '@/lib/dataProvider';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 function nc(v: unknown): string {
   return String(v ?? '').replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
@@ -21,12 +21,13 @@ function nc(v: unknown): string {
  *   where `rows` are the individual stock lines for the detail table.
  */
 export async function GET(req: Request) {
-  const session = cookies().get('marketoir_session');
-  if (!session?.value) return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
+  const session = await getImsSession();
+  if (!session) return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const databaseId = searchParams.get('databaseId');
   if (!databaseId) return NextResponse.json({ success: false, error: 'databaseId required.' }, { status: 400 });
+  if (databaseId !== session.businessId) return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
 
   // ── Solvantis IMS path ────────────────────────────────────────────────────────
   const source = await getInventorySource(databaseId).catch(() => 'cin7');

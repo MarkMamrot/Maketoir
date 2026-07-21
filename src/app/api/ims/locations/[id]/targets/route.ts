@@ -1,17 +1,11 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { ConfigRepository } from '@/lib/db/ConfigRepository';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
-function getSession() {
-  const raw = cookies().get('marketoir_session')?.value;
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
-}
-
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
   const locationId = Number(params.id);
   const raw = await ConfigRepository.get(session.businessId ?? 'shared', `POS_SalesTarget_${locationId}`).catch(() => null);
@@ -21,7 +15,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 }
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
   const locationId = Number(params.id);
   const body = await req.json();

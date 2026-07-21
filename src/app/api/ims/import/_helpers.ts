@@ -1,10 +1,8 @@
-import { cookies } from 'next/headers';
 import mysql from 'mysql2/promise';
+import { getImsSession } from '@/lib/auth/imsSession';
 
-export function getImportSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
+export async function getImportSession() {
+  return getImsSession();
 }
 
 export async function getLegacyConn(businessId: string) {

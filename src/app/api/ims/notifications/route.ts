@@ -1,12 +1,7 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 /**
  * GET /api/ims/notifications
@@ -14,7 +9,7 @@ function getSession() {
  * Query param: ?unread_only=1 to filter to unread only.
  */
 export async function GET(req: Request) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId: string = session.businessId;
 
@@ -67,7 +62,7 @@ export async function GET(req: Request) {
  * Body: {} (clears all), or use per-ID route for single.
  */
 export async function DELETE(req: Request) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId: string = session.businessId;
 

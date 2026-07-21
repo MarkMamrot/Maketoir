@@ -13,7 +13,7 @@
  * Auth: authenticated IMS session.
  */
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
@@ -29,11 +29,6 @@ const REQUIRED_TOPICS = [
   'refunds/create',
 ];
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 function buildExpectedUrl(req: Request, businessId: string): string {
   const fwHost = req.headers.get('x-forwarded-host');
@@ -63,7 +58,7 @@ async function listApiWebhooks(base: string, token: string) {
 }
 
 export async function GET(req: Request) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = session.businessId as string;
 
@@ -120,7 +115,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = session.businessId as string;
 

@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { GoogleGenAI } from '@google/genai';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { BrandProfileRepository } from '@/lib/db/BrandProfileRepository';
 import { ProductsRepository } from '@/lib/db/ProductsRepository';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
+import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -396,10 +396,8 @@ Respond with ONLY valid JSON, no markdown, no explanation.
 
 export async function POST(req: Request) {
   try {
-    const sessionCookie = cookies().get('marketoir_session');
-    if (!sessionCookie?.value) {
-      return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
-    }
+    const { user, response: authResponse } = requireAdminSession();
+    if (authResponse) return authResponse;
 
     const body = await req.json();
     const { databaseId, mode, existingSchema, userComments } = body;
@@ -408,6 +406,8 @@ export async function POST(req: Request) {
     if (!databaseId) {
       return NextResponse.json({ error: 'Missing databaseId.' }, { status: 400 });
     }
+    const denied = assertBusinessAccess(user, databaseId);
+    if (denied) return denied;
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {

@@ -11,7 +11,7 @@
  * Auth: x-cron-secret header (cron) OR an authenticated IMS session (manual).
  */
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
 import {
@@ -25,15 +25,10 @@ import {
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 /** GET — inventory-sync settings + IMS pick locations for the UI. */
 export async function GET() {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = session.businessId as string;
 
@@ -113,7 +108,7 @@ async function handlePost(req: Request) {
   }
 
   // ── Session path: manual actions for the current business ──────────────────
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = session.businessId as string;
   await enterImsForBusiness(businessId);

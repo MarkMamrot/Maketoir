@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { PosRegisterSessionRepo } from '@/lib/db/PosRepository';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 function getAnySession() {
   const raw = cookies().get('pos_session')?.value ?? cookies().get('marketoir_session')?.value;
@@ -12,6 +13,7 @@ function getAnySession() {
 // Add ?latest=1 to return the most recent session regardless of status (used by EOD).
 export async function GET(req: NextRequest) {
   if (!getAnySession()) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  await getImsSession(['pos_session', 'marketoir_session']);
   const { searchParams } = new URL(req.url);
   const registerId = parseInt(searchParams.get('register_id') ?? '', 10);
   if (!registerId) return NextResponse.json({ error: 'register_id required.' }, { status: 400 });

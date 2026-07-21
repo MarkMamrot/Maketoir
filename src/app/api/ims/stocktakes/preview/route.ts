@@ -4,7 +4,8 @@ import { ImsStocktakeRepo } from '@/lib/ims/ImsRepository';
 
 export async function GET(req: NextRequest) {
   try {
-    await getImportSession();
+    const session = await getImportSession();
+    if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     const sp = req.nextUrl.searchParams;
     const location_id = sp.get('location_id') ? parseInt(sp.get('location_id')!, 10) : undefined;
     const brand_id    = sp.get('brand_id')    ? parseInt(sp.get('brand_id')!,    10) : undefined;

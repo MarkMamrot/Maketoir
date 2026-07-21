@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -14,6 +15,7 @@ function getPosSession() {
 export async function GET(req: Request) {
   const session = getPosSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  await getImsSession(['pos_session']);
 
   const { searchParams } = new URL(req.url);
   const variantId = searchParams.get('variant_id');
@@ -26,16 +28,16 @@ export async function GET(req: Request) {
       imsQuery<{ description: string | null }>(
         `SELECT p.description FROM ims_product_variants v
          JOIN ims_products p ON p.product_id = v.product_id
-         WHERE v.variant_id = ? LIMIT 1`,
-        [variantId],
+         WHERE v.variant_id = ? AND p.business_id = ? LIMIT 1`,
+        [variantId, session.businessId],
       ),
       imsQuery<{ location_name: string; qty_on_hand: number }>(
         `SELECT l.name AS location_name, s.qty_on_hand
          FROM ims_stock s
          JOIN ims_locations l ON l.id = s.location_id
-         WHERE s.variant_id = ?
+         WHERE s.variant_id = ? AND l.business_id = ?
          ORDER BY l.name`,
-        [variantId],
+        [variantId, session.businessId],
       ),
     ]);
 

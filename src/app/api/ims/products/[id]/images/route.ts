@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import fs from 'fs';
 import path from 'path';
 import { ImsImagesRepo } from '@/lib/ims/ImsRepository';
@@ -7,11 +7,6 @@ import { imsQuery } from '@/services/IMSMySQLService';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 async function getShopifyClient(businessId: string) {
   try {
@@ -32,7 +27,7 @@ async function getProductShopifyId(productId: string): Promise<string | null> {
 
 /** GET /api/ims/products/[id]/images */
 export async function GET(_: Request, { params }: { params: { id: string } }) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!await getImsSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
     const data = await ImsImagesRepo.list(params.id);
     return NextResponse.json({ success: true, data });
@@ -47,7 +42,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
  * Add an image by URL (no file upload — use /images/upload for that).
  */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!await getImsSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
     const { url, source = 'external', alt_text, is_primary } = await req.json();
     if (!url) return NextResponse.json({ success: false, error: 'url required' }, { status: 400 });
@@ -64,7 +59,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
  *    or { action: 'reorder', ordered_ids: number[] }
  */
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
     const body = await req.json();
@@ -119,7 +114,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
  * DELETE /api/ims/products/[id]/images?imageId=123
  */
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
     const url = new URL(req.url);

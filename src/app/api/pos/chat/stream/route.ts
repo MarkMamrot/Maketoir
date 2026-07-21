@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30; // seconds — Vercel/Railway limit for streaming
@@ -18,6 +19,7 @@ function getSession() {
 export async function GET(req: Request) {
   const session = getSession();
   if (!session) return new Response('Unauthorised', { status: 401 });
+  await getImsSession(['pos_session', 'marketoir_session']);
 
   const url = new URL(req.url);
   let since = parseInt(url.searchParams.get('since') ?? '0', 10) || 0;

@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 // GET /api/pos/auth/staff?location_id=X
 // Public — returns user list for POS PIN login screen.
 // Only returns id, name, has_pos_pin — no sensitive data.
 export async function GET(req: Request) {
   try {
+    const session = await getImsSession(['marketoir_session', 'pos_session']);
+    if (!session?.businessId) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+
     const { searchParams } = new URL(req.url);
     const locationId = parseInt(searchParams.get('location_id') ?? '0', 10);
     if (!locationId) {
@@ -15,8 +19,8 @@ export async function GET(req: Request) {
 
     // Get business_id from location
     const locRows = await imsQuery<{ business_id: string | null }>(
-      'SELECT business_id FROM ims_locations WHERE id = ? AND is_active = 1 LIMIT 1',
-      [locationId],
+      'SELECT business_id FROM ims_locations WHERE id = ? AND business_id = ? AND is_active = 1 LIMIT 1',
+      [locationId, session.businessId],
     );
     if (!locRows[0]) {
       return NextResponse.json({ error: 'Location not found' }, { status: 404 });

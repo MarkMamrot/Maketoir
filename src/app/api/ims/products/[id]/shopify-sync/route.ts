@@ -7,7 +7,7 @@
  *        linked Shopify product. Creates the product on Shopify if not yet linked.
  */
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import fs from 'fs';
 import path from 'path';
 import { ShopifyService } from '@/services/ShopifyService';
@@ -16,11 +16,6 @@ import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { ImsProductsRepo, ImsImagesRepo, ImsShopifyRepo } from '@/lib/ims/ImsRepository';
 import { shopifyVariantPricePayload, pushInventoryForBusiness } from '@/lib/ims/shopifyInventorySync';
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 async function getShopify(businessId: string) {
   const conn = await ConnectionsRepository.get(businessId) as any;
@@ -72,7 +67,7 @@ function isShopifyImageMedia(img: { url: string; drive_file_id?: string | null }
 }
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   try {
@@ -116,7 +111,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 }
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   try {

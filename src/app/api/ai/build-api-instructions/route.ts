@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { GoogleGenAI } from '@google/genai';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { getGlobalSpecsSheetId } from '@/lib/globalApiSpecs';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
+import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 
 const SHEET = 'APIInstructions';
 const HEADERS = ['API', 'Summary', 'LastUpdated', 'Endpoints'];
@@ -71,11 +71,13 @@ ${summary}
 `.trim();
 
 export async function POST(req: Request) {
-  const session = cookies().get('marketoir_session');
-  if (!session?.value) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+  const { user, response: authResponse } = requireAdminSession();
+  if (authResponse) return authResponse;
 
   const { api, databaseId } = await req.json();
   if (!api || !databaseId) return NextResponse.json({ error: 'Missing api or databaseId.' }, { status: 400 });
+  const denied = assertBusinessAccess(user, databaseId);
+  if (denied) return denied;
 
   const apiLabel = API_LABELS[api];
   if (!apiLabel) return NextResponse.json({ error: `Unknown API: ${api}` }, { status: 400 });

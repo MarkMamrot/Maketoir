@@ -16,7 +16,7 @@
  * current business only — accepts { businessId } implicitly from the session).
  */
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { getShopifyForBusiness } from '@/lib/ims/shopifyInventorySync';
 import { syncShopifyPayout, type ShopifyPayoutSync } from '@/services/XeroSyncService';
@@ -24,11 +24,6 @@ import { syncShopifyPayout, type ShopifyPayoutSync } from '@/services/XeroSyncSe
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 async function getSetting(businessId: string, key: string): Promise<string> {
   const rows = await imsQuery<{ value: string }>(
@@ -189,7 +184,7 @@ export async function POST(req: Request) {
     ).catch(() => [] as any[]);
     businessIds = bids.map(r => r.business_id);
   } else {
-    const session = getSession();
+    const session = await getImsSession();
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     businessIds = [session.businessId as string];
   }

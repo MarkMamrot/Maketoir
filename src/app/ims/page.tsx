@@ -5870,6 +5870,338 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Import Purchase Orders Modal
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PO_IMPORT_HEADERS = [
+  'PO_Number','Order_Date','Expected_Date','Received_Date','Supplier','Location',
+  'Status','Tax_Treatment','Currency','Exchange_Rate','Payment_Terms',
+  'Supplier_Invoice','Notes','Freight','Discount',
+  'SKU','Product_Name','Qty','Qty_Received','Unit_Cost','Discount_Pct','Tax_Rate',
+] as const;
+
+type ImportPOsStage = 'paste' | 'review' | 'importing' | 'done';
+
+interface ParsedPOGroup {
+  po_number: string;
+  order_date: string;
+  expected_date: string;
+  received_date: string;
+  supplier: string;
+  location: string;
+  status: string;
+  tax_treatment: string;
+  currency: string;
+  exchange_rate: string;
+  payment_terms: string;
+  supplier_invoice: string;
+  notes: string;
+  freight: string;
+  discount: string;
+  items: { sku: string; product_name: string; qty: string; qty_received: string; unit_cost: string; discount_pct: string; tax_rate: string }[];
+  error?: string;
+}
+
+function parsePOsCSV(text: string): ParsedPOGroup[] {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  if (!lines.length) return [];
+
+  const firstLower = lines[0].toLowerCase().replace(/\s+/g, '');
+  const isHeader   = firstLower.includes('po_number') || firstLower.includes('order_date') || firstLower.includes('supplier');
+  const dataLines  = isHeader ? lines.slice(1) : lines;
+
+  const parseRow = (line: string): string[] => {
+    const cells: string[] = [];
+    let inQ = false; let cur = '';
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { if (inQ && line[i + 1] === '"') { cur += '"'; i++; } else { inQ = !inQ; } }
+      else if (ch === ',' && !inQ) { cells.push(cur); cur = ''; }
+      else { cur += ch; }
+    }
+    cells.push(cur);
+    return cells.map(c => c.trim());
+  };
+
+  const groups: ParsedPOGroup[] = [];
+  let current: ParsedPOGroup | null = null;
+
+  for (const line of dataLines) {
+    const cols = parseRow(line);
+    const get  = (i: number) => cols[i]?.trim() ?? '';
+    const poNum = get(0);
+
+    if (poNum || !current) {
+      current = {
+        po_number:        poNum,
+        order_date:       get(1),
+        expected_date:    get(2),
+        received_date:    get(3),
+        supplier:         get(4),
+        location:         get(5),
+        status:           get(6) || 'draft',
+        tax_treatment:    get(7) || 'ex_tax',
+        currency:         get(8) || 'AUD',
+        exchange_rate:    get(9) || '1',
+        payment_terms:    get(10),
+        supplier_invoice: get(11),
+        notes:            get(12),
+        freight:          get(13),
+        discount:         get(14),
+        items: [],
+      };
+      if (!current.order_date) current.error = 'Order_Date is required';
+      if (!current.location)   current.error = (current.error ? current.error + '; ' : '') + 'Location is required';
+      groups.push(current);
+    }
+
+    const sku   = get(15);
+    const pname = get(16);
+    const qty   = get(17);
+    if (sku || pname || qty) {
+      current!.items.push({
+        sku, product_name: pname,
+        qty, qty_received: get(18),
+        unit_cost: get(19), discount_pct: get(20), tax_rate: get(21),
+      });
+    }
+  }
+
+  return groups;
+}
+
+function ImportPOsModal({ locations, showFxCosts, onClose, onDone }: {
+  locations: { id: number; name: string }[];
+  showFxCosts: boolean;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [stage, setStage]       = useState<ImportPOsStage>('paste');
+  const [pasteText, setPasteText] = useState('');
+  const [parsed, setParsed]     = useState<ParsedPOGroup[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [result, setResult]     = useState<{ created: number; errors: string[] } | null>(null);
+
+  const handleParse = () => {
+    const groups = parsePOsCSV(pasteText);
+    if (!groups.length) { alert('No rows found. Paste CSV data or upload a file.'); return; }
+    setParsed(groups);
+    setStage('review');
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = ev => { if (ev.target?.result) setPasteText(String(ev.target.result)); };
+    reader.readAsText(f);
+    e.target.value = '';
+  };
+
+  const downloadTemplate = () => {
+    const headers = showFxCosts ? PO_IMPORT_HEADERS : PO_IMPORT_HEADERS.filter(h => h !== 'Currency' && h !== 'Exchange_Rate');
+    const exRows = [
+      headers.join(','),
+      showFxCosts
+        ? 'PO-2025-0001,2025-03-15,2025-03-30,2025-04-01,Acme Supplier,Main Warehouse,complete,ex_tax,USD,1.5200,Net 30,INV-123,Goods received,50,0,SKU-WIDGET-001,Red Widget,100,100,12.50,0,0.10'
+        : 'PO-2025-0001,2025-03-15,2025-03-30,2025-04-01,Acme Supplier,Main Warehouse,complete,ex_tax,Net 30,INV-123,Goods received,50,0,SKU-WIDGET-001,Red Widget,100,100,12.50,0,0.10',
+      showFxCosts
+        ? ',,,,,,,,,,,,,,SKU-WIDGET-002,Blue Widget,50,50,12.50,0,0.10'
+        : ',,,,,,,,,,,,SKU-WIDGET-002,Blue Widget,50,50,12.50,0,0.10',
+    ];
+    const blob = new Blob([exRows.join('\n')], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'po-import-template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = async () => {
+    setImporting(true);
+    setStage('importing');
+    try {
+      const orders = parsed
+        .filter(g => !g.error)
+        .map(g => ({
+          po_number:                g.po_number    || undefined,
+          order_date:               g.order_date,
+          expected_date:            g.expected_date    || undefined,
+          received_date:            g.received_date    || undefined,
+          supplier_name:            g.supplier         || undefined,
+          location_name:            g.location,
+          status:                   g.status,
+          tax_treatment:            g.tax_treatment,
+          currency_code:            showFxCosts ? (g.currency || 'AUD') : 'AUD',
+          exchange_rate:            showFxCosts ? (Number(g.exchange_rate) || 1) : 1,
+          payment_terms:            g.payment_terms    || undefined,
+          supplier_invoice_number:  g.supplier_invoice || undefined,
+          notes:                    g.notes            || undefined,
+          freight:                  g.freight  !== '' ? Number(g.freight)  : 0,
+          discount:                 g.discount !== '' ? Number(g.discount) : 0,
+          items: g.items.map(it => ({
+            sku:          it.sku          || undefined,
+            product_name: it.product_name || undefined,
+            qty:          Number(it.qty          || 0),
+            qty_received: Number(it.qty_received  ?? 0),
+            unit_cost:    Number(it.unit_cost     || 0),
+            discount_pct: Number(it.discount_pct  ?? 0),
+            tax_rate:     Number(it.tax_rate      ?? 0),
+          })),
+        }));
+
+      const res  = await fetch('/api/ims/purchase-orders/bulk-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orders }),
+      });
+      const data = await res.json();
+      setResult({ created: data.created ?? 0, errors: data.errors ?? (data.error ? [data.error] : []) });
+      setStage('done');
+    } catch (e: any) {
+      setResult({ created: 0, errors: [e.message] });
+      setStage('done');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const validCount   = parsed.filter(g => !g.error).length;
+  const invalidCount = parsed.filter(g =>  g.error).length;
+
+  return (
+    <Modal title="Import Purchase Orders" onClose={onClose} wide>
+      {/* Notice */}
+      <div style={{ background: 'rgba(251,191,36,.1)', border: '1px solid rgba(251,191,36,.35)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+        <span style={{ fontSize: 16, flexShrink: 0 }}>⚠</span>
+        <div style={{ fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.5 }}>
+          <strong>Complete and cancelled orders will not sync to Accounting (Xero).</strong>{' '}
+          They are imported as historical records only. Draft and confirmed orders can be managed normally after import.
+        </div>
+      </div>
+
+      {/* Stage: paste */}
+      {stage === 'paste' && (
+        <div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+            <button onClick={downloadTemplate} style={btnStyle('ghost', 'sm')}>⬇ Download Template</button>
+            <label style={{ ...btnStyle('ghost', 'sm') as any, cursor: 'pointer', margin: 0 }}>
+              📂 Upload CSV
+              <input type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={handleFileUpload} />
+            </label>
+            <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', flex: 1 }}>
+              One row per line item. Repeat PO_Number (or leave blank) for multi-line orders. First row may be a header.
+            </span>
+          </div>
+          <div style={{ marginBottom: 8, fontSize: 12, color: 'var(--sv-text-dim)' }}>
+            <strong>Required columns:</strong> Order_Date, Location<br />
+            <strong>Status options:</strong> draft | confirmed | partially_received | complete | cancelled<br />
+            <strong>Tax_Treatment:</strong> ex_tax | inc_tax | no_tax{showFxCosts && <>&ensp;<strong>Currency:</strong> AUD | USD | EUR | GBP | THB | CNY | JPY</>}<br />
+            <strong>Location</strong> must match an exact location name in IMS. Supplier is matched by name if provided.
+          </div>
+          <textarea
+            value={pasteText}
+            onChange={e => setPasteText(e.target.value)}
+            placeholder={PO_IMPORT_HEADERS.join(',')}
+            style={{ width: '100%', height: 200, padding: '8px 10px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: 12, fontFamily: 'monospace', boxSizing: 'border-box', resize: 'vertical' }}
+          />
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
+            <button onClick={onClose} style={btnStyle('ghost')}>Cancel</button>
+            <button onClick={handleParse} disabled={!pasteText.trim()} style={btnStyle('action')}>Parse →</button>
+          </div>
+        </div>
+      )}
+
+      {/* Stage: review */}
+      {stage === 'review' && (
+        <div>
+          <div style={{ marginBottom: 10, fontSize: 13, color: 'var(--sv-text-dim)' }}>
+            Found <strong style={{ color: 'var(--sv-text-main)' }}>{parsed.length}</strong> order{parsed.length !== 1 ? 's' : ''}
+            {validCount   > 0 && <> — <strong style={{ color: 'var(--sv-mint)' }}>{validCount} ready</strong></>}
+            {invalidCount > 0 && <> — <strong style={{ color: 'var(--sv-red)'  }}>{invalidCount} with errors</strong></>}
+          </div>
+          <div style={{ overflowX: 'auto', maxHeight: 420, overflowY: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 8, marginBottom: 14 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: 'var(--sv-bg-2)', position: 'sticky', top: 0 }}>
+                  {['PO #','Date','Supplier','Location','Status','Tax',showFxCosts ? 'Currency' : null,'Lines','Total',''].filter(Boolean).map(h => (
+                    <th key={h!} style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, whiteSpace: 'nowrap', borderBottom: '1px solid var(--sv-etch)' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {parsed.map((g, i) => {
+                  const total = g.items.reduce((s, it) => {
+                    const line = Number(it.qty || 0) * Number(it.unit_cost || 0) * (1 - Number(it.discount_pct ?? 0) / 100);
+                    return s + line;
+                  }, Number(g.freight || 0)) - Number(g.discount || 0);
+                  return (
+                    <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)', background: g.error ? 'rgba(248,113,113,.05)' : undefined }}>
+                      <td style={{ padding: '6px 10px', color: 'var(--sv-action)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        {g.po_number || <em style={{ color: 'var(--sv-text-dim)' }}>auto</em>}
+                      </td>
+                      <td style={{ padding: '6px 10px', whiteSpace: 'nowrap', color: 'var(--sv-text-dim)' }}>{g.order_date}</td>
+                      <td style={{ padding: '6px 10px', color: 'var(--sv-text-dim)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.supplier || '—'}</td>
+                      <td style={{ padding: '6px 10px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{g.location}</td>
+                      <td style={{ padding: '6px 10px', whiteSpace: 'nowrap' }}><StatusBadge status={g.status} /></td>
+                      <td style={{ padding: '6px 10px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 11 }}>{g.tax_treatment}</td>
+                      {showFxCosts && <td style={{ padding: '6px 10px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 11 }}>{g.currency}{g.exchange_rate && g.currency !== 'AUD' ? ` @ ${g.exchange_rate}` : ''}</td>}
+                      <td style={{ padding: '6px 10px', color: 'var(--sv-text-dim)', textAlign: 'right' }}>{g.items.length}</td>
+                      <td style={{ padding: '6px 10px', whiteSpace: 'nowrap', textAlign: 'right' }}>{fmtCurrency(total)}</td>
+                      <td style={{ padding: '6px 10px' }}>
+                        {g.error
+                          ? <span title={g.error} style={{ color: 'var(--sv-red)', fontWeight: 600, fontSize: 11 }}>✕ {g.error}</span>
+                          : <span style={{ color: 'var(--sv-mint)', fontWeight: 600, fontSize: 11 }}>✓</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button onClick={() => setStage('paste')} style={btnStyle('ghost')}>← Back</button>
+            <button onClick={onClose} style={btnStyle('ghost')}>Cancel</button>
+            <button onClick={handleImport} disabled={validCount === 0} style={btnStyle('action')}>
+              Import {validCount} Order{validCount !== 1 ? 's' : ''} →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Stage: importing */}
+      {stage === 'importing' && (
+        <div style={{ textAlign: 'center', padding: '32px 0' }}>
+          <Spinner />
+          <p style={{ marginTop: 12, color: 'var(--sv-text-dim)' }}>Importing {validCount} orders…</p>
+        </div>
+      )}
+
+      {/* Stage: done */}
+      {stage === 'done' && result && (
+        <div>
+          <div style={{ padding: '16px 20px', background: result.created > 0 ? 'rgba(16,185,129,.08)' : 'rgba(248,113,113,.08)', borderRadius: 8, marginBottom: 16, border: `1px solid ${result.created > 0 ? 'rgba(16,185,129,.25)' : 'rgba(248,113,113,.25)'}` }}>
+            <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: 15, color: result.created > 0 ? 'var(--sv-mint)' : 'var(--sv-red)' }}>
+              {result.created > 0 ? `✓ ${result.created} order${result.created !== 1 ? 's' : ''} imported` : 'Import failed'}
+            </p>
+            {result.errors.length > 0 && (
+              <ul style={{ margin: '8px 0 0', padding: '0 0 0 18px', fontSize: 12, color: 'var(--sv-red)' }}>
+                {result.errors.map((e, i) => <li key={i}>{e}</li>)}
+              </ul>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            {result.errors.length > 0 && <button onClick={() => setStage('paste')} style={btnStyle('ghost')}>Import More</button>}
+            <button onClick={() => { onDone(); onClose(); }} style={btnStyle('action')}>Done</button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Purchase Orders View
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -5891,6 +6223,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
   const [lcForm, setLcForm] = useState<{ label: string; reference: string; amount: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [receiveQtys, setReceiveQtys] = useState<Record<string, number>>({});
+  const [importPOsOpen, setImportPOsOpen] = useState(false);
   const [xeroWarnModal, setXeroWarnModal] = useState<{ action: 'edit' | 'delete'; po: any; onConfirm: () => void } | null>(null);
   const [xeroWarnBillNum, setXeroWarnBillNum] = useState<string | null>(null);
   const [xeroWarnFetching, setXeroWarnFetching] = useState(false);
@@ -6225,6 +6558,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Purchase Orders</h1>
+        {!isAdvisor && <button onClick={() => setImportPOsOpen(true)} style={btnStyle('ghost')}>⬆ Import POs</button>}
         {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New PO</button>}
       </div>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
@@ -6985,6 +7319,14 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
           }}
         />
       )}
+      {importPOsOpen && (
+        <ImportPOsModal
+          locations={locations}
+          showFxCosts={settings.use_foreign_currencies !== 'no'}
+          onClose={() => setImportPOsOpen(false)}
+          onDone={() => load()}
+        />
+      )}
     </div>
   );
 }
@@ -7004,7 +7346,8 @@ function POActions({ po, onEdit, onReceive, onDelete, onStatus, context = 'list'
     po?.is_opening_stock === true;
 
   if (po.is_historical) {
-    return <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>Historical (Cin7)</span>;
+    const label = po.cin7_order_id ? 'Historical (Cin7)' : 'Imported';
+    return <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>{label}</span>;
   }
   const btns = [];
   if (po.status === 'draft')    { btns.push(<button key="a" onClick={() => onStatus(po, 'confirmed')}  style={btnStyle('mint', 'xs')} disabled={isAdvisor}>Confirm</button>); }
@@ -14576,6 +14919,12 @@ export default function ImsPage() {
   useEffect(() => {
     const readHash = () => {
       const h = window.location.hash.replace(/^#/, '');
+      if (h.startsWith('settings-')) {
+        const section = h.replace(/^settings-/, '') as SettingsSection;
+        setSettingsSection(section);
+        setSettingsOpen(true);
+        return 'dashboard' as ImsView;
+      }
       // Deep-link: #products/<id> → navigate to products view (ProductsView handles opening the modal)
       if (h.startsWith('products/')) return 'products' as ImsView;
       return VALID_VIEWS.has(h) ? h as ImsView : 'dashboard';
@@ -18494,6 +18843,10 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
       use_zones_bins:           'no',
       use_categories:           'no',
       use_foreign_currencies:   'yes',
+      connect_online_shop:      'no',
+      online_shop_platform:     'shopify',
+      connect_accounting_software: 'no',
+      accounting_software:      'xero',
       ...settings,
     });
   }, [settings]);
@@ -18931,6 +19284,42 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                     return <button key={opt} type="button" onClick={() => setTaxDraft(p => ({ ...p, use_foreign_currencies: opt }))} style={{ padding: '7px 22px', fontSize: 13, fontWeight: isOpt ? 600 : 400, background: isOpt ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: isOpt ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer' }}>{opt === 'yes' ? 'Yes' : 'No'}</button>;
                   })}
                 </div>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={labelStyle}>Connect an Online Shop?</label>
+                <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Enables onboarding and sync prompts for online sales channels.</p>
+                <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', width: 'fit-content', marginBottom: taxDraft.connect_online_shop === 'yes' ? 10 : 0 }}>
+                  {(['yes', 'no'] as const).map(opt => {
+                    const isOpt = (taxDraft.connect_online_shop ?? 'no') === opt;
+                    return <button key={opt} type="button" onClick={() => setTaxDraft(p => ({ ...p, connect_online_shop: opt, online_shop_platform: opt === 'yes' ? (p.online_shop_platform || 'shopify') : p.online_shop_platform }))} style={{ padding: '7px 22px', fontSize: 13, fontWeight: isOpt ? 600 : 400, background: isOpt ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: isOpt ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer' }}>{opt === 'yes' ? 'Yes' : 'No'}</button>;
+                  })}
+                </div>
+                {taxDraft.connect_online_shop === 'yes' && (
+                  <select value={taxDraft.online_shop_platform ?? 'shopify'} onChange={e => setTaxDraft(p => ({ ...p, online_shop_platform: e.target.value }))} style={{ ...inputStyle, width: 260 }}>
+                    <option value="shopify">Shopify</option>
+                    <option disabled>WooCommerce - coming soon</option>
+                    <option disabled>BigCommerce - coming soon</option>
+                    <option disabled>Adobe Commerce - coming soon</option>
+                  </select>
+                )}
+              </div>
+
+              <div style={{ marginBottom: 4 }}>
+                <label style={labelStyle}>Connect accounting software?</label>
+                <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Enables onboarding and mapping prompts for accounting integrations.</p>
+                <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', width: 'fit-content', marginBottom: taxDraft.connect_accounting_software === 'yes' ? 10 : 0 }}>
+                  {(['yes', 'no'] as const).map(opt => {
+                    const isOpt = (taxDraft.connect_accounting_software ?? 'no') === opt;
+                    return <button key={opt} type="button" onClick={() => setTaxDraft(p => ({ ...p, connect_accounting_software: opt, accounting_software: opt === 'yes' ? (p.accounting_software || 'xero') : p.accounting_software }))} style={{ padding: '7px 22px', fontSize: 13, fontWeight: isOpt ? 600 : 400, background: isOpt ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: isOpt ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer' }}>{opt === 'yes' ? 'Yes' : 'No'}</button>;
+                  })}
+                </div>
+                {taxDraft.connect_accounting_software === 'yes' && (
+                  <select value={taxDraft.accounting_software ?? 'xero'} onChange={e => setTaxDraft(p => ({ ...p, accounting_software: e.target.value }))} style={{ ...inputStyle, width: 260 }}>
+                    <option value="xero">Xero</option>
+                    <option disabled>QuickBooks - coming soon</option>
+                  </select>
+                )}
               </div>
             </div>
 

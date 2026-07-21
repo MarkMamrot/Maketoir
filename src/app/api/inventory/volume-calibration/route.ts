@@ -1,16 +1,17 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { ConfigRepository } from '@/lib/db/ConfigRepository';
+import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 
 const CONFIG_KEY = 'volume_calibration';
 
 export async function GET(req: Request) {
-  const session = cookies().get('marketoir_session');
-  if (!session?.value) return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
+  const { user, response } = requireAdminSession();
+  if (response) return response;
 
   const { searchParams } = new URL(req.url);
   const databaseId = searchParams.get('databaseId')?.trim() ?? '';
-  if (!databaseId) return NextResponse.json({ success: false, error: 'databaseId is required.' }, { status: 400 });
+  const denied = assertBusinessAccess(user, databaseId);
+  if (denied) return denied;
 
   try {
     const raw = await ConfigRepository.get(databaseId, CONFIG_KEY);
@@ -22,14 +23,15 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const session = cookies().get('marketoir_session');
-  if (!session?.value) return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
+  const { user, response } = requireAdminSession();
+  if (response) return response;
 
   const body = await req.json();
   const databaseId: string = String(body?.databaseId ?? '').trim();
   const calibration: Record<string, string> = body?.calibration ?? {};
 
-  if (!databaseId) return NextResponse.json({ success: false, error: 'databaseId is required.' }, { status: 400 });
+  const denied = assertBusinessAccess(user, databaseId);
+  if (denied) return denied;
 
   try {
     await ConfigRepository.set(databaseId, CONFIG_KEY, JSON.stringify(calibration));

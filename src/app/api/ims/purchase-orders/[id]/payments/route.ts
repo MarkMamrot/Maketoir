@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsPORepo } from '@/lib/ims/ImsRepository';
 import { triggerPOPaymentXeroSync } from '@/lib/ims/xeroHooks';
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -45,7 +40,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     });
 
     // Fire-and-forget Xero payment sync
-    const session = getSession();
+    const session = await getImsSession();
     if (session?.businessId && payment?.id) {
       triggerPOPaymentXeroSync(session.businessId, Number(params.id), payment.id).catch(() => {});
     }

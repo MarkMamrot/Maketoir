@@ -6,6 +6,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 function getSession() {
   for (const name of ['pos_session', 'marketoir_session']) {
@@ -19,6 +20,7 @@ function getSession() {
 export async function GET() {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+  await getImsSession(['pos_session', 'marketoir_session']);
   const businessId: string = session.businessId ?? session.business_id ?? '';
 
   const rows = await imsQuery<{ value: string }>(

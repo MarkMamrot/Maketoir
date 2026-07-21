@@ -1,12 +1,7 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { imsQuery } from '@/services/IMSMySQLService';
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 export interface FilterSuggestion {
   type: 'product' | 'brand' | 'supplier' | 'product_type' | 'category' | 'subcategory';
@@ -22,7 +17,7 @@ export interface FilterSuggestion {
  * When `only` is set, returns only that category (q may be empty = browse all).
  */
 export async function GET(req: Request) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!await getImsSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const q     = (searchParams.get('q') ?? '').trim();
@@ -34,7 +29,7 @@ export async function GET(req: Request) {
 
   const like      = q ? `%${q}%` : '%';
   const exactLike = q ? `${q}%`  : '%';
-  const session = getSession();
+  const session = await getImsSession();
   const businessId = session?.businessId as string | undefined;
 
   const wantSupplier    = !only || only === 'supplier';

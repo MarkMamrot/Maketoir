@@ -1,13 +1,8 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 // Movement types whose qty_change does NOT affect qty_on_hand — they move
 // qty_incoming (on-order) or qty_committed (reserved) instead. Excluded from
@@ -21,7 +16,7 @@ const NON_ONHAND_MOVEMENT_TYPES = new Set<string>([
 ]);
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
     await enterImsForBusiness(session.businessId as string);

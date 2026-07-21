@@ -18,6 +18,7 @@ import { ImsSORepo } from '@/lib/ims/ImsRepository';
 import { toBusinessDate, toBusinessDateTime } from '@/lib/shopifyDate';
 import { parseShopifyRefund } from '@/lib/shopifyRefund';
 import { createNotification } from '@/lib/ims/createNotification';
+import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
 
 export const runtime = 'nodejs';
 
@@ -48,6 +49,7 @@ export async function POST(req: Request, { params }: { params: { businessId: str
   const topic   = req.headers.get('x-shopify-topic') ?? '';
   const hmac    = req.headers.get('x-shopify-hmac-sha256') ?? '';
 
+  await enterImsForBusiness(businessId);
   const config = await getConfig(businessId);
   // Always return 200 for config/enable issues so Shopify doesn't deactivate the webhook.
   if (!config) return NextResponse.json({ ok: true });

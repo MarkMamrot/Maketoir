@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { ImsStockRepo } from '@/lib/ims/ImsRepository';
 
@@ -20,11 +20,6 @@ import { ImsStockRepo } from '@/lib/ims/ImsRepository';
 //   - Both same value          → no change (Healthy)
 //   - Both have DIFFERENT values → flag as Conflict — user must choose which to use
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 export interface SyncZoneBinDiff {
   product_id:    string;
@@ -46,7 +41,7 @@ export interface SyncZoneBinDiff {
 
 /** GET — analyse differences for a given location. */
 export async function GET(req: Request) {
-  if (!getSession()) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
+  if (!await getImsSession()) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
   const { searchParams } = new URL(req.url);
   const locationId = parseInt(searchParams.get('location_id') ?? '0', 10);
   if (!locationId) return NextResponse.json({ success: false, error: 'location_id required' }, { status: 400 });
@@ -136,7 +131,7 @@ export async function GET(req: Request) {
 
 /** POST — apply the resolved diffs. */
 export async function POST(req: Request) {
-  if (!getSession()) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
+  if (!await getImsSession()) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
 
   try {
     const body: { diffs: SyncZoneBinDiff[]; location_id: number } = await req.json();

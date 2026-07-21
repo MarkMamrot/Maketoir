@@ -1,20 +1,9 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { getIMSPool, imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { triggerPOXeroSync } from '@/lib/ims/xeroHooks';
 import { ImsPORepo } from '@/lib/ims/ImsRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
-import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
-
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try {
-    return JSON.parse(c.value);
-  } catch {
-    return null;
-  }
-}
 
 interface ReceivedItem {
   variant_id: string;
@@ -35,14 +24,13 @@ interface StockUpdate {
 }
 
 export async function POST(req: Request) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
   const businessId = session.businessId as string;
 
   try {
-    await enterImsForBusiness(businessId);
     const body = await req.json();
     const {
       po_id,

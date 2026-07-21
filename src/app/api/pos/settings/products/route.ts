@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 function getAdminSession() {
   const c = cookies().get('marketoir_session');
@@ -19,9 +20,11 @@ export async function GET() {
     const adminSession = getAdminSession();
     const posSession   = getPosSession();
     const businessId = (adminSession?.businessId ?? posSession?.businessId) as string | undefined;
+    if (!businessId) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
+    await getImsSession(['marketoir_session', 'pos_session']);
     const rows = await imsQuery<{ value: string }>(
-      `SELECT \`value\` FROM ims_settings WHERE \`key\` = 'pos_default_product_view'${businessId ? ' AND business_id = ?' : ''} LIMIT 1`,
-      businessId ? [businessId] : undefined
+      "SELECT `value` FROM ims_settings WHERE `key` = 'pos_default_product_view' AND business_id = ? LIMIT 1",
+      [businessId]
     );
     const defaultView = rows[0]?.value ?? 'all';
 
@@ -35,8 +38,8 @@ export async function GET() {
           `SELECT v.variant_id, p.name AS product_name, v.sku
            FROM ims_product_variants v
            JOIN ims_products p ON p.product_id = v.product_id
-           WHERE v.variant_id IN (${placeholders})`,
-          ids
+           WHERE v.variant_id IN (${placeholders}) AND p.business_id = ?`,
+          [...ids, businessId]
         ).catch(() => []);
         const nameMap = new Map(vrows.map(r => [r.variant_id, r]));
         selectedVariants = ids.map(id => {
@@ -56,6 +59,7 @@ export async function PUT(req: Request) {
   try {
     const session = getAdminSession();
     if (!session) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
+    await getImsSession(['marketoir_session']);
     const businessId = session.businessId as string;
 
     const { defaultView } = await req.json() as { defaultView: string };

@@ -1,12 +1,7 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 // ── CSV parser (no dependencies) ──────────────────────────────────────────────
 function parseCsv(text: string): string[][] {
@@ -96,7 +91,7 @@ function findHeaderRow(rows: string[][]): { headerIdx: number; skuCol: number; q
  *   ims_stock.avg_cost             (the per-location average cost)
  */
 export async function POST(req: Request) {
-  if (!getSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!await getImsSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   let csvText: string;
   try {

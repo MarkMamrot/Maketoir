@@ -22,6 +22,7 @@ import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 import { query } from '@/services/MySQLService';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { xeroApiFetch } from '@/services/XeroService';
+import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
 
 /** Extract "YYYY-MM-DD" from a MySQL DATE value (Date object or string). */
 function batchDateStr(v: unknown): string {
@@ -84,6 +85,7 @@ export async function GET(req: Request) {
   const databaseId = searchParams.get('databaseId');
   const denied = assertBusinessAccess(user, databaseId);
   if (denied) return denied;
+  await enterImsForBusiness(databaseId!);
 
   // NOTE: limit is inlined into SQL below (not a placeholder) because mysql2
   // prepared statements (pool.execute) reject `LIMIT ?`. It is clamped to a

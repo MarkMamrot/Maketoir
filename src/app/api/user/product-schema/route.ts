@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
+import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 
 const SHEET = 'ProductDescTemplate';
 // Fixed row positions (1-based in Sheets, so rows 2-4 are data rows after header)
@@ -65,16 +65,13 @@ function buildSheetRows(
 
 export async function GET(req: Request) {
   try {
-    const sessionCookie = cookies().get('marketoir_session');
-    if (!sessionCookie?.value) {
-      return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
-    }
+    const { user, response } = requireAdminSession();
+    if (response) return response;
 
     const { searchParams } = new URL(req.url);
     const databaseId = searchParams.get('databaseId');
-    if (!databaseId) {
-      return NextResponse.json({ error: 'Missing databaseId.' }, { status: 400 });
-    }
+    const denied = assertBusinessAccess(user, databaseId);
+    if (denied) return denied;
 
     const sheets = new GoogleSheetsService();
     const websiteSheetId = await resolveWebsiteSheetId(sheets, databaseId);
@@ -94,10 +91,8 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const sessionCookie = cookies().get('marketoir_session');
-    if (!sessionCookie?.value) {
-      return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
-    }
+    const { user, response } = requireAdminSession();
+    if (response) return response;
 
     const body = await req.json();
     const { databaseId, key, schema } = body as { databaseId: string; key: SchemaKey; schema: any };
@@ -105,6 +100,8 @@ export async function POST(req: Request) {
     if (!databaseId || !key || !schema) {
       return NextResponse.json({ error: 'Missing databaseId, key, or schema.' }, { status: 400 });
     }
+    const denied = assertBusinessAccess(user, databaseId);
+    if (denied) return denied;
     if (!SCHEMA_KEYS.includes(key)) {
       return NextResponse.json({ error: `Invalid key "${key}". Must be one of: ${SCHEMA_KEYS.join(', ')}.` }, { status: 400 });
     }

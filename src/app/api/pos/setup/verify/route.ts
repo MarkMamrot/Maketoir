@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 // POST /api/pos/setup/verify
-// Public endpoint — verifies a location PIN before device setup.
+// Verifies a location PIN before device setup for the authenticated business.
 // If the location has no pos_pin set, any (or no) PIN is accepted.
 export async function POST(req: Request) {
+  const session = await getImsSession(['marketoir_session', 'pos_session']);
+  if (!session?.businessId) return NextResponse.json({ success: false, error: 'Unauthorised.' }, { status: 401 });
+
   try {
     const { location_id, pin } = await req.json();
     if (!location_id) {
@@ -12,8 +16,8 @@ export async function POST(req: Request) {
     }
 
     const rows = await imsQuery<{ id: number; name: string; pos_pin: string | null }>(
-      'SELECT id, name, pos_pin FROM ims_locations WHERE id = ? AND is_active = 1 LIMIT 1',
-      [Number(location_id)],
+      'SELECT id, name, pos_pin FROM ims_locations WHERE id = ? AND business_id = ? AND is_active = 1 LIMIT 1',
+      [Number(location_id), session.businessId],
     );
 
     if (!rows[0]) {

@@ -4,7 +4,7 @@ import { ImsStocktakeRepo } from '@/lib/ims/ImsRepository';
 
 export async function GET() {
   try {
-    const session = getImportSession();
+    const session = await getImportSession();
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     const list = await ImsStocktakeRepo.list();
     return NextResponse.json(list);
@@ -15,7 +15,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    await getImportSession();
+    const session = await getImportSession();
+    if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     const body = await req.json();
     const { reference, location_id, notes, blank, brand_id, supplier_id, product_type } = body;
     if (!reference || !location_id) {

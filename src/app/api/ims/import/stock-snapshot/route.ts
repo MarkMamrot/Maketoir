@@ -2,7 +2,7 @@ import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { getImportSession, getLegacyConn, makeSSEStream } from '../_helpers';
 
 export async function POST() {
-  const session = getImportSession();
+  const session = await getImportSession();
   if (!session) return new Response('Unauthorized', { status: 401 });
   const businessId: string = session.businessId;
 

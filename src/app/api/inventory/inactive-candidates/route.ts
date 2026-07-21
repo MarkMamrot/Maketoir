@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { ProductsRepository } from '@/lib/db/ProductsRepository';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
 import { getInventorySource } from '@/lib/dataProvider';
 import { getIMSPool } from '@/services/IMSMySQLService';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 export interface InactiveCandidate {
   id: string;
@@ -32,14 +32,13 @@ export interface InactiveCandidate {
  * Data source: Cin7 MySQL cache OR Solvantis IMS MySQL (based on inventory_source config).
  */
 export async function POST(req: Request) {
-  const session = cookies().get('marketoir_session');
-  if (!session?.value) {
+  const session = await getImsSession();
+  if (!session) {
     return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
   }
 
   const { databaseId } = await req.json();
-  const _u = JSON.parse(session.value);
-  if (!databaseId || databaseId !== _u.businessId) {
+  if (!databaseId || databaseId !== session.businessId) {
     return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
   }
 

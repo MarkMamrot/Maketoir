@@ -7,7 +7,7 @@
  * mode "save"  — persist base64 media to product (volume or Shopify)
  */
 import { NextResponse }          from 'next/server';
-import { cookies }               from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { GoogleGenAI }           from '@google/genai';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { BrandProfileRepository }from '@/lib/db/BrandProfileRepository';
@@ -25,11 +25,6 @@ import os   from 'os';
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 function shopifyProductGid(productId: string): string {
   return productId.startsWith('gid://') ? productId : `gid://shopify/Product/${productId}`;
@@ -399,7 +394,7 @@ Core rules (state these explicitly in every prompt you write):
 Format: Write a single, detailed, ready-to-use generation prompt in a code block. Be explicit about each reference's role.`;
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 });

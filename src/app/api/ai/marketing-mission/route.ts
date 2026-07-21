@@ -12,6 +12,7 @@ import { ProductsRepository } from '@/lib/db/ProductsRepository';
 import { SalesRepository } from '@/lib/db/SalesRepository';
 import { CalcReportsRepository } from '@/lib/db/CalcReportsRepository';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
+import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 
 // ── System prompt for CMO mode ─────────────────────────────────────────────────
 const CMO_SYSTEM_PROMPT = `You are an elite Chief Marketing Officer (CMO) and high-level marketing strategist for a retail/e-commerce business. Your current task is strictly foundational and philosophical. You are collaborative, visionary, and grounded in proven marketing science (such as balancing long-term brand building with short-term sales activation). 
@@ -445,12 +446,17 @@ async function gatherBusinessInfo(databaseId: string): Promise<string> {
 
 export async function POST(req: Request) {
   try {
+    const { user, response } = requireAdminSession();
+    if (response) return response;
+
     const body = await req.json();
     const { databaseId, prompt, history = [], dataSources = [], preview = false } = body;
 
     if (!databaseId || !prompt) {
       return NextResponse.json({ error: 'Missing databaseId or prompt' }, { status: 400 });
     }
+    const denied = assertBusinessAccess(user, databaseId);
+    if (denied) return denied;
 
     const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_AI_API_KEY;
     if (!apiKey) return NextResponse.json({ error: 'GEMINI_API_KEY not configured.' }, { status: 500 });

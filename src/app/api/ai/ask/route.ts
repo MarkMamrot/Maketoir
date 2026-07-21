@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { GoogleAdsService } from '@/services/GoogleAdsService';
 import { MetaAdsService } from '@/services/MetaAdsService';
@@ -16,6 +15,7 @@ import { CalcReportsRepository, YearlyRevenueRepository } from '@/lib/db/CalcRep
 import { ProductsRepository } from '@/lib/db/ProductsRepository';
 import { SalesRepository } from '@/lib/db/SalesRepository';
 import { ChatsRepository } from '@/lib/db/ChatsRepository';
+import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 
 // ── System context ─────────────────────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are an expert business consultant, marketing strategist, and data analyst working with a retail/e-commerce business. You have been given access to real data from the business's connected systems — including their product catalogue, sales history, brand profile, advertising performance, and website data. Your role is to help the business owner make informed, data-driven decisions across marketing, inventory management, pricing strategy, customer engagement, and business growth. Be specific and actionable. Cite relevant data when making recommendations. If data for a topic is not available, say so clearly rather than guessing.`;
@@ -466,8 +466,8 @@ interface ChatHistoryItem {
 }
 
 export async function POST(req: Request) {
-  const session = cookies().get('marketoir_session');
-  if (!session?.value) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+  const { user, response } = requireAdminSession();
+  if (response) return response;
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: 'GEMINI_API_KEY not configured.' }, { status: 500 });
@@ -476,6 +476,8 @@ export async function POST(req: Request) {
   if (!databaseId || !prompt?.trim()) {
     return NextResponse.json({ error: 'databaseId and prompt are required.' }, { status: 400 });
   }
+  const denied = assertBusinessAccess(user, databaseId);
+  if (denied) return denied;
 
   const chatHistory: ChatHistoryItem[] = Array.isArray(history)
     ? history

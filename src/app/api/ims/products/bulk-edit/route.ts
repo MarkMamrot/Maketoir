@@ -1,12 +1,7 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 // ─── GET /api/ims/products/bulk-edit ─────────────────────────────────────────
 // Query params:
@@ -17,7 +12,7 @@ function getSession() {
 //   brand        exact brand name
 //   supplier     supplier_contact_id (numeric)
 export async function GET(req: Request) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
@@ -154,7 +149,7 @@ export async function GET(req: Request) {
 // Body: { location_id: number, updates: Array<{ product_id, name?, barcode?, brand?,
 //   supplier_contact_id?, zone?, bin?, min_qty?, reorder_qty?, variant_overrides? }> }
 export async function PUT(req: Request) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   try {

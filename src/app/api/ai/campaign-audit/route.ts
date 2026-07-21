@@ -17,6 +17,7 @@ import { BusinessInfoRepository } from '@/lib/db/BusinessInfoRepository';
 import { CalcReportsRepository } from '@/lib/db/CalcReportsRepository';
 import { ConfigRepository } from '@/lib/db/ConfigRepository';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
+import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 
 // ── System prompt ─────────────────────────────────────────────────────────────
 const AUDIT_SYSTEM_PROMPT = `You are a senior digital marketing architect and campaign strategist specialising in retail and e-commerce brands.
@@ -227,6 +228,9 @@ async function buildAuditContext(sheets: GoogleSheetsService, databaseId: string
 
 // ── Route handler ─────────────────────────────────────────────────────────────
 export async function POST(req: Request) {
+  const { user, response: authResponse } = requireAdminSession();
+  if (authResponse) return authResponse;
+
   const encoder = new TextEncoder();
   const emit = (data: object) => encoder.encode(`data: ${JSON.stringify(data)}\n\n`);
 
@@ -241,6 +245,12 @@ export async function POST(req: Request) {
 
         if (!databaseId) {
           controller.enqueue(emit({ phase: 'error', error: 'Missing databaseId' }));
+          controller.close();
+          return;
+        }
+        const denied = assertBusinessAccess(user, databaseId);
+        if (denied) {
+          controller.enqueue(emit({ phase: 'error', error: 'Not authorised.' }));
           controller.close();
           return;
         }

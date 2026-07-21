@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { GoogleGenAI } from '@google/genai';
 import { ChatsRepository } from '@/lib/db/ChatsRepository';
+import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 
 interface ChatItem {
   role: 'user' | 'assistant';
@@ -52,14 +52,15 @@ function parseJsonResponse(text: string): SummaryPayload {
 }
 
 export async function POST(req: Request) {
-  const session = cookies().get('marketoir_session');
-  if (!session?.value) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+  const { user, response } = requireAdminSession();
+  if (response) return response;
 
   const geminiKey = process.env.GEMINI_API_KEY;
   if (!geminiKey) return NextResponse.json({ error: 'GEMINI_API_KEY not configured.' }, { status: 500 });
 
   const { databaseId, history } = await req.json();
-  if (!databaseId) return NextResponse.json({ error: 'databaseId is required.' }, { status: 400 });
+  const denied = assertBusinessAccess(user, databaseId);
+  if (denied) return denied;
 
   const chat = normalizeHistory(history);
   if (chat.length < 2) {
