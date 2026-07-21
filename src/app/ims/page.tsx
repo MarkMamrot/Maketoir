@@ -464,10 +464,34 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
 // Dashboard View
 // ─────────────────────────────────────────────────────────────────────────────
 
-function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
+type OnboardingStep = { id: string; title: string; completed: boolean; autoCompleted: boolean };
+
+type ImsOnboardingAction =
+  | { type: 'nav'; view: ImsView; label: string }
+  | { type: 'settings'; section: string; label: string };
+
+const IMS_ONBOARDING_ACTIONS: Record<string, ImsOnboardingAction> = {
+  business_profile: { type: 'settings', section: 'business-profile', label: 'Open Business Profile' },
+  operations_tax:   { type: 'settings', section: 'general',          label: 'Open IMS Settings' },
+  online_shop:      { type: 'nav',      view: 'shopify',             label: 'Open Shopify' },
+  accounting:       { type: 'nav',      view: 'xero',                label: 'Open Xero' },
+  users:            { type: 'settings', section: 'users',            label: 'Add Users' },
+  locations:        { type: 'nav',      view: 'locations',           label: 'Add Locations' },
+  products:         { type: 'nav',      view: 'products',            label: 'Import Products' },
+  sales_orders:     { type: 'nav',      view: 'sales-orders',        label: 'Import Sales Orders' },
+  purchase_orders:  { type: 'nav',      view: 'purchase-orders',     label: 'Import Purchase Orders' },
+  opening_stock:    { type: 'settings', section: 'sync',             label: 'Opening Stock Snapshot' },
+  pos_ready:        { type: 'settings', section: 'pos',              label: 'Review POS Setup' },
+};
+
+function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void; onOpenSettings?: (section: string) => void }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(1);
+  const [onboarding, setOnboarding] = useState<any>(null);
+  const [onboardingLoading, setOnboardingLoading] = useState(false);
+  const [onboardingSaving, setOnboardingSaving] = useState(false);
+  const [onboardingDraft, setOnboardingDraft] = useState<Record<string, string>>({});
   const [salesData, setSalesData] = useState<any>(null);
   const [salesLoading, setSalesLoading] = useState(true);
 
@@ -485,6 +509,43 @@ function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
     }).finally(() => setSalesLoading(false));
   }, [days]);
 
+  const loadOnboarding = useCallback(() => {
+    setOnboardingLoading(true);
+    fetch('/api/onboarding')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.success) { setOnboarding(d); setOnboardingDraft(d.settings ?? {}); } })
+      .catch(() => {})
+      .finally(() => setOnboardingLoading(false));
+  }, []);
+
+  useEffect(() => { loadOnboarding(); }, [loadOnboarding]);
+
+  const saveOnboardingSettings = async () => {
+    setOnboardingSaving(true);
+    try {
+      await fetch('/api/onboarding', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: onboardingDraft, completeStep: 'business_profile' }),
+      });
+      loadOnboarding();
+    } finally { setOnboardingSaving(false); }
+  };
+
+  const completeOnboardingStep = async (stepId: string) => {
+    setOnboardingSaving(true);
+    try {
+      await fetch('/api/onboarding', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completeStep: stepId }),
+      });
+      loadOnboarding();
+    } finally { setOnboardingSaving(false); }
+  };
+
+  const setOnboardingField = (key: string, value: string) => setOnboardingDraft(p => ({ ...p, [key]: value }));
+
   const fmtCompact = (n: number) => n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `$${(n / 1_000).toFixed(1)}K` : fmtCurrency(n);
   const stats: { label: string; value?: number; display?: React.ReactNode; color: string; nav: ImsView }[] = [
     { label: 'Products',    value: data?.products  ?? 0,                          color: 'var(--sv-action)', nav: 'products' as ImsView },
@@ -499,6 +560,159 @@ function DashboardView({ onNav }: { onNav: (v: ImsView) => void }) {
 
   return (
     <div>
+      {/* ─ Onboarding panel (hidden once all steps complete) ───────────────────── */}
+      {onboarding && !onboarding.complete && (
+        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: 24, marginBottom: 28 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 20 }}>
+            <div>
+              <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 2 }}>Onboarding</div>
+              <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Complete the business profile, IMS setup, integrations, imports, and opening stock steps.</div>
+            </div>
+            <div style={{ minWidth: 180, flexShrink: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
+                <span>Progress</span>
+                <span>{onboardingLoading ? 'Loading…' : `${(onboarding.steps ?? []).filter((s: OnboardingStep) => s.completed).length} / ${onboarding.steps?.length ?? 0}`}</span>
+              </div>
+              <div style={{ height: 6, background: 'var(--sv-bg-2)', borderRadius: 99, overflow: 'hidden', border: '1px solid var(--sv-etch)' }}>
+                <div style={{
+                  height: '100%',
+                  background: 'var(--sv-action)',
+                  borderRadius: 99,
+                  transition: 'width .3s',
+                  width: onboarding.steps?.length
+                    ? `${((onboarding.steps.filter((s: OnboardingStep) => s.completed).length / onboarding.steps.length) * 100).toFixed(0)}%`
+                    : '0%',
+                }} />
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 340px', gap: 20 }} className="onboarding-grid">
+            {/* Left: form fields */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {[['business_name','Business Name','Your company name'],['business_abn','ABN','11 222 333 444']].map(([k, lbl, ph]) => (
+                  <div key={k}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 3 }}>{lbl}</div>
+                    <input value={onboardingDraft[k] ?? ''} onChange={e => setOnboardingField(k, e.target.value)}
+                      style={{ ...inputStyle, fontSize: 13 }} placeholder={ph} />
+                  </div>
+                ))}
+                <div style={{ gridColumn: 'span 2' }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Business Address</div>
+                  <input value={onboardingDraft.business_address ?? ''} onChange={e => setOnboardingField('business_address', e.target.value)}
+                    style={{ ...inputStyle, fontSize: 13 }} placeholder="123 Main St, Sydney NSW 2000" />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {([
+                  ['use_multiple_locations','Multiple locations?'],
+                  ['use_zones_bins','Use zones and bins?'],
+                  ['use_categories','Use categories/subcategories?'],
+                  ['use_foreign_currencies','Buy in foreign currencies?'],
+                  ['connect_online_shop','Connect an Online Shop?'],
+                  ['connect_accounting_software','Connect accounting software?'],
+                ] as [string, string][]).map(([key, label]) => (
+                  <div key={key}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 3 }}>{label}</div>
+                    <select value={onboardingDraft[key] ?? 'no'} onChange={e => setOnboardingField(key, e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
+                      <option value="yes">Yes</option>
+                      <option value="no">No</option>
+                    </select>
+                  </div>
+                ))}
+                {onboardingDraft.connect_online_shop === 'yes' && (
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Online shop platform</div>
+                    <select value={onboardingDraft.online_shop_platform ?? 'shopify'} onChange={e => setOnboardingField('online_shop_platform', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
+                      <option value="shopify">Shopify</option>
+                      <option disabled>WooCommerce - coming soon</option>
+                      <option disabled>BigCommerce - coming soon</option>
+                      <option disabled>Adobe Commerce - coming soon</option>
+                    </select>
+                  </div>
+                )}
+                {onboardingDraft.connect_accounting_software === 'yes' && (
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Accounting platform</div>
+                    <select value={onboardingDraft.accounting_software ?? 'xero'} onChange={e => setOnboardingField('accounting_software', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
+                      <option value="xero">Xero</option>
+                      <option disabled>QuickBooks - coming soon</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {([
+                  ['sales_tax_on_sales','Charge Sales Tax on Sales Orders', null, ['yes','no']],
+                ] as any[]).map(([k, lbl]) => (
+                  <div key={k}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 3 }}>{lbl}</div>
+                    <select value={onboardingDraft[k] ?? 'yes'} onChange={e => setOnboardingField(k, e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
+                      <option value="yes">Yes</option><option value="no">No</option>
+                    </select>
+                  </div>
+                ))}
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Sales Tax Code</div>
+                  <input value={onboardingDraft.sales_tax_code ?? ''} onChange={e => setOnboardingField('sales_tax_code', e.target.value)} style={{ ...inputStyle, fontSize: 13 }} placeholder="GST" />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Sales Tax Rate (%)</div>
+                  <input type="number" min="0" step="0.01" value={onboardingDraft.sales_tax_rate ? String(Number(onboardingDraft.sales_tax_rate) * 100) : ''} onChange={e => setOnboardingField('sales_tax_rate', e.target.value ? String(Number(e.target.value) / 100) : '')} style={{ ...inputStyle, fontSize: 13 }} placeholder="10" />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Purchase Tax Rate (%)</div>
+                  <input type="number" min="0" step="0.01" value={onboardingDraft.purchase_tax_rate ? String(Number(onboardingDraft.purchase_tax_rate) * 100) : ''} onChange={e => setOnboardingField('purchase_tax_rate', e.target.value ? String(Number(e.target.value) / 100) : '')} style={{ ...inputStyle, fontSize: 13 }} placeholder="10" />
+                </div>
+                <div style={{ gridColumn: 'span 2' }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Purchase Tax Code</div>
+                  <input value={onboardingDraft.purchase_tax_code ?? ''} onChange={e => setOnboardingField('purchase_tax_code', e.target.value)} style={{ ...inputStyle, fontSize: 13 }} placeholder="GST on Purchases" />
+                </div>
+              </div>
+              <button onClick={saveOnboardingSettings} disabled={onboardingSaving}
+                style={{ padding: '7px 16px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 7, fontWeight: 600, fontSize: 13, cursor: onboardingSaving ? 'wait' : 'pointer', alignSelf: 'flex-start', opacity: onboardingSaving ? .6 : 1 }}>
+                {onboardingSaving ? 'Saving…' : 'Save details'}
+              </button>
+            </div>
+
+            {/* Right: step checklist */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {(onboarding.steps ?? []).map((step: OnboardingStep, index: number) => {
+                const action = IMS_ONBOARDING_ACTIONS[step.id];
+                const handleAction = action
+                  ? () => action.type === 'nav'
+                    ? onNav((action as { type: 'nav'; view: ImsView; label: string }).view)
+                    : onOpenSettings?.((action as { type: 'settings'; section: string; label: string }).section)
+                  : undefined;
+                return (
+                  <div key={step.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+                    borderRadius: 8, border: '1px solid var(--sv-etch)',
+                    background: step.completed ? 'rgba(16,185,129,.06)' : 'var(--sv-bg-2)',
+                  }}>
+                    <button onClick={() => completeOnboardingStep(step.id)} disabled={step.completed || onboardingSaving}
+                      style={{ flexShrink: 0, width: 26, height: 26, borderRadius: '50%', border: 'none', cursor: step.completed ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12,
+                        background: step.completed ? 'var(--sv-mint, #10b981)' : 'rgba(37,99,235,.15)',
+                        color: step.completed ? '#fff' : 'var(--sv-action)' }}>
+                      {step.completed ? '✓' : index + 1}
+                    </button>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: step.completed ? 'var(--sv-text-dim)' : 'var(--sv-text-strong)', textDecoration: step.completed ? 'line-through' : 'none', opacity: step.completed ? .6 : 1 }}>{step.title}</div>
+                      {action && !step.completed && (
+                        <button onClick={handleAction} style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-action)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginTop: 1 }}>
+                          {action.label} →
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 24 }}>Dashboard</h1>
       {loading ? <Spinner /> : (
         <>
@@ -15354,7 +15568,7 @@ export default function ImsPage() {
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Sidebar active={view} onSelect={(v) => { if (v === 'smart-device-receive') { window.open('/receive', '_blank'); return; } setView(v); }} />
         <main style={{ flex: 1, overflow: 'auto', padding: 28 }}>
-          {view === 'dashboard'        && <DashboardView onNav={setView} />}
+          {view === 'dashboard'        && <DashboardView onNav={setView} onOpenSettings={(s) => { setSettingsSection(s as SettingsSection); setSettingsOpen(true); }} />}
           {view === 'products'         && <ProductsView isAdvisor={isAdvisor} businessId={user?.businessId ?? ''} hasForesight={user?.hasForesight ?? false} onNavigateToPO={id => { setView('purchase-orders'); setPendingOpenPO(id); }} onNavigateToSO={id => { setView('sales-orders'); setPendingOpenSO(id); }} />}
           {view === 'stock'            && <StockView />}
           {view === 'bulk-edit'        && <BulkEditView />}

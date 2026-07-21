@@ -3406,16 +3406,31 @@ export const ImsShopifyRepo = {
 
   // ── Products list with link status ───────────────────────────────────────
   async listWithShopifyStatus(businessId: string): Promise<Array<ImsProduct & { shopify_status: 'linked' | 'not_in_shopify' }>> {
-    const products = await imsQuery<any>(
-      `SELECT p.*,
-         c.name AS supplier_name,
-         IF(p.shopify_product_id IS NOT NULL, 'linked', 'not_in_shopify') AS shopify_status
-       FROM ims_products p
-       LEFT JOIN ims_contacts c ON c.id = p.supplier_contact_id
-       WHERE p.is_active = 1 AND p.business_id = ?
-       ORDER BY p.name`,
-      [businessId],
-    );
+    const baseQuery = (withSupplier: boolean) => withSupplier
+      ? `SELECT p.*, c.name AS supplier_name,
+           IF(p.shopify_product_id IS NOT NULL, 'linked', 'not_in_shopify') AS shopify_status
+         FROM ims_products p
+         LEFT JOIN ims_contacts c ON c.id = p.supplier_contact_id
+         WHERE p.is_active = 1 AND p.business_id = ?
+         ORDER BY p.name`
+      : `SELECT p.*,
+           NULL AS supplier_name,
+           IF(p.shopify_product_id IS NOT NULL, 'linked', 'not_in_shopify') AS shopify_status
+         FROM ims_products p
+         WHERE p.is_active = 1 AND p.business_id = ?
+         ORDER BY p.name`;
+
+    let products: any[];
+    try {
+      products = await imsQuery<any>(baseQuery(true), [businessId]);
+    } catch (e: any) {
+      // supplier_contact_id column not yet added to this tenant schema — fall back
+      if (/supplier_contact_id/.test(e?.message ?? '')) {
+        products = await imsQuery<any>(baseQuery(false), [businessId]);
+      } else {
+        throw e;
+      }
+    }
     const variants = await imsQuery<ImsVariant>(
       `SELECT * FROM ims_product_variants WHERE is_active = 1 AND business_id = ? ORDER BY sku`,
       [businessId],
