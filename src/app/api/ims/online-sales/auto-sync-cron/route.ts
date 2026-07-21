@@ -13,7 +13,7 @@ import { NextResponse } from 'next/server';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 import { syncDailySalesBatch } from '@/services/XeroSyncService';
-import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 
 export const runtime = 'nodejs';
 
@@ -43,9 +43,10 @@ export async function POST(req: Request) {
 
   const results: { businessId: string; date: string; gateway?: string; success: boolean; error?: string }[] = [];
 
-  for (const { business_id } of businesses) {
-    await enterImsForBusiness(business_id);
-
+  // Each business's work runs inside its own bound IMS schema context
+  // (callback form — the only AsyncLocalStorage pattern that reliably
+  // propagates across awaits).
+  const processBusiness = async (business_id: string) => {
     const hasRecentOrders = await imsQuery<{ c: number }>(
       `SELECT COUNT(*) AS c
        FROM ims_sales_orders
@@ -56,7 +57,7 @@ export async function POST(req: Request) {
          AND DATE_FORMAT(order_date, '%Y-%m-%d') < ?`,
       [business_id, today],
     ).catch(() => [] as { c: number }[]);
-    if (Number(hasRecentOrders[0]?.c ?? 0) === 0) continue;
+    if (Number(hasRecentOrders[0]?.c ?? 0) === 0) return;
 
     // When Shopify Payments payout sync is on (cash basis), those orders are
     // posted via the payout flow instead — exclude them here to avoid double-counting.
@@ -95,7 +96,7 @@ export async function POST(req: Request) {
         [business_id, today],
       ).catch(() => [] as { day: string; gateway: string }[]);
 
-      if (!combos.length) continue;
+      if (!combos.length) return;
 
       // Which (day, gateway) combos are already synced? Detail format: 'online batch YYYY-MM-DD|gateway'
       const detailKeys = combos.map(c => `online batch ${c.day}|${c.gateway}`);
@@ -163,7 +164,7 @@ export async function POST(req: Request) {
         [business_id, today],
       ).catch(() => [] as { day: string }[]);
 
-      if (!days.length) continue;
+      if (!days.length) return;
 
       const detailKeys = days.map(d => `online batch ${d.day}`);
       const synced = await query<{ batch_key: string }>(
@@ -205,6 +206,14 @@ export async function POST(req: Request) {
           results.push({ businessId: business_id, date: day, success: false, error: e?.message });
         }
       }
+    }
+  };
+
+  for (const { business_id } of businesses) {
+    try {
+      await runImsForBusiness(business_id, () => processBusiness(business_id));
+    } catch (e: any) {
+      results.push({ businessId: business_id, date: today, success: false, error: e?.message });
     }
   }
 

@@ -18,7 +18,7 @@ import { ImsSORepo } from '@/lib/ims/ImsRepository';
 import { toBusinessDate, toBusinessDateTime } from '@/lib/shopifyDate';
 import { parseShopifyRefund } from '@/lib/shopifyRefund';
 import { createNotification } from '@/lib/ims/createNotification';
-import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { runImsForBusiness, getImsDbNameStrict } from '@/lib/db/BusinessRegistry';
 
 export const runtime = 'nodejs';
 
@@ -43,13 +43,22 @@ async function getConfig(businessId: string): Promise<Config | null> {
   };
 }
 
-export async function POST(req: Request, { params }: { params: { businessId: string } }) {
+export async function POST(req: Request, ctx: { params: { businessId: string } }) {
+  // Webhooks carry no session cookie — bind the tenant schema via the
+  // callback-form context (enterWith does not propagate across awaits).
+  const mapped = await getImsDbNameStrict(ctx.params.businessId);
+  // Unknown business → 200 so Shopify doesn't deactivate the webhook, but do
+  // NOT touch the default schema.
+  if (!mapped) return NextResponse.json({ ok: true });
+  return runImsForBusiness(ctx.params.businessId, () => handleWebhook(req, ctx));
+}
+
+async function handleWebhook(req: Request, { params }: { params: { businessId: string } }) {
   const businessId = params.businessId;
   const rawBody = await req.text();
   const topic   = req.headers.get('x-shopify-topic') ?? '';
   const hmac    = req.headers.get('x-shopify-hmac-sha256') ?? '';
 
-  await enterImsForBusiness(businessId);
   const config = await getConfig(businessId);
   // Always return 200 for config/enable issues so Shopify doesn't deactivate the webhook.
   if (!config) return NextResponse.json({ ok: true });

@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { getImsDbNameStrict } from '@/lib/db/BusinessRegistry';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30; // seconds — Vercel/Railway limit for streaming
@@ -20,6 +21,10 @@ export async function GET(req: Request) {
   const session = getSession();
   if (!session) return new Response('Unauthorised', { status: 401 });
   await getImsSession(['pos_session', 'marketoir_session']);
+  // The SSE poll runs in detached timer callbacks — resolve the tenant schema
+  // up front and pass it explicitly to every query.
+  const imsDb = session.businessId ? await getImsDbNameStrict(String(session.businessId)) : undefined;
+  if (!imsDb) return new Response('Unauthorised', { status: 401 });
 
   const url = new URL(req.url);
   let since = parseInt(url.searchParams.get('since') ?? '0', 10) || 0;
@@ -53,6 +58,7 @@ export async function GET(req: Request) {
              ORDER BY created_at ASC
              LIMIT 50`,
             [since, myLocId, myLocId],
+            imsDb,
           );
           return rows;
         } catch { return []; }

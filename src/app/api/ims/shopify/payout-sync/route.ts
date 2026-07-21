@@ -18,6 +18,8 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
+import { query } from '@/services/MySQLService';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { getShopifyForBusiness } from '@/lib/ims/shopifyInventorySync';
 import { syncShopifyPayout, type ShopifyPayoutSync } from '@/services/XeroSyncService';
 
@@ -179,8 +181,10 @@ export async function POST(req: Request) {
 
   let businessIds: string[];
   if (isCron) {
-    const bids = await imsQuery<{ business_id: string }>(
-      "SELECT business_id FROM ims_settings WHERE `key` = 'shopify_payments_payout_sync_enabled' AND value = '1'",
+    // Discover businesses from the MAIN registry (not one tenant schema) —
+    // processBusiness() checks the enable flag inside each tenant's own DB.
+    const bids = await query<{ business_id: string }>(
+      'SELECT business_id FROM businesses WHERE deleted_at IS NULL',
     ).catch(() => [] as any[]);
     businessIds = bids.map(r => r.business_id);
   } else {
@@ -191,7 +195,7 @@ export async function POST(req: Request) {
 
   const results: PayoutResult[] = [];
   for (const bid of businessIds) {
-    try { results.push(...await processBusiness(bid, lookbackDays)); }
+    try { results.push(...await runImsForBusiness(bid, () => processBusiness(bid, lookbackDays))); }
     catch (e: any) { results.push({ businessId: bid, payoutId: 0, date: '', posted: false, error: e.message }); }
   }
 

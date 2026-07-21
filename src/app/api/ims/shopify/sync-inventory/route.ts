@@ -13,7 +13,8 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
-import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { query } from '@/services/MySQLService';
+import { enterImsForBusiness, runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import {
   drainInventoryQueue,
   pushInventoryForBusiness,
@@ -103,8 +104,24 @@ async function handlePost(req: Request) {
     if (cronSecret !== process.env.CRON_SECRET) {
       return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
     }
-    const res = await drainInventoryQueue(Number(body?.limit ?? 250));
-    return NextResponse.json({ success: true, ...res });
+    // Each tenant's queue lives in its own schema — drain them one by one
+    // inside a bound schema context.
+    const businesses = await query<{ business_id: string }>(
+      'SELECT business_id FROM businesses WHERE deleted_at IS NULL',
+    ).catch(() => [] as { business_id: string }[]);
+    const totals = { processed: 0, pushed: 0, businesses: 0, errors: [] as string[] };
+    for (const { business_id } of businesses) {
+      try {
+        const res = await runImsForBusiness(business_id, () => drainInventoryQueue(Number(body?.limit ?? 250)));
+        totals.processed += res.processed;
+        totals.pushed += res.pushed;
+        totals.businesses += res.businesses;
+        totals.errors.push(...res.errors);
+      } catch (e: any) {
+        totals.errors.push(`${business_id}: ${e?.message ?? 'drain failed'}`);
+      }
+    }
+    return NextResponse.json({ success: true, ...totals });
   }
 
   // ── Session path: manual actions for the current business ──────────────────

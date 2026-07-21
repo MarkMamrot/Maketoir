@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { query } from '@/services/MySQLService';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { checkRateLimit, registerFailure, clearRateLimit } from '@/lib/posRateLimit';
-import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { getImsDbNameStrict } from '@/lib/db/BusinessRegistry';
 import bcrypt from 'bcryptjs';
 
 // POST /api/pos/auth/pin-login
@@ -49,12 +49,18 @@ export async function POST(req: Request) {
     if (!user.business_id) {
       return NextResponse.json({ error: 'User is not assigned to a business.' }, { status: 403 });
     }
-    await enterImsForBusiness(user.business_id);
+    // No session cookie exists yet during login — resolve the tenant schema
+    // explicitly and pass it to the query (fail closed if unmapped).
+    const imsDb = await getImsDbNameStrict(user.business_id);
+    if (!imsDb) {
+      return NextResponse.json({ error: 'Business has no IMS database assigned.' }, { status: 403 });
+    }
 
     // Resolve the location's business so we can confirm the user belongs to it.
     const locInfo = await imsQuery<{ name: string; business_id: string | null }>(
       'SELECT name, business_id FROM ims_locations WHERE id = ? AND business_id = ? AND is_active = 1 LIMIT 1',
       [Number(location_id), user.business_id],
+      imsDb,
     );
     if (!locInfo[0]) {
       return NextResponse.json({ error: 'Location not found.' }, { status: 404 });

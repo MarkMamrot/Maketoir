@@ -1,5 +1,12 @@
 import mysql from 'mysql2/promise';
+import { cookies } from 'next/headers';
 import { getCurrentImsDb } from '@/services/imsContext';
+import { getImsDbNameSync, getImsDbNameStrict, primeImsDbMap } from '@/lib/db/BusinessRegistry';
+
+// Warm the business → schema map as soon as this module loads so the
+// synchronous tenant resolver (used by getIMSPool for transactions) works
+// from the first request after boot.
+void primeImsDbMap();
 
 declare global {
   // eslint-disable-next-line no-var
@@ -63,14 +70,84 @@ function isRetryableDbError(err: any): boolean {
   return RETRYABLE_ERROR_CODES.has(code);
 }
 
+// ─── Tenant gatekeeper ───────────────────────────────────────────────────────
+// EVERY IMS read (imsQuery) and write (imsExecute) resolves the signed-in
+// business ITSELF, on every call. Precedence:
+//   1. explicit db arg            (scripts / cross-tenant admin tooling)
+//   2. bound async context        (runImsForBusiness — cron, webhooks, login)
+//   3. the request's session cookie → businesses.ims_db_name mapping
+//   4. IMS_MYSQL_DATABASE env default — ONLY when there is no signed-in
+//      session at all (build time, scripts).
+// FAIL CLOSED: if a signed-in session exists but the business has no schema
+// mapping, the query THROWS. It never silently falls back to another
+// tenant's database.
+
+const TENANT_COOKIES = ['marketoir_session', 'pos_session', 'wholesale_session'];
+
+/** Read the signed-in businessId from the request cookies, if any. */
+function readSessionBusinessId(): string | undefined {
+  try {
+    const jar = cookies();
+    for (const name of TENANT_COOKIES) {
+      const raw = jar.get(name)?.value;
+      if (!raw) continue;
+      try {
+        const bid = JSON.parse(raw)?.businessId;
+        if (typeof bid === 'string' && bid) return bid;
+      } catch { /* malformed cookie — ignore */ }
+    }
+  } catch (e: any) {
+    // Let Next's static-generation detection propagate — tenant-scoped data
+    // must never be baked in at build time.
+    if (e?.digest === 'DYNAMIC_SERVER_USAGE') throw e;
+    // Otherwise: not inside a request scope (cron, scripts) — no session.
+  }
+  return undefined;
+}
+
+function tenantMappingError(businessId: string): Error {
+  return new Error(
+    `Tenant isolation: no IMS database mapping found for business ${businessId}. ` +
+    'Refusing to fall back to the default schema. Check businesses.ims_db_name.',
+  );
+}
+
+/** Synchronous tenant resolution (used by getIMSPool, incl. transactions). */
+function resolveTenantDbSync(explicit?: string): string {
+  if (explicit) return explicit;
+  const ctx = getCurrentImsDb();
+  if (ctx) return ctx;
+  const bid = readSessionBusinessId();
+  if (bid) {
+    const mapped = getImsDbNameSync(bid);
+    if (mapped) return mapped;
+    throw tenantMappingError(bid); // fail closed (also fires pre-prime; retry succeeds)
+  }
+  return process.env.IMS_MYSQL_DATABASE ?? '';
+}
+
+/** Async tenant resolution (used by imsQuery/imsExecute — can hit the main DB). */
+async function resolveTenantDb(explicit?: string): Promise<string> {
+  if (explicit) return explicit;
+  const ctx = getCurrentImsDb();
+  if (ctx) return ctx;
+  const bid = readSessionBusinessId();
+  if (bid) {
+    const mapped = getImsDbNameSync(bid) ?? await getImsDbNameStrict(bid);
+    if (mapped) return mapped;
+    throw tenantMappingError(bid); // fail closed
+  }
+  return process.env.IMS_MYSQL_DATABASE ?? '';
+}
+
 /**
  * Get (or lazily create) a connection pool for an IMS schema.
- * Schema precedence: explicit dbName arg → current request context
- * (getCurrentImsDb via AsyncLocalStorage, set by enterImsForBusiness in routes)
- * → IMS_MYSQL_DATABASE env default (cron jobs + scripts).
+ * Tenant resolution (see gatekeeper above): explicit dbName arg → bound async
+ * context → signed-in session cookie mapping (fail closed) → env default
+ * (unauthenticated contexts only).
  */
 export function getIMSPool(dbName?: string): mysql.Pool {
-  const name = dbName ?? getCurrentImsDb() ?? process.env.IMS_MYSQL_DATABASE ?? '';
+  const name = resolveTenantDbSync(dbName);
   if (!name) {
     throw new Error(
       'IMS database name not configured. Add IMS_MYSQL_DATABASE to .env.local and run scripts/setup-ims-database.mjs'
@@ -106,7 +183,7 @@ export async function imsQuery<T = any>(
   params?: any[],
   db?: string,
 ): Promise<T[]> {
-  const pool = getIMSPool(db);
+  const pool = getIMSPool(await resolveTenantDb(db));
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       const [rows] = await pool.execute(sql, params);
@@ -124,7 +201,7 @@ export async function imsExecute(
   params?: any[],
   db?: string,
 ): Promise<mysql.ResultSetHeader> {
-  const pool = getIMSPool(db);
+  const pool = getIMSPool(await resolveTenantDb(db));
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       const [result] = await pool.execute(sql, params);
