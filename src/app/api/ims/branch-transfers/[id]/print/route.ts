@@ -32,7 +32,8 @@ export interface BTPrintData {
 }
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
-  if (!await getImsSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = await getImsSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
     const id = Number(params.id);
 
@@ -49,10 +50,10 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
       `SELECT bt.id, bt.transfer_number, bt.transfer_date, bt.from_location_id, bt.to_location_id, bt.notes,
               fl.name AS from_location_name, tl.name AS to_location_name
        FROM ims_branch_transfers bt
-       JOIN ims_locations fl ON fl.id = bt.from_location_id
-       JOIN ims_locations tl ON tl.id = bt.to_location_id
-       WHERE bt.id = ?`,
-      [id]
+      JOIN ims_locations fl ON fl.id = bt.from_location_id AND fl.business_id = bt.business_id
+      JOIN ims_locations tl ON tl.id = bt.to_location_id AND tl.business_id = bt.business_id
+      WHERE bt.id = ? AND bt.business_id = ?`,
+          [id, session.businessId]
     );
 
     if (!btRows.length) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -80,18 +81,19 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
          COALESCE(brs.qty_on_hand, 0)                                                          AS branch_soh,
          tl.name AS to_location_name
        FROM ims_branch_transfer_items bti
-       JOIN ims_product_variants v  ON v.variant_id = bti.variant_id
-       JOIN ims_products p          ON p.product_id = v.product_id
-       LEFT JOIN ims_stock whs      ON whs.variant_id = bti.variant_id AND whs.location_id = ?
-       LEFT JOIN ims_stock brs      ON brs.variant_id = bti.variant_id AND brs.location_id = ?
-       JOIN ims_locations tl        ON tl.id = ?
-       WHERE bti.transfer_id = ?
+      JOIN ims_branch_transfers bt ON bt.id = bti.transfer_id
+      JOIN ims_product_variants v  ON v.variant_id = bti.variant_id AND v.business_id = bt.business_id
+      JOIN ims_products p          ON p.product_id = v.product_id AND p.business_id = bt.business_id
+      LEFT JOIN ims_stock whs      ON whs.variant_id = bti.variant_id AND whs.location_id = ? AND whs.business_id = bt.business_id
+      LEFT JOIN ims_stock brs      ON brs.variant_id = bti.variant_id AND brs.location_id = ? AND brs.business_id = bt.business_id
+      JOIN ims_locations tl        ON tl.id = ? AND tl.business_id = bt.business_id
+      WHERE bti.transfer_id = ? AND bt.business_id = ?
        ORDER BY
          COALESCE(NULLIF(TRIM(whs.zone),''), '~~~'),
          COALESCE(NULLIF(TRIM(whs.bin),''),  '~~~'),
          COALESCE(NULLIF(TRIM(p.brand),''), '~~~'),
          p.name`,
-      [bt.from_location_id, bt.to_location_id, bt.to_location_id, id]
+      [bt.from_location_id, bt.to_location_id, bt.to_location_id, id, session.businessId]
     );
 
     return NextResponse.json({ ...bt, items });

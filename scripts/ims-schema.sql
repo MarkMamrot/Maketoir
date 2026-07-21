@@ -266,6 +266,64 @@ CREATE TABLE IF NOT EXISTS ims_stock_movements (
   INDEX idx_sm_ref      (reference_type, reference_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ── Stocktakes ──────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS ims_stocktakes (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  business_id    VARCHAR(100) NOT NULL DEFAULT '',
+  reference      VARCHAR(100) NOT NULL,
+  location_id    INT NOT NULL,
+  status         ENUM('draft','in_progress','completed','cancelled','reverted') NOT NULL DEFAULT 'draft',
+  notes          TEXT NULL,
+  created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+  completed_at   DATETIME NULL,
+  xero_journal_id VARCHAR(100) NULL,
+  xero_synced_at  DATETIME NULL,
+  xero_sync_status ENUM('synced','queued','error') NULL,
+  INDEX idx_business_id (business_id),
+  INDEX idx_st_location (location_id),
+  INDEX idx_st_status   (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_stocktake_items (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  stocktake_id  INT NOT NULL,
+  variant_id    VARCHAR(36) NOT NULL,
+  expected_qty  DECIMAL(12,4) NOT NULL DEFAULT 0,
+  counted_qty   DECIMAL(12,4) NULL,
+  notes         VARCHAR(255) NULL,
+  INDEX idx_sti_stocktake (stocktake_id),
+  UNIQUE KEY uq_sti_variant (stocktake_id, variant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── Branch Transfers ────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS ims_branch_transfers (
+  id               INT AUTO_INCREMENT PRIMARY KEY,
+  business_id      VARCHAR(100) NOT NULL DEFAULT '',
+  transfer_number  VARCHAR(50) NOT NULL UNIQUE,
+  from_location_id INT NOT NULL,
+  to_location_id   INT NOT NULL,
+  status           ENUM('draft','sent','partial','received','cancelled') NOT NULL DEFAULT 'draft',
+  transfer_date    DATE NOT NULL,
+  notes            TEXT NULL,
+  received_date    DATE NULL,
+  total_value      DECIMAL(12,2) NOT NULL DEFAULT 0,
+  created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_business_id (business_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_branch_transfer_items (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  transfer_id  INT NOT NULL,
+  variant_id   VARCHAR(50) NOT NULL,
+  qty_sent     DECIMAL(10,4) NOT NULL DEFAULT 0,
+  qty_received DECIMAL(10,4) NULL,
+  unit_cost    DECIMAL(10,4) NOT NULL DEFAULT 0,
+  line_value   DECIMAL(12,2) NOT NULL DEFAULT 0,
+  notes        TEXT NULL,
+  FOREIGN KEY (transfer_id) REFERENCES ims_branch_transfers(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ============================================================
 -- POS Tables
 -- ============================================================

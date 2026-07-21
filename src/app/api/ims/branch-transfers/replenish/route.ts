@@ -25,7 +25,8 @@ export interface ReplenishBranch {
 }
 
 export async function POST(req: Request) {
-  if (!await getImsSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = await getImsSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   try {
     const body = await req.json() as {
@@ -85,14 +86,15 @@ export async function POST(req: Request) {
          NULLIF(TRIM(COALESCE(v.option3_value,'')), '')
        )), '') AS variant_label
      FROM ims_stock s
-     JOIN ims_locations l ON l.id = s.location_id
-     JOIN ims_product_variants v ON v.variant_id = s.variant_id AND v.is_active = 1
-     JOIN ims_products p ON p.product_id = v.product_id AND p.is_active = 1
+     JOIN ims_locations l ON l.id = s.location_id AND l.business_id = s.business_id
+     JOIN ims_product_variants v ON v.variant_id = s.variant_id AND v.business_id = s.business_id AND v.is_active = 1
+     JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = s.business_id AND p.is_active = 1
      WHERE s.location_id IN (${branchPlaceholders})
+       AND s.business_id = ?
        AND (s.qty_on_hand - COALESCE(s.qty_committed,0)) ${trigger === 'at_or_below' ? '<=' : '<'} s.min_qty`,
   // NOTE: min_qty = 0 rows where SOH > 0 are correctly excluded by the comparison above
   // (positive SOH is never < 0). Only truly out-of-stock (SOH ≤ 0) items trigger when min = 0.
-    filteredBranchIds
+    [...filteredBranchIds, session.businessId]
   );
 
   if (branchNeedsRaw.length === 0) {
@@ -113,8 +115,8 @@ export async function POST(req: Request) {
             GREATEST(0, s.qty_on_hand - COALESCE(s.qty_committed, 0)) AS qty_on_hand,
             s.avg_cost
      FROM ims_stock s
-     WHERE s.location_id = ? AND s.variant_id IN (${varPlaceholders})`,
-    [warehouse_id, ...variantIds]
+     WHERE s.location_id = ? AND s.business_id = ? AND s.variant_id IN (${varPlaceholders})`,
+    [warehouse_id, session.businessId, ...variantIds]
   );
 
   const warehouseMap = new Map(warehouseStockRaw.map(r => [r.variant_id, r]));

@@ -6,7 +6,9 @@ import { triggerPOPaymentXeroSync } from '@/lib/ims/xeroHooks';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const po = await ImsPORepo.get(Number(params.id));
+    const session = await getImsSession();
+    if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    const po = await ImsPORepo.get(Number(params.id), session.businessId);
     if (!po) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
     return NextResponse.json({ success: true, data: po.payments ?? [] });
   } catch (e: any) {
@@ -16,6 +18,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const session = await getImsSession();
+    if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    const po = await ImsPORepo.get(Number(params.id), session.businessId);
+    if (!po) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
     const body = await req.json();
     const { payment_date, amount, currency_code, exchange_rate, notes, payment_method_id } = body;
     if (!payment_date || !amount) {
@@ -37,10 +43,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       amount_local: parsedAmount * parsedRate,
       notes: notes || undefined,
       payment_method_id: payment_method_id ? Number(payment_method_id) : undefined,
-    });
+    }, session.businessId);
 
     // Fire-and-forget Xero payment sync
-    const session = await getImsSession();
     if (session?.businessId && payment?.id) {
       triggerPOPaymentXeroSync(session.businessId, Number(params.id), payment.id).catch(() => {});
     }

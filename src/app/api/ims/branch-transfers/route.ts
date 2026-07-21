@@ -6,14 +6,15 @@ import { getImsSession } from '@/lib/auth/imsSession';
 const IMS_OR_POS_SESSION = ['marketoir_session', 'pos_session'];
 
 export async function GET(req: Request) {
-  if (!await getImsSession(IMS_OR_POS_SESSION)) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = await getImsSession(IMS_OR_POS_SESSION);
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
     const { searchParams } = new URL(req.url);
     const statusParam = searchParams.get('status');
     const status = statusParam
       ? (statusParam.includes(',') ? statusParam.split(',') as any[] : statusParam as any)
       : undefined;
-    const data = await ImsBTRepo.list(status);
+    const data = await ImsBTRepo.list(session.businessId, status);
     return NextResponse.json({ success: true, data });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
@@ -21,11 +22,12 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  if (!await getImsSession(IMS_OR_POS_SESSION)) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = await getImsSession(IMS_OR_POS_SESSION);
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
     const body = await req.json();
     const { items, ...btData } = body;
-    const id = await ImsBTRepo.create(btData, items ?? []);
+    const id = await ImsBTRepo.create(btData, items ?? [], session.businessId);
 
     // EVENT-DRIVEN CACHE UPDATE (Creation affects committed stock)
     if (items && items.length > 0) {

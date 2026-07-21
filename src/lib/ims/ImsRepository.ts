@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getIMSPool, imsQuery, imsExecute } from '@/services/IMSMySQLService';
+import { getCurrentImsDb } from '@/services/imsContext';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Migration: avg_cost at variant level (business-wide weighted average)
@@ -911,13 +912,15 @@ export const ImsPORepo = {
   async addPayment(
     poId: number,
     data: { payment_date: string; amount: number; currency_code: string; exchange_rate: number; amount_local: number; notes?: string; payment_method_id?: number },
+    businessId?: string,
   ): Promise<ImsPayment> {
+    if (!businessId) throw new Error('businessId is required');
     const res = await imsExecute(
-      `INSERT INTO ims_purchase_order_payments (po_id, payment_date, amount, currency_code, exchange_rate, amount_local, notes, payment_method_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [poId, data.payment_date, data.amount, data.currency_code, data.exchange_rate, data.amount_local, data.notes || null, data.payment_method_id ?? null],
+      `INSERT INTO ims_purchase_order_payments (business_id, po_id, payment_date, amount, currency_code, exchange_rate, amount_local, notes, payment_method_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [businessId, poId, data.payment_date, data.amount, data.currency_code, data.exchange_rate, data.amount_local, data.notes || null, data.payment_method_id ?? null],
     );
-    const rows = await imsQuery<ImsPayment>(`SELECT p.*, pm.name AS payment_method_name FROM ims_purchase_order_payments p LEFT JOIN ims_payment_methods pm ON pm.id = p.payment_method_id WHERE p.id = ?`, [res.insertId]);
+    const rows = await imsQuery<ImsPayment>(`SELECT p.*, pm.name AS payment_method_name FROM ims_purchase_order_payments p LEFT JOIN ims_payment_methods pm ON pm.id = p.payment_method_id AND pm.business_id = p.business_id WHERE p.id = ? AND p.business_id = ?`, [res.insertId, businessId]);
     return rows[0];
   },
 
@@ -1705,13 +1708,15 @@ export const ImsSORepo = {
   async addPayment(
     soId: number,
     data: { payment_date: string; amount: number; currency_code: string; exchange_rate: number; amount_local: number; notes?: string; payment_method_id?: number },
+    businessId?: string,
   ): Promise<ImsPayment> {
+    if (!businessId) throw new Error('businessId is required');
     const res = await imsExecute(
-      `INSERT INTO ims_sales_order_payments (so_id, payment_date, amount, currency_code, exchange_rate, amount_local, notes, payment_method_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [soId, data.payment_date, data.amount, data.currency_code, data.exchange_rate, data.amount_local, data.notes || null, data.payment_method_id ?? null],
+      `INSERT INTO ims_sales_order_payments (business_id, so_id, payment_date, amount, currency_code, exchange_rate, amount_local, notes, payment_method_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [businessId, soId, data.payment_date, data.amount, data.currency_code, data.exchange_rate, data.amount_local, data.notes || null, data.payment_method_id ?? null],
     );
-    const rows = await imsQuery<ImsPayment>(`SELECT p.*, pm.name AS payment_method_name FROM ims_sales_order_payments p LEFT JOIN ims_payment_methods pm ON pm.id = p.payment_method_id WHERE p.id = ?`, [res.insertId]);
+    const rows = await imsQuery<ImsPayment>(`SELECT p.*, pm.name AS payment_method_name FROM ims_sales_order_payments p LEFT JOIN ims_payment_methods pm ON pm.id = p.payment_method_id AND pm.business_id = p.business_id WHERE p.id = ? AND p.business_id = ?`, [res.insertId, businessId]);
     return rows[0];
   },
 
@@ -2297,29 +2302,116 @@ export const ImsDashboardRepo = {
 // Stocktakes
 // ─────────────────────────────────────────────────────────────────────────────
 
+const _stocktakeTenantReady = new Set<string>();
+const _btTenantReady = new Set<string>();
+
+async function ensureStocktakeTenantTables(): Promise<void> {
+  const key = getCurrentImsDb() ?? '__default__';
+  if (_stocktakeTenantReady.has(key)) return;
+  await imsExecute(`
+    CREATE TABLE IF NOT EXISTS ims_stocktakes (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      business_id VARCHAR(100) NOT NULL DEFAULT '',
+      reference VARCHAR(100) NOT NULL,
+      location_id INT NOT NULL,
+      status ENUM('draft','in_progress','completed','cancelled','reverted') NOT NULL DEFAULT 'draft',
+      notes TEXT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      completed_at DATETIME NULL,
+      INDEX idx_st_business (business_id),
+      INDEX idx_st_location (location_id),
+      INDEX idx_st_status (status)
+    )
+  `);
+  await imsExecute(`
+    CREATE TABLE IF NOT EXISTS ims_stocktake_items (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      stocktake_id INT NOT NULL,
+      variant_id VARCHAR(36) NOT NULL,
+      expected_qty DECIMAL(12,4) NOT NULL DEFAULT 0,
+      counted_qty DECIMAL(12,4) NULL,
+      notes VARCHAR(255) NULL,
+      INDEX idx_sti_stocktake (stocktake_id),
+      UNIQUE KEY uq_sti_variant (stocktake_id, variant_id)
+    )
+  `);
+  const cols = await imsQuery<{ Field: string }>(`SHOW COLUMNS FROM ims_stocktakes LIKE 'business_id'`);
+  if (!cols.length) {
+    await imsExecute(`ALTER TABLE ims_stocktakes ADD COLUMN business_id VARCHAR(100) NOT NULL DEFAULT '' AFTER id`);
+    await imsExecute(`ALTER TABLE ims_stocktakes ADD INDEX idx_st_business (business_id)`).catch(() => {});
+  }
+  await imsExecute(`ALTER TABLE ims_stocktakes MODIFY COLUMN status ENUM('draft','in_progress','completed','cancelled','reverted') NOT NULL DEFAULT 'draft'`).catch(() => {});
+  _stocktakeTenantReady.add(key);
+}
+
+async function ensureBranchTransferTenantTables(): Promise<void> {
+  const key = getCurrentImsDb() ?? '__default__';
+  if (_btTenantReady.has(key)) return;
+  await imsExecute(`
+    CREATE TABLE IF NOT EXISTS ims_branch_transfers (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      business_id VARCHAR(100) NOT NULL DEFAULT '',
+      transfer_number VARCHAR(50) NOT NULL UNIQUE,
+      from_location_id INT NOT NULL,
+      to_location_id INT NOT NULL,
+      status ENUM('draft','sent','partial','received','cancelled') NOT NULL DEFAULT 'draft',
+      transfer_date DATE NOT NULL,
+      notes TEXT NULL,
+      received_date DATE NULL,
+      total_value DECIMAL(12,2) NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_bt_business (business_id)
+    )
+  `);
+  await imsExecute(`
+    CREATE TABLE IF NOT EXISTS ims_branch_transfer_items (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      transfer_id INT NOT NULL,
+      variant_id VARCHAR(50) NOT NULL,
+      qty_sent DECIMAL(10,4) NOT NULL DEFAULT 0,
+      qty_received DECIMAL(10,4) NULL,
+      unit_cost DECIMAL(10,4) NOT NULL DEFAULT 0,
+      line_value DECIMAL(12,2) NOT NULL DEFAULT 0,
+      notes TEXT NULL,
+      FOREIGN KEY (transfer_id) REFERENCES ims_branch_transfers(id) ON DELETE CASCADE
+    )
+  `);
+  const cols = await imsQuery<{ Field: string }>(`SHOW COLUMNS FROM ims_branch_transfers LIKE 'business_id'`);
+  if (!cols.length) {
+    await imsExecute(`ALTER TABLE ims_branch_transfers ADD COLUMN business_id VARCHAR(100) NOT NULL DEFAULT '' AFTER id`);
+    await imsExecute(`ALTER TABLE ims_branch_transfers ADD INDEX idx_bt_business (business_id)`).catch(() => {});
+  }
+  await imsExecute(`ALTER TABLE ims_branch_transfers MODIFY COLUMN status ENUM('draft','sent','partial','received','cancelled') NOT NULL DEFAULT 'draft'`).catch(() => {});
+  _btTenantReady.add(key);
+}
+
 export const ImsStocktakeRepo = {
-  async list(): Promise<ImsStocktake[]> {
+  async list(businessId: string): Promise<ImsStocktake[]> {
+    await ensureStocktakeTenantTables();
     return imsQuery<ImsStocktake>(
       `SELECT st.*,
               l.name AS location_name,
               COUNT(i.id) AS item_count,
               SUM(i.counted_qty IS NOT NULL AND i.counted_qty <> i.expected_qty) AS variance_count
        FROM ims_stocktakes st
-       JOIN ims_locations l ON l.id = st.location_id
+       JOIN ims_locations l ON l.id = st.location_id AND l.business_id = st.business_id
        LEFT JOIN ims_stocktake_items i ON i.stocktake_id = st.id
+       WHERE st.business_id = ?
        GROUP BY st.id
        ORDER BY st.created_at DESC`,
-      []
+      [businessId]
     );
   },
 
-  async get(id: number): Promise<ImsStocktake | null> {
+  async get(id: number, businessId: string): Promise<ImsStocktake | null> {
+    await ensureStocktakeTenantTables();
     const rows = await imsQuery<ImsStocktake>(
       `SELECT st.*, l.name AS location_name
        FROM ims_stocktakes st
-       JOIN ims_locations l ON l.id = st.location_id
-       WHERE st.id = ?`,
-      [id]
+       JOIN ims_locations l ON l.id = st.location_id AND l.business_id = st.business_id
+       WHERE st.id = ? AND st.business_id = ?`,
+      [id, businessId]
     );
     if (!rows[0]) return null;
     const st = rows[0];
@@ -2334,12 +2426,12 @@ export const ImsStocktakeRepo = {
               ) AS variant_label,
               sk.avg_cost
        FROM ims_stocktake_items i
-       JOIN ims_product_variants v ON v.variant_id = i.variant_id
-       JOIN ims_products p ON p.product_id = v.product_id
-       LEFT JOIN ims_stock sk ON sk.variant_id = i.variant_id AND sk.location_id = ?
+       JOIN ims_product_variants v ON v.variant_id = i.variant_id AND v.business_id = ?
+       JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = ?
+       LEFT JOIN ims_stock sk ON sk.variant_id = i.variant_id AND sk.location_id = ? AND sk.business_id = ?
        WHERE i.stocktake_id = ?
        ORDER BY p.name, v.sku`,
-      [st.location_id, id]
+      [businessId, businessId, st.location_id, businessId, id]
     );
     return st;
   },
@@ -2352,15 +2444,16 @@ export const ImsStocktakeRepo = {
     brand_id?: number;
     supplier_id?: number;
     product_type?: string;
-  }): Promise<number> {
+  }, businessId: string): Promise<number> {
+    await ensureStocktakeTenantTables();
     const pool = getIMSPool();
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
       const [res] = await conn.execute<any>(
-        `INSERT INTO ims_stocktakes (reference, location_id, status, notes)
-         VALUES (?, ?, 'draft', ?)`,
-        [data.reference, data.location_id, data.notes ?? null]
+        `INSERT INTO ims_stocktakes (business_id, reference, location_id, status, notes)
+         VALUES (?, ?, ?, 'draft', ?)`,
+        [businessId, data.reference, data.location_id, data.notes ?? null]
       );
       const stocktakeId: number = res.insertId;
 
@@ -2369,8 +2462,8 @@ export const ImsStocktakeRepo = {
         const varWheres: string[] = ['v.is_active = 1'];
         const varParams: any[] = [];
         if (data.brand_id) {
-          varWheres.push('p.brand = (SELECT name FROM ims_brands WHERE id = ?)');
-          varParams.push(data.brand_id);
+          varWheres.push('p.brand = (SELECT name FROM ims_brands WHERE id = ? AND business_id = ?)');
+          varParams.push(data.brand_id, businessId);
         }
         if (data.supplier_id) {
           varWheres.push('p.supplier_contact_id = ?');
@@ -2384,10 +2477,10 @@ export const ImsStocktakeRepo = {
           `SELECT v.variant_id,
                   COALESCE(s.qty_on_hand, 0) AS qty_on_hand
            FROM ims_product_variants v
-           JOIN ims_products p ON p.product_id = v.product_id
-           LEFT JOIN ims_stock s ON s.variant_id = v.variant_id AND s.location_id = ?
+           JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = ?
+           LEFT JOIN ims_stock s ON s.variant_id = v.variant_id AND s.location_id = ? AND s.business_id = ?
            WHERE ${varWheres.join(' AND ')}`,
-          [data.location_id, ...varParams]
+          [businessId, data.location_id, businessId, ...varParams]
         );
         if (variants.length > 0) {
           const placeholders = variants.map(() => '(?,?,?)').join(',');
@@ -2410,21 +2503,30 @@ export const ImsStocktakeRepo = {
     }
   },
 
-  async removeItem(itemId: number): Promise<void> {
-    await imsExecute('DELETE FROM ims_stocktake_items WHERE id = ?', [itemId]);
+  async removeItem(itemId: number, businessId: string): Promise<void> {
+    await ensureStocktakeTenantTables();
+    await imsExecute(
+      `DELETE i FROM ims_stocktake_items i
+       JOIN ims_stocktakes st ON st.id = i.stocktake_id
+       WHERE i.id = ? AND st.business_id = ?`,
+      [itemId, businessId]
+    );
   },
 
-  async addItem(stocktakeId: number, variantId: string, locationId: number): Promise<any> {
+  async addItem(stocktakeId: number, variantId: string, locationId: number, businessId: string): Promise<any> {
+    await ensureStocktakeTenantTables();
     // Check not already present
     const existing = await imsQuery<{ id: number }>(
-      'SELECT id FROM ims_stocktake_items WHERE stocktake_id = ? AND variant_id = ?',
-      [stocktakeId, variantId]
+      `SELECT i.id FROM ims_stocktake_items i
+       JOIN ims_stocktakes st ON st.id = i.stocktake_id
+       WHERE i.stocktake_id = ? AND i.variant_id = ? AND st.business_id = ?`,
+      [stocktakeId, variantId, businessId]
     );
     if (existing.length) throw new Error('Variant already in this stocktake.');
     // Get current stock as expected_qty
     const stock = await imsQuery<{ qty_on_hand: number }>(
-      'SELECT COALESCE(qty_on_hand, 0) AS qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ?',
-      [variantId, locationId]
+      'SELECT COALESCE(qty_on_hand, 0) AS qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ? AND business_id = ?',
+      [variantId, locationId, businessId]
     );
     const expectedQty = stock[0]?.qty_on_hand ?? 0;
     await imsExecute(
@@ -2436,15 +2538,17 @@ export const ImsStocktakeRepo = {
               p.name AS product_name,
               CONCAT_WS(' / ', NULLIF(v.option1_value,''), NULLIF(v.option2_value,''), NULLIF(v.option3_value,'')) AS variant_label
        FROM ims_stocktake_items i
-       JOIN ims_product_variants v ON v.variant_id = i.variant_id
-       JOIN ims_products p ON p.product_id = v.product_id
-       WHERE i.stocktake_id = ? AND i.variant_id = ?`,
-      [stocktakeId, variantId]
+      JOIN ims_stocktakes st ON st.id = i.stocktake_id
+      JOIN ims_product_variants v ON v.variant_id = i.variant_id AND v.business_id = st.business_id
+      JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = st.business_id
+      WHERE i.stocktake_id = ? AND i.variant_id = ? AND st.business_id = ?`,
+          [stocktakeId, variantId, businessId]
     );
     return rows[0];
   },
 
-  async searchVariants(query: string, stocktakeId: number, locationId: number): Promise<any[]> {
+  async searchVariants(query: string, stocktakeId: number, locationId: number, businessId: string): Promise<any[]> {
+    await ensureStocktakeTenantTables();
     const like = `%${query}%`;
     return imsQuery<any>(
       `SELECT v.variant_id, v.sku, v.barcode,
@@ -2452,25 +2556,30 @@ export const ImsStocktakeRepo = {
               CONCAT_WS(' / ', NULLIF(v.option1_value,''), NULLIF(v.option2_value,''), NULLIF(v.option3_value,'')) AS variant_label,
               COALESCE(s.qty_on_hand, 0) AS qty_on_hand
        FROM ims_product_variants v
-       JOIN ims_products p ON p.product_id = v.product_id
-       LEFT JOIN ims_stock s ON s.variant_id = v.variant_id AND s.location_id = ?
-       WHERE v.is_active = 1
+       JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = ?
+       LEFT JOIN ims_stock s ON s.variant_id = v.variant_id AND s.location_id = ? AND s.business_id = ?
+       WHERE v.is_active = 1 AND v.business_id = ?
          AND v.variant_id NOT IN (SELECT variant_id FROM ims_stocktake_items WHERE stocktake_id = ?)
          AND (v.sku LIKE ? OR v.barcode LIKE ? OR p.name LIKE ?)
        ORDER BY p.name, v.sku
        LIMIT 20`,
-      [locationId, stocktakeId, like, like, like]
+      [businessId, locationId, businessId, businessId, stocktakeId, like, like, like]
     );
   },
 
-  async updateItem(itemId: number, counted_qty: number | null, notes?: string): Promise<void> {
+  async updateItem(itemId: number, counted_qty: number | null, notes: string | undefined, businessId: string): Promise<void> {
+    await ensureStocktakeTenantTables();
     await imsExecute(
-      `UPDATE ims_stocktake_items SET counted_qty = ?, notes = ? WHERE id = ?`,
-      [counted_qty, notes ?? null, itemId]
+      `UPDATE ims_stocktake_items i
+       JOIN ims_stocktakes st ON st.id = i.stocktake_id
+       SET i.counted_qty = ?, i.notes = ?
+       WHERE i.id = ? AND st.business_id = ?`,
+      [counted_qty, notes ?? null, itemId, businessId]
     );
   },
 
-  async changeStatus(id: number, to: StocktakeStatus): Promise<void> {
+  async changeStatus(id: number, to: StocktakeStatus, businessId: string): Promise<void> {
+    await ensureStocktakeTenantTables();
     const allowed: Record<StocktakeStatus, StocktakeStatus[]> = {
       draft:       ['in_progress', 'cancelled'],
       in_progress: ['completed', 'cancelled'],
@@ -2478,15 +2587,16 @@ export const ImsStocktakeRepo = {
       cancelled:   [],
       reverted:    [],
     };
-    const rows = await imsQuery<{ status: StocktakeStatus }>(`SELECT status FROM ims_stocktakes WHERE id = ?`, [id]);
+    const rows = await imsQuery<{ status: StocktakeStatus }>(`SELECT status FROM ims_stocktakes WHERE id = ? AND business_id = ?`, [id, businessId]);
     const st = rows[0];
     if (!st) throw new Error('Stocktake not found');
     if (!allowed[st.status].includes(to)) throw new Error(`Cannot transition from ${st.status} to ${to}`);
-    await imsExecute(`UPDATE ims_stocktakes SET status = ? WHERE id = ?`, [to, id]);
+    await imsExecute(`UPDATE ims_stocktakes SET status = ? WHERE id = ? AND business_id = ?`, [to, id, businessId]);
   },
 
-  async applyToStock(id: number): Promise<{ applied: number; variances: number }> {
-    const full = await ImsStocktakeRepo.get(id);
+  async applyToStock(id: number, businessId: string): Promise<{ applied: number; variances: number }> {
+    await ensureStocktakeTenantTables();
+    const full = await ImsStocktakeRepo.get(id, businessId);
     if (!full) throw new Error('Stocktake not found');
     if (full.status !== 'completed') throw new Error('Stocktake must be completed before applying');
     const items = (full.items ?? []).filter(i => i.counted_qty !== null);
@@ -2501,12 +2611,12 @@ export const ImsStocktakeRepo = {
         const expected = Number(item.expected_qty);
         // Ensure stock row exists
         await conn.execute(
-          `INSERT IGNORE INTO ims_stock (variant_id, location_id) VALUES (?, ?)`,
-          [item.variant_id, full.location_id]
+          `INSERT IGNORE INTO ims_stock (business_id, variant_id, location_id) VALUES (?, ?, ?)`,
+          [businessId, item.variant_id, full.location_id]
         );
         await conn.execute(
-          `UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id = ? AND location_id = ?`,
-          [counted, item.variant_id, full.location_id]
+          `UPDATE ims_stock SET business_id = ?, qty_on_hand = ? WHERE variant_id = ? AND location_id = ? AND business_id = ?`,
+          [businessId, counted, item.variant_id, full.location_id, businessId]
         );
         if (counted !== expected) {
           variances++;
@@ -2516,10 +2626,11 @@ export const ImsStocktakeRepo = {
              VALUES (?, ?, 'stocktake', 'stocktake', ?, ?, ?)`,
             [item.variant_id, full.location_id, id, counted - expected, counted]
           );
+          await conn.execute(`UPDATE ims_stock_movements SET business_id = ? WHERE id = LAST_INSERT_ID()`, [businessId]);
         }
       }
       await conn.execute(
-        `UPDATE ims_stocktakes SET completed_at = NOW() WHERE id = ?`, [id]
+        `UPDATE ims_stocktakes SET completed_at = NOW() WHERE id = ? AND business_id = ?`, [id, businessId]
       );
       await conn.commit();
       return { applied: items.length, variances };
@@ -2531,16 +2642,18 @@ export const ImsStocktakeRepo = {
     }
   },
 
-  async delete(id: number): Promise<void> {
-    const rows = await imsQuery<{ status: string }>(`SELECT status FROM ims_stocktakes WHERE id = ?`, [id]);
+  async delete(id: number, businessId: string): Promise<void> {
+    await ensureStocktakeTenantTables();
+    const rows = await imsQuery<{ status: string }>(`SELECT status FROM ims_stocktakes WHERE id = ? AND business_id = ?`, [id, businessId]);
     const deletable = ['draft', 'cancelled', 'in_progress', 'reverted'];
     if (!deletable.includes(rows[0]?.status)) throw new Error('Only incomplete or reverted stocktakes can be deleted');
     await imsExecute(`DELETE FROM ims_stocktake_items WHERE stocktake_id = ?`, [id]);
-    await imsExecute(`DELETE FROM ims_stocktakes WHERE id = ?`, [id]);
+    await imsExecute(`DELETE FROM ims_stocktakes WHERE id = ? AND business_id = ?`, [id, businessId]);
   },
 
-  async revertFromStock(id: number): Promise<{ reverted: number }> {
-    const full = await ImsStocktakeRepo.get(id);
+  async revertFromStock(id: number, businessId: string): Promise<{ reverted: number }> {
+    await ensureStocktakeTenantTables();
+    const full = await ImsStocktakeRepo.get(id, businessId);
     if (!full) throw new Error('Stocktake not found');
     if (full.status !== 'completed') throw new Error('Only completed stocktakes can be reverted');
     const items = (full.items ?? []).filter(i => i.counted_qty !== null);
@@ -2552,18 +2665,18 @@ export const ImsStocktakeRepo = {
       for (const item of items) {
         const expected = Number(item.expected_qty);
         await conn.execute(
-          `UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id = ? AND location_id = ?`,
-          [expected, item.variant_id, full.location_id]
+          `UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id = ? AND location_id = ? AND business_id = ?`,
+          [expected, item.variant_id, full.location_id, businessId]
         );
       }
       // Remove variance movements recorded for this stocktake
       await conn.execute(
-        `DELETE FROM ims_stock_movements WHERE reference_type = 'stocktake' AND reference_id = ?`,
-        [id]
+        `DELETE FROM ims_stock_movements WHERE reference_type = 'stocktake' AND reference_id = ? AND business_id = ?`,
+        [id, businessId]
       );
       await conn.execute(
-        `UPDATE ims_stocktakes SET status = 'reverted', completed_at = NULL WHERE id = ?`,
-        [id]
+        `UPDATE ims_stocktakes SET status = 'reverted', completed_at = NULL WHERE id = ? AND business_id = ?`,
+        [id, businessId]
       );
       await conn.commit();
       return { reverted: items.length };
@@ -2580,12 +2693,13 @@ export const ImsStocktakeRepo = {
     brand_id?: number;
     supplier_id?: number;
     product_type?: string;
-  }): Promise<number> {
-    const varWheres: string[] = ['v.is_active = 1'];
-    const varParams: any[] = [];
+  }, businessId: string): Promise<number> {
+    await ensureStocktakeTenantTables();
+    const varWheres: string[] = ['v.is_active = 1', 'v.business_id = ?', 'p.business_id = ?'];
+    const varParams: any[] = [businessId, businessId];
     if (data.brand_id) {
-      varWheres.push('p.brand = (SELECT name FROM ims_brands WHERE id = ?)');
-      varParams.push(data.brand_id);
+      varWheres.push('p.brand = (SELECT name FROM ims_brands WHERE id = ? AND business_id = ?)');
+      varParams.push(data.brand_id, businessId);
     }
     if (data.supplier_id) {
       varWheres.push('p.supplier_contact_id = ?');
@@ -2629,13 +2743,14 @@ export interface ImsBTItem {
   sku?: string; barcode?: string; product_name?: string; variant_label?: string; price_rrp?: string;
 }
 
-async function nextBTNumber(): Promise<string> {
+async function nextBTNumber(businessId: string): Promise<string> {
+  await ensureBranchTransferTenantTables();
   const year = new Date().getFullYear();
   const rows = await imsQuery<{ max_seq: number | null }>(
     `SELECT MAX(CAST(SUBSTRING_INDEX(transfer_number, '-', -1) AS UNSIGNED)) AS max_seq
      FROM ims_branch_transfers
-     WHERE transfer_number LIKE ?`,
-    [`BT-${year}-%`]
+     WHERE transfer_number LIKE ? AND business_id = ?`,
+    [`BT-${year}-%`, businessId]
   );
   const seq = String((rows[0]?.max_seq ?? 0) + 1).padStart(4, '0');
   return `BT-${year}-${seq}`;
@@ -2656,6 +2771,7 @@ async function _btMove(
   refId: number,
   item: { variant_id: string; unit_cost: number },
   qty: number,
+  businessId: string,
 ): Promise<void> {
   if (!qty) return;
   const variantId = item.variant_id;
@@ -2665,65 +2781,67 @@ async function _btMove(
   const mag       = Math.abs(qty);
 
   // ── Losing location (stock leaves) ──
-  await conn.execute(`INSERT IGNORE INTO ims_stock (variant_id, location_id, qty_on_hand) VALUES (?, ?, 0)`, [variantId, loseLoc]);
-  const [[lose]] = await conn.execute(`SELECT qty_on_hand FROM ims_stock WHERE variant_id=? AND location_id=?`, [variantId, loseLoc]);
+  await conn.execute(`INSERT IGNORE INTO ims_stock (business_id, variant_id, location_id, qty_on_hand) VALUES (?, ?, ?, 0)`, [businessId, variantId, loseLoc]);
+  const [[lose]] = await conn.execute(`SELECT qty_on_hand FROM ims_stock WHERE variant_id=? AND location_id=? AND business_id=?`, [variantId, loseLoc, businessId]);
   const loseNew = Number(lose?.qty_on_hand ?? 0) - mag;
-  await conn.execute(`UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id=? AND location_id=?`, [loseNew, variantId, loseLoc]);
+  await conn.execute(`UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id=? AND location_id=? AND business_id=?`, [loseNew, variantId, loseLoc, businessId]);
   await conn.execute(
     `INSERT INTO ims_stock_movements
-       (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
-     VALUES (?,?,'transfer_out','branch_transfer',?,?,?,?)`,
-    [variantId, loseLoc, refId, -mag, loseNew, unitCost]
+       (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
+     VALUES (?,?,?,'transfer_out','branch_transfer',?,?,?,?)`,
+    [businessId, variantId, loseLoc, refId, -mag, loseNew, unitCost]
   );
 
   // ── Gaining location (stock arrives) ──
-  await conn.execute(`INSERT IGNORE INTO ims_stock (variant_id, location_id, qty_on_hand) VALUES (?, ?, 0)`, [variantId, gainLoc]);
-  const [[gain]] = await conn.execute(`SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id=? AND location_id=?`, [variantId, gainLoc]);
+  await conn.execute(`INSERT IGNORE INTO ims_stock (business_id, variant_id, location_id, qty_on_hand) VALUES (?, ?, ?, 0)`, [businessId, variantId, gainLoc]);
+  const [[gain]] = await conn.execute(`SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id=? AND location_id=? AND business_id=?`, [variantId, gainLoc, businessId]);
   const gainSoh = Number(gain?.qty_on_hand ?? 0);
   const gainAvg = Number(gain?.avg_cost ?? unitCost);
   const newAvg  = gainSoh <= 0 ? unitCost : (gainAvg * gainSoh + unitCost * mag) / (gainSoh + mag);
   const gainNew = gainSoh + mag;
-  await conn.execute(`UPDATE ims_stock SET qty_on_hand = ?, avg_cost = ? WHERE variant_id=? AND location_id=?`, [gainNew, newAvg, variantId, gainLoc]);
+  await conn.execute(`UPDATE ims_stock SET qty_on_hand = ?, avg_cost = ? WHERE variant_id=? AND location_id=? AND business_id=?`, [gainNew, newAvg, variantId, gainLoc, businessId]);
   await conn.execute(
     `INSERT INTO ims_stock_movements
-       (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
-     VALUES (?,?,'transfer_in','branch_transfer',?,?,?,?)`,
-    [variantId, gainLoc, refId, mag, gainNew, newAvg]
+       (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
+     VALUES (?,?,?,'transfer_in','branch_transfer',?,?,?,?)`,
+    [businessId, variantId, gainLoc, refId, mag, gainNew, newAvg]
   );
 }
 
 export const ImsBTRepo = {
-  async list(status?: BTStatus | BTStatus[]): Promise<ImsBT[]> {
-    let where = '';
-    let params: any[] = [];
+  async list(businessId: string, status?: BTStatus | BTStatus[]): Promise<ImsBT[]> {
+    await ensureBranchTransferTenantTables();
+    const wheres = ['bt.business_id = ?'];
+    let params: any[] = [businessId];
     if (status) {
       const statuses = Array.isArray(status) ? status : [status];
-      where = `WHERE bt.status IN (${statuses.map(() => '?').join(',')})`;
-      params = statuses;
+      wheres.push(`bt.status IN (${statuses.map(() => '?').join(',')})`);
+      params = [...params, ...statuses];
     }
     return imsQuery<ImsBT>(
       `SELECT bt.*,
               fl.name AS from_location_name,
               tl.name AS to_location_name
          FROM ims_branch_transfers bt
-         JOIN ims_locations fl ON fl.id = bt.from_location_id
-         JOIN ims_locations tl ON tl.id = bt.to_location_id
-         ${where}
+         JOIN ims_locations fl ON fl.id = bt.from_location_id AND fl.business_id = bt.business_id
+         JOIN ims_locations tl ON tl.id = bt.to_location_id AND tl.business_id = bt.business_id
+         WHERE ${wheres.join(' AND ')}
          ORDER BY bt.transfer_date DESC, bt.id DESC`,
       params
     );
   },
 
-  async get(id: number): Promise<ImsBT | null> {
+  async get(id: number, businessId: string): Promise<ImsBT | null> {
+    await ensureBranchTransferTenantTables();
     const rows = await imsQuery<ImsBT>(
       `SELECT bt.*,
               fl.name AS from_location_name,
               tl.name AS to_location_name
          FROM ims_branch_transfers bt
-         JOIN ims_locations fl ON fl.id = bt.from_location_id
-         JOIN ims_locations tl ON tl.id = bt.to_location_id
-         WHERE bt.id = ?`,
-      [id]
+        JOIN ims_locations fl ON fl.id = bt.from_location_id AND fl.business_id = bt.business_id
+        JOIN ims_locations tl ON tl.id = bt.to_location_id AND tl.business_id = bt.business_id
+        WHERE bt.id = ? AND bt.business_id = ?`,
+      [id, businessId]
     );
     if (!rows.length) return null;
     const items = await imsQuery<ImsBTItem>(
@@ -2738,15 +2856,16 @@ export const ImsBTRepo = {
                 NULLIF(v.option1_value,''), NULLIF(v.option2_value,''),
                 NULLIF(v.option3_value,'')) AS variant_label
          FROM ims_branch_transfer_items bti
-         JOIN ims_product_variants v ON v.variant_id = bti.variant_id
-         JOIN ims_products p ON p.product_id = v.product_id
-         WHERE bti.transfer_id = ?
+         JOIN ims_branch_transfers bt ON bt.id = bti.transfer_id
+         JOIN ims_product_variants v ON v.variant_id = bti.variant_id AND v.business_id = bt.business_id
+         JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = bt.business_id
+         WHERE bti.transfer_id = ? AND bt.business_id = ?
          ORDER BY
            COALESCE(NULLIF(TRIM(p.zone),''), '~~~'),
            COALESCE(NULLIF(TRIM(p.bin),''),  '~~~'),
            COALESCE(NULLIF(TRIM(p.brand),''), '~~~'),
            p.name`,
-      [id]
+      [id, businessId]
     );
     return { ...rows[0], items };
   },
@@ -2754,16 +2873,18 @@ export const ImsBTRepo = {
   async create(
     data: Omit<ImsBT, 'id' | 'created_at' | 'updated_at' | 'from_location_name' | 'to_location_name' | 'items'>,
     items: { variant_id: string; qty_sent: number; unit_cost: number; notes?: string }[],
+    businessId: string,
   ): Promise<number> {
-    const transfer_number = data.transfer_number || await nextBTNumber();
+    await ensureBranchTransferTenantTables();
+    const transfer_number = data.transfer_number || await nextBTNumber(businessId);
     let total_value = 0;
     for (const item of items) total_value += Number(item.qty_sent) * Number(item.unit_cost);
 
     const res = await imsExecute(
       `INSERT INTO ims_branch_transfers
-         (transfer_number, from_location_id, to_location_id, status, transfer_date, notes, total_value)
-       VALUES (?, ?, ?, 'draft', ?, ?, ?)`,
-      [transfer_number, data.from_location_id, data.to_location_id,
+         (business_id, transfer_number, from_location_id, to_location_id, status, transfer_date, notes, total_value)
+       VALUES (?, ?, ?, ?, 'draft', ?, ?, ?)`,
+      [businessId, transfer_number, data.from_location_id, data.to_location_id,
        data.transfer_date, data.notes ?? null, total_value]
     );
     const transfer_id = res.insertId;
@@ -2783,7 +2904,10 @@ export const ImsBTRepo = {
     id: number,
     data: Partial<Pick<ImsBT, 'from_location_id' | 'to_location_id' | 'transfer_date' | 'notes'>>,
     items?: { variant_id: string; qty_sent: number; unit_cost: number; notes?: string }[],
+    businessId?: string,
   ): Promise<void> {
+    if (!businessId) throw new Error('businessId is required');
+    await ensureBranchTransferTenantTables();
     const fields = ['from_location_id', 'to_location_id', 'transfer_date', 'notes'];
     const sets: string[] = [];
     const vals: any[] = [];
@@ -2801,8 +2925,9 @@ export const ImsBTRepo = {
       // Snapshot BEFORE any change. A 'sent' transfer holds qty_committed at its
       // OLD source; replacing the lines would strand it, so rebalance here.
       const [[preEdit]] = await conn.execute<any[]>(
-        `SELECT status, from_location_id FROM ims_branch_transfers WHERE id = ?`, [id]
+        `SELECT status, from_location_id FROM ims_branch_transfers WHERE id = ? AND business_id = ?`, [id, businessId]
       );
+      if (!preEdit) throw new Error('Branch transfer not found');
       const rebalanceCommitted = !!items && preEdit?.status === 'sent';
       let oldCommitItems: any[] = [];
       if (rebalanceCommitted) {
@@ -2813,7 +2938,8 @@ export const ImsBTRepo = {
 
       if (sets.length) {
         vals.push(id);
-        await conn.execute(`UPDATE ims_branch_transfers SET ${sets.join(', ')} WHERE id = ?`, vals);
+        vals.push(businessId);
+        await conn.execute(`UPDATE ims_branch_transfers SET ${sets.join(', ')} WHERE id = ? AND business_id = ?`, vals);
       }
       if (items) {
         await conn.execute(`DELETE FROM ims_branch_transfer_items WHERE transfer_id = ?`, [id]);
@@ -2838,22 +2964,22 @@ export const ImsBTRepo = {
             if (!oi.variant_id) continue;
             await conn.execute(
               `UPDATE ims_stock SET qty_committed = GREATEST(0, qty_committed - ?)
-               WHERE variant_id = ? AND location_id = ?`,
-              [oi.qty_sent, oi.variant_id, oldLoc]
+               WHERE variant_id = ? AND location_id = ? AND business_id = ?`,
+              [oi.qty_sent, oi.variant_id, oldLoc, businessId]
             );
           }
           for (const item of items) {
             if (!item.variant_id) continue;
             await conn.execute(
-              `INSERT INTO ims_stock (variant_id, location_id, qty_committed)
-               VALUES (?, ?, ?)
+              `INSERT INTO ims_stock (business_id, variant_id, location_id, qty_committed)
+               VALUES (?, ?, ?, ?)
                ON DUPLICATE KEY UPDATE qty_committed = qty_committed + VALUES(qty_committed)`,
-              [item.variant_id, newLoc, item.qty_sent]
+              [businessId, item.variant_id, newLoc, item.qty_sent]
             );
           }
         }
 
-        await conn.execute(`UPDATE ims_branch_transfers SET total_value = ? WHERE id = ?`, [total_value, id]);
+        await conn.execute(`UPDATE ims_branch_transfers SET total_value = ? WHERE id = ? AND business_id = ?`, [total_value, id, businessId]);
       }
       await conn.commit();
     } catch (err) { await conn.rollback(); throw err; }
@@ -2864,12 +2990,15 @@ export const ImsBTRepo = {
     id: number,
     newStatus: BTStatus,
     receivedItems?: { item_id: number; qty_received: number }[],
+    businessId?: string,
   ): Promise<void> {
+    if (!businessId) throw new Error('businessId is required');
+    await ensureBranchTransferTenantTables();
     const pool = getIMSPool();
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
-      const [[bt]] = await conn.execute<any[]>(`SELECT * FROM ims_branch_transfers WHERE id = ?`, [id]);
+      const [[bt]] = await conn.execute<any[]>(`SELECT * FROM ims_branch_transfers WHERE id = ? AND business_id = ?`, [id, businessId]);
       if (!bt) throw new Error('Branch transfer not found');
 
       const items = await imsQuery<ImsBTItem>(
@@ -2894,10 +3023,10 @@ export const ImsBTRepo = {
           const qtySent = Number(item.qty_sent);
           if (qtySent <= 0) continue;
           await conn.execute(
-            `INSERT INTO ims_stock (variant_id, location_id, qty_committed)
-             VALUES (?, ?, ?)
+            `INSERT INTO ims_stock (business_id, variant_id, location_id, qty_committed)
+             VALUES (?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE qty_committed = qty_committed + VALUES(qty_committed)`,
-            [item.variant_id, bt.from_location_id, qtySent]
+            [businessId, item.variant_id, bt.from_location_id, qtySent]
           );
         }
       }
@@ -2907,8 +3036,8 @@ export const ImsBTRepo = {
         for (const item of items) {
           await conn.execute(
             `UPDATE ims_stock SET qty_committed = GREATEST(0, qty_committed - ?)
-             WHERE variant_id = ? AND location_id = ?`,
-            [Number(item.qty_sent), item.variant_id, bt.from_location_id]
+             WHERE variant_id = ? AND location_id = ? AND business_id = ?`,
+            [Number(item.qty_sent), item.variant_id, bt.from_location_id, businessId]
           );
         }
       }
@@ -2931,14 +3060,14 @@ export const ImsBTRepo = {
           // Release the full commitment (qty_sent) — the shortfall never physically left.
           await conn.execute(
             `UPDATE ims_stock SET qty_committed = GREATEST(0, qty_committed - ?)
-             WHERE variant_id = ? AND location_id = ?`,
-            [Number(item.qty_sent), item.variant_id, bt.from_location_id]
+             WHERE variant_id = ? AND location_id = ? AND business_id = ?`,
+            [Number(item.qty_sent), item.variant_id, bt.from_location_id, businessId]
           );
-          await _btMove(conn, bt, id, item, qty_rcvd);
+          await _btMove(conn, bt, id, item, qty_rcvd, businessId);
         }
         // Any item received short of qty_sent leaves the transfer 'partial'.
         if (anyShortfall) finalStatus = 'partial';
-        await conn.execute(`UPDATE ims_branch_transfers SET received_date = CURDATE() WHERE id = ?`, [id]);
+        await conn.execute(`UPDATE ims_branch_transfers SET received_date = CURDATE() WHERE id = ? AND business_id = ?`, [id, businessId]);
       }
 
       // partial → received: apply qty_received corrections as SIGNED deltas
@@ -2950,13 +3079,13 @@ export const ImsBTRepo = {
           const current  = Number(item.qty_received ?? 0);
           const finalQty = Math.min(Math.max(0, Number(found.qty_received)), Number(item.qty_sent));
           const delta    = finalQty - current;
-          if (delta !== 0) await _btMove(conn, bt, id, item, delta);
+          if (delta !== 0) await _btMove(conn, bt, id, item, delta, businessId);
           await conn.execute(
             `UPDATE ims_branch_transfer_items SET qty_received = ?, line_value = ? * unit_cost WHERE id = ?`,
             [finalQty, finalQty, item.id]
           );
         }
-        await conn.execute(`UPDATE ims_branch_transfers SET received_date = CURDATE() WHERE id = ?`, [id]);
+        await conn.execute(`UPDATE ims_branch_transfers SET received_date = CURDATE() WHERE id = ? AND business_id = ?`, [id, businessId]);
       }
 
       // Keep total_value in step with the (now actual) line values.
@@ -2964,12 +3093,12 @@ export const ImsBTRepo = {
         await conn.execute(
           `UPDATE ims_branch_transfers
              SET total_value = (SELECT COALESCE(SUM(line_value),0) FROM ims_branch_transfer_items WHERE transfer_id = ?)
-           WHERE id = ?`,
-          [id, id]
+           WHERE id = ? AND business_id = ?`,
+          [id, id, businessId]
         );
       }
 
-      await conn.execute(`UPDATE ims_branch_transfers SET status = ? WHERE id = ?`, [finalStatus, id]);
+      await conn.execute(`UPDATE ims_branch_transfers SET status = ? WHERE id = ? AND business_id = ?`, [finalStatus, id, businessId]);
       await conn.commit();
     } catch (err) { await conn.rollback(); throw err; }
     finally { conn.release(); }
@@ -2982,14 +3111,15 @@ export const ImsBTRepo = {
    * returns the difference destination → source. Clamped to 0..qty_sent.
    * Refreshes line_value (qty_received × unit_cost) and the transfer total.
    */
-  async setItemReceived(transferId: number, itemId: number, newReceived: number): Promise<void> {
+  async setItemReceived(transferId: number, itemId: number, newReceived: number, businessId: string): Promise<void> {
+    await ensureBranchTransferTenantTables();
     const target = Number(newReceived);
     if (!Number.isFinite(target) || target < 0) throw new Error('Qty received must be zero or more');
     const pool = getIMSPool();
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
-      const [[bt]] = await conn.execute<any[]>(`SELECT * FROM ims_branch_transfers WHERE id = ?`, [transferId]);
+      const [[bt]] = await conn.execute<any[]>(`SELECT * FROM ims_branch_transfers WHERE id = ? AND business_id = ?`, [transferId, businessId]);
       if (!bt) throw new Error('Branch transfer not found');
       const [[item]] = await conn.execute<any[]>(
         `SELECT * FROM ims_branch_transfer_items WHERE id = ? AND transfer_id = ?`,
@@ -2999,7 +3129,7 @@ export const ImsBTRepo = {
       const finalQty = Math.min(target, Number(item.qty_sent));
       const current  = Number(item.qty_received ?? 0);
       const delta    = finalQty - current;
-      if (delta !== 0) await _btMove(conn, bt, transferId, item, delta);
+      if (delta !== 0) await _btMove(conn, bt, transferId, item, delta, businessId);
       await conn.execute(
         `UPDATE ims_branch_transfer_items SET qty_received = ?, line_value = ? * unit_cost WHERE id = ?`,
         [finalQty, finalQty, itemId]
@@ -3007,8 +3137,8 @@ export const ImsBTRepo = {
       await conn.execute(
         `UPDATE ims_branch_transfers
            SET total_value = (SELECT COALESCE(SUM(line_value),0) FROM ims_branch_transfer_items WHERE transfer_id = ?)
-         WHERE id = ?`,
-        [transferId, transferId]
+         WHERE id = ? AND business_id = ?`,
+        [transferId, transferId, businessId]
       );
       await conn.commit();
     } catch (err) { await conn.rollback(); throw err; }
@@ -3020,12 +3150,13 @@ export const ImsBTRepo = {
    * those movements are reversed (units returned to the source branch) before
    * the line is deleted. Recomputes the transfer total.
    */
-  async removeItem(transferId: number, itemId: number): Promise<void> {
+  async removeItem(transferId: number, itemId: number, businessId: string): Promise<void> {
+    await ensureBranchTransferTenantTables();
     const pool = getIMSPool();
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
-      const [[bt]] = await conn.execute<any[]>(`SELECT * FROM ims_branch_transfers WHERE id = ?`, [transferId]);
+      const [[bt]] = await conn.execute<any[]>(`SELECT * FROM ims_branch_transfers WHERE id = ? AND business_id = ?`, [transferId, businessId]);
       if (!bt) throw new Error('Branch transfer not found');
       const [[item]] = await conn.execute<any[]>(
         `SELECT * FROM ims_branch_transfer_items WHERE id = ? AND transfer_id = ?`,
@@ -3039,27 +3170,28 @@ export const ImsBTRepo = {
         if (qtySent > 0) {
           await conn.execute(
             `UPDATE ims_stock SET qty_committed = GREATEST(0, qty_committed - ?)
-             WHERE variant_id = ? AND location_id = ?`,
-            [qtySent, item.variant_id, bt.from_location_id]
+             WHERE variant_id = ? AND location_id = ? AND business_id = ?`,
+            [qtySent, item.variant_id, bt.from_location_id, businessId]
           );
         }
       }
       // Return any already-received units to the source branch.
-      if (rcvd > 0) await _btMove(conn, bt, transferId, item, -rcvd);
+      if (rcvd > 0) await _btMove(conn, bt, transferId, item, -rcvd, businessId);
       await conn.execute(`DELETE FROM ims_branch_transfer_items WHERE id = ?`, [itemId]);
       await conn.execute(
         `UPDATE ims_branch_transfers
            SET total_value = (SELECT COALESCE(SUM(line_value),0) FROM ims_branch_transfer_items WHERE transfer_id = ?)
-         WHERE id = ?`,
-        [transferId, transferId]
+         WHERE id = ? AND business_id = ?`,
+        [transferId, transferId, businessId]
       );
       await conn.commit();
     } catch (err) { await conn.rollback(); throw err; }
     finally { conn.release(); }
   },
 
-  async delete(id: number): Promise<void> {
-    await imsExecute(`DELETE FROM ims_branch_transfers WHERE id = ?`, [id]);
+  async delete(id: number, businessId: string): Promise<void> {
+    await ensureBranchTransferTenantTables();
+    await imsExecute(`DELETE FROM ims_branch_transfers WHERE id = ? AND business_id = ?`, [id, businessId]);
   },
 };
 
@@ -3328,19 +3460,23 @@ async function ensurePoFilesTable(): Promise<void> {
 }
 
 export const ImsPoFilesRepo = {
-  async list(poId: number): Promise<ImsPoFile[]> {
+  async list(poId: number, businessId?: string): Promise<ImsPoFile[]> {
     await ensurePoFilesTable();
+    const biz = businessId ? ' AND business_id = ?' : '';
+    const params = businessId ? [poId, businessId] : [poId];
     return imsQuery<ImsPoFile>(
-      `SELECT * FROM ims_po_files WHERE po_id = ? ORDER BY uploaded_at ASC`,
-      [poId],
+      `SELECT * FROM ims_po_files WHERE po_id = ?${biz} ORDER BY uploaded_at ASC`,
+      params,
     );
   },
 
-  async get(fileId: number): Promise<ImsPoFile | null> {
+  async get(fileId: number, businessId?: string): Promise<ImsPoFile | null> {
     await ensurePoFilesTable();
+    const biz = businessId ? ' AND business_id = ?' : '';
+    const params = businessId ? [fileId, businessId] : [fileId];
     const rows = await imsQuery<ImsPoFile>(
-      `SELECT * FROM ims_po_files WHERE id = ?`,
-      [fileId],
+      `SELECT * FROM ims_po_files WHERE id = ?${biz}`,
+      params,
     );
     return rows[0] ?? null;
   },
@@ -3362,8 +3498,10 @@ export const ImsPoFilesRepo = {
     return (res as any).insertId;
   },
 
-  async delete(fileId: number): Promise<void> {
-    await imsExecute(`DELETE FROM ims_po_files WHERE id = ?`, [fileId]);
+  async delete(fileId: number, businessId?: string): Promise<void> {
+    const biz = businessId ? ' AND business_id = ?' : '';
+    const params = businessId ? [fileId, businessId] : [fileId];
+    await imsExecute(`DELETE FROM ims_po_files WHERE id = ?${biz}`, params);
   },
 };
 

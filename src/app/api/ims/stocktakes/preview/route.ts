@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     const supplier_id = sp.get('supplier_id') ? parseInt(sp.get('supplier_id')!, 10) : undefined;
     const product_type = sp.get('product_type') || undefined;
     if (!location_id) return NextResponse.json({ error: 'location_id required' }, { status: 400 });
-    const count = await ImsStocktakeRepo.previewVariants({ location_id, brand_id, supplier_id, product_type });
+    const count = await ImsStocktakeRepo.previewVariants({ location_id, brand_id, supplier_id, product_type }, session.businessId);
     return NextResponse.json({ count });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 400 });

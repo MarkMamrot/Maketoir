@@ -176,6 +176,7 @@ export async function markPoXeroStatus(
 
 /** Write Xero sync status back to the stocktake row. Silent — never throws. */
 export async function markStocktakeXeroStatus(
+  businessId: string,
   stocktakeId: number,
   status: 'synced' | 'queued' | 'error',
   xeroId?: string | null,
@@ -185,8 +186,8 @@ export async function markStocktakeXeroStatus(
       `UPDATE ims_stocktakes
          SET xero_sync_status = ?, xero_synced_at = NOW()
              ${xeroId != null ? ', xero_journal_id = ?' : ''}
-         WHERE id = ?`,
-      xeroId != null ? [status, xeroId, stocktakeId] : [status, stocktakeId],
+        WHERE id = ? AND business_id = ?`,
+      xeroId != null ? [status, xeroId, stocktakeId, businessId] : [status, stocktakeId, businessId],
     );
   } catch { /* non-critical */ }
 }
@@ -210,15 +211,15 @@ export async function syncStocktakeJournal(
   if (!accounts.inventory_asset || !accounts.stock_adjustment) {
     await logSync(businessId, 'stocktake_journal', stocktakeId, null, 'skipped',
       'Missing inventory_asset or stock_adjustment account mapping');
-    await markStocktakeXeroStatus(stocktakeId, 'error');
+    await markStocktakeXeroStatus(businessId, stocktakeId, 'error');
     throw new Error('Missing Xero account mappings: inventory_asset and stock_adjustment are required');
   }
 
   // Fetch stocktake header + items with avg_cost joined from ims_stock
   const [stRows] = await Promise.all([
     imsQuery<{ id: number; reference: string; location_id: number; completed_at: string | null; status: string }>(
-      `SELECT id, reference, location_id, completed_at, status FROM ims_stocktakes WHERE id = ?`,
-      [stocktakeId],
+      `SELECT id, reference, location_id, completed_at, status FROM ims_stocktakes WHERE id = ? AND business_id = ?`,
+      [stocktakeId, businessId],
     ),
   ]);
   const st = stRows[0];
@@ -236,12 +237,13 @@ export async function syncStocktakeJournal(
             si.counted_qty,
             sk.avg_cost
        FROM ims_stocktake_items si
-       LEFT JOIN ims_product_variants pv ON pv.id = si.variant_id
-       LEFT JOIN ims_products p ON p.id = pv.product_id
-       LEFT JOIN ims_stock sk ON sk.variant_id = si.variant_id AND sk.location_id = ?
-      WHERE si.stocktake_id = ?
+       JOIN ims_stocktakes st ON st.id = si.stocktake_id
+       LEFT JOIN ims_product_variants pv ON pv.variant_id = si.variant_id AND pv.business_id = st.business_id
+       LEFT JOIN ims_products p ON p.product_id = pv.product_id AND p.business_id = st.business_id
+       LEFT JOIN ims_stock sk ON sk.variant_id = si.variant_id AND sk.location_id = ? AND sk.business_id = st.business_id
+      WHERE si.stocktake_id = ? AND st.business_id = ?
         AND si.counted_qty IS NOT NULL`,
-    [st.location_id, stocktakeId],
+    [st.location_id, stocktakeId, businessId],
   );
 
   const tracking = getTrackingForLocation(trackingMappings, st.location_id);
@@ -274,7 +276,7 @@ export async function syncStocktakeJournal(
 
   if (journalLines.length === 0) {
     await logSync(businessId, 'stocktake_journal', stocktakeId, null, 'skipped', 'No non-zero variances to post');
-    await markStocktakeXeroStatus(stocktakeId, 'synced', null);
+    await markStocktakeXeroStatus(businessId, stocktakeId, 'synced', null);
     return { journalId: null, lines: 0, totalValue: 0 };
   }
 
@@ -294,11 +296,11 @@ export async function syncStocktakeJournal(
     await logSync(businessId, 'stocktake_journal', stocktakeId, journalId, 'success',
       `Journal posted: ${journalLines.length / 2} variance lines, total $${totalValue.toFixed(2)}`,
       journalState);
-    await markStocktakeXeroStatus(stocktakeId, 'synced', journalId);
+    await markStocktakeXeroStatus(businessId, stocktakeId, 'synced', journalId);
     return { journalId, lines: journalLines.length / 2, totalValue };
   } catch (err: any) {
     await logSync(businessId, 'stocktake_journal', stocktakeId, null, 'error', err.message);
-    await markStocktakeXeroStatus(stocktakeId, 'error');
+    await markStocktakeXeroStatus(businessId, stocktakeId, 'error');
     throw err;
   }
 }

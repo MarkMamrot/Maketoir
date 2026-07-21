@@ -120,6 +120,7 @@ Always read this file when starting a new session or implementing a feature to u
 * IMS API routes that touch IMS tables must call `getImsSession()` or `enterImsForBusiness()` before any `imsQuery`, `imsExecute`, `getIMSPool`, or `Ims*Repo` call. Local cookie parsing alone is not tenant-safe.
 * Sage was provisioned as `readyedu_SageIMS`; leak-prone tables verified empty after provisioning.
 * Dashboard onboarding is business-scoped via `/api/onboarding`; it stores progress in tenant `ims_settings.onboarding_completed_steps` and reuses existing IMS settings keys for business profile, operations, tax, Shopify, and Xero setup prompts.
+* Stocktakes and branch transfers were originally created by standalone migrations without `business_id` and were missing from `scripts/ims-schema.sql`; keep both table families tenant-scoped in repo/routes and fresh schema provisioning.
 
 ---
 

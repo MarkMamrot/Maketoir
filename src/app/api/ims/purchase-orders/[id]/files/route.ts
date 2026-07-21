@@ -32,7 +32,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (isNaN(poId)) return NextResponse.json({ error: 'Invalid PO id' }, { status: 400 });
 
   // Fetch PO to verify it exists and get po_number for folder path
-  const po = await ImsPORepo.get(poId).catch(() => null);
+  const po = await ImsPORepo.get(poId, session.businessId).catch(() => null);
   if (!po) return NextResponse.json({ error: 'PO not found' }, { status: 404 });
 
   try {
@@ -51,7 +51,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100);
     const filename = `${Date.now()}-${safeName}`;
 
-    const dir = getUploadDir(session.userSpreadsheetId, po.po_number);
+    const dir = getUploadDir(session.businessId, po.po_number);
     fs.mkdirSync(dir, { recursive: true });
 
     const arrayBuffer = await file.arrayBuffer();
@@ -59,14 +59,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     await ImsPoFilesRepo.add(
       poId,
-      session.userSpreadsheetId,
+      session.businessId,
       filename,
       file.name,
       file.type,
       file.size,
     );
 
-    const files = await ImsPoFilesRepo.list(poId);
+    const files = await ImsPoFilesRepo.list(poId, session.businessId);
     return NextResponse.json({ success: true, files });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
@@ -78,9 +78,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
  * Returns the list of files for a PO.
  */
 export async function GET(_: Request, { params }: { params: { id: string } }) {
-  if (!await getImsSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = await getImsSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const poId = Number(params.id);
   if (isNaN(poId)) return NextResponse.json({ error: 'Invalid PO id' }, { status: 400 });
-  const files = await ImsPoFilesRepo.list(poId).catch(() => []);
+  const po = await ImsPORepo.get(poId, session.businessId).catch(() => null);
+  if (!po) return NextResponse.json({ error: 'PO not found' }, { status: 404 });
+  const files = await ImsPoFilesRepo.list(poId, session.businessId).catch(() => []);
   return NextResponse.json({ success: true, files });
 }

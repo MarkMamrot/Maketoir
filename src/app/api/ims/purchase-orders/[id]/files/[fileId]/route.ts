@@ -25,15 +25,15 @@ export async function GET(
   const fileId = Number(params.fileId);
   if (isNaN(fileId)) return new Response('Invalid file id', { status: 400 });
 
-  const record = await ImsPoFilesRepo.get(fileId).catch(() => null);
+  const record = await ImsPoFilesRepo.get(fileId, session.businessId).catch(() => null);
   if (!record) return new Response('File not found', { status: 404 });
 
   // Ownership check
-  if (record.business_id !== session.userSpreadsheetId) {
+  if (record.business_id !== session.businessId) {
     return new Response('Forbidden', { status: 403 });
   }
 
-  const po = await ImsPORepo.get(record.po_id).catch(() => null);
+  const po = await ImsPORepo.get(record.po_id, session.businessId).catch(() => null);
   if (!po) return new Response('PO not found', { status: 404 });
 
   const filePath = path.join(getUploadDir(record.business_id, po.po_number), record.filename);
@@ -69,21 +69,21 @@ export async function DELETE(
   const fileId = Number(params.fileId);
   if (isNaN(fileId)) return NextResponse.json({ error: 'Invalid file id' }, { status: 400 });
 
-  const record = await ImsPoFilesRepo.get(fileId).catch(() => null);
+  const record = await ImsPoFilesRepo.get(fileId, session.businessId).catch(() => null);
   if (!record) return NextResponse.json({ error: 'File not found' }, { status: 404 });
 
-  if (record.business_id !== session.userSpreadsheetId) {
+  if (record.business_id !== session.businessId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const po = await ImsPORepo.get(record.po_id).catch(() => null);
+  const po = await ImsPORepo.get(record.po_id, session.businessId).catch(() => null);
   if (po) {
     const filePath = path.join(getUploadDir(record.business_id, po.po_number), record.filename);
     try { fs.unlinkSync(filePath); } catch { /* already gone */ }
   }
 
-  await ImsPoFilesRepo.delete(fileId);
+  await ImsPoFilesRepo.delete(fileId, session.businessId);
 
-  const files = await ImsPoFilesRepo.list(record.po_id);
+  const files = await ImsPoFilesRepo.list(record.po_id, session.businessId);
   return NextResponse.json({ success: true, files });
 }

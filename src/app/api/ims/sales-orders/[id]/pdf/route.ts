@@ -20,10 +20,10 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   try {
-    const so = await ImsSORepo.get(Number(params.id));
+    const so = await ImsSORepo.get(Number(params.id), session.businessId);
     if (!so) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    const settings = await getSettings(session.userSpreadsheetId);
+    const settings = await getSettings(session.businessId);
     const businessName = settings['business_name'] || session.company || 'Business';
 
     const pdfBuf = await generateOrderPdf({

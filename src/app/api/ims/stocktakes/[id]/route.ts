@@ -9,7 +9,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     const session = await getImportSession();
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     const id = parseInt(params.id, 10);
-    const st = await ImsStocktakeRepo.get(id);
+    const st = await ImsStocktakeRepo.get(id, session.businessId);
     if (!st) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     return NextResponse.json(st);
   } catch (e: any) {
@@ -28,33 +28,33 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // Update a single item's counted_qty
     if (body.action === 'update_item') {
       const { item_id, counted_qty, notes } = body;
-      await ImsStocktakeRepo.updateItem(item_id, counted_qty, notes);
+      await ImsStocktakeRepo.updateItem(item_id, counted_qty, notes, session.businessId);
       return NextResponse.json({ ok: true });
     }
 
     // Change status
     if (body.action === 'change_status') {
-      await ImsStocktakeRepo.changeStatus(id, body.status);
+      await ImsStocktakeRepo.changeStatus(id, body.status, session.businessId);
       return NextResponse.json({ ok: true });
     }
 
     // Bulk update items (array of { item_id, counted_qty, notes })
     if (body.action === 'bulk_update_items' && Array.isArray(body.items)) {
       for (const item of body.items) {
-        await ImsStocktakeRepo.updateItem(item.item_id, item.counted_qty ?? null, item.notes);
+        await ImsStocktakeRepo.updateItem(item.item_id, item.counted_qty ?? null, item.notes, session.businessId);
       }
       return NextResponse.json({ ok: true });
     }
 
     // Remove a single item
     if (body.action === 'remove_item') {
-      await ImsStocktakeRepo.removeItem(body.item_id);
+      await ImsStocktakeRepo.removeItem(body.item_id, session.businessId);
       return NextResponse.json({ ok: true });
     }
 
     // Revert applied stocktake
     if (body.action === 'revert') {
-      const result = await ImsStocktakeRepo.revertFromStock(id);
+      const result = await ImsStocktakeRepo.revertFromStock(id, session.businessId);
       return NextResponse.json(result);
     }
 
@@ -69,7 +69,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     const session = await getImportSession();
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     const id = parseInt(params.id, 10);
-    await ImsStocktakeRepo.delete(id);
+    await ImsStocktakeRepo.delete(id, session.businessId);
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 400 });
