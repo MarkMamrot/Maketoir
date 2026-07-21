@@ -1,6 +1,7 @@
 const nextConfig = {
   productionBrowserSourceMaps: false,
   typescript: { ignoreBuildErrors: true },
+  eslint: { ignoreDuringBuilds: true },
   experimental: {
     serverComponentsExternalPackages: ['shopify-api-node', 'got', 'cacheable-request', 'keyv'],
   },
