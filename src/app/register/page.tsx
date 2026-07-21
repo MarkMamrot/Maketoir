@@ -3,12 +3,14 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { PASSWORD_REQUIREMENTS, getPasswordValidation } from '@/lib/auth/passwordPolicy';
 
 export default function RegisterPage() {
   const router = useRouter();
   const [form, setForm] = useState({ name: '', company: '', email: '', phone: '', password: '', confirm: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const passwordValidation = getPasswordValidation(form.password);
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(prev => ({ ...prev, [field]: e.target.value }));
@@ -20,8 +22,8 @@ export default function RegisterPage() {
       setError('Passwords do not match.');
       return;
     }
-    if (form.password.length < 8) {
-      setError('Password must be at least 8 characters.');
+    if (!passwordValidation.isValid) {
+      setError(passwordValidation.message);
       return;
     }
     setLoading(true);
@@ -43,8 +45,8 @@ export default function RegisterPage() {
       } else {
         router.push('/login?registered=1');
       }
-    } catch (err: any) {
-      setError(err.message || 'Unexpected error.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Unexpected error.');
     }
     setLoading(false);
   };
@@ -78,12 +80,22 @@ export default function RegisterPage() {
           </div>
           <div>
             <label className="text-xs font-bold text-gray-600 uppercase">Password *</label>
-            <input type="password" value={form.password} onChange={set('password')} required minLength={8}
+            <input type="password" value={form.password} onChange={set('password')} required minLength={12} autoComplete="new-password" aria-describedby="password-requirements"
               className="w-full p-2 border border-gray-300 rounded mt-1" />
+            <ul id="password-requirements" className="mt-2 grid grid-cols-1 gap-1 text-xs text-gray-600 sm:grid-cols-2">
+              {PASSWORD_REQUIREMENTS.map(requirement => {
+                const met = requirement.test(form.password);
+                return (
+                  <li key={requirement.id} className={met ? 'text-green-700' : 'text-gray-500'}>
+                    {met ? '[x]' : '[ ]'} {requirement.label}
+                  </li>
+                );
+              })}
+            </ul>
           </div>
           <div>
             <label className="text-xs font-bold text-gray-600 uppercase">Confirm Password *</label>
-            <input type="password" value={form.confirm} onChange={set('confirm')} required
+            <input type="password" value={form.confirm} onChange={set('confirm')} required autoComplete="new-password"
               className="w-full p-2 border border-gray-300 rounded mt-1" />
           </div>
 

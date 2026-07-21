@@ -3,6 +3,7 @@ import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { UsersRepository } from '@/lib/db/UsersRepository';
 import { execute } from '@/services/MySQLService';
 import { ConfigRepository } from '@/lib/db/ConfigRepository';
+import { getPasswordValidation } from '@/lib/auth/passwordPolicy';
 
 export async function POST(req: Request) {
   try {
@@ -13,6 +14,10 @@ export async function POST(req: Request) {
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ success: false, error: 'Invalid email address.' }, { status: 400 });
+    }
+    const passwordValidation = getPasswordValidation(password);
+    if (!passwordValidation.isValid) {
+      return NextResponse.json({ success: false, error: passwordValidation.message }, { status: 400 });
     }
 
     // Check for duplicate email
@@ -45,7 +50,7 @@ export async function POST(req: Request) {
       if (folderId) {
         await ConfigRepository.set(businessId, 'FolderID', folderId);
       }
-    } catch (dbError: any) {
+    } catch (dbError: unknown) {
       // MySQL failed — delete the orphaned Drive spreadsheet and folder
       await sheetsService.deleteFile(businessId).catch(() => {});
       if (folderId) await sheetsService.deleteFile(folderId).catch(() => {});
@@ -57,7 +62,7 @@ export async function POST(req: Request) {
       message: 'Registration successful.',
       businessId: businessId,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Register error:', error);
     return NextResponse.json({ success: false, error: 'Registration failed. Please try again.' }, { status: 500 });
   }
