@@ -8384,6 +8384,347 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Import Sales Orders Modal
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SO_IMPORT_HEADERS = [
+  'SO_Number','Order_Date','Fulfilled_Date','Customer','Location',
+  'Status','SO_Type','Price_Tier','Tax_Treatment','Payment_Terms',
+  'Customer_PO','Notes','Freight','Discount',
+  'SKU','Product_Name','Qty','Unit_Price','Discount_Pct','Tax_Rate',
+] as const;
+
+type ImportSOsStage = 'paste' | 'review' | 'importing' | 'done';
+
+interface ParsedSOGroup {
+  so_number: string;
+  order_date: string;
+  fulfilled_date: string;
+  customer: string;
+  location: string;
+  status: string;
+  so_type: string;
+  price_tier: string;
+  tax_treatment: string;
+  payment_terms: string;
+  customer_po: string;
+  notes: string;
+  freight: string;
+  discount: string;
+  items: { sku: string; product_name: string; qty: string; unit_price: string; discount_pct: string; tax_rate: string }[];
+  error?: string;
+}
+
+function parseSOsCSV(text: string): ParsedSOGroup[] {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  if (!lines.length) return [];
+
+  // Detect and strip header row
+  const firstLower = lines[0].toLowerCase().replace(/\s+/g, '');
+  const isHeader = firstLower.includes('so_number') || firstLower.includes('order_date') || firstLower.includes('customer');
+  const dataLines = isHeader ? lines.slice(1) : lines;
+
+  const parseRow = (line: string): string[] => {
+    const cells: string[] = [];
+    let inQ = false;
+    let cur = '';
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
+        else { inQ = !inQ; }
+      } else if (ch === ',' && !inQ) {
+        cells.push(cur); cur = '';
+      } else {
+        cur += ch;
+      }
+    }
+    cells.push(cur);
+    return cells.map(c => c.trim());
+  };
+
+  const groups: ParsedSOGroup[] = [];
+  let current: ParsedSOGroup | null = null;
+
+  for (const line of dataLines) {
+    const cols = parseRow(line);
+    const get = (i: number) => cols[i]?.trim() ?? '';
+
+    const soNum = get(0);
+
+    if (soNum || !current) {
+      // New SO group
+      current = {
+        so_number:    soNum,
+        order_date:   get(1),
+        fulfilled_date: get(2),
+        customer:     get(3),
+        location:     get(4),
+        status:       get(5) || 'draft',
+        so_type:      get(6) || 'b2b',
+        price_tier:   get(7) || 'retail',
+        tax_treatment: get(8) || 'ex_tax',
+        payment_terms: get(9),
+        customer_po:  get(10),
+        notes:        get(11),
+        freight:      get(12),
+        discount:     get(13),
+        items: [],
+      };
+      // Validate required header fields
+      if (!current.order_date) current.error = 'Order_Date is required';
+      if (!current.location)   current.error = (current.error ? current.error + '; ' : '') + 'Location is required';
+      groups.push(current);
+    }
+
+    // Always add a line item row if SKU or Product_Name or Qty is present
+    const sku    = get(14);
+    const pname  = get(15);
+    const qty    = get(16);
+    if (sku || pname || qty) {
+      current!.items.push({
+        sku, product_name: pname, qty, unit_price: get(17),
+        discount_pct: get(18), tax_rate: get(19),
+      });
+    }
+  }
+
+  return groups;
+}
+
+function ImportSOsModal({ locations, onClose, onDone }: {
+  locations: { id: number; name: string }[];
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [stage, setStage] = useState<ImportSOsStage>('paste');
+  const [pasteText, setPasteText] = useState('');
+  const [parsed, setParsed] = useState<ParsedSOGroup[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [result, setResult] = useState<{ created: number; errors: string[] } | null>(null);
+
+  const handleParse = () => {
+    const groups = parseSOsCSV(pasteText);
+    if (!groups.length) { alert('No rows found. Paste CSV data or upload a file.'); return; }
+    setParsed(groups);
+    setStage('review');
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = ev => { if (ev.target?.result) setPasteText(String(ev.target.result)); };
+    reader.readAsText(f);
+    e.target.value = '';
+  };
+
+  const downloadTemplate = () => {
+    const exampleRows = [
+      SO_IMPORT_HEADERS.join(','),
+      'SO-2025-0001,2025-03-15,,Acme Retail,Main Warehouse,fulfilled,b2b,wholesale,ex_tax,Net 30,CUST-PO-001,First order,0,0,SKU-WIDGET-RED,Red Widget,10,25.00,0,0.10',
+      ',,,,,,,,,,,,,,SKU-WIDGET-BLU,Blue Widget,5,25.00,0,0.10',
+      'SO-2025-0002,2025-04-01,,,Main Warehouse,draft,b2b,retail,inc_tax,,,,10,0,SKU-COASTER-001,,20,5.50,0,0.10',
+    ].join('\n');
+    const blob = new Blob([exampleRows], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'so-import-template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = async () => {
+    setImporting(true);
+    setStage('importing');
+    try {
+      const orders = parsed
+        .filter(g => !g.error)
+        .map(g => ({
+          so_number:         g.so_number || undefined,
+          order_date:        g.order_date,
+          fulfilled_date:    g.fulfilled_date || undefined,
+          customer_name:     g.customer || undefined,
+          location_name:     g.location,
+          status:            g.status,
+          so_type:           g.so_type,
+          price_tier:        g.price_tier,
+          tax_treatment:     g.tax_treatment,
+          payment_terms:     g.payment_terms || undefined,
+          customer_po_number: g.customer_po || undefined,
+          notes:             g.notes || undefined,
+          freight:           g.freight  !== '' ? Number(g.freight)  : 0,
+          discount:          g.discount !== '' ? Number(g.discount) : 0,
+          items: g.items.map(it => ({
+            sku:          it.sku       || undefined,
+            product_name: it.product_name || undefined,
+            qty:          Number(it.qty       || 0),
+            unit_price:   Number(it.unit_price || 0),
+            discount_pct: Number(it.discount_pct ?? 0),
+            tax_rate:     Number(it.tax_rate   ?? 0),
+          })),
+        }));
+
+      const res = await fetch('/api/ims/sales-orders/bulk-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orders }),
+      });
+      const data = await res.json();
+      setResult({ created: data.created ?? 0, errors: data.errors ?? (data.error ? [data.error] : []) });
+      setStage('done');
+    } catch (e: any) {
+      setResult({ created: 0, errors: [e.message] });
+      setStage('done');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const validCount   = parsed.filter(g => !g.error).length;
+  const invalidCount = parsed.filter(g =>  g.error).length;
+
+  const STATUS_OPTS   = ['draft', 'confirmed', 'fulfilled', 'cancelled'];
+  const SO_TYPE_OPTS  = ['b2b', 'online', 'pos'];
+  const TIER_OPTS     = ['retail', 'wholesale'];
+  const TAX_OPTS      = ['ex_tax', 'inc_tax', 'no_tax'];
+
+  return (
+    <Modal title="Import Sales Orders" onClose={onClose} wide>
+      {/* ── Notice ── */}
+      <div style={{ background: 'rgba(251,191,36,.1)', border: '1px solid rgba(251,191,36,.35)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+        <span style={{ fontSize: 16, flexShrink: 0 }}>⚠</span>
+        <div style={{ fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.5 }}>
+          <strong>Fulfilled and cancelled orders will not sync to Accounting (Xero).</strong>{' '}
+          They are imported as historical records only. Draft and confirmed orders can be managed normally after import.
+        </div>
+      </div>
+
+      {/* ── Stage: paste ── */}
+      {stage === 'paste' && (
+        <div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+            <button onClick={downloadTemplate} style={btnStyle('ghost', 'sm')}>⬇ Download Template</button>
+            <label style={{ ...btnStyle('ghost', 'sm') as any, cursor: 'pointer', margin: 0 }}>
+              📂 Upload CSV
+              <input type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={handleFileUpload} />
+            </label>
+            <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', flex: 1 }}>
+              One row per line item. Repeat SO_Number (or leave blank) for multi-line orders. First row may be a header.
+            </span>
+          </div>
+          <div style={{ marginBottom: 8, fontSize: 12, color: 'var(--sv-text-dim)' }}>
+            <strong>Required columns:</strong> Order_Date, Location<br />
+            <strong>Status options:</strong> {STATUS_OPTS.join(' | ')}<br />
+            <strong>SO_Type:</strong> {SO_TYPE_OPTS.join(' | ')}&ensp;
+            <strong>Price_Tier:</strong> {TIER_OPTS.join(' | ')}&ensp;
+            <strong>Tax_Treatment:</strong> {TAX_OPTS.join(' | ')}<br />
+            <strong>Location</strong> must match an exact location name in IMS. Customer is matched by name if provided.
+          </div>
+          <textarea
+            value={pasteText}
+            onChange={e => setPasteText(e.target.value)}
+            placeholder={'SO_Number,Order_Date,Fulfilled_Date,Customer,Location,Status,SO_Type,Price_Tier,Tax_Treatment,Payment_Terms,Customer_PO,Notes,Freight,Discount,SKU,Product_Name,Qty,Unit_Price,Discount_Pct,Tax_Rate\nSO-2025-0001,2025-03-15,,Acme Corp,Main Warehouse,fulfilled,b2b,wholesale,ex_tax,Net 30,,,,0,SKU-001,Widget,10,25.00,0,0.10'}
+            style={{ width: '100%', height: 200, padding: '8px 10px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: 12, fontFamily: 'monospace', boxSizing: 'border-box', resize: 'vertical' }}
+          />
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
+            <button onClick={onClose} style={btnStyle('ghost')}>Cancel</button>
+            <button onClick={handleParse} disabled={!pasteText.trim()} style={btnStyle('action')}>Parse →</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Stage: review ── */}
+      {stage === 'review' && (
+        <div>
+          <div style={{ marginBottom: 10, fontSize: 13, color: 'var(--sv-text-dim)' }}>
+            Found <strong style={{ color: 'var(--sv-text-main)' }}>{parsed.length}</strong> order{parsed.length !== 1 ? 's' : ''}
+            {validCount > 0    && <> — <strong style={{ color: 'var(--sv-mint)' }}>{validCount} ready</strong></>}
+            {invalidCount > 0  && <> — <strong style={{ color: 'var(--sv-red)'  }}>{invalidCount} with errors</strong></>}
+          </div>
+          <div style={{ overflowX: 'auto', maxHeight: 420, overflowY: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 8, marginBottom: 14 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: 'var(--sv-bg-2)', position: 'sticky', top: 0 }}>
+                  {['SO #','Date','Customer','Location','Status','Type','Tier','Tax','Lines','Total',''].map(h => (
+                    <th key={h} style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, whiteSpace: 'nowrap', borderBottom: '1px solid var(--sv-etch)' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {parsed.map((g, i) => {
+                  const total = g.items.reduce((s, it) => {
+                    const line = Number(it.qty || 0) * Number(it.unit_price || 0) * (1 - Number(it.discount_pct ?? 0) / 100);
+                    return s + line;
+                  }, Number(g.freight || 0)) - Number(g.discount || 0);
+                  return (
+                    <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)', background: g.error ? 'rgba(248,113,113,.05)' : undefined }}>
+                      <td style={{ padding: '6px 10px', color: 'var(--sv-action)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        {g.so_number || <em style={{ color: 'var(--sv-text-dim)' }}>auto</em>}
+                      </td>
+                      <td style={{ padding: '6px 10px', whiteSpace: 'nowrap', color: 'var(--sv-text-dim)' }}>{g.order_date}</td>
+                      <td style={{ padding: '6px 10px', color: 'var(--sv-text-dim)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.customer || '—'}</td>
+                      <td style={{ padding: '6px 10px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{g.location}</td>
+                      <td style={{ padding: '6px 10px', whiteSpace: 'nowrap' }}><StatusBadge status={g.status} /></td>
+                      <td style={{ padding: '6px 10px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 11 }}>{g.so_type}</td>
+                      <td style={{ padding: '6px 10px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 11 }}>{g.price_tier}</td>
+                      <td style={{ padding: '6px 10px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 11 }}>{g.tax_treatment}</td>
+                      <td style={{ padding: '6px 10px', color: 'var(--sv-text-dim)', textAlign: 'right' }}>{g.items.length}</td>
+                      <td style={{ padding: '6px 10px', whiteSpace: 'nowrap', textAlign: 'right' }}>{fmtCurrency(total)}</td>
+                      <td style={{ padding: '6px 10px' }}>
+                        {g.error
+                          ? <span title={g.error} style={{ color: 'var(--sv-red)', fontWeight: 600, fontSize: 11 }}>✕ {g.error}</span>
+                          : <span style={{ color: 'var(--sv-mint)', fontWeight: 600, fontSize: 11 }}>✓</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button onClick={() => setStage('paste')} style={btnStyle('ghost')}>← Back</button>
+            <button onClick={onClose} style={btnStyle('ghost')}>Cancel</button>
+            <button onClick={handleImport} disabled={validCount === 0} style={btnStyle('action')}>
+              Import {validCount} Order{validCount !== 1 ? 's' : ''} →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Stage: importing ── */}
+      {stage === 'importing' && (
+        <div style={{ textAlign: 'center', padding: '32px 0' }}>
+          <Spinner />
+          <p style={{ marginTop: 12, color: 'var(--sv-text-dim)' }}>Importing {validCount} orders…</p>
+        </div>
+      )}
+
+      {/* ── Stage: done ── */}
+      {stage === 'done' && result && (
+        <div>
+          <div style={{ padding: '16px 20px', background: result.created > 0 ? 'rgba(16,185,129,.08)' : 'rgba(248,113,113,.08)', borderRadius: 8, marginBottom: 16, border: `1px solid ${result.created > 0 ? 'rgba(16,185,129,.25)' : 'rgba(248,113,113,.25)'}` }}>
+            <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: 15, color: result.created > 0 ? 'var(--sv-mint)' : 'var(--sv-red)' }}>
+              {result.created > 0 ? `✓ ${result.created} order${result.created !== 1 ? 's' : ''} imported` : 'Import failed'}
+            </p>
+            {result.errors.length > 0 && (
+              <ul style={{ margin: '8px 0 0', padding: '0 0 0 18px', fontSize: 12, color: 'var(--sv-red)' }}>
+                {result.errors.map((e, i) => <li key={i}>{e}</li>)}
+              </ul>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            {result.errors.length > 0 && <button onClick={() => setStage('paste')} style={btnStyle('ghost')}>Import More</button>}
+            <button onClick={() => { onDone(); onClose(); }} style={btnStyle('action')}>Done</button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, onReturnOrder }: { pendingOpenId?: number | null; onPendingHandled?: () => void; isAdvisor?: boolean; onReturnOrder?: (prefill: any) => void } = {}) {
   const [sos, setSos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -8399,6 +8740,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const [lineItems, setLineItems] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [importSOsOpen, setImportSOsOpen] = useState(false);
   const [soXeroWarnModal, setSoXeroWarnModal] = useState<{ action: 'edit' | 'delete'; so: any; onConfirm: () => void } | null>(null);
   const [soXeroWarnBillNum, setSoXeroWarnBillNum] = useState<string | null>(null);
   const [soXeroWarnFetching, setSoXeroWarnFetching] = useState(false);
@@ -8702,6 +9044,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Sales Orders</h1>
+        {!isAdvisor && <button onClick={() => setImportSOsOpen(true)} style={btnStyle('ghost')}>⬆ Import SOs</button>}
         {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New SO</button>}
       </div>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
@@ -9151,13 +9494,21 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
           <SoAccountingSection so={viewModal.so} settings={settings} onVoided={async () => { try { const d = await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}`); setViewModal(v => ({ ...v, so: d.data })); } catch {} }} />
         </Modal>
       )}
+      {importSOsOpen && (
+        <ImportSOsModal
+          locations={locations}
+          onClose={() => setImportSOsOpen(false)}
+          onDone={() => load()}
+        />
+      )}
     </div>
   );
 }
 
 function SOActions({ so, onEdit, onDelete, onStatus, onReturn, isAdvisor = false }: { so: any; onEdit: () => void; onDelete: () => void; onStatus: (so: any, s: string) => void; onReturn?: () => void; isAdvisor?: boolean }) {
   if (so.is_historical) {
-    return <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>Historical (Cin7)</span>;
+    const label = so.cin7_order_id ? 'Historical (Cin7)' : 'Imported';
+    return <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>{label}</span>;
   }
   const btns = [];
   if (so.status === 'draft')     { if (!isAdvisor) btns.push(<button key="c" onClick={() => onStatus(so, 'confirmed')} style={btnStyle('mint', 'xs')}>Confirm</button>); }
