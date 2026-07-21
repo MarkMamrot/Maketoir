@@ -1495,6 +1495,8 @@ function ImportLineItemsModal({
 // Import Products Modal
 // ─────────────────────────────────────────────────────────────────────────────
 
+const IMPORT_FX_COST_HEADERS = ['Cost_USD', 'Cost_EUR', 'Cost_GBP', 'Cost_THB', 'Cost_CNY', 'Cost_JPY'] as const;
+
 const IMPORT_BASE_HEADERS = [
   'Product_Name','Product_SKU','Barcode','Description','Brand','Supplier','Product_Type',
   'Category','Subcategory','Website_Title','Allow_Indent_Wholesale_Orders','Tags','Online','Pack_Size',
@@ -1547,9 +1549,13 @@ function ImportProductsModal({
   const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
   const { settings: importSettings } = useImsSettings();
   const showZoneBin   = importSettings.use_zones_bins  !== 'no';
+  const showFxCosts   = importSettings.use_foreign_currencies !== 'no';
 
   // Full template header list: optional category cols + base columns + per-location stock columns.
   const templateHeaders = useMemo(() => {
+    const baseHeaders = showFxCosts
+      ? IMPORT_BASE_HEADERS
+      : IMPORT_BASE_HEADERS.filter(h => !(IMPORT_FX_COST_HEADERS as readonly string[]).includes(h));
     const perLoc: string[] = [];
     for (const loc of locations) {
       if (showZoneBin) {
@@ -1557,8 +1563,8 @@ function ImportProductsModal({
       }
       perLoc.push(`${loc.name} - Min Qty`, `${loc.name} - Reorder Qty`);
     }
-    return [...IMPORT_BASE_HEADERS, ...perLoc];
-  }, [locations, showZoneBin]);
+    return [...baseHeaders, ...perLoc];
+  }, [locations, showZoneBin, showFxCosts]);
 
   // Normalized header string → { location_id, field } for parsing per-location columns.
   const locHeaderMap = useMemo(() => {
@@ -3470,6 +3476,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const { settings: productSettings } = useImsSettings();
   const showCategories = productSettings.use_categories === 'yes';
   const showZoneBin    = productSettings.use_zones_bins  !== 'no';
+  const showFxCosts    = productSettings.use_foreign_currencies !== 'no';
   const [exporting, setExporting] = useState(false);
   const [barcodeLabelOpen, setBarcodeLabelOpen] = useState(false);
   const [galleryRefreshKey, setGalleryRefreshKey] = useState(0);
@@ -3915,7 +3922,10 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         if (showZoneBin) perLocCols.push(`${loc.name} - Zone`, `${loc.name} - Bin`);
         perLocCols.push(`${loc.name} - Min Qty`, `${loc.name} - Reorder Qty`);
       }
-      const headers = [...IMPORT_BASE_HEADERS, ...catCols, ...perLocCols];
+      const baseHeaders = showFxCosts
+        ? IMPORT_BASE_HEADERS
+        : IMPORT_BASE_HEADERS.filter(h => !(IMPORT_FX_COST_HEADERS as readonly string[]).includes(h));
+      const headers = [...baseHeaders, ...catCols, ...perLocCols];
 
       // CSV escape helper
       const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -3949,7 +3959,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             v.price_rrp ?? '',
             v.price_wholesale ?? '',
             v.cost_aud ?? '',
-            ...CURRENCIES.map(c => fc[c] ?? ''),
+            ...(showFxCosts ? CURRENCIES.map(c => fc[c] ?? '') : []),
             v.weight_kg ?? '',
           ];
 
@@ -4610,14 +4620,16 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               <button type="button" onClick={handleGenerate} style={btnStyle('mint', 'xs')}>⚡ Generate Variants</button>
               <button type="button" onClick={() => setVariantRows(prev => [...prev, blankRow()])} style={btnStyle('ghost', 'xs')}>+ Blank Row</button>
               {/* Currency cost picker */}
-              <select
-                value=""
-                onChange={e => { if (e.target.value && !activeCurrencies.includes(e.target.value)) setActiveCurrencies(prev => [...prev, e.target.value]); }}
-                style={{ ...inputStyle, padding: '3px 8px', fontSize: 12, width: 'auto' }}
-              >
-                <option value="">+ Add Currency Cost…</option>
-                {CURRENCIES.filter(c => !activeCurrencies.includes(c)).map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+              {showFxCosts && (
+                <select
+                  value=""
+                  onChange={e => { if (e.target.value && !activeCurrencies.includes(e.target.value)) setActiveCurrencies(prev => [...prev, e.target.value]); }}
+                  style={{ ...inputStyle, padding: '3px 8px', fontSize: 12, width: 'auto' }}
+                >
+                  <option value="">+ Add Currency Cost…</option>
+                  {CURRENCIES.filter(c => !activeCurrencies.includes(c)).map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              )}
             </div>
           </div>
 
@@ -5912,6 +5924,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((p: any) => ({ ...p, [k]: e.target.value }));
 
   // Effective default purchase tax rate (decimal), considering the selected supplier.
+  const showFxCosts = settings.use_foreign_currencies !== 'no';
   const selectedSupplier = suppliers.find((s: any) => String(s.id) === String(form.supplier_id));
   const poDefaultTaxRate = (() => {
     if (selectedSupplier && !Number(selectedSupplier.charges_tax ?? 1)) return 0;
@@ -6342,13 +6355,15 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                   <option value="no_tax">No tax / Zero-rated</option>
                 </select>
               </Field>
-              <Field label="Currency">
-                <select value={form.currency_code ?? 'AUD'} onChange={e => handleCurrencyChange(e.target.value)} style={inputStyle}>
-                  {PO_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </Field>
+              {showFxCosts && (
+                <Field label="Currency">
+                  <select value={form.currency_code ?? 'AUD'} onChange={e => handleCurrencyChange(e.target.value)} style={inputStyle}>
+                    {PO_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </Field>
+              )}
             </Row2>
-            {(form.currency_code ?? 'AUD') !== 'AUD' && (
+            {showFxCosts && (form.currency_code ?? 'AUD') !== 'AUD' && (
               <Row2>
                 <Field label={`Exchange Rate (1 ${form.currency_code} = ? AUD)`}>
                   <input type="number" min="0.000001" step="0.000001" value={form.exchange_rate} onChange={sf('exchange_rate')} style={inputStyle} placeholder="e.g. 1.5200" />
@@ -18127,6 +18142,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
       use_multiple_locations:   'yes',
       use_zones_bins:           'no',
       use_categories:           'no',
+      use_foreign_currencies:   'yes',
       ...settings,
     });
   }, [settings]);
@@ -18544,13 +18560,24 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                 </div>
               </div>
 
-              <div style={{ marginBottom: 4 }}>
+              <div style={{ marginBottom: 16 }}>
                 <label style={labelStyle}>Does your business organise products into Categories and Subcategories?</label>
                 <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Category and Subcategory can always be imported; enable this for category-based browsing and reporting.</p>
                 <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', width: 'fit-content' }}>
                   {(['yes', 'no'] as const).map(opt => {
                     const isOpt = (taxDraft.use_categories ?? 'no') === opt;
                     return <button key={opt} type="button" onClick={() => setTaxDraft(p => ({ ...p, use_categories: opt }))} style={{ padding: '7px 22px', fontSize: 13, fontWeight: isOpt ? 600 : 400, background: isOpt ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: isOpt ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer' }}>{opt === 'yes' ? 'Yes' : 'No'}</button>;
+                  })}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 4 }}>
+                <label style={labelStyle}>Does your business buy in foreign currencies?</label>
+                <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Shows currency selection on Purchase Orders and foreign currency cost fields (USD, EUR, GBP, etc.) on products.</p>
+                <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', width: 'fit-content' }}>
+                  {(['yes', 'no'] as const).map(opt => {
+                    const isOpt = (taxDraft.use_foreign_currencies ?? 'yes') === opt;
+                    return <button key={opt} type="button" onClick={() => setTaxDraft(p => ({ ...p, use_foreign_currencies: opt }))} style={{ padding: '7px 22px', fontSize: 13, fontWeight: isOpt ? 600 : 400, background: isOpt ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: isOpt ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer' }}>{opt === 'yes' ? 'Yes' : 'No'}</button>;
                   })}
                 </div>
               </div>
