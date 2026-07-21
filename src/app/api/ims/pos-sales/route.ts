@@ -1,18 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
-
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
+import { getImsSession } from '@/lib/auth/imsSession';
 
 // GET /api/ims/pos-sales?location_id=X&group_by_register=1
 // Without group_by_register: returns { days } grouped by date (all-branches view).
 // With group_by_register=1 + location_id: returns { registers } each with nested days + session info.
 export async function GET(req: NextRequest) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);

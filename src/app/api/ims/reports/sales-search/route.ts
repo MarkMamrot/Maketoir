@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { getIMSPool } from '@/services/IMSMySQLService';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 // ── Sales Search (IMS report) ─────────────────────────────────────────────────
 //
@@ -8,12 +8,6 @@ import { getIMSPool } from '@/services/IMSMySQLService';
 // canonical sales sources (complete Cin7 history + live in-app POS + live in-app Sales Orders)
 // — the same non-overlapping set the sales cache uses, so POS, online and wholesale are all
 // included. Supports free-text word search across product name / SKU (partial, not exact).
-
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -59,7 +53,7 @@ const SALES_CTE = `
       AND  so.order_date BETWEEN ? AND ?`;
 
 export async function GET(req: Request) {
-  if (!getSession()) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
+  if (!await getImsSession()) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const q           = (searchParams.get('q') ?? '').trim();

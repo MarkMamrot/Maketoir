@@ -27,6 +27,16 @@ export function deriveImsDbName(businessName: string): string {
   return safeDbName(`${prefix}${slug}IMS`);
 }
 
+function deriveProvisionedImsDbName(businessName: string, businessId: string): string {
+  const prefix = process.env.IMS_DB_PREFIX ?? 'readyedu_';
+  const slug = String(businessName).replace(/[^a-zA-Z0-9]/g, '') || 'Business';
+  const suffix = String(businessId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 12);
+  if (!suffix) throw new Error('Business id has no usable characters for a schema name');
+  const maxSlugLength = 60 - prefix.length - suffix.length - '_IMS'.length;
+  const truncatedSlug = slug.slice(0, Math.max(1, maxSlugLength));
+  return safeDbName(`${prefix}${truncatedSlug}_${suffix}IMS`);
+}
+
 /** A raw connection to the MySQL server (no specific schema bound). */
 async function serverConnection(database?: string): Promise<mysql.Connection> {
   return mysql.createConnection({
@@ -112,7 +122,7 @@ export async function provisionBusinessIms(opts: {
   businessName: string;
   imsDbName?: string;
 }): Promise<ProvisionResult> {
-  const dbName = safeDbName(opts.imsDbName ?? deriveImsDbName(opts.businessName));
+  const dbName = safeDbName(opts.imsDbName ?? deriveProvisionedImsDbName(opts.businessName, opts.businessId));
 
   await createImsDatabase(dbName);
 

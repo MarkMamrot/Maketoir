@@ -113,6 +113,13 @@ Always read this file when starting a new session or implementing a feature to u
 * Two MySQL DBs on Railway: main (`MYSQL_DATABASE` — users, business config) and IMS (`IMS_MYSQL_DATABASE` — all POS/IMS tables).
 * Auth cookies: `marketoir_session` (admin/IMS), `pos_session` (POS cashier, 16-hr).
 
+### Multi-tenant IMS provisioning (2026-07-21)
+* New homepage registrations must provision a dedicated IMS schema and set `businesses.ims_db_name`; otherwise the business falls back to the default Monsterthreads IMS schema.
+* Public `/api/auth/register` now calls `provisionBusinessIms()` after creating the business row.
+* `scripts/ims-schema.sql` is the source for fresh tenant schemas. Keep it aligned with live migrations, including `business_id` columns, POS register/session columns, `ims_sales_history`, and `trg_ims_stock_bizid` / `trg_ims_sales_cache_bizid` compatibility.
+* IMS API routes that touch IMS tables must call `getImsSession()` or `enterImsForBusiness()` before any `imsQuery`, `imsExecute`, `getIMSPool`, or `Ims*Repo` call. Local cookie parsing alone is not tenant-safe.
+* Sage was provisioned as `readyedu_SageIMS`; leak-prone tables verified empty after provisioning.
+
 ---
 
 ## 📦 IMS — Purchase Orders (2026-06-24)

@@ -9,6 +9,7 @@ SET NAMES utf8mb4;
 -- ── Contacts (Suppliers + Customers) ────────────────────────
 CREATE TABLE IF NOT EXISTS ims_contacts (
   id          INT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL DEFAULT '',
   type        ENUM('supplier','customer','both') NOT NULL DEFAULT 'supplier',
   name        VARCHAR(255) NOT NULL,
   company     VARCHAR(255),
@@ -24,12 +25,14 @@ CREATE TABLE IF NOT EXISTS ims_contacts (
   order_frequency_days INT NOT NULL DEFAULT 45,
   is_active   TINYINT(1) NOT NULL DEFAULT 1,
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_business_id (business_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Locations (Branches / Warehouses) ───────────────────────
 CREATE TABLE IF NOT EXISTS ims_locations (
   id          INT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL DEFAULT '',
   name        VARCHAR(255) NOT NULL,
   code        VARCHAR(50),
   address     TEXT,
@@ -39,12 +42,25 @@ CREATE TABLE IF NOT EXISTS ims_locations (
   country     VARCHAR(100) DEFAULT 'Australia',
   is_active   TINYINT(1) NOT NULL DEFAULT 1,
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_business_id (business_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── Settings (per-business IMS configuration) ───────────────
+CREATE TABLE IF NOT EXISTS ims_settings (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL DEFAULT '',
+  `key`       VARCHAR(120) NOT NULL,
+  value       MEDIUMTEXT,
+  updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_ims_settings_business_key (business_id, `key`),
+  INDEX idx_business_id (business_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Products ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_products (
   id                 INT AUTO_INCREMENT PRIMARY KEY,
+  business_id        VARCHAR(100) NOT NULL DEFAULT '',
   product_id         VARCHAR(36) NOT NULL UNIQUE,
   name               VARCHAR(255) NOT NULL,
   description        MEDIUMTEXT,
@@ -55,12 +71,14 @@ CREATE TABLE IF NOT EXISTS ims_products (
   is_active          TINYINT(1) NOT NULL DEFAULT 1,
   shopify_product_id VARCHAR(100),
   created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at         DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at         DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_business_id (business_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Product Variants ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_product_variants (
   id                  INT AUTO_INCREMENT PRIMARY KEY,
+  business_id         VARCHAR(100) NOT NULL DEFAULT '',
   variant_id          VARCHAR(36) NOT NULL UNIQUE,
   product_id          VARCHAR(36) NOT NULL,
   sku                 VARCHAR(100),
@@ -82,6 +100,7 @@ CREATE TABLE IF NOT EXISTS ims_product_variants (
   created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (product_id) REFERENCES ims_products(product_id) ON DELETE CASCADE,
+  INDEX idx_business_id (business_id),
   INDEX idx_pv_product (product_id),
   INDEX idx_pv_sku (sku)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -93,6 +112,7 @@ CREATE TABLE IF NOT EXISTS ims_product_variants (
 -- avg_cost      = weighted average cost per unit
 CREATE TABLE IF NOT EXISTS ims_stock (
   id            INT AUTO_INCREMENT PRIMARY KEY,
+  business_id   VARCHAR(100) NOT NULL DEFAULT '',
   variant_id    VARCHAR(36) NOT NULL,
   location_id   INT NOT NULL,
   qty_on_hand   DECIMAL(12,4) NOT NULL DEFAULT 0,
@@ -103,6 +123,7 @@ CREATE TABLE IF NOT EXISTS ims_stock (
   avg_cost      DECIMAL(12,4),
   updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_stock (variant_id, location_id),
+  INDEX idx_business_id (business_id),
   FOREIGN KEY (variant_id) REFERENCES ims_product_variants(variant_id) ON DELETE CASCADE,
   FOREIGN KEY (location_id) REFERENCES ims_locations(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -114,6 +135,7 @@ CREATE TABLE IF NOT EXISTS ims_stock (
 -- any       → cancelled
 CREATE TABLE IF NOT EXISTS ims_purchase_orders (
   id            INT AUTO_INCREMENT PRIMARY KEY,
+  business_id   VARCHAR(100) NOT NULL DEFAULT '',
   po_number     VARCHAR(50) NOT NULL UNIQUE,
   supplier_id   INT,
   location_id   INT NOT NULL,
@@ -129,6 +151,7 @@ CREATE TABLE IF NOT EXISTS ims_purchase_orders (
   total_amount  DECIMAL(12,2) NOT NULL DEFAULT 0,
   created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_business_id (business_id),
   FOREIGN KEY (supplier_id) REFERENCES ims_contacts(id) ON DELETE SET NULL,
   FOREIGN KEY (location_id) REFERENCES ims_locations(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -139,18 +162,21 @@ CREATE TABLE IF NOT EXISTS ims_purchase_orders (
 -- proportionally to variant avg_cost when the PO is received.
 CREATE TABLE IF NOT EXISTS ims_po_landed_costs (
   id         INT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL DEFAULT '',
   po_id      INT NOT NULL,
   label      VARCHAR(200) NOT NULL,
   reference  VARCHAR(200),
   amount     DECIMAL(12,2) NOT NULL DEFAULT 0,
   sort_order INT NOT NULL DEFAULT 0,
   FOREIGN KEY (po_id) REFERENCES ims_purchase_orders(id) ON DELETE CASCADE,
+  INDEX idx_business_id (business_id),
   INDEX idx_polc_po (po_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Purchase Order Items ─────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_purchase_order_items (
   id           INT AUTO_INCREMENT PRIMARY KEY,
+  business_id  VARCHAR(100) NOT NULL DEFAULT '',
   po_id        INT NOT NULL,
   variant_id   VARCHAR(36) NOT NULL,
   qty_ordered  DECIMAL(12,4) NOT NULL,
@@ -161,6 +187,7 @@ CREATE TABLE IF NOT EXISTS ims_purchase_order_items (
   notes        VARCHAR(500),
   FOREIGN KEY (po_id) REFERENCES ims_purchase_orders(id) ON DELETE CASCADE,
   FOREIGN KEY (variant_id) REFERENCES ims_product_variants(variant_id),
+  INDEX idx_business_id (business_id),
   INDEX idx_poi_po (po_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -171,6 +198,7 @@ CREATE TABLE IF NOT EXISTS ims_purchase_order_items (
 -- any       → cancelled
 CREATE TABLE IF NOT EXISTS ims_sales_orders (
   id               INT AUTO_INCREMENT PRIMARY KEY,
+  business_id      VARCHAR(100) NOT NULL DEFAULT '',
   so_number        VARCHAR(50) NOT NULL UNIQUE,
   customer_id      INT,
   price_tier       ENUM('retail','wholesale') NOT NULL DEFAULT 'retail',
@@ -188,6 +216,7 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
   shopify_order_id VARCHAR(100),
   created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_business_id (business_id),
   FOREIGN KEY (customer_id) REFERENCES ims_contacts(id) ON DELETE SET NULL,
   FOREIGN KEY (location_id) REFERENCES ims_locations(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -195,6 +224,7 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
 -- ── Sales Order Items ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_sales_order_items (
   id            INT AUTO_INCREMENT PRIMARY KEY,
+  business_id   VARCHAR(100) NOT NULL DEFAULT '',
   so_id         INT NOT NULL,
   variant_id    VARCHAR(36) NOT NULL,
   qty_ordered   DECIMAL(12,4) NOT NULL,
@@ -207,12 +237,14 @@ CREATE TABLE IF NOT EXISTS ims_sales_order_items (
   notes         VARCHAR(500),
   FOREIGN KEY (so_id) REFERENCES ims_sales_orders(id) ON DELETE CASCADE,
   FOREIGN KEY (variant_id) REFERENCES ims_product_variants(variant_id),
+  INDEX idx_business_id (business_id),
   INDEX idx_soi_so (so_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Stock Movements (audit trail) ────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_stock_movements (
   id             INT AUTO_INCREMENT PRIMARY KEY,
+  business_id    VARCHAR(100) NOT NULL DEFAULT '',
   variant_id     VARCHAR(36) NOT NULL,
   location_id    INT NOT NULL,
   movement_type  ENUM(
@@ -229,6 +261,7 @@ CREATE TABLE IF NOT EXISTS ims_stock_movements (
   notes          VARCHAR(500),
   created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_sm_variant  (variant_id),
+  INDEX idx_business_id (business_id),
   INDEX idx_sm_location (location_id),
   INDEX idx_sm_ref      (reference_type, reference_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -240,6 +273,7 @@ CREATE TABLE IF NOT EXISTS ims_stock_movements (
 -- ── POS Users ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pos_users (
   id            INT AUTO_INCREMENT PRIMARY KEY,
+  business_id   VARCHAR(100) NOT NULL DEFAULT '',
   username      VARCHAR(100) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   full_name     VARCHAR(255),
@@ -248,16 +282,59 @@ CREATE TABLE IF NOT EXISTS pos_users (
   branch_ids    JSON,           -- null = all branches allowed
   is_active     TINYINT(1) NOT NULL DEFAULT 1,
   created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_business_id (business_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── POS Registers ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS pos_registers (
+  id                     INT AUTO_INCREMENT PRIMARY KEY,
+  location_id            INT NOT NULL,
+  name                   VARCHAR(100) NOT NULL DEFAULT 'Default Register',
+  default_float          DECIMAL(12,2) NOT NULL DEFAULT 200.00,
+  is_active              TINYINT(1) NOT NULL DEFAULT 1,
+  card_terminal_provider VARCHAR(50),
+  zeller_site_id         VARCHAR(255),
+  zeller_terminal_id     VARCHAR(255),
+  zeller_api_key         TEXT,
+  card_terminal_methods  TEXT,
+  created_at             DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (location_id) REFERENCES ims_locations(id),
+  INDEX idx_register_location (location_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── POS Register Sessions ─────────────────────────────────────
+CREATE TABLE IF NOT EXISTS pos_register_sessions (
+  id                INT AUTO_INCREMENT PRIMARY KEY,
+  register_id       INT NOT NULL,
+  location_id       INT NOT NULL,
+  session_date      DATE NOT NULL,
+  opened_at         DATETIME NOT NULL,
+  closed_at         DATETIME,
+  opened_by         VARCHAR(255),
+  closed_by         VARCHAR(255),
+  opening_float     DECIMAL(12,2),
+  denomination_data JSON,
+  status            ENUM('open','closed') NOT NULL DEFAULT 'open',
+  created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (register_id) REFERENCES pos_registers(id),
+  FOREIGN KEY (location_id) REFERENCES ims_locations(id),
+  INDEX idx_prs_register (register_id, session_date),
+  INDEX idx_prs_status (register_id, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── POS Sales ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pos_sales (
   id                INT AUTO_INCREMENT PRIMARY KEY,
+  business_id       VARCHAR(100) NOT NULL DEFAULT '',
   local_id          VARCHAR(100) UNIQUE,
   location_id       INT NOT NULL,
+  register_id       INT NULL,
+  register_session_id INT NULL,
+  trading_date      DATE NULL,
   cashier_id        INT NULL,
-  cashier_name      VARCHAR(255),('sale','return','layby') NOT NULL DEFAULT 'sale',
+  cashier_name      VARCHAR(255),
+  sale_type         ENUM('sale','return','layby') NOT NULL DEFAULT 'sale',
   status            ENUM('open','parked','completed','voided','layby_active','layby_complete') NOT NULL DEFAULT 'open',
   customer_name     VARCHAR(255),
   customer_phone    VARCHAR(50),
@@ -270,14 +347,19 @@ CREATE TABLE IF NOT EXISTS pos_sales (
   return_of_sale_id INT,
   created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
   completed_at      DATETIME,
+  is_historical     TINYINT(1) NOT NULL DEFAULT 0,
+  cash_rounding     DECIMAL(10,2) NOT NULL DEFAULT 0,
   FOREIGN KEY (location_id) REFERENCES ims_locations(id),
-  FOREIGN KEY (cashier_id)  REFERENCES pos_users(id),
-  INDEX idx_pos_loc_date (location_id, created_at)
+  INDEX idx_pos_loc_date (location_id, created_at),
+  INDEX idx_business_id (business_id),
+  INDEX idx_ps_register (register_id),
+  INDEX idx_ps_session (register_session_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── POS Sale Items ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pos_sale_items (
   id              INT AUTO_INCREMENT PRIMARY KEY,
+  business_id     VARCHAR(100) NOT NULL DEFAULT '',
   sale_id         INT NOT NULL,
   variant_id      VARCHAR(36),
   code            VARCHAR(100),
@@ -291,18 +373,21 @@ CREATE TABLE IF NOT EXISTS pos_sale_items (
   tax_rate        DECIMAL(5,2)  NOT NULL DEFAULT 10.00,
   line_total      DECIMAL(12,2) NOT NULL,
   FOREIGN KEY (sale_id) REFERENCES pos_sales(id) ON DELETE CASCADE,
+  INDEX idx_business_id (business_id),
   INDEX idx_psi_sale (sale_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── POS Payments ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pos_payments (
   id             INT AUTO_INCREMENT PRIMARY KEY,
+  business_id    VARCHAR(100) NOT NULL DEFAULT '',
   sale_id        INT NOT NULL,
   payment_method VARCHAR(100) NOT NULL,
   amount         DECIMAL(12,2) NOT NULL,
   reference      VARCHAR(255),
   created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (sale_id) REFERENCES pos_sales(id) ON DELETE CASCADE,
+  INDEX idx_business_id (business_id),
   INDEX idx_pp_sale   (sale_id),
   INDEX idx_pp_method (payment_method, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -310,7 +395,10 @@ CREATE TABLE IF NOT EXISTS pos_payments (
 -- ── POS EOD Reconciliations ───────────────────────────────────
 CREATE TABLE IF NOT EXISTS pos_eod_reconciliations (
   id                INT AUTO_INCREMENT PRIMARY KEY,
+  business_id       VARCHAR(100) NOT NULL DEFAULT '',
   location_id       INT NOT NULL,
+  register_id       INT NULL,
+  register_session_id INT NULL,
   cashier_id        INT NULL,
   cashier_name      VARCHAR(255),
   recon_date        DATE NOT NULL,
@@ -323,15 +411,40 @@ CREATE TABLE IF NOT EXISTS pos_eod_reconciliations (
   xero_invoice_id   VARCHAR(100) NULL,
   xero_synced_at    DATETIME     NULL,
   created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_eod (location_id, recon_date, payment_method),
-  INDEX idx_eod_loc_date (location_id, recon_date)
+  UNIQUE KEY uq_eod (location_id, register_id, recon_date, payment_method),
+  INDEX idx_eod_loc_date (location_id, recon_date),
+  INDEX idx_business_id (business_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Sales Cache (precomputed aggregates — mirrors Cin7 products table) ────────
+CREATE TABLE IF NOT EXISTS ims_sales_history (
+  id             BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id    VARCHAR(100) NOT NULL DEFAULT '',
+  cin7_order_id  VARCHAR(100) NOT NULL,
+  variant_id     VARCHAR(100) NULL,
+  cin7_option_id INT NULL,
+  sku            VARCHAR(100) NULL,
+  product_name   VARCHAR(255) NULL,
+  branch_id      INT NULL,
+  invoice_date   DATE NULL,
+  qty            DECIMAL(10,4) DEFAULT 0,
+  unit_price     DECIMAL(12,4) DEFAULT 0,
+  line_total     DECIMAL(12,4) DEFAULT 0,
+  amount_due     DECIMAL(12,4) NULL,
+  source         VARCHAR(100) NULL,
+  reference      VARCHAR(100) NULL,
+  stage          VARCHAR(100) NULL,
+  INDEX idx_business_id (business_id),
+  INDEX idx_variant_id (variant_id),
+  INDEX idx_invoice_date (invoice_date),
+  INDEX idx_cin7_order_id (cin7_order_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Refreshed on demand via POST /api/ims/refresh-sales-cache
 -- Combines ims_sales_orders (fulfilled) + pos_sales (completed) + ims_stock
 CREATE TABLE IF NOT EXISTS ims_sales_cache (
   variant_id       VARCHAR(36)    NOT NULL,
+  business_id      VARCHAR(100)   NOT NULL DEFAULT '',
   sales_qty_7d     DECIMAL(12,4)  NOT NULL DEFAULT 0,
   sales_qty_90d    DECIMAL(12,4)  NOT NULL DEFAULT 0,
   sales_qty_180d   DECIMAL(12,4)  NOT NULL DEFAULT 0,
@@ -341,6 +454,7 @@ CREATE TABLE IF NOT EXISTS ims_sales_cache (
   global_incoming  DECIMAL(12,4)  NOT NULL DEFAULT 0,
   updated_at       DATETIME       DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (variant_id),
+  INDEX idx_business_id (business_id),
   CONSTRAINT fk_isc_variant FOREIGN KEY (variant_id)
     REFERENCES ims_product_variants(variant_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -1,19 +1,9 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { ImsPORepo } from '@/lib/ims/ImsRepository';
-
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try {
-    return JSON.parse(c.value);
-  } catch {
-    return null;
-  }
-}
+import { getImsSession } from '@/lib/auth/imsSession';
 
 export async function GET() {
-  if (!getSession()) {
+  if (!await getImsSession()) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 

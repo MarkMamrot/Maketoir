@@ -4,6 +4,9 @@ import { UsersRepository } from '@/lib/db/UsersRepository';
 import { execute } from '@/services/MySQLService';
 import { ConfigRepository } from '@/lib/db/ConfigRepository';
 import { getPasswordValidation } from '@/lib/auth/passwordPolicy';
+import { provisionBusinessIms } from '@/lib/ims/provisionBusiness';
+import { BusinessInfoRepository } from '@/lib/db/BusinessInfoRepository';
+import { imsExecute } from '@/services/IMSMySQLService';
 
 export async function POST(req: Request) {
   try {
@@ -28,11 +31,12 @@ export async function POST(req: Request) {
 
     // 1. Create Drive folder + spreadsheet marker for file storage (logo uploads etc.)
     const sheetsService = new GoogleSheetsService();
-    const userWorkspaceName = `${company || name} - Marketoir Intelligence`;
+    const businessName = company || name || 'Business';
+    const userWorkspaceName = `${businessName} - Marketoir Intelligence`;
     const { spreadsheetId: businessId, folderId } = await sheetsService.createWorkspaceDatabase(
       userWorkspaceName,
       process.env.GOOGLE_USER_DB_FOLDER_ID || process.env.GOOGLE_DRIVE_FOLDER_ID,
-      company || name,
+      businessName,
     );
 
     // 2. Register business + user in MySQL — clean up Drive if this fails
@@ -41,10 +45,23 @@ export async function POST(req: Request) {
         `INSERT INTO businesses (business_id, name, drive_folder_id)
          VALUES (?, ?, ?)
          ON DUPLICATE KEY UPDATE name = VALUES(name), drive_folder_id = VALUES(drive_folder_id)`,
-        [businessId, company || name, folderId ?? null],
+        [businessId, businessName, folderId ?? null],
       );
 
-      await UsersRepository.create({ email, password, name, company, phone, businessId, role: 'admin' });
+      const ims = await provisionBusinessIms({ businessId, businessName });
+
+      await Promise.all([
+        BusinessInfoRepository.upsert(businessId, { brand_name: businessName }),
+        imsExecute(
+          `INSERT INTO ims_settings (business_id, \`key\`, value)
+           VALUES (?, 'business_name', ?)
+           ON DUPLICATE KEY UPDATE value = VALUES(value)`,
+          [businessId, businessName],
+          ims.imsDbName,
+        ),
+      ]);
+
+      await UsersRepository.create({ email, password, name, company: businessName, phone, businessId, role: 'admin', tier: 'Admin' });
 
       // 3. Store Drive folder ID in config so logo uploads know where to go
       if (folderId) {

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 // Settings whose changes affect the inventory qty pushed to Shopify.
 // When any of these keys change we must re-enqueue every linked variant so the
@@ -10,15 +10,9 @@ const INVENTORY_SENSITIVE_KEYS = new Set([
   'online_pick_priority',
 ]);
 
-function getSession() {
-  const c = cookies().get('marketoir_session');
-  if (!c?.value) return null;
-  try { return JSON.parse(c.value); } catch { return null; }
-}
-
 /** GET /api/ims/settings — returns all settings for the business as { key: value } */
 export async function GET() {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = session.businessId;
   try {
@@ -39,7 +33,7 @@ export async function GET() {
  * Body: { key: string, value: string } or { settings: Record<string, string> }
  */
 export async function PUT(req: Request) {
-  const session = getSession();
+  const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = session.businessId;
   try {
