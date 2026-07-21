@@ -63,7 +63,7 @@ async function refreshVariantAvgCost(conn: any, variantId: string): Promise<void
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type ContactType = 'supplier' | 'customer' | 'both';
+export type ContactType = 'supplier' | 'b2b_customer' | 'retail_customer' | 'lead' | 'both';
 export type POStatus    = 'draft' | 'confirmed' | 'partially_received' | 'complete' | 'cancelled';
 export type SOStatus    = 'draft' | 'confirmed' | 'fulfilled' | 'cancelled';
 
@@ -275,7 +275,13 @@ export const ImsContactsRepo = {
     const wheres: string[] = [];
     const params: any[] = [];
     if (businessId) { wheres.push('business_id = ?'); params.push(businessId); }
-    if (type) { wheres.push(`(type = ? OR type = 'both')`); params.push(type); }
+    if (type === 'supplier' || type === 'b2b_customer') {
+      wheres.push(`(type = ? OR type = 'both')`);
+      params.push(type);
+    } else if (type) {
+      wheres.push('type = ?');
+      params.push(type);
+    }
     if (activeOnly) { wheres.push('is_active = 1'); }
     const where = wheres.length ? 'WHERE ' + wheres.join(' AND ') : '';
     return imsQuery<ImsContact>(

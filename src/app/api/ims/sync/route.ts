@@ -276,7 +276,7 @@ export async function POST(req: Request) {
             if (!custByCin7.has(cin7Id)) {
               const res = await imsExecute(
                 `INSERT INTO ims_contacts (type, name, company, email, phone, country, is_active, cin7_customer_id)
-                 VALUES ('customer', ?, ?, ?, ?, ?, 1, ?)`,
+                 VALUES ('b2b_customer', ?, ?, ?, ?, ?, 1, ?)`,
                 [name, company, c.email || null, c.phone || null, c.country || null, cin7Id],
               );
               custByCin7.set(cin7Id, res.insertId);

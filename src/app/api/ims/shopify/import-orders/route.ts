@@ -54,7 +54,7 @@ async function getOrCreateOnlineCustomerId(businessId: string): Promise<number |
     id = found[0].id;
   } else {
     const res = await imsExecute(
-      "INSERT INTO ims_contacts (business_id, type, name, is_active) VALUES (?, 'customer', 'Online Customer', 1)",
+      "INSERT INTO ims_contacts (business_id, type, name, is_active) VALUES (?, 'retail_customer', 'Online Customer', 1)",
       [businessId],
     );
     id = res.insertId;

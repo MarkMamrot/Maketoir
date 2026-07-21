@@ -47,7 +47,7 @@ export async function POST(req: Request) {
           `SELECT id, email, name, business_id
            FROM ims_contacts
            WHERE LOWER(email) = ? AND price_tier = 'wholesale'
-             AND (type = 'customer' OR type = 'both')
+             AND (type = 'b2b_customer' OR type = 'customer' OR type = 'both')
              AND is_active = 1
            LIMIT 1`,
           [email],

@@ -55,7 +55,7 @@ export interface StandardizedContact {
   company:        string | null;
   email:          string | null;
   phone:          string | null;
-  type:           'supplier' | 'customer' | 'both';
+  type:           'supplier' | 'b2b_customer' | 'retail_customer' | 'lead' | 'both';
   lead_time_days: number | null;
   order_frequency_days?: number | null;
 }

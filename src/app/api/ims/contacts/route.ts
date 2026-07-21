@@ -9,6 +9,14 @@ async function ensureMigration() {
   await imsExecute(
     `ALTER TABLE ims_contacts ADD COLUMN IF NOT EXISTS order_frequency_days INT NOT NULL DEFAULT 45`,
   ).catch(() => {});
+  // Expand ENUM to support b2b_customer, retail_customer, lead (keep 'customer' during transition)
+  await imsExecute(
+    `ALTER TABLE ims_contacts MODIFY COLUMN type ENUM('supplier','customer','b2b_customer','retail_customer','lead','both') NOT NULL DEFAULT 'supplier'`,
+  ).catch(() => {});
+  // Rename legacy 'customer' rows to 'b2b_customer'
+  await imsExecute(
+    `UPDATE ims_contacts SET type = 'b2b_customer' WHERE type = 'customer'`,
+  ).catch(() => {});
   migrationDone = true;
 }
 

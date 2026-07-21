@@ -213,11 +213,12 @@ async function apiFetch(url: string, opts?: RequestInit) {
 
 function useImsSettings() {
   const [settings, setSettings] = useState<Record<string, string>>({});
-  useEffect(() => {
+  const fetchSettings = useCallback(() => {
     fetch('/api/ims/settings').then(r => r.json()).then(d => {
       if (d.success) setSettings(d.data || {});
     }).catch(() => {});
   }, []);
+  useEffect(() => { fetchSettings(); }, [fetchSettings]);
   const saveSettings = useCallback(async (updates: Record<string, string>) => {
     setSettings(prev => ({ ...prev, ...updates }));
     try {
@@ -228,7 +229,7 @@ function useImsSettings() {
       });
     } catch {}
   }, []);
-  return { settings, saveSettings };
+  return { settings, saveSettings, refetchSettings: fetchSettings };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -587,93 +588,139 @@ function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void;
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 340px', gap: 20 }} className="onboarding-grid">
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 320px', gap: 24 }} className="onboarding-grid">
             {/* Left: form fields */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                {[['business_name','Business Name','Your company name'],['business_abn','ABN','11 222 333 444']].map(([k, lbl, ph]) => (
-                  <div key={k}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 3 }}>{lbl}</div>
-                    <input value={onboardingDraft[k] ?? ''} onChange={e => setOnboardingField(k, e.target.value)}
-                      style={{ ...inputStyle, fontSize: 13 }} placeholder={ph} />
-                  </div>
-                ))}
-                <div style={{ gridColumn: 'span 2' }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Business Address</div>
-                  <input value={onboardingDraft.business_address ?? ''} onChange={e => setOnboardingField('business_address', e.target.value)}
-                    style={{ ...inputStyle, fontSize: 13 }} placeholder="123 Main St, Sydney NSW 2000" />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+              {/* ── Business Identity ── */}
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--sv-text-dim)', marginBottom: 10 }}>Business Identity</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 6 }}>
+                <div title="The legal name of your business — appears on PO and tax invoice PDFs.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Business Name</div>
+                  <input value={onboardingDraft.business_name ?? ''} onChange={e => setOnboardingField('business_name', e.target.value)}
+                    style={{ ...inputStyle, fontSize: 13 }} placeholder="Your company name" />
+                </div>
+                <div title="Australian Business Number — printed on invoices for GST compliance.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>ABN</div>
+                  <input value={onboardingDraft.business_abn ?? ''} onChange={e => setOnboardingField('business_abn', e.target.value)}
+                    style={{ ...inputStyle, fontSize: 13 }} placeholder="11 222 333 444" />
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                {([
-                  ['use_multiple_locations','Multiple locations?'],
-                  ['use_zones_bins','Use zones and bins?'],
-                  ['use_categories','Use categories/subcategories?'],
-                  ['use_foreign_currencies','Buy in foreign currencies?'],
-                  ['connect_online_shop','Connect an Online Shop?'],
-                  ['connect_accounting_software','Connect accounting software?'],
-                ] as [string, string][]).map(([key, label]) => (
-                  <div key={key}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 3 }}>{label}</div>
-                    <select value={onboardingDraft[key] ?? 'no'} onChange={e => setOnboardingField(key, e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
-                      <option value="yes">Yes</option>
-                      <option value="no">No</option>
-                    </select>
-                  </div>
-                ))}
+              <div style={{ marginBottom: 20 }} title="The registered business address — appears on PO and tax invoice PDFs.">
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Business Address</div>
+                <input value={onboardingDraft.business_address ?? ''} onChange={e => setOnboardingField('business_address', e.target.value)}
+                  style={{ ...inputStyle, fontSize: 13 }} placeholder="123 Main St, Sydney NSW 2000" />
+              </div>
+
+              {/* ── Operations ── */}
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--sv-text-dim)', marginBottom: 10 }}>Operations</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 6 }}>
+                <div title="Turn on if you have more than one warehouse, store, or fulfilment location. Enables branch transfers and per-location stock.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Multiple locations?</div>
+                  <select value={onboardingDraft.use_multiple_locations ?? 'yes'} onChange={e => setOnboardingField('use_multiple_locations', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
+                    <option value="yes">Yes</option><option value="no">No</option>
+                  </select>
+                </div>
+                <div title="Zone and bin help locate products within a warehouse (e.g. Zone A, Bin 12). Shown on purchase order PDFs.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Use zones and bins?</div>
+                  <select value={onboardingDraft.use_zones_bins ?? 'no'} onChange={e => setOnboardingField('use_zones_bins', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
+                    <option value="yes">Yes</option><option value="no">No</option>
+                  </select>
+                </div>
+                <div title="Enables product category and subcategory fields for organising your catalogue.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Use categories?</div>
+                  <select value={onboardingDraft.use_categories ?? 'no'} onChange={e => setOnboardingField('use_categories', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
+                    <option value="yes">Yes</option><option value="no">No</option>
+                  </select>
+                </div>
+                <div title="Allows purchase orders to be entered in foreign currencies (USD, EUR, etc.) with automatic AUD cost conversion.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Buy in foreign currencies?</div>
+                  <select value={onboardingDraft.use_foreign_currencies ?? 'yes'} onChange={e => setOnboardingField('use_foreign_currencies', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
+                    <option value="yes">Yes</option><option value="no">No</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* ── Integrations ── */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 6 }}>
+                <div title="Connect Shopify (or another platform) to sync products, inventory levels, and online orders automatically.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Connect an Online Shop?</div>
+                  <select value={onboardingDraft.connect_online_shop ?? 'no'} onChange={e => setOnboardingField('connect_online_shop', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
+                    <option value="yes">Yes</option><option value="no">No</option>
+                  </select>
+                </div>
                 {onboardingDraft.connect_online_shop === 'yes' && (
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Online shop platform</div>
+                  <div title="The e-commerce platform your online store runs on.">
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Online shop platform</div>
                     <select value={onboardingDraft.online_shop_platform ?? 'shopify'} onChange={e => setOnboardingField('online_shop_platform', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
                       <option value="shopify">Shopify</option>
-                      <option disabled>WooCommerce - coming soon</option>
-                      <option disabled>BigCommerce - coming soon</option>
-                      <option disabled>Adobe Commerce - coming soon</option>
+                      <option disabled>WooCommerce — coming soon</option>
+                      <option disabled>BigCommerce — coming soon</option>
+                      <option disabled>Adobe Commerce — coming soon</option>
                     </select>
                   </div>
                 )}
+                <div title="Connect Xero or QuickBooks to automatically post purchase orders, sales invoices, and stocktake journals.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Connect accounting software?</div>
+                  <select value={onboardingDraft.connect_accounting_software ?? 'no'} onChange={e => setOnboardingField('connect_accounting_software', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
+                    <option value="yes">Yes</option><option value="no">No</option>
+                  </select>
+                </div>
                 {onboardingDraft.connect_accounting_software === 'yes' && (
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Accounting platform</div>
+                  <div title="The accounting platform you use. Xero is fully supported; QuickBooks is coming soon.">
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Accounting platform</div>
                     <select value={onboardingDraft.accounting_software ?? 'xero'} onChange={e => setOnboardingField('accounting_software', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
                       <option value="xero">Xero</option>
-                      <option disabled>QuickBooks - coming soon</option>
+                      <option disabled>QuickBooks — coming soon</option>
                     </select>
                   </div>
                 )}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                {([
-                  ['sales_tax_on_sales','Charge Sales Tax on Sales Orders', null, ['yes','no']],
-                ] as any[]).map(([k, lbl]) => (
-                  <div key={k}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 3 }}>{lbl}</div>
-                    <select value={onboardingDraft[k] ?? 'yes'} onChange={e => setOnboardingField(k, e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
-                      <option value="yes">Yes</option><option value="no">No</option>
-                    </select>
-                  </div>
-                ))}
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Sales Tax Code</div>
-                  <input value={onboardingDraft.sales_tax_code ?? ''} onChange={e => setOnboardingField('sales_tax_code', e.target.value)} style={{ ...inputStyle, fontSize: 13 }} placeholder="GST" />
+
+              {/* divider */}
+              <div style={{ height: 1, background: 'var(--sv-etch)', margin: '12px 0 18px' }} />
+
+              {/* ── Tax Settings ── */}
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--sv-text-dim)', marginBottom: 10 }}>Tax Settings</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 6 }}>
+                <div title="Whether GST (or your local sales tax) is charged on sales orders and tax invoices.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Charge Sales Tax on Sales Orders?</div>
+                  <select value={onboardingDraft.sales_tax_on_sales ?? 'yes'} onChange={e => setOnboardingField('sales_tax_on_sales', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
+                    <option value="yes">Yes</option><option value="no">No</option>
+                  </select>
                 </div>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Sales Tax Rate (%)</div>
-                  <input type="number" min="0" step="0.01" value={onboardingDraft.sales_tax_rate ? String(Number(onboardingDraft.sales_tax_rate) * 100) : ''} onChange={e => setOnboardingField('sales_tax_rate', e.target.value ? String(Number(e.target.value) / 100) : '')} style={{ ...inputStyle, fontSize: 13 }} placeholder="10" />
+                <div title="The tax code label that appears on PDF invoices, e.g. GST.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Sales Tax Code</div>
+                  <input value={onboardingDraft.sales_tax_code ?? ''} onChange={e => setOnboardingField('sales_tax_code', e.target.value)}
+                    style={{ ...inputStyle, fontSize: 13 }} placeholder="GST" />
                 </div>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Purchase Tax Rate (%)</div>
-                  <input type="number" min="0" step="0.01" value={onboardingDraft.purchase_tax_rate ? String(Number(onboardingDraft.purchase_tax_rate) * 100) : ''} onChange={e => setOnboardingField('purchase_tax_rate', e.target.value ? String(Number(e.target.value) / 100) : '')} style={{ ...inputStyle, fontSize: 13 }} placeholder="10" />
+                <div title="The sales tax rate as a percentage of the sale price. In Australia this is 10% for GST.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Sales Tax Rate (%)</div>
+                  <input type="number" min="0" step="0.01"
+                    value={onboardingDraft.sales_tax_rate ? String(Number(onboardingDraft.sales_tax_rate) * 100) : ''}
+                    onChange={e => setOnboardingField('sales_tax_rate', e.target.value ? String(Number(e.target.value) / 100) : '')}
+                    style={{ ...inputStyle, fontSize: 13 }} placeholder="10" />
                 </div>
-                <div style={{ gridColumn: 'span 2' }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Purchase Tax Code</div>
-                  <input value={onboardingDraft.purchase_tax_code ?? ''} onChange={e => setOnboardingField('purchase_tax_code', e.target.value)} style={{ ...inputStyle, fontSize: 13 }} placeholder="GST on Purchases" />
+                <div title="The tax rate applied to purchases (supplier invoices). Usually the same as your sales tax rate.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Purchase Tax Rate (%)</div>
+                  <input type="number" min="0" step="0.01"
+                    value={onboardingDraft.purchase_tax_rate ? String(Number(onboardingDraft.purchase_tax_rate) * 100) : ''}
+                    onChange={e => setOnboardingField('purchase_tax_rate', e.target.value ? String(Number(e.target.value) / 100) : '')}
+                    style={{ ...inputStyle, fontSize: 13 }} placeholder="10" />
+                </div>
+                <div style={{ gridColumn: 'span 2' }} title="The purchase tax code label used in Xero and on PDF purchase orders, e.g. GST on Purchases.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Purchase Tax Code</div>
+                  <input value={onboardingDraft.purchase_tax_code ?? ''} onChange={e => setOnboardingField('purchase_tax_code', e.target.value)}
+                    style={{ ...inputStyle, fontSize: 13 }} placeholder="GST on Purchases" />
                 </div>
               </div>
-              <button onClick={saveOnboardingSettings} disabled={onboardingSaving}
-                style={{ padding: '7px 16px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 7, fontWeight: 600, fontSize: 13, cursor: onboardingSaving ? 'wait' : 'pointer', alignSelf: 'flex-start', opacity: onboardingSaving ? .6 : 1 }}>
-                {onboardingSaving ? 'Saving…' : 'Save details'}
-              </button>
+
+              <div style={{ marginTop: 16 }}>
+                <button onClick={saveOnboardingSettings} disabled={onboardingSaving}
+                  style={{ padding: '8px 20px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 7, fontWeight: 600, fontSize: 13, cursor: onboardingSaving ? 'wait' : 'pointer', opacity: onboardingSaving ? .6 : 1 }}>
+                  {onboardingSaving ? 'Saving…' : 'Save details'}
+                </button>
+              </div>
             </div>
 
             {/* Right: step checklist */}
@@ -983,7 +1030,14 @@ function RecentTable({ title, rows, columns }: { title: string; rows: any[]; col
 // Contacts View
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BLANK_CONTACT = { type: 'supplier' as const, name: '', company: '', email: '', phone: '', address: '', city: '', state: '', postcode: '', country: 'Australia', notes: '', is_active: 1, price_tier: 'retail', order_frequency_days: 45, charges_tax: 1, prices_include_tax: 0, tax_rate: '', website_url: '' };
+const BLANK_CONTACT = { type: 'supplier' as ContactType, name: '', company: '', email: '', phone: '', address: '', city: '', state: '', postcode: '', country: 'Australia', notes: '', is_active: 1, price_tier: 'retail', order_frequency_days: 45, charges_tax: 1, prices_include_tax: 0, tax_rate: '', website_url: '' };
+const CONTACT_TYPE_LABEL: Record<string, string> = {
+  supplier:        'Supplier',
+  b2b_customer:    'B2B Customer',
+  retail_customer: 'Retail Customer',
+  lead:            'Lead',
+  both:            'Supplier & B2B Customer',
+};
 
 function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
   const [contacts, setContacts] = useState<any[]>([]);
@@ -1030,8 +1084,13 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
 
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
 
+  const typeMatchFn = (c: any) => {
+    if (!typeFilter) return true;
+    if (typeFilter === 'supplier' || typeFilter === 'b2b_customer') return c.type === typeFilter || c.type === 'both';
+    return c.type === typeFilter;
+  };
   const visible = contacts.filter(c =>
-    (!typeFilter || c.type === typeFilter || c.type === 'both') &&
+    typeMatchFn(c) &&
     (!filter || c.name.toLowerCase().includes(filter.toLowerCase()) || (c.company || '').toLowerCase().includes(filter.toLowerCase()))
   );
 
@@ -1043,11 +1102,13 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
       </div>
       <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
         <input placeholder="Search…" value={filter} onChange={e => setFilter(e.target.value)} style={{ ...inputStyle, width: 240 }} />
-        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ ...inputStyle, width: 160 }}>
+        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ ...inputStyle, width: 180 }}>
           <option value="">All Types</option>
           <option value="supplier">Suppliers</option>
-          <option value="customer">Customers</option>
-          <option value="both">Both</option>
+          <option value="b2b_customer">B2B Customers</option>
+          <option value="retail_customer">Retail Customers</option>
+          <option value="lead">Leads</option>
+          <option value="both">Supplier &amp; B2B Customer</option>
         </select>
       </div>
       {loading ? <Spinner /> : (
@@ -1057,7 +1118,11 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
           render={(c) => [
             <button onClick={() => openEdit(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
             c.company || '—',
-            <span style={{ textTransform: 'capitalize' }}>{c.type}</span>,
+            <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
+              background: c.type === 'supplier' ? 'rgba(99,179,117,.15)' : c.type === 'b2b_customer' ? 'rgba(139,92,246,.15)' : c.type === 'retail_customer' ? 'rgba(37,99,235,.15)' : c.type === 'lead' ? 'rgba(251,146,60,.15)' : 'rgba(100,116,139,.15)',
+              color: c.type === 'supplier' ? '#4ade80' : c.type === 'b2b_customer' ? '#a78bfa' : c.type === 'retail_customer' ? '#60a5fa' : c.type === 'lead' ? '#fb923c' : '#94a3b8' }}>
+              {CONTACT_TYPE_LABEL[c.type] ?? c.type}
+            </span>,
             c.price_tier === 'wholesale'
               ? <span style={{ background: 'rgba(139,92,246,.18)', color: '#a78bfa', borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600 }}>Wholesale</span>
               : <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Retail</span>,
@@ -1065,7 +1130,7 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
             c.phone || '—',
             (c.type === 'supplier' || c.type === 'both')
               ? <span style={{ color: 'var(--sv-text-main)', fontVariantNumeric: 'tabular-nums' }}>{c.order_frequency_days ?? 45}d</span>
-              : <span style={{ color: 'var(--sv-text-dim)' }}>—</span>,
+              : <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>—</span>,
             <ActiveDot active={c.is_active} />,
             <div style={{ display: 'flex', gap: 4 }}>
               {!isAdvisor && <button onClick={() => openEdit(c)} style={btnStyle('ghost', 'xs')}>Edit</button>}
@@ -1082,8 +1147,10 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
               <Field label="Type">
                 <select value={form.type} onChange={sf('type')} style={inputStyle}>
                   <option value="supplier">Supplier</option>
-                  <option value="customer">Customer</option>
-                  <option value="both">Both</option>
+                  <option value="b2b_customer">B2B Customer</option>
+                  <option value="retail_customer">Retail Customer</option>
+                  <option value="lead">Lead</option>
+                  <option value="both">Supplier &amp; B2B Customer</option>
                 </select>
               </Field>
               <Field label="Active">
@@ -19026,9 +19093,14 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
 }
 
 function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, syncingSteps, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput }: SettingsModalProps) {
-  const { settings, saveSettings } = useImsSettings();
+  const { settings, saveSettings, refetchSettings } = useImsSettings();
   const [active, setActive] = useState<SettingsSection>(defaultSection);
-  useEffect(() => { if (isOpen) setActive(defaultSection); }, [defaultSection, isOpen]);
+  useEffect(() => {
+    if (isOpen) {
+      setActive(defaultSection);
+      refetchSettings();
+    }
+  }, [defaultSection, isOpen, refetchSettings]);
   const [poDraft, setPoDraft] = useState<Record<string, string>>({});
   const [soDraft, setSoDraft] = useState<Record<string, string>>({});
   const [poSaving, setPoSaving] = useState(false);

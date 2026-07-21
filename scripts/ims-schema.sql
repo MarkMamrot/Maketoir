@@ -6,11 +6,11 @@
 
 SET NAMES utf8mb4;
 
--- ── Contacts (Suppliers + Customers) ────────────────────────
+-- ── Contacts (Suppliers + Customers + Leads) ────────────────
 CREATE TABLE IF NOT EXISTS ims_contacts (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   business_id VARCHAR(100) NOT NULL DEFAULT '',
-  type        ENUM('supplier','customer','both') NOT NULL DEFAULT 'supplier',
+  type        ENUM('supplier','b2b_customer','retail_customer','lead','both') NOT NULL DEFAULT 'supplier',
   name        VARCHAR(255) NOT NULL,
   company     VARCHAR(255),
   email       VARCHAR(255),
