@@ -15,6 +15,8 @@ export async function GET(req: Request) {
   const offset  = parseInt(searchParams.get('offset') ?? '0', 10);
 
   try {
+    // Temporary: log session for debugging
+    console.log('[gift-cards GET] session businessId:', session.businessId);
     const conditions: string[] = [];
     const params: any[] = [];
 
@@ -39,8 +41,10 @@ export async function GET(req: Request) {
       params,
     );
 
+    console.log('[gift-cards GET] rows:', rows.length, 'total:', total);
     return NextResponse.json({ success: true, data: rows, total: Number(total) });
   } catch (e: any) {
+    console.error('[gift-cards GET] error:', e.message);
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }
