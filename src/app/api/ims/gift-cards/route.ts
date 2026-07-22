@@ -5,17 +5,16 @@ import { getImsSession } from '@/lib/auth/imsSession';
 // ── GET /api/ims/gift-cards ───────────────────────────────────────────────────
 // Query params: status, search, limit, offset
 export async function GET(req: Request) {
-  const session = await getImsSession();
-  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-
-  const { searchParams } = new URL(req.url);
-  const status  = searchParams.get('status')  ?? '';
-  const search  = searchParams.get('search')  ?? '';
-  const limit   = Math.min(parseInt(searchParams.get('limit')  ?? '200', 10), 500);
-  const offset  = parseInt(searchParams.get('offset') ?? '0', 10);
-
   try {
-    // Temporary: log session for debugging
+    const session = await getImsSession();
+    if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+
+    const { searchParams } = new URL(req.url);
+    const status  = searchParams.get('status')  ?? '';
+    const search  = searchParams.get('search')  ?? '';
+    const limit   = Math.min(parseInt(searchParams.get('limit')  ?? '200', 10), 500);
+    const offset  = parseInt(searchParams.get('offset') ?? '0', 10);
+
     console.log('[gift-cards GET] session businessId:', session.businessId);
     const conditions: string[] = [];
     const params: any[] = [];
@@ -44,8 +43,8 @@ export async function GET(req: Request) {
     console.log('[gift-cards GET] rows:', rows.length, 'total:', total);
     return NextResponse.json({ success: true, data: rows, total: Number(total) });
   } catch (e: any) {
-    console.error('[gift-cards GET] error:', e.message);
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    console.error('[gift-cards GET] FULL ERROR:', e.message, e.stack);
+    return NextResponse.json({ success: false, error: e.message, stack: e.stack }, { status: 500 });
   }
 }
 
