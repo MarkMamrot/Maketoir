@@ -91,8 +91,11 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
   async function loadRegisters(locationId: number, businessId: string, locationName: string) {
     setLoading(true); setError('');
     try {
-      const res = await fetch(`/api/pos/registers?location_id=${locationId}`);
+      // Pass business_id so the API can use it for explicit tenant resolution
+      // (avoids stale pos_session from a different business polluting IMS context).
+      const res = await fetch(`/api/pos/registers?location_id=${locationId}&business_id=${encodeURIComponent(businessId)}`);
       const data = await res.json();
+      if (!res.ok) { setError(data.error ?? 'Failed to load registers.'); return; }
       const regs = (data.registers ?? []).filter((r: any) => r.is_active);
       setRegisters(regs);
       if (regs.length === 1) setRegisterId(String(regs[0].id));

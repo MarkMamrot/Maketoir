@@ -10,9 +10,13 @@ function getAdminSession() {
 }
 
 function getAnySession() {
-  const raw = cookies().get('pos_session')?.value ?? cookies().get('marketoir_session')?.value;
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
+  // Try each cookie in order; skip missing/malformed ones.
+  for (const name of ['marketoir_session', 'pos_session']) {
+    const raw = cookies().get(name)?.value;
+    if (!raw) continue;
+    try { const s = JSON.parse(raw); if (s) return s; } catch {}
+  }
+  return null;
 }
 
 // GET /api/pos/registers?location_id=X  — list registers for a location (public for device setup)
@@ -37,8 +41,16 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
   // Prefer marketoir_session for IMS context — if both cookies are present (admin doing device
   // setup while a stale pos_session from a different business is still live), the admin's
-  // business is authoritative. Fall back to pos_session for cashier-only devices.
-  await getImsSession(['marketoir_session', 'pos_session']);
+  // business is authoritative. An explicit business_id param (sent by DeviceSetup admin flow)
+  // bypasses cookie-based resolution entirely.
+  const explicitBusinessId = searchParams.get('business_id') ?? null;
+  if (explicitBusinessId && getAdminSession()?.businessId === explicitBusinessId) {
+    // Admin-scoped request: use the explicit business_id to set IMS context.
+    const { enterImsForBusiness } = await import('@/lib/db/BusinessRegistry');
+    await enterImsForBusiness(explicitBusinessId);
+  } else {
+    await getImsSession(['marketoir_session', 'pos_session']);
+  }
   const registers = await PosRegistersRepo.listForLocation(locationId);
   return NextResponse.json({ registers });
 }
