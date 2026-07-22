@@ -31,8 +31,8 @@ export async function GET(req: Request) {
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const rows = await imsQuery<any>(
-      `SELECT * FROM gift_cards ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-      [...params, limit, offset],
+      `SELECT * FROM gift_cards ${where} ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`,
+      params,
     );
 
     const [{ total }] = await imsQuery<any>(
