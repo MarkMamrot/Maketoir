@@ -142,6 +142,7 @@ function VariantSearch({ value, variants, onChange, style }: {
         ref={inputRef}
         type="text"
         value={open ? query : displayLabel}
+        title={!open && displayLabel ? displayLabel : undefined}
         placeholder="Search variant…"
         onFocus={openDropdown}
         onChange={e => { setQuery(e.target.value); setOpen(true); }}
