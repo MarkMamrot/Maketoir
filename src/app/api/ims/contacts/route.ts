@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ImsContactsRepo } from '@/lib/ims/ImsRepository';
-import { imsExecute } from '@/services/IMSMySQLService';
+import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
 
 let migrationDone = false;
