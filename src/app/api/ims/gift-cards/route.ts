@@ -34,10 +34,10 @@ export async function GET(req: Request) {
       [...params, limit, offset],
     );
 
-    const [[{ total }]] = await imsQuery<any>(
+    const [{ total }] = await imsQuery<any>(
       `SELECT COUNT(*) AS total FROM gift_cards ${where}`,
       params,
-    ) as any;
+    );
 
     return NextResponse.json({ success: true, data: rows, total: Number(total) });
   } catch (e: any) {
