@@ -9,7 +9,6 @@ import { getImsSession } from '@/lib/auth/imsSession';
 export async function GET(req: Request) {
   try {
     const session = await getImsSession(['marketoir_session', 'pos_session']);
-    if (!session?.businessId) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
 
     const { searchParams } = new URL(req.url);
     const locationId = parseInt(searchParams.get('location_id') ?? '0', 10);
@@ -17,16 +16,25 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'location_id required' }, { status: 400 });
     }
 
-    // Get business_id from location
-    const locRows = await imsQuery<{ business_id: string | null }>(
-      'SELECT business_id FROM ims_locations WHERE id = ? AND business_id = ? AND is_active = 1 LIMIT 1',
-      [locationId, session.businessId],
-    );
-    if (!locRows[0]) {
-      return NextResponse.json({ error: 'Location not found' }, { status: 404 });
+    // Derive businessId: prefer session (tenant-safe), otherwise read from the
+    // location record itself (no session yet — fresh device after setup).
+    let businessId: string | null;
+    if (session?.businessId) {
+      const locRows = await imsQuery<{ business_id: string | null }>(
+        'SELECT business_id FROM ims_locations WHERE id = ? AND business_id = ? AND is_active = 1 LIMIT 1',
+        [locationId, session.businessId],
+      );
+      if (!locRows[0]) return NextResponse.json({ error: 'Location not found' }, { status: 404 });
+      businessId = locRows[0].business_id;
+    } else {
+      // No session — use env-default tenant to look up the location.
+      const locRows = await imsQuery<{ business_id: string | null }>(
+        'SELECT business_id FROM ims_locations WHERE id = ? AND is_active = 1 LIMIT 1',
+        [locationId],
+      );
+      if (!locRows[0]) return NextResponse.json({ error: 'Location not found' }, { status: 404 });
+      businessId = locRows[0].business_id;
     }
-
-    const businessId = locRows[0].business_id;
 
     const users = await query<{ id: number; name: string | null; username: string | null; pos_pin_hash: string | null }>(
       businessId
