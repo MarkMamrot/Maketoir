@@ -127,9 +127,18 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
       });
       const data = await res.json();
       if (!res.ok || !data.success) { setError(data.error ?? 'Location code not recognised.'); return; }
-      await loadRegisters(data.location_id, data.business_id, data.location_name);
+      // by-code already returns the active registers — use them directly.
+      // Do NOT call loadRegisters here: that hits the auth-gated /api/pos/registers
+      // endpoint which would 401 for a fresh device that has no session cookie yet.
+      const regs = (data.registers ?? []).filter((r: any) => r.is_active !== 0);
+      setRegisters(regs);
+      if (regs.length === 1) setRegisterId(String(regs[0].id));
+      setVerified({ business_id: data.business_id, location_id: data.location_id, location_name: data.location_name });
+      setStep('register');
     } catch (e: any) {
       setError(e.message);
+    } finally {
+      setLoading(false);
     }
   }
 
