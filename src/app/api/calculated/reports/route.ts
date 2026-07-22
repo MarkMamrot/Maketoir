@@ -96,6 +96,7 @@ async function calcOnlineSalesByMonthIMS(bizId: string): Promise<MonthRow[]> {
 
 // Online Top Brands — Shopify only, by brand, GST exc, last 12 months.
 async function calcOnlineTopBrandsIMS(bizId: string, limit = 20): Promise<OnlineBrandRow[]> {
+  const n = Math.max(1, Math.min(Math.floor(Number(limit)), 500));
   const rows = await imsQuery<any>(
     `SELECT COALESCE(p.brand, '(Unknown)') AS brand,
             SUM(i.line_total)             AS revenue,
@@ -110,8 +111,8 @@ async function calcOnlineTopBrandsIMS(bizId: string, limit = 20): Promise<Online
        AND so.order_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
      GROUP BY COALESCE(p.brand, '(Unknown)')
      ORDER BY revenue DESC
-     LIMIT ?`,
-    [bizId, limit],
+     LIMIT ${n}`,
+    [bizId],
   );
   return rows.map((r: any) => ({
     brand:   String(r.brand ?? '(Unknown)'),
@@ -320,6 +321,7 @@ async function readYearlyRevenue(inventorySystemId: string): Promise<YearlyRow[]
 type OnlineBrandRow = { brand: string; revenue: number; qty: number; orders: number };
 
 async function calcOnlineTopBrands(inventorySystemId: string, limit = 20): Promise<OnlineBrandRow[]> {
+  const n = Math.max(1, Math.min(Math.floor(Number(limit)), 500));
   try {
     const rows = await mysqlQuery<any>(
       `SELECT
@@ -338,8 +340,8 @@ async function calcOnlineTopBrands(inventorySystemId: string, limit = 20): Promi
          AND s.invoice_date >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
        GROUP BY COALESCE(p.brand, '(Unknown)')
        ORDER BY revenue DESC
-       LIMIT ?`,
-      [inventorySystemId, limit],
+       LIMIT ${n}`,
+      [inventorySystemId],
     );
     return rows.map((r: any) => ({
       brand:   String(r.brand ?? '(Unknown)'),

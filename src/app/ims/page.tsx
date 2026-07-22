@@ -15693,6 +15693,7 @@ export default function ImsPage() {
   const [syncingSteps, setSyncingSteps] = useState<string[]>([]);
   const [syncLog, setSyncLog] = useState<{ step: string; status: string; message: string }[]>([]);
   const [fullSyncConfirm, setFullSyncConfirm] = useState<'products' | 'sales' | 'pos' | null>(null);
+  const { settings: pageSettings } = useImsSettings();
   const [salesMonthsInput, setSalesMonthsInput] = useState(6);
   const [poMonthsInput, setPoMonthsInput] = useState(60);
   const [xeroQueuedCount, setXeroQueuedCount] = useState(0);
@@ -15810,8 +15811,9 @@ export default function ImsPage() {
   }, [view]);
 
   useEffect(() => {
+    if (pageSettings.connect_accounting_software !== 'yes') return;
     fetch('/api/ims/xero/queued').then(r => r.ok ? r.json() : { count: 0 }).then(d => setXeroQueuedCount(d.count ?? 0)).catch(() => {});
-  }, []);
+  }, [pageSettings.connect_accounting_software]);
 
   const handleSync = async (syncType: 'full' | 'latest', steps: string[], salesMonths?: number, extraBody?: Record<string, any>) => {
     setSyncing(true);

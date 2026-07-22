@@ -50,7 +50,7 @@ export async function GET(req: Request) {
         WHERE c.is_active = 1 AND c.name LIKE ?
           ${businessId ? 'AND p.business_id = ?' : ''}
         ORDER BY CASE WHEN c.name LIKE ? THEN 0 ELSE 1 END, c.name
-        LIMIT ?
+        LIMIT ${limit}
       `, businessId ? [like, businessId, exactLike, limit] : [like, exactLike, limit]);
       supplierSuggestions = rows.map(r => ({
         type: 'supplier' as const,
@@ -70,7 +70,7 @@ export async function GET(req: Request) {
         WHERE is_active = 1 AND brand IS NOT NULL AND brand != '' AND brand LIKE ?
           ${businessId ? 'AND business_id = ?' : ''}
         ORDER BY CASE WHEN brand LIKE ? THEN 0 ELSE 1 END, brand
-        LIMIT ?
+        LIMIT ${limit}
       `, businessId ? [like, businessId, exactLike, limit] : [like, exactLike, limit]);
       brandSuggestions = rows.map(r => ({
         type: 'brand' as const,
@@ -90,7 +90,7 @@ export async function GET(req: Request) {
         WHERE is_active = 1 AND product_type IS NOT NULL AND product_type != '' AND product_type LIKE ?
           ${businessId ? 'AND business_id = ?' : ''}
         ORDER BY CASE WHEN product_type LIKE ? THEN 0 ELSE 1 END, product_type
-        LIMIT ?
+        LIMIT ${limit}
       `, businessId ? [like, businessId, exactLike, limit] : [like, exactLike, limit]);
       typeSuggestions = rows.map(r => ({
         type: 'product_type' as const,
@@ -154,7 +154,7 @@ export async function GET(req: Request) {
         WHERE is_active = 1 AND category IS NOT NULL AND category != '' AND category LIKE ?
           ${businessId ? 'AND business_id = ?' : ''}
         ORDER BY CASE WHEN category LIKE ? THEN 0 ELSE 1 END, category
-        LIMIT ?
+        LIMIT ${limit}
       `, businessId ? [like, businessId, exactLike, limit] : [like, exactLike, limit]);
       const cats: FilterSuggestion[] = rows.map(r => ({
         type: 'category' as const, value: r.category,
@@ -172,7 +172,7 @@ export async function GET(req: Request) {
         WHERE is_active = 1 AND subcategory IS NOT NULL AND subcategory != '' AND subcategory LIKE ?
           ${businessId ? 'AND business_id = ?' : ''}
         ORDER BY CASE WHEN subcategory LIKE ? THEN 0 ELSE 1 END, subcategory
-        LIMIT ?
+        LIMIT ${limit}
       `, businessId ? [like, businessId, exactLike, limit] : [like, exactLike, limit]);
       const subs: FilterSuggestion[] = rows.map(r => ({
         type: 'subcategory' as const, value: r.subcategory,

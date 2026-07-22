@@ -556,3 +556,38 @@ CREATE TABLE IF NOT EXISTS ims_sales_cache (
   CONSTRAINT fk_isc_variant FOREIGN KEY (variant_id)
     REFERENCES ims_product_variants(variant_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- In-app notifications (errors, warnings, info from background processes)
+CREATE TABLE IF NOT EXISTS ims_notifications (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(64)  NOT NULL,
+  type        VARCHAR(20)  NOT NULL DEFAULT 'error',
+  source      VARCHAR(64)  NOT NULL,
+  title       VARCHAR(255) NOT NULL,
+  message     TEXT         NOT NULL,
+  detail      JSON         NULL,
+  is_read     TINYINT(1)   NOT NULL DEFAULT 0,
+  created_at  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  INDEX idx_noti_biz    (business_id, created_at),
+  INDEX idx_noti_unread (business_id, is_read)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Gift cards (manually created or imported from Shopify/Sage)
+CREATE TABLE IF NOT EXISTS gift_cards (
+  id                  INT AUTO_INCREMENT PRIMARY KEY,
+  code                VARCHAR(100)   NOT NULL,
+  initial_balance     DECIMAL(12,2)  NULL     COMMENT 'Face value when issued; NULL = unknown (imported)',
+  balance             DECIMAL(12,2)  NOT NULL DEFAULT 0.00,
+  status              ENUM('active','redeemed','cancelled','expired') NOT NULL DEFAULT 'active',
+  customer_id         VARCHAR(255)   NULL     COMMENT 'External customer ID (Shopify UUID, etc.)',
+  order_id            VARCHAR(255)   NULL     COMMENT 'External order ID, "imported", or NULL for manual',
+  shopify_location_id VARCHAR(255)   NULL,
+  recipient_email     VARCHAR(255)   NULL,
+  notes               TEXT           NULL,
+  created_at          DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_used_at        DATETIME       NULL,
+  updated_at          DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_gift_card_code (code),
+  INDEX idx_gc_status   (status),
+  INDEX idx_gc_customer (customer_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

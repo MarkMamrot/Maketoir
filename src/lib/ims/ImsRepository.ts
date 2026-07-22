@@ -3390,15 +3390,15 @@ export const ImsShopifyRepo = {
   },
 
   async getLog(limit = 50, businessId?: string): Promise<ImsShopifySyncLog[]> {
+    const n = Math.max(1, Math.min(Math.floor(Number(limit)), 500));
     if (businessId) {
       return imsQuery<ImsShopifySyncLog>(
-        `SELECT * FROM ims_shopify_sync_log WHERE business_id = ? ORDER BY created_at DESC LIMIT ?`,
-        [businessId, limit],
+        `SELECT * FROM ims_shopify_sync_log WHERE business_id = ? ORDER BY created_at DESC LIMIT ${n}`,
+        [businessId],
       );
     }
     return imsQuery<ImsShopifySyncLog>(
-      `SELECT * FROM ims_shopify_sync_log ORDER BY created_at DESC LIMIT ?`,
-      [limit],
+      `SELECT * FROM ims_shopify_sync_log ORDER BY created_at DESC LIMIT ${n}`,
     );
   },
 

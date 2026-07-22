@@ -21,7 +21,7 @@ export async function GET() {
         WHERE po.xero_sync_status = 'queued' AND po.business_id = ?
         ORDER BY po.xero_synced_at DESC`,
       [businessId]
-    );
+    ).catch(() => [] as any[]);
     const sos = await imsQuery<any>(
       `SELECT so.id, so.so_number AS reference, 'so' AS type, so.status,
               so.total_amount, so.xero_synced_at,
@@ -31,7 +31,7 @@ export async function GET() {
         WHERE so.xero_sync_status = 'queued' AND so.business_id = ?
         ORDER BY so.xero_synced_at DESC`,
       [businessId]
-    );
+    ).catch(() => [] as any[]);
     return NextResponse.json({ queued: [...pos, ...sos], count: pos.length + sos.length });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

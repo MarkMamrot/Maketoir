@@ -15,9 +15,9 @@ export const ChatsRepository = {
     const rows = await query<ChatEntry>(
       `SELECT * FROM (
          SELECT * FROM chats WHERE business_id = ?
-         ORDER BY created_at DESC LIMIT ?
+         ORDER BY created_at DESC LIMIT ${limit}
        ) t ORDER BY created_at ASC`,
-      [businessId, limit],
+      [businessId],
     );
     return rows.map(r => ({
       ...r,

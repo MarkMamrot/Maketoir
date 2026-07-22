@@ -227,14 +227,14 @@ export async function pushInventoryForBusiness(
 export async function drainInventoryQueue(limit = 250): Promise<{ processed: number; pushed: number; businesses: number; errors: string[] }> {
   let queued: { variant_id: string; business_id: string; inv: string | null }[];
   try {
+    const safeLimit = Math.max(1, Math.min(Math.floor(Number(limit)), 10000));
     queued = await imsQuery<{ variant_id: string; business_id: string; inv: string | null }>(
       `SELECT q.variant_id, p.business_id, v.shopify_inventory_item_id AS inv
          FROM ims_shopify_inventory_queue q
          JOIN ims_product_variants v ON v.variant_id = q.variant_id
          JOIN ims_products p ON p.product_id = v.product_id
         ORDER BY q.queued_at ASC
-        LIMIT ?`,
-      [limit],
+        LIMIT ${safeLimit}`,
     );
   } catch (e: any) {
     console.error('[inventory-sync] drainInventoryQueue query failed:', e?.message);
