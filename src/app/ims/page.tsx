@@ -1406,7 +1406,7 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
 // Locations View
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BLANK_LOC = { name: '', code: '', address: '', phone: '', city: '', state: '', postcode: '', country: 'Australia', is_active: 1, pos_pin: '', has_pos: 0, has_wholesale: 0, has_online: 0 };
+const BLANK_LOC = { name: '', code: '', address: '', phone: '', city: '', state: '', postcode: '', country: 'Australia', is_active: 1, pos_pin: '', pos_location_code: '', has_pos: 0, has_wholesale: 0, has_online: 0 };
 const LOC_TARGET_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
 function LocationRegistersPanel({ locationId, locationName, onClose }: { locationId: number; locationName: string; onClose: () => void }) {
@@ -1654,9 +1654,9 @@ function LocationsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
                 </select>
               </Field>
             </Row2>
-            <Field label="POS Setup PIN" >
-              <input value={form.pos_pin ?? ''} onChange={sf('pos_pin')} style={inputStyle} placeholder="Leave blank for no PIN requirement" maxLength={20} />
-              <p style={{ margin: '4px 0 0', fontSize: '.75rem', color: 'var(--sv-text-dim)' }}>Cashiers must enter this PIN when setting up a new POS register for this location.</p>
+            <Field label="POS Location Code" >
+              <input value={(form as any).pos_location_code ?? ''} onChange={sf('pos_location_code' as any)} style={inputStyle} placeholder="e.g. MT-BOND-7K2P9X" maxLength={32} />
+              <p style={{ margin: '4px 0 0', fontSize: '.75rem', color: 'var(--sv-text-dim)' }}>Entered once per POS device during setup. Identifies this branch and your business — use something long and unique (e.g. business-branch-random).</p>
             </Field>
             <Field label="Enabled Channels">
               <div style={{ display: 'flex', gap: '1.5rem', paddingTop: 4 }}>

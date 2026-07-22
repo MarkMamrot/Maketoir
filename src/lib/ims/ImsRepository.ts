@@ -91,7 +91,7 @@ export interface ImsContact {
 export interface ImsLocation {
   id: number; name: string; code?: string; address?: string; phone?: string;
   city?: string; state?: string; postcode?: string; country?: string;
-  cin7_branch_id?: number; pos_pin?: string;
+  cin7_branch_id?: number; pos_pin?: string; pos_location_code?: string;
   has_pos?: number; has_wholesale?: number; has_online?: number;
   is_active: number; created_at?: string; updated_at?: string;
 }
@@ -378,17 +378,18 @@ export const ImsLocationsRepo = {
 
   async create(data: Omit<ImsLocation, 'id' | 'created_at' | 'updated_at'>, businessId?: string): Promise<number> {
     const res = await imsExecute(
-      `INSERT INTO ims_locations (business_id,name,code,address,phone,city,state,postcode,country,is_active,cin7_branch_id,has_pos,has_wholesale,has_online)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO ims_locations (business_id,name,code,address,phone,city,state,postcode,country,is_active,cin7_branch_id,pos_location_code,has_pos,has_wholesale,has_online)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [businessId ?? '', data.name, data.code, data.address, data.phone ?? null, data.city, data.state,
        data.postcode, data.country, data.is_active ?? 1, data.cin7_branch_id ?? null,
+       data.pos_location_code || null,
        data.has_pos ?? 0, data.has_wholesale ?? 0, data.has_online ?? 0]
     );
     return res.insertId;
   },
 
   async update(id: number, data: Partial<ImsLocation>): Promise<void> {
-    const fields = ['name','code','address','phone','city','state','postcode','country','is_active','cin7_branch_id','pos_pin','has_pos','has_wholesale','has_online'];
+    const fields = ['name','code','address','phone','city','state','postcode','country','is_active','cin7_branch_id','pos_pin','pos_location_code','has_pos','has_wholesale','has_online'];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of fields) {

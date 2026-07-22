@@ -1,11 +1,11 @@
 // POS shared types — used across all POS components
 
 export interface DeviceConfig {
+  business_id:    string; // set during device setup via location code
   location_id:    number;
   location_name:  string;
   register_id:    number;
   register_name:  string;
-  supervisor_pin?: string; // SHA-256 hex hash; if blank, pin is not required
 }
 
 export interface PosSession {

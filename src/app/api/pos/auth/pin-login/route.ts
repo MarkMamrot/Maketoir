@@ -7,21 +7,24 @@ import { getImsDbNameStrict } from '@/lib/db/BusinessRegistry';
 import bcrypt from 'bcryptjs';
 
 // POST /api/pos/auth/pin-login
-// Body: { user_id, pin, location_id }
-// Verifies user's POS PIN and creates a pos_session cookie.
+// Body: { username, pin, location_id, business_id }
+// Looks the user up by username WITHIN the device's business (from device
+// setup via location code), verifies their POS PIN, and creates a pos_session
+// cookie carrying the correct businessId for tenant routing.
 export async function POST(req: Request) {
   try {
-    const { user_id, pin, location_id } = await req.json();
+    const { username, pin, location_id, business_id } = await req.json();
 
-    if (!user_id || pin == null || !location_id) {
+    if (!username || pin == null || !location_id || !business_id) {
       return NextResponse.json(
-        { error: 'user_id, pin, and location_id are required.' },
+        { error: 'username, pin, location_id, and business_id are required.' },
         { status: 400 },
       );
     }
+    const uname = String(username).trim();
 
-    // Rate limit by user + location to slow PIN brute-forcing.
-    const rlKey = `${location_id}:${user_id}`;
+    // Rate limit by business + username to slow PIN brute-forcing.
+    const rlKey = `${business_id}:${uname.toLowerCase()}`;
     const rl = checkRateLimit(rlKey);
     if (rl.locked) {
       return NextResponse.json(
@@ -39,12 +42,17 @@ export async function POST(req: Request) {
       pos_pin_hash: string | null;
       tier: string | null;
     }>(
-      'SELECT id, name, username, email, business_id, pos_pin_hash, tier FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1',
-      [Number(user_id)],
+      'SELECT id, name, username, email, business_id, pos_pin_hash, tier FROM users WHERE (username = ? OR email = ?) AND business_id = ? AND deleted_at IS NULL LIMIT 1',
+      [uname, uname, String(business_id)],
     );
     const user = users[0];
     if (!user) {
-      return NextResponse.json({ error: 'User not found.' }, { status: 404 });
+      // Same message as a bad PIN — don't reveal whether the username exists.
+      const after = registerFailure(rlKey);
+      const msg = after.locked
+        ? `Too many incorrect attempts. Try again in ${Math.ceil(after.retryAfterSec / 60)} minute(s).`
+        : 'Incorrect username or PIN.';
+      return NextResponse.json({ error: msg }, { status: after.locked ? 429 : 403 });
     }
     if (!user.business_id) {
       return NextResponse.json({ error: 'User is not assigned to a business.' }, { status: 403 });
@@ -86,7 +94,7 @@ export async function POST(req: Request) {
       const after = registerFailure(rlKey);
       const msg = after.locked
         ? `Too many incorrect attempts. Try again in ${Math.ceil(after.retryAfterSec / 60)} minute(s).`
-        : 'Incorrect PIN.';
+        : 'Incorrect username or PIN.';
       return NextResponse.json({ error: msg }, { status: after.locked ? 429 : 403 });
     }
 

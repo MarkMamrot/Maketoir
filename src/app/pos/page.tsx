@@ -57,47 +57,30 @@ function calcTotals(items: CartItem[]) {
 // ─── DeviceSetup Screen ───────────────────────────────────────────────────────
 
 function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
-  const [locations, setLocations]   = useState<{ id: number; name: string }[]>([]);
   const [registers, setRegisters]   = useState<{ id: number; name: string; default_float: number }[]>([]);
-  const [locationId, setLocationId] = useState('');
   const [registerId, setRegisterId] = useState('');
-  const [pin,    setPin]    = useState('');
-  const [supPin, setSupPin] = useState('');
+  const [locCode, setLocCode] = useState('');
   const [step,    setStep]    = useState<'location' | 'register'>('location');
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState('');
-  const [verifiedLocation, setVerifiedLocation] = useState<{ name: string } | null>(null);
-  const [locLoading, setLocLoading] = useState(true);
-  const [locError,   setLocError]   = useState('');
+  const [verified, setVerified] = useState<{ business_id: string; location_id: number; location_name: string } | null>(null);
 
-  const loadLocations = () => {
-    setLocLoading(true); setLocError('');
-    fetch('/api/pos/locations')
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(d => { setLocations(d.locations ?? []); if (!d.locations?.length) setLocError('No active locations found. Add one in IMS → Locations.'); })
-      .catch(e => setLocError(e.message || 'Failed to load locations.'))
-      .finally(() => setLocLoading(false));
-  };
-
-  useEffect(() => { loadLocations(); }, []);
-
-  async function handleVerifyLocation() {
-    if (!locationId) { setError('Select a location.'); return; }
+  async function handleVerifyCode() {
+    const code = locCode.trim();
+    if (!code) { setError('Enter the location code.'); return; }
     setLoading(true); setError('');
     try {
-      const res  = await fetch('/api/pos/setup/verify', {
+      const res  = await fetch('/api/pos/setup/by-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ location_id: Number(locationId), pin: pin.trim() }),
+        body: JSON.stringify({ code }),
       });
       const data = await res.json();
-      if (!data.success) { setError(data.error ?? 'PIN verification failed.'); return; }
-      setVerifiedLocation({ name: data.location_name });
-      const regRes  = await fetch(`/api/pos/registers?location_id=${locationId}`);
-      const regData = await regRes.json();
-      const activeRegs = (regData.registers ?? []).filter((r: any) => r.is_active);
-      setRegisters(activeRegs);
-      if (activeRegs.length === 1) setRegisterId(String(activeRegs[0].id));
+      if (!res.ok || !data.success) { setError(data.error ?? 'Location code not recognised.'); return; }
+      setVerified({ business_id: data.business_id, location_id: data.location_id, location_name: data.location_name });
+      const regs = data.registers ?? [];
+      setRegisters(regs);
+      if (regs.length === 1) setRegisterId(String(regs[0].id));
       setStep('register');
     } catch (e: any) {
       setError(e.message);
@@ -112,11 +95,11 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
     try {
       const reg = registers.find(r => r.id === Number(registerId))!;
       const cfg: DeviceConfig = {
-        location_id:    Number(locationId),
-        location_name:  verifiedLocation!.name,
+        business_id:    verified!.business_id,
+        location_id:    verified!.location_id,
+        location_name:  verified!.location_name,
         register_id:    reg.id,
         register_name:  reg.name,
-        supervisor_pin: supPin ? await hashPin(supPin) : undefined,
       };
       saveDeviceConfig(cfg);
       onSetup(cfg);
@@ -127,43 +110,27 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
     }
   }
 
-  async function hashPin(pin: string): Promise<string> {
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pin));
-    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-  }
-
   return (
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui,sans-serif' }}>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', padding: '2.5rem 2rem', borderRadius: 12, width: 380, boxShadow: '0 8px 40px rgba(0,0,0,.4)' }}>
         <h1 style={{ margin: '0 0 .5rem', fontSize: '1.4rem', color: 'var(--sv-text-strong)' }}>POS — Device Setup</h1>
-        <p style={{ color: 'var(--sv-text-dim)', marginBottom: '1.5rem', fontSize: '.9rem' }}>Configure this device once. Contact your manager for the Location PIN.</p>
+        <p style={{ color: 'var(--sv-text-dim)', marginBottom: '1.5rem', fontSize: '.9rem' }}>Configure this device once. Contact your manager for the Location Code.</p>
 
         {step === 'location' ? (
           <>
-            <label style={labelStyle}>Branch / Location</label>
-            {locLoading ? (
-              <p style={{ color: 'var(--sv-text-dim)', fontSize: '.82rem', padding: '.5rem', border: '1px solid var(--sv-etch)', borderRadius: 6 }}>Loading locations…</p>
-            ) : locError ? (
-              <div>
-                <p style={{ color: 'var(--sv-red)', fontSize: '.82rem', marginBottom: '.4rem' }}>{locError}</p>
-                <button onClick={loadLocations} style={{ fontSize: '.8rem', padding: '.3rem .75rem', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', cursor: 'pointer' }}>Retry</button>
-              </div>
-            ) : (
-              <select value={locationId} onChange={e => { setLocationId(e.target.value); setError(''); }} style={inputStyle}>
-                <option value=''>— select location —</option>
-                {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-              </select>
-            )}
-            <label style={labelStyle}>Location PIN</label>
-            <input type='password' maxLength={20} placeholder='PIN set in IMS Locations (blank if none)' value={pin} onChange={e => setPin(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleVerifyLocation()} style={inputStyle} />
+            <label style={labelStyle}>Location Code</label>
+            <input autoFocus maxLength={32} placeholder='e.g. MT-BOND-7K2P9X' value={locCode}
+              onChange={e => { setLocCode(e.target.value.toUpperCase()); setError(''); }}
+              onKeyDown={e => e.key === 'Enter' && handleVerifyCode()} style={inputStyle} />
+            <p style={{ margin: '-.5rem 0 1rem', fontSize: '.75rem', color: 'var(--sv-text-dim)' }}>Set in IMS → Locations → POS Location Code. It identifies this branch and your business.</p>
             {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', marginBottom: '1rem' }}>{error}</p>}
-            <button onClick={handleVerifyLocation} disabled={loading || !locationId || locLoading} style={primaryBtn}>
+            <button onClick={handleVerifyCode} disabled={loading || !locCode.trim()} style={primaryBtn}>
               {loading ? 'Verifying…' : 'Next →'}
             </button>
           </>
         ) : (
           <>
-            <p style={{ color: 'var(--sv-action)', fontWeight: 600, marginBottom: '1.25rem' }}>{verifiedLocation?.name}</p>
+            <p style={{ color: 'var(--sv-action)', fontWeight: 600, marginBottom: '1.25rem' }}>{verified?.location_name}</p>
             <label style={labelStyle}>Register / Till</label>
             {registers.length > 0 ? (
               <select value={registerId} onChange={e => { setRegisterId(e.target.value); setError(''); }} style={inputStyle}>
@@ -173,8 +140,6 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
             ) : (
               <p style={{ color: 'var(--sv-text-dim)', fontSize: '.82rem', padding: '.5rem', border: '1px solid var(--sv-etch)', borderRadius: 6 }}>No registers found for this location. Ask your manager to add one in IMS.</p>
             )}
-            <label style={labelStyle}>Supervisor Override PIN (optional)</label>
-            <input type='password' maxLength={8} placeholder='4-8 digit PIN for supervisor overrides' value={supPin} onChange={e => setSupPin(e.target.value)} style={inputStyle} />
             {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', marginBottom: '1rem' }}>{error}</p>}
             <div style={{ display: 'flex', gap: '.5rem' }}>
               <button onClick={() => { setStep('location'); setError(''); }} style={{ ...primaryBtn, flex: '0 0 auto', background: 'var(--sv-bg-2)' }}>← Back</button>
@@ -255,10 +220,7 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
   onLogin:       (session: PosSession, products: CachedProduct[], methods: string[]) => void;
   onDeviceSetup: () => void;
 }) {
-  type StaffUser = { id: number; name: string; has_pos_pin: boolean };
-  const [staff,        setStaff]        = useState<StaffUser[]>([]);
-  const [staffLoading, setStaffLoading] = useState(true);
-  const [selected,     setSelected]     = useState<StaffUser | null>(null);
+  const [username,     setUsername]     = useState('');
   const [pin,          setPin]          = useState('');
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState('');
@@ -268,17 +230,6 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
   const [password,     setPassword]     = useState('');
   const pinRef  = useRef<HTMLInputElement>(null);
   const passRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    fetch(`/api/pos/auth/staff?location_id=${deviceConfig.location_id}`)
-      .then(r => r.json())
-      .then(d => setStaff(d.users ?? []))
-      .catch(() => {})
-      .finally(() => setStaffLoading(false));
-  }, []);
-
-  const initials = (name: string) =>
-    name.split(' ').map(w => w[0]?.toUpperCase() ?? '').join('').slice(0, 2) || '?';
 
   async function finishLogin(session: PosSession) {
     const [prodRes, methodRes] = await Promise.all([
@@ -293,17 +244,22 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
   }
 
   async function handlePinLogin() {
-    if (!selected) return;
+    if (!username.trim()) { setError('Enter your username.'); return; }
     if (!pin) { setError('Enter your PIN.'); return; }
     setLoading(true); setError('');
     try {
       const res = await fetch('/api/pos/auth/pin-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: selected.id, pin, location_id: deviceConfig.location_id }),
+        body: JSON.stringify({
+          username:    username.trim(),
+          pin,
+          location_id: deviceConfig.location_id,
+          business_id: deviceConfig.business_id,
+        }),
       });
       const data = await res.json();
-      if (!res.ok || !data.session) { setError(data.error ?? 'Incorrect PIN.'); return; }
+      if (!res.ok || !data.session) { setError(data.error ?? 'Incorrect username or PIN.'); return; }
       await finishLogin({
         ...data.session,
         register_id:   deviceConfig.register_id   ?? null,
@@ -366,36 +322,6 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
     </div>
   );
 
-  // ── PIN entry ─────────────────────────────────────────────────────────────
-  if (selected && !adminMode) {
-    return wrap(
-      <>
-        {header}
-        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-          <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--sv-action)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 22, margin: '0 auto .6rem' }}>{initials(selected.name)}</div>
-          <div style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--sv-text-strong)' }}>{selected.name}</div>
-        </div>
-        {!selected.has_pos_pin ? (
-          <p style={{ color: 'var(--sv-red)', fontSize: '.88rem', textAlign: 'center', marginBottom: '1rem' }}>No POS PIN set. Contact your manager.</p>
-        ) : (
-          <>
-            <label style={labelStyle}>PIN</label>
-            <input ref={pinRef} autoFocus type='password' maxLength={8} value={pin}
-              onChange={e => { setPin(e.target.value); setError(''); }}
-              onKeyDown={e => e.key === 'Enter' && handlePinLogin()}
-              style={inputStyle} placeholder='Enter PIN' />
-            {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', margin: '-.5rem 0 .75rem' }}>{error}</p>}
-            <button onClick={handlePinLogin} disabled={loading || !pin} style={{ ...primaryBtn, width: '100%' }}>
-              {loading ? 'Signing in…' : 'Sign In'}
-            </button>
-          </>
-        )}
-        <button onClick={() => { setSelected(null); setPin(''); setError(''); }} style={{ width: '100%', marginTop: '.75rem', padding: '.6rem', background: 'transparent', border: '1px solid var(--sv-etch)', borderRadius: 8, color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.85rem' }}>← Back</button>
-        {footer}
-      </>
-    );
-  }
-
   // ── Admin email+password fallback ─────────────────────────────────────────
   if (adminMode) {
     return wrap(
@@ -419,31 +345,30 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
     );
   }
 
-  // ── Staff picker ──────────────────────────────────────────────────────────
+  // ── Username + PIN login ──────────────────────────────────────────────────
   return wrap(
     <>
       {header}
-      <p style={{ margin: '0 0 1rem', fontSize: '.88rem', color: 'var(--sv-text-dim)', textAlign: 'center' }}>Who are you?</p>
-      {staffLoading ? (
-        <p style={{ textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: '.85rem' }}>Loading…</p>
-      ) : (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center', marginBottom: '1rem' }}>
-          {staff.map(u => (
-            <button key={u.id} onClick={() => { setSelected(u); setPin(''); setError(''); setTimeout(() => pinRef.current?.focus(), 80); }}
-              style={{ width: 88, padding: '12px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, cursor: 'pointer', transition: 'border-color .12s' }}>
-              <div style={{ width: 44, height: 44, borderRadius: '50%', background: u.has_pos_pin ? 'var(--sv-action)' : 'var(--sv-bg-0)', border: u.has_pos_pin ? 'none' : '2px solid var(--sv-etch)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: u.has_pos_pin ? '#fff' : 'var(--sv-text-dim)', fontWeight: 700, fontSize: 16 }}>{initials(u.name)}</div>
-              <span style={{ fontSize: 11, color: 'var(--sv-text-strong)', textAlign: 'center', lineHeight: 1.3 }}>{u.name}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      <label style={labelStyle}>Username</label>
+      <input autoFocus autoCapitalize='none' autoCorrect='off' value={username}
+        onChange={e => { setUsername(e.target.value); setError(''); }}
+        onKeyDown={e => e.key === 'Enter' && pinRef.current?.focus()}
+        style={inputStyle} placeholder='Your username' />
+      <label style={labelStyle}>PIN</label>
+      <input ref={pinRef} type='password' maxLength={8} value={pin}
+        onChange={e => { setPin(e.target.value); setError(''); }}
+        onKeyDown={e => e.key === 'Enter' && handlePinLogin()}
+        style={inputStyle} placeholder='Enter PIN' />
+      {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', margin: '-.5rem 0 .75rem' }}>{error}</p>}
+      <button onClick={handlePinLogin} disabled={loading || !username.trim() || !pin} style={{ ...primaryBtn, width: '100%' }}>
+        {loading ? 'Signing in…' : 'Sign In'}
+      </button>
       <div style={{ textAlign: 'center', marginTop: '.5rem' }}>
         <button onClick={() => { setAdminMode(true); setError(''); }} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.78rem', textDecoration: 'underline' }}>Admin login</button>
       </div>
       <button onClick={onDeviceSetup} style={{ width: '100%', marginTop: '.75rem', padding: '.6rem', background: 'transparent', border: '1px solid var(--sv-etch)', borderRadius: 8, color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.85rem' }}>Change Branch / Register</button>
       {footer}
-    </>,
-    true,
+    </>
   );
 }
 
@@ -6248,7 +6173,8 @@ export default function PosPage() {
     );
   }
 
-  if (screen === 'setup' || !deviceConfig) {
+  if (screen === 'setup' || !deviceConfig || !deviceConfig.business_id) {
+    // Old device configs (pre location-code flow) lack business_id — re-enrol.
     return <DeviceSetup onSetup={(cfg) => { setDeviceConfig(cfg); setScreen('login'); }} />;
   }
 

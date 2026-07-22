@@ -68,8 +68,10 @@ CREATE TABLE IF NOT EXISTS ims_locations (
   postcode    VARCHAR(20),
   country     VARCHAR(100) DEFAULT 'Australia',
   is_active   TINYINT(1) NOT NULL DEFAULT 1,
+  pos_location_code VARCHAR(32) NULL,
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY idx_pos_location_code (pos_location_code),
   INDEX idx_business_id (business_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
