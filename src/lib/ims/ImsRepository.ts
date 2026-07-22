@@ -68,10 +68,20 @@ export type POStatus    = 'draft' | 'confirmed' | 'partially_received' | 'comple
 export type SOStatus    = 'draft' | 'confirmed' | 'fulfilled' | 'cancelled';
 
 export interface ImsContact {
-  id: number; type: ContactType; name: string; company?: string;
-  email?: string; phone?: string; address?: string; city?: string;
-  state?: string; postcode?: string; country?: string; notes?: string;
-  lead_time_days?: number; order_frequency_days?: number; cin7_supplier_id?: number; cin7_contact_id?: number;
+  id: number; type: ContactType;
+  name: string; first_name?: string; last_name?: string;
+  company?: string; customer_code?: string; customer_group?: string;
+  email?: string; phone?: string; mobile?: string;
+  address?: string; address2?: string; suburb?: string;
+  city?: string; state?: string; postcode?: string; country?: string;
+  notes?: string;
+  // Customer-specific
+  store_credit?: number; on_account_limit?: number | null;
+  date_of_birth?: string | null; gender?: string | null;
+  promo_email?: number; promo_sms?: number;
+  // Supplier-specific
+  lead_time_days?: number; order_frequency_days?: number;
+  cin7_supplier_id?: number; cin7_contact_id?: number;
   is_active: number; price_tier?: string;
   charges_tax?: number; prices_include_tax?: number; tax_rate?: number;
   website_url?: string;
@@ -299,13 +309,24 @@ export const ImsContactsRepo = {
 
   async create(data: Omit<ImsContact, 'id' | 'created_at' | 'updated_at'>, businessId?: string): Promise<number> {
     const res = await imsExecute(
-      `INSERT INTO ims_contacts (business_id,type,name,company,email,phone,address,city,state,postcode,country,notes,is_active,cin7_supplier_id,lead_time_days,order_frequency_days,price_tier,charges_tax,prices_include_tax,tax_rate,website_url)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [businessId ?? '', data.type, data.name, data.company, data.email, data.phone,
-       data.address, data.city, data.state, data.postcode, data.country,
-       data.notes, data.is_active ?? 1, data.cin7_supplier_id ?? null, data.lead_time_days ?? null,
-       data.order_frequency_days ?? 45,
-       data.price_tier ?? 'retail',
+      `INSERT INTO ims_contacts
+         (business_id,type,name,first_name,last_name,company,customer_code,customer_group,
+          email,phone,mobile,address,address2,suburb,city,state,postcode,country,notes,is_active,
+          store_credit,on_account_limit,date_of_birth,gender,promo_email,promo_sms,
+          cin7_supplier_id,lead_time_days,order_frequency_days,price_tier,charges_tax,prices_include_tax,tax_rate,website_url)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [businessId ?? '', data.type, data.name,
+       data.first_name ?? null, data.last_name ?? null,
+       data.company ?? null, data.customer_code ?? null, data.customer_group ?? null,
+       data.email ?? null, data.phone ?? null, data.mobile ?? null,
+       data.address ?? null, data.address2 ?? null, data.suburb ?? null,
+       data.city ?? null, data.state ?? null, data.postcode ?? null, data.country ?? null,
+       data.notes ?? null, data.is_active ?? 1,
+       data.store_credit ?? 0, data.on_account_limit ?? null,
+       data.date_of_birth ?? null, data.gender ?? null,
+       data.promo_email ?? 0, data.promo_sms ?? 0,
+       data.cin7_supplier_id ?? null, data.lead_time_days ?? null,
+       data.order_frequency_days ?? 45, data.price_tier ?? 'retail',
        data.charges_tax ?? 1, data.prices_include_tax ?? 0, data.tax_rate ?? null,
        data.website_url ?? null]
     );
@@ -313,7 +334,12 @@ export const ImsContactsRepo = {
   },
 
   async update(id: number, data: Partial<ImsContact>): Promise<void> {
-    const fields = ['type','name','company','email','phone','address','city','state','postcode','country','notes','is_active','cin7_supplier_id','lead_time_days','order_frequency_days','price_tier','charges_tax','prices_include_tax','tax_rate','website_url'];
+    const fields = [
+      'type','name','first_name','last_name','company','customer_code','customer_group',
+      'email','phone','mobile','address','address2','suburb','city','state','postcode','country','notes','is_active',
+      'store_credit','on_account_limit','date_of_birth','gender','promo_email','promo_sms',
+      'cin7_supplier_id','lead_time_days','order_frequency_days','price_tier','charges_tax','prices_include_tax','tax_rate','website_url',
+    ];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of fields) {

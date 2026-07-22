@@ -6,17 +6,27 @@ import { getImsSession } from '@/lib/auth/imsSession';
 let migrationDone = false;
 async function ensureMigration() {
   if (migrationDone) return;
-  await imsExecute(
-    `ALTER TABLE ims_contacts ADD COLUMN IF NOT EXISTS order_frequency_days INT NOT NULL DEFAULT 45`,
-  ).catch(() => {});
-  // Expand ENUM to support b2b_customer, retail_customer, lead (keep 'customer' during transition)
-  await imsExecute(
-    `ALTER TABLE ims_contacts MODIFY COLUMN type ENUM('supplier','customer','b2b_customer','retail_customer','lead','both') NOT NULL DEFAULT 'supplier'`,
-  ).catch(() => {});
-  // Rename legacy 'customer' rows to 'b2b_customer'
-  await imsExecute(
-    `UPDATE ims_contacts SET type = 'b2b_customer' WHERE type = 'customer'`,
-  ).catch(() => {});
+  // Legacy column
+  await imsExecute(`ALTER TABLE ims_contacts ADD COLUMN IF NOT EXISTS order_frequency_days INT NOT NULL DEFAULT 45`).catch(() => {});
+  // Expand ENUM
+  await imsExecute(`ALTER TABLE ims_contacts MODIFY COLUMN type ENUM('supplier','customer','b2b_customer','retail_customer','lead','both') NOT NULL DEFAULT 'supplier'`).catch(() => {});
+  await imsExecute(`UPDATE ims_contacts SET type = 'b2b_customer' WHERE type = 'customer'`).catch(() => {});
+  // New columns — all safe to re-run
+  await imsExecute(`ALTER TABLE ims_contacts ADD COLUMN IF NOT EXISTS first_name VARCHAR(100) DEFAULT NULL`).catch(() => {});
+  await imsExecute(`ALTER TABLE ims_contacts ADD COLUMN IF NOT EXISTS last_name VARCHAR(100) DEFAULT NULL`).catch(() => {});
+  await imsExecute(`ALTER TABLE ims_contacts ADD COLUMN IF NOT EXISTS customer_code VARCHAR(100) DEFAULT NULL`).catch(() => {});
+  await imsExecute(`ALTER TABLE ims_contacts ADD COLUMN IF NOT EXISTS customer_group VARCHAR(100) DEFAULT NULL`).catch(() => {});
+  await imsExecute(`ALTER TABLE ims_contacts ADD COLUMN IF NOT EXISTS mobile VARCHAR(50) DEFAULT NULL`).catch(() => {});
+  await imsExecute(`ALTER TABLE ims_contacts ADD COLUMN IF NOT EXISTS address2 VARCHAR(255) DEFAULT NULL`).catch(() => {});
+  await imsExecute(`ALTER TABLE ims_contacts ADD COLUMN IF NOT EXISTS suburb VARCHAR(100) DEFAULT NULL`).catch(() => {});
+  await imsExecute(`ALTER TABLE ims_contacts ADD COLUMN IF NOT EXISTS store_credit DECIMAL(10,2) NOT NULL DEFAULT 0.00`).catch(() => {});
+  await imsExecute(`ALTER TABLE ims_contacts ADD COLUMN IF NOT EXISTS on_account_limit DECIMAL(10,2) DEFAULT NULL`).catch(() => {});
+  await imsExecute(`ALTER TABLE ims_contacts ADD COLUMN IF NOT EXISTS date_of_birth DATE DEFAULT NULL`).catch(() => {});
+  await imsExecute(`ALTER TABLE ims_contacts ADD COLUMN IF NOT EXISTS gender VARCHAR(10) DEFAULT NULL`).catch(() => {});
+  await imsExecute(`ALTER TABLE ims_contacts ADD COLUMN IF NOT EXISTS promo_email TINYINT(1) NOT NULL DEFAULT 0`).catch(() => {});
+  await imsExecute(`ALTER TABLE ims_contacts ADD COLUMN IF NOT EXISTS promo_sms TINYINT(1) NOT NULL DEFAULT 0`).catch(() => {});
+  // Unique index on customer_code per business
+  await imsExecute(`ALTER TABLE ims_contacts ADD UNIQUE INDEX idx_customer_code (business_id, customer_code)`).catch(() => {});
   migrationDone = true;
 }
 

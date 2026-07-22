@@ -11,22 +11,49 @@ CREATE TABLE IF NOT EXISTS ims_contacts (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   business_id VARCHAR(100) NOT NULL DEFAULT '',
   type        ENUM('supplier','b2b_customer','retail_customer','lead','both') NOT NULL DEFAULT 'supplier',
+  -- Name fields
   name        VARCHAR(255) NOT NULL,
+  first_name  VARCHAR(100) DEFAULT NULL,
+  last_name   VARCHAR(100) DEFAULT NULL,
   company     VARCHAR(255),
+  customer_code VARCHAR(100) DEFAULT NULL,
+  customer_group VARCHAR(100) DEFAULT NULL,
+  -- Contact
   email       VARCHAR(255),
   phone       VARCHAR(50),
+  mobile      VARCHAR(50) DEFAULT NULL,
+  -- Address
   address     TEXT,
+  address2    VARCHAR(255) DEFAULT NULL,
+  suburb      VARCHAR(100) DEFAULT NULL,
   city        VARCHAR(100),
   state       VARCHAR(100),
   postcode    VARCHAR(20),
   country     VARCHAR(100) DEFAULT 'Australia',
-  notes       TEXT,
+  -- Customer-specific
+  store_credit      DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  on_account_limit  DECIMAL(10,2) DEFAULT NULL,
+  date_of_birth     DATE DEFAULT NULL,
+  gender            VARCHAR(10) DEFAULT NULL,
+  promo_email       TINYINT(1) NOT NULL DEFAULT 0,
+  promo_sms         TINYINT(1) NOT NULL DEFAULT 0,
+  -- Supplier-specific
   lead_time_days      INT DEFAULT NULL,
   order_frequency_days INT NOT NULL DEFAULT 45,
+  charges_tax         TINYINT(1) NOT NULL DEFAULT 1,
+  prices_include_tax  TINYINT(1) NOT NULL DEFAULT 0,
+  tax_rate            DECIMAL(6,4) DEFAULT NULL,
+  website_url         VARCHAR(500) DEFAULT NULL,
+  price_tier          VARCHAR(20) DEFAULT 'retail',
+  -- Misc
+  notes       TEXT,
   is_active   TINYINT(1) NOT NULL DEFAULT 1,
+  cin7_supplier_id  INT DEFAULT NULL,
+  cin7_customer_id  INT DEFAULT NULL,
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_business_id (business_id)
+  INDEX idx_business_id (business_id),
+  INDEX idx_customer_code (business_id, customer_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Locations (Branches / Warehouses) ───────────────────────

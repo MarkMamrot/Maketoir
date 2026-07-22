@@ -301,7 +301,7 @@ const inputStyle: React.CSSProperties = {
 
 const labelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 4, display: 'block' };
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, title }: { label: string; children: React.ReactNode; title?: string }) {
   return (
     <div style={{ marginBottom: 14 }}>
       <label style={labelStyle}>{label}</label>
@@ -1030,7 +1030,20 @@ function RecentTable({ title, rows, columns }: { title: string; rows: any[]; col
 // Contacts View
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BLANK_CONTACT = { type: 'supplier' as ContactType, name: '', company: '', email: '', phone: '', address: '', city: '', state: '', postcode: '', country: 'Australia', notes: '', is_active: 1, price_tier: 'retail', order_frequency_days: 45, charges_tax: 1, prices_include_tax: 0, tax_rate: '', website_url: '' };
+const BLANK_CONTACT = {
+  type: 'supplier' as string,
+  name: '', first_name: '', last_name: '',
+  company: '', customer_code: '', customer_group: '',
+  email: '', phone: '', mobile: '',
+  address: '', address2: '', suburb: '',
+  city: '', state: '', postcode: '', country: 'Australia',
+  notes: '', is_active: 1,
+  store_credit: 0, on_account_limit: '' as string | number,
+  date_of_birth: '', gender: '',
+  promo_email: 0, promo_sms: 0,
+  price_tier: 'retail', order_frequency_days: 45,
+  charges_tax: 1, prices_include_tax: 0, tax_rate: '', website_url: '',
+};
 const CONTACT_TYPE_LABEL: Record<string, string> = {
   supplier:        'Supplier',
   b2b_customer:    'B2B Customer',
@@ -1067,7 +1080,18 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
     try {
       const url  = modal.edit ? `/api/ims/contacts/${modal.edit.id}` : '/api/ims/contacts';
       const method = modal.edit ? 'PUT' : 'POST';
-      const payload: any = { ...form, tax_rate: (form as any).tax_rate === '' || (form as any).tax_rate == null ? null : Number((form as any).tax_rate) };
+      const f = form as any;
+      // Auto-fill name from first+last if blank
+      const displayName = f.name || [f.first_name, f.last_name].filter(Boolean).join(' ') || f.company || 'Unnamed';
+      const payload: any = {
+        ...form,
+        name: displayName,
+        tax_rate: f.tax_rate === '' || f.tax_rate == null ? null : Number(f.tax_rate),
+        on_account_limit: f.on_account_limit === '' || f.on_account_limit == null ? null : Number(f.on_account_limit),
+        store_credit: f.store_credit === '' || f.store_credit == null ? 0 : Number(f.store_credit),
+        date_of_birth: f.date_of_birth || null,
+        gender: f.gender || null,
+      };
       await apiFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       load(); closeModal();
     } catch (e: any) { alert(e.message); }
@@ -1111,109 +1135,254 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
           <option value="both">Supplier &amp; B2B Customer</option>
         </select>
       </div>
-      {loading ? <Spinner /> : (
-        <ImsTable
-          cols={['Name','Company','Type','Price Tier','Email','Phone','Order Freq.','Active','']}
-          rows={visible}
-          render={(c) => [
-            <button onClick={() => openEdit(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
-            c.company || '—',
-            <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
-              background: c.type === 'supplier' ? 'rgba(99,179,117,.15)' : c.type === 'b2b_customer' ? 'rgba(139,92,246,.15)' : c.type === 'retail_customer' ? 'rgba(37,99,235,.15)' : c.type === 'lead' ? 'rgba(251,146,60,.15)' : 'rgba(100,116,139,.15)',
-              color: c.type === 'supplier' ? '#4ade80' : c.type === 'b2b_customer' ? '#a78bfa' : c.type === 'retail_customer' ? '#60a5fa' : c.type === 'lead' ? '#fb923c' : '#94a3b8' }}>
-              {CONTACT_TYPE_LABEL[c.type] ?? c.type}
-            </span>,
-            c.price_tier === 'wholesale'
-              ? <span style={{ background: 'rgba(139,92,246,.18)', color: '#a78bfa', borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600 }}>Wholesale</span>
-              : <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Retail</span>,
-            c.email || '—',
-            c.phone || '—',
-            (c.type === 'supplier' || c.type === 'both')
-              ? <span style={{ color: 'var(--sv-text-main)', fontVariantNumeric: 'tabular-nums' }}>{c.order_frequency_days ?? 45}d</span>
-              : <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>—</span>,
-            <ActiveDot active={c.is_active} />,
-            <div style={{ display: 'flex', gap: 4 }}>
-              {!isAdvisor && <button onClick={() => openEdit(c)} style={btnStyle('ghost', 'xs')}>Edit</button>}
-              {!isAdvisor && <button onClick={() => handleToggleActive(c)} style={btnStyle(c.is_active ? 'danger' : 'mint', 'xs')}>{c.is_active ? 'Inactivate' : 'Reactivate'}</button>}
-            </div>,
-          ]}
-        />
-      )}
+      {loading ? <Spinner /> : (() => {
+        const isCustomerView = typeFilter === 'b2b_customer' || typeFilter === 'retail_customer';
+        const isSupplierView = typeFilter === 'supplier' || typeFilter === 'both';
+        const typeBadge = (c: any) => (
+          <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
+            background: c.type === 'supplier' ? 'rgba(99,179,117,.15)' : c.type === 'b2b_customer' ? 'rgba(139,92,246,.15)' : c.type === 'retail_customer' ? 'rgba(37,99,235,.15)' : c.type === 'lead' ? 'rgba(251,146,60,.15)' : 'rgba(100,116,139,.15)',
+            color: c.type === 'supplier' ? '#4ade80' : c.type === 'b2b_customer' ? '#a78bfa' : c.type === 'retail_customer' ? '#60a5fa' : c.type === 'lead' ? '#fb923c' : '#94a3b8' }}>
+            {CONTACT_TYPE_LABEL[c.type] ?? c.type}
+          </span>
+        );
+        const actions = (c: any) => (
+          <div style={{ display: 'flex', gap: 4 }}>
+            {!isAdvisor && <button onClick={() => openEdit(c)} style={btnStyle('ghost', 'xs')}>Edit</button>}
+            {!isAdvisor && <button onClick={() => handleToggleActive(c)} style={btnStyle(c.is_active ? 'danger' : 'mint', 'xs')}>{c.is_active ? 'Inactivate' : 'Reactivate'}</button>}
+          </div>
+        );
+        if (isCustomerView) return (
+          <ImsTable
+            cols={['Name', 'Code', 'Group', 'Type', 'Email', 'Mobile', 'Store Credit', 'On Account', 'Promo', 'Active', '']}
+            rows={visible}
+            render={(c) => [
+              <button onClick={() => openEdit(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
+              <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontVariantNumeric: 'tabular-nums' }}>{c.customer_code || '—'}</span>,
+              c.customer_group || '—',
+              typeBadge(c),
+              c.email || '—',
+              c.mobile || c.phone || '—',
+              Number(c.store_credit) > 0
+                ? <span style={{ color: 'var(--sv-mint)', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>${Number(c.store_credit).toFixed(2)}</span>
+                : <span style={{ color: 'var(--sv-text-dim)' }}>—</span>,
+              c.on_account_limit != null
+                ? <span style={{ fontVariantNumeric: 'tabular-nums' }}>${Number(c.on_account_limit).toFixed(2)}</span>
+                : <span style={{ color: 'var(--sv-text-dim)' }}>—</span>,
+              <span style={{ fontSize: 11, display: 'flex', gap: 6 }}>
+                <span title="Promo emails" style={{ color: c.promo_email ? 'var(--sv-mint)' : 'var(--sv-text-dim)' }}>{c.promo_email ? '✉ on' : '✉ off'}</span>
+                <span title="Promo SMS" style={{ color: c.promo_sms ? 'var(--sv-mint)' : 'var(--sv-text-dim)' }}>{c.promo_sms ? '📱 on' : '📱 off'}</span>
+              </span>,
+              <ActiveDot active={c.is_active} />,
+              actions(c),
+            ]}
+          />
+        );
+        return (
+          <ImsTable
+            cols={isSupplierView
+              ? ['Name', 'Company', 'Type', 'Price Tier', 'Email', 'Phone', 'Order Freq.', 'Active', '']
+              : ['Name', 'Company', 'Type', 'Email', 'Mobile / Phone', 'Active', '']}
+            rows={visible}
+            render={(c) => isSupplierView ? [
+              <button onClick={() => openEdit(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
+              c.company || '—',
+              typeBadge(c),
+              c.price_tier === 'wholesale'
+                ? <span style={{ background: 'rgba(139,92,246,.18)', color: '#a78bfa', borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600 }}>Wholesale</span>
+                : <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Retail</span>,
+              c.email || '—',
+              c.phone || '—',
+              <span style={{ color: 'var(--sv-text-main)', fontVariantNumeric: 'tabular-nums' }}>{c.order_frequency_days ?? 45}d</span>,
+              <ActiveDot active={c.is_active} />,
+              actions(c),
+            ] : [
+              <button onClick={() => openEdit(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
+              c.company || '—',
+              typeBadge(c),
+              c.email || '—',
+              c.mobile || c.phone || '—',
+              <ActiveDot active={c.is_active} />,
+              actions(c),
+            ]}
+          />
+        );
+      })()}
 
-      {modal.open && (
-        <Modal title={modal.edit ? 'Edit Contact' : 'New Contact'} onClose={closeModal}>
-          <form onSubmit={handleSubmit}>
-            <Row2>
-              <Field label="Type">
-                <select value={form.type} onChange={sf('type')} style={inputStyle}>
-                  <option value="supplier">Supplier</option>
-                  <option value="b2b_customer">B2B Customer</option>
-                  <option value="retail_customer">Retail Customer</option>
-                  <option value="lead">Lead</option>
-                  <option value="both">Supplier &amp; B2B Customer</option>
-                </select>
-              </Field>
-              <Field label="Active">
-                <select value={form.is_active} onChange={sf('is_active')} style={inputStyle}>
-                  <option value={1}>Yes</option>
-                  <option value={0}>No</option>
-                </select>
-              </Field>
-            </Row2>
-            <Row2>
-              <Field label="Name *"><input required value={form.name} onChange={sf('name')} style={inputStyle} /></Field>
-              <Field label="Company"><input value={form.company} onChange={sf('company')} style={inputStyle} /></Field>
-            </Row2>
-            <Row2>
-              <Field label="Email"><input type="email" value={form.email} onChange={sf('email')} style={inputStyle} /></Field>
-              <Field label="Phone"><input value={form.phone} onChange={sf('phone')} style={inputStyle} /></Field>
-            </Row2>
-            <Field label="Address"><input value={form.address} onChange={sf('address')} style={inputStyle} /></Field>
-            <Row3>
-              <Field label="City"><input value={form.city} onChange={sf('city')} style={inputStyle} /></Field>
-              <Field label="State"><input value={form.state} onChange={sf('state')} style={inputStyle} /></Field>
-              <Field label="Postcode"><input value={form.postcode} onChange={sf('postcode')} style={inputStyle} /></Field>
-            </Row3>
-            <Field label="Notes"><textarea value={form.notes} onChange={sf('notes') as any} rows={3} style={{ ...inputStyle, resize: 'vertical' }} /></Field>
-            <Field label="Website URL">
-              <input type="url" value={(form as any).website_url ?? ''} onChange={sf('website_url')} placeholder="https://supplier-or-brand.com" style={inputStyle} />
-            </Field>
-            <Row2>
-              <Field label="Price Tier">
-                <select value={(form as any).price_tier ?? 'retail'} onChange={sf('price_tier')} style={inputStyle}>
-                  <option value="retail">Retail</option>
-                  <option value="wholesale">Wholesale</option>
-                </select>
-              </Field>
-              {(form.type === 'supplier' || form.type === 'both') && (
-                <Field label="Order Frequency (days)">
-                  <input type="number" min={1} value={(form as any).order_frequency_days ?? 45} onChange={e => setForm(p => ({ ...p, order_frequency_days: Math.max(1, parseInt(e.target.value) || 45) }))} style={inputStyle} />
+      {modal.open && (() => {
+        const f = form as any;
+        const isSupplier = form.type === 'supplier' || form.type === 'both';
+        const isCustomer = form.type === 'b2b_customer' || form.type === 'retail_customer' || form.type === 'both';
+        const isRetail = form.type === 'retail_customer';
+        const isLead = form.type === 'lead';
+        const SectionLabel = ({ children }: { children: React.ReactNode }) => (
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--sv-text-dim)', margin: '14px 0 6px' }}>{children}</div>
+        );
+        return (
+          <Modal title={modal.edit ? 'Edit Contact' : 'New Contact'} onClose={closeModal}>
+            <form onSubmit={handleSubmit}>
+
+              {/* ── Type & Status ── */}
+              <Row2>
+                <Field label="Type">
+                  <select value={form.type} onChange={sf('type')} style={inputStyle}>
+                    <option value="supplier">Supplier</option>
+                    <option value="b2b_customer">B2B Customer</option>
+                    <option value="retail_customer">Retail Customer</option>
+                    <option value="lead">Lead</option>
+                    <option value="both">Supplier &amp; B2B Customer</option>
+                  </select>
                 </Field>
-              )}
-            </Row2>
-            {(form.type === 'supplier' || form.type === 'both') && (
-              <Row3>
-                <Field label="Charges sales tax?">
-                  <select value={Number((form as any).charges_tax ?? 1)} onChange={e => setForm(p => ({ ...p, charges_tax: Number(e.target.value) }))} style={inputStyle}>
+                <Field label="Active">
+                  <select value={form.is_active} onChange={sf('is_active')} style={inputStyle}>
                     <option value={1}>Yes</option>
                     <option value={0}>No</option>
                   </select>
                 </Field>
-                <Field label="Prices include tax?">
-                  <select value={Number((form as any).prices_include_tax ?? 0)} disabled={!Number((form as any).charges_tax ?? 1)} onChange={e => setForm(p => ({ ...p, prices_include_tax: Number(e.target.value) }))} style={{ ...inputStyle, opacity: Number((form as any).charges_tax ?? 1) ? 1 : 0.5 }}>
-                    <option value={0}>Ex-tax (added on top)</option>
-                    <option value={1}>Inc-tax (already included)</option>
-                  </select>
-                </Field>
-                <Field label="Tax rate override (%)">
-                  <input type="number" min={0} step="0.01" placeholder="default" disabled={!Number((form as any).charges_tax ?? 1)} value={(form as any).tax_rate === '' || (form as any).tax_rate == null ? '' : Number((form as any).tax_rate) * 100} onChange={e => setForm(p => ({ ...p, tax_rate: e.target.value === '' ? '' : String(Number(e.target.value) / 100) }))} style={{ ...inputStyle, opacity: Number((form as any).charges_tax ?? 1) ? 1 : 0.5 }} />
-                </Field>
+              </Row2>
+
+              {/* ── Identity ── */}
+              <SectionLabel>Identity</SectionLabel>
+              <Row2>
+                <Field label="First Name"><input value={f.first_name ?? ''} onChange={sf('first_name')} style={inputStyle} /></Field>
+                <Field label="Last Name"><input value={f.last_name ?? ''} onChange={sf('last_name')} style={inputStyle} /></Field>
+              </Row2>
+              <Row2>
+                <Field label="Display Name *"><input required value={form.name} onChange={sf('name')} placeholder="Auto-filled from First + Last" style={inputStyle} /></Field>
+                <Field label="Company"><input value={form.company} onChange={sf('company')} style={inputStyle} /></Field>
+              </Row2>
+              {(isCustomer || isLead) && (
+                <Row2>
+                  <Field label="Customer Code" title="Sage / Lightspeed customer code"><input value={f.customer_code ?? ''} onChange={sf('customer_code')} style={inputStyle} placeholder="e.g. SMITH-A4F2" /></Field>
+                  <Field label="Customer Group"><input value={f.customer_group ?? ''} onChange={sf('customer_group')} style={inputStyle} placeholder="e.g. VIP" /></Field>
+                </Row2>
+              )}
+
+              {/* ── Contact ── */}
+              <SectionLabel>Contact Details</SectionLabel>
+              <Row2>
+                <Field label="Email"><input type="email" value={form.email} onChange={sf('email')} style={inputStyle} /></Field>
+                <Field label="Mobile"><input value={f.mobile ?? ''} onChange={sf('mobile')} style={inputStyle} /></Field>
+              </Row2>
+              <Row2>
+                <Field label="Phone (land line)"><input value={form.phone} onChange={sf('phone')} style={inputStyle} /></Field>
+                {isSupplier && (
+                  <Field label="Website URL"><input type="url" value={f.website_url ?? ''} onChange={sf('website_url')} placeholder="https://" style={inputStyle} /></Field>
+                )}
+              </Row2>
+
+              {/* ── Address ── */}
+              <SectionLabel>Address</SectionLabel>
+              <Field label="Street Address"><input value={form.address} onChange={sf('address')} style={inputStyle} /></Field>
+              <Field label="Apt / Suite / Unit"><input value={f.address2 ?? ''} onChange={sf('address2')} style={inputStyle} placeholder="Unit 3, Level 2, etc." /></Field>
+              <Row2>
+                <Field label="Suburb"><input value={f.suburb ?? ''} onChange={sf('suburb')} style={inputStyle} /></Field>
+                <Field label="City"><input value={form.city} onChange={sf('city')} style={inputStyle} /></Field>
+              </Row2>
+              <Row3>
+                <Field label="State"><input value={form.state} onChange={sf('state')} style={inputStyle} /></Field>
+                <Field label="Postcode"><input value={form.postcode} onChange={sf('postcode')} style={inputStyle} /></Field>
+                <Field label="Country"><input value={form.country} onChange={sf('country')} style={inputStyle} /></Field>
               </Row3>
-            )}
-            <FormActions onCancel={closeModal} saving={saving} isEdit={!!modal.edit} />
-          </form>
-        </Modal>
-      )}
+
+              {/* ── Customer fields ── */}
+              {isCustomer && (
+                <>
+                  <SectionLabel>Customer Details</SectionLabel>
+                  <Row2>
+                    <Field label="Store Credit ($)" title="Current store credit balance">
+                      <input type="number" min="0" step="0.01" value={f.store_credit ?? 0} onChange={sf('store_credit')} style={inputStyle} />
+                    </Field>
+                    <Field label="On Account Limit ($)" title="Leave blank for no account credit">
+                      <input type="number" min="0" step="0.01" value={f.on_account_limit ?? ''} onChange={sf('on_account_limit')} style={inputStyle} placeholder="No limit" />
+                    </Field>
+                  </Row2>
+                  <Row2>
+                    <Field label="Price Tier">
+                      <select value={f.price_tier ?? 'retail'} onChange={sf('price_tier')} style={inputStyle}>
+                        <option value="retail">Retail</option>
+                        <option value="wholesale">Wholesale</option>
+                      </select>
+                    </Field>
+                    {isRetail && (
+                      <Field label="Gender">
+                        <select value={f.gender ?? ''} onChange={sf('gender')} style={inputStyle}>
+                          <option value="">Not specified</option>
+                          <option value="M">Male</option>
+                          <option value="F">Female</option>
+                          <option value="X">Non-binary / Other</option>
+                        </select>
+                      </Field>
+                    )}
+                  </Row2>
+                  {isRetail && (
+                    <Field label="Date of Birth">
+                      <input type="date" value={f.date_of_birth ?? ''} onChange={sf('date_of_birth')} style={inputStyle} />
+                    </Field>
+                  )}
+                  <SectionLabel>Marketing Preferences</SectionLabel>
+                  <Row2>
+                    <Field label="Promo Emails">
+                      <select value={Number(f.promo_email ?? 0)} onChange={e => setForm(p => ({ ...p, promo_email: Number(e.target.value) }))} style={inputStyle}>
+                        <option value={1}>Opted in ✓</option>
+                        <option value={0}>Opted out</option>
+                      </select>
+                    </Field>
+                    <Field label="Promo SMS">
+                      <select value={Number(f.promo_sms ?? 0)} onChange={e => setForm(p => ({ ...p, promo_sms: Number(e.target.value) }))} style={inputStyle}>
+                        <option value={1}>Opted in ✓</option>
+                        <option value={0}>Opted out</option>
+                      </select>
+                    </Field>
+                  </Row2>
+                </>
+              )}
+
+              {/* ── Supplier fields ── */}
+              {isSupplier && (
+                <>
+                  <SectionLabel>Supplier Settings</SectionLabel>
+                  <Row2>
+                    <Field label="Price Tier">
+                      <select value={f.price_tier ?? 'retail'} onChange={sf('price_tier')} style={inputStyle}>
+                        <option value="retail">Retail</option>
+                        <option value="wholesale">Wholesale</option>
+                      </select>
+                    </Field>
+                    <Field label="Order Frequency (days)">
+                      <input type="number" min={1} value={f.order_frequency_days ?? 45} onChange={e => setForm(p => ({ ...p, order_frequency_days: Math.max(1, parseInt(e.target.value) || 45) }))} style={inputStyle} />
+                    </Field>
+                  </Row2>
+                  <Row3>
+                    <Field label="Charges sales tax?">
+                      <select value={Number(f.charges_tax ?? 1)} onChange={e => setForm(p => ({ ...p, charges_tax: Number(e.target.value) }))} style={inputStyle}>
+                        <option value={1}>Yes</option>
+                        <option value={0}>No</option>
+                      </select>
+                    </Field>
+                    <Field label="Prices include tax?">
+                      <select value={Number(f.prices_include_tax ?? 0)} disabled={!Number(f.charges_tax ?? 1)} onChange={e => setForm(p => ({ ...p, prices_include_tax: Number(e.target.value) }))} style={{ ...inputStyle, opacity: Number(f.charges_tax ?? 1) ? 1 : 0.5 }}>
+                        <option value={0}>Ex-tax (added on top)</option>
+                        <option value={1}>Inc-tax (already included)</option>
+                      </select>
+                    </Field>
+                    <Field label="Tax rate override (%)">
+                      <input type="number" min={0} step="0.01" placeholder="default" disabled={!Number(f.charges_tax ?? 1)} value={f.tax_rate === '' || f.tax_rate == null ? '' : Number(f.tax_rate) * 100} onChange={e => setForm(p => ({ ...p, tax_rate: e.target.value === '' ? '' : String(Number(e.target.value) / 100) }))} style={{ ...inputStyle, opacity: Number(f.charges_tax ?? 1) ? 1 : 0.5 }} />
+                    </Field>
+                  </Row3>
+                </>
+              )}
+
+              {/* ── Notes ── */}
+              <SectionLabel>Notes</SectionLabel>
+              <Field label="">
+                <textarea value={form.notes} onChange={sf('notes') as any} rows={2} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Internal notes…" />
+              </Field>
+
+              <FormActions onCancel={closeModal} saving={saving} isEdit={!!modal.edit} />
+            </form>
+          </Modal>
+        );
+      })()}
     </div>
   );
 }
