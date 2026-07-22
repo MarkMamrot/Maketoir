@@ -7192,7 +7192,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: 'var(--sv-bg-1)' }}>
-                      {['Variant','Qty',`Unit Cost${(form.currency_code ?? 'AUD') !== 'AUD' ? ` (${form.currency_code})` : ''}`,'Disc %',...(taxTreatment !== 'no_tax' ? ['Tax %'] : []),'Line Total',...(isReceiving ? ['Received','Awaiting'] : []),'Notes',''].map(h => (
+                      {['Variant','Qty',`Unit Cost${(form.currency_code ?? 'AUD') !== 'AUD' ? ` (${form.currency_code})` : ''}`,'Disc %',...(taxTreatment !== 'no_tax' ? ['Tax %'] : []),'Line Total',...(isReceiving ? ['Received','Awaiting'] : []),''].map(h => (
                         <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600 }}>{h}</th>
                       ))}
                     </tr>
@@ -7200,7 +7200,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                   <tbody>
                     {lineItems.map((item, i) => (
                       <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                        <td style={{ padding: 4 }}>
+                        <td style={{ padding: 4, minWidth: 260 }}>
                           <VariantSearch
                             value={item.variant_id}
                             variants={variants}
@@ -7234,9 +7234,6 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                             </td>
                           </>);
                         })()}
-                        <td style={{ padding: 4 }}>
-                          <input type="text" value={item.notes ?? ''} onChange={e => updateLine(i, 'notes', e.target.value)} style={{ ...inputStyle, fontSize: 12, minWidth: 100 }} placeholder="Notes…" />
-                        </td>
                         <td style={{ padding: 4, width: 30 }}>
                           <button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16 }}>×</button>
                         </td>
@@ -9994,7 +9991,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: 'var(--sv-bg-1)' }}>
-                      {['Variant','Qty',soTaxTreatment === 'inc_tax' ? 'Unit Price (inc)' : 'Unit Price','Disc %',...(soTaxTreatment !== 'no_tax' ? ['Tax %'] : []),'Line Total','Notes',''].map(h => (
+                      {['Variant','Qty',soTaxTreatment === 'inc_tax' ? 'Unit Price (inc)' : 'Unit Price','Disc %',...(soTaxTreatment !== 'no_tax' ? ['Tax %'] : []),'Line Total',''].map(h => (
                         <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600 }}>{h}</th>
                       ))}
                     </tr>
@@ -10002,7 +9999,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                   <tbody>
                     {lineItems.map((item, i) => (
                       <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                        <td style={{ padding: 4 }}>
+                        <td style={{ padding: 4, minWidth: 260 }}>
                           <VariantSearch
                             value={item.variant_id}
                             variants={variants}
@@ -10016,7 +10013,6 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                           <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="100" step="1" value={Math.round(Number(item.tax_rate || 0) * 100)} onChange={e => updateLine(i, 'tax_rate', Number(e.target.value) / 100)} style={{ ...inputStyle, fontSize: 12 }} placeholder="10" /></td>
                         )}
                         <td style={{ padding: '4px 8px', width: 100, color: 'var(--sv-text-main)', fontSize: 13 }}>{fmtCurrency(lineTotal(item))}</td>
-                        <td style={{ padding: 4 }}><input type="text" value={item.notes ?? ''} onChange={e => updateLine(i, 'notes', e.target.value)} style={{ ...inputStyle, fontSize: 12, minWidth: 100 }} placeholder="Notes…" /></td>
                         <td style={{ padding: 4, width: 30 }}><button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16 }}>×</button></td>
                       </tr>
                     ))}

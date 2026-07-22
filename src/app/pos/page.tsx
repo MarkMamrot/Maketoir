@@ -65,6 +65,53 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
   const [error,   setError]   = useState('');
   const [verified, setVerified] = useState<{ business_id: string; location_id: number; location_name: string } | null>(null);
 
+  // Admin shortcut: if already logged in via marketoir_session, offer a
+  // location dropdown instead of requiring a location code.
+  const [adminLocations, setAdminLocations] = useState<{ id: number; name: string }[] | null>(null);
+  const [adminBusinessId, setAdminBusinessId] = useState<string | null>(null);
+  const [adminLocationId, setAdminLocationId] = useState('');
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/pos/locations')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.locations && d?.business_id) {
+          setAdminLocations(d.locations);
+          setAdminBusinessId(d.business_id);
+          if (d.locations.length === 1) setAdminLocationId(String(d.locations[0].id));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setAuthChecked(true));
+  }, []);
+
+  const isAdminFlow = !!(adminLocations && adminBusinessId);
+
+  async function loadRegisters(locationId: number, businessId: string, locationName: string) {
+    setLoading(true); setError('');
+    try {
+      const res = await fetch(`/api/pos/registers?location_id=${locationId}`);
+      const data = await res.json();
+      const regs = (data.registers ?? []).filter((r: any) => r.is_active);
+      setRegisters(regs);
+      if (regs.length === 1) setRegisterId(String(regs[0].id));
+      setVerified({ business_id: businessId, location_id: locationId, location_name: locationName });
+      setStep('register');
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleAdminNext() {
+    if (!adminLocationId) { setError('Select a location.'); return; }
+    const loc = adminLocations!.find(l => l.id === Number(adminLocationId));
+    if (!loc) return;
+    await loadRegisters(loc.id, adminBusinessId!, loc.name);
+  }
+
   async function handleVerifyCode() {
     const code = locCode.trim();
     if (!code) { setError('Enter the location code.'); return; }
@@ -77,15 +124,9 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
       });
       const data = await res.json();
       if (!res.ok || !data.success) { setError(data.error ?? 'Location code not recognised.'); return; }
-      setVerified({ business_id: data.business_id, location_id: data.location_id, location_name: data.location_name });
-      const regs = data.registers ?? [];
-      setRegisters(regs);
-      if (regs.length === 1) setRegisterId(String(regs[0].id));
-      setStep('register');
+      await loadRegisters(data.location_id, data.business_id, data.location_name);
     } catch (e: any) {
       setError(e.message);
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -114,22 +155,43 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui,sans-serif' }}>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', padding: '2.5rem 2rem', borderRadius: 12, width: 380, boxShadow: '0 8px 40px rgba(0,0,0,.4)' }}>
         <h1 style={{ margin: '0 0 .5rem', fontSize: '1.4rem', color: 'var(--sv-text-strong)' }}>POS — Device Setup</h1>
-        <p style={{ color: 'var(--sv-text-dim)', marginBottom: '1.5rem', fontSize: '.9rem' }}>Configure this device once. Contact your manager for the Location Code.</p>
 
-        {step === 'location' ? (
+        {!authChecked ? (
+          <p style={{ color: 'var(--sv-text-dim)', fontSize: '.9rem' }}>Checking session…</p>
+        ) : step === 'location' ? (
           <>
-            <label style={labelStyle}>Location Code</label>
-            <input autoFocus maxLength={32} placeholder='e.g. MT-BOND-7K2P9X' value={locCode}
-              onChange={e => { setLocCode(e.target.value.toUpperCase()); setError(''); }}
-              onKeyDown={e => e.key === 'Enter' && handleVerifyCode()} style={inputStyle} />
-            <p style={{ margin: '-.5rem 0 1rem', fontSize: '.75rem', color: 'var(--sv-text-dim)' }}>Set in IMS → Locations → POS Location Code. It identifies this branch and your business.</p>
-            {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', marginBottom: '1rem' }}>{error}</p>}
-            <button onClick={handleVerifyCode} disabled={loading || !locCode.trim()} style={primaryBtn}>
-              {loading ? 'Verifying…' : 'Next →'}
-            </button>
+            <p style={{ color: 'var(--sv-text-dim)', marginBottom: '1.5rem', fontSize: '.9rem' }}>
+              {isAdminFlow ? 'Select the branch for this device.' : 'Configure this device once. Contact your manager for the Location Code.'}
+            </p>
+            {isAdminFlow ? (
+              <>
+                <label style={labelStyle}>Branch / Location</label>
+                <select value={adminLocationId} onChange={e => { setAdminLocationId(e.target.value); setError(''); }} style={inputStyle}>
+                  <option value=''>— select location —</option>
+                  {adminLocations!.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+                {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', marginBottom: '1rem' }}>{error}</p>}
+                <button onClick={handleAdminNext} disabled={loading || !adminLocationId} style={primaryBtn}>
+                  {loading ? 'Loading…' : 'Next →'}
+                </button>
+              </>
+            ) : (
+              <>
+                <label style={labelStyle}>Location Code</label>
+                <input autoFocus maxLength={32} placeholder='e.g. MT-BOND-7K2P9X' value={locCode}
+                  onChange={e => { setLocCode(e.target.value.toUpperCase()); setError(''); }}
+                  onKeyDown={e => e.key === 'Enter' && handleVerifyCode()} style={inputStyle} />
+                <p style={{ margin: '-.5rem 0 1rem', fontSize: '.75rem', color: 'var(--sv-text-dim)' }}>Set in IMS → Locations → POS Location Code. It identifies this branch and your business.</p>
+                {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', marginBottom: '1rem' }}>{error}</p>}
+                <button onClick={handleVerifyCode} disabled={loading || !locCode.trim()} style={primaryBtn}>
+                  {loading ? 'Verifying…' : 'Next →'}
+                </button>
+              </>
+            )}
           </>
         ) : (
           <>
+            <p style={{ color: 'var(--sv-text-dim)', marginBottom: '.5rem', fontSize: '.9rem' }}>Configure this device once.</p>
             <p style={{ color: 'var(--sv-action)', fontWeight: 600, marginBottom: '1.25rem' }}>{verified?.location_name}</p>
             <label style={labelStyle}>Register / Till</label>
             {registers.length > 0 ? (
@@ -142,7 +204,7 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
             )}
             {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', marginBottom: '1rem' }}>{error}</p>}
             <div style={{ display: 'flex', gap: '.5rem' }}>
-              <button onClick={() => { setStep('location'); setError(''); }} style={{ ...primaryBtn, flex: '0 0 auto', background: 'var(--sv-bg-2)' }}>← Back</button>
+              <button onClick={() => { setStep('location'); setError(''); setVerified(null); setRegisters([]); }} style={{ ...primaryBtn, flex: '0 0 auto', background: 'var(--sv-bg-2)' }}>← Back</button>
               <button onClick={handleSetup} disabled={loading || !registerId} style={{ ...primaryBtn, flex: 1 }}>
                 {loading ? 'Saving…' : 'Set Up Device'}
               </button>
