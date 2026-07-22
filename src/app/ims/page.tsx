@@ -1057,6 +1057,7 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
+  const [page, setPage] = useState(1);
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [form, setForm] = useState({ ...BLANK_CONTACT });
   const [saving, setSaving] = useState(false);
@@ -1113,10 +1114,14 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
     if (typeFilter === 'supplier' || typeFilter === 'b2b_customer') return c.type === typeFilter || c.type === 'both';
     return c.type === typeFilter;
   };
-  const visible = contacts.filter(c =>
+  const filtered = contacts.filter(c =>
     typeMatchFn(c) &&
-    (!filter || c.name.toLowerCase().includes(filter.toLowerCase()) || (c.company || '').toLowerCase().includes(filter.toLowerCase()))
+    (!filter || c.name.toLowerCase().includes(filter.toLowerCase()) || (c.company || '').toLowerCase().includes(filter.toLowerCase()) || (c.customer_code || '').toLowerCase().includes(filter.toLowerCase()) || (c.email || '').toLowerCase().includes(filter.toLowerCase()))
   );
+  const CONTACTS_PAGE_SIZE = 100;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / CONTACTS_PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const visible = filtered.slice((safePage - 1) * CONTACTS_PAGE_SIZE, safePage * CONTACTS_PAGE_SIZE);
 
   return (
     <div>
@@ -1125,8 +1130,8 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
         {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New Contact</button>}
       </div>
       <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-        <input placeholder="Search…" value={filter} onChange={e => setFilter(e.target.value)} style={{ ...inputStyle, width: 240 }} />
-        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ ...inputStyle, width: 180 }}>
+        <input placeholder="Search…" value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, width: 240 }} />
+        <select value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, width: 180 }}>
           <option value="">All Types</option>
           <option value="supplier">Suppliers</option>
           <option value="b2b_customer">B2B Customers</option>
@@ -1207,6 +1212,16 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
           />
         );
       })()}
+      {/* ── Pagination ── */}
+      {!loading && totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 16 }}>
+          <button onClick={() => setPage(1)} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>«</button>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1} style={btnStyle('secondary', 'sm')}>‹ Prev</button>
+          <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 8px' }}>Page {safePage} of {totalPages} ({filtered.length} contacts)</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>Next ›</button>
+          <button onClick={() => setPage(totalPages)} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>»</button>
+        </div>
+      )}
 
       {modal.open && (() => {
         const f = form as any;
