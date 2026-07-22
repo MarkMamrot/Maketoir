@@ -33,9 +33,10 @@ export async function GET(req: NextRequest) {
   if (!locationId || isNaN(locationId)) {
     return NextResponse.json({ error: 'location_id required.' }, { status: 400 });
   }
+  // Public for device setup — no session required here.
+  // If a session exists, bind the IMS context for tenant safety.
   const session = getAnySession();
-  if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
-  await getImsSession(['pos_session', 'marketoir_session']);
+  if (session) await getImsSession(['pos_session', 'marketoir_session']);
   const registers = await PosRegistersRepo.listForLocation(locationId);
   return NextResponse.json({ registers });
 }
