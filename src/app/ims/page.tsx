@@ -7192,14 +7192,17 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: 'var(--sv-bg-1)' }}>
-                      {['Variant','Qty',`Unit Cost${(form.currency_code ?? 'AUD') !== 'AUD' ? ` (${form.currency_code})` : ''}`,'Disc %',...(taxTreatment !== 'no_tax' ? ['Tax %'] : []),'Line Total',...(isReceiving ? ['Received','Awaiting'] : []),''].map(h => (
-                        <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600 }}>{h}</th>
+                      {[''/* del */,'Variant','Qty',`Unit Cost${(form.currency_code ?? 'AUD') !== 'AUD' ? ` (${form.currency_code})` : ''}`,'Disc %',...(taxTreatment !== 'no_tax' ? ['Tax %'] : []),...(isReceiving ? ['Received','Awaiting'] : []),'Line Total'].map((h, hi) => (
+                        <th key={hi} style={{ padding: '6px 8px', textAlign: h === 'Line Total' ? 'right' : 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600 }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {lineItems.map((item, i) => (
                       <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                        <td style={{ padding: '4px 2px', width: 30 }}>
+                          <button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16, lineHeight: 1, padding: '0 4px' }}>×</button>
+                        </td>
                         <td style={{ padding: 4, minWidth: 260 }}>
                           <VariantSearch
                             value={item.variant_id}
@@ -7221,7 +7224,6 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                           <input type="number" min="0" max="100" step="1" value={Math.round(Number(item.tax_rate || 0) * 100)} onChange={e => updateLine(i, 'tax_rate', Number(e.target.value) / 100)} style={{ ...inputStyle, fontSize: 12 }} placeholder="10" />
                         </td>
                         )}
-                        <td style={{ padding: '4px 8px', width: 100, color: 'var(--sv-text-main)', fontSize: 13 }}>{fmtCurrency(lineTotal(item))}</td>
                         {isReceiving && (() => {
                           const received = Number(receiveQtys[item.variant_id] ?? 0);
                           const awaiting = Math.max(0, Number(item.qty_ordered || 0) - received);
@@ -7234,9 +7236,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                             </td>
                           </>);
                         })()}
-                        <td style={{ padding: 4, width: 30 }}>
-                          <button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16 }}>×</button>
-                        </td>
+                        <td style={{ padding: '4px 8px', width: 100, textAlign: 'right', color: 'var(--sv-text-main)', fontSize: 13 }}>{fmtCurrency(lineTotal(item))}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -7255,73 +7255,15 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                     <span>Freight (+)</span>
                     <input type="number" min="0" step="0.01" value={form.freight} onChange={sf('freight')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
                   </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
+                    <span>Discount (−)</span>
+                    <input type="number" min="0" step="0.01" value={form.discount} onChange={sf('discount')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
+                  </div>
                   {taxTreatment !== 'no_tax' && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
                       <span>Tax</span><span>{fmtCurrency(poTax)}</span>
                     </div>
                   )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
-                    <span>Discount (−)</span>
-                    <input type="number" min="0" step="0.01" value={form.discount} onChange={sf('discount')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
-                  </div>
-                  {/* Landed Costs — separate invoices; NOT in total, but added to avg. cost on receive */}
-                  <div style={{ borderTop: '1px solid var(--sv-etch)', paddingTop: 8, marginBottom: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Landed Costs</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>not on invoice · added to avg. cost</span>
-                        {!lcForm && <button type="button" onClick={() => setLcForm({ label: '', reference: '', amount: '' })} style={btnStyle('mint', 'xs')}>+ Add</button>}
-                      </div>
-                    </div>
-                    {landedCosts.length > 0 && (
-                      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 6, border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', fontSize: 12 }}>
-                        <thead>
-                          <tr style={{ background: 'var(--sv-bg-1)' }}>
-                            {['Description', 'Ref / Inv #', 'Amount', ''].map((h, i) => (
-                              <th key={i} style={{ padding: '4px 8px', textAlign: i === 2 ? 'right' : 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {landedCosts.map((c, i) => (
-                            <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                              <td style={{ padding: '4px 8px' }}>{c.label}</td>
-                              <td style={{ padding: '4px 8px', color: 'var(--sv-text-dim)' }}>{c.reference || '—'}</td>
-                              <td style={{ padding: '4px 8px', fontWeight: 600, textAlign: 'right' }}>{fmtCurrency(Number(c.amount))}</td>
-                              <td style={{ padding: '4px 8px', textAlign: 'right' }}>
-                                <button type="button" onClick={() => setLandedCosts(p => p.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>✕</button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
-                    {lcForm && (
-                      <div style={{ padding: '10px 12px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', marginBottom: 6 }}>
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                          <div style={{ flex: 2, minWidth: 100 }}>
-                            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Description</div>
-                            <input type="text" value={lcForm.label} onChange={e => setLcForm(f => f ? { ...f, label: e.target.value } : f)} style={{ ...inputStyle, width: '100%', fontSize: 12 }} placeholder="e.g. Customs Duty" />
-                          </div>
-                          <div style={{ flex: 2, minWidth: 100 }}>
-                            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Ref / Invoice #</div>
-                            <input type="text" value={lcForm.reference} onChange={e => setLcForm(f => f ? { ...f, reference: e.target.value } : f)} style={{ ...inputStyle, width: '100%', fontSize: 12 }} placeholder="Optional" />
-                          </div>
-                          <div>
-                            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Amount</div>
-                            <input type="number" min="0" step="0.01" value={lcForm.amount} onChange={e => setLcForm(f => f ? { ...f, amount: e.target.value } : f)} style={{ ...inputStyle, width: 110, fontSize: 12 }} placeholder="0.00" />
-                          </div>
-                          <button type="button" onClick={() => { if (lcForm.label && Number(lcForm.amount) > 0) { setLandedCosts(p => [...p, lcForm]); setLcForm(null); } else alert('Enter a description and amount.'); }} style={btnStyle('mint', 'sm')}>Add</button>
-                          <button type="button" onClick={() => setLcForm(null)} style={btnStyle('ghost', 'sm')}>Cancel</button>
-                        </div>
-                      </div>
-                    )}
-                    {poLanded > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--sv-text-dim)' }}>
-                        <span>Landed Total (+)</span><span>+{fmtCurrency(poLanded)}</span>
-                      </div>
-                    )}
-                  </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)', borderTop: '1px solid var(--sv-etch)', paddingTop: 6 }}>
                     <span>Total{taxTreatment === 'inc_tax' ? ' (inc. tax)' : ''}{(form.currency_code ?? 'AUD') !== 'AUD' ? ` (${form.currency_code})` : ''}</span><span>{fmtCurrency(grandTotal)}</span>
                   </div>
@@ -7346,6 +7288,64 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                     );
                   })()}
                 </div>
+              </div>
+              {/* Landed Costs — separate section below totals */}
+              <div style={{ marginTop: 16, borderTop: '1px solid var(--sv-etch)', paddingTop: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Landed Costs</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>not on invoice · added to avg. cost on receive</span>
+                    {!lcForm && <button type="button" onClick={() => setLcForm({ label: '', reference: '', amount: '' })} style={btnStyle('mint', 'xs')}>+ Add</button>}
+                  </div>
+                </div>
+                {landedCosts.length > 0 && (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 6, border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ background: 'var(--sv-bg-1)' }}>
+                        {['Description', 'Ref / Inv #', 'Amount', ''].map((h, i) => (
+                          <th key={i} style={{ padding: '4px 8px', textAlign: i === 2 ? 'right' : 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {landedCosts.map((c, i) => (
+                        <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                          <td style={{ padding: '4px 8px' }}>{c.label}</td>
+                          <td style={{ padding: '4px 8px', color: 'var(--sv-text-dim)' }}>{c.reference || '—'}</td>
+                          <td style={{ padding: '4px 8px', fontWeight: 600, textAlign: 'right' }}>{fmtCurrency(Number(c.amount))}</td>
+                          <td style={{ padding: '4px 8px', textAlign: 'right' }}>
+                            <button type="button" onClick={() => setLandedCosts(p => p.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>✕</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                {lcForm && (
+                  <div style={{ padding: '10px 12px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', marginBottom: 6 }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                      <div style={{ flex: 2, minWidth: 100 }}>
+                        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Description</div>
+                        <input type="text" value={lcForm.label} onChange={e => setLcForm(f => f ? { ...f, label: e.target.value } : f)} style={{ ...inputStyle, width: '100%', fontSize: 12 }} placeholder="e.g. Customs Duty" />
+                      </div>
+                      <div style={{ flex: 2, minWidth: 100 }}>
+                        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Ref / Invoice #</div>
+                        <input type="text" value={lcForm.reference} onChange={e => setLcForm(f => f ? { ...f, reference: e.target.value } : f)} style={{ ...inputStyle, width: '100%', fontSize: 12 }} placeholder="Optional" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 3 }}>Amount</div>
+                        <input type="number" min="0" step="0.01" value={lcForm.amount} onChange={e => setLcForm(f => f ? { ...f, amount: e.target.value } : f)} style={{ ...inputStyle, width: 110, fontSize: 12 }} placeholder="0.00" />
+                      </div>
+                      <button type="button" onClick={() => { if (lcForm.label && Number(lcForm.amount) > 0) { setLandedCosts(p => [...p, lcForm]); setLcForm(null); } else alert('Enter a description and amount.'); }} style={btnStyle('mint', 'sm')}>Add</button>
+                      <button type="button" onClick={() => setLcForm(null)} style={btnStyle('ghost', 'sm')}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+                {poLanded > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--sv-text-dim)' }}>
+                    <span>Landed Total (+)</span><span>+{fmtCurrency(poLanded)}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -9991,14 +9991,15 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: 'var(--sv-bg-1)' }}>
-                      {['Variant','Qty',soTaxTreatment === 'inc_tax' ? 'Unit Price (inc)' : 'Unit Price','Disc %',...(soTaxTreatment !== 'no_tax' ? ['Tax %'] : []),'Line Total',''].map(h => (
-                        <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600 }}>{h}</th>
+                      {[''/* del */,'Variant','Qty',soTaxTreatment === 'inc_tax' ? 'Unit Price (inc)' : 'Unit Price','Disc %',...(soTaxTreatment !== 'no_tax' ? ['Tax %'] : []),'Line Total'].map((h, hi) => (
+                        <th key={hi} style={{ padding: '6px 8px', textAlign: h === 'Line Total' ? 'right' : 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600 }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {lineItems.map((item, i) => (
                       <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                        <td style={{ padding: '4px 2px', width: 30 }}><button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16, lineHeight: 1, padding: '0 4px' }}>×</button></td>
                         <td style={{ padding: 4, minWidth: 260 }}>
                           <VariantSearch
                             value={item.variant_id}
@@ -10012,8 +10013,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                         {soTaxTreatment !== 'no_tax' && (
                           <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="100" step="1" value={Math.round(Number(item.tax_rate || 0) * 100)} onChange={e => updateLine(i, 'tax_rate', Number(e.target.value) / 100)} style={{ ...inputStyle, fontSize: 12 }} placeholder="10" /></td>
                         )}
-                        <td style={{ padding: '4px 8px', width: 100, color: 'var(--sv-text-main)', fontSize: 13 }}>{fmtCurrency(lineTotal(item))}</td>
-                        <td style={{ padding: 4, width: 30 }}><button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16 }}>×</button></td>
+                        <td style={{ padding: '4px 8px', width: 100, textAlign: 'right', color: 'var(--sv-text-main)', fontSize: 13 }}>{fmtCurrency(lineTotal(item))}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -10022,7 +10022,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
               )}
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
                 <div style={{ minWidth: 280 }}>
-                  {[[`Subtotal${soTaxTreatment === 'inc_tax' ? ' (ex-tax)' : ''}`, fmtCurrency(soSubtotal)], ...(soTaxTreatment !== 'no_tax' ? [['Tax', fmtCurrency(soTax)]] : [])].map(([l, v]) => (
+                  {[[`Subtotal${soTaxTreatment === 'inc_tax' ? ' (ex-tax)' : ''}`, fmtCurrency(soSubtotal)]].map(([l, v]) => (
                     <div key={l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
                       <span>{l}</span><span>{v}</span>
                     </div>
@@ -10035,6 +10035,11 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                     <span>Freight (+)</span>
                     <input type="number" min="0" step="0.01" value={form.freight} onChange={sf('freight')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
                   </div>
+                  {soTaxTreatment !== 'no_tax' && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 8 }}>
+                      <span>Tax</span><span>{fmtCurrency(soTax)}</span>
+                    </div>
+                  )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)', borderTop: '1px solid var(--sv-etch)', paddingTop: 6 }}>
                     <span>Total{soTaxTreatment === 'inc_tax' ? ' (inc. tax)' : ''}</span><span>{fmtCurrency(grandTotal)}</span>
                   </div>
