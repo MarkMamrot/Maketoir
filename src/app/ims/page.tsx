@@ -8780,10 +8780,11 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
                   {lineItems.map((item, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
                       <td style={{ padding: '6px 8px' }}>
-                        <select value={item.variant_id} onChange={e => selectCNVariant(i, e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: '4px 6px' }}>
-                          <option value="">Select variant…</option>
-                          {variants.map((v: any) => <option key={v.variant_id} value={v.variant_id}>{v.sku} — {v.product_name} {v.variant_label !== 'Default' ? `(${v.variant_label})` : ''}</option>)}
-                        </select>
+                        <VariantSearch
+                          value={item.variant_id}
+                          variants={variants}
+                          onChange={vid => selectCNVariant(i, vid)}
+                        />
                       </td>
                       <td style={{ padding: '6px 8px' }}>
                         <input type="text" value={item.code ?? ''} onChange={e => updateLine(i, 'code', e.target.value)} placeholder="Barcode / SKU" style={{ ...inputStyle, fontSize: 11, padding: '4px 6px', width: '100%' }} />
@@ -9114,10 +9115,11 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
                   {lineItems.map((item, i) => (
                     <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
                       <td style={{ padding: '4px 8px', minWidth: 240 }}>
-                        <select value={item.variant_id} onChange={e => selectVariant(i, e.target.value)} style={{ ...inputStyle, fontSize: 12 }}>
-                          <option value="">— select product —</option>
-                          {variants.map((v: any) => <option key={v.variant_id} value={v.variant_id}>{v.sku} — {v.product_name}{v.variant_label ? ` (${v.variant_label})` : ''}</option>)}
-                        </select>
+                        <VariantSearch
+                          value={item.variant_id}
+                          variants={variants}
+                          onChange={vid => selectVariant(i, vid)}
+                        />
                       </td>
                       <td style={{ padding: '4px 8px' }}><input type="number" step="any" value={item.qty} onChange={e => updateLine(i, 'qty', e.target.value)} style={{ ...inputStyle, width: 70, fontSize: 12 }} /></td>
                       <td style={{ padding: '4px 8px' }}><input type="number" step="any" value={item.unit_cost} onChange={e => updateLine(i, 'unit_cost', e.target.value)} style={{ ...inputStyle, width: 90, fontSize: 12 }} /></td>
