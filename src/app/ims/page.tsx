@@ -8463,7 +8463,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    fetch('/api/ims/contacts?type=customer&active=1').then(r => r.json()).then(d => { if (d.success) setCustomers(d.data); });
+    fetch('/api/ims/contacts?type=b2b_customer&active=1').then(r => r.json()).then(d => { if (d.success) setCustomers(d.data); });
     fetch('/api/ims/locations').then(r => r.json()).then(d => { if (d.success) setLocations(d.data); });
     fetch('/api/ims/variants').then(r => r.json()).then(d => { if (d.success) setVariants(d.data); });
   }, []);
@@ -9570,7 +9570,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    fetch('/api/ims/contacts?type=customer&active=1').then(r => r.json()).then(d => { if (d.success) setCustomers(d.data); });
+    fetch('/api/ims/contacts?type=b2b_customer&active=1').then(r => r.json()).then(d => { if (d.success) setCustomers(d.data); });
     fetch('/api/ims/locations').then(r => r.json()).then(d => { if (d.success) setLocations(d.data); });
     fetch('/api/ims/variants').then(r => r.json()).then(d => { if (d.success) setVariants(d.data); });
     fetch('/api/ims/payment-methods').then(r => r.json()).then(d => { if (d.success) setPaymentMethods(d.data); });
