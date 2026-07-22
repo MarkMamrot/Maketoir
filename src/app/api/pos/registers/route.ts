@@ -35,7 +35,10 @@ export async function GET(req: NextRequest) {
   }
   const session = getAnySession();
   if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
-  await getImsSession(['pos_session', 'marketoir_session']);
+  // Prefer marketoir_session for IMS context — if both cookies are present (admin doing device
+  // setup while a stale pos_session from a different business is still live), the admin's
+  // business is authoritative. Fall back to pos_session for cashier-only devices.
+  await getImsSession(['marketoir_session', 'pos_session']);
   const registers = await PosRegistersRepo.listForLocation(locationId);
   return NextResponse.json({ registers });
 }
