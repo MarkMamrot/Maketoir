@@ -4,6 +4,7 @@ import { imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
 
 export async function GET(req: Request) {
+  try {
   // 1. Check for existing POS session (cashier login)
   const posRaw = cookies().get('pos_session')?.value;
   if (posRaw) {
@@ -21,7 +22,7 @@ export async function GET(req: Request) {
 
   let adminSession: any;
   try { adminSession = JSON.parse(adminRaw); } catch { return NextResponse.json({ session: null }); }
-  await getImsSession(['marketoir_session']);
+  try { await getImsSession(['marketoir_session']); } catch {}
 
   // Need location_id from the device config (passed as query param by the POS page)
   const { searchParams } = new URL(req.url);
@@ -60,4 +61,7 @@ export async function GET(req: Request) {
   });
 
   return NextResponse.json({ session: sessionData });
+  } catch {
+    return NextResponse.json({ session: null });
+  }
 }

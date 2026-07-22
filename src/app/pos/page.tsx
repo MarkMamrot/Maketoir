@@ -290,8 +290,32 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
   const [adminMode,    setAdminMode]    = useState(false);
   const [email,        setEmail]        = useState('');
   const [password,     setPassword]     = useState('');
+  // Auto-bypass: check for existing admin/cashier session on mount
+  const [sessionCheck, setSessionCheck] = useState<'pending' | 'done'>('pending');
   const pinRef  = useRef<HTMLInputElement>(null);
   const passRef = useRef<HTMLInputElement>(null);
+
+  // On mount: probe auth/me — if admin is logged in, skip the PIN form entirely.
+  useEffect(() => {
+    fetch(`/api/pos/auth/me?location_id=${deviceConfig.location_id}`)
+      .then(r => r.json())
+      .then(async d => {
+        if (d?.session) {
+          try {
+            await finishLogin({
+              ...d.session,
+              register_id:   deviceConfig.register_id   ?? null,
+              register_name: deviceConfig.register_name ?? null,
+            });
+          } catch {
+            setSessionCheck('done');
+          }
+        } else {
+          setSessionCheck('done');
+        }
+      })
+      .catch(() => setSessionCheck('done'));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function finishLogin(session: PosSession) {
     const [prodRes, methodRes] = await Promise.all([
@@ -383,6 +407,15 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
       </div>
     </div>
   );
+
+  // ── Auto-bypass spinner while checking session ─────────────────────────────
+  if (sessionCheck === 'pending') {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-dim)', fontSize: '.9rem' }}>
+        Checking session…
+      </div>
+    );
+  }
 
   // ── Admin email+password fallback ─────────────────────────────────────────
   if (adminMode) {
