@@ -591,3 +591,31 @@ CREATE TABLE IF NOT EXISTS gift_cards (
   INDEX idx_gc_status   (status),
   INDEX idx_gc_customer (customer_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS gift_card_transactions (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  card_id       INT NOT NULL,
+  type          ENUM('issue','redeem','return','adjust') NOT NULL,
+  amount        DECIMAL(12,2) NOT NULL,
+  balance_after DECIMAL(12,2) NOT NULL,
+  pos_sale_id   INT NULL,
+  notes         VARCHAR(255) NULL,
+  created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_gct_card (card_id),
+  INDEX idx_gct_sale (pos_sale_id),
+  CONSTRAINT fk_gct_card FOREIGN KEY (card_id) REFERENCES gift_cards(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS store_credit_transactions (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  contact_id    INT NOT NULL,
+  type          ENUM('issue','redeem','adjust') NOT NULL,
+  amount        DECIMAL(12,2) NOT NULL,
+  balance_after DECIMAL(12,2) NOT NULL,
+  pos_sale_id   INT NULL,
+  notes         VARCHAR(255) NULL,
+  created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_sct_contact (contact_id),
+  INDEX idx_sct_sale    (pos_sale_id),
+  CONSTRAINT fk_sct_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

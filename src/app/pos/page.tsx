@@ -5,6 +5,7 @@ import * as Zeller from '@/lib/zeller';
 import {
   loadDeviceConfig, saveDeviceConfig, clearDeviceConfig,
   loadProductsCache, saveProductsCache,
+  loadImageCache, saveImageCache, isImageCacheStale, mergeProductImages,
   loadCurrentCart, saveCurrentCart,
   loadParkedSales, saveParkedSales,
   addToOfflineQueue, drainOfflineQueue, loadOfflineQueue, removeFromOfflineQueue,
@@ -336,9 +337,12 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
     ]);
     const prodData   = await prodRes.json().catch(() => ({ products: [] }));
     const methodData = await methodRes.json().catch(() => ({ methods: ['Cash', 'Card', 'EFT'] }));
-    saveProductsCache(prodData.products ?? []);
+    let products = prodData.products ?? [];
+    const imgCache = loadImageCache();
+    if (imgCache && products.length) products = mergeProductImages(products, imgCache);
+    saveProductsCache(products);
     saveLocalSession(session);
-    onLogin(session, prodData.products ?? [], methodData.methods ?? ['Cash', 'Card', 'EFT']);
+    onLogin(session, products, methodData.methods ?? ['Cash', 'Card', 'EFT']);
   }
 
   async function handlePinLogin() {
@@ -1244,6 +1248,12 @@ function MainPos({
   const [notesOpen, setNotesOpen] = useState(false);
   const [saleNotes, setSaleNotes] = useState('');
   const [isLayby, setIsLayby] = useState(false);
+  // Gift card / store credit
+  const [linkedContact, setLinkedContact] = useState<{ id: number; name: string; phone: string | null; store_credit: number } | null>(null);
+  const [contactSearch, setContactSearch] = useState('');
+  const [contactResults, setContactResults] = useState<{ id: number; name: string; phone: string | null; store_credit: number }[]>([]);
+  const [contactSearching, setContactSearching] = useState(false);
+  const [gcIssueOpen, setGcIssueOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
@@ -1410,6 +1420,21 @@ function MainPos({
 
   // Drain offline queue on mount
   useEffect(() => { drainOfflineQueue().then(refreshQueueCount); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Debounced contact search for store credit lookup
+  useEffect(() => {
+    if (contactSearch.length < 2) { setContactResults([]); return; }
+    setContactSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/pos/store-credit?q=${encodeURIComponent(contactSearch)}`);
+        const data = await res.json();
+        setContactResults(Array.isArray(data.contacts) ? data.contacts : []);
+      } catch { setContactResults([]); }
+      finally { setContactSearching(false); }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [contactSearch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Track online/offline state changes
   useEffect(() => {
@@ -1579,6 +1604,9 @@ function MainPos({
     setIsLayby(false);
     setOrderDiscType('percent');
     setOrderDiscVal('');
+    setLinkedContact(null);
+    setContactSearch('');
+    setContactResults([]);
     saveCurrentCart([]);
   }
 
@@ -1655,6 +1683,27 @@ function MainPos({
         addToOfflineQueue(payload);
       }
       refreshQueueCount();
+
+      // Fire-and-forget: update gift card balances and store credit for this sale
+      if (serverId) {
+        for (const p of payments) {
+          if (p.method === 'Gift Card' && p.reference) {
+            fetch('/api/pos/gift-card/redeem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: p.reference, amount: Math.abs(p.amount), pos_sale_id: serverId }) }).catch(() => {});
+          } else if (p.method === 'Store Credit' && linkedContact) {
+            fetch('/api/pos/store-credit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact_id: linkedContact.id, amount: Math.abs(p.amount), type: 'debit', pos_sale_id: serverId }) }).catch(() => {});
+          } else if (p.method === 'Gift Card (Issue)') {
+            const gcCode = p.reference?.trim() || `GC-R${serverId}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+            fetch('/api/pos/gift-card', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: gcCode, amount: Math.abs(p.amount), pos_sale_id: serverId }) }).catch(() => {});
+          } else if (p.method === 'Store Credit (Issue)' && linkedContact) {
+            fetch('/api/pos/store-credit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact_id: linkedContact.id, amount: Math.abs(p.amount), type: 'credit', pos_sale_id: serverId }) }).catch(() => {});
+          }
+        }
+        // Issue gift cards for sold GC cart items (Phase 2)
+        for (const item of cart.filter(i => i.is_gift_card)) {
+          const gcCode = item.gift_card_code?.trim() || `GC-S${serverId}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+          fetch('/api/pos/gift-card', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: gcCode, amount: item.unit_price, pos_sale_id: serverId }) }).catch(() => {});
+        }
+      }
 
       const completedSale: CompletedSale = {
         id:            serverId,
@@ -2080,10 +2129,80 @@ function MainPos({
               {saleNotes ? (saleNotes.length > 22 ? saleNotes.slice(0, 22) + '…' : saleNotes) : 'Order Notes'}
             </button>
           </div>
+          {/* Customer & Order Notes — collapsible pills */}
+          <div style={{ padding: '.4rem .75rem', display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setCustomerOpen(v => !v)}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 10px 3px 8px', borderRadius: 20,
+                border: customerName || customerPhone || linkedContact ? '1px solid var(--sv-action)' : '1px solid var(--sv-etch)',
+                background: 'var(--sv-bg-2)',
+                color: customerName || customerPhone || linkedContact ? 'var(--sv-action)' : 'var(--sv-text-dim)',
+                cursor: 'pointer', fontSize: '.78rem', fontWeight: 600, transition: 'border-color .15s, color .15s' }}
+            >
+              <span style={{ width: 14, height: 14, borderRadius: '50%', border: '1.5px solid currentColor', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, lineHeight: 1, flexShrink: 0 }}>
+                {customerOpen ? '−' : '+'}
+              </span>
+              {linkedContact
+                ? `${linkedContact.name}${linkedContact.store_credit > 0 ? ` · $${linkedContact.store_credit.toFixed(2)} credit` : ''}`
+                : customerName
+                  ? (customerName + (customerPhone && !customerOpen ? ' · ' + customerPhone : ''))
+                  : 'Customer'}
+            </button>
+            <button
+              onClick={() => setNotesOpen(v => !v)}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 10px 3px 8px', borderRadius: 20,
+                border: saleNotes ? '1px solid #f59e0b' : '1px solid var(--sv-etch)',
+                background: 'var(--sv-bg-2)',
+                color: saleNotes ? '#f59e0b' : 'var(--sv-text-dim)',
+                cursor: 'pointer', fontSize: '.78rem', fontWeight: 600, transition: 'border-color .15s, color .15s' }}
+            >
+              <span style={{ width: 14, height: 14, borderRadius: '50%', border: '1.5px solid currentColor', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, lineHeight: 1, flexShrink: 0 }}>
+                {notesOpen ? '−' : '+'}
+              </span>
+              {saleNotes ? (saleNotes.length > 22 ? saleNotes.slice(0, 22) + '…' : saleNotes) : 'Order Notes'}
+            </button>
+          </div>
           {customerOpen && (
-            <div style={{ padding: '0 .75rem .4rem', display: 'flex', gap: '.5rem' }}>
-              <input placeholder='Customer name' value={customerName} onChange={e => setCustomerName(e.target.value)} style={{ ...inputStyle, flex: 1, marginBottom: 0, padding: '.35rem .5rem', fontSize: '.8rem' }} />
-              <input placeholder='Phone' value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} style={{ ...inputStyle, width: 110, marginBottom: 0, padding: '.35rem .5rem', fontSize: '.8rem' }} />
+            <div style={{ padding: '0 .75rem .4rem' }}>
+              <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.35rem' }}>
+                <input placeholder='Customer name' value={customerName} onChange={e => setCustomerName(e.target.value)} style={{ ...inputStyle, flex: 1, marginBottom: 0, padding: '.35rem .5rem', fontSize: '.8rem' }} />
+                <input placeholder='Phone' value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} style={{ ...inputStyle, width: 110, marginBottom: 0, padding: '.35rem .5rem', fontSize: '.8rem' }} />
+              </div>
+              {/* Contact/store-credit lookup */}
+              {linkedContact ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.3rem .5rem', background: 'rgba(37,99,235,.1)', border: '1px solid rgba(37,99,235,.3)', borderRadius: 6, fontSize: '.78rem' }}>
+                  <span style={{ flex: 1, color: 'var(--sv-action)', fontWeight: 600 }}>
+                    {linkedContact.name}
+                    {linkedContact.store_credit > 0 && <span style={{ marginLeft: 6, color: 'var(--sv-mint)' }}>${linkedContact.store_credit.toFixed(2)} store credit</span>}
+                  </span>
+                  <button onClick={() => { setLinkedContact(null); setContactSearch(''); setContactResults([]); }} style={{ background: 'transparent', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.85rem', padding: '0 2px' }}>×</button>
+                </div>
+              ) : (
+                <div style={{ position: 'relative' }}>
+                  <input
+                    placeholder='Search contact for store credit…'
+                    value={contactSearch}
+                    onChange={e => setContactSearch(e.target.value)}
+                    style={{ ...inputStyle, width: '100%', marginBottom: 0, padding: '.35rem .5rem', fontSize: '.78rem', boxSizing: 'border-box' }}
+                  />
+                  {contactSearching && <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: '.7rem', color: 'var(--sv-text-dim)' }}>…</span>}
+                  {contactResults.length > 0 && (
+                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, boxShadow: '0 4px 16px rgba(0,0,0,.3)', marginTop: 2 }}>
+                      {contactResults.map(c => (
+                        <button
+                          key={c.id}
+                          onClick={() => { setLinkedContact(c); setCustomerName(prev => prev || c.name); setCustomerPhone(prev => prev || (c.phone ?? '')); setContactSearch(''); setContactResults([]); }}
+                          style={{ display: 'block', width: '100%', padding: '.4rem .6rem', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--sv-text-main)', fontSize: '.8rem', borderBottom: '1px solid var(--sv-etch)' }}
+                        >
+                          <span style={{ fontWeight: 600 }}>{c.name}</span>
+                          {c.phone && <span style={{ color: 'var(--sv-text-dim)', marginLeft: 6 }}>{c.phone}</span>}
+                          {c.store_credit > 0 && <span style={{ marginLeft: 6, color: 'var(--sv-mint)', fontWeight: 700 }}>${c.store_credit.toFixed(2)} credit</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
           {notesOpen && (
@@ -2149,7 +2268,10 @@ function MainPos({
               </div>
             )}
             <div style={{ display: 'flex', gap: '.5rem', marginTop: '.75rem', flexDirection: 'column' }}>
-              <button onClick={clearCart} style={{ ...smallBtn, width: '100%', padding: '.55rem', fontSize: '.85rem', background: 'transparent', border: '1px solid rgba(248,113,113,.5)', color: '#ef4444', opacity: !cart.length ? 0.65 : 1 }} disabled={!cart.length}>Clear Cart</button>
+              <div style={{ display: 'flex', gap: '.5rem' }}>
+                <button onClick={clearCart} style={{ ...smallBtn, flex: 1, padding: '.55rem', fontSize: '.85rem', background: 'transparent', border: '1px solid rgba(248,113,113,.5)', color: '#ef4444', opacity: !cart.length ? 0.65 : 1 }} disabled={!cart.length}>Clear Cart</button>
+                <button onClick={() => setGcIssueOpen(true)} style={{ ...smallBtn, padding: '.55rem .75rem', fontSize: '.85rem', background: 'transparent', border: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }} title='Sell a gift card'>🎁 Gift Card</button>
+              </div>
               <button
                 onClick={() => { if (!mustOpenRegister) setShowPayment(true); }}
                 disabled={!cart.length || mustOpenRegister}
@@ -2166,12 +2288,47 @@ function MainPos({
       {showPayment && (
         <PaymentModal
           total={totals.total}
-          methods={paymentMethods}
+          methods={[
+            ...paymentMethods,
+            'Gift Card',
+            ...(linkedContact && linkedContact.store_credit > 0 ? ['Store Credit'] : []),
+            ...(totals.total < 0 ? [
+              'Gift Card (Issue)',
+              ...(linkedContact ? ['Store Credit (Issue)'] : []),
+            ] : []),
+          ]}
           isLayby={isLayby}
           onComplete={completeSale}
           onCancel={() => setShowPayment(false)}
           zellerEnabled={zellerTerminalEnabled}
           cardTerminalMethods={(() => { try { return JSON.parse(activeRegister?.card_terminal_methods || '[]'); } catch { return []; } })()}
+          linkedContact={linkedContact}
+        />
+      )}
+
+      {gcIssueOpen && (
+        <SellGiftCardModal
+          onAdd={(name, amount, code) => {
+            const item: import('./_types').CartItem = {
+              localId:        newLocalId(),
+              variant_id:     null,
+              code:           'GIFT-CARD',
+              name,
+              qty:            1,
+              unit_price:     amount,
+              original_price: null,
+              discount_type:  'none',
+              discount_value: 0,
+              discount_amount: 0,
+              tax_rate:       0,
+              line_total:     amount,
+              is_gift_card:   true,
+              gift_card_code: code || '',
+            };
+            setCart(prev => [...prev, item]);
+            setGcIssueOpen(false);
+          }}
+          onCancel={() => setGcIssueOpen(false)}
         />
       )}
 
@@ -3184,21 +3341,31 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
     return Array.from(set).sort();
   }, [products]);
 
-  // Smart sort: in-stock first, then most recently used, then alphabetical
+  // Smart sort: in-stock first, then most recently used, then alphabetical.
+  // Use a Map for O(1) recency lookups instead of indexOf (O(N) per comparison).
   const sortedProducts = useMemo(() => {
+    const recentMap = new Map(recentIds.map((id, i) => [id, i]));
     return [...products].sort((a, b) => {
       const stockDiff = (a.soh > 0 ? 0 : 1) - (b.soh > 0 ? 0 : 1);
       if (stockDiff !== 0) return stockDiff;
-      const aR = recentIds.indexOf(a.variant_id);
-      const bR = recentIds.indexOf(b.variant_id);
-      const rDiff = (aR === -1 ? 9999 : aR) - (bR === -1 ? 9999 : bR);
-      if (rDiff !== 0) return rDiff;
+      const aR = recentMap.get(a.variant_id) ?? 9999;
+      const bR = recentMap.get(b.variant_id) ?? 9999;
+      if (aR !== bR) return aR - bR;
       return a.name.localeCompare(b.name);
     });
   }, [products, recentIds]);
 
+  // Pre-build searchable haystack strings once when products change (not per-query).
+  const searchIndex = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of products) {
+      m.set(p.variant_id, `${p.name} ${p.code ?? ''} ${p.barcode ?? ''} ${p.brand ?? ''}`.toLowerCase());
+    }
+    return m;
+  }, [products]);
+
   const matchQuery = (p: CachedProduct, q: string) => {
-    const haystack = [p.name, p.code ?? '', p.barcode ?? '', p.brand ?? ''].join(' ').toLowerCase();
+    const haystack = searchIndex.get(p.variant_id) ?? '';
     const words = q.trim().split(/\s+/).filter(Boolean);
     return words.every(w => haystack.includes(w));
   };
@@ -3216,7 +3383,7 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
       return aPhrase - bPhrase;
     });
     return matches.slice(0, 8);
-  }, [sortedProducts, brand, search]);
+  }, [sortedProducts, brand, search, searchIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Main grid products: browse = smart-sorted full list; search = filtered
   // Uses deferredSearch/deferredMode so the grid update is low-priority — keystrokes stay instant
@@ -3232,7 +3399,7 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
       list = list.filter(p => matchQuery(p, q));
     }
     return list;
-  }, [sortedProducts, brand, inStockOnly, pinnedIds, deferredMode, deferredSearch]);
+  }, [sortedProducts, brand, inStockOnly, pinnedIds, deferredMode, deferredSearch, searchIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep dropItemsRef current so the keydown handler always sees the latest list
   dropItemsRef.current = dropdownItems;
@@ -3670,7 +3837,54 @@ function TotalRow({ label, value, large, muted, color }: { label: string; value:
 
 // ─── Payment Modal ────────────────────────────────────────────────────────────
 
-function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEnabled, cardTerminalMethods }: {
+// ─── Sell Gift Card Modal ─────────────────────────────────────────────────────
+
+function SellGiftCardModal({ onAdd, onCancel }: {
+  onAdd:   (name: string, amount: number, code: string) => void;
+  onCancel: () => void;
+}) {
+  const [amount, setAmount] = useState('');
+  const [code, setCode]     = useState('');
+  const [label, setLabel]   = useState('Gift Card');
+
+  function handleAdd() {
+    const amt = parseFloat(amount);
+    if (!amt || amt <= 0) return;
+    const gcCode = code.trim() || `GC-${Date.now().toString(36).toUpperCase().slice(-6)}`;
+    onAdd(`${label || 'Gift Card'} · ${gcCode}`, amt, gcCode);
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: '1.5rem', width: 360, maxWidth: '95vw', boxShadow: '0 20px 60px rgba(0,0,0,.6)' }}>
+        <h2 style={{ margin: '0 0 1rem', color: 'var(--sv-text-strong)', fontSize: '1.2rem' }}>🎁 Sell Gift Card</h2>
+        <label style={{ display: 'block', fontSize: '.8rem', color: 'var(--sv-text-dim)', marginBottom: '.25rem' }}>Amount</label>
+        <input
+          type='number' step='0.01' min='0.01' placeholder='0.00'
+          value={amount} onChange={e => setAmount(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
+          autoFocus
+          style={{ ...inputStyle, width: '100%', marginBottom: '.75rem', boxSizing: 'border-box' }}
+        />
+        <label style={{ display: 'block', fontSize: '.8rem', color: 'var(--sv-text-dim)', marginBottom: '.25rem' }}>Gift Card Code <span style={{ color: 'var(--sv-text-muted)', fontWeight: 400 }}>(optional — auto-generated if blank)</span></label>
+        <input
+          type='text' placeholder='e.g. GC-BIRTHDAY-2025'
+          value={code} onChange={e => setCode(e.target.value)}
+          style={{ ...inputStyle, width: '100%', marginBottom: '1rem', boxSizing: 'border-box' }}
+        />
+        <div style={{ display: 'flex', gap: '.75rem' }}>
+          <button onClick={onCancel} style={{ ...smallBtn, flex: 1 }}>Cancel</button>
+          <button onClick={handleAdd} disabled={!parseFloat(amount) || parseFloat(amount) <= 0}
+            style={{ flex: 2, padding: '.7rem', background: parseFloat(amount) > 0 ? 'var(--sv-action)' : 'var(--sv-bg-2)', border: 'none', borderRadius: 8, color: parseFloat(amount) > 0 ? '#fff' : 'var(--sv-text-muted)', fontWeight: 700, cursor: parseFloat(amount) > 0 ? 'pointer' : 'not-allowed', fontSize: '.95rem' }}>
+            Add to Cart
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEnabled, cardTerminalMethods, linkedContact }: {
   total:              number;
   methods:            string[];
   isLayby:            boolean;
@@ -3678,6 +3892,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
   onCancel:           () => void;
   zellerEnabled?:     boolean;
   cardTerminalMethods?: string[];
+  linkedContact?:     { id: number; name: string; phone: string | null; store_credit: number } | null;
 }) {
   const terminal = Zeller.useTerminal();
   const [zellerPending, setZellerPending] = useState(false);
@@ -3692,7 +3907,13 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
     return String(total >= 0 && /cash/i.test(m) ? roundCash(absTotal) : absTotal);
   });
   const [reference, setReference] = useState('');
-  const amountRef      = useRef<HTMLInputElement>(null);
+  const amountRef = useRef<HTMLInputElement>(null);
+  // Gift card verification state
+  const [gcCode,    setGcCode]    = useState('');
+  const [gcData,    setGcData]    = useState<{ id: number; code: string; balance: number } | null>(null);
+  const [gcLoading, setGcLoading] = useState(false);
+  const [gcError,   setGcError]   = useState<string | null>(null);
+  const gcCodeRef = useRef<HTMLInputElement>(null);
 
   const isZeroTotal = !isRefund && absTotal <= 0.001;
   const paid      = payments.reduce((s, p) => s + p.amount, 0);
@@ -3703,15 +3924,121 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
   const cashRoundAdj  = Math.round((cashDue - remaining) * 100) / 100;
   const change        = Math.max(0, paid - absTotal);
 
-  // Update default amount (rounded for cash) whenever active method changes
+  const isGcMethod = activeMethod === 'Gift Card' || activeMethod === 'Gift Card (Issue)';
+  const isScMethod = activeMethod === 'Store Credit' || activeMethod === 'Store Credit (Issue)';
+  const isSpecialMethod = isGcMethod || isScMethod;
+
+  // Update default amount whenever active method changes; reset GC state for non-GC methods
   useEffect(() => {
     const due = remaining > 0.004 ? remaining : absTotal;
-    setAmount(String(!isRefund && /cash/i.test(activeMethod) ? roundCash(due) : due));
-    amountRef.current?.focus();
+    if (!isGcMethod) {
+      setGcCode('');
+      setGcData(null);
+      setGcError(null);
+    }
+    if (activeMethod === 'Store Credit' && linkedContact) {
+      setAmount(String(Math.min(due, linkedContact.store_credit).toFixed(2)));
+    } else if (activeMethod === 'Store Credit (Issue)' || activeMethod === 'Gift Card (Issue)') {
+      setAmount(String(due.toFixed(2)));
+    } else if (!isGcMethod) {
+      setAmount(String(!isRefund && /cash/i.test(activeMethod) ? roundCash(due) : due));
+    }
+    if (isGcMethod) {
+      setTimeout(() => gcCodeRef.current?.focus(), 50);
+    } else {
+      amountRef.current?.focus();
+    }
   }, [activeMethod]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function verifyGiftCard() {
+    const code = gcCode.trim();
+    if (!code) { setGcError('Enter a gift card code.'); return; }
+    setGcLoading(true);
+    setGcError(null);
+    try {
+      const res  = await fetch(`/api/pos/gift-card?code=${encodeURIComponent(code)}`);
+      const data = await res.json();
+      if (!res.ok) { setGcError(data.error ?? 'Invalid gift card.'); setGcData(null); return; }
+      setGcData({ id: data.id, code: data.code, balance: data.balance });
+      const due = remaining > 0.004 ? remaining : absTotal;
+      setAmount(String(Math.min(due, data.balance).toFixed(2)));
+    } catch { setGcError('Could not verify gift card.'); }
+    finally { setGcLoading(false); }
+  }
 
   function addPayment() {
     setZellerError(null);
+
+    // ── Gift Card (redemption) ──────────────────────────────────────────────
+    if (activeMethod === 'Gift Card') {
+      if (!gcData) { setGcError('Please verify the gift card first.'); return; }
+      const tendered = parseFloat(amount) || 0;
+      if (tendered <= 0) return;
+      const contribution = Math.round(Math.min(tendered, remaining, gcData.balance) * 100) / 100;
+      if (contribution <= 0) return;
+      const newPayment: PaymentEntry = { localId: newLocalId(), method: 'Gift Card', amount: contribution, reference: gcData.code };
+      const newPayments = [...payments, newPayment];
+      setPayments(newPayments);
+      setAmount('');
+      setGcData(null);
+      setGcCode('');
+      if (newPayments.reduce((s, p) => s + p.amount, 0) >= absTotal - 0.001) {
+        onComplete(newPayments, 0, 0);
+      }
+      return;
+    }
+
+    // ── Store Credit (redemption) ───────────────────────────────────────────
+    if (activeMethod === 'Store Credit') {
+      if (!linkedContact) return;
+      const tendered = parseFloat(amount) || 0;
+      if (tendered <= 0) return;
+      const contribution = Math.round(Math.min(tendered, remaining, linkedContact.store_credit) * 100) / 100;
+      if (contribution <= 0) return;
+      const newPayment: PaymentEntry = { localId: newLocalId(), method: 'Store Credit', amount: contribution, reference: String(linkedContact.id) };
+      const newPayments = [...payments, newPayment];
+      setPayments(newPayments);
+      setAmount('');
+      if (newPayments.reduce((s, p) => s + p.amount, 0) >= absTotal - 0.001) {
+        onComplete(isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments, 0, 0);
+      }
+      return;
+    }
+
+    // ── Gift Card (issue — refund) ──────────────────────────────────────────
+    if (activeMethod === 'Gift Card (Issue)') {
+      const tendered = parseFloat(amount) || remaining;
+      const contribution = Math.round(Math.min(tendered, remaining) * 100) / 100;
+      if (contribution <= 0) return;
+      const issueCode = gcCode.trim() || `GC-R${Date.now().toString(36).toUpperCase().slice(-6)}`;
+      const newPayment: PaymentEntry = { localId: newLocalId(), method: 'Gift Card (Issue)', amount: contribution, reference: issueCode };
+      const newPayments = [...payments, newPayment];
+      setPayments(newPayments);
+      setAmount('');
+      setGcCode('');
+      if (newPayments.reduce((s, p) => s + p.amount, 0) >= absTotal - 0.001) {
+        onComplete(isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments, 0, 0);
+      }
+      return;
+    }
+
+    // ── Store Credit (issue — refund) ───────────────────────────────────────
+    if (activeMethod === 'Store Credit (Issue)') {
+      if (!linkedContact) return;
+      const tendered = parseFloat(amount) || remaining;
+      const contribution = Math.round(Math.min(tendered, remaining) * 100) / 100;
+      if (contribution <= 0) return;
+      const newPayment: PaymentEntry = { localId: newLocalId(), method: 'Store Credit (Issue)', amount: contribution, reference: String(linkedContact.id) };
+      const newPayments = [...payments, newPayment];
+      setPayments(newPayments);
+      setAmount('');
+      if (newPayments.reduce((s, p) => s + p.amount, 0) >= absTotal - 0.001) {
+        onComplete(isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments, 0, 0);
+      }
+      return;
+    }
+
+    // ── Standard payment methods ────────────────────────────────────────────
     // Check if this method routes to the Zeller terminal
     const isZellerMethod = zellerEnabled && !manualOverride && (cardTerminalMethods ?? []).some(m => m.toLowerCase() === activeMethod.toLowerCase());
     if (isZellerMethod) { handleZellerPurchase(); return; }
@@ -3846,7 +4173,51 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
           </div>
         ) : !isZeroTotal ? (
           <>
-            {/* Amount input */}
+            {/* Gift Card — code verify section */}
+            {activeMethod === 'Gift Card' && (
+              <div style={{ marginBottom: '.75rem' }}>
+                <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.4rem' }}>
+                  <input ref={gcCodeRef} type='text' placeholder='Gift card code'
+                    value={gcCode} onChange={e => { setGcCode(e.target.value); setGcData(null); setGcError(null); }}
+                    onKeyDown={e => { if (e.key === 'Enter') verifyGiftCard(); }}
+                    style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
+                  />
+                  <button onClick={verifyGiftCard} disabled={gcLoading}
+                    style={{ ...primaryBtn, padding: '.5rem .9rem', margin: 0, opacity: gcLoading ? 0.6 : 1 }}>
+                    {gcLoading ? '…' : 'Verify'}
+                  </button>
+                </div>
+                {gcError && <div style={{ fontSize: '.8rem', color: 'var(--sv-red)', marginBottom: '.3rem' }}>{gcError}</div>}
+                {gcData && (
+                  <div style={{ padding: '.4rem .6rem', background: 'rgba(34,197,94,.1)', border: '1px solid rgba(34,197,94,.3)', borderRadius: 6, fontSize: '.85rem', color: 'var(--sv-mint)', marginBottom: '.3rem' }}>
+                    ✓ Balance: <strong>${gcData.balance.toFixed(2)}</strong>
+                  </div>
+                )}
+              </div>
+            )}
+            {/* Store Credit — show available balance */}
+            {activeMethod === 'Store Credit' && linkedContact && (
+              <div style={{ padding: '.4rem .6rem', background: 'rgba(37,99,235,.1)', border: '1px solid rgba(37,99,235,.3)', borderRadius: 6, fontSize: '.85rem', color: 'var(--sv-action)', marginBottom: '.75rem' }}>
+                {linkedContact.name}: <strong>${linkedContact.store_credit.toFixed(2)}</strong> available
+              </div>
+            )}
+            {/* Gift Card Issue — code entry for the new card to create */}
+            {activeMethod === 'Gift Card (Issue)' && (
+              <div style={{ marginBottom: '.75rem' }}>
+                <input ref={gcCodeRef} type='text' placeholder='New gift card code (optional)'
+                  value={gcCode} onChange={e => setGcCode(e.target.value)}
+                  style={{ ...inputStyle, width: '100%', marginBottom: 0, boxSizing: 'border-box' }}
+                />
+                <div style={{ fontSize: '.75rem', color: 'var(--sv-text-muted)', marginTop: '.25rem' }}>Leave blank to auto-generate a code.</div>
+              </div>
+            )}
+            {/* Store Credit Issue — confirmation */}
+            {activeMethod === 'Store Credit (Issue)' && linkedContact && (
+              <div style={{ padding: '.4rem .6rem', background: 'rgba(37,99,235,.1)', border: '1px solid rgba(37,99,235,.3)', borderRadius: 6, fontSize: '.85rem', color: 'var(--sv-action)', marginBottom: '.75rem' }}>
+                Credit will be added to <strong>{linkedContact.name}</strong>
+              </div>
+            )}
+            {/* Amount input — shown for all methods */}
             <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.75rem' }}>
               <input
                 ref={amountRef}
@@ -3857,10 +4228,12 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
                 onKeyDown={e => { if (e.key === 'Enter') addPayment(); }}
                 style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
               />
-              {activeMethod !== 'Cash' && (
+              {!isSpecialMethod && activeMethod !== 'Cash' && (
                 <input placeholder='Ref / Last 4' value={reference} onChange={e => setReference(e.target.value)} style={{ ...inputStyle, width: 110, marginBottom: 0 }} />
               )}
-              <button onClick={addPayment} style={{ ...primaryBtn, padding: '.5rem 1rem', margin: 0 }}>Add</button>
+              <button onClick={addPayment}
+                disabled={activeMethod === 'Gift Card' && !gcData}
+                style={{ ...primaryBtn, padding: '.5rem 1rem', margin: 0, opacity: activeMethod === 'Gift Card' && !gcData ? 0.45 : 1 }}>Add</button>
             </div>
             {manualOverride && isZellerActive !== undefined && !isZellerActive && zellerEnabled && (cardTerminalMethods ?? []).some(m => m.toLowerCase() === activeMethod.toLowerCase()) && (
               <button onClick={() => setManualOverride(false)} style={{ fontSize: '.8rem', color: 'var(--sv-action)', background: 'none', border: 'none', cursor: 'pointer', marginBottom: '.5rem', padding: 0 }}>
@@ -6239,8 +6612,10 @@ export default function PosPage() {
             const prodData   = await prodRes.json().catch(() => ({ products: [] }));
             const methodData = await methodRes.json().catch(() => ({ methods: [] }));
             const viewData   = await viewRes.json().catch(() => ({ defaultView: 'all' }));
-            const freshProducts = prodData.products ?? [];
+            let freshProducts = prodData.products ?? [];
             if (freshProducts.length) {
+              const imgCache = loadImageCache();
+              if (imgCache) freshProducts = mergeProductImages(freshProducts, imgCache);
               saveProductsCache(freshProducts);
               setProducts(freshProducts);
             }
@@ -6331,10 +6706,30 @@ export default function PosPage() {
     ]);
     const prodData   = await prodRes.json().catch(() => ({ products: [] }));
     const methodData = await methodRes.json().catch(() => ({ methods: [] }));
-    const freshProducts = prodData.products ?? [];
-    if (freshProducts.length) { saveProductsCache(freshProducts); setProducts(freshProducts); }
+    let freshProducts = prodData.products ?? [];
+    if (freshProducts.length) {
+      const imgCache = loadImageCache();
+      if (imgCache) freshProducts = mergeProductImages(freshProducts, imgCache);
+      saveProductsCache(freshProducts);
+      setProducts(freshProducts);
+    }
     if (Array.isArray(methodData.methods) && methodData.methods.length) setMethods(methodData.methods);
     setOfflineMode(false);
+    // Refresh image cache in background if stale (once daily)
+    if (isImageCacheStale() && typeof navigator !== 'undefined' && navigator.onLine) {
+      fetch(`/api/pos/products/images`)
+        .then(r => r.json())
+        .then(({ images: imgs }: { images: Record<string, string> }) => {
+          if (!imgs || typeof imgs !== 'object') return;
+          saveImageCache(imgs);
+          setProducts(prev => {
+            const updated = mergeProductImages(prev, imgs);
+            saveProductsCache(updated);
+            return updated;
+          });
+        })
+        .catch(() => {});
+    }
   }
 
   const mainPosContent = (

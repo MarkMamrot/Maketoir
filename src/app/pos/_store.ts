@@ -4,6 +4,7 @@ import type { DeviceConfig, CachedProduct, CartItem, ParkedSale } from './_types
 const KEYS = {
   deviceConfig:  'pos_device_config',
   products:      'pos_products_cache',
+  productImages: 'pos_product_images',
   offlineQueue:  'pos_offline_queue',
   failedQueue:   'pos_failed_queue',
   parkedSales:   'pos_parked_sales',
@@ -90,6 +91,49 @@ export function getProductsCacheAgeMs(): number | null {
 export function isProductsCacheStale(): boolean {
   const age = getProductsCacheAgeMs();
   return age != null && age > PRODUCTS_CACHE_TTL_MS;
+}
+
+// ── Product Image Cache ──────────────────────────────────────
+// Images are large and change infrequently. Cache them separately with a 24-hour
+// TTL so every 5-minute stock sync doesn't re-scan the full ims_product_images table.
+
+export const IMAGE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+interface ImageCacheEnvelope {
+  cached_at: number;
+  images: Record<string, string>; // product_id → primary image URL
+}
+
+export function loadImageCache(): Record<string, string> | null {
+  try {
+    const raw = localStorage.getItem(KEYS.productImages);
+    if (!raw) return null;
+    const data: ImageCacheEnvelope = JSON.parse(raw);
+    return data?.images ?? null;
+  } catch { return null; }
+}
+
+export function saveImageCache(images: Record<string, string>): void {
+  try {
+    localStorage.setItem(KEYS.productImages, JSON.stringify({ cached_at: Date.now(), images }));
+  } catch {}
+}
+
+export function isImageCacheStale(): boolean {
+  try {
+    const raw = localStorage.getItem(KEYS.productImages);
+    if (!raw) return true;
+    const data: ImageCacheEnvelope = JSON.parse(raw);
+    return !data?.cached_at || Date.now() - data.cached_at > IMAGE_CACHE_TTL_MS;
+  } catch { return true; }
+}
+
+/** Merge a products array with cached image URLs (keyed by product_id). */
+export function mergeProductImages<T extends { product_id: string; image_url: string | null }>(
+  products: T[],
+  images: Record<string, string>,
+): T[] {
+  return products.map(p => ({ ...p, image_url: images[p.product_id] ?? null }));
 }
 
 // ── Current Cart ─────────────────────────────────────────────

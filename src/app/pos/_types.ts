@@ -37,18 +37,20 @@ export interface CachedProduct {
 }
 
 export interface CartItem {
-  localId:        string;
-  variant_id:     string | null;
-  code:           string | null;
-  name:           string;
-  qty:            number;
-  unit_price:     number;
-  original_price: number | null;
-  discount_type:  'none' | 'percent' | 'amount';
-  discount_value: number;
+  localId:         string;
+  variant_id:      string | null;
+  code:            string | null;
+  name:            string;
+  qty:             number;
+  unit_price:      number;
+  original_price:  number | null;
+  discount_type:   'none' | 'percent' | 'amount';
+  discount_value:  number;
   discount_amount: number;
-  tax_rate:       number;
-  line_total:     number;
+  tax_rate:        number;
+  line_total:      number;
+  is_gift_card?:   boolean;
+  gift_card_code?: string;
 }
 
 export interface PaymentEntry {
