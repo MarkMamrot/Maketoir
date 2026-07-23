@@ -197,3 +197,11 @@ Always read this file when starting a new session or implementing a feature to u
 * Warning modals (xeroWarnModal, soXeroWarnModal) must render when viewModal is CLOSED, not open.
 * Fix: `beforeAction?.()` (which closes viewModal) is called BEFORE `showXeroWarnForReceived` / `showSoXeroWarnForFulfilled`, not inside the onConfirm callback.
 * This ensures the warning modal renders on top of everything.
+
+### IMS reports extraction hardening (2026-07-23)
+* `src/app/ims/page.tsx` had prior structural corruption after a large patch attempt in the report section. Safe recovery path was: restore from `HEAD`, then re-apply in small bounded edits.
+* Extracted/wired report views now use wrappers in `src/app/ims/page.tsx`:
+  * `SalesByBranchView` -> `src/app/ims/views/reports/SalesByBranchView.tsx`
+  * `SalesSearchView` -> `src/app/ims/views/reports/SalesSearchView.tsx`
+* Shared report filter/date helpers moved to `src/app/ims/views/reports/reportFilterHelpers.tsx` and imported back into `page.tsx` (behavior preserved).
+* Practical rule for this monolith: avoid single giant diffs; patch by anchor in small chunks and run diagnostics (`get_errors`) after each chunk.

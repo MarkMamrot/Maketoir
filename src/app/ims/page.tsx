@@ -13,8 +13,6 @@ import {
   EMPTY_MULTI,
   MultiFilter,
   ReportMultiFilter,
-  SBDatePicker,
-  SBDateRange,
   WINDOW_OPTS,
   hasMultiFilter,
   multiFilterParams,
