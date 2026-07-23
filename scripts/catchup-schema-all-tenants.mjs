@@ -83,6 +83,11 @@ const COLUMNS = [
   // ── ims_contacts ─────────────────────────────────────────────────────────
   ['ims_contacts', 'password_hash',   'VARCHAR(255) NULL'],
   ['ims_contacts', 'cin7_contact_id', 'INT NULL'],
+  ['ims_contacts', 'shopify_customer_id', 'VARCHAR(100) NULL'],
+];
+
+const INDEXES = [
+  ['ims_contacts', 'idx_shopify_customer_id', 'UNIQUE INDEX `idx_shopify_customer_id` (`business_id`, `shopify_customer_id`)'],
 ];
 
 async function migrateSchema(schema) {
@@ -92,6 +97,11 @@ async function migrateSchema(schema) {
     [schema],
   );
   const existing = new Set(rows.map(r => `${r.TABLE_NAME}.${r.COLUMN_NAME}`));
+  const [indexRows] = await conn.query(
+    `SELECT TABLE_NAME, INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = ?`,
+    [schema],
+  );
+  const existingIndexes = new Set(indexRows.map(r => `${r.TABLE_NAME}.${r.INDEX_NAME}`));
 
   let added = 0, skipped = 0;
   for (const [table, col, def] of COLUMNS) {
@@ -103,7 +113,19 @@ async function migrateSchema(schema) {
       console.error(`  ✗ ${schema}.${table}.${col}: ${e.message}`);
     }
   }
-  console.log(`✓ ${schema}: added ${added}, skipped ${skipped} (already existed)`);
+
+  let indexesAdded = 0, indexesSkipped = 0;
+  for (const [table, indexName, def] of INDEXES) {
+    if (existingIndexes.has(`${table}.${indexName}`)) { indexesSkipped++; continue; }
+    try {
+      await conn.query(`ALTER TABLE \`${schema}\`.\`${table}\` ADD ${def}`);
+      indexesAdded++;
+    } catch (e) {
+      console.error(`  ✗ ${schema}.${table}.${indexName}: ${e.message}`);
+    }
+  }
+
+  console.log(`✓ ${schema}: added ${added} columns, skipped ${skipped}, added ${indexesAdded} indexes, skipped ${indexesSkipped}`);
 }
 
 try {

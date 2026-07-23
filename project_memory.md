@@ -198,6 +198,28 @@ Always read this file when starting a new session or implementing a feature to u
 * Fix: `beforeAction?.()` (which closes viewModal) is called BEFORE `showXeroWarnForReceived` / `showSoXeroWarnForFulfilled`, not inside the onConfirm callback.
 * This ensures the warning modal renders on top of everything.
 
+### Shopify retail customer sync (2026-07-23)
+* Added two-way retail customer sync foundation under `src/app/api/ims/shopify/sync-customers/route.ts` with modes:
+  * `pull` (Shopify -> IMS): imports all Shopify customers, matches by `shopify_customer_id` first, then email fallback, fills blank IMS fields only.
+  * `push` (IMS -> Shopify): syncs `retail_customer` contacts to Shopify on demand.
+* Added contact linkage field `ims_contacts.shopify_customer_id` with unique index `(business_id, shopify_customer_id)`.
+  * Bootstrap schema updated in `scripts/ims-schema.sql`.
+  * Tenant catch-up updated in `scripts/catchup-schema-all-tenants.mjs`.
+  * Runtime guard migration helper added: `src/lib/ims/ensureContactShopifyCustomerSchema.ts`.
+* Added outbound sync helper `src/lib/ims/shopifyCustomerSync.ts` and wired contact save hooks:
+  * POST `src/app/api/ims/contacts/route.ts`
+  * PUT `src/app/api/ims/contacts/[id]/route.ts`
+  * Contact saves remain non-blocking; API returns `shopifySync` result/warning.
+* Added Shopify customer operations in `src/services/ShopifyService.ts`:
+  * `getAllCustomers`, `findCustomerByEmail`, `createCustomer`, `updateCustomer`, `disableCustomer`.
+* Soft-delete mirroring (outbound): when IMS retail contact is set inactive and has linked Shopify id, sync attempts to disable Shopify customer.
+* IMS Shopify UI (`src/app/ims/components/ShopifyView.tsx`) now includes:
+  * Pull button, Push button, run summary, and unresolved gift-card customer link examples.
+* Gift-card linkage visibility:
+  * Sync response now includes `matchedGiftCardCustomers`, `missingGiftCardCustomers`, and `missingGiftCardExamples` sample rows.
+* Required Shopify scopes for this flow:
+  * `read_customers`, `write_customers` (plus existing product/order/inventory scopes).
+
 ### IMS reports extraction hardening (2026-07-23)
 * `src/app/ims/page.tsx` had prior structural corruption after a large patch attempt in the report section. Safe recovery path was: restore from `HEAD`, then re-apply in small bounded edits.
 * Extracted/wired report views now use wrappers in `src/app/ims/page.tsx`:

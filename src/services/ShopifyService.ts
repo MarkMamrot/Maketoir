@@ -32,6 +32,22 @@ export class ShopifyService {
     return res.json();
   }
 
+  private async customerFetch(method: string, path: string, body?: object): Promise<any> {
+    const res = await fetch(
+      `https://${this.shopName_}/admin/api/2024-04${path}`,
+      {
+        method,
+        headers: { 'X-Shopify-Access-Token': this.accessToken_, 'Content-Type': 'application/json' },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      },
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Shopify ${res.status} ${method} ${path}: ${text.slice(0, 300)}`);
+    }
+    return { body: await res.json(), headers: res.headers };
+  }
+
   /**
    * Creates a new gift card in Shopify.
    * The full `code` is ONLY returned at creation time — store it immediately.
@@ -111,6 +127,92 @@ export class ShopifyService {
       url = nextMatch ? nextMatch[1] : null;
     }
     return results;
+  }
+
+  async getAllCustomers(): Promise<Array<{
+    id: number;
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+    phone: string | null;
+    state: string | null;
+  }>> {
+    const results: Array<{
+      id: number;
+      first_name: string | null;
+      last_name: string | null;
+      email: string | null;
+      phone: string | null;
+      state: string | null;
+    }> = [];
+
+    let url: string | null = `https://${this.shopName_}/admin/api/2024-04/customers.json?limit=250&fields=id,first_name,last_name,email,phone,state`;
+    while (url) {
+      const res: Response = await fetch(url, {
+        headers: { 'X-Shopify-Access-Token': this.accessToken_, 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Shopify ${res.status} GET customers: ${text.slice(0, 300)}`);
+      }
+      const data = await res.json();
+      results.push(...(data.customers ?? []));
+      const link: string = res.headers.get('link') ?? '';
+      const nextMatch: RegExpMatchArray | null = link.match(/<([^>]+)>;\s*rel="next"/);
+      url = nextMatch ? nextMatch[1] : null;
+    }
+
+    return results;
+  }
+
+  async findCustomerByEmail(email: string): Promise<{ id: number } | null> {
+    const query = encodeURIComponent(`email:${email}`);
+    const { body } = await this.customerFetch('GET', `/customers/search.json?query=${query}`);
+    const customers = (body.customers ?? []) as Array<{ id: number; email?: string | null }>;
+    const match = customers.find(c => String(c.email ?? '').trim().toLowerCase() === email.trim().toLowerCase());
+    return match ? { id: match.id } : null;
+  }
+
+  async createCustomer(payload: {
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+    phone?: string;
+  }): Promise<{ id: number }> {
+    const { body } = await this.customerFetch('POST', '/customers.json', { customer: payload });
+    return body.customer;
+  }
+
+  async updateCustomer(customerId: string | number, payload: {
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+    phone?: string;
+  }): Promise<{ id: number }> {
+    const { body } = await this.customerFetch('PUT', `/customers/${customerId}.json`, { customer: { id: Number(customerId), ...payload } });
+    return body.customer;
+  }
+
+  async disableCustomer(customerId: string | number): Promise<void> {
+    // Primary path: update customer state.
+    try {
+      await this.customerFetch('PUT', `/customers/${customerId}.json`, { customer: { id: Number(customerId), state: 'disabled' } });
+      return;
+    } catch {
+      // Fallback path for shops that require action endpoint semantics.
+      await this.customerFetch('POST', `/customers/${customerId}/disable.json`, {});
+    }
+  }
+
+  async enableCustomer(customerId: string | number): Promise<void> {
+    // Primary path: update customer state.
+    try {
+      await this.customerFetch('PUT', `/customers/${customerId}.json`, { customer: { id: Number(customerId), state: 'enabled' } });
+      return;
+    } catch {
+      // Fallback path for shops that require action endpoint semantics.
+      await this.customerFetch('POST', `/customers/${customerId}/enable.json`, {});
+    }
   }
 
   // Phase 1 + Phase 2 Features

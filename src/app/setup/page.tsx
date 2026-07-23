@@ -1056,7 +1056,7 @@ const HELP: Record<string, HelpInfo> = {
       { text: 'Go to Settings → Apps and sales channels → Develop apps.' },
       { text: 'Click "Allow custom app development", then "Create an app".' },
       { text: 'Give it a name (e.g. "Marketoir"), then click "Configure Admin API scopes".' },
-      { text: 'Enable read_products, read_orders, read_inventory at minimum, then click Save.' },
+      { text: 'Enable read_products, read_orders, read_inventory, read_customers, and write_customers at minimum, then click Save.' },
       { text: 'Go to the API credentials tab and click "Install app".' },
       { text: 'Copy the Admin API access token (starts with shpat_) — this is your Access Token.' },
       { text: 'Your Shop ID is your store URL, e.g. mystore.myshopify.com.' },

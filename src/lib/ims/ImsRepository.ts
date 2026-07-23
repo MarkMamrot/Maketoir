@@ -71,6 +71,7 @@ export interface ImsContact {
   id: number; type: ContactType;
   name: string; first_name?: string; last_name?: string;
   company?: string; customer_code?: string; customer_group?: string;
+  shopify_customer_id?: string | null;
   email?: string; phone?: string; mobile?: string;
   address?: string; address2?: string; suburb?: string;
   city?: string; state?: string; postcode?: string; country?: string;
@@ -315,13 +316,14 @@ export const ImsContactsRepo = {
     const res = await imsExecute(
       `INSERT INTO ims_contacts
          (business_id,type,name,first_name,last_name,company,customer_code,customer_group,
-          email,phone,mobile,address,address2,suburb,city,state,postcode,country,notes,is_active,
+         shopify_customer_id,email,phone,mobile,address,address2,suburb,city,state,postcode,country,notes,is_active,
           store_credit,on_account_limit,date_of_birth,gender,promo_email,promo_sms,
           cin7_supplier_id,lead_time_days,order_frequency_days,price_tier,charges_tax,prices_include_tax,tax_rate,website_url)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [businessId ?? '', data.type, data.name,
        data.first_name ?? null, data.last_name ?? null,
        data.company ?? null, data.customer_code ?? null, data.customer_group ?? null,
+       data.shopify_customer_id ?? null,
        data.email ?? null, data.phone ?? null, data.mobile ?? null,
        data.address ?? null, data.address2 ?? null, data.suburb ?? null,
        data.city ?? null, data.state ?? null, data.postcode ?? null, data.country ?? null,
@@ -339,7 +341,7 @@ export const ImsContactsRepo = {
 
   async update(id: number, data: Partial<ImsContact>): Promise<void> {
     const fields = [
-      'type','name','first_name','last_name','company','customer_code','customer_group',
+      'type','name','first_name','last_name','company','customer_code','customer_group','shopify_customer_id',
       'email','phone','mobile','address','address2','suburb','city','state','postcode','country','notes','is_active',
       'store_credit','on_account_limit','date_of_birth','gender','promo_email','promo_sms',
       'cin7_supplier_id','lead_time_days','order_frequency_days','price_tier','charges_tax','prices_include_tax','tax_rate','website_url',

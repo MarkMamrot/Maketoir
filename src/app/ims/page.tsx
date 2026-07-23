@@ -1076,6 +1076,12 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [form, setForm] = useState({ ...BLANK_CONTACT });
   const [saving, setSaving] = useState(false);
+  const [syncMsg, setSyncMsg] = useState('');
+
+  const flashSyncMsg = useCallback((message: string) => {
+    setSyncMsg(message);
+    window.setTimeout(() => setSyncMsg(''), 4500);
+  }, []);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -1108,8 +1114,17 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
         date_of_birth: f.date_of_birth || null,
         gender: f.gender || null,
       };
-      await apiFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const result = await apiFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       load(); closeModal();
+      const sync = result.shopifySync;
+      if (sync?.success) {
+        const verb = sync.action === 'created' ? 'created' : sync.action === 'linked' ? 'linked' : 'updated';
+        flashSyncMsg(`Contact saved. Shopify customer ${verb}.`);
+      } else if (sync?.action === 'error') {
+        flashSyncMsg(`Contact saved. Shopify sync warning: ${sync.reason}`);
+      } else if (sync?.action === 'skipped' && form.type === 'retail_customer') {
+        flashSyncMsg(`Contact saved. Shopify sync skipped: ${sync.reason}`);
+      }
     } catch (e: any) { alert(e.message); }
     finally { setSaving(false); }
   };
@@ -1118,7 +1133,13 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
     const next = c.is_active ? 0 : 1;
     const label = next === 0 ? `Inactivate "${c.name}"?` : `Reactivate "${c.name}"?`;
     if (!confirm(label)) return;
-    try { await apiFetch(`/api/ims/contacts/${c.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active: next }) }); load(); }
+    try {
+      const result = await apiFetch(`/api/ims/contacts/${c.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active: next }) });
+      load();
+      const sync = result.shopifySync;
+      if (sync?.action === 'error') flashSyncMsg(`Contact updated. Shopify sync warning: ${sync.reason}`);
+      else if (sync?.action === 'skipped' && c.type === 'retail_customer') flashSyncMsg(`Contact updated. Shopify sync skipped: ${sync.reason}`);
+    }
     catch (e: any) { alert(e.message); }
   };
 
@@ -1155,6 +1176,11 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
           <option value="both">Supplier &amp; B2B Customer</option>
         </select>
       </div>
+      {syncMsg && (
+        <div style={{ marginBottom: 14, padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(99,102,241,.25)', background: 'rgba(99,102,241,.08)', color: 'var(--sv-text-main)', fontSize: 13 }}>
+          {syncMsg}
+        </div>
+      )}
       {loading ? <Spinner /> : (() => {
         const isCustomerView = typeFilter === 'b2b_customer' || typeFilter === 'retail_customer';
         const isSupplierView = typeFilter === 'supplier' || typeFilter === 'both';

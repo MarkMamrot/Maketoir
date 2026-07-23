@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
+import { ensureContactShopifyCustomerSchema } from '@/lib/ims/ensureContactShopifyCustomerSchema';
 import { ImsContactsRepo } from '@/lib/ims/ImsRepository';
+import { syncRetailCustomerToShopify } from '@/lib/ims/shopifyCustomerSync';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
 
@@ -36,6 +38,7 @@ async function ensureMigration() {
   }
   // Unique index on customer_code per business
   await imsExecute(`ALTER TABLE ims_contacts ADD UNIQUE INDEX idx_customer_code (business_id, customer_code)`).catch(() => {});
+  await ensureContactShopifyCustomerSchema();
   migrationDone = true;
 }
 
@@ -60,9 +63,12 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = session.businessId as string;
   try {
+    await ensureMigration();
     const body = await req.json();
     const id = await ImsContactsRepo.create(body, businessId);
-    return NextResponse.json({ success: true, id });
+    const created = await ImsContactsRepo.get(id, businessId);
+    const shopifySync = created ? await syncRetailCustomerToShopify(created, businessId) : null;
+    return NextResponse.json({ success: true, id, shopifySync });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ImsContactsRepo } from '@/lib/ims/ImsRepository';
+import { syncRetailCustomerToShopify } from '@/lib/ims/shopifyCustomerSync';
 import { getImsSession } from '@/lib/auth/imsSession';
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
@@ -25,7 +26,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     if (!existing) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
     const body = await req.json();
     await ImsContactsRepo.update(Number(params.id), body);
-    return NextResponse.json({ success: true });
+    const updated = await ImsContactsRepo.get(Number(params.id), businessId);
+    const shopifySync = updated ? await syncRetailCustomerToShopify(updated, businessId) : null;
+    return NextResponse.json({ success: true, shopifySync });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

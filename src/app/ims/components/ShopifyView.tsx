@@ -1171,6 +1171,26 @@ function ShopifyGiftCardsTab() {
   const [syncing,   setSyncing]   = useState(false);
   const [syncResult, setSyncResult] = useState<{ synced: number; errors: number; total: number } | null>(null);
   const [syncError,  setSyncError]  = useState<string | null>(null);
+  const [customerSyncing, setCustomerSyncing] = useState(false);
+  const [customerSyncResult, setCustomerSyncResult] = useState<{
+    mode: 'pull' | 'push';
+    synced: number;
+    created: number;
+    linked: number;
+    updated: number;
+    skipped: number;
+    errors: number;
+    total: number;
+    matchedGiftCardCustomers: number;
+    missingGiftCardCustomers: number;
+    missingGiftCardExamples: Array<{
+      code: string;
+      customer_id: string;
+      recipient_email: string | null;
+      created_at: string | null;
+    }>;
+  } | null>(null);
+  const [customerSyncError, setCustomerSyncError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/ims/settings').then(r => r.json()).then(d => {
@@ -1199,6 +1219,28 @@ function ShopifyGiftCardsTab() {
       setSyncResult(d);
     } catch (e: any) { setSyncError(e.message); }
     setSyncing(false);
+  }
+
+  async function runCustomerSync() {
+    setCustomerSyncing(true); setCustomerSyncResult(null); setCustomerSyncError(null);
+    try {
+      const r = await fetch('/api/ims/shopify/sync-customers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'pull' }) });
+      const d = await r.json();
+      if (!r.ok || !d.success) throw new Error(d.error ?? 'Customer sync failed');
+      setCustomerSyncResult(d);
+    } catch (e: any) { setCustomerSyncError(e.message); }
+    setCustomerSyncing(false);
+  }
+
+  async function runCustomerPush() {
+    setCustomerSyncing(true); setCustomerSyncResult(null); setCustomerSyncError(null);
+    try {
+      const r = await fetch('/api/ims/shopify/sync-customers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'push' }) });
+      const d = await r.json();
+      if (!r.ok || !d.success) throw new Error(d.error ?? 'Customer sync failed');
+      setCustomerSyncResult(d);
+    } catch (e: any) { setCustomerSyncError(e.message); }
+    setCustomerSyncing(false);
   }
 
   const card: React.CSSProperties  = { padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 };
@@ -1254,6 +1296,64 @@ function ShopifyGiftCardsTab() {
             {' — '}{syncResult.synced} synced
             {syncResult.errors > 0 && <span style={{ marginLeft: 8, color: 'var(--sv-red)' }}>{syncResult.errors} errors</span>}
             {' ('}total on Shopify: {syncResult.total}{')'}
+          </div>
+        )}
+      </div>
+
+      <div style={card}>
+        <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Customer Sync</h3>
+        <p style={{ margin: '0 0 4px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
+          Pull Shopify customers into IMS contacts and push IMS retail customers back to Shopify so Shopify-linked gift cards can resolve to real retail customers in IMS.
+        </p>
+        <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
+          Pull mode links by Shopify customer ID first, then email fallback, and only fills blank IMS fields. Push mode syncs retail customers from IMS on demand, and retail customer saves also attempt a non-blocking Shopify sync. Requires <code style={{ fontFamily: 'monospace', fontSize: 11 }}>read_customers</code> and <code style={{ fontFamily: 'monospace', fontSize: 11 }}>write_customers</code> scopes.
+        </p>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button
+            onClick={runCustomerSync}
+            disabled={customerSyncing}
+            style={{ padding: '8px 20px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: customerSyncing ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13, opacity: customerSyncing ? 0.7 : 1 }}
+          >
+            {customerSyncing ? 'Syncing Customers…' : 'Pull Customers From Shopify'}
+          </button>
+          <button
+            onClick={runCustomerPush}
+            disabled={customerSyncing}
+            style={{ padding: '8px 20px', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: customerSyncing ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13, opacity: customerSyncing ? 0.7 : 1 }}
+          >
+            {customerSyncing ? 'Syncing Customers…' : 'Push IMS Retail Customers'}
+          </button>
+        </div>
+        {customerSyncError && <p style={{ marginTop: 10, fontSize: 13, color: 'var(--sv-red)' }}>{customerSyncError}</p>}
+        {customerSyncResult && (
+          <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(16,185,129,.08)', border: '1px solid rgba(16,185,129,.25)', borderRadius: 8, fontSize: 13 }}>
+            <strong style={{ color: '#34d399' }}>Customer {customerSyncResult.mode === 'push' ? 'push' : 'pull'} complete</strong>
+            <div style={{ marginTop: 6, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
+              {customerSyncResult.synced} processed of {customerSyncResult.total} {customerSyncResult.mode === 'push' ? 'IMS retail customers' : 'Shopify customers'}, {customerSyncResult.created} created, {customerSyncResult.linked} linked, {customerSyncResult.updated} updated, {customerSyncResult.skipped} skipped.
+              {customerSyncResult.errors > 0 && <span style={{ marginLeft: 8, color: 'var(--sv-red)' }}>{customerSyncResult.errors} errors</span>}
+            </div>
+            <div style={{ marginTop: 6, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
+              Gift card customer links: {customerSyncResult.matchedGiftCardCustomers} matched, {customerSyncResult.missingGiftCardCustomers} still missing.
+            </div>
+            {customerSyncResult.missingGiftCardExamples.length > 0 && (
+              <div style={{ marginTop: 10, padding: '10px 12px', background: 'rgba(15,23,42,.18)', border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 8 }}>Unresolved gift card customer links</div>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  {customerSyncResult.missingGiftCardExamples.map((row, idx) => (
+                    <div key={`${row.code}:${row.customer_id}:${idx}`} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)', gap: 10, fontSize: 12, color: 'var(--sv-text-main)' }}>
+                      <span><strong>Card:</strong> {row.code}</span>
+                      <span><strong>Shopify customer:</strong> {row.customer_id}</span>
+                      <span><strong>Email:</strong> {row.recipient_email || '—'}</span>
+                    </div>
+                  ))}
+                </div>
+                {customerSyncResult.missingGiftCardCustomers > customerSyncResult.missingGiftCardExamples.length && (
+                  <div style={{ marginTop: 8, fontSize: 11, color: 'var(--sv-text-dim)' }}>
+                    Showing {customerSyncResult.missingGiftCardExamples.length} of {customerSyncResult.missingGiftCardCustomers} unresolved links.
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

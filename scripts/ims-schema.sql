@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS ims_contacts (
   company     VARCHAR(255),
   customer_code VARCHAR(100) DEFAULT NULL,
   customer_group VARCHAR(100) DEFAULT NULL,
+  shopify_customer_id VARCHAR(100) DEFAULT NULL,
   -- Contact
   email       VARCHAR(255),
   phone       VARCHAR(50),
@@ -53,6 +54,7 @@ CREATE TABLE IF NOT EXISTS ims_contacts (
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_business_id (business_id),
+  UNIQUE KEY idx_shopify_customer_id (business_id, shopify_customer_id),
   INDEX idx_customer_code (business_id, customer_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
