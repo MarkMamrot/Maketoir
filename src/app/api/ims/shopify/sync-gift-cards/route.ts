@@ -35,19 +35,12 @@ export async function POST() {
     return NextResponse.json({ error: `Shopify API error: ${e.message}` }, { status: 502 });
   }
 
-  if (!allCards.length) return NextResponse.json({ imported: 0, skipped: 0, total: 0 });
+  if (!allCards.length) return NextResponse.json({ synced: 0, errors: 0, total: 0 });
 
-  // Load existing shopify_gc_ids to skip duplicates
-  const existingRows = await imsQuery<{ shopify_gc_id: number }>(
-    'SELECT shopify_gc_id FROM gift_cards WHERE shopify_gc_id IS NOT NULL',
-  );
-  const existingIds = new Set(existingRows.map(r => r.shopify_gc_id));
-
-  let imported = 0;
-  let skipped  = 0;
+  let synced = 0;
+  let errors = 0;
 
   for (const gc of allCards) {
-    if (existingIds.has(gc.id)) { skipped++; continue; }
 
     const status    = gc.disabled_at ? (Number(gc.balance) <= 0 ? 'redeemed' : 'cancelled') : 'active';
     const expiresOn = gc.expires_on ?? null;
@@ -67,10 +60,11 @@ export async function POST() {
             currency, expires_on, customer_id, order_id, notes, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Imported from Shopify', ?)
          ON DUPLICATE KEY UPDATE
-           status     = VALUES(status),
-           currency   = VALUES(currency),
-           expires_on = VALUES(expires_on),
-           created_at = VALUES(created_at)`,
+           initial_balance = IF(initial_balance IS NULL, VALUES(initial_balance), initial_balance),
+           status          = VALUES(status),
+           currency        = VALUES(currency),
+           expires_on      = VALUES(expires_on),
+           created_at      = VALUES(created_at)`,
         [
           gc.id,
           gc.line_item_id ?? null,
@@ -83,8 +77,7 @@ export async function POST() {
           createdAt,
         ],
       );
-      existingIds.add(gc.id);
-      imported++;
+      synced++;
     } catch (e: any) {
       // IGNORE duplicate code errors (two Shopify cards with same last 4 — use gc.id as code)
       if (e.code === 'ER_DUP_ENTRY') {
@@ -95,10 +88,11 @@ export async function POST() {
                 currency, expires_on, customer_id, order_id, notes, created_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Imported from Shopify', ?)
              ON DUPLICATE KEY UPDATE
-               status     = VALUES(status),
-               currency   = VALUES(currency),
-               expires_on = VALUES(expires_on),
-               created_at = VALUES(created_at)`,
+               initial_balance = IF(initial_balance IS NULL, VALUES(initial_balance), initial_balance),
+               status          = VALUES(status),
+               currency        = VALUES(currency),
+               expires_on      = VALUES(expires_on),
+               created_at      = VALUES(created_at)`,
             [
               gc.id, gc.line_item_id ?? null,
               `SHOPIFY:ID:${gc.id}`,
@@ -109,12 +103,11 @@ export async function POST() {
               createdAt,
             ],
           );
-          existingIds.add(gc.id);
-          imported++;
-        } catch { skipped++; }
-      } else { skipped++; }
+          synced++;
+        } catch { errors++; }
+      } else { errors++; }
     }
   }
 
-  return NextResponse.json({ success: true, imported, skipped, total: allCards.length });
+  return NextResponse.json({ success: true, synced, errors, total: allCards.length });
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 
 // Settings whose changes affect the inventory qty pushed to Shopify.
 // When any of these keys change we must re-enqueue every linked variant so the
@@ -22,7 +23,10 @@ export async function GET() {
     );
     const settings: Record<string, string> = {};
     for (const row of rows) settings[row.key] = row.value ?? '';
-    return NextResponse.json({ success: true, data: settings });
+    // Include Shopify shop domain so client can build admin links without a separate fetch
+    const conn = await ConnectionsRepository.get(businessId);
+    const shopDomain: string = conn?.shopify_shop_id ?? '';
+    return NextResponse.json({ success: true, data: settings, shopDomain });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

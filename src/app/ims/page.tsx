@@ -10678,6 +10678,16 @@ function GiftCardsView() {
   // history state
   const [gcHistory, setGcHistory]         = useState<any[]>([]);
   const [gcHistoryLoading, setGcHistoryLoading] = useState(false);
+  // shopify config (for admin link)
+  const [gcMode, setGcMode]         = useState<'off' | 'combined'>('off');
+  const [shopDomain, setShopDomain] = useState('');
+
+  useEffect(() => {
+    fetch('/api/ims/settings').then(r => r.json()).then(d => {
+      if (d.data?.shopify_gc_mode) setGcMode(d.data.shopify_gc_mode as 'off' | 'combined');
+      if (d.shopDomain) setShopDomain(d.shopDomain);
+    }).catch(() => {});
+  }, []);
 
   // import state
   const [importOpen, setImportOpen] = useState(false);
@@ -11035,6 +11045,23 @@ function GiftCardsView() {
                   style={{ ...inputStyle, display: 'block', width: '100%', marginTop: 4, resize: 'vertical' }}
                 />
               </label>
+
+              {/* Shopify admin link (combined mode only) */}
+              {editing && editing.shopify_gc_id && gcMode === 'combined' && shopDomain && (
+                <div style={{ paddingTop: 16, borderTop: '1px solid var(--sv-etch)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0, opacity: 0.6 }}>
+                    <path d="M10.5 3H17v6.5M17 3l-9 9M8 5H4a1 1 0 00-1 1v10a1 1 0 001 1h10a1 1 0 001-1v-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <a
+                    href={`https://${shopDomain}/admin/gift_cards/${editing.shopify_gc_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: 12, color: 'var(--sv-action)', textDecoration: 'none' }}
+                  >
+                    View in Shopify Admin
+                  </a>
+                </div>
+              )}
 
               {/* Transaction History */}
               {editing && (

@@ -1169,7 +1169,7 @@ function ShopifyGiftCardsTab() {
   const [saving,    setSaving]    = useState(false);
   const [saveMsg,   setSaveMsg]   = useState<string | null>(null);
   const [syncing,   setSyncing]   = useState(false);
-  const [syncResult, setSyncResult] = useState<{ imported: number; skipped: number; total: number } | null>(null);
+  const [syncResult, setSyncResult] = useState<{ synced: number; errors: number; total: number } | null>(null);
   const [syncError,  setSyncError]  = useState<string | null>(null);
 
   useEffect(() => {
@@ -1235,7 +1235,7 @@ function ShopifyGiftCardsTab() {
       <div style={card}>
         <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Initial Sync from Shopify</h3>
         <p style={{ margin: '0 0 4px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
-          Imports all Shopify gift cards (enabled and disabled) into IMS. Safe to re-run — cards already in IMS are skipped.
+          Imports all Shopify gift cards (enabled and disabled) into IMS and refreshes existing cards with updated status, expiry date, original balance, and created date from Shopify.
         </p>
         <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
           Because Shopify does not return full card codes after creation, imported cards use a placeholder code (<code style={{ fontFamily: 'monospace', fontSize: 11 }}>SHOPIFY:last4</code>). The first time a card is scanned at POS, the full code is resolved and saved automatically.
@@ -1251,7 +1251,8 @@ function ShopifyGiftCardsTab() {
         {syncResult && (
           <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(16,185,129,.08)', border: '1px solid rgba(16,185,129,.25)', borderRadius: 8, fontSize: 13 }}>
             <strong style={{ color: '#34d399' }}>Sync complete</strong>
-            {' — '}{syncResult.imported} imported, {syncResult.skipped} already in IMS
+            {' — '}{syncResult.synced} synced
+            {syncResult.errors > 0 && <span style={{ marginLeft: 8, color: 'var(--sv-red)' }}>{syncResult.errors} errors</span>}
             {' ('}total on Shopify: {syncResult.total}{')'}
           </div>
         )}
