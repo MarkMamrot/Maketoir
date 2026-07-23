@@ -146,23 +146,61 @@ export class ShopifyService {
       state: string | null;
     }> = [];
 
-    let url: string | null = `https://${this.shopName_}/admin/api/2024-04/customers.json?limit=250&fields=id,first_name,last_name,email,phone,state`;
-    while (url) {
-      const res: Response = await fetch(url, {
-        headers: { 'X-Shopify-Access-Token': this.accessToken_, 'Content-Type': 'application/json' },
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Shopify ${res.status} GET customers: ${text.slice(0, 300)}`);
-      }
-      const data = await res.json();
-      results.push(...(data.customers ?? []));
-      const link: string = res.headers.get('link') ?? '';
-      const nextMatch: RegExpMatchArray | null = link.match(/<([^>]+)>;\s*rel="next"/);
-      url = nextMatch ? nextMatch[1] : null;
+    let pageInfo: string | null = null;
+    while (true) {
+      const page = await this.getCustomerPage(pageInfo, 250);
+      results.push(...page.customers);
+      if (!page.nextPageInfo) break;
+      pageInfo = page.nextPageInfo;
     }
 
     return results;
+  }
+
+  async getCustomerPage(pageInfo?: string | null, limit = 100): Promise<{
+    customers: Array<{
+      id: number;
+      first_name: string | null;
+      last_name: string | null;
+      email: string | null;
+      phone: string | null;
+      state: string | null;
+    }>;
+    nextPageInfo: string | null;
+  }> {
+    const params = new URLSearchParams({
+      limit: String(Math.min(250, Math.max(1, limit))),
+      fields: 'id,first_name,last_name,email,phone,state',
+    });
+    if (pageInfo) params.set('page_info', pageInfo);
+
+    const url = `https://${this.shopName_}/admin/api/2024-04/customers.json?${params.toString()}`;
+    const res: Response = await fetch(url, {
+      headers: { 'X-Shopify-Access-Token': this.accessToken_, 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Shopify ${res.status} GET customers: ${text.slice(0, 300)}`);
+    }
+
+    const data = await res.json();
+    const link: string = res.headers.get('link') ?? '';
+    const nextMatch: RegExpMatchArray | null = link.match(/<([^>]+)>;\s*rel="next"/);
+    let nextPageInfo: string | null = null;
+
+    if (nextMatch?.[1]) {
+      try {
+        const nextUrl = new URL(nextMatch[1]);
+        nextPageInfo = nextUrl.searchParams.get('page_info');
+      } catch {
+        nextPageInfo = null;
+      }
+    }
+
+    return {
+      customers: data.customers ?? [],
+      nextPageInfo,
+    };
   }
 
   async findCustomerByEmail(email: string): Promise<{ id: number } | null> {

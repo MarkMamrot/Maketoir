@@ -27,6 +27,21 @@ function actionLabel(a: string) {
   return { reconcile: 'Reconcile', upload: 'Upload', sync_prices: 'Sync Prices', resync: 'Full Resync' }[a] ?? a;
 }
 
+async function readApiResponse(res: Response) {
+  const text = await res.text();
+  const contentType = String(res.headers.get('content-type') ?? '').toLowerCase();
+
+  if (!text) return {} as any;
+
+  if (contentType.includes('application/json')) {
+    return JSON.parse(text);
+  }
+
+  const flattened = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const message = flattened.slice(0, 240) || `Request failed with status ${res.status}`;
+  throw new Error(res.status === 524 ? 'The request timed out before the server could return JSON. Customer pull now runs in smaller batches, so retry the sync.' : message);
+}
+
 // ─── Main ShopifyView ─────────────────────────────────────────────────────────
 export default function ShopifyView({ businessId }: { businessId?: string }) {
   const [status, setStatus]   = useState<any>(null);
@@ -1191,6 +1206,7 @@ function ShopifyGiftCardsTab() {
     }>;
   } | null>(null);
   const [customerSyncError, setCustomerSyncError] = useState<string | null>(null);
+  const [customerSyncProgress, setCustomerSyncProgress] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/ims/settings').then(r => r.json()).then(d => {
@@ -1214,7 +1230,7 @@ function ShopifyGiftCardsTab() {
     setSyncing(true); setSyncResult(null); setSyncError(null);
     try {
       const r = await fetch('/api/ims/shopify/sync-gift-cards', { method: 'POST' });
-      const d = await r.json();
+      const d = await readApiResponse(r);
       if (!r.ok || !d.success) throw new Error(d.error ?? 'Sync failed');
       setSyncResult(d);
     } catch (e: any) { setSyncError(e.message); }
@@ -1222,21 +1238,67 @@ function ShopifyGiftCardsTab() {
   }
 
   async function runCustomerSync() {
-    setCustomerSyncing(true); setCustomerSyncResult(null); setCustomerSyncError(null);
+    setCustomerSyncing(true); setCustomerSyncResult(null); setCustomerSyncError(null); setCustomerSyncProgress('Starting Shopify customer pull…');
     try {
-      const r = await fetch('/api/ims/shopify/sync-customers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'pull' }) });
-      const d = await r.json();
-      if (!r.ok || !d.success) throw new Error(d.error ?? 'Customer sync failed');
-      setCustomerSyncResult(d);
+      let nextPageInfo: string | null = null;
+      let batchNumber = 0;
+      const aggregate = {
+        mode: 'pull',
+        synced: 0,
+        created: 0,
+        linked: 0,
+        updated: 0,
+        skipped: 0,
+        errors: 0,
+        total: 0,
+        matchedGiftCardCustomers: 0,
+        missingGiftCardCustomers: 0,
+        missingGiftCardExamples: [] as Array<{
+          code: string;
+          customer_id: string;
+          recipient_email: string | null;
+          created_at: string | null;
+        }>,
+      };
+
+      do {
+        batchNumber += 1;
+        setCustomerSyncProgress(`Pulling Shopify customer batch ${batchNumber}…`);
+        const r = await fetch('/api/ims/shopify/sync-customers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'pull', pageInfo: nextPageInfo, batchLimit: 100 }),
+        });
+        const d = await readApiResponse(r);
+        if (!r.ok || !d.success) throw new Error(d.error ?? 'Customer sync failed');
+
+        aggregate.synced += Number(d.synced ?? 0);
+        aggregate.created += Number(d.created ?? 0);
+        aggregate.linked += Number(d.linked ?? 0);
+        aggregate.updated += Number(d.updated ?? 0);
+        aggregate.skipped += Number(d.skipped ?? 0);
+        aggregate.errors += Number(d.errors ?? 0);
+        aggregate.total += Number(d.total ?? d.batchCount ?? 0);
+
+        nextPageInfo = d.nextPageInfo ?? null;
+
+        if (!d.hasMore) {
+          aggregate.matchedGiftCardCustomers = Number(d.matchedGiftCardCustomers ?? 0);
+          aggregate.missingGiftCardCustomers = Number(d.missingGiftCardCustomers ?? 0);
+          aggregate.missingGiftCardExamples = Array.isArray(d.missingGiftCardExamples) ? d.missingGiftCardExamples : [];
+        }
+      } while (nextPageInfo);
+
+      setCustomerSyncResult(aggregate);
     } catch (e: any) { setCustomerSyncError(e.message); }
-    setCustomerSyncing(false);
+    setCustomerSyncProgress(null); setCustomerSyncing(false);
   }
 
   async function runCustomerPush() {
-    setCustomerSyncing(true); setCustomerSyncResult(null); setCustomerSyncError(null);
+    setCustomerSyncing(true); setCustomerSyncResult(null); setCustomerSyncError(null); setCustomerSyncProgress(null);
     try {
       const r = await fetch('/api/ims/shopify/sync-customers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'push' }) });
-      const d = await r.json();
+      const d = await readApiResponse(r);
       if (!r.ok || !d.success) throw new Error(d.error ?? 'Customer sync failed');
       setCustomerSyncResult(d);
     } catch (e: any) { setCustomerSyncError(e.message); }
@@ -1324,6 +1386,7 @@ function ShopifyGiftCardsTab() {
             {customerSyncing ? 'Syncing Customers…' : 'Push IMS Retail Customers'}
           </button>
         </div>
+        {customerSyncProgress && <p style={{ marginTop: 10, fontSize: 12, color: 'var(--sv-text-dim)' }}>{customerSyncProgress}</p>}
         {customerSyncError && <p style={{ marginTop: 10, fontSize: 13, color: 'var(--sv-red)' }}>{customerSyncError}</p>}
         {customerSyncResult && (
           <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(16,185,129,.08)', border: '1px solid rgba(16,185,129,.25)', borderRadius: 8, fontSize: 13 }}>

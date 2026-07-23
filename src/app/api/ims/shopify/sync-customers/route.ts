@@ -129,6 +129,8 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => ({}));
   const mode = body?.mode === 'push' ? 'push' : 'pull';
+  const pageInfo = typeof body?.pageInfo === 'string' && body.pageInfo.trim() ? body.pageInfo.trim() : null;
+  const batchLimit = Math.min(250, Math.max(1, Number(body?.batchLimit) || 100));
 
   await ensureContactShopifyCustomerSchema();
 
@@ -185,14 +187,31 @@ export async function POST(req: Request) {
   const shopify = new ShopifyService(conn.shopify_shop_id, token);
 
   let customers: ShopifyCustomer[] = [];
+  let nextPageInfo: string | null = null;
   try {
-    customers = await shopify.getAllCustomers();
+    const page = await shopify.getCustomerPage(pageInfo, batchLimit);
+    customers = page.customers;
+    nextPageInfo = page.nextPageInfo;
   } catch (e: any) {
     return NextResponse.json({ error: scopeHint(`Shopify API error: ${e.message}`) }, { status: 502 });
   }
 
   if (!customers.length) {
-    return NextResponse.json({ success: true, synced: 0, created: 0, linked: 0, updated: 0, skipped: 0, errors: 0, total: 0, ...(await getGiftCardLinkStats()) });
+    return NextResponse.json({
+      success: true,
+      mode,
+      synced: 0,
+      created: 0,
+      linked: 0,
+      updated: 0,
+      skipped: 0,
+      errors: 0,
+      total: 0,
+      batchCount: 0,
+      hasMore: Boolean(nextPageInfo),
+      nextPageInfo,
+      ...(!nextPageInfo ? await getGiftCardLinkStats() : {}),
+    });
   }
 
   let synced = 0;
@@ -274,6 +293,9 @@ export async function POST(req: Request) {
     skipped,
     errors,
     total: customers.length,
-    ...(await getGiftCardLinkStats()),
+    batchCount: customers.length,
+    hasMore: Boolean(nextPageInfo),
+    nextPageInfo,
+    ...(!nextPageInfo ? await getGiftCardLinkStats() : {}),
   });
 }

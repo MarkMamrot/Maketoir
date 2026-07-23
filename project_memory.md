@@ -11,6 +11,7 @@ Always read this file when starting a new session or implementing a feature to u
 * **Framework:** Next.js 14 (App Router)
 * **Database:** MySQL (external — connection via `MYSQL_HOST` env var)
 * **Build quirk (Shopify/Got):** `shopify-api-node -> got -> cacheable-request -> keyv` can emit Webpack "Critical dependency" warnings in Vercel builds. Mitigated in `next.config.mjs` by externalizing these packages (`experimental.serverComponentsExternalPackages`) and adding a targeted `webpack.ignoreWarnings` filter for `node_modules/keyv/src/index.js`.
+* **Shopify customer pull timeout (2026-07-23):** Pulling large Shopify customer catalogs in a single `/api/ims/shopify/sync-customers` request can hit proxy/serverless timeouts and return an HTML `524` page, which surfaces in the browser as `Unexpected token '<'`. Fix: the route now processes Shopify customers in cursor-based batches (100 per request) and the IMS Shopify UI loops through pages client-side until complete.
 
 ## 🚀 Deployment Workflow
 
