@@ -93,6 +93,10 @@ export interface ImsLocation {
   city?: string; state?: string; postcode?: string; country?: string;
   cin7_branch_id?: number; pos_pin?: string; pos_location_code?: string;
   has_pos?: number; has_wholesale?: number; has_online?: number;
+  /** bcrypt hash — never sent to the client; use has_manager_pin instead. */
+  manager_pin_hash?: string | null;
+  /** Computed: whether a manager PIN is currently set for this location. */
+  has_manager_pin?: boolean;
   is_active: number; created_at?: string; updated_at?: string;
 }
 
@@ -362,18 +366,25 @@ export const ImsContactsRepo = {
 // Locations
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Strip the bcrypt hash before a location row ever leaves the server. */
+function stripManagerPinHash(row: any): ImsLocation {
+  const { manager_pin_hash, ...rest } = row;
+  return { ...rest, has_manager_pin: !!manager_pin_hash };
+}
+
 export const ImsLocationsRepo = {
   async list(businessId?: string): Promise<ImsLocation[]> {
     const where = businessId ? 'WHERE business_id = ?' : '';
     const params = businessId ? [businessId] : [];
-    return imsQuery<ImsLocation>(`SELECT * FROM ims_locations ${where} ORDER BY name`, params);
+    const rows = await imsQuery<any>(`SELECT * FROM ims_locations ${where} ORDER BY name`, params);
+    return rows.map(stripManagerPinHash);
   },
 
   async get(id: number, businessId?: string): Promise<ImsLocation | null> {
     const where = businessId ? 'WHERE id = ? AND business_id = ?' : 'WHERE id = ?';
     const params = businessId ? [id, businessId] : [id];
-    const rows = await imsQuery<ImsLocation>(`SELECT * FROM ims_locations ${where}`, params);
-    return rows[0] ?? null;
+    const rows = await imsQuery<any>(`SELECT * FROM ims_locations ${where}`, params);
+    return rows[0] ? stripManagerPinHash(rows[0]) : null;
   },
 
   async create(data: Omit<ImsLocation, 'id' | 'created_at' | 'updated_at'>, businessId?: string): Promise<number> {
@@ -389,7 +400,7 @@ export const ImsLocationsRepo = {
   },
 
   async update(id: number, data: Partial<ImsLocation>): Promise<void> {
-    const fields = ['name','code','address','phone','city','state','postcode','country','is_active','cin7_branch_id','pos_pin','pos_location_code','has_pos','has_wholesale','has_online'];
+    const fields = ['name','code','address','phone','city','state','postcode','country','is_active','cin7_branch_id','pos_pin','pos_location_code','has_pos','has_wholesale','has_online','manager_pin_hash'];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of fields) {

@@ -11,6 +11,8 @@ function localNow(): string {
 export interface PosSaleRow {
   id:                number;
   local_id:          string | null;
+  register_id:       number | null;
+  register_session_id: number | null;
   location_id:       number;
   cashier_id:        number;
   cashier_name:      string | null;
@@ -22,6 +24,7 @@ export interface PosSaleRow {
   discount_total:    number;
   tax_total:         number;
   total:             number;
+  cash_rounding?:    number;
   notes:             string | null;
   parked_label:      string | null;
   return_of_sale_id: number | null;
@@ -408,6 +411,233 @@ export const PosSalesRepo = {
     } finally {
       conn.release();
     }
+  },
+
+  /**
+   * Void a sale AND reverse the stock it deducted (or restore the return),
+   * inserting an audit-trail movement row. `updateStatus('voided')` alone
+   * does NOT touch stock — this is the version to use when a manager
+   * actually wants stock corrected (e.g. deleting a mistaken transaction).
+   */
+  async voidWithReversal(id: number): Promise<{ stockError?: string }> {
+    const existing = await this.get(id);
+    if (!existing) throw new Error('Sale not found.');
+    const { sale, items } = existing;
+
+    await this.updateStatus(id, 'voided');
+
+    // Nothing was ever deducted for sales that never completed.
+    if (!['completed', 'layby_complete'].includes(sale.status)) return {};
+
+    let stockError: string | undefined;
+    const pool = getIMSPool();
+    const stockConn = await pool.getConnection();
+    try {
+      await stockConn.beginTransaction();
+      for (const item of items) {
+        if (!item.variant_id) continue;
+        // Opposite of the sign applied in complete(): a normal sale had
+        // deducted -qty, so reversing adds +qty back; a return had added
+        // +qty, so reversing subtracts it back out.
+        const qtyChange = sale.sale_type === 'return' ? -item.qty : item.qty;
+        const [stockRows]: any = await stockConn.execute(
+          `SELECT qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ? LIMIT 1`,
+          [item.variant_id, sale.location_id],
+        );
+        const currentSoh = stockRows[0] ? Number(stockRows[0].qty_on_hand) : 0;
+        const newSoh = currentSoh + qtyChange;
+
+        if (stockRows[0]) {
+          await stockConn.execute(
+            `UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id = ? AND location_id = ?`,
+            [newSoh, item.variant_id, sale.location_id],
+          );
+        } else {
+          await stockConn.execute(
+            `INSERT INTO ims_stock (variant_id, location_id, qty_on_hand) VALUES (?, ?, ?)`,
+            [item.variant_id, sale.location_id, newSoh],
+          );
+        }
+
+        await stockConn.execute(
+          `INSERT INTO ims_stock_movements
+             (variant_id, location_id, movement_type, channel, reference_type, reference_id,
+              qty_change, qty_after_soh, notes)
+           VALUES (?, ?, ?, 'pos', ?, ?, ?, ?, ?)`,
+          [item.variant_id, sale.location_id, 'pos_sale', 'pos_sale', id, qtyChange, newSoh, 'Voided by manager PIN'],
+        );
+      }
+      await stockConn.commit();
+    } catch (err: any) {
+      await stockConn.rollback();
+      stockError = err?.message || String(err);
+      console.error(`[POS] Sale ${id} voided but stock reversal failed:`, err);
+    } finally {
+      stockConn.release();
+    }
+    return { stockError };
+  },
+
+  /**
+   * Full replace of a completed sale's items/payments/totals — used by the
+   * manager-PIN-gated "edit transaction" flow. Preserves `created_at` and
+   * `completed_at` (the original timestamp never moves). Adjusts IMS stock
+   * by the DELTA between the old and new item quantities per variant (not
+   * a blind re-deduction), so partial edits net out correctly.
+   */
+  async updateFull(id: number, data: {
+    sale_type:      'sale' | 'return' | 'layby';
+    customer_name?: string | null;
+    customer_phone?: string | null;
+    notes?:         string | null;
+    subtotal:       number;
+    discount_total: number;
+    tax_total:      number;
+    total:          number;
+    cash_rounding?: number;
+    items: Array<{
+      variant_id:      string | null;
+      code:            string | null;
+      name:            string;
+      qty:             number;
+      unit_price:      number;
+      original_price?: number | null;
+      discount_type:   'none' | 'percent' | 'amount';
+      discount_value:  number;
+      discount_amount: number;
+      tax_rate:        number;
+      line_total:      number;
+    }>;
+    payments: Array<{ payment_method: string; amount: number; reference?: string | null }>;
+  }): Promise<{ stockError?: string }> {
+    const existing = await this.get(id);
+    if (!existing) throw new Error('Sale not found.');
+    const { sale: oldSale, items: oldItems } = existing;
+
+    const pool = getIMSPool();
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      await conn.execute(
+        `UPDATE pos_sales SET sale_type = ?, customer_name = ?, customer_phone = ?,
+           subtotal = ?, discount_total = ?, tax_total = ?, total = ?, cash_rounding = ?, notes = ?
+         WHERE id = ?`,
+        [
+          data.sale_type,
+          data.customer_name ?? null,
+          data.customer_phone ?? null,
+          data.subtotal,
+          data.discount_total,
+          data.tax_total,
+          data.total,
+          data.cash_rounding ?? 0,
+          data.notes ?? null,
+          id,
+        ],
+      );
+
+      await conn.execute('DELETE FROM pos_sale_items WHERE sale_id = ?', [id]);
+      for (const item of data.items) {
+        await conn.execute(
+          `INSERT INTO pos_sale_items
+             (sale_id, variant_id, code, name, qty, unit_price, original_price,
+              discount_type, discount_value, discount_amount, tax_rate, line_total)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            id,
+            item.variant_id ?? null,
+            item.code ?? null,
+            item.name,
+            item.qty,
+            item.unit_price,
+            item.original_price ?? null,
+            item.discount_type,
+            item.discount_value,
+            item.discount_amount,
+            item.tax_rate,
+            item.line_total,
+          ],
+        );
+      }
+
+      await conn.execute('DELETE FROM pos_payments WHERE sale_id = ?', [id]);
+      for (const pmt of data.payments) {
+        await conn.execute(
+          `INSERT INTO pos_payments (sale_id, payment_method, amount, reference) VALUES (?, ?, ?, ?)`,
+          [id, pmt.payment_method, pmt.amount, pmt.reference ?? null],
+        );
+      }
+
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+
+    // Adjust stock by the delta between old and new per-variant net effect —
+    // only when the sale had actually deducted/added stock in the first place.
+    let stockError: string | undefined;
+    if (['completed', 'layby_complete'].includes(oldSale.status)) {
+      const netEffect = (saleType: string, qty: number) => (saleType === 'return' ? qty : -qty);
+
+      const oldMap = new Map<string, number>();
+      for (const i of oldItems) {
+        if (!i.variant_id) continue;
+        oldMap.set(i.variant_id, (oldMap.get(i.variant_id) ?? 0) + netEffect(oldSale.sale_type, i.qty));
+      }
+      const newMap = new Map<string, number>();
+      for (const i of data.items) {
+        if (!i.variant_id) continue;
+        newMap.set(i.variant_id, (newMap.get(i.variant_id) ?? 0) + netEffect(data.sale_type, i.qty));
+      }
+      const variantIds = new Set([...oldMap.keys(), ...newMap.keys()]);
+
+      const stockConn = await pool.getConnection();
+      try {
+        await stockConn.beginTransaction();
+        for (const vid of variantIds) {
+          const delta = (newMap.get(vid) ?? 0) - (oldMap.get(vid) ?? 0);
+          if (!delta) continue;
+          const [stockRows]: any = await stockConn.execute(
+            `SELECT qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ? LIMIT 1`,
+            [vid, oldSale.location_id],
+          );
+          const currentSoh = stockRows[0] ? Number(stockRows[0].qty_on_hand) : 0;
+          const newSoh = currentSoh + delta;
+
+          if (stockRows[0]) {
+            await stockConn.execute(
+              `UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id = ? AND location_id = ?`,
+              [newSoh, vid, oldSale.location_id],
+            );
+          } else {
+            await stockConn.execute(
+              `INSERT INTO ims_stock (variant_id, location_id, qty_on_hand) VALUES (?, ?, ?)`,
+              [vid, oldSale.location_id, newSoh],
+            );
+          }
+
+          await stockConn.execute(
+            `INSERT INTO ims_stock_movements
+               (variant_id, location_id, movement_type, channel, reference_type, reference_id,
+                qty_change, qty_after_soh, notes)
+             VALUES (?, ?, ?, 'pos', ?, ?, ?, ?, ?)`,
+            [vid, oldSale.location_id, 'pos_sale', 'pos_sale', id, delta, newSoh, 'Adjusted via manager transaction edit'],
+          );
+        }
+        await stockConn.commit();
+      } catch (err: any) {
+        await stockConn.rollback();
+        stockError = err?.message || String(err);
+        console.error(`[POS] Sale ${id} edited but stock adjustment failed:`, err);
+      } finally {
+        stockConn.release();
+      }
+    }
+    return { stockError };
   },
 };
 

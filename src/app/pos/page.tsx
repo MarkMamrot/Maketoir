@@ -1760,7 +1760,7 @@ function MainPos({
     setScreen('pos');
     setScanFocusTick(t => t + 1);
   }} />;
-  if (screen === 'reports') return <ReportsScreen session={session} onBack={() => { setScreen('pos'); setScanFocusTick(t => t + 1); }} />;
+  if (screen === 'reports') return <ReportsScreen session={session} regSession={regSession} products={products} onBack={() => { setScreen('pos'); setScanFocusTick(t => t + 1); }} />;
   if (screen === 'parked') return (
     <ParkedScreen
       sales={parkedSales}
@@ -5784,7 +5784,7 @@ function ReceiveBtInline({ bt, onBack, onDone }: { bt: any; onBack: () => void; 
 
 // ─── Reports Screen ───────────────────────────────────────────────────────────
 
-function ReportsScreen({ session, onBack }: { session: PosSession; onBack: () => void }) {
+function ReportsScreen({ session, regSession, products, onBack }: { session: PosSession; regSession?: any; products?: CachedProduct[]; onBack: () => void }) {
   const today = new Date().toLocaleDateString('sv-SE');
   const [date, setDate] = useState(today);
   const [data, setData] = useState<any>(null);
@@ -5794,6 +5794,8 @@ function ReportsScreen({ session, onBack }: { session: PosSession; onBack: () =>
   const [editPaymentsSale, setEditPaymentsSale] = useState<{ saleId: number; saleRef: string; payments: any[]; total: number } | null>(null);
   const [reprintSale, setReprintSale] = useState<CompletedSale | null>(null);
   const [reprintSettings, setReprintSettings] = useState<ReceiptPrintSettings | null>(null);
+  const [pinAction, setPinAction] = useState<{ type: 'edit' | 'delete'; t: any } | null>(null);
+  const [editSale, setEditSale] = useState<{ t: any; managerPin: string } | null>(null);
 
   // Load receipt settings for reprint (with location_id so branch address/phone are used)
   useEffect(() => {
@@ -5854,6 +5856,24 @@ function ReportsScreen({ session, onBack }: { session: PosSession; onBack: () =>
   useEffect(() => { loadData(date); }, [date, session.location_id]);
 
   const maxTotal = Math.max(...graphData.map(d => d.total), 1);
+
+  async function handlePinVerified(pin: string) {
+    if (!pinAction) return;
+    if (pinAction.type === 'delete') {
+      const res = await fetch(`/api/pos/sales/${pinAction.t.sale.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'voided', manager_pin: pin }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Delete failed.');
+      setPinAction(null);
+      loadData(date);
+    } else {
+      setEditSale({ t: pinAction.t, managerPin: pin });
+      setPinAction(null);
+    }
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', padding: '1.5rem', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)' }}>
@@ -5925,6 +5945,20 @@ function ReportsScreen({ session, onBack }: { session: PosSession; onBack: () =>
                     title="Reprint receipt"
                     style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, padding: '2px 7px', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: '.8rem', flexShrink: 0 }}
                   >🖨 Print</button>
+                  {regSession && typeof regSession === 'object' && t.sale.register_session_id === regSession.id && (
+                    <>
+                      <button
+                        onClick={e => { e.stopPropagation(); setPinAction({ type: 'edit', t }); }}
+                        title="Edit transaction (manager PIN required)"
+                        style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, padding: '2px 7px', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: '.8rem', flexShrink: 0 }}
+                      >✏️ Transaction</button>
+                      <button
+                        onClick={e => { e.stopPropagation(); setPinAction({ type: 'delete', t }); }}
+                        title="Delete transaction (manager PIN required)"
+                        style={{ background: 'none', border: '1px solid rgba(224,82,82,.5)', borderRadius: 5, padding: '2px 7px', cursor: 'pointer', color: '#e05252', fontSize: '.8rem', flexShrink: 0 }}
+                      >🗑 Delete</button>
+                    </>
+                  )}
                   <span style={{ fontSize: '.8rem', color: 'var(--sv-text-muted)', flexShrink: 0 }}>{expanded === idx ? '▲' : '▼'}</span>
                 </div>
                 {expanded === idx && (
@@ -5959,6 +5993,23 @@ function ReportsScreen({ session, onBack }: { session: PosSession; onBack: () =>
           sale={reprintSale}
           onClose={() => setReprintSale(null)}
           printSettings={reprintSettings ?? undefined}
+        />
+      )}
+      {pinAction && (
+        <ManagerPinModal
+          locationId={session.location_id}
+          title={pinAction.type === 'delete' ? 'Delete Transaction' : 'Edit Transaction'}
+          onVerified={handlePinVerified}
+          onClose={() => setPinAction(null)}
+        />
+      )}
+      {editSale && (
+        <EditTransactionModal
+          t={editSale.t}
+          managerPin={editSale.managerPin}
+          products={products ?? []}
+          onClose={() => setEditSale(null)}
+          onSaved={() => { setEditSale(null); loadData(date); }}
         />
       )}
     </div>
@@ -6110,6 +6161,358 @@ function PaymentSplitModal({
           <button onClick={onClose} style={{ ...smallBtn }}>Cancel</button>
           <button onClick={handleSave} disabled={!canSave || saving} style={{ ...primaryBtn, opacity: (!canSave || saving) ? .5 : 1 }}>
             {saving ? 'Saving…' : 'Save Split'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Manager PIN Modal ────────────────────────────────────────────────────────
+
+function ManagerPinModal({
+  locationId,
+  title,
+  onVerified,
+  onClose,
+}: {
+  locationId: number;
+  title: string;
+  onVerified: (pin: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState('');
+  const [checking, setChecking] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const submit = async () => {
+    if (!pin.trim() || checking) return;
+    setChecking(true);
+    setError('');
+    try {
+      const res = await fetch('/api/pos/auth/verify-manager-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ location_id: locationId, pin }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setError(json.error || 'Incorrect PIN.'); return; }
+      await onVerified(pin);
+    } catch (e: any) {
+      setError(e.message || 'Action failed.');
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  return (
+    <div
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9500, padding: '1rem' }}
+    >
+      <div style={{ background: 'var(--sv-bg-1)', borderRadius: 12, padding: '1.5rem', width: '100%', maxWidth: 320, boxShadow: '0 8px 40px rgba(0,0,0,.4)', color: 'var(--sv-text-main)', fontFamily: 'system-ui,sans-serif' }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '.75rem', gap: '.75rem' }}>
+          <div style={{ flex: 1, fontWeight: 700, fontSize: '1.05rem', color: 'var(--sv-text-strong)' }}>{title}</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--sv-text-dim)', lineHeight: 1, padding: 4 }}>✕</button>
+        </div>
+        <p style={{ fontSize: '.85rem', color: 'var(--sv-text-dim)', marginTop: 0 }}>Enter the manager PIN for this location to continue.</p>
+        <input
+          type="password"
+          inputMode="numeric"
+          maxLength={8}
+          autoFocus
+          value={pin}
+          onChange={e => { setPin(e.target.value); setError(''); }}
+          onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+          placeholder="Manager PIN"
+          style={{ width: '100%', padding: '.6rem .75rem', background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: '1.1rem', letterSpacing: '.2em', textAlign: 'center', boxSizing: 'border-box', marginBottom: '.75rem' }}
+        />
+        {error && <div style={{ color: 'var(--sv-red, #ef4444)', fontSize: '.85rem', marginBottom: '.75rem' }}>{error}</div>}
+        <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={smallBtn}>Cancel</button>
+          <button onClick={submit} disabled={checking || !pin.trim()} style={{ ...primaryBtn, opacity: (checking || !pin.trim()) ? .5 : 1 }}>
+            {checking ? 'Checking…' : 'Confirm'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Edit Transaction Modal (lightweight, manager-PIN-gated) ─────────────────
+
+function EditTransactionModal({
+  t,
+  managerPin,
+  products,
+  onClose,
+  onSaved,
+}: {
+  t: any;
+  managerPin: string;
+  products: CachedProduct[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [items, setItems] = useState<CartItem[]>(() => (t.items ?? []).map((it: any): CartItem => ({
+    localId: newLocalId(),
+    variant_id: it.variant_id ?? null,
+    code: it.code ?? null,
+    name: it.name,
+    qty: Number(it.qty),
+    unit_price: Number(it.unit_price ?? 0),
+    original_price: it.original_price != null ? Number(it.original_price) : null,
+    discount_type: 'none',
+    discount_value: 0,
+    discount_amount: Number(it.discount_amount ?? 0),
+    tax_rate: Number(it.tax_rate ?? 0.1),
+    line_total: Number(it.line_total ?? 0),
+  })));
+  const [payLines, setPayLines] = useState<{ method: string; amount: string }[]>(
+    () => (t.payments ?? []).map((p: any) => ({ method: p.payment_method, amount: fmt(Number(p.amount)) })),
+  );
+  const [methods, setMethods] = useState<string[]>([]);
+  const [search, setSearch] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetch('/api/pos/settings/payment-methods').then(r => r.json()).then(d => {
+      if (Array.isArray(d.methods)) setMethods(d.methods);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const totals = calcTotals(items);
+
+  const searchResults = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return [];
+    return products.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      (p.code && p.code.toLowerCase().includes(q)) ||
+      (p.barcode && p.barcode.toLowerCase().includes(q))
+    ).slice(0, 8);
+  }, [search, products]);
+
+  const updateQty = (localId: string, qty: number) => {
+    setItems(prev => prev.map(i => {
+      if (i.localId !== localId) return i;
+      const next = { ...i, qty: Math.max(0.001, qty) };
+      next.line_total = calcLineTotal(next);
+      return next;
+    }));
+  };
+  const updatePrice = (localId: string, price: number) => {
+    setItems(prev => prev.map(i => {
+      if (i.localId !== localId) return i;
+      const next = { ...i, unit_price: Math.max(0, price) };
+      next.line_total = calcLineTotal(next);
+      return next;
+    }));
+  };
+  const removeItem = (localId: string) => setItems(prev => prev.length > 1 ? prev.filter(i => i.localId !== localId) : prev);
+  const addProduct = (p: CachedProduct) => {
+    setItems(prev => [...prev, {
+      localId: newLocalId(),
+      variant_id: p.variant_id,
+      code: p.code,
+      name: p.name,
+      qty: 1,
+      unit_price: p.price,
+      original_price: p.original_price,
+      discount_type: 'none',
+      discount_value: 0,
+      discount_amount: 0,
+      tax_rate: 0.1,
+      line_total: p.price,
+    }]);
+    setSearch('');
+  };
+
+  const updatePayLine = (i: number, field: 'method' | 'amount', val: string) => setPayLines(prev => prev.map((l, idx) => idx === i ? { ...l, [field]: val } : l));
+  const removePayLine = (i: number) => setPayLines(prev => prev.filter((_, idx) => idx !== i));
+  const addPayLine = () => setPayLines(prev => [...prev, { method: methods[0] ?? '', amount: '0.00' }]);
+
+  const allocated = payLines.reduce((s, l) => s + (parseFloat(l.amount) || 0), 0);
+  const remaining = Math.round((totals.total - allocated) * 100) / 100;
+  const canSave = Math.abs(remaining) < 0.01
+    && items.every(i => i.qty > 0 && i.unit_price >= 0)
+    && payLines.every(l => l.method.trim() && (parseFloat(l.amount) || 0) >= 0)
+    && payLines.length > 0;
+
+  const allMethods = Array.from(new Set([...methods, ...payLines.map(l => l.method)])).filter(Boolean);
+
+  const handleSave = async () => {
+    setError('');
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/pos/sales/${t.sale.id}/edit`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          manager_pin: managerPin,
+          sale_type: t.sale.sale_type,
+          customer_name: t.sale.customer_name,
+          customer_phone: t.sale.customer_phone,
+          notes: t.sale.notes,
+          subtotal: totals.subtotal,
+          discount_total: totals.discount_total,
+          tax_total: totals.tax_total,
+          total: totals.total,
+          cash_rounding: t.sale.cash_rounding ?? 0,
+          items: items.map(i => ({
+            variant_id: i.variant_id, code: i.code, name: i.name, qty: i.qty,
+            unit_price: i.unit_price, original_price: i.original_price,
+            discount_type: i.discount_type, discount_value: i.discount_value,
+            discount_amount: i.discount_amount, tax_rate: i.tax_rate, line_total: i.line_total,
+          })),
+          payments: payLines.map(l => ({ payment_method: l.method.trim(), amount: parseFloat(l.amount) || 0 })),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setError(json.error || 'Save failed.'); return; }
+      onSaved();
+    } catch (e: any) {
+      setError(e.message || 'Save failed.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9200, padding: '1rem' }}
+    >
+      <div style={{ background: 'var(--sv-bg-1)', borderRadius: 12, padding: '1.5rem', width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 8px 40px rgba(0,0,0,.4)', color: 'var(--sv-text-main)', fontFamily: 'system-ui,sans-serif' }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem', gap: '.75rem' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--sv-text-strong)' }}>Edit Transaction</div>
+            <div style={{ fontSize: '.8rem', color: 'var(--sv-text-dim)', marginTop: 2 }}>
+              Sale #{t.sale.id} — original time {new Date(t.sale.created_at).toLocaleString('en-AU', { timeStyle: 'short', dateStyle: 'medium' })} is preserved.
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--sv-text-dim)', lineHeight: 1, padding: 4 }}>✕</button>
+        </div>
+
+        {/* Line items */}
+        <div style={{ fontSize: '.8rem', fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: '.4rem' }}>Items</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem', marginBottom: '.6rem' }}>
+          {items.map(item => (
+            <div key={item.localId} style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+              <span style={{ flex: 1, fontSize: '.85rem', color: 'var(--sv-text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+              <input
+                type="number" min="0.001" step="1" value={item.qty}
+                onChange={e => updateQty(item.localId, parseFloat(e.target.value) || 0)}
+                style={{ width: 60, padding: '.35rem .4rem', background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: '.85rem', textAlign: 'center' }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                <span style={{ color: 'var(--sv-text-dim)', fontSize: '.85rem' }}>$</span>
+                <input
+                  type="number" min="0" step="0.01" value={item.unit_price}
+                  onChange={e => updatePrice(item.localId, parseFloat(e.target.value) || 0)}
+                  style={{ width: 80, padding: '.35rem .4rem', background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: '.85rem' }}
+                />
+              </div>
+              <span style={{ width: 70, textAlign: 'right', fontWeight: 600, fontSize: '.85rem', color: 'var(--sv-action)' }}>${fmt(item.line_total)}</span>
+              <button
+                onClick={() => removeItem(item.localId)}
+                disabled={items.length <= 1}
+                title="Remove item"
+                style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, padding: '4px 8px', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: '.8rem', opacity: items.length <= 1 ? .3 : 1 }}
+              >✕</button>
+            </div>
+          ))}
+        </div>
+
+        {/* Add item search */}
+        <div style={{ position: 'relative', marginBottom: '1rem' }}>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="+ Add item — search by name, SKU or barcode"
+            style={{ width: '100%', padding: '.5rem .65rem', background: 'var(--sv-bg-0)', border: '1px dashed var(--sv-etch)', borderRadius: 8, color: 'var(--sv-text-main)', fontSize: '.85rem', boxSizing: 'border-box' }}
+          />
+          {searchResults.length > 0 && (
+            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, marginTop: 2, zIndex: 10, maxHeight: 220, overflowY: 'auto' }}>
+              {searchResults.map(p => (
+                <div
+                  key={p.variant_id}
+                  onClick={() => addProduct(p)}
+                  style={{ padding: '.5rem .65rem', cursor: 'pointer', fontSize: '.85rem', color: 'var(--sv-text-main)', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--sv-etch)' }}
+                >
+                  <span>{p.name}</span>
+                  <span style={{ color: 'var(--sv-text-dim)' }}>${fmt(p.price)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Payment lines */}
+        <div style={{ fontSize: '.8rem', fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: '.4rem' }}>Payments</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem', marginBottom: '.5rem' }}>
+          {payLines.map((line, i) => (
+            <div key={i} style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+              <select
+                value={line.method}
+                onChange={e => updatePayLine(i, 'method', e.target.value)}
+                style={{ flex: 1, padding: '.45rem .6rem', background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: '.9rem' }}
+              >
+                {allMethods.map(m => <option key={m} value={m}>{m}</option>)}
+                {!allMethods.includes(line.method) && line.method && <option value={line.method}>{line.method}</option>}
+              </select>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ color: 'var(--sv-text-dim)', fontSize: '.9rem' }}>$</span>
+                <input
+                  type="number" min="0" step="0.01" value={line.amount}
+                  onChange={e => updatePayLine(i, 'amount', e.target.value)}
+                  style={{ width: 90, padding: '.45rem .6rem', background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: '.9rem' }}
+                />
+              </div>
+              <button
+                onClick={() => removePayLine(i)}
+                disabled={payLines.length <= 1}
+                title="Remove line"
+                style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, padding: '4px 8px', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: '.85rem', opacity: payLines.length <= 1 ? .3 : 1 }}
+              >✕</button>
+            </div>
+          ))}
+        </div>
+        <button onClick={addPayLine} style={{ background: 'none', border: '1px dashed var(--sv-etch)', borderRadius: 6, padding: '.35rem .75rem', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: '.85rem', marginBottom: '.75rem', width: '100%' }}>
+          + Add payment line
+        </button>
+
+        {/* Totals / remaining */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '.5rem .75rem', borderRadius: 6, marginBottom: '.75rem', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)' }}>
+          <span style={{ fontSize: '.9rem', fontWeight: 600, color: 'var(--sv-text-main)' }}>New Total</span>
+          <span style={{ fontSize: '.95rem', fontWeight: 700, color: 'var(--sv-action)' }}>${fmt(totals.total)}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '.5rem .75rem', borderRadius: 6, marginBottom: '1rem', background: Math.abs(remaining) < 0.01 ? 'var(--sv-mint-tint, #edfdf5)' : 'var(--sv-red-tint, #fef2f2)', border: `1px solid ${Math.abs(remaining) < 0.01 ? 'var(--sv-mint, #10b981)' : 'var(--sv-red, #ef4444)'}` }}>
+          <span style={{ fontSize: '.9rem', fontWeight: 600, color: 'var(--sv-text-main)' }}>Unallocated</span>
+          <span style={{ fontSize: '.9rem', fontWeight: 700, color: Math.abs(remaining) < 0.01 ? 'var(--sv-mint, #10b981)' : 'var(--sv-red, #ef4444)' }}>
+            {remaining === 0 ? '—' : `$${fmt(Math.abs(remaining))}`}{Math.abs(remaining) < 0.01 ? ' ✓' : remaining > 0 ? ' (under)' : ' (over)'}
+          </span>
+        </div>
+
+        {error && <div style={{ color: 'var(--sv-red, #ef4444)', fontSize: '.85rem', marginBottom: '.75rem' }}>{error}</div>}
+
+        <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={smallBtn}>Cancel</button>
+          <button onClick={handleSave} disabled={!canSave || saving} style={{ ...primaryBtn, opacity: (!canSave || saving) ? .5 : 1 }}>
+            {saving ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
       </div>

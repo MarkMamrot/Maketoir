@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
+import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1409,7 +1410,7 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
 // Locations View
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BLANK_LOC = { name: '', code: '', address: '', phone: '', city: '', state: '', postcode: '', country: 'Australia', is_active: 1, pos_pin: '', pos_location_code: '', has_pos: 0, has_wholesale: 0, has_online: 0 };
+const BLANK_LOC = { name: '', code: '', address: '', phone: '', city: '', state: '', postcode: '', country: 'Australia', is_active: 1, pos_pin: '', pos_location_code: '', has_pos: 0, has_wholesale: 0, has_online: 0, manager_pin: '', clear_manager_pin: false };
 const LOC_TARGET_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
 function LocationRegistersPanel({ locationId, locationName, onClose }: { locationId: number; locationName: string; onClose: () => void }) {
@@ -1621,7 +1622,7 @@ function LocationsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
             <ActiveDot active={l.is_active} />,
             <div style={{ display: 'flex', gap: 6 }}>
               <button onClick={() => setRegistersFor(registersFor?.id === l.id ? null : { id: l.id, name: l.name })} style={btnStyle('ghost', 'xs')}>Registers</button>
-              <RowActions isAdvisor={isAdvisor} onEdit={() => { setForm({ ...BLANK_LOC, ...l }); setModal({ open: true, edit: l }); }} onDelete={() => handleDelete(l)} />
+              <RowActions isAdvisor={isAdvisor} onEdit={() => { setForm({ ...BLANK_LOC, ...l, manager_pin: '', clear_manager_pin: false }); setModal({ open: true, edit: l }); }} onDelete={() => handleDelete(l)} />
             </div>,
           ]}
         />
@@ -1660,6 +1661,24 @@ function LocationsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
             <Field label="POS Location Code" >
               <input value={(form as any).pos_location_code ?? ''} onChange={sf('pos_location_code' as any)} style={inputStyle} placeholder="e.g. MT-BOND-7K2P9X" maxLength={32} />
               <p style={{ margin: '4px 0 0', fontSize: '.75rem', color: 'var(--sv-text-dim)' }}>Entered once per POS device during setup. Identifies this branch and your business — use something long and unique (e.g. business-branch-random).</p>
+            </Field>
+            <Field label="Manager PIN">
+              {(form as any).has_manager_pin && !(form as any).clear_manager_pin && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, color: 'var(--sv-mint)' }}>✓ PIN is set</span>
+                  <button type="button" onClick={() => setForm(p => ({ ...p, clear_manager_pin: true, manager_pin: '' }))} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: '1px solid rgba(224,82,82,.5)', background: 'transparent', color: '#e05252', cursor: 'pointer' }}>Clear</button>
+                </div>
+              )}
+              {(form as any).clear_manager_pin && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, color: '#e05252' }}>PIN will be cleared on save.</span>
+                  <button type="button" onClick={() => setForm(p => ({ ...p, clear_manager_pin: false }))} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer' }}>Undo</button>
+                </div>
+              )}
+              {!(form as any).clear_manager_pin && (
+                <input type="password" maxLength={8} value={(form as any).manager_pin ?? ''} onChange={sf('manager_pin' as any)} style={inputStyle} placeholder={(form as any).has_manager_pin ? 'New PIN (leave blank to keep current)' : '4–8 digit PIN required to edit/delete POS transactions'} />
+              )}
+              <p style={{ margin: '4px 0 0', fontSize: '.75rem', color: 'var(--sv-text-dim)' }}>Required in POS to edit or delete a transaction from the current register session.</p>
             </Field>
             <Field label="Enabled Channels">
               <div style={{ display: 'flex', gap: '1.5rem', paddingTop: 4 }}>
@@ -5414,88 +5433,10 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
   // first "in" transactions; SOH After / Available After accumulate from there
   // and are combined across branches when no branch is selected. Displayed
   // newest-first, so opening balances sit at the bottom.
-  const timeline = useMemo(() => {
-    if (!data) return [] as any[];
-    const inVariant = (vid: string) => !selectedVariantId || vid === selectedVariantId;
-    const inBranch = (name: string) => !branchFilter || name === branchFilter;
-    const k = (vid: string, loc: string) => `${vid}::${loc}`;
-
-    // Opening-balance rows (one per variant/location in scope).
-    const openings: any[] = data.openingBalances
-      .filter((ob: any) => inVariant(ob.variant_id) && inBranch(ob.location_name))
-      .map((ob: any) => ({
-        rowKey: `ob-${ob.variant_id}-${ob.location_name}`,
-        kind: 'opening' as const, id: -1,
-        date: ob.created_at, variant_id: ob.variant_id, location_name: ob.location_name,
-        variant_label: null as string | null, movement: null as any,
-        inOut: Number(ob.qty_after_soh ?? 0), committedDelta: 0,
-        sohAfter: 0, committedAfter: 0, availAfter: 0,
-      }))
-      .sort((a: any, b: any) => a.location_name.localeCompare(b.location_name));
-
-    // Movement types that affect qty_incoming or qty_committed, NOT qty_on_hand.
-    // po_approved must be excluded from display (shows same PO twice) and from
-    // the SOH accumulator; SO commit types affect committed only so they stay
-    // visible but must not add to the on-hand running total.
-    const NON_ONHAND = new Set(['po_approved','so_confirmed','so_committed','so_unconfirmed','so_uncommitted']);
-
-    // Movement rows, ascending chronological — hide po_approved (internal approval
-    // step; po_received already represents the physical stock event).
-    const moves: any[] = data.movements
-      .filter((m: any) => inVariant(m.variant_id) && inBranch(m.location_name) && m.movement_type !== 'po_approved')
-      .map((m: any) => ({
-        rowKey: `m-${m.id}`,
-        kind: 'movement' as const, id: m.id,
-        date: m.created_at, variant_id: m.variant_id, location_name: m.location_name,
-        variant_label: m.variant_label as string | null, movement: m,
-        inOut: Number(m.qty_change ?? 0), committedDelta: Number(m.committed_change ?? 0),
-        sohAfter: 0, committedAfter: 0, availAfter: 0,
-      }))
-      .sort((a: any, b: any) => {
-        const t = String(a.date).localeCompare(String(b.date));
-        return t !== 0 ? t : a.id - b.id;
-      });
-
-    // Committed carried into the window (live committed minus every movement's
-    // committed change) becomes each opening row's committed figure.
-    const baseline: Record<string, number> = {};
-    data.stockByLocation.forEach((s: any) => {
-      if (inVariant(s.variant_id) && inBranch(s.location_name)) baseline[k(s.variant_id, s.location_name)] = Number(s.qty_committed ?? 0);
-    });
-    for (const m of moves) baseline[k(m.variant_id, m.location_name)] = (baseline[k(m.variant_id, m.location_name)] ?? 0) - m.committedDelta;
-    for (const o of openings) o.committedDelta = baseline[k(o.variant_id, o.location_name)] ?? 0;
-
-    const asc = [...openings, ...moves];
-
-    // Forward pass — accumulate on-hand SOH. Non-on-hand movement types
-    // (so_committed etc.) carry a qty_change that affects qty_committed only,
-    // so they must NOT be added to the on-hand running total.
-    const soh: Record<string, number> = {};
-    for (const r of asc) {
-      const sohDelta = (r.kind === 'movement' && NON_ONHAND.has(r.movement?.movement_type)) ? 0 : r.inOut;
-      soh[k(r.variant_id, r.location_name)] = (soh[k(r.variant_id, r.location_name)] ?? 0) + sohDelta;
-      let total = 0; for (const key in soh) total += soh[key];
-      r.sohAfter = total;
-    }
-
-    // Backward pass — anchor committed to the live value and walk back.
-    const comm: Record<string, number> = {};
-    data.stockByLocation.forEach((s: any) => {
-      if (inVariant(s.variant_id) && inBranch(s.location_name)) comm[k(s.variant_id, s.location_name)] = Number(s.qty_committed ?? 0);
-    });
-    for (let i = asc.length - 1; i >= 0; i--) {
-      const r = asc[i];
-      let total = 0; for (const key in comm) total += comm[key];
-      r.committedAfter = total;
-      r.availAfter = r.sohAfter - total;
-      comm[k(r.variant_id, r.location_name)] = (comm[k(r.variant_id, r.location_name)] ?? 0) - r.committedDelta;
-    }
-
-    // Display newest-first; opening balances (oldest) fall to the bottom.
-    // Reverse the opening group too so the cumulative SOH/Available flows
-    // correctly when read bottom-to-top (oldest seed at the very bottom).
-    return [...moves].reverse().concat([...openings].reverse());
-  }, [data, selectedVariantId, branchFilter]);
+  const timeline = useMemo(
+    () => data ? buildStockTimeline(data, selectedVariantId, branchFilter) : [],
+    [data, selectedVariantId, branchFilter],
+  );
 
   const movementLabel: Record<string, string> = {
     po_approved:    'PO Approved',

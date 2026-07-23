@@ -75,6 +75,7 @@ const COLUMNS = [
   // ── ims_locations ────────────────────────────────────────────────────────
   ['ims_locations', 'phone',          'VARCHAR(50) NULL'],
   ['ims_locations', 'pos_pin',        'VARCHAR(20) NULL'],
+  ['ims_locations', 'manager_pin_hash', 'VARCHAR(255) NULL'],
   ['ims_locations', 'cin7_branch_id', 'INT NULL'],
   ['ims_locations', 'has_pos',        'TINYINT(1) NOT NULL DEFAULT 0'],
   ['ims_locations', 'has_wholesale',  'TINYINT(1) NOT NULL DEFAULT 0'],
