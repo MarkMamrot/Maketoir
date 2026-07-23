@@ -6,9 +6,10 @@ import { decrypt } from '@/lib/encryption';
 import { ShopifyService } from '@/services/ShopifyService';
 
 // POST /api/ims/shopify/sync-gift-cards
-// Imports all Shopify gift cards not yet in IMS (matched by shopify_gc_id).
-// Cards imported this way use last_characters as a code placeholder.
-// The full code is resolved and stored the first time the card is used at POS.
+// Upserts all Shopify gift cards into IMS (matched by shopify_gc_id).
+// New cards use last_characters as a code placeholder (resolved to full code on first POS scan).
+// Existing cards have status, currency, expires_on, and created_at refreshed from Shopify.
+// The card's code and balance in IMS are never overwritten.
 export async function POST() {
   const session = await getImsSession();
   if (!session?.businessId) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
@@ -55,12 +56,21 @@ export async function POST() {
     // Placeholder code: 'SHOPIFY:' prefix + last 4 chars — resolved to full code on first POS scan
     const codePlaceholder = `SHOPIFY:${gc.last_characters ?? gc.id}`;
 
+    const createdAt = gc.created_at
+      ? new Date(gc.created_at).toISOString().slice(0, 19).replace('T', ' ')
+      : null;
+
     try {
       await imsExecute(
-        `INSERT IGNORE INTO gift_cards
+        `INSERT INTO gift_cards
            (shopify_gc_id, shopify_line_item_id, code, initial_balance, balance, status,
             currency, expires_on, customer_id, order_id, notes, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Imported from Shopify', ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Imported from Shopify', ?)
+         ON DUPLICATE KEY UPDATE
+           status     = VALUES(status),
+           currency   = VALUES(currency),
+           expires_on = VALUES(expires_on),
+           created_at = VALUES(created_at)`,
         [
           gc.id,
           gc.line_item_id ?? null,
@@ -70,8 +80,7 @@ export async function POST() {
           expiresOn,
           gc.customer_id ? String(gc.customer_id) : null,
           gc.order_id    ? String(gc.order_id)    : null,
-          // Use Shopify's original created_at (convert to UTC for MySQL)
-          gc.created_at ? new Date(gc.created_at).toISOString().slice(0, 19).replace('T', ' ') : null,
+          createdAt,
         ],
       );
       existingIds.add(gc.id);
@@ -81,10 +90,15 @@ export async function POST() {
       if (e.code === 'ER_DUP_ENTRY') {
         try {
           await imsExecute(
-            `INSERT IGNORE INTO gift_cards
+            `INSERT INTO gift_cards
                (shopify_gc_id, shopify_line_item_id, code, initial_balance, balance, status,
                 currency, expires_on, customer_id, order_id, notes, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Imported from Shopify', ?)`,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Imported from Shopify', ?)
+             ON DUPLICATE KEY UPDATE
+               status     = VALUES(status),
+               currency   = VALUES(currency),
+               expires_on = VALUES(expires_on),
+               created_at = VALUES(created_at)`,
             [
               gc.id, gc.line_item_id ?? null,
               `SHOPIFY:ID:${gc.id}`,
@@ -92,7 +106,7 @@ export async function POST() {
               gc.currency ?? 'AUD', expiresOn,
               gc.customer_id ? String(gc.customer_id) : null,
               gc.order_id    ? String(gc.order_id)    : null,
-              gc.created_at ? new Date(gc.created_at).toISOString().slice(0, 19).replace('T', ' ') : null,
+              createdAt,
             ],
           );
           existingIds.add(gc.id);
