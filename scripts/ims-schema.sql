@@ -574,22 +574,26 @@ CREATE TABLE IF NOT EXISTS ims_notifications (
 
 -- Gift cards (manually created or imported from Shopify/Sage)
 CREATE TABLE IF NOT EXISTS gift_cards (
-  id                  INT AUTO_INCREMENT PRIMARY KEY,
-  code                VARCHAR(100)   NOT NULL,
-  initial_balance     DECIMAL(12,2)  NULL     COMMENT 'Face value when issued; NULL = unknown (imported)',
-  balance             DECIMAL(12,2)  NOT NULL DEFAULT 0.00,
-  status              ENUM('active','redeemed','cancelled','expired') NOT NULL DEFAULT 'active',
-  customer_id         VARCHAR(255)   NULL     COMMENT 'External customer ID (Shopify UUID, etc.)',
-  order_id            VARCHAR(255)   NULL     COMMENT 'External order ID, "imported", or NULL for manual',
-  shopify_location_id VARCHAR(255)   NULL,
-  recipient_email     VARCHAR(255)   NULL,
-  notes               TEXT           NULL,
-  created_at          DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  last_used_at        DATETIME       NULL,
-  updated_at          DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_gift_card_code (code),
-  INDEX idx_gc_status   (status),
-  INDEX idx_gc_customer (customer_id)
+  id                      INT AUTO_INCREMENT PRIMARY KEY,
+  shopify_gc_id           BIGINT         NULL     COMMENT 'Shopify gift card numeric ID',
+  shopify_line_item_id    BIGINT         NULL     COMMENT 'Shopify line_item_id (order line)',
+  code                    VARCHAR(100)   NOT NULL,
+  initial_balance         DECIMAL(12,2)  NULL     COMMENT 'Face value when issued; NULL = unknown (imported)',
+  balance                 DECIMAL(12,2)  NOT NULL DEFAULT 0.00,
+  currency                VARCHAR(10)    NOT NULL DEFAULT 'AUD',
+  status                  ENUM('active','redeemed','cancelled','expired') NOT NULL DEFAULT 'active',
+  expires_on              DATE           NULL     COMMENT 'Card expiry date (Shopify default: 3 years)',
+  customer_id             VARCHAR(255)   NULL     COMMENT 'External customer ID (Shopify UUID, etc.)',
+  order_id                VARCHAR(255)   NULL     COMMENT 'External order ID, "imported", or NULL for manual',
+  recipient_email         VARCHAR(255)   NULL,
+  notes                   TEXT           NULL,
+  created_at              DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_used_at            DATETIME       NULL,
+  updated_at              DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_gift_card_code     (code),
+  UNIQUE KEY uq_shopify_gc_id      (shopify_gc_id),
+  INDEX idx_gc_status              (status),
+  INDEX idx_gc_customer            (customer_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS gift_card_transactions (

@@ -31,7 +31,7 @@ function actionLabel(a: string) {
 export default function ShopifyView({ businessId }: { businessId?: string }) {
   const [status, setStatus]   = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab]         = useState<'overview' | 'products' | 'log' | 'orders'>('overview');
+  const [tab, setTab]         = useState<'overview' | 'products' | 'log' | 'orders' | 'gift-cards'>('overview');
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -69,15 +69,17 @@ export default function ShopifyView({ businessId }: { businessId?: string }) {
       ) : (
         <>
           <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-            <button style={tabBtnStyle(tab === 'overview')} onClick={() => setTab('overview')}>Overview</button>
-            <button style={tabBtnStyle(tab === 'products')} onClick={() => setTab('products')}>Products</button>
-            <button style={tabBtnStyle(tab === 'log')}      onClick={() => setTab('log')}>Sync Log</button>
-            <button style={tabBtnStyle(tab === 'orders')}   onClick={() => setTab('orders')}>Orders & Webhooks</button>
+            <button style={tabBtnStyle(tab === 'overview')}    onClick={() => setTab('overview')}>Overview</button>
+            <button style={tabBtnStyle(tab === 'products')}    onClick={() => setTab('products')}>Products</button>
+            <button style={tabBtnStyle(tab === 'log')}         onClick={() => setTab('log')}>Sync Log</button>
+            <button style={tabBtnStyle(tab === 'orders')}      onClick={() => setTab('orders')}>Orders & Webhooks</button>
+            <button style={tabBtnStyle(tab === 'gift-cards')}  onClick={() => setTab('gift-cards')}>Gift Cards</button>
           </div>
-          {tab === 'overview' && <ShopifyOverviewTab status={status} onReload={reload} />}
-          {tab === 'products' && <ShopifyProductsTab />}
-          {tab === 'log'      && <ShopifyLogTab />}
-          {tab === 'orders'   && <ShopifyOrdersTab businessId={businessId ?? ''} />}
+          {tab === 'overview'   && <ShopifyOverviewTab status={status} onReload={reload} />}
+          {tab === 'products'   && <ShopifyProductsTab />}
+          {tab === 'log'        && <ShopifyLogTab />}
+          {tab === 'orders'     && <ShopifyOrdersTab businessId={businessId ?? ''} />}
+          {tab === 'gift-cards' && <ShopifyGiftCardsTab />}
         </>
       )}
     </div>
@@ -1157,6 +1159,115 @@ function PayoutSyncCard({ card, label, input, btn }: { card: React.CSSProperties
         </div>
       )}
       {results && results.length === 0 && <div style={{ marginTop: 12, fontSize: 12, color: 'var(--sv-text-dim)' }}>No new confirmed payouts to post.</div>}
+    </div>
+  );
+}
+
+// ─── Gift Cards Tab ───────────────────────────────────────────────────────────
+function ShopifyGiftCardsTab() {
+  const [gcMode,    setGcMode]    = useState<'off' | 'combined'>('off');
+  const [saving,    setSaving]    = useState(false);
+  const [saveMsg,   setSaveMsg]   = useState<string | null>(null);
+  const [syncing,   setSyncing]   = useState(false);
+  const [syncResult, setSyncResult] = useState<{ imported: number; skipped: number; total: number } | null>(null);
+  const [syncError,  setSyncError]  = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/ims/settings').then(r => r.json()).then(d => {
+      if (d.data?.shopify_gc_mode) setGcMode(d.data.shopify_gc_mode as 'off' | 'combined');
+    }).catch(() => {});
+  }, []);
+
+  async function saveMode(next: 'off' | 'combined') {
+    setGcMode(next); setSaving(true); setSaveMsg(null);
+    try {
+      await fetch('/api/ims/settings', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: { shopify_gc_mode: next } }),
+      });
+      setSaveMsg('Saved.');
+    } catch (e: any) { setSaveMsg(`Error: ${e.message}`); }
+    setSaving(false);
+  }
+
+  async function runSync() {
+    setSyncing(true); setSyncResult(null); setSyncError(null);
+    try {
+      const r = await fetch('/api/ims/shopify/sync-gift-cards', { method: 'POST' });
+      const d = await r.json();
+      if (!r.ok || !d.success) throw new Error(d.error ?? 'Sync failed');
+      setSyncResult(d);
+    } catch (e: any) { setSyncError(e.message); }
+    setSyncing(false);
+  }
+
+  const card: React.CSSProperties  = { padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 };
+  const label: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 6, textTransform: 'uppercase' as const, letterSpacing: '0.04em' };
+
+  return (
+    <div>
+      {/* Mode selector */}
+      <div style={card}>
+        <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Gift Card Mode</h3>
+        <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
+          Controls whether gift cards issued or redeemed at the POS are synced back to Shopify.
+        </p>
+        <label style={label}>Mode</label>
+        <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 10, marginBottom: 16 }}>
+          {([
+            ['off',      'Separate (IMS only)',    'Gift cards exist independently in IMS. No Shopify sync. Use this if you manage Shopify gift cards separately or don\'t use Shopify gift cards.'],
+            ['combined', 'Combined (sync with Shopify)', 'Gift cards are synced to Shopify on issue and redemption. Partial redemptions create a replacement card in Shopify with the remaining balance. Requires write_gift_cards scope.'],
+          ] as const).map(([val, title, desc]) => (
+            <label key={val} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', padding: '10px 14px', borderRadius: 8, border: `1px solid ${gcMode === val ? 'var(--sv-action)' : 'var(--sv-etch)'}`, background: gcMode === val ? 'rgba(99,102,241,.07)' : 'var(--sv-bg-1)' }}>
+              <input type="radio" name="gcMode" value={val} checked={gcMode === val} onChange={() => saveMode(val)} style={{ marginTop: 2, accentColor: 'var(--sv-action)' }} />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 2 }}>{title}</div>
+                <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.5 }}>{desc}</div>
+              </div>
+            </label>
+          ))}
+        </div>
+        {saving && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Saving…</span>}
+        {saveMsg && <span style={{ fontSize: 12, color: saveMsg.startsWith('Error') ? 'var(--sv-red)' : 'var(--sv-mint)' }}>{saveMsg}</span>}
+      </div>
+
+      {/* Initial sync */}
+      <div style={card}>
+        <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Initial Sync from Shopify</h3>
+        <p style={{ margin: '0 0 4px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
+          Imports all Shopify gift cards (enabled and disabled) into IMS. Safe to re-run — cards already in IMS are skipped.
+        </p>
+        <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
+          Because Shopify does not return full card codes after creation, imported cards use a placeholder code (<code style={{ fontFamily: 'monospace', fontSize: 11 }}>SHOPIFY:last4</code>). The first time a card is scanned at POS, the full code is resolved and saved automatically.
+        </p>
+        <button
+          onClick={runSync}
+          disabled={syncing}
+          style={{ padding: '8px 20px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: syncing ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13, opacity: syncing ? 0.7 : 1 }}
+        >
+          {syncing ? 'Syncing…' : 'Run Initial Sync'}
+        </button>
+        {syncError  && <p style={{ marginTop: 10, fontSize: 13, color: 'var(--sv-red)' }}>{syncError}</p>}
+        {syncResult && (
+          <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(16,185,129,.08)', border: '1px solid rgba(16,185,129,.25)', borderRadius: 8, fontSize: 13 }}>
+            <strong style={{ color: '#34d399' }}>Sync complete</strong>
+            {' — '}{syncResult.imported} imported, {syncResult.skipped} already in IMS
+            {' ('}total on Shopify: {syncResult.total}{')'}
+          </div>
+        )}
+      </div>
+
+      {/* How combined mode works */}
+      {gcMode === 'combined' && (
+        <div style={{ padding: '12px 16px', background: 'rgba(251,191,36,.06)', border: '1px solid rgba(251,191,36,.25)', borderRadius: 8, fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.7 }}>
+          <strong style={{ color: '#fbbf24' }}>Combined mode — how it works</strong>
+          <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+            <li><strong>Issue at POS:</strong> Card is created in Shopify first. The full code returned by Shopify is stored in IMS and printed on the receipt.</li>
+            <li><strong>Full redemption:</strong> IMS balance set to zero + Shopify card disabled. Customer cannot use it online.</li>
+            <li><strong>Partial redemption:</strong> IMS balance updated. The old Shopify card is disabled and a <em>new replacement card</em> with the remaining balance is created. The POS will display the new code — give it to the customer (print on receipt or write on slip). The old card code is no longer valid.</li>
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

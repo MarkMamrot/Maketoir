@@ -1684,11 +1684,17 @@ function MainPos({
       }
       refreshQueueCount();
 
-      // Fire-and-forget: update gift card balances and store credit for this sale
+      // GC redemptions are awaited so we can capture new_code (combined Shopify mode).
+      // All other post-sale calls remain fire-and-forget.
+      const gcReplacementCodes: { old_code: string; new_code: string }[] = [];
       if (serverId) {
         for (const p of payments) {
           if (p.method === 'Gift Card' && p.reference) {
-            fetch('/api/pos/gift-card/redeem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: p.reference, amount: Math.abs(p.amount), pos_sale_id: serverId }) }).catch(() => {});
+            try {
+              const redeemRes  = await fetch('/api/pos/gift-card/redeem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: p.reference, amount: Math.abs(p.amount), pos_sale_id: serverId }) });
+              const redeemData = await redeemRes.json().catch(() => ({}));
+              if (redeemData.new_code) gcReplacementCodes.push({ old_code: p.reference, new_code: redeemData.new_code });
+            } catch { /* offline — IMS will reconcile when reconnected */ }
           } else if (p.method === 'Store Credit' && linkedContact) {
             fetch('/api/pos/store-credit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact_id: linkedContact.id, amount: Math.abs(p.amount), type: 'debit', pos_sale_id: serverId }) }).catch(() => {});
           } else if (p.method === 'Gift Card (Issue)') {
@@ -1715,10 +1721,11 @@ function MainPos({
         items:         cart,
         payments,
         subtotal, discount_total: db_discount_total, tax_total, total,
-        cash_rounding:  cashRounding || undefined,
-        customer_name:  customerName || null,
-        customer_phone: customerPhone || null,
-        created_at:    now,
+        cash_rounding:        cashRounding || undefined,
+        customer_name:        customerName || null,
+        customer_phone:       customerPhone || null,
+        created_at:           now,
+        gc_replacement_codes: gcReplacementCodes.length ? gcReplacementCodes : undefined,
       };
 
       // lastSale is lifted to PosPage — notify parent instead
@@ -4423,6 +4430,19 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
       `}</style>
 
       <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'flex-start' }}>
+        {/* Gift card replacement alert — shown when combined-mode partial redemption issued a new card */}
+        {sale.gc_replacement_codes && sale.gc_replacement_codes.length > 0 && (
+          <div className='no-print' style={{ width: 300, padding: '1rem 1.25rem', borderRadius: 10, background: 'rgba(251,191,36,.12)', border: '2px solid rgba(251,191,36,.5)', fontFamily: 'system-ui,sans-serif', alignSelf: 'center' }}>
+            <div style={{ fontSize: '.72rem', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: '#fbbf24', marginBottom: 8 }}>⚠ Gift Card Updated</div>
+            <p style={{ margin: '0 0 10px', fontSize: '.82rem', color: 'var(--sv-text-main)', lineHeight: 1.5 }}>This card was partially redeemed. A replacement card has been issued in Shopify with the remaining balance. Give the customer the new code below.</p>
+            {sale.gc_replacement_codes.map(r => (
+              <div key={r.new_code} style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)' }}>Old code (cancelled): <span style={{ fontFamily: 'monospace', textDecoration: 'line-through' }}>{r.old_code}</span></div>
+                <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--sv-text-strong)', fontFamily: 'monospace', letterSpacing: 2, marginTop: 4, padding: '6px 10px', background: 'var(--sv-bg-1)', borderRadius: 6, border: '1px solid var(--sv-etch)' }}>{r.new_code}</div>
+              </div>
+            ))}
+          </div>
+        )}
         {/* Change Due panel — left of receipts */}
         {changeDue > 0.004 && (
           <div className='no-print' style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: 180, padding: '2rem 1.5rem', borderRadius: 12, background: 'var(--sv-bg-1)', border: '2px solid var(--sv-etch)', gap: '1rem', alignSelf: 'center' }}>

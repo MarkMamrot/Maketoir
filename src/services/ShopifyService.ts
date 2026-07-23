@@ -4,12 +4,113 @@ import { StandardizedProduct } from '../types/StandardizedData';
 
 export class ShopifyService {
   private shopify: Shopify;
+  private readonly shopName_: string;
+  private readonly accessToken_: string;
 
   constructor(shopName: string, accessToken: string) {
-    this.shopify = new Shopify({
-      shopName,
-      accessToken,
-    });
+    this.shopify       = new Shopify({ shopName, accessToken });
+    this.shopName_     = shopName;
+    this.accessToken_  = accessToken;
+  }
+
+  // ── Gift Card API (REST) ────────────────────────────────────────────────────
+  // Uses raw fetch — shopify-api-node doesn't expose the `code` field on create.
+
+  private async gcFetch(method: string, path: string, body?: object): Promise<any> {
+    const res = await fetch(
+      `https://${this.shopName_}/admin/api/2024-04${path}`,
+      {
+        method,
+        headers: { 'X-Shopify-Access-Token': this.accessToken_, 'Content-Type': 'application/json' },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      },
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Shopify ${res.status} ${method} ${path}: ${text.slice(0, 300)}`);
+    }
+    return res.json();
+  }
+
+  /**
+   * Creates a new gift card in Shopify.
+   * The full `code` is ONLY returned at creation time — store it immediately.
+   */
+  async createGiftCard(opts: {
+    initial_value: number | string;
+    code?:         string;           // provide to activate a pre-printed physical card
+    note?:         string;
+    customer_id?:  number | null;
+    expires_on?:   string | null;    // YYYY-MM-DD, null = Shopify default (3 yrs)
+  }): Promise<{
+    id:              number;
+    code:            string;
+    last_characters: string;
+    initial_value:   string;
+    balance:         string;
+    currency:        string;
+    expires_on:      string | null;
+    line_item_id:    number | null;
+  }> {
+    const payload: Record<string, any> = { initial_value: String(opts.initial_value) };
+    if (opts.code)        payload.code        = opts.code;
+    if (opts.note)        payload.note        = opts.note;
+    if (opts.customer_id) payload.customer_id = opts.customer_id;
+    if (opts.expires_on)  payload.expires_on  = opts.expires_on;
+    const data = await this.gcFetch('POST', '/gift_cards.json', { gift_card: payload });
+    return data.gift_card;
+  }
+
+  /** Disables (permanently cancels) a Shopify gift card. Cannot be undone. */
+  async disableGiftCard(shopifyGcId: number): Promise<void> {
+    await this.gcFetch('POST', `/gift_cards/${shopifyGcId}/disable.json`, {});
+  }
+
+  /**
+   * Finds active gift cards matching the last 4 characters of a code.
+   * Shopify never returns the full code after creation — this is the only way
+   * to look up a card by code at redemption time.
+   */
+  async findGiftCardsByLastChars(last4: string): Promise<Array<{
+    id:              number;
+    balance:         string;
+    initial_value:   string;
+    currency:        string;
+    expires_on:      string | null;
+    last_characters: string;
+    disabled_at:     string | null;
+    customer_id:     number | null;
+    order_id:        number | null;
+    line_item_id:    number | null;
+    note:            string | null;
+  }>> {
+    // Fetch enabled cards and filter client-side (Shopify doesn't support last_characters as query param)
+    const all = await this.getAllGiftCards('enabled');
+    return all.filter(c => (c.last_characters ?? '').toLowerCase() === last4.toLowerCase());
+  }
+
+  /**
+   * Fetches all gift cards for the given status with cursor-based pagination.
+   * status: 'enabled' | 'disabled'
+   */
+  async getAllGiftCards(status: 'enabled' | 'disabled' = 'enabled'): Promise<any[]> {
+    const results: any[] = [];
+    let url: string | null = `https://${this.shopName_}/admin/api/2024-04/gift_cards.json?status=${status}&limit=250`;
+    while (url) {
+      const res: Response = await fetch(url, {
+        headers: { 'X-Shopify-Access-Token': this.accessToken_, 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Shopify ${res.status} GET gift_cards: ${text.slice(0, 300)}`);
+      }
+      const data = await res.json();
+      results.push(...(data.gift_cards ?? []));
+      const link: string = res.headers.get('link') ?? '';
+      const nextMatch: RegExpMatchArray | null = link.match(/<([^>]+)>;\s*rel="next"/);
+      url = nextMatch ? nextMatch[1] : null;
+    }
+    return results;
   }
 
   // Phase 1 + Phase 2 Features

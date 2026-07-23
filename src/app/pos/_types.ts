@@ -88,4 +88,6 @@ export interface CompletedSale {
   customer_phone?: string | null;
   notes?: string | null;
   created_at:    string;
+  /** Populated in combined GC mode when a partial redemption issues a replacement card */
+  gc_replacement_codes?: { old_code: string; new_code: string }[];
 }
