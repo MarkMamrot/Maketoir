@@ -10666,6 +10666,8 @@ function GiftCardsView() {
   const [cards, setCards]       = useState<GiftCard[]>([]);
   const [total, setTotal]       = useState(0);
   const [loading, setLoading]   = useState(true);
+  const [page, setPage]         = useState(1);
+  const PAGE_SIZE = 100;
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [search, setSearch]     = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -10706,11 +10708,13 @@ function GiftCardsView() {
     const params = new URLSearchParams();
     if (statusFilter && statusFilter !== 'all') params.set('status', statusFilter);
     if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
+    params.set('limit', String(PAGE_SIZE));
+    params.set('offset', String((page - 1) * PAGE_SIZE));
     fetch(`/api/ims/gift-cards?${params}`)
       .then(r => r.json())
       .then(d => { if (d.success) { setCards(d.data); setTotal(d.total); } })
       .finally(() => setLoading(false));
-  }, [statusFilter, debouncedSearch]);
+  }, [statusFilter, debouncedSearch, page]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -10907,10 +10911,10 @@ function GiftCardsView() {
         <input
           placeholder="Search code, email, customer…"
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={e => { setSearch(e.target.value); setPage(1); }}
           style={{ ...inputStyle, width: 260 }}
         />
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ ...inputStyle, width: 150 }}>
+        <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, width: 150 }}>
           <option value="all">All Statuses</option>
           <option value="active">Active</option>
           <option value="redeemed">Redeemed</option>
@@ -10924,6 +10928,7 @@ function GiftCardsView() {
       {loading ? <Spinner /> : cards.length === 0 ? (
         <EmptyState text="No gift cards found." />
       ) : (
+        <>
         <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -10956,6 +10961,19 @@ function GiftCardsView() {
             </tbody>
           </table>
         </div>
+        {/* Pagination */}
+        {Math.ceil(total / PAGE_SIZE) > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 14 }}>
+            <button onClick={() => setPage(1)} disabled={page === 1} style={btnStyle('secondary', 'sm')}>«</button>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={btnStyle('secondary', 'sm')}>‹ Prev</button>
+            <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 8px' }}>
+              Page {page} of {Math.ceil(total / PAGE_SIZE)} ({total} card{total !== 1 ? 's' : ''})
+            </span>
+            <button onClick={() => setPage(p => Math.min(Math.ceil(total / PAGE_SIZE), p + 1))} disabled={page === Math.ceil(total / PAGE_SIZE)} style={btnStyle('secondary', 'sm')}>Next ›</button>
+            <button onClick={() => setPage(Math.ceil(total / PAGE_SIZE))} disabled={page === Math.ceil(total / PAGE_SIZE)} style={btnStyle('secondary', 'sm')}>»</button>
+          </div>
+        )}
+        </>
       )}
 
       {/* Create / Edit modal */}

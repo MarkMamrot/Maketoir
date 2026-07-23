@@ -2110,37 +2110,6 @@ function MainPos({
             <button
               onClick={() => setCustomerOpen(v => !v)}
               style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 10px 3px 8px', borderRadius: 20,
-                border: customerName || customerPhone ? '1px solid var(--sv-action)' : '1px solid var(--sv-etch)',
-                background: 'var(--sv-bg-2)',
-                color: customerName || customerPhone ? 'var(--sv-action)' : 'var(--sv-text-dim)',
-                cursor: 'pointer', fontSize: '.78rem', fontWeight: 600, transition: 'border-color .15s, color .15s' }}
-            >
-              <span style={{ width: 14, height: 14, borderRadius: '50%', border: '1.5px solid currentColor', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, lineHeight: 1, flexShrink: 0 }}>
-                {customerOpen ? '−' : '+'}
-              </span>
-              {customerName
-                ? (customerName + (customerPhone && !customerOpen ? ' · ' + customerPhone : ''))
-                : 'Customer'}
-            </button>
-            <button
-              onClick={() => setNotesOpen(v => !v)}
-              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 10px 3px 8px', borderRadius: 20,
-                border: saleNotes ? '1px solid #f59e0b' : '1px solid var(--sv-etch)',
-                background: 'var(--sv-bg-2)',
-                color: saleNotes ? '#f59e0b' : 'var(--sv-text-dim)',
-                cursor: 'pointer', fontSize: '.78rem', fontWeight: 600, transition: 'border-color .15s, color .15s' }}
-            >
-              <span style={{ width: 14, height: 14, borderRadius: '50%', border: '1.5px solid currentColor', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, lineHeight: 1, flexShrink: 0 }}>
-                {notesOpen ? '−' : '+'}
-              </span>
-              {saleNotes ? (saleNotes.length > 22 ? saleNotes.slice(0, 22) + '…' : saleNotes) : 'Order Notes'}
-            </button>
-          </div>
-          {/* Customer & Order Notes — collapsible pills */}
-          <div style={{ padding: '.4rem .75rem', display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
-            <button
-              onClick={() => setCustomerOpen(v => !v)}
-              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 10px 3px 8px', borderRadius: 20,
                 border: customerName || customerPhone || linkedContact ? '1px solid var(--sv-action)' : '1px solid var(--sv-etch)',
                 background: 'var(--sv-bg-2)',
                 color: customerName || customerPhone || linkedContact ? 'var(--sv-action)' : 'var(--sv-text-dim)',
