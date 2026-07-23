@@ -5433,9 +5433,16 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
       }))
       .sort((a: any, b: any) => a.location_name.localeCompare(b.location_name));
 
-    // Movement rows, ascending chronological.
+    // Movement types that affect qty_incoming or qty_committed, NOT qty_on_hand.
+    // po_approved must be excluded from display (shows same PO twice) and from
+    // the SOH accumulator; SO commit types affect committed only so they stay
+    // visible but must not add to the on-hand running total.
+    const NON_ONHAND = new Set(['po_approved','so_confirmed','so_committed','so_unconfirmed','so_uncommitted']);
+
+    // Movement rows, ascending chronological — hide po_approved (internal approval
+    // step; po_received already represents the physical stock event).
     const moves: any[] = data.movements
-      .filter((m: any) => inVariant(m.variant_id) && inBranch(m.location_name))
+      .filter((m: any) => inVariant(m.variant_id) && inBranch(m.location_name) && m.movement_type !== 'po_approved')
       .map((m: any) => ({
         rowKey: `m-${m.id}`,
         kind: 'movement' as const, id: m.id,
@@ -5460,10 +5467,13 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
 
     const asc = [...openings, ...moves];
 
-    // Forward pass — accumulate on-hand; SOH After = combined across scoped keys.
+    // Forward pass — accumulate on-hand SOH. Non-on-hand movement types
+    // (so_committed etc.) carry a qty_change that affects qty_committed only,
+    // so they must NOT be added to the on-hand running total.
     const soh: Record<string, number> = {};
     for (const r of asc) {
-      soh[k(r.variant_id, r.location_name)] = (soh[k(r.variant_id, r.location_name)] ?? 0) + r.inOut;
+      const sohDelta = (r.kind === 'movement' && NON_ONHAND.has(r.movement?.movement_type)) ? 0 : r.inOut;
+      soh[k(r.variant_id, r.location_name)] = (soh[k(r.variant_id, r.location_name)] ?? 0) + sohDelta;
       let total = 0; for (const key in soh) total += soh[key];
       r.sohAfter = total;
     }
@@ -5735,7 +5745,7 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
                         {io > 0 ? '+' : ''}{fmtQty(io)}
                       </td>
                       <td style={{ padding: '7px 12px', textAlign: 'right', fontWeight: cc !== 0 ? 700 : 400, color: cc > 0 ? 'var(--sv-amber)' : 'var(--sv-text-dim)' }}>
-                        {cc === 0 ? '—' : `${cc > 0 ? '+' : ''}${fmtQty(cc)}`}
+                        {isOpening || cc === 0 ? '—' : `${cc > 0 ? '+' : ''}${fmtQty(cc)}`}
                       </td>
                       <td style={{ padding: '7px 12px', textAlign: 'right', color: 'var(--sv-text-dim)', fontSize: 12 }}>{fmtQty(r.sohAfter)}</td>
                       <td style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 700, color: r.availAfter <= 0 ? 'var(--sv-red)' : 'var(--sv-mint)' }}>
