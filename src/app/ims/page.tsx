@@ -10637,10 +10637,12 @@ interface GiftCard {
   code: string;
   initial_balance: number | null;
   balance: number;
+  currency: string;
   status: 'active' | 'redeemed' | 'cancelled' | 'expired';
+  expires_on: string | null;
+  shopify_gc_id: number | null;
   customer_id: string | null;
   order_id: string | null;
-  shopify_location_id: string | null;
   recipient_email: string | null;
   notes: string | null;
   created_at: string;
@@ -10654,9 +10656,9 @@ const GC_STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   expired:   { bg: '#fef3c7', color: '#92400e' },
 };
 
-const EMPTY_GC: Omit<GiftCard, 'id' | 'created_at' | 'updated_at'> = {
-  code: '', initial_balance: null, balance: 0, status: 'active',
-  customer_id: null, order_id: null, shopify_location_id: null,
+const EMPTY_GC: Omit<GiftCard, 'id' | 'created_at' | 'updated_at' | 'shopify_gc_id'> = {
+  code: '', initial_balance: null, balance: 0, currency: 'AUD', status: 'active',
+  expires_on: null, customer_id: null, order_id: null,
   recipient_email: null, notes: null, last_used_at: null,
 };
 
@@ -10673,6 +10675,9 @@ function GiftCardsView() {
   const [editing, setEditing]       = useState<GiftCard | null>(null);
   const [form, setForm]             = useState<typeof EMPTY_GC>({ ...EMPTY_GC });
   const [saving, setSaving]         = useState(false);
+  // history state
+  const [gcHistory, setGcHistory]         = useState<any[]>([]);
+  const [gcHistoryLoading, setGcHistoryLoading] = useState(false);
 
   // import state
   const [importOpen, setImportOpen] = useState(false);
@@ -10711,16 +10716,24 @@ function GiftCardsView() {
       code: card.code,
       initial_balance: card.initial_balance,
       balance: card.balance,
+      currency: card.currency ?? 'AUD',
       status: card.status,
+      expires_on: card.expires_on ? card.expires_on.slice(0, 10) : null,
       customer_id: card.customer_id,
       order_id: card.order_id,
-      shopify_location_id: card.shopify_location_id,
       recipient_email: card.recipient_email,
       notes: card.notes,
       last_used_at: card.last_used_at,
     });
+    setGcHistory([]);
+    setGcHistoryLoading(true);
+    fetch(`/api/ims/gift-cards/${card.id}/transactions`)
+      .then(r => r.json())
+      .then(d => { if (d.success) setGcHistory(d.data ?? []); })
+      .catch(() => {})
+      .finally(() => setGcHistoryLoading(false));
     setModalOpen(true);
-  };
+  };;
 
   const handleSave = async () => {
     if (!form.code.trim()) { alert('Code is required'); return; }
@@ -10905,7 +10918,7 @@ function GiftCardsView() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-                {['Code', 'Balance', 'Status', 'Customer ID', 'Order', 'Email', 'Created', 'Last Used', ''].map((h, i) => (
+                {['Code', 'Balance', 'Status', 'Expires', 'Email', 'Created', 'Last Used', ''].map((h, i) => (
                   <th key={i} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -10916,13 +10929,8 @@ function GiftCardsView() {
                   <td style={{ padding: '8px 14px', fontWeight: 600, fontSize: 13, fontFamily: 'monospace', letterSpacing: .5 }}>{card.code}</td>
                   <td style={{ padding: '8px 14px', fontSize: 13 }}>{fmtCurrency(card.balance)}</td>
                   <td style={{ padding: '8px 14px' }}>{statusBadge(card.status)}</td>
-                  <td style={{ padding: '8px 14px', fontSize: 12, color: 'var(--sv-text-dim)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {card.customer_id ?? '—'}
-                  </td>
-                  <td style={{ padding: '8px 14px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-                    {card.order_id === 'imported'
-                      ? <span style={{ fontStyle: 'italic' }}>imported</span>
-                      : card.order_id ?? '—'}
+                  <td style={{ padding: '8px 14px', fontSize: 12, color: card.expires_on ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
+                    {card.expires_on ? fmtDate(card.expires_on) : '—'}
                   </td>
                   <td style={{ padding: '8px 14px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{card.recipient_email ?? '—'}</td>
                   <td style={{ padding: '8px 14px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{fmtDate(card.created_at)}</td>
@@ -10980,6 +10988,26 @@ function GiftCardsView() {
                   </select>
                 </label>
               </div>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <label style={{ fontSize: 13, flex: 1 }}>
+                  Expires On
+                  <input
+                    type="date"
+                    value={form.expires_on ?? ''}
+                    onChange={e => setForm(f => ({ ...f, expires_on: e.target.value || null }))}
+                    style={{ ...inputStyle, display: 'block', width: '100%', marginTop: 4 }}
+                  />
+                </label>
+                <label style={{ fontSize: 13, flex: 1 }}>
+                  Currency
+                  <input
+                    value={form.currency}
+                    onChange={e => setForm(f => ({ ...f, currency: e.target.value.toUpperCase() }))}
+                    style={{ ...inputStyle, display: 'block', width: '100%', marginTop: 4 }}
+                    maxLength={10}
+                  />
+                </label>
+              </div>
               <label style={{ fontSize: 13 }}>
                 Customer ID
                 <input
@@ -11007,6 +11035,49 @@ function GiftCardsView() {
                   style={{ ...inputStyle, display: 'block', width: '100%', marginTop: 4, resize: 'vertical' }}
                 />
               </label>
+
+              {/* Transaction History */}
+              {editing && (
+                <div style={{ borderTop: '1px solid var(--sv-etch)', paddingTop: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: 'var(--sv-text-strong)' }}>Balance History</div>
+                  {gcHistoryLoading ? (
+                    <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Loading…</div>
+                  ) : gcHistory.length === 0 ? (
+                    <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', fontStyle: 'italic' }}>No transactions recorded.</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                      {gcHistory.map((t, i) => {
+                        const amt    = Number(t.amount);
+                        const bal    = Number(t.balance_after);
+                        const isPos  = amt >= 0;
+                        const icons: Record<string, string> = { issue: '🎁', redeem: '💳', return: '↩', adjust: '✏️' };
+                        const icon   = icons[t.type] ?? '•';
+                        const dt     = new Date(t.created_at).toLocaleString('en-AU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
+                        return (
+                          <div key={t.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0', borderTop: i > 0 ? '1px solid var(--sv-etch)' : undefined }}>
+                            <span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>{icon}</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                                <span style={{ fontSize: 12, fontWeight: 600, textTransform: 'capitalize' as const, color: 'var(--sv-text-main)' }}>{t.type}</span>
+                                <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'monospace', color: isPos ? '#34d399' : '#f87171', flexShrink: 0 }}>
+                                  {isPos ? '+' : ''}{amt.toFixed(2)}
+                                </span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 1 }}>
+                                <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>
+                                  {t.notes ?? (t.pos_sale_id ? `Sale #${t.pos_sale_id}` : '')}
+                                </span>
+                                <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', flexShrink: 0 }}>bal: ${bal.toFixed(2)}</span>
+                              </div>
+                              <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginTop: 1 }}>{dt}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24 }}>
               <button onClick={() => setModalOpen(false)} style={btnStyle('ghost', 'sm')}>Cancel</button>

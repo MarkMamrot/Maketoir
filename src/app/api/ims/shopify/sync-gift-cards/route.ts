@@ -59,8 +59,8 @@ export async function POST() {
       await imsExecute(
         `INSERT IGNORE INTO gift_cards
            (shopify_gc_id, shopify_line_item_id, code, initial_balance, balance, status,
-            currency, expires_on, customer_id, order_id, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Imported from Shopify')`,
+            currency, expires_on, customer_id, order_id, notes, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Imported from Shopify', ?)`,
         [
           gc.id,
           gc.line_item_id ?? null,
@@ -69,7 +69,9 @@ export async function POST() {
           gc.currency ?? 'AUD',
           expiresOn,
           gc.customer_id ? String(gc.customer_id) : null,
-          gc.order_id   ? String(gc.order_id)    : null,
+          gc.order_id    ? String(gc.order_id)    : null,
+          // Use Shopify's original created_at (convert to UTC for MySQL)
+          gc.created_at ? new Date(gc.created_at).toISOString().slice(0, 19).replace('T', ' ') : null,
         ],
       );
       existingIds.add(gc.id);
@@ -81,8 +83,8 @@ export async function POST() {
           await imsExecute(
             `INSERT IGNORE INTO gift_cards
                (shopify_gc_id, shopify_line_item_id, code, initial_balance, balance, status,
-                currency, expires_on, customer_id, order_id, notes)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Imported from Shopify')`,
+                currency, expires_on, customer_id, order_id, notes, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Imported from Shopify', ?)`,
             [
               gc.id, gc.line_item_id ?? null,
               `SHOPIFY:ID:${gc.id}`,
@@ -90,6 +92,7 @@ export async function POST() {
               gc.currency ?? 'AUD', expiresOn,
               gc.customer_id ? String(gc.customer_id) : null,
               gc.order_id    ? String(gc.order_id)    : null,
+              gc.created_at ? new Date(gc.created_at).toISOString().slice(0, 19).replace('T', ' ') : null,
             ],
           );
           existingIds.add(gc.id);
