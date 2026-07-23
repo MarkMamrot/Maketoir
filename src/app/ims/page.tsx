@@ -6,6 +6,7 @@ import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
+import { MainSections } from './views/MainSections';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -16287,33 +16288,49 @@ export default function ImsPage() {
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Sidebar active={view} onSelect={(v) => { if (v === 'smart-device-receive') { window.open('/receive', '_blank'); return; } setView(v); }} />
         <main style={{ flex: 1, overflow: 'auto', padding: 28 }}>
-          {view === 'dashboard'        && <DashboardView onNav={setView} onOpenSettings={(s) => { setSettingsSection(s as SettingsSection); setSettingsOpen(true); }} />}
-          {view === 'products'         && <ProductsView isAdvisor={isAdvisor} businessId={user?.businessId ?? ''} hasForesight={user?.hasForesight ?? false} onNavigateToPO={id => { setView('purchase-orders'); setPendingOpenPO(id); }} onNavigateToSO={id => { setView('sales-orders'); setPendingOpenSO(id); }} />}
-          {view === 'stock'            && <StockView />}
-          {view === 'bulk-edit'        && <BulkEditView />}
-          {view === 'contacts'         && <ContactsView />}
-          {view === 'locations'        && <LocationsView isAdvisor={isAdvisor} />}
-          {view === 'purchase-orders'  && <PurchaseOrdersView isAdvisor={isAdvisor} pendingOpenId={pendingOpenPO} onPendingHandled={() => setPendingOpenPO(null)} />}
-          {view === 'sales-orders'     && <SalesOrdersView isAdvisor={isAdvisor} pendingOpenId={pendingOpenSO} onPendingHandled={() => setPendingOpenSO(null)} onReturnOrder={(p: any) => { setCnPrefill(p); setView('credit-notes'); }} />}
-          {view === 'credit-notes'     && <CreditNotesView isAdvisor={isAdvisor} prefill={cnPrefill} onPrefillConsumed={() => setCnPrefill(null)} />}
-          {view === 'supplier-credit-notes' && <SupplierCreditNotesView isAdvisor={isAdvisor} />}
-          {view === 'branch-transfers' && <BranchTransfersView />}
-          {view === 'receive-transfers' && <ReceiveTransfersView />}
-          {view === 'brands'           && <BrandsView />}
-          {view === 'gift-cards'      && <GiftCardsView />}
-          {view === 'pos-sales'        && <PosSalesView />}
-          {view === 'online-sales'     && <OnlineSalesView businessId={user?.businessId ?? ''} onReturnOrder={(p: any) => { setCnPrefill(p); setView('credit-notes'); }} />}
-          {view === 'stocktakes'        && <StocktakesView isAdvisor={isAdvisor} businessId={user?.businessId ?? ''} />}
-          {view === 'reports'           && <ReportsView onNav={setView} />}
-          {view === 'report-sales-by-branch' && <SalesByBranchView onBack={() => setView('reports')} />}
-          {view === 'report-sales-search' && <SalesSearchView onBack={() => setView('reports')} />}
-          {view === 'report-inventory-valuation' && <InventoryValuationView onBack={() => setView('reports')} />}
-          {view === 'report-product-margin' && <ProductMarginView onBack={() => setView('reports')} />}
-          {view === 'report-pos-price-changes' && <PosPriceChangesView onBack={() => setView('reports')} />}
-          {view === 'report-pos-registers'    && <PosRegistersReportView onBack={() => setView('reports')} />}
-          {view === 'xero'              && <XeroView businessId={user?.businessId ?? ''} isAdvisor={isAdvisor} advisorMappingEnabled={advisorXeroMappingEnabled} />}
-          {view === 'shopify'           && <ShopifyView businessId={user?.businessId ?? ''} />}
-          {view === 'order-planner'     && <OrderPlannerView databaseId={user?.businessId ?? ''} />}
+          <MainSections
+            view={view}
+            isAdvisor={isAdvisor}
+            advisorMappingEnabled={advisorXeroMappingEnabled}
+            businessId={user?.businessId ?? ''}
+            hasForesight={user?.hasForesight ?? false}
+            pendingOpenPO={pendingOpenPO}
+            pendingOpenSO={pendingOpenSO}
+            cnPrefill={cnPrefill}
+            setView={setView}
+            setSettingsSection={setSettingsSection}
+            setSettingsOpen={setSettingsOpen}
+            setPendingOpenPO={setPendingOpenPO}
+            setPendingOpenSO={setPendingOpenSO}
+            setCnPrefill={setCnPrefill}
+            DashboardView={DashboardView}
+            ProductsView={ProductsView}
+            StockView={StockView}
+            BulkEditView={BulkEditView}
+            ContactsView={ContactsView}
+            LocationsView={LocationsView}
+            PurchaseOrdersView={PurchaseOrdersView}
+            SalesOrdersView={SalesOrdersView}
+            CreditNotesView={CreditNotesView}
+            SupplierCreditNotesView={SupplierCreditNotesView}
+            BranchTransfersView={BranchTransfersView}
+            ReceiveTransfersView={ReceiveTransfersView}
+            BrandsView={BrandsView}
+            GiftCardsView={GiftCardsView}
+            PosSalesView={PosSalesView}
+            OnlineSalesView={OnlineSalesView}
+            StocktakesView={StocktakesView}
+            ReportsView={ReportsView}
+            SalesByBranchView={SalesByBranchView}
+            SalesSearchView={SalesSearchView}
+            InventoryValuationView={InventoryValuationView}
+            ProductMarginView={ProductMarginView}
+            PosPriceChangesView={PosPriceChangesView}
+            PosRegistersReportView={PosRegistersReportView}
+            XeroView={XeroView}
+            ShopifyView={ShopifyView}
+            OrderPlannerView={OrderPlannerView}
+          />
         </main>
       </div>
     </div>
