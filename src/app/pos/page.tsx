@@ -3364,26 +3364,28 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
     return m;
   }, [products]);
 
-  const matchQuery = (p: CachedProduct, q: string) => {
-    const haystack = searchIndex.get(p.variant_id) ?? '';
-    const words = q.trim().split(/\s+/).filter(Boolean);
+  // words split ONCE per query — not once per product
+  const matchWords = (variantId: string, words: string[]) => {
+    const haystack = searchIndex.get(variantId) ?? '';
     return words.every(w => haystack.includes(w));
   };
 
   // Top 8 quick-select matches for the dropdown (shown while typing)
-  // Exact phrase matches are ranked first, then all-words-present matches
+  // Uses deferredSearch so it doesn't block keystrokes
   const dropdownItems = useMemo(() => {
-    if (search.length < 2) return [];
-    const q = search.toLowerCase();
+    if (deferredSearch.length < 2) return [];
+    const q = deferredSearch.toLowerCase();
+    const words = q.trim().split(/\s+/).filter(Boolean);
     let list = brand ? sortedProducts.filter(p => p.brand === brand) : sortedProducts;
-    const matches = list.filter(p => matchQuery(p, q));
+    const matches = list.filter(p => matchWords(p.variant_id, words));
+    // Rank phrase matches first — use pre-built haystack (no extra allocations)
     matches.sort((a, b) => {
-      const aPhrase = [a.name, a.code ?? '', a.brand ?? ''].join(' ').toLowerCase().includes(q) ? 0 : 1;
-      const bPhrase = [b.name, b.code ?? '', b.brand ?? ''].join(' ').toLowerCase().includes(q) ? 0 : 1;
+      const aPhrase = (searchIndex.get(a.variant_id) ?? '').includes(q) ? 0 : 1;
+      const bPhrase = (searchIndex.get(b.variant_id) ?? '').includes(q) ? 0 : 1;
       return aPhrase - bPhrase;
     });
     return matches.slice(0, 8);
-  }, [sortedProducts, brand, search, searchIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sortedProducts, brand, deferredSearch, searchIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Main grid products: browse = smart-sorted full list; search = filtered
   // Uses deferredSearch/deferredMode so the grid update is low-priority — keystrokes stay instant
@@ -3396,7 +3398,8 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
     }
     if (deferredMode === 'search' && deferredSearch.trim()) {
       const q = deferredSearch.toLowerCase();
-      list = list.filter(p => matchQuery(p, q));
+      const words = q.trim().split(/\s+/).filter(Boolean);
+      list = list.filter(p => matchWords(p.variant_id, words));
     }
     return list;
   }, [sortedProducts, brand, inStockOnly, pinnedIds, deferredMode, deferredSearch, searchIndex]); // eslint-disable-line react-hooks/exhaustive-deps
