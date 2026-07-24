@@ -1624,10 +1624,12 @@ export async function markSupplierCNXeroStatus(
 }
 
 /**
- * Post an AUTHORISED Xero Credit Note (ACCPAY) for a completed supplier credit
- * note. Restock lines (goods returned) post to Inventory Asset (reverses stock
- * value); non-stock lines (rebates/overcharges) post to the supplier_credit_note
- * account (falls back to COGS). Returns the Xero CreditNoteID, or null on failure.
+ * Post a DRAFT Xero Credit Note (ACCPAY) for a completed supplier credit note.
+ * DRAFT is used for broad tenant compatibility (some orgs reject AUTHORISED
+ * creation via API). Restock lines (goods returned) post to Inventory Asset
+ * (reverses stock value); non-stock lines (rebates/overcharges) post to the
+ * supplier_credit_note account (falls back to COGS). Returns the Xero
+ * CreditNoteID, or null on failure.
  */
 export async function syncSupplierCNAsCreditNote(businessId: string, scn: SupplierCNForSync): Promise<string | null> {
   const accounts = await getAccountMappings(businessId);
@@ -1669,7 +1671,7 @@ export async function syncSupplierCNAsCreditNote(businessId: string, scn: Suppli
     Date: scn.scn_date,
     CreditNoteNumber: scn.scn_number,
     Reference: scn.supplier_credit_ref || scn.reference || scn.scn_number,
-    Status: 'AUTHORISED',
+    Status: 'DRAFT',
     LineAmountTypes: lineAmountType,
     LineItems: lineItems,
   };
@@ -1683,7 +1685,7 @@ export async function syncSupplierCNAsCreditNote(businessId: string, scn: Suppli
     if (xeroId) {
       await uploadSupplierCNAttachmentsToXero(businessId, scn.id, scn.scn_number, xeroId);
     }
-    await logSync(businessId, 'scn_credit_note', scn.id, xeroId, 'success', `Supplier credit note created: ${scn.scn_number}`, result.CreditNotes?.[0]?.Status ?? 'AUTHORISED');
+    await logSync(businessId, 'scn_credit_note', scn.id, xeroId, 'success', `Supplier credit note created: ${scn.scn_number}`, result.CreditNotes?.[0]?.Status ?? 'DRAFT');
     await markSupplierCNXeroStatus(scn.id, 'synced', xeroId);
     return xeroId;
   } catch (err: any) {
@@ -1710,7 +1712,7 @@ export async function syncSupplierCNAsCreditNote(businessId: string, scn: Suppli
           xeroId,
           'success',
           `Supplier credit note created after duplicate-number fallback: ${scn.scn_number}`,
-          retry.CreditNotes?.[0]?.Status ?? 'AUTHORISED',
+          retry.CreditNotes?.[0]?.Status ?? 'DRAFT',
         );
         await markSupplierCNXeroStatus(scn.id, 'synced', xeroId);
         return xeroId;
