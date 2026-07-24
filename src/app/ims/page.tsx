@@ -9871,13 +9871,29 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
               <h2 style={{ margin: 0, fontSize: 17, color: 'var(--sv-text-strong)' }}>{viewModal.scn.scn_number} {statusBadge(viewModal.scn.status)}</h2>
               <button onClick={() => { setViewModal({ open: false, scn: null }); setScnFiles([]); setScnFileSync({}); setScnXeroLatest(null); setScnXeroAwaitingResult(false); }} style={btnStyle('ghost', 'sm')}>Close</button>
             </div>
+            {(() => {
+              const scn = viewModal.scn;
+              const xeroStatus = scn.xero_sync_status as string | null;
+              const xeroId = scn.xero_credit_note_id as string | null;
+              const xeroAt = scn.xero_synced_at ? new Date(scn.xero_synced_at).toLocaleString() : null;
+              if (xeroStatus === 'synced' && xeroId) {
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', background: 'rgba(16,185,129,.1)', borderRadius: 6, fontSize: 11, marginBottom: 12, flexWrap: 'wrap' }}>
+                    <span style={{ color: '#34d399', fontWeight: 700 }}>✓ Synced to Xero</span>
+                    {xeroAt && <span style={{ color: 'var(--sv-text-dim)' }}>{xeroAt}</span>}
+                    <span style={{ color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 10 }}>{xeroId.slice(0, 8)}…</span>
+                    <a href={`https://go.xero.com/AccountsPayable/CreditNote.aspx?creditNoteID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sv-mint)' }}>View in Xero ↗</a>
+                  </div>
+                );
+              }
+              return null;
+            })()}
             <div style={{ fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.9, marginBottom: 12 }}>
               <div><strong>Supplier:</strong> {viewModal.scn.supplier_name ?? '—'}</div>
               <div><strong>Location:</strong> {viewModal.scn.location_name}</div>
               <div><strong>Date:</strong> {viewModal.scn.scn_date?.slice(0, 10)}</div>
               {viewModal.scn.supplier_credit_ref && <div><strong>Supplier Ref:</strong> {viewModal.scn.supplier_credit_ref}</div>}
               {viewModal.scn.reference && <div><strong>Reference:</strong> {viewModal.scn.reference}</div>}
-              {viewModal.scn.xero_credit_note_id && <div><strong>Xero:</strong> synced ({viewModal.scn.xero_sync_status})</div>}
               {!viewModal.scn.xero_credit_note_id && (viewModal.scn.xero_sync_status === 'queued' || viewModal.scn.xero_sync_status === 'error') && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <strong>Xero:</strong>
