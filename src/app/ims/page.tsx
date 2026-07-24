@@ -11071,14 +11071,26 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
               {visibleSOs.map((so: any, i: number) => (
                 <tr key={so.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}>
                   <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    <button onClick={() => openView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{so.so_number}</button>
+                    {so.is_pos_ledger ? (
+                      <span style={{ color: 'var(--sv-text-main)', fontSize: 13 }}>{so.so_number}</span>
+                    ) : (
+                      <button onClick={() => openView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{so.so_number}</button>
+                    )}
                   </td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{so.customer_name || '—'}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{so.location_name}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{so.order_date?.slice(0, 10)}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(so.total_amount)}</td>
                   <td style={{ padding: '10px 12px' }}><StatusBadge status={so.status} /></td>
-                  <td style={{ padding: '10px 12px' }}><SOActions isAdvisor={isAdvisor} so={so} onEdit={() => editSoWithWarn(so)} onDelete={() => deleteSoWithWarn(so)} onStatus={changeStatus} onReturn={() => handleReturn(so)} /></td>
+                  <td style={{ padding: '10px 12px' }}>
+                    {so.is_pos_ledger ? (
+                      <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>
+                        POS Sale
+                      </span>
+                    ) : (
+                      <SOActions isAdvisor={isAdvisor} so={so} onEdit={() => editSoWithWarn(so)} onDelete={() => deleteSoWithWarn(so)} onStatus={changeStatus} onReturn={() => handleReturn(so)} />
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

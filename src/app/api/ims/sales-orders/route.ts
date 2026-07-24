@@ -14,7 +14,16 @@ export async function GET(req: Request) {
     const channel = (['all', 'b2b', 'online', 'pos'].includes(rawChannel)
       ? rawChannel
       : 'b2b') as 'all' | 'b2b' | 'online' | 'pos';
-    const data = await ImsSORepo.list(status, businessId, channel);
+    const soData = channel === 'pos' ? [] : await ImsSORepo.list(status, businessId, channel);
+    const posLedger = (channel === 'pos' || channel === 'all')
+      ? await ImsSORepo.listPosLedger(status)
+      : [];
+
+    const data = [...soData, ...posLedger].sort((a: any, b: any) => {
+      const ad = new Date(a?.order_date ?? a?.created_at ?? 0).getTime();
+      const bd = new Date(b?.order_date ?? b?.created_at ?? 0).getTime();
+      return bd - ad;
+    });
     return NextResponse.json({ success: true, data });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });

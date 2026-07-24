@@ -1751,6 +1751,48 @@ export const ImsSORepo = {
     }
   },
 
+  async listPosLedger(status?: SOStatus): Promise<any[]> {
+    const whereParts: string[] = [];
+
+    // Map SO-style filters to POS sale lifecycle states.
+    if (status === 'fulfilled') {
+      whereParts.push("ps.status IN ('completed','layby_complete')");
+    } else if (status === 'cancelled') {
+      whereParts.push("ps.status = 'voided'");
+    } else if (status === 'draft' || status === 'confirmed') {
+      // POS rows do not have draft/confirmed lifecycle states.
+      return [];
+    } else {
+      whereParts.push("ps.status NOT IN ('parked','open','layby_active')");
+    }
+
+    const where = whereParts.length > 0 ? `WHERE ${whereParts.join(' AND ')}` : '';
+    return imsQuery<any>(
+      `SELECT
+         (1000000000 + ps.id) AS id,
+         CONCAT('POS-', ps.id) AS so_number,
+         ps.customer_name AS customer_name,
+         l.name AS location_name,
+         COALESCE(DATE(ps.completed_at), DATE(ps.created_at)) AS order_date,
+         ps.total AS total_amount,
+         CASE
+           WHEN ps.status IN ('completed','layby_complete') THEN 'fulfilled'
+           WHEN ps.status = 'voided' THEN 'cancelled'
+           ELSE ps.status
+         END AS status,
+         'pos' AS so_type,
+         1 AS is_pos_ledger,
+         ps.id AS pos_sale_id,
+         ps.sale_type,
+         ps.completed_at,
+         ps.created_at
+       FROM pos_sales ps
+       LEFT JOIN ims_locations l ON l.id = ps.location_id
+       ${where}
+       ORDER BY COALESCE(ps.completed_at, ps.created_at) DESC`
+    );
+  },
+
   async get(id: number, businessId?: string): Promise<ImsSO | null> {
     await this.ensureTaxTreatmentColumn();
     const bizFilter = businessId ? ' AND so.business_id = ?' : '';
