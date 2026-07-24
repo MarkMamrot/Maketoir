@@ -9577,6 +9577,7 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
   const [scnFileSync, setScnFileSync] = useState<Record<string, { status: 'success' | 'error' | 'skipped' | 'pending' | 'not_synced'; detail?: string; at?: string }>>({});
   const [scnXeroLatest, setScnXeroLatest] = useState<{ status: 'success' | 'error' | 'skipped'; detail: string | null; created_at: string; xero_id: string | null } | null>(null);
   const [retryingScnXero, setRetryingScnXero] = useState(false);
+  const [scnXeroAwaitingResult, setScnXeroAwaitingResult] = useState(false);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [variants, setVariants] = useState<any[]>([]);
@@ -9669,6 +9670,8 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
 
   const retryScnXeroSync = async (scnId: number) => {
     setRetryingScnXero(true);
+    setScnXeroAwaitingResult(true);
+    setScnXeroLatest(null);
     try {
       await apiFetch('/api/ims/xero/push', {
         method: 'POST',
@@ -9679,6 +9682,7 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
       load();
       alert('Xero sync retry queued. Refresh this view in a few seconds to see final status.');
     } catch (err: any) {
+      setScnXeroAwaitingResult(false);
       alert(err.message || 'Retry failed');
     } finally {
       setRetryingScnXero(false);
@@ -9865,7 +9869,7 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
           <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, width: 720, maxWidth: '96vw', padding: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <h2 style={{ margin: 0, fontSize: 17, color: 'var(--sv-text-strong)' }}>{viewModal.scn.scn_number} {statusBadge(viewModal.scn.status)}</h2>
-              <button onClick={() => { setViewModal({ open: false, scn: null }); setScnFiles([]); setScnFileSync({}); setScnXeroLatest(null); }} style={btnStyle('ghost', 'sm')}>Close</button>
+              <button onClick={() => { setViewModal({ open: false, scn: null }); setScnFiles([]); setScnFileSync({}); setScnXeroLatest(null); setScnXeroAwaitingResult(false); }} style={btnStyle('ghost', 'sm')}>Close</button>
             </div>
             <div style={{ fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.9, marginBottom: 12 }}>
               <div><strong>Supplier:</strong> {viewModal.scn.supplier_name ?? '—'}</div>
@@ -9885,11 +9889,17 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
                       {retryingScnXero ? 'Retrying…' : 'Retry Xero Sync'}
                     </button>
                   )}
-                  <button type="button" onClick={() => loadScnXeroStatus(viewModal.scn.id)} style={btnStyle('ghost', 'xs')}>Refresh status</button>
+                  <button type="button" onClick={async () => { await loadScnXeroStatus(viewModal.scn.id); setScnXeroAwaitingResult(false); }} style={btnStyle('ghost', 'xs')}>Refresh status</button>
+                </div>
+              )}
+              {scnXeroAwaitingResult && (viewModal.scn.xero_sync_status === 'queued' || viewModal.scn.xero_sync_status === 'error') && (
+                <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.4 }}>
+                  <strong>Last Xero message:</strong> waiting for a fresh retry result...
                 </div>
               )}
               {scnXeroLatest?.detail && (viewModal.scn.xero_sync_status === 'queued' || viewModal.scn.xero_sync_status === 'error') && (
                 <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.4 }}>
+                  <div><strong>Last Xero attempt:</strong> {new Date(scnXeroLatest.created_at).toLocaleString()}</div>
                   <strong>Last Xero message:</strong> {scnXeroLatest.detail}
                 </div>
               )}
