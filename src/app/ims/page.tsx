@@ -18662,6 +18662,52 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
       {/* Detail Modal */}
       {detailModal.open && detailModal.st && (
         <Modal title={`Stocktake: ${detailModal.st.reference}`} onClose={() => setDetailModal({ open: false, st: null })} wider>
+          {(() => {
+            const st = detailModal.st;
+            const editable = st.status === 'draft' || st.status === 'in_progress';
+            const xeroStatus = st.xero_sync_status as string | null;
+            const xeroId = st.xero_journal_id as string | null;
+            const xeroAt = st.xero_synced_at ? new Date(st.xero_synced_at).toLocaleString() : null;
+
+            if (editable) return null;
+
+            if (xeroStatus === 'synced') {
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', background: 'rgba(16,185,129,.1)', borderRadius: 6, fontSize: 11, marginBottom: 12, flexWrap: 'wrap' }}>
+                  <span style={{ color: '#34d399', fontWeight: 700 }}>✓ Synced to Xero</span>
+                  {xeroAt && <span style={{ color: 'var(--sv-text-dim)' }}>{xeroAt}</span>}
+                  {xeroId && <span style={{ color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 10 }}>{xeroId.slice(0, 8)}…</span>}
+                  {xeroId && (
+                    <a href={`https://go.xero.com/ManualJournals/View.aspx?manualJournalID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sv-mint)' }}>
+                      View in Xero ↗
+                    </a>
+                  )}
+                </div>
+              );
+            }
+
+            if (xeroStatus === 'queued' || xeroStatus === 'error') {
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', background: 'rgba(251,191,36,.1)', borderRadius: 6, fontSize: 11, marginBottom: 12, flexWrap: 'wrap' }}>
+                  <strong style={{ color: 'var(--sv-text-main)' }}>Xero:</strong>
+                  <span style={{ color: '#fbbf24', fontWeight: 700 }}>{xeroStatus === 'queued' ? 'Queued for retry' : 'Sync failed'}</span>
+                  {xeroAt && <span style={{ color: 'var(--sv-text-dim)' }}>Last: {xeroAt}</span>}
+                  {xeroId && (
+                    <a href={`https://go.xero.com/ManualJournals/View.aspx?manualJournalID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sv-mint)' }}>
+                      View in Xero ↗
+                    </a>
+                  )}
+                </div>
+              );
+            }
+
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--sv-bg-1)', borderRadius: 6, fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 12 }}>
+                <span>○ Not yet synced to Xero</span>
+              </div>
+            );
+          })()}
+
           <div style={{ marginBottom: 12, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             <StatusBadge status={detailModal.st.status} />
             <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>{detailModal.st.location_name}</span>
@@ -18680,13 +18726,15 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
           </div>
 
           {/* Tab bar */}
-          <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--sv-etch)', marginBottom: 16 }}>
-            {(['manual', 'barcode'] as const).map(tab => (
-              <button key={tab} onClick={() => setDetailTab(tab)} style={{ padding: '8px 18px', background: 'none', border: 'none', borderBottom: detailTab === tab ? '2px solid var(--sv-action)' : '2px solid transparent', color: detailTab === tab ? 'var(--sv-action)' : 'var(--sv-text-dim)', cursor: 'pointer', fontWeight: detailTab === tab ? 700 : 400, fontSize: 14 }}>
-                {tab === 'manual' ? 'Manual Count' : 'Barcode Paste'}
-              </button>
-            ))}
-          </div>
+          {(detailModal.st.status === 'draft' || detailModal.st.status === 'in_progress') && (
+            <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--sv-etch)', marginBottom: 16 }}>
+              {(['manual', 'barcode'] as const).map(tab => (
+                <button key={tab} onClick={() => setDetailTab(tab)} style={{ padding: '8px 18px', background: 'none', border: 'none', borderBottom: detailTab === tab ? '2px solid var(--sv-action)' : '2px solid transparent', color: detailTab === tab ? 'var(--sv-action)' : 'var(--sv-text-dim)', cursor: 'pointer', fontWeight: detailTab === tab ? 700 : 400, fontSize: 14 }}>
+                  {tab === 'manual' ? 'Manual Count' : 'Barcode Paste'}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Uncounted items banner — shown when counting is active */}
           {(detailModal.st.status === 'draft' || detailModal.st.status === 'in_progress') && (() => {
@@ -18702,7 +18750,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
             );
           })()}
 
-          {detailTab === 'manual' && (
+          {(detailTab === 'manual' || detailModal.st.status === 'completed' || detailModal.st.status === 'reverted' || detailModal.st.status === 'cancelled') && (
             <div>
               {/* Add product bar — shown when editable */}
               {(detailModal.st.status === 'draft' || detailModal.st.status === 'in_progress') && (
@@ -18774,7 +18822,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
             </div>
           )}
 
-          {detailTab === 'barcode' && (
+          {(detailModal.st.status === 'draft' || detailModal.st.status === 'in_progress') && detailTab === 'barcode' && (
             <div>
               <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 10 }}>
                 Paste or scan barcodes/SKUs below — one per line, or comma/tab separated. Duplicate entries are summed as a count.
