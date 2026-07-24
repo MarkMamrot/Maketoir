@@ -9674,10 +9674,14 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
           restock: i.restock === undefined ? true : !!i.restock,
         })),
       };
-      if (modal.edit) await apiFetch(`/api/ims/supplier-credit-notes/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      else await apiFetch('/api/ims/supplier-credit-notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const saved = modal.edit
+        ? await apiFetch(`/api/ims/supplier-credit-notes/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        : await apiFetch('/api/ims/supplier-credit-notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       setModal({ open: false, edit: null });
       load();
+      if (saved?.data?.id) {
+        await openView(saved.data);
+      }
     } catch (err: any) { alert(err.message || 'Save failed'); }
     finally { setSaving(false); }
   };
