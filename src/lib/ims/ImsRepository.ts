@@ -4076,7 +4076,84 @@ export interface ImsSupplierCN {
   location_name?: string | null;
   po_number?: string | null;
   items?: ImsSupplierCNItem[];
+  files?: ImsSupplierCNFile[];
 }
+
+export interface ImsSupplierCNFile {
+  id: number;
+  scn_id: number;
+  business_id: string;
+  filename: string;
+  original_name: string;
+  mime_type: string;
+  file_size: number;
+  uploaded_at: string;
+}
+
+// ── Supplier Credit Note Files ──────────────────────────────────────────────
+
+/** Ensures the ims_supplier_credit_note_files table exists (auto-migration on first use). */
+async function ensureSupplierCNFilesTable(): Promise<void> {
+  await imsExecute(
+    `CREATE TABLE IF NOT EXISTS ims_supplier_credit_note_files (
+       id            INT AUTO_INCREMENT PRIMARY KEY,
+       scn_id        INT          NOT NULL,
+       business_id   VARCHAR(100) NOT NULL,
+       filename      VARCHAR(255) NOT NULL,
+       original_name VARCHAR(255),
+       mime_type     VARCHAR(100),
+       file_size     INT,
+       uploaded_at   DATETIME     DEFAULT CURRENT_TIMESTAMP,
+       INDEX idx_scn (scn_id)
+     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
+  );
+}
+
+export const ImsSupplierCNFilesRepo = {
+  async list(scnId: number, businessId?: string): Promise<ImsSupplierCNFile[]> {
+    await ensureSupplierCNFilesTable();
+    const biz = businessId ? ' AND business_id = ?' : '';
+    const params = businessId ? [scnId, businessId] : [scnId];
+    return imsQuery<ImsSupplierCNFile>(
+      `SELECT * FROM ims_supplier_credit_note_files WHERE scn_id = ?${biz} ORDER BY uploaded_at ASC`,
+      params,
+    );
+  },
+
+  async get(fileId: number, businessId?: string): Promise<ImsSupplierCNFile | null> {
+    await ensureSupplierCNFilesTable();
+    const biz = businessId ? ' AND business_id = ?' : '';
+    const params = businessId ? [fileId, businessId] : [fileId];
+    const rows = await imsQuery<ImsSupplierCNFile>(
+      `SELECT * FROM ims_supplier_credit_note_files WHERE id = ?${biz}`,
+      params,
+    );
+    return rows[0] ?? null;
+  },
+
+  async add(
+    scnId: number,
+    businessId: string,
+    filename: string,
+    originalName: string,
+    mimeType: string,
+    fileSize: number,
+  ): Promise<number> {
+    await ensureSupplierCNFilesTable();
+    const res = await imsExecute(
+      `INSERT INTO ims_supplier_credit_note_files (scn_id, business_id, filename, original_name, mime_type, file_size)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [scnId, businessId, filename, originalName, mimeType, fileSize],
+    );
+    return (res as any).insertId;
+  },
+
+  async delete(fileId: number, businessId?: string): Promise<void> {
+    const biz = businessId ? ' AND business_id = ?' : '';
+    const params = businessId ? [fileId, businessId] : [fileId];
+    await imsExecute(`DELETE FROM ims_supplier_credit_note_files WHERE id = ?${biz}`, params);
+  },
+};
 
 export interface ImsSupplierCNItem {
   id: number;
@@ -4199,7 +4276,14 @@ export const ImsSupplierCNRepo = {
        WHERE i.scn_id = ?`,
       [id],
     );
-    return { ...rows[0], items };
+    let files: ImsSupplierCNFile[] = [];
+    try {
+      files = await imsQuery<ImsSupplierCNFile>(
+        `SELECT * FROM ims_supplier_credit_note_files WHERE scn_id = ? ORDER BY uploaded_at ASC`,
+        [id],
+      );
+    } catch { /* table not yet migrated */ }
+    return { ...rows[0], items, files };
   },
 
   async create(

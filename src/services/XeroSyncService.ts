@@ -16,9 +16,11 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import { xeroApiFetch } from '@/services/XeroService';
+import { getValidAccessToken, xeroApiFetch } from '@/services/XeroService';
 import { query, execute } from '@/services/MySQLService';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
+import fs from 'fs';
+import path from 'path';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -1479,6 +1481,96 @@ interface SupplierCNForSync {
   }[];
 }
 
+interface SupplierCNFileRow {
+  filename: string;
+  original_name: string;
+  mime_type: string | null;
+}
+
+function getSupplierCNUploadDir(businessId: string, scnNumber: string): string {
+  const base = process.env.UPLOAD_BASE_PATH ?? './uploads';
+  const safeScnNumber = scnNumber.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return path.join(base, businessId, 'SCNs', safeScnNumber);
+}
+
+async function uploadSupplierCNAttachmentsToXero(
+  businessId: string,
+  scnId: number,
+  scnNumber: string,
+  xeroCreditNoteId: string,
+): Promise<void> {
+  let files: SupplierCNFileRow[] = [];
+  try {
+    files = await imsQuery<SupplierCNFileRow>(
+      `SELECT filename, original_name, mime_type
+         FROM ims_supplier_credit_note_files
+        WHERE scn_id = ? AND business_id = ?
+        ORDER BY uploaded_at ASC`,
+      [scnId, businessId],
+    );
+  } catch {
+    return;
+  }
+  if (!files.length) return;
+
+  const { accessToken, tenantId } = await getValidAccessToken(businessId);
+  const uploadDir = getSupplierCNUploadDir(businessId, scnNumber);
+
+  for (const f of files) {
+    const filePath = path.join(uploadDir, f.filename);
+    if (!fs.existsSync(filePath)) {
+      await logSync(
+        businessId,
+        'scn_attachment',
+        scnId,
+        xeroCreditNoteId,
+        'skipped',
+        `file=${f.filename}; original=${f.original_name || ''}; message=Attachment missing on disk`,
+      );
+      continue;
+    }
+
+    const safeOriginalName = (f.original_name || f.filename).replace(/[^\w.\- ]/g, '_').slice(0, 120);
+    const encodedName = encodeURIComponent(safeOriginalName);
+    const url = `https://api.xero.com/api.xro/2.0/CreditNotes/${xeroCreditNoteId}/Attachments/${encodedName}?IncludeOnline=true`;
+
+    try {
+      const buffer = fs.readFileSync(filePath);
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'xero-tenant-id': tenantId,
+          'Content-Type': f.mime_type || 'application/octet-stream',
+          Accept: 'application/json',
+        },
+        body: buffer,
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Xero attachment upload failed (${res.status}): ${text}`);
+      }
+      await logSync(
+        businessId,
+        'scn_attachment',
+        scnId,
+        xeroCreditNoteId,
+        'success',
+        `file=${f.filename}; original=${safeOriginalName}; message=Attachment uploaded`,
+      );
+    } catch (err: any) {
+      await logSync(
+        businessId,
+        'scn_attachment',
+        scnId,
+        xeroCreditNoteId,
+        'error',
+        `file=${f.filename}; original=${f.original_name || ''}; message=${err.message}`,
+      );
+    }
+  }
+}
+
 /** Write Xero sync status back to the supplier credit note row. Silent — never throws. */
 export async function markSupplierCNXeroStatus(
   scnId: number,
@@ -1553,6 +1645,9 @@ export async function syncSupplierCNAsCreditNote(businessId: string, scn: Suppli
       body: { CreditNotes: [creditNote] },
     });
     const xeroId = result.CreditNotes?.[0]?.CreditNoteID ?? null;
+    if (xeroId) {
+      await uploadSupplierCNAttachmentsToXero(businessId, scn.id, scn.scn_number, xeroId);
+    }
     await logSync(businessId, 'scn_credit_note', scn.id, xeroId, 'success', `Supplier credit note created: ${scn.scn_number}`, result.CreditNotes?.[0]?.Status ?? 'AUTHORISED');
     await markSupplierCNXeroStatus(scn.id, 'synced', xeroId);
     return xeroId;

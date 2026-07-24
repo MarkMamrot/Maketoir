@@ -9572,6 +9572,9 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
   const [statusFilter, setStatusFilter] = useState('');
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [viewModal, setViewModal] = useState<{ open: boolean; scn: any | null }>({ open: false, scn: null });
+  const [scnFiles, setScnFiles] = useState<any[]>([]);
+  const [scnFileUploading, setScnFileUploading] = useState(false);
+  const [scnFileSync, setScnFileSync] = useState<Record<string, { status: 'success' | 'error' | 'skipped' | 'pending' | 'not_synced'; detail?: string; at?: string }>>({});
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [variants, setVariants] = useState<any[]>([]);
@@ -9626,7 +9629,26 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
     setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id ?? '', code: i.code ?? '', name: i.name ?? i.product_name ?? '', qty: i.qty, unit_cost: i.unit_cost, tax_rate: i.tax_rate, restock: i.restock === undefined ? true : !!Number(i.restock) })));
     setModal({ open: true, edit: d.data });
   };
-  const openView = async (scn: any) => { const d = await apiFetch(`/api/ims/supplier-credit-notes/${scn.id}`); setViewModal({ open: true, scn: d.data }); };
+  const openView = async (scn: any) => {
+    const d = await apiFetch(`/api/ims/supplier-credit-notes/${scn.id}`);
+    setViewModal({ open: true, scn: d.data });
+    setScnFiles(d.data?.files ?? []);
+    try {
+      const s = await apiFetch(`/api/ims/supplier-credit-notes/${scn.id}/files/sync-status`);
+      setScnFileSync(s.statusByFilename ?? {});
+    } catch {
+      setScnFileSync({});
+    }
+  };
+
+  const loadScnFileSync = async (scnId: number) => {
+    try {
+      const s = await apiFetch(`/api/ims/supplier-credit-notes/${scnId}/files/sync-status`);
+      setScnFileSync(s.statusByFilename ?? {});
+    } catch {
+      setScnFileSync({});
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -9745,6 +9767,11 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
               <div><label style={labelStyle}>Tax Treatment</label><select value={form.tax_treatment} onChange={sf('tax_treatment')} style={inputStyle}><option value="ex_tax">Tax exclusive</option><option value="inc_tax">Tax inclusive</option><option value="no_tax">No tax</option></select></div>
             </div>
 
+            <div style={{ marginBottom: 12 }}>
+              <label style={labelStyle}>Notes</label>
+              <textarea value={form.notes} onChange={sf('notes')} style={{ ...inputStyle, minHeight: 40 }} />
+            </div>
+
             <div style={{ marginBottom: 8, fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)' }}>Line Items</div>
             <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden', marginBottom: 12 }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -9775,16 +9802,15 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
             </div>
             <button type="button" onClick={addLine} style={{ ...btnStyle('ghost', 'sm'), marginBottom: 12 }}>+ Add line</button>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 }}>
-              <div style={{ flex: 1 }}><label style={labelStyle}>Notes</label><textarea value={form.notes} onChange={sf('notes')} style={{ ...inputStyle, minHeight: 40 }} /></div>
-              <div style={{ textAlign: 'right', fontSize: 13, color: 'var(--sv-text-main)', minWidth: 180 }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-end', gap: 12 }}>
+              <div style={{ textAlign: 'right', fontSize: 13, color: 'var(--sv-text-main)', minWidth: 240 }}>
                 <div>Subtotal: {money(subtotal)}</div>
                 <div>Tax: {money(taxTotal)}</div>
                 <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--sv-text-strong)' }}>Supplier Credit Value: {money(grandTotal)}</div>
               </div>
             </div>
-            <div style={{ marginTop: 10, fontSize: 12, color: 'var(--sv-text-dim)' }}>
-              {`${stockRemovedQty.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 4 })} items will be removed from stock. ${money(grandTotal)} refunded.`}
+            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--sv-text-dim)', textAlign: 'right' }}>
+              {`${stockRemovedQty.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 4 })} items will be removed from stock. ${money(grandTotal)} credited to you.`}
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18 }}>
               <button type="button" onClick={() => setModal({ open: false, edit: null })} style={btnStyle('ghost')}>Cancel</button>
@@ -9800,7 +9826,7 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
           <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, width: 720, maxWidth: '96vw', padding: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <h2 style={{ margin: 0, fontSize: 17, color: 'var(--sv-text-strong)' }}>{viewModal.scn.scn_number} {statusBadge(viewModal.scn.status)}</h2>
-              <button onClick={() => setViewModal({ open: false, scn: null })} style={btnStyle('ghost', 'sm')}>Close</button>
+              <button onClick={() => { setViewModal({ open: false, scn: null }); setScnFiles([]); setScnFileSync({}); }} style={btnStyle('ghost', 'sm')}>Close</button>
             </div>
             <div style={{ fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.9, marginBottom: 12 }}>
               <div><strong>Supplier:</strong> {viewModal.scn.supplier_name ?? '—'}</div>
@@ -9824,6 +9850,74 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
                 ))}
               </tbody>
             </table>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Supplier Credit Files</div>
+                <label style={{ cursor: 'pointer' }}>
+                  <span style={btnStyle('mint', 'xs') as any}>{scnFileUploading ? 'Uploading…' : '+ Upload'}</span>
+                  <input
+                    type="file"
+                    accept=".pdf,image/jpeg,image/png"
+                    style={{ display: 'none' }}
+                    disabled={scnFileUploading}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file || !viewModal.scn) return;
+                      setScnFileUploading(true);
+                      try {
+                        const fd = new FormData();
+                        fd.append('file', file);
+                        const res = await fetch(`/api/ims/supplier-credit-notes/${viewModal.scn.id}/files`, { method: 'POST', body: fd });
+                        const data = await res.json();
+                        if (!res.ok) { alert(data.error || 'Upload failed'); return; }
+                        setScnFiles(data.files ?? []);
+                        await loadScnFileSync(viewModal.scn.id);
+                      } catch (err: any) { alert(err.message); }
+                      finally { setScnFileUploading(false); e.target.value = ''; }
+                    }}
+                  />
+                </label>
+              </div>
+              {scnFiles.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', padding: '8px 0' }}>No files attached yet.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {scnFiles.map((f: any) => (
+                    <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--sv-bg-2)', borderRadius: 6, padding: '6px 10px', fontSize: 13 }}>
+                      <span style={{ fontSize: 16 }}>{f.mime_type === 'application/pdf' ? '📄' : '🖼️'}</span>
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.original_name}</span>
+                      {(() => {
+                        const s = scnFileSync[f.filename]?.status ?? (viewModal.scn?.xero_credit_note_id ? 'pending' : 'not_synced');
+                        const map: Record<string, { label: string; color: string; bg: string; title: string }> = {
+                          success: { label: 'Uploaded to Xero', color: '#34d399', bg: 'rgba(52,211,153,.12)', title: 'Attachment uploaded to Xero' },
+                          error: { label: 'Xero upload failed', color: '#f87171', bg: 'rgba(248,113,113,.12)', title: 'Attachment failed to upload to Xero. Check sync log details.' },
+                          skipped: { label: 'Skipped', color: '#fbbf24', bg: 'rgba(251,191,36,.12)', title: 'Attachment upload was skipped during sync.' },
+                          pending: { label: 'Pending Xero sync', color: '#93c5fd', bg: 'rgba(147,197,253,.12)', title: 'Credit note is synced but this file has no upload result yet.' },
+                          not_synced: { label: 'Not synced to Xero', color: 'var(--sv-text-dim)', bg: 'var(--sv-bg-1)', title: 'This SCN has not been synced to Xero yet.' },
+                        };
+                        const cfg = map[s] ?? map.pending;
+                        return <span title={cfg.title} style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 12, color: cfg.color, background: cfg.bg, whiteSpace: 'nowrap' }}>{cfg.label}</span>;
+                      })()}
+                      <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
+                        {(f.file_size / 1024).toFixed(0)} KB · {new Date(f.uploaded_at).toLocaleDateString()}
+                      </span>
+                      <a href={`/api/ims/supplier-credit-notes/${viewModal.scn.id}/files/${f.id}`} target="_blank" rel="noopener noreferrer" style={{ ...btnStyle('ghost', 'xs') as any, textDecoration: 'none' }}>View</a>
+                      <button style={btnStyle('danger', 'xs')} onClick={async () => {
+                        if (!viewModal.scn) return;
+                        if (!confirm('Remove this file?')) return;
+                        const res = await fetch(`/api/ims/supplier-credit-notes/${viewModal.scn.id}/files/${f.id}`, { method: 'DELETE' });
+                        const data = await res.json();
+                        if (res.ok) {
+                          setScnFiles(data.files ?? []);
+                          await loadScnFileSync(viewModal.scn.id);
+                        }
+                        else alert(data.error || 'Delete failed');
+                      }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <div style={{ textAlign: 'right', fontWeight: 700, color: 'var(--sv-text-strong)' }}>Total: {money(viewModal.scn.total_amount)}</div>
             {!isAdvisor && viewModal.scn.status === 'draft' && (
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
