@@ -9602,10 +9602,18 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
     setLineItems(p => p.map((item, j) => j === i ? { ...item, variant_id, code: v?.sku ?? '', unit_cost: Number(v?.avg_cost ?? v?.cost_aud ?? item.unit_cost ?? 0) } : item));
   };
 
-  const lineTotal = (item: any) => Number(item.qty || 0) * Number(item.unit_cost || 0);
+  const normalizedQty = (item: any) => Math.abs(Number(item.qty || 0));
+  const normalizedUnitCost = (item: any) => Math.abs(Number(item.unit_cost || 0));
+  const normalizedTaxRate = (item: any) => Math.abs(Number(item.tax_rate || 0));
+  const lineTotal = (item: any) => normalizedQty(item) * normalizedUnitCost(item);
   const subtotal = lineItems.reduce((s, i) => s + lineTotal(i), 0);
-  const taxTotal = lineItems.reduce((s, i) => s + lineTotal(i) * Number(i.tax_rate || 0), 0);
+  const taxTotal = lineItems.reduce((s, i) => s + lineTotal(i) * normalizedTaxRate(i), 0);
   const grandTotal = subtotal + taxTotal;
+  const hasInvalidQty = lineItems.some(i => !(normalizedQty(i) > 0));
+  const stockRemovedQty = lineItems.reduce((s, i) => {
+    const doRestock = i.restock === undefined || i.restock === null ? true : !!i.restock;
+    return doRestock ? s + normalizedQty(i) : s;
+  }, 0);
 
   const openNew = () => {
     setForm({ supplier_id: '', po_id: '', location_id: locations[0]?.id ? String(locations[0].id) : '', scn_date: today(), reference: '', supplier_credit_ref: '', tax_treatment: 'ex_tax', notes: '' });
@@ -9625,6 +9633,7 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
     if (!form.location_id) return alert('Please select a location.');
     if (!form.supplier_id) return alert('Please select a supplier.');
     if (!lineItems.length) return alert('Please add at least one line item.');
+    if (hasInvalidQty) return alert('Supplier credit note quantities cannot be 0. You can enter positive or negative values; we auto-convert to positive.');
     setSaving(true);
     try {
       const body = {
@@ -9633,7 +9642,15 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
         location_id: Number(form.location_id),
         scn_date: form.scn_date, reference: form.reference || null, supplier_credit_ref: form.supplier_credit_ref || null,
         tax_treatment: form.tax_treatment, notes: form.notes || null,
-        items: lineItems.map(i => ({ variant_id: i.variant_id || null, code: i.code || null, name: i.name || null, qty: Number(i.qty), unit_cost: Number(i.unit_cost), tax_rate: Number(i.tax_rate), restock: i.restock === undefined ? true : !!i.restock })),
+        items: lineItems.map(i => ({
+          variant_id: i.variant_id || null,
+          code: i.code || null,
+          name: i.name || null,
+          qty: Math.abs(Number(i.qty)),
+          unit_cost: Math.abs(Number(i.unit_cost)),
+          tax_rate: Math.abs(Number(i.tax_rate)),
+          restock: i.restock === undefined ? true : !!i.restock,
+        })),
       };
       if (modal.edit) await apiFetch(`/api/ims/supplier-credit-notes/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       else await apiFetch('/api/ims/supplier-credit-notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -9753,6 +9770,9 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
                 </tbody>
               </table>
             </div>
+            <div style={{ margin: '-4px 0 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
+              Tip: supplier documents often show negatives. You can enter negative or positive values; this form auto-converts to positive credit-note values.
+            </div>
             <button type="button" onClick={addLine} style={{ ...btnStyle('ghost', 'sm'), marginBottom: 12 }}>+ Add line</button>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 }}>
@@ -9760,12 +9780,15 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
               <div style={{ textAlign: 'right', fontSize: 13, color: 'var(--sv-text-main)', minWidth: 180 }}>
                 <div>Subtotal: {money(subtotal)}</div>
                 <div>Tax: {money(taxTotal)}</div>
-                <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--sv-text-strong)' }}>Total: {money(grandTotal)}</div>
+                <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--sv-text-strong)' }}>Supplier Credit Value: {money(grandTotal)}</div>
               </div>
+            </div>
+            <div style={{ marginTop: 10, fontSize: 12, color: 'var(--sv-text-dim)' }}>
+              {`${stockRemovedQty.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 4 })} items will be removed from stock. ${money(grandTotal)} refunded.`}
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18 }}>
               <button type="button" onClick={() => setModal({ open: false, edit: null })} style={btnStyle('ghost')}>Cancel</button>
-              <button type="submit" disabled={saving} style={{ ...btnStyle('action'), opacity: saving ? .6 : 1 }}>{saving ? 'Saving…' : (modal.edit ? 'Save' : 'Create Draft')}</button>
+              <button type="submit" disabled={saving || hasInvalidQty} style={{ ...btnStyle('action'), opacity: (saving || hasInvalidQty) ? .6 : 1 }} title={hasInvalidQty ? 'All line quantities must be non-zero' : ''}>{saving ? 'Saving…' : (modal.edit ? 'Save' : 'Create Draft')}</button>
             </div>
           </form>
         </div>
