@@ -7535,6 +7535,8 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
     if (lineItems.length === 0 || lineItems.some(i => !i.variant_id)) { alert('Add at least one line item with a variant selected.'); return; }
     setSaving(true);
     try {
+      let savedPoId: number | null = modal.edit?.id ?? null;
+      const resultingPoStatus = targetStatus ?? (andOrder ? 'confirmed' : (modal.edit?.status ?? 'draft'));
       const items = lineItems.map(i => ({ ...i, line_total: lineTotal(i) }));
       const landed_costs = landedCosts.filter(c => c.label && Number(c.amount) > 0).map(c => ({ label: c.label, reference: c.reference || null, amount: Number(c.amount) }));
       if (modal.edit) {
@@ -7559,11 +7561,16 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
         }
       } else {
         const res = await apiFetch('/api/ims/purchase-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items, landed_costs }) });
+        savedPoId = Number(res?.id ?? 0) || null;
         if (andOrder && res?.id) {
           await apiFetch(`/api/ims/purchase-orders/${res.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'confirmed' }) });
         }
       }
-      load(); setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null);
+      load();
+      setModal({ open: false, edit: null });
+      setLandedCosts([]);
+      setLcForm(null);
+      if (savedPoId && ['confirmed', 'complete'].includes(resultingPoStatus)) await openView({ id: savedPoId });
     } catch (e: any) { alert(e.message); }
     finally { setSaving(false); }
   };
@@ -9204,6 +9211,8 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
     if (hasInvalidQty) return alert('Credit note quantities cannot be 0. You can enter positive or negative values; we auto-convert to positive.');
     setSaving(true);
     try {
+      let savedCnId: number | null = modal.edit?.id ?? null;
+      const resultingCnStatus = modal.edit?.status ?? 'draft';
       const body = {
         ...form,
         customer_id: form.customer_id ? Number(form.customer_id) : null,
@@ -9222,10 +9231,12 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
       if (modal.edit) {
         await apiFetch(`/api/ims/credit-notes/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       } else {
-        await apiFetch('/api/ims/credit-notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const created = await apiFetch('/api/ims/credit-notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        savedCnId = Number(created?.data?.id ?? created?.id ?? 0) || null;
       }
       setModal({ open: false, edit: null });
       load();
+      if (savedCnId && resultingCnStatus === 'complete') await openView({ id: savedCnId });
     } catch (err: any) {
       alert(err.message || 'Save failed');
     } finally {
@@ -10685,13 +10696,18 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     if (lineItems.length === 0 || lineItems.some(i => !i.variant_id)) { alert('Add at least one line item with a variant selected.'); return; }
     setSaving(true);
     try {
+      let savedSoId: number | null = modal.edit?.id ?? null;
+      const resultingSoStatus = modal.edit?.status ?? 'draft';
       const items = lineItems.map(i => ({ ...i, tax_rate: soTaxTreatment === 'no_tax' ? 0 : i.tax_rate, line_total: lineTotal(i) }));
       if (modal.edit) {
         await apiFetch(`/api/ims/sales-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items }) });
       } else {
-        await apiFetch('/api/ims/sales-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items }) });
+        const created = await apiFetch('/api/ims/sales-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items }) });
+        savedSoId = Number(created?.id ?? created?.data?.id ?? 0) || null;
       }
-      load(); setModal({ open: false, edit: null });
+      load();
+      setModal({ open: false, edit: null });
+      if (savedSoId && ['confirmed', 'fulfilled'].includes(resultingSoStatus)) await openView({ id: savedSoId });
     } catch (e: any) { alert(e.message); }
     finally { setSaving(false); }
   };
@@ -18382,7 +18398,11 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
       } finally { setXeroSyncing(false); }
       alert(`Stocktake complete. Applied ${d.applied} items, ${d.variances} variance${d.variances !== 1 ? 's' : ''} recorded.${xeroMsg}`);
       load();
-      setDetailModal({ open: false, st: null });
+      const r2 = await fetch(`/api/ims/stocktakes/${id}`);
+      const d2 = await r2.json();
+      setDetailModal({ open: true, st: d2 });
+      setDetailItems((d2.items || []).map((i: any) => ({ ...i, counted_input: i.counted_qty !== null ? String(i.counted_qty) : '' })));
+      setDetailTab('manual');
     } catch (e: any) { alert(e.message); }
     finally { setApplying(false); }
   };

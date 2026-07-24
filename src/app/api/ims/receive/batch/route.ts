@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
-import { getIMSPool, imsQuery, imsExecute } from '@/services/IMSMySQLService';
+import { getIMSPool } from '@/services/IMSMySQLService';
 import { triggerPOXeroSync } from '@/lib/ims/xeroHooks';
-import { ImsPORepo } from '@/lib/ims/ImsRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
+import {
+  computeLandedCostPerUnit,
+  computeReceivedUnitCostAud,
+  computeWeightedAverageCost,
+  normalizeExchangeRate,
+  TaxTreatment,
+} from '@/lib/ims/avgCostMath';
 
 interface ReceivedItem {
   variant_id: string;
@@ -21,6 +27,25 @@ interface StockUpdate {
   variant_id: string;
   min_qty?: number;
   reorder_qty?: number;
+}
+
+async function refreshVariantAvgCost(conn: any, variantId: string): Promise<void> {
+  try {
+    const [rows] = await conn.execute<any[]>(
+      `SELECT SUM(qty_on_hand * avg_cost) AS total_value, SUM(qty_on_hand) AS total_qty
+       FROM ims_stock
+       WHERE variant_id = ? AND qty_on_hand > 0`,
+      [variantId],
+    );
+    const agg = (rows as any[])[0] ?? {};
+    const totalQty = Number(agg.total_qty ?? 0);
+    if (totalQty > 0) {
+      const newAvg = Math.round((Number(agg.total_value ?? 0) / totalQty) * 10000) / 10000;
+      await conn.execute(`UPDATE ims_product_variants SET avg_cost = ? WHERE variant_id = ?`, [newAvg, variantId]);
+    }
+  } catch {
+    // Never block receive flow for variant-level rollup update.
+  }
 }
 
 export async function POST(req: Request) {
@@ -63,7 +88,9 @@ export async function POST(req: Request) {
       // Guard: never receive stock into an already-completed PO (prevents the
       // double-count that happens if the receive is submitted/retried twice).
       const [[poRow]] = await conn.execute<any[]>(
-        `SELECT status, is_historical FROM ims_purchase_orders WHERE id = ? FOR UPDATE`,
+        `SELECT status, is_historical, exchange_rate, tax_treatment, freight
+         FROM ims_purchase_orders
+         WHERE id = ? FOR UPDATE`,
         [po_id]
       );
       if (!poRow) {
@@ -83,17 +110,88 @@ export async function POST(req: Request) {
       let stockUpdatesCount = 0;
       let variantUpdatesCount = 0;
 
+      const settingRows = await conn.execute<any[]>(
+        `SELECT \`key\`, value FROM ims_settings
+         WHERE business_id = ? AND \`key\` IN ('freight_treatment', 'landed_cost_treatment')`,
+        [businessId],
+      );
+      let includeFreight = false;
+      let includeLandedCosts = true;
+      for (const row of ((settingRows[0] as any[]) ?? [])) {
+        if (row.key === 'freight_treatment') includeFreight = row.value === 'capitalise';
+        if (row.key === 'landed_cost_treatment') includeLandedCosts = row.value !== 'expense';
+      }
+
+      const [poItemsRows] = await conn.execute<any[]>(
+        `SELECT id, variant_id, qty_ordered, qty_received, unit_cost, tax_rate
+         FROM ims_purchase_order_items
+         WHERE po_id = ?
+         FOR UPDATE`,
+        [po_id],
+      );
+      const poLineItems: any[] = (poItemsRows as any[]) ?? [];
+      const poItemByVariant = new Map<string, any>();
+      for (const row of poLineItems) poItemByVariant.set(String(row.variant_id), row);
+
+      const [landedRows] = await conn.execute<any[]>(
+        `SELECT amount FROM ims_po_landed_costs WHERE po_id = ?`,
+        [po_id],
+      );
+      const totalLandedAud = ((landedRows as any[]) ?? []).reduce((sum, r) => sum + Number(r.amount || 0), 0);
+
+      let effectiveRate = normalizeExchangeRate(Number(poRow.exchange_rate ?? 1));
+      const [paymentAggRows] = await conn.execute<any[]>(
+        `SELECT SUM(amount) AS tot_foreign, SUM(amount_local) AS tot_local
+         FROM ims_purchase_order_payments
+         WHERE po_id = ?`,
+        [po_id],
+      );
+      const paymentAgg = ((paymentAggRows as any[]) ?? [])[0] ?? {};
+      const totForeign = Number(paymentAgg.tot_foreign ?? 0);
+      const totLocal = Number(paymentAgg.tot_local ?? 0);
+      if (totForeign > 0 && Number.isFinite(totLocal / totForeign)) {
+        effectiveRate = totLocal / totForeign;
+      }
+
+      const taxTreatment = (poRow.tax_treatment ?? 'ex_tax') as TaxTreatment;
+      const landedPerUnit = computeLandedCostPerUnit(
+        poLineItems.map((item) => ({
+          key: String(item.id),
+          qtyOrdered: Number(item.qty_ordered),
+          unitCost: Number(item.unit_cost),
+          taxRate: Number(item.tax_rate ?? 0),
+        })),
+        {
+          exchangeRate: effectiveRate,
+          taxTreatment,
+          totalLandedAud,
+          totalFreightAud: Number(poRow.freight ?? 0),
+          includeLandedCosts,
+          includeFreight,
+        },
+      );
+
       // ─── 1. Update qty_received (accumulate) + stock ──────────────────────
       for (const item of received_items) {
         const { variant_id, qty_received, barcode_new } = item;
+        const poItem = poItemByVariant.get(String(variant_id));
+        if (!poItem) continue;
+
+        const requestedQty = Math.max(0, Number(qty_received || 0));
+        const alreadyReceived = Number(poItem.qty_received ?? 0);
+        const qtyOrdered = Number(poItem.qty_ordered ?? 0);
+        const outstandingQty = Math.max(0, qtyOrdered - alreadyReceived);
+        const appliedQty = Math.min(requestedQty, outstandingQty);
+        if (appliedQty <= 0) continue;
 
         // Accumulate qty_received (not overwrite) for multiple partial receive sessions
         await conn.execute(
           `UPDATE ims_purchase_order_items
            SET qty_received = qty_received + ?
            WHERE po_id = ? AND variant_id = ?`,
-          [qty_received, po_id, variant_id]
+          [appliedQty, po_id, variant_id]
         );
+        poItem.qty_received = alreadyReceived + appliedQty;
 
         const [[currentStock]] = await conn.execute<any[]>(
           `SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id = ? AND location_id = ?`,
@@ -101,15 +199,41 @@ export async function POST(req: Request) {
         );
 
         const oldQty = currentStock?.qty_on_hand ?? 0;
-        const newQty = oldQty + qty_received;
+        const newQty = oldQty + appliedQty;
+
+        const receivedUnitCostAud = computeReceivedUnitCostAud({
+          unitCost: Number(poItem.unit_cost ?? 0),
+          taxRate: Number(poItem.tax_rate ?? 0),
+          taxTreatment,
+          exchangeRate: effectiveRate,
+          landedCostPerUnitAud: landedPerUnit.get(String(poItem.id)) ?? 0,
+        });
+        const oldAvg = Number(currentStock?.avg_cost ?? receivedUnitCostAud);
+        const newAvg = computeWeightedAverageCost({
+          oldQtyOnHand: Number(oldQty),
+          oldAvgCost: oldAvg,
+          receivedQty: appliedQty,
+          receivedUnitCostAud,
+        });
 
         // Increment qty_on_hand (set business_id so newly-created rows are
         // visible in the business-scoped Stock Levels view)
         await conn.execute(
           `INSERT INTO ims_stock (variant_id, location_id, business_id, qty_on_hand)
            VALUES (?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE qty_on_hand = qty_on_hand + VALUES(qty_on_hand)`,
-          [variant_id, location_id, businessId, qty_received]
+           ON DUPLICATE KEY UPDATE
+             business_id = VALUES(business_id),
+             qty_on_hand = qty_on_hand + VALUES(qty_on_hand),
+             avg_cost = ?`,
+          [variant_id, location_id, businessId, appliedQty, newAvg]
+        );
+
+        // If the row existed already, recalc avg_cost with weighted formula.
+        await conn.execute(
+          `UPDATE ims_stock
+           SET avg_cost = ?
+           WHERE variant_id = ? AND location_id = ?`,
+          [newAvg, variant_id, location_id],
         );
 
         // Decrement qty_incoming by the amount now received
@@ -117,16 +241,17 @@ export async function POST(req: Request) {
           `UPDATE ims_stock
            SET qty_incoming = GREATEST(0, qty_incoming - ?)
            WHERE variant_id = ? AND location_id = ?`,
-          [qty_received, variant_id, location_id]
+          [appliedQty, variant_id, location_id]
         );
 
+        await refreshVariantAvgCost(conn, variant_id);
+
         // Stock movement record
-        const oldAvgCost = currentStock?.avg_cost ?? 0;
         await conn.execute(
           `INSERT INTO ims_stock_movements
            (variant_id, location_id, movement_type, channel, reference_type, reference_id, qty_change, qty_after_soh, unit_cost)
            VALUES (?, ?, 'po_received', NULL, 'purchase_order', ?, ?, ?, ?)`,
-          [variant_id, location_id, po_id, qty_received, newQty, oldAvgCost]
+          [variant_id, location_id, po_id, appliedQty, newQty, receivedUnitCostAud]
         );
 
         if (barcode_new) {
@@ -165,9 +290,9 @@ export async function POST(req: Request) {
         if (reorder_qty !== undefined && reorder_qty !== null) { updates.push('reorder_qty = ?'); params.push(reorder_qty); }
         if (updates.length === 0) continue;
         await conn.execute(
-          `INSERT INTO ims_stock (variant_id, location_id) VALUES (?, ?)
+          `INSERT INTO ims_stock (business_id, variant_id, location_id) VALUES (?, ?, ?)
            ON DUPLICATE KEY UPDATE ${updates.join(', ')}`,
-          [variant_id, location_id, ...params],
+          [businessId, variant_id, location_id, ...params],
         );
         stockUpdatesCount++;
       }

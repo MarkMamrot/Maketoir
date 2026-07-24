@@ -8,7 +8,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 import { syncMonthlyCOGSJournal } from '@/services/XeroSyncService';
-import { query } from '@/services/MySQLService';
+import { imsQuery } from '@/services/IMSMySQLService';
 
 export async function POST(req: Request) {
   const { user, response } = requireAdminSession();
@@ -23,16 +23,27 @@ export async function POST(req: Request) {
   }
 
   try {
-    // Calculate COGS from stock movements (sales/fulfillments) for the month.
-    // movement_type = 'sale' or 'fulfillment', qty is negative (outgoing), cost_at_time is the avg cost at the time.
+    // Calculate COGS from IMS stock movements for the month.
+    // SO fulfils always consume stock; POS sales consume when qty_change < 0,
+    // while positive qty_change rows are returns/reversals and reduce COGS.
     const startDate = `${month}-01`;
-    const endDate = `${month}-31`; // MySQL handles month boundaries
 
-    const rows = await query(
-      `SELECT COALESCE(SUM(ABS(sm.qty) * sm.cost_at_time), 0) AS total_cogs
+    const rows = await imsQuery<{ total_cogs: number }>(
+      `SELECT COALESCE(SUM(
+          CASE
+            WHEN sm.movement_type = 'so_fulfilled'
+              THEN ABS(sm.qty_change) * COALESCE(sm.unit_cost, 0)
+            WHEN sm.movement_type = 'pos_sale'
+              THEN CASE
+                     WHEN sm.qty_change < 0
+                       THEN ABS(sm.qty_change) * COALESCE(sm.unit_cost, 0)
+                     ELSE -ABS(sm.qty_change) * COALESCE(sm.unit_cost, 0)
+                   END
+            ELSE 0
+          END
+       ), 0) AS total_cogs
        FROM ims_stock_movements sm
        WHERE sm.business_id = ?
-         AND sm.movement_type IN ('sale', 'fulfillment', 'so_fulfil')
          AND sm.created_at >= ? AND sm.created_at < DATE_ADD(?, INTERVAL 1 MONTH)`,
       [databaseId, startDate, startDate],
     );

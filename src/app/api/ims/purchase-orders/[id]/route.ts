@@ -33,18 +33,26 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     if (status) {
       // Fetch freight treatment setting for this business
       let freightTreatment: 'expense' | 'capitalise' = 'expense';
+      let landedTreatment: 'expense' | 'capitalise' = 'capitalise';
       try {
-        const rows = await imsQuery<{ value: string }>(
-          `SELECT value FROM ims_settings WHERE business_id = ? AND \`key\` = 'freight_treatment' LIMIT 1`,
+        const rows = await imsQuery<{ key: string; value: string }>(
+          `SELECT \`key\`, value FROM ims_settings
+           WHERE business_id = ? AND \`key\` IN ('freight_treatment', 'landed_cost_treatment')`,
           [businessId]
         );
-        if (rows[0]?.value === 'capitalise') freightTreatment = 'capitalise';
+        for (const row of rows) {
+          if (row.key === 'freight_treatment' && row.value === 'capitalise') freightTreatment = 'capitalise';
+          if (row.key === 'landed_cost_treatment' && row.value === 'expense') landedTreatment = 'expense';
+        }
       } catch {}
 
       // Capture prior status before changeStatus to detect received → ordered revert
       const priorPo = await ImsPORepo.get(Number(params.id), businessId);
 
-      await ImsPORepo.changeStatus(Number(params.id), status, freightTreatment);
+      await ImsPORepo.changeStatus(Number(params.id), status, freightTreatment, {
+        includeLandedCosts: landedTreatment === 'capitalise',
+        includeFreight: freightTreatment === 'capitalise',
+      });
 
       // EVENT-DRIVEN CACHE UPDATE: update global_incoming and stock fields on PO changes
       const poDataFull = await ImsPORepo.get(Number(params.id), businessId);

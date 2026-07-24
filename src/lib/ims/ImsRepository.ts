@@ -1,6 +1,13 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getIMSPool, imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { getCurrentImsDb } from '@/services/imsContext';
+import {
+  computeLandedCostPerUnit,
+  computeReceivedUnitCostAud,
+  computeWeightedAverageCost,
+  normalizeExchangeRate,
+  TaxTreatment,
+} from './avgCostMath';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Migration: avg_cost at variant level (business-wide weighted average)
@@ -1187,7 +1194,12 @@ export const ImsPORepo = {
     }
   },
 
-  async changeStatus(id: number, newStatus: POStatus, freightTreatment: 'expense' | 'capitalise' = 'expense'): Promise<void> {
+  async changeStatus(
+    id: number,
+    newStatus: POStatus,
+    freightTreatment: 'expense' | 'capitalise' = 'expense',
+    avgCostInclusion?: { includeLandedCosts?: boolean; includeFreight?: boolean },
+  ): Promise<void> {
     await ensureVariantAvgCost(); // ensures avg_cost column exists before any receive writes it
     const pool = getIMSPool();
     const conn = await pool.getConnection();
@@ -1214,6 +1226,8 @@ export const ImsPORepo = {
 
       const from = po.status as POStatus;
       const to   = newStatus;
+      const includeLandedCosts = avgCostInclusion?.includeLandedCosts !== false;
+      const includeFreight = avgCostInclusion?.includeFreight ?? (freightTreatment === 'capitalise');
 
       if (from === to) return; // no-op
 
@@ -1262,27 +1276,43 @@ export const ImsPORepo = {
 
       // ── confirmed → complete ───────────────────────────────────
       if (from === 'confirmed' && to === 'complete') {
-        // Distribute landed costs (and optionally freight) proportionally by item value
-        const poSubtotal = items.reduce((s, i) => s + Number(i.qty_ordered) * Number(i.unit_cost), 0);
         const totalLanded = landedCostRows.reduce((s, c) => s + Number(c.amount), 0);
-        // When capitalising freight, include it in the per-unit avg-cost calculation
-        const effectiveTotalLanded = totalLanded + (freightTreatment === 'capitalise' ? Number(po.freight ?? 0) : 0);
+        const taxTreatment = (po.tax_treatment ?? 'ex_tax') as TaxTreatment;
 
-        // Pre-compute landed_cost_per_unit for each item
-        const landedPerUnit = new Map<number, number>();
-        for (const item of items) {
-          const itemValue = Number(item.qty_ordered) * Number(item.unit_cost);
-          let lcpu = 0;
-          if (effectiveTotalLanded > 0) {
-            if (poSubtotal > 0) {
-              lcpu = (effectiveTotalLanded * (itemValue / poSubtotal)) / Number(item.qty_ordered);
-            } else {
-              // Fallback: equal split by qty when all unit costs are zero
-              const totalQty = items.reduce((s, i) => s + Number(i.qty_ordered), 0);
-              lcpu = totalQty > 0 ? effectiveTotalLanded / totalQty : 0;
-            }
+        // Determine effective exchange rate: payment-derived weighted avg, else stored rate.
+        let effectiveRate = normalizeExchangeRate(Number(po.exchange_rate ?? 1));
+        try {
+          const [[pymtAgg]] = await conn.execute<any[]>(
+            `SELECT SUM(amount) AS tot_foreign, SUM(amount_local) AS tot_local
+             FROM ims_purchase_order_payments WHERE po_id = ?`,
+            [id],
+          );
+          const totForeign = Number(pymtAgg?.tot_foreign ?? 0);
+          const totLocal = Number(pymtAgg?.tot_local ?? 0);
+          if (totForeign > 0 && Number.isFinite(totLocal / totForeign)) {
+            effectiveRate = totLocal / totForeign;
           }
-          landedPerUnit.set(item.id, lcpu);
+        } catch {}
+
+        const landedPerUnit = computeLandedCostPerUnit(
+          items.map((item) => ({
+            key: String(item.id),
+            qtyOrdered: Number(item.qty_ordered),
+            unitCost: Number(item.unit_cost),
+            taxRate: Number(item.tax_rate ?? 0),
+          })),
+          {
+            exchangeRate: effectiveRate,
+            taxTreatment,
+            totalLandedAud: totalLanded,
+            totalFreightAud: Number(po.freight ?? 0),
+            includeLandedCosts,
+            includeFreight,
+          },
+        );
+
+        for (const item of items) {
+          const lcpu = landedPerUnit.get(String(item.id)) ?? 0;
           if (totalLanded > 0) {
             await conn.execute(
               `UPDATE ims_purchase_order_items SET landed_cost_per_unit = ? WHERE id = ?`,
@@ -1313,27 +1343,22 @@ export const ImsPORepo = {
             [item.variant_id, po.location_id]
           );
 
-          // Determine effective exchange rate: payment-derived weighted avg, else stored rate
-          let effective_rate = Number(po.exchange_rate ?? 1);
-          try {
-            const [[pymtAgg]] = await conn.execute<any[]>(
-              `SELECT SUM(amount) AS tot_foreign, SUM(amount_local) AS tot_local
-               FROM ims_purchase_order_payments WHERE po_id = ?`, [id]
-            );
-            const totForeign = Number(pymtAgg?.tot_foreign ?? 0);
-            const totLocal   = Number(pymtAgg?.tot_local ?? 0);
-            if (totForeign > 0) effective_rate = totLocal / totForeign;
-          } catch {}
-
           const old_soh   = Number(s?.qty_on_hand ?? 0);
-          const old_avg   = Number(s?.avg_cost ?? item.unit_cost);
           const qty_rcvd  = Number(item.qty_ordered) - alreadyRcvd; // outstanding only
-          const lcpu      = landedPerUnit.get(item.id) ?? 0;
-          // unit_cost is in PO currency → convert to AUD first, then add landed cost (already AUD)
-          const true_cost_aud = Number(item.unit_cost) * effective_rate + lcpu;
-          const new_avg   = old_soh <= 0
-            ? true_cost_aud
-            : (old_avg * old_soh + true_cost_aud * qty_rcvd) / (old_soh + qty_rcvd);
+          const true_cost_aud = computeReceivedUnitCostAud({
+            unitCost: Number(item.unit_cost),
+            taxRate: Number(item.tax_rate ?? 0),
+            taxTreatment,
+            exchangeRate: effectiveRate,
+            landedCostPerUnitAud: landedPerUnit.get(String(item.id)) ?? 0,
+          });
+          const old_avg   = Number(s?.avg_cost ?? true_cost_aud);
+          const new_avg   = computeWeightedAverageCost({
+            oldQtyOnHand: old_soh,
+            oldAvgCost: old_avg,
+            receivedQty: qty_rcvd,
+            receivedUnitCostAud: true_cost_aud,
+          });
           const new_soh   = old_soh + qty_rcvd;
 
           await conn.execute(
@@ -1363,23 +1388,42 @@ export const ImsPORepo = {
 
       // ── partially_received → complete (force-close a partially received PO from IMS) ───────────
       if (from === 'partially_received' && to === 'complete') {
-        const poSubtotal = items.reduce((s, i) => s + Number(i.qty_ordered) * Number(i.unit_cost), 0);
         const totalLanded = landedCostRows.reduce((s, c) => s + Number(c.amount), 0);
-        const effectiveTotalLanded = totalLanded + (freightTreatment === 'capitalise' ? Number(po.freight ?? 0) : 0);
+        const taxTreatment = (po.tax_treatment ?? 'ex_tax') as TaxTreatment;
 
-        const landedPerUnit = new Map<number, number>();
-        for (const item of items) {
-          const itemValue = Number(item.qty_ordered) * Number(item.unit_cost);
-          let lcpu = 0;
-          if (effectiveTotalLanded > 0) {
-            if (poSubtotal > 0) {
-              lcpu = (effectiveTotalLanded * (itemValue / poSubtotal)) / Number(item.qty_ordered);
-            } else {
-              const totalQty = items.reduce((s, i) => s + Number(i.qty_ordered), 0);
-              lcpu = totalQty > 0 ? effectiveTotalLanded / totalQty : 0;
-            }
+        let effectiveRate = normalizeExchangeRate(Number(po.exchange_rate ?? 1));
+        try {
+          const [[pymtAgg]] = await conn.execute<any[]>(
+            `SELECT SUM(amount) AS tot_foreign, SUM(amount_local) AS tot_local
+             FROM ims_purchase_order_payments WHERE po_id = ?`,
+            [id],
+          );
+          const totForeign = Number(pymtAgg?.tot_foreign ?? 0);
+          const totLocal = Number(pymtAgg?.tot_local ?? 0);
+          if (totForeign > 0 && Number.isFinite(totLocal / totForeign)) {
+            effectiveRate = totLocal / totForeign;
           }
-          landedPerUnit.set(item.id, lcpu);
+        } catch {}
+
+        const landedPerUnit = computeLandedCostPerUnit(
+          items.map((item) => ({
+            key: String(item.id),
+            qtyOrdered: Number(item.qty_ordered),
+            unitCost: Number(item.unit_cost),
+            taxRate: Number(item.tax_rate ?? 0),
+          })),
+          {
+            exchangeRate: effectiveRate,
+            taxTreatment,
+            totalLandedAud: totalLanded,
+            totalFreightAud: Number(po.freight ?? 0),
+            includeLandedCosts,
+            includeFreight,
+          },
+        );
+
+        for (const item of items) {
+          const lcpu = landedPerUnit.get(String(item.id)) ?? 0;
           if (totalLanded > 0) {
             await conn.execute(
               `UPDATE ims_purchase_order_items SET landed_cost_per_unit = ? WHERE id = ?`,
@@ -1401,24 +1445,21 @@ export const ImsPORepo = {
             [item.variant_id, po.location_id]
           );
 
-          let effective_rate = Number(po.exchange_rate ?? 1);
-          try {
-            const [[pymtAgg]] = await conn.execute<any[]>(
-              `SELECT SUM(amount) AS tot_foreign, SUM(amount_local) AS tot_local
-               FROM ims_purchase_order_payments WHERE po_id = ?`, [id]
-            );
-            const totForeign = Number(pymtAgg?.tot_foreign ?? 0);
-            const totLocal   = Number(pymtAgg?.tot_local ?? 0);
-            if (totForeign > 0) effective_rate = totLocal / totForeign;
-          } catch {}
-
           const old_soh       = Number(s?.qty_on_hand ?? 0);
-          const old_avg       = Number(s?.avg_cost ?? item.unit_cost);
-          const lcpu          = landedPerUnit.get(item.id) ?? 0;
-          const true_cost_aud = Number(item.unit_cost) * effective_rate + lcpu;
-          const new_avg       = old_soh <= 0
-            ? true_cost_aud
-            : (old_avg * old_soh + true_cost_aud * remaining) / (old_soh + remaining);
+          const true_cost_aud = computeReceivedUnitCostAud({
+            unitCost: Number(item.unit_cost),
+            taxRate: Number(item.tax_rate ?? 0),
+            taxTreatment,
+            exchangeRate: effectiveRate,
+            landedCostPerUnitAud: landedPerUnit.get(String(item.id)) ?? 0,
+          });
+          const old_avg       = Number(s?.avg_cost ?? true_cost_aud);
+          const new_avg       = computeWeightedAverageCost({
+            oldQtyOnHand: old_soh,
+            oldAvgCost: old_avg,
+            receivedQty: remaining,
+            receivedUnitCostAud: true_cost_aud,
+          });
           const new_soh       = old_soh + remaining;
 
           await conn.execute(
@@ -2663,6 +2704,7 @@ export const ImsStocktakeRepo = {
       for (const item of items) {
         const counted = Number(item.counted_qty);
         const expected = Number(item.expected_qty);
+        const avgCostAtTime = Number(item.avg_cost ?? 0);
         // Ensure stock row exists
         await conn.execute(
           `INSERT IGNORE INTO ims_stock (business_id, variant_id, location_id) VALUES (?, ?, ?)`,
@@ -2676,9 +2718,9 @@ export const ImsStocktakeRepo = {
           variances++;
           await conn.execute(
             `INSERT INTO ims_stock_movements
-               (variant_id, location_id, movement_type, reference_type, reference_id, qty_change, qty_after_soh)
-             VALUES (?, ?, 'stocktake', 'stocktake', ?, ?, ?)`,
-            [item.variant_id, full.location_id, id, counted - expected, counted]
+               (variant_id, location_id, movement_type, reference_type, reference_id, qty_change, qty_after_soh, unit_cost)
+             VALUES (?, ?, 'stocktake', 'stocktake', ?, ?, ?, ?)`,
+            [item.variant_id, full.location_id, id, counted - expected, counted, avgCostAtTime]
           );
           await conn.execute(`UPDATE ims_stock_movements SET business_id = ? WHERE id = LAST_INSERT_ID()`, [businessId]);
         }

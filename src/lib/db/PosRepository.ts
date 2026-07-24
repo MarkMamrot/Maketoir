@@ -310,10 +310,11 @@ export const PosSalesRepo = {
             if (!item.variant_id) continue;
             const qtyChange = data.sale_type === 'return' ? item.qty : -item.qty;
             const [stockRows]: any = await stockConn.execute(
-              `SELECT qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ? LIMIT 1`,
+              `SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id = ? AND location_id = ? LIMIT 1`,
               [item.variant_id, data.location_id],
             );
             const currentSoh = stockRows[0] ? Number(stockRows[0].qty_on_hand) : 0;
+            const avgCostAtTime = stockRows[0] ? Number(stockRows[0].avg_cost ?? 0) : 0;
             const newSoh = currentSoh + qtyChange;
 
             if (stockRows[0]) {
@@ -331,9 +332,9 @@ export const PosSalesRepo = {
             await stockConn.execute(
               `INSERT INTO ims_stock_movements
                  (variant_id, location_id, movement_type, channel, reference_type, reference_id,
-                  qty_change, qty_after_soh)
-               VALUES (?, ?, ?, 'pos', ?, ?, ?, ?)`,
-              [item.variant_id, data.location_id, 'pos_sale', 'pos_sale', saleId, qtyChange, newSoh],
+                  qty_change, qty_after_soh, unit_cost)
+               VALUES (?, ?, ?, 'pos', ?, ?, ?, ?, ?)`,
+              [item.variant_id, data.location_id, 'pos_sale', 'pos_sale', saleId, qtyChange, newSoh, avgCostAtTime],
             );
           }
           await stockConn.commit();
@@ -441,10 +442,11 @@ export const PosSalesRepo = {
         // +qty, so reversing subtracts it back out.
         const qtyChange = sale.sale_type === 'return' ? -item.qty : item.qty;
         const [stockRows]: any = await stockConn.execute(
-          `SELECT qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ? LIMIT 1`,
+          `SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id = ? AND location_id = ? LIMIT 1`,
           [item.variant_id, sale.location_id],
         );
         const currentSoh = stockRows[0] ? Number(stockRows[0].qty_on_hand) : 0;
+        const avgCostAtTime = stockRows[0] ? Number(stockRows[0].avg_cost ?? 0) : 0;
         const newSoh = currentSoh + qtyChange;
 
         if (stockRows[0]) {
@@ -462,9 +464,9 @@ export const PosSalesRepo = {
         await stockConn.execute(
           `INSERT INTO ims_stock_movements
              (variant_id, location_id, movement_type, channel, reference_type, reference_id,
-              qty_change, qty_after_soh, notes)
-           VALUES (?, ?, ?, 'pos', ?, ?, ?, ?, ?)`,
-          [item.variant_id, sale.location_id, 'pos_sale', 'pos_sale', id, qtyChange, newSoh, 'Voided by manager PIN'],
+              qty_change, qty_after_soh, unit_cost, notes)
+           VALUES (?, ?, ?, 'pos', ?, ?, ?, ?, ?, ?)`,
+          [item.variant_id, sale.location_id, 'pos_sale', 'pos_sale', id, qtyChange, newSoh, avgCostAtTime, 'Voided by manager PIN'],
         );
       }
       await stockConn.commit();
@@ -602,10 +604,11 @@ export const PosSalesRepo = {
           const delta = (newMap.get(vid) ?? 0) - (oldMap.get(vid) ?? 0);
           if (!delta) continue;
           const [stockRows]: any = await stockConn.execute(
-            `SELECT qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ? LIMIT 1`,
+            `SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id = ? AND location_id = ? LIMIT 1`,
             [vid, oldSale.location_id],
           );
           const currentSoh = stockRows[0] ? Number(stockRows[0].qty_on_hand) : 0;
+          const avgCostAtTime = stockRows[0] ? Number(stockRows[0].avg_cost ?? 0) : 0;
           const newSoh = currentSoh + delta;
 
           if (stockRows[0]) {
@@ -623,9 +626,9 @@ export const PosSalesRepo = {
           await stockConn.execute(
             `INSERT INTO ims_stock_movements
                (variant_id, location_id, movement_type, channel, reference_type, reference_id,
-                qty_change, qty_after_soh, notes)
-             VALUES (?, ?, ?, 'pos', ?, ?, ?, ?, ?)`,
-            [vid, oldSale.location_id, 'pos_sale', 'pos_sale', id, delta, newSoh, 'Adjusted via manager transaction edit'],
+                qty_change, qty_after_soh, unit_cost, notes)
+             VALUES (?, ?, ?, 'pos', ?, ?, ?, ?, ?, ?)`,
+            [vid, oldSale.location_id, 'pos_sale', 'pos_sale', id, delta, newSoh, avgCostAtTime, 'Adjusted via manager transaction edit'],
           );
         }
         await stockConn.commit();
