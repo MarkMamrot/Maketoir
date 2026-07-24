@@ -110,18 +110,21 @@ export async function POST(req: Request) {
           ? (contactMap.get(order.customer_name.trim().toLowerCase()) ?? null)
           : null;
 
-        // Normalise status
+        // Normalise status/type/tax values to avoid casing issues in imports.
+        const statusRaw = String(order.status ?? '').trim().toLowerCase();
+        const soTypeRaw = String(order.so_type ?? '').trim().toLowerCase();
+        const taxTreatmentRaw = String(order.tax_treatment ?? '').trim().toLowerCase();
         const status = (['draft', 'confirmed', 'fulfilled', 'cancelled'] as const)
-          .includes(order.status as any) ? order.status as string : 'draft';
+          .includes(statusRaw as any) ? statusRaw : 'draft';
 
         // Historical = fulfilled or cancelled (no accounting sync)
         const isHistorical = (status === 'fulfilled' || status === 'cancelled') ? 1 : 0;
 
-        const soType       = (['b2b', 'online', 'pos'] as const).includes(order.so_type as any)
-          ? order.so_type as string : 'b2b';
+        const soType       = (['b2b', 'online', 'pos'] as const).includes(soTypeRaw as any)
+          ? soTypeRaw : 'b2b';
         const priceTier    = order.price_tier === 'wholesale' ? 'wholesale' : 'retail';
-        const taxTreatment = (['ex_tax', 'inc_tax', 'no_tax'] as const).includes(order.tax_treatment as any)
-          ? order.tax_treatment as 'ex_tax' | 'inc_tax' | 'no_tax' : 'ex_tax';
+        const taxTreatment = (['ex_tax', 'inc_tax', 'no_tax'] as const).includes(taxTreatmentRaw as any)
+          ? taxTreatmentRaw as 'ex_tax' | 'inc_tax' | 'no_tax' : 'ex_tax';
         const freight  = Number(order.freight  ?? 0);
         const discount = Number(order.discount ?? 0);
 

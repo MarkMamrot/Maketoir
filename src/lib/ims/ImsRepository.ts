@@ -1700,12 +1700,15 @@ export const ImsSORepo = {
     const columns = await this.ensureListColumns();
     const wheres: string[] = [];
     if (columns.has('so_type')) {
+      const soTypeNorm = "LOWER(TRIM(COALESCE(so.so_type, '')))";
+      const onlineTypes = "('online','shopify')";
+      const posTypes = "('pos','point_of_sale','pointofsale','in_store','instore','retail_pos','retail')";
       if (channel === 'online') {
-        wheres.push("so.so_type = 'online'");
+        wheres.push(`${soTypeNorm} IN ${onlineTypes}`);
       } else if (channel === 'pos') {
-        wheres.push("so.so_type = 'pos'");
+        wheres.push(`${soTypeNorm} IN ${posTypes}`);
       } else if (channel === 'b2b') {
-        wheres.push("(so.so_type IS NULL OR so.so_type NOT IN ('online','pos'))");
+        wheres.push(`(${soTypeNorm} = '' OR (${soTypeNorm} NOT IN ${onlineTypes} AND ${soTypeNorm} NOT IN ${posTypes}))`);
       }
     }
     const params: any[] = [];

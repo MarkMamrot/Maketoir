@@ -10622,6 +10622,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [channelFilter, setChannelFilter] = useState<'all' | 'b2b' | 'online' | 'pos'>(() => {
     if (typeof window === 'undefined') return 'b2b';
     try {
@@ -10929,6 +10930,20 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   };
 
   const customerOptions = [...new Set(sos.map((s: any) => s.customer_name).filter(Boolean))].sort() as string[];
+  const salesFiltersActive = statusFilter !== '' || channelFilter !== 'b2b';
+  const channelFilterLabel: Record<'all' | 'b2b' | 'online' | 'pos', string> = {
+    all: 'All Orders',
+    b2b: 'Wholesale / B2B',
+    online: 'Online',
+    pos: 'POS',
+  };
+  const statusFilterLabel: Record<string, string> = {
+    '': 'All',
+    draft: 'Draft',
+    confirmed: 'Confirmed',
+    fulfilled: 'Fulfilled',
+    cancelled: 'Cancelled',
+  };
   const filteredSOs = sos.filter((s: any) => {
     if (statusFilter && s.status !== statusFilter) return false;
     if (filterCustomer && !(s.customer_name || '').toLowerCase().includes(filterCustomer.toLowerCase())) return false;
@@ -10960,21 +10975,6 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New SO</button>}
       </div>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-        {['','draft','confirmed','fulfilled','cancelled'].map(s => (
-          <button key={s} onClick={() => { setStatusFilter(s); setPage(1); }} style={btnStyle(statusFilter === s ? 'action' : 'ghost', 'sm')}>
-            {s || 'All'}
-          </button>
-        ))}
-        <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--sv-etch)', margin: '0 2px' }} />
-        {[['b2b', 'Wholesale / B2B'], ['all', 'All Orders'], ['online', 'Online'], ['pos', 'POS']].map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => { setChannelFilter(key as 'all' | 'b2b' | 'online' | 'pos'); setPage(1); }}
-            style={btnStyle(channelFilter === key ? 'mint' : 'ghost', 'sm')}
-          >
-            {label}
-          </button>
-        ))}
         <input
           list="so-customer-filter-list"
           placeholder="Filter by customer…"
@@ -10985,6 +10985,61 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         <datalist id="so-customer-filter-list">
           {customerOptions.map(c => <option key={c} value={c} />)}
         </datalist>
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setFiltersOpen(p => !p)}
+            style={{
+              ...btnStyle('secondary', 'sm'),
+              ...(salesFiltersActive
+                ? { background: 'color-mix(in srgb, var(--sv-action) 12%, var(--sv-bg-2))', borderColor: 'var(--sv-action)', color: 'var(--sv-action)' }
+                : {}),
+            }}
+          >
+            Filters ▾{salesFiltersActive ? ' ●' : ''}
+          </button>
+          {filtersOpen && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setFiltersOpen(false)} />
+              <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 100, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px', marginTop: 4, minWidth: 280, boxShadow: '0 6px 20px rgba(0,0,0,0.14)' }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 12 }}>Filters</p>
+
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Order Channel</label>
+                  <select
+                    value={channelFilter}
+                    onChange={e => { setChannelFilter(e.target.value as 'all' | 'b2b' | 'online' | 'pos'); setPage(1); }}
+                    style={{ ...inputStyle, width: '100%' }}
+                  >
+                    <option value="b2b">Wholesale / B2B</option>
+                    <option value="all">All Orders</option>
+                    <option value="online">Online</option>
+                    <option value="pos">POS</option>
+                  </select>
+                </div>
+
+                <div style={{ marginBottom: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Status</label>
+                  <select
+                    value={statusFilter}
+                    onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
+                    style={{ ...inputStyle, width: '100%' }}
+                  >
+                    <option value="">All</option>
+                    <option value="draft">Draft</option>
+                    <option value="confirmed">Confirmed</option>
+                    <option value="fulfilled">Fulfilled</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+
+                <div style={{ marginTop: 10, fontSize: 11, color: 'var(--sv-text-dim)' }}>
+                  <div>Channel: <strong style={{ color: 'var(--sv-text-main)' }}>{channelFilterLabel[channelFilter]}</strong></div>
+                  <div>Status: <strong style={{ color: 'var(--sv-text-main)' }}>{statusFilterLabel[statusFilter] ?? 'All'}</strong></div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
         {(statusFilter || filterCustomer || channelFilter !== 'b2b') && (
           <button onClick={() => { setStatusFilter(''); setFilterCustomer(''); setChannelFilter('b2b'); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
         )}
