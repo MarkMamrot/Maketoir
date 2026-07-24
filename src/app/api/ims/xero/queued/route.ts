@@ -1,6 +1,6 @@
 /**
  * GET /api/ims/xero/queued
- * Returns all POs, SOs and supplier credit notes with xero_sync_status = 'queued'.
+ * Returns all POs, SOs, customer credit notes and supplier credit notes with xero_sync_status = 'queued'.
  */
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
@@ -32,6 +32,16 @@ export async function GET() {
         ORDER BY so.xero_synced_at DESC`,
       [businessId]
     ).catch(() => [] as any[]);
+    const cns = await imsQuery<any>(
+      `SELECT cn.id, cn.cn_number AS reference, 'cn' AS type, cn.status,
+              cn.total_amount, cn.xero_synced_at,
+              COALESCE(c.name) AS contact_name
+         FROM ims_credit_notes cn
+         LEFT JOIN ims_contacts c ON c.id = cn.customer_id
+        WHERE cn.xero_sync_status = 'queued' AND cn.business_id = ?
+        ORDER BY cn.xero_synced_at DESC`,
+      [businessId]
+    ).catch(() => [] as any[]);
     const scns = await imsQuery<any>(
       `SELECT scn.id, scn.scn_number AS reference, 'scn' AS type, scn.status,
               scn.total_amount, scn.xero_synced_at,
@@ -42,7 +52,7 @@ export async function GET() {
         ORDER BY scn.xero_synced_at DESC`,
       [businessId]
     ).catch(() => [] as any[]);
-    return NextResponse.json({ queued: [...pos, ...sos, ...scns], count: pos.length + sos.length + scns.length });
+    return NextResponse.json({ queued: [...pos, ...sos, ...cns, ...scns], count: pos.length + sos.length + cns.length + scns.length });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

@@ -9078,6 +9078,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
   const [lineItems, setLineItems] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [completing, setCompleting] = useState(false);
+  const [retryingCnXero, setRetryingCnXero] = useState(false);
   const { settings } = useImsSettings();
 
   const load = useCallback(() => {
@@ -9166,10 +9167,14 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
     }));
   };
 
-  const lineTotal = (item: any) => Number(item.qty || 0) * Number(item.unit_price || 0);
+  const normalizedQty = (item: any) => Math.abs(Number(item.qty || 0));
+  const normalizedUnitPrice = (item: any) => Math.abs(Number(item.unit_price || 0));
+  const normalizedTaxRate = (item: any) => Math.abs(Number(item.tax_rate || 0));
+  const lineTotal = (item: any) => normalizedQty(item) * normalizedUnitPrice(item);
   const cnSubtotal = lineItems.reduce((s, i) => s + lineTotal(i), 0);
-  const cnTax      = lineItems.reduce((s, i) => s + lineTotal(i) * Number(i.tax_rate || 0), 0);
+  const cnTax      = lineItems.reduce((s, i) => s + lineTotal(i) * normalizedTaxRate(i), 0);
   const grandTotal = cnSubtotal + cnTax;
+  const hasInvalidQty = lineItems.some(i => !(normalizedQty(i) > 0));
 
   const openNew = () => {
     const taxOn = (settings?.sales_tax_on_sales ?? 'yes') === 'yes';
@@ -9196,6 +9201,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
     e.preventDefault();
     if (!form.location_id) return alert('Please select a location.');
     if (!lineItems.length) return alert('Please add at least one line item.');
+    if (hasInvalidQty) return alert('Credit note quantities cannot be 0. You can enter positive or negative values; we auto-convert to positive.');
     setSaving(true);
     try {
       const body = {
@@ -9204,7 +9210,14 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
         so_id: form.so_id ? Number(form.so_id) : null,
         original_so_number: form.original_so_number || null,
         location_id: Number(form.location_id),
-        items: lineItems.map(i => ({ ...i, price_basis: form.price_basis ?? 'custom', qty: Number(i.qty), unit_price: Number(i.unit_price), tax_rate: Number(i.tax_rate), restock: i.restock === undefined ? true : !!i.restock })),
+        items: lineItems.map(i => ({
+          ...i,
+          price_basis: form.price_basis ?? 'custom',
+          qty: Math.abs(Number(i.qty)),
+          unit_price: Math.abs(Number(i.unit_price)),
+          tax_rate: Math.abs(Number(i.tax_rate)),
+          restock: i.restock === undefined ? true : !!i.restock,
+        })),
       };
       if (modal.edit) {
         await apiFetch(`/api/ims/credit-notes/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -9246,6 +9259,24 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
       load();
     } catch (err: any) {
       alert(err.message || 'Failed to set awaiting');
+    }
+  };
+
+  const retryCnXeroSync = async (cnId: number) => {
+    setRetryingCnXero(true);
+    try {
+      await apiFetch('/api/ims/xero/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'cn', id: cnId }),
+      });
+      await openView({ id: cnId });
+      load();
+      alert('Xero sync retry queued. Refresh this view in a few seconds to see final status.');
+    } catch (err: any) {
+      alert(err.message || 'Retry failed');
+    } finally {
+      setRetryingCnXero(false);
     }
   };
 
@@ -9415,13 +9446,13 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
                         <input type="text" value={item.code ?? ''} onChange={e => updateLine(i, 'code', e.target.value)} placeholder="Barcode / SKU" style={{ ...inputStyle, fontSize: 11, padding: '4px 6px', width: '100%' }} />
                       </td>
                       <td style={{ padding: '6px 8px' }}>
-                        <input type="number" min="0.001" step="0.001" value={item.qty} onChange={e => updateLine(i, 'qty', e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: '4px 6px', width: 60 }} />
+                        <input type="number" step="0.001" value={item.qty} onChange={e => updateLine(i, 'qty', e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: '4px 6px', width: 60 }} />
                       </td>
                       <td style={{ padding: '6px 8px' }}>
-                        <input type="number" min="0" step="0.01" value={item.unit_price} onChange={e => updateLine(i, 'unit_price', e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: '4px 6px', width: 80 }} />
+                        <input type="number" step="0.01" value={item.unit_price} onChange={e => updateLine(i, 'unit_price', e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: '4px 6px', width: 80 }} />
                       </td>
                       <td style={{ padding: '6px 8px' }}>
-                        <input type="number" min="0" max="1" step="0.01" value={item.tax_rate} onChange={e => updateLine(i, 'tax_rate', e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: '4px 6px', width: 60 }} />
+                        <input type="number" max="1" step="0.01" value={item.tax_rate} onChange={e => updateLine(i, 'tax_rate', e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: '4px 6px', width: 60 }} />
                       </td>
                       <td style={{ padding: '6px 8px', textAlign: 'center' }}>
                         <input type="checkbox" checked={item.restock === undefined ? true : !!item.restock} onChange={e => updateLine(i, 'restock', e.target.checked)} disabled={!item.variant_id} title={item.variant_id ? 'Return to stock' : 'No variant — cannot restock'} style={{ cursor: item.variant_id ? 'pointer' : 'not-allowed', width: 16, height: 16 }} />
@@ -9438,12 +9469,15 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
                 <button type="button" onClick={addLine} style={{ ...btnStyle('ghost'), fontSize: 12, padding: '4px 10px' }}>+ Add Item</button>
               </div>
             </div>
+            <div style={{ margin: '-4px 0 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
+              Tip: customer credit notes can be entered with negative or positive values. This form auto-converts to positive credit-note values.
+            </div>
 
             {/* Totals */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
               <div style={{ fontSize: 13, textAlign: 'right', display: 'grid', gridTemplateColumns: '1fr auto', gap: '4px 24px', color: 'var(--sv-text-dim)', minWidth: 220 }}>
                 <span>Subtotal</span><span style={{ fontWeight: 600 }}>{fmtCurrency(cnSubtotal)}</span>
-                <span>Tax</span><span style={{ fontWeight: 600 }}>{fmtCurrency(cnTax)}</span>
+                <span>GST Total</span><span style={{ fontWeight: 600 }}>{fmtCurrency(cnTax)}</span>
                 <span style={{ color: 'var(--sv-text-strong)', fontWeight: 700, fontSize: 15 }}>Total</span>
                 <span style={{ color: 'var(--sv-text-strong)', fontWeight: 700, fontSize: 15 }}>{fmtCurrency(grandTotal)}</span>
               </div>
@@ -9451,7 +9485,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button type="button" onClick={() => setModal({ open: false, edit: null })} style={btnStyle('ghost')}>Cancel</button>
-              <button type="submit" disabled={saving} style={btnStyle('action')}>{saving ? 'Saving…' : modal.edit ? 'Save Changes' : 'Create Draft'}</button>
+              <button type="submit" disabled={saving || hasInvalidQty} style={{ ...btnStyle('action'), opacity: (saving || hasInvalidQty) ? .6 : 1 }} title={hasInvalidQty ? 'All line quantities must be non-zero' : ''}>{saving ? 'Saving…' : modal.edit ? 'Save Changes' : 'Create Draft'}</button>
               {modal.edit && modal.edit.status === 'draft' && (
                 <button type="button" disabled={completing} onClick={() => { setModal({ open: false, edit: null }); handleComplete(modal.edit); }} style={{ ...btnStyle('action'), background: '#34d399', borderColor: '#34d399' }}>
                   {completing ? 'Completing…' : 'Complete & Return Stock'}
@@ -9466,35 +9500,6 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
       {viewModal.open && viewModal.cn && (
         <Modal title={`Credit Note ${viewModal.cn.cn_number}`} onClose={() => setViewModal({ open: false, cn: null })} wide>
           <div style={{ fontSize: 13 }}>
-            {/* Xero Status */}
-            {(() => {
-              const cn = viewModal.cn;
-              const xeroStatus = cn.xero_sync_status as string | null;
-              const xeroId = cn.xero_credit_note_id as string | null;
-              const xeroAt = cn.xero_synced_at ? new Date(cn.xero_synced_at).toLocaleString() : null;
-              if (xeroStatus === 'synced')
-                return (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', background: 'rgba(16,185,129,.1)', borderRadius: 6, fontSize: 11, marginBottom: 12, flexWrap: 'wrap' }}>
-                    <span style={{ color: '#34d399', fontWeight: 700 }}>✓ Synced to Xero</span>
-                    {xeroAt && <span style={{ color: 'var(--sv-text-dim)' }}>{xeroAt}</span>}
-                    {xeroId && <span style={{ color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 10 }}>{xeroId.slice(0, 8)}…</span>}
-                    {xeroId && <a href={`https://go.xero.com/AccountsReceivable/CreditNote.aspx?creditNoteID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sv-mint)' }}>View in Xero ↗</a>}
-                  </div>
-                );
-              if (xeroStatus === 'queued' || xeroStatus === 'error')
-                return (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', background: 'rgba(251,191,36,.1)', borderRadius: 6, fontSize: 11, marginBottom: 12 }}>
-                    <span style={{ color: '#fbbf24', fontWeight: 700 }}>⚠ Queued for Xero sync</span>
-                    {xeroAt && <span style={{ color: 'var(--sv-text-dim)' }}>Last: {xeroAt}</span>}
-                  </div>
-                );
-              return (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--sv-bg-1)', borderRadius: 6, fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 12 }}>
-                  <span>○ Not yet synced to Xero</span>
-                </div>
-              );
-            })()}
-
             {/* Details */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', marginBottom: 16 }}>
               {[
@@ -9537,18 +9542,62 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                    <td colSpan={5} style={{ padding: '6px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Subtotal</td>
+                    <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)', textAlign: 'right' }}>{fmtCurrency(viewModal.cn.subtotal)}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan={5} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>GST Total</td>
+                    <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)', textAlign: 'right' }}>{fmtCurrency(viewModal.cn.tax_amount)}</td>
+                  </tr>
+                  <tr style={{ borderTop: '2px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
+                    <td colSpan={5} style={{ padding: '8px 10px', textAlign: 'right', fontSize: 13, color: 'var(--sv-text-dim)' }}>Total</td>
+                    <td style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--sv-text-strong)', textAlign: 'right' }}>{fmtCurrency(viewModal.cn.total_amount)}</td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
 
-            {/* Totals */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-              <div style={{ fontSize: 13, textAlign: 'right', display: 'grid', gridTemplateColumns: '1fr auto', gap: '4px 24px', color: 'var(--sv-text-dim)', minWidth: 220 }}>
-                <span>Subtotal</span><span style={{ fontWeight: 600 }}>{fmtCurrency(viewModal.cn.subtotal)}</span>
-                <span>Tax</span><span style={{ fontWeight: 600 }}>{fmtCurrency(viewModal.cn.tax_amount)}</span>
-                <span style={{ color: 'var(--sv-text-strong)', fontWeight: 700, fontSize: 15 }}>Total</span>
-                <span style={{ color: 'var(--sv-text-strong)', fontWeight: 700, fontSize: 15 }}>{fmtCurrency(viewModal.cn.total_amount)}</span>
-              </div>
-            </div>
+            {/* Xero Status (bottom, mirroring supplier CN modal) */}
+            {(() => {
+              const cn = viewModal.cn;
+              const xeroStatus = cn.xero_sync_status as string | null;
+              const xeroId = cn.xero_credit_note_id as string | null;
+              const xeroAt = cn.xero_synced_at ? new Date(cn.xero_synced_at).toLocaleString() : null;
+
+              if (xeroStatus === 'synced') {
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', background: 'rgba(16,185,129,.1)', borderRadius: 6, fontSize: 11, marginBottom: 12, flexWrap: 'wrap' }}>
+                    <span style={{ color: '#34d399', fontWeight: 700 }}>✓ Synced to Xero</span>
+                    {xeroAt && <span style={{ color: 'var(--sv-text-dim)' }}>{xeroAt}</span>}
+                    {xeroId && <span style={{ color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 10 }}>{xeroId.slice(0, 8)}…</span>}
+                    {xeroId && <a href={`https://go.xero.com/AccountsReceivable/CreditNote.aspx?creditNoteID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sv-mint)' }}>View in Xero ↗</a>}
+                  </div>
+                );
+              }
+
+              if (xeroStatus === 'queued' || xeroStatus === 'error') {
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', background: 'rgba(251,191,36,.1)', borderRadius: 6, fontSize: 11, marginBottom: 12, flexWrap: 'wrap' }}>
+                    <strong style={{ color: 'var(--sv-text-main)' }}>Xero:</strong>
+                    <span style={{ color: '#fbbf24', fontWeight: 700 }}>{xeroStatus === 'queued' ? 'Queued for retry' : 'Sync failed'}</span>
+                    {xeroAt && <span style={{ color: 'var(--sv-text-dim)' }}>Last: {xeroAt}</span>}
+                    {!isAdvisor && (
+                      <button type="button" onClick={() => retryCnXeroSync(viewModal.cn.id)} disabled={retryingCnXero} style={{ ...btnStyle('mint', 'xs'), opacity: retryingCnXero ? .7 : 1 }}>
+                        {retryingCnXero ? 'Retrying…' : 'Retry Xero Sync'}
+                      </button>
+                    )}
+                  </div>
+                );
+              }
+
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--sv-bg-1)', borderRadius: 6, fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 12 }}>
+                  <span>○ Not yet synced to Xero</span>
+                </div>
+              );
+            })()}
 
             {viewModal.cn.status === 'draft' && (
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
