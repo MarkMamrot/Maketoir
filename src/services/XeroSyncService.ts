@@ -1487,6 +1487,41 @@ interface SupplierCNFileRow {
   mime_type: string | null;
 }
 
+function parseXeroValidationDetails(errMessage: string): { summary: string; duplicateNumber: boolean } {
+  const out: string[] = [];
+  const msg = String(errMessage || '').trim();
+  let duplicateNumber = false;
+  try {
+    const jsonStart = msg.indexOf('{');
+    if (jsonStart >= 0) {
+      const parsed = JSON.parse(msg.slice(jsonStart));
+      const elements = Array.isArray(parsed?.Elements) ? parsed.Elements : [];
+      for (const el of elements) {
+        const headerErrs = Array.isArray(el?.ValidationErrors) ? el.ValidationErrors : [];
+        for (const ve of headerErrs) {
+          const m = String(ve?.Message ?? '').trim();
+          if (m) out.push(m);
+        }
+        const lineItems = Array.isArray(el?.LineItems) ? el.LineItems : [];
+        for (const li of lineItems) {
+          const lineErrs = Array.isArray(li?.ValidationErrors) ? li.ValidationErrors : [];
+          for (const ve of lineErrs) {
+            const m = String(ve?.Message ?? '').trim();
+            if (m) out.push(m);
+          }
+        }
+      }
+    }
+  } catch {
+    // Fall back to raw message when payload is not JSON or cannot be parsed.
+  }
+
+  const combined = out.join(' | ') || msg;
+  const haystack = combined.toLowerCase();
+  duplicateNumber = /invoice number|credit note number|already been used|must be unique|duplicate/.test(haystack);
+  return { summary: combined, duplicateNumber };
+}
+
 function getSupplierCNUploadDir(businessId: string, scnNumber: string): string {
   const base = process.env.UPLOAD_BASE_PATH ?? './uploads';
   const safeScnNumber = scnNumber.replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -1628,7 +1663,7 @@ export async function syncSupplierCNAsCreditNote(businessId: string, scn: Suppli
     return null;
   }
 
-  const creditNote: any = {
+  const creditNoteBase: any = {
     Type: 'ACCPAY',
     Contact: { Name: scn.supplier_name || `Supplier #${scn.supplier_id}` },
     Date: scn.scn_date,
@@ -1642,7 +1677,7 @@ export async function syncSupplierCNAsCreditNote(businessId: string, scn: Suppli
   try {
     const result = await xeroApiFetch(businessId, '/CreditNotes', {
       method: 'POST',
-      body: { CreditNotes: [creditNote] },
+      body: { CreditNotes: [creditNoteBase] },
     });
     const xeroId = result.CreditNotes?.[0]?.CreditNoteID ?? null;
     if (xeroId) {
@@ -1652,7 +1687,41 @@ export async function syncSupplierCNAsCreditNote(businessId: string, scn: Suppli
     await markSupplierCNXeroStatus(scn.id, 'synced', xeroId);
     return xeroId;
   } catch (err: any) {
-    await logSync(businessId, 'scn_credit_note', scn.id, null, 'error', err.message);
+    const parsed = parseXeroValidationDetails(err.message);
+
+    // Common Xero case: duplicate invoice/credit note number. Retry once with no
+    // explicit CreditNoteNumber so Xero can auto-assign a unique number.
+    if (parsed.duplicateNumber) {
+      try {
+        const creditNoteNoNumber = { ...creditNoteBase };
+        delete creditNoteNoNumber.CreditNoteNumber;
+        const retry = await xeroApiFetch(businessId, '/CreditNotes', {
+          method: 'POST',
+          body: { CreditNotes: [creditNoteNoNumber] },
+        });
+        const xeroId = retry.CreditNotes?.[0]?.CreditNoteID ?? null;
+        if (xeroId) {
+          await uploadSupplierCNAttachmentsToXero(businessId, scn.id, scn.scn_number, xeroId);
+        }
+        await logSync(
+          businessId,
+          'scn_credit_note',
+          scn.id,
+          xeroId,
+          'success',
+          `Supplier credit note created after duplicate-number fallback: ${scn.scn_number}`,
+          retry.CreditNotes?.[0]?.Status ?? 'AUTHORISED',
+        );
+        await markSupplierCNXeroStatus(scn.id, 'synced', xeroId);
+        return xeroId;
+      } catch (retryErr: any) {
+        const retryParsed = parseXeroValidationDetails(retryErr.message);
+        await logSync(businessId, 'scn_credit_note', scn.id, null, 'error', `Primary: ${parsed.summary} | Retry: ${retryParsed.summary}`);
+        return null;
+      }
+    }
+
+    await logSync(businessId, 'scn_credit_note', scn.id, null, 'error', parsed.summary);
     return null;
   }
 }
