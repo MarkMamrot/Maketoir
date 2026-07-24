@@ -13,6 +13,8 @@ import {
   EMPTY_MULTI,
   MultiFilter,
   ReportMultiFilter,
+  SBDatePicker,
+  SBDateRange,
   WINDOW_OPTS,
   hasMultiFilter,
   multiFilterParams,
@@ -90,6 +92,32 @@ const fmtQty = (n: number | null | undefined) =>
 // Using 'sv-SE' locale gives the ISO YYYY-MM-DD format; explicit TZ prevents
 // the UTC off-by-one error that affects Australian evenings (UTC+10/+11).
 const today = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Australia/Sydney' });
+
+const daysAgoSydney = (n: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toLocaleDateString('sv-SE', { timeZone: 'Australia/Sydney' });
+};
+
+const DEFAULT_DATE_RANGE: SBDateRange = { kind: 'window', window: 90, label: '90 Days' };
+
+function toYmd(value: any): string {
+  if (!value) return '';
+  return String(value).slice(0, 10);
+}
+
+function inDateRange(value: any, range: SBDateRange): boolean {
+  const ymd = toYmd(value);
+  if (!ymd) return false;
+  if (range.kind === 'range') {
+    const low = range.from <= range.to ? range.from : range.to;
+    const high = range.from <= range.to ? range.to : range.from;
+    return ymd >= low && ymd <= high;
+  }
+  const low = daysAgoSydney(Math.max(0, Number(range.window || 0) - 1));
+  const high = today();
+  return ymd >= low && ymd <= high;
+}
 
 const PAYMENT_TERMS = ['', '10 Days', '15 Days', '30 Days', '30 EOM', '60 Days', '90 Days', 'COD'];
 const PO_CURRENCIES = ['AUD', 'USD', 'EUR', 'GBP', 'THB', 'CNY', 'JPY', 'INR', 'CAD', 'NZD'];
@@ -7342,6 +7370,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
   const [xeroWarnFetching, setXeroWarnFetching] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [filterSupplier, setFilterSupplier] = useState('');
+  const [dateRange, setDateRange] = useState<SBDateRange>(DEFAULT_DATE_RANGE);
   const [sortCol, setSortCol] = useState<string>('order_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
@@ -7654,6 +7683,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
   const filteredPOs = pos.filter((p: any) => {
     if (statusFilter && p.status !== statusFilter) return false;
     if (filterSupplier && !(p.supplier_name || '').toLowerCase().includes(filterSupplier.toLowerCase())) return false;
+    if (!inDateRange(p.order_date, dateRange)) return false;
     return true;
   });
   const sortedFilteredPOs = [...filteredPOs].sort((a: any, b: any) => {
@@ -7694,11 +7724,12 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
           onChange={e => { setFilterSupplier(e.target.value); setPage(1); }}
           style={{ ...inputStyle, minWidth: 180, flex: '1 1 180px' }}
         />
+        <SBDatePicker value={dateRange} onChange={(r) => { setDateRange(r); setPage(1); }} />
         <datalist id="po-supplier-filter-list">
           {supplierOptions.map(s => <option key={s} value={s} />)}
         </datalist>
-        {(statusFilter || filterSupplier) && (
-          <button onClick={() => { setStatusFilter(''); setFilterSupplier(''); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
+        {(statusFilter || filterSupplier || dateRange.kind !== 'window' || dateRange.window !== 90) && (
+          <button onClick={() => { setStatusFilter(''); setFilterSupplier(''); setDateRange(DEFAULT_DATE_RANGE); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
         )}
       </div>
       {loading ? <Spinner /> : sortedFilteredPOs.length === 0 ? <EmptyState text="No purchase orders match your filters." /> : (
@@ -9106,6 +9137,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
   const [saving, setSaving] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [retryingCnXero, setRetryingCnXero] = useState(false);
+  const [dateRange, setDateRange] = useState<SBDateRange>(DEFAULT_DATE_RANGE);
   const { settings } = useImsSettings();
 
   const load = useCallback(() => {
@@ -9311,7 +9343,11 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
     }
   };
 
-  const filtered = cns.filter(cn => !statusFilter || cn.status === statusFilter);
+  const filtered = cns.filter(cn => {
+    if (statusFilter && cn.status !== statusFilter) return false;
+    if (!inDateRange(cn.cn_date, dateRange)) return false;
+    return true;
+  });
 
   const statusBadge = (status: string) => {
     const map: Record<string, { label: string; color: string; bg: string }> = {
@@ -9344,6 +9380,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
             {s === '' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
           </button>
         ))}
+        <SBDatePicker value={dateRange} onChange={setDateRange} />
       </div>
 
       {/* Table */}
@@ -9719,6 +9756,7 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
   const [form, setForm] = useState<any>({ supplier_id: '', po_id: '', location_id: '', scn_date: today(), reference: '', supplier_credit_ref: '', tax_treatment: 'ex_tax', notes: '' });
   const [lineItems, setLineItems] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+  const [dateRange, setDateRange] = useState<SBDateRange>(DEFAULT_DATE_RANGE);
   const { settings } = useImsSettings();
 
   const defaultTaxRate = () => ((settings?.sales_tax_on_sales ?? 'yes') === 'yes' ? Number(settings?.sales_tax_rate ?? 0.1) : 0);
@@ -9891,7 +9929,11 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
     catch (err: any) { alert(err.message || 'Complete failed'); }
   };
 
-  const filtered = scns.filter(s => !statusFilter || s.status === statusFilter);
+  const filtered = scns.filter(s => {
+    if (statusFilter && s.status !== statusFilter) return false;
+    if (!inDateRange(s.scn_date, dateRange)) return false;
+    return true;
+  });
   const statusBadge = (status: string) => {
     const map: Record<string, { label: string; color: string; bg: string }> = {
       draft:     { label: 'Draft',     color: '#fbbf24', bg: 'rgba(251,191,36,.12)' },
@@ -9911,6 +9953,7 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
           <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--sv-text-dim)' }}>Credits received from suppliers (returns, damaged goods, rebates) → Xero supplier (ACCPAY) credit notes.</p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <SBDatePicker value={dateRange} onChange={setDateRange} />
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ ...inputStyle, width: 'auto' }}>
             <option value="">All statuses</option>
             <option value="draft">Draft</option>
@@ -10649,6 +10692,8 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const [soXeroWarnBillNum, setSoXeroWarnBillNum] = useState<string | null>(null);
   const [soXeroWarnFetching, setSoXeroWarnFetching] = useState(false);
   const [filterCustomer, setFilterCustomer] = useState('');
+  const [filterProduct, setFilterProduct] = useState('');
+  const [dateRange, setDateRange] = useState<SBDateRange>(DEFAULT_DATE_RANGE);
   const [sortCol, setSortCol] = useState<string>('order_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
@@ -10662,6 +10707,12 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     sp.set('channel', channelFilter);
     if (statusFilter) sp.set('status', statusFilter);
     if (filterCustomer.trim()) sp.set('customer', filterCustomer.trim());
+    if (filterProduct.trim()) sp.set('product', filterProduct.trim());
+    if (dateRange.kind === 'window') sp.set('window', String(dateRange.window));
+    else {
+      sp.set('from', dateRange.from);
+      sp.set('to', dateRange.to);
+    }
     sp.set('sortCol', sortCol);
     sp.set('sortDir', sortDir);
     sp.set('page', String(page));
@@ -10673,7 +10724,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       }
       else setLoadError(d.error || 'Failed to load sales orders.');
     }).catch(e => setLoadError(e?.message || 'Failed to load sales orders.')).finally(() => setLoading(false));
-  }, [channelFilter, statusFilter, filterCustomer, sortCol, sortDir, page]);
+  }, [channelFilter, statusFilter, filterCustomer, filterProduct, dateRange, sortCol, sortDir, page]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -10988,7 +11039,8 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   };
 
   const customerOptions = [...new Set(sos.map((s: any) => s.customer_name).filter(Boolean))].sort() as string[];
-  const salesFiltersActive = statusFilter !== '' || channelFilter !== 'b2b';
+  const dateFilterActive = dateRange.kind !== 'window' || dateRange.window !== 90;
+  const salesFiltersActive = statusFilter !== '' || channelFilter !== 'b2b' || dateFilterActive || !!filterCustomer.trim() || !!filterProduct.trim();
   const channelFilterLabel: Record<'all' | 'b2b' | 'online' | 'pos', string> = {
     all: 'All Orders',
     b2b: 'Wholesale / B2B',
@@ -11042,6 +11094,13 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         <datalist id="so-customer-filter-list">
           {customerOptions.map(c => <option key={c} value={c} />)}
         </datalist>
+        <input
+          placeholder="Filter by product / SKU…"
+          value={filterProduct}
+          onChange={e => { setFilterProduct(e.target.value); setPage(1); }}
+          style={{ ...inputStyle, minWidth: 220, flex: '1 1 220px' }}
+        />
+        <SBDatePicker value={dateRange} onChange={(r) => { setDateRange(r); setPage(1); }} />
         <div style={{ position: 'relative' }}>
           <button
             onClick={() => setFiltersOpen(p => !p)}
@@ -11092,13 +11151,14 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                 <div style={{ marginTop: 10, fontSize: 11, color: 'var(--sv-text-dim)' }}>
                   <div>Channel: <strong style={{ color: 'var(--sv-text-main)' }}>{channelFilterLabel[channelFilter]}</strong></div>
                   <div>Status: <strong style={{ color: 'var(--sv-text-main)' }}>{statusFilterLabel[statusFilter] ?? 'All'}</strong></div>
+                  <div>Date: <strong style={{ color: 'var(--sv-text-main)' }}>{dateRange.label}</strong></div>
                 </div>
               </div>
             </>
           )}
         </div>
-        {(statusFilter || filterCustomer || channelFilter !== 'b2b') && (
-          <button onClick={() => { setStatusFilter(''); setFilterCustomer(''); setChannelFilter('b2b'); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
+        {(statusFilter || filterCustomer || filterProduct || channelFilter !== 'b2b' || dateFilterActive) && (
+          <button onClick={() => { setStatusFilter(''); setFilterCustomer(''); setFilterProduct(''); setChannelFilter('b2b'); setDateRange(DEFAULT_DATE_RANGE); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
         )}
       </div>
       {loading ? <Spinner /> : loadError ? <EmptyState text={`Could not load sales orders: ${loadError}`} /> : sos.length === 0 ? <EmptyState text="No sales orders match your filters." /> : (
@@ -12484,6 +12544,7 @@ function GiftCardsView() {
 function PosSalesView() {
   const [locationId, setLocationId] = useState<number | ''>('');
   const [locations, setLocations]   = useState<{ id: number; name: string }[]>([]);
+  const [dateRange, setDateRange] = useState<SBDateRange>(DEFAULT_DATE_RANGE);
 
   // Day-grouped mode (all branches)
   const [days, setDays]           = useState<any[]>([]);
@@ -12775,15 +12836,19 @@ function PosSalesView() {
   };
 
   const loading = locationId ? regsLoading : daysLoading;
+  const filteredDays = days.filter((d: any) => inDateRange(d.day, dateRange));
+  const filteredRegisters = registers
+    .map((reg: any) => ({ ...reg, days: (reg.days || []).filter((d: any) => inDateRange(d.day, dateRange)) }))
+    .filter((reg: any) => reg.days.length > 0);
   const totalRevenue = locationId
-    ? registers.reduce((s, r) => s + r.total, 0)
-    : days.reduce((s, d) => s + Number(d.total), 0);
+    ? filteredRegisters.reduce((s, r) => s + r.days.reduce((acc: number, d: any) => acc + Number(d.total || 0), 0), 0)
+    : filteredDays.reduce((s, d) => s + Number(d.total), 0);
   const totalTxns = locationId
-    ? registers.reduce((s, r) => s + r.count, 0)
-    : days.reduce((s, d) => s + Number(d.count), 0);
+    ? filteredRegisters.reduce((s, r) => s + r.days.reduce((acc: number, d: any) => acc + Number(d.count || 0), 0), 0)
+    : filteredDays.reduce((s, d) => s + Number(d.count), 0);
   const totalDays = locationId
-    ? new Set(registers.flatMap(r => r.days.map((d: any) => d.day))).size
-    : days.length;
+    ? new Set(filteredRegisters.flatMap(r => r.days.map((d: any) => d.day))).size
+    : filteredDays.length;
 
   return (
     <div>
@@ -12797,10 +12862,11 @@ function PosSalesView() {
             {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         </div>
+        <SBDatePicker value={dateRange} onChange={setDateRange} />
       </div>
 
       {/* Summary strip */}
-      {!loading && (locationId ? registers.length > 0 : days.length > 0) && (
+      {!loading && (locationId ? filteredRegisters.length > 0 : filteredDays.length > 0) && (
         <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
           {[
             { label: 'TOTAL REVENUE',   value: fmtMoney(totalRevenue) },
@@ -12817,12 +12883,14 @@ function PosSalesView() {
       )}
 
       {loading && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</div>}
-      {!loading && !locationId && days.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No POS sales found.</div>}
-      {!loading && locationId  && registers.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No POS sales for this location.</div>}
+      {!loading && !locationId && filteredDays.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No POS sales found for the selected date range.</div>}
+      {!loading && locationId  && filteredRegisters.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No POS sales for this location in the selected date range.</div>}
 
       {/* Register-grouped view */}
-      {!loading && locationId ? registers.map(reg => {
+      {!loading && locationId ? filteredRegisters.map(reg => {
         const regOpen = expandedRegs.has(reg.register_id);
+        const regTxnCount = (reg.days || []).reduce((s: number, d: any) => s + Number(d.count || 0), 0);
+        const regTotal = (reg.days || []).reduce((s: number, d: any) => s + Number(d.total || 0), 0);
         return (
           <div key={reg.register_id} style={{ marginBottom: 12, border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
             {/* Register header */}
@@ -12832,8 +12900,8 @@ function PosSalesView() {
             >
               <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)', flex: 1 }}>📟 {reg.register_name}</span>
               <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{reg.days.length} day{reg.days.length !== 1 ? 's' : ''}</span>
-              <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{reg.count.toLocaleString()} txns</span>
-              <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)', minWidth: 96, textAlign: 'right' }}>{fmtMoney(reg.total)}</span>
+              <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{regTxnCount.toLocaleString()} txns</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)', minWidth: 96, textAlign: 'right' }}>{fmtMoney(regTotal)}</span>
               <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', width: 14, textAlign: 'center' }}>{regOpen ? '▲' : '▼'}</span>
             </div>
             {/* Day rows inside register */}
@@ -12847,7 +12915,7 @@ function PosSalesView() {
       }) : null}
 
       {/* Day-grouped view (all branches) */}
-      {!loading && !locationId && days.map(day => renderDayRow(day, day.day))}
+      {!loading && !locationId && filteredDays.map(day => renderDayRow(day, day.day))}
     </div>
   );
 }
@@ -12868,6 +12936,7 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
 function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; onReturnOrder?: (prefill: any) => void }) {
   const [locationId, setLocationId] = useState<number | ''>('');
   const [locations, setLocations]   = useState<{ id: number; name: string }[]>([]);
+  const [dateRange, setDateRange] = useState<SBDateRange>(DEFAULT_DATE_RANGE);
   const [days, setDays]             = useState<any[]>([]);
   const [daysLoading, setDaysLoading] = useState(false);
   const [expandedDays, setExpandedDays]     = useState<Set<string>>(new Set());
@@ -12976,9 +13045,10 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
     return { label: 'Manual', bg: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)' };
   };
 
-  const totalRevenue  = days.reduce((s, d) => s + Number(d.total), 0);
-  const totalOrders   = days.reduce((s, d) => s + Number(d.count), 0);
-  const totalShopify  = days.reduce((s, d) => s + Number(d.shopify_count), 0);
+  const filteredDays = days.filter((d: any) => inDateRange(d.day, dateRange));
+  const totalRevenue  = filteredDays.reduce((s, d) => s + Number(d.total), 0);
+  const totalOrders   = filteredDays.reduce((s, d) => s + Number(d.count), 0);
+  const totalShopify  = filteredDays.reduce((s, d) => s + Number(d.shopify_count), 0);
 
   const selStyle: React.CSSProperties = { padding: '6px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'inherit', fontSize: 13 };
 
@@ -12994,6 +13064,7 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
             {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         </div>
+        <SBDatePicker value={dateRange} onChange={setDateRange} />
         <button
           onClick={async () => {
             setImporting(true); setImportResult(null);
@@ -13026,7 +13097,7 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
       </div>
 
       {/* Summary strip */}
-      {!daysLoading && days.length > 0 && (
+      {!daysLoading && filteredDays.length > 0 && (
         <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
           <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '10px 18px' }}>
             <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 2 }}>TOTAL REVENUE</div>
@@ -13038,7 +13109,7 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
           </div>
           <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '10px 18px' }}>
             <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 2 }}>TRADING DAYS</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{days.length}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{filteredDays.length}</div>
           </div>
           {totalShopify > 0 && (
             <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '10px 18px' }}>
@@ -13051,12 +13122,12 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
 
       {daysLoading && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</div>}
 
-      {!daysLoading && days.length === 0 && (
-        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No online sales found. Import from Cin7 in Settings first.</div>
+      {!daysLoading && filteredDays.length === 0 && (
+        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sv-text-dim)' }}>No online sales found for the selected date range.</div>
       )}
 
       {/* Day rows */}
-      {days.map(day => {
+      {filteredDays.map(day => {
         const isOpen    = expandedDays.has(day.day);
         const isLoading = dayLoading.has(day.day);
         const orders    = dayData[day.day] ?? [];
@@ -18652,6 +18723,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
   const [productTypes, setProductTypes] = useState<string[]>([]);
   const [filterLocation, setFilterLocation] = useState('');
   const [filterText, setFilterText]         = useState('');
+  const [dateRange, setDateRange] = useState<SBDateRange>(DEFAULT_DATE_RANGE);
   const [sortCol, setSortCol]   = useState<string>('created_at');
   const [sortDir, setSortDir]   = useState<'asc' | 'desc'>('desc');
   const [page, setPage]         = useState(1);
@@ -18973,6 +19045,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
   const filtered = list.filter((st: any) => {
     if (filterLocation && String(st.location_id) !== filterLocation) return false;
     if (filterText && !(st.reference || '').toLowerCase().includes(filterText.toLowerCase())) return false;
+    if (!inDateRange(st.created_at, dateRange)) return false;
     return true;
   });
   const sorted = [...filtered].sort((a: any, b: any) => {
@@ -19013,8 +19086,9 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
           onChange={e => { setFilterText(e.target.value); setPage(1); }}
           style={{ ...inputStyle, minWidth: 180, flex: '1 1 180px' }}
         />
-        {(filterLocation || filterText) && (
-          <button onClick={() => { setFilterLocation(''); setFilterText(''); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear</button>
+        <SBDatePicker value={dateRange} onChange={(r) => { setDateRange(r); setPage(1); }} />
+        {(filterLocation || filterText || dateRange.kind !== 'window' || dateRange.window !== 90) && (
+          <button onClick={() => { setFilterLocation(''); setFilterText(''); setDateRange(DEFAULT_DATE_RANGE); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear</button>
         )}
       </div>
 

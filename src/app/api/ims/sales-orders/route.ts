@@ -11,6 +11,10 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status') as any ?? undefined;
     const customer = (searchParams.get('customer') ?? '').trim().toLowerCase();
+    const product = (searchParams.get('product') ?? '').trim().toLowerCase();
+    const from = (searchParams.get('from') ?? '').trim();
+    const to = (searchParams.get('to') ?? '').trim();
+    const windowDays = Math.max(0, Number(searchParams.get('window') ?? '0') || 0);
     const sortCol = (searchParams.get('sortCol') ?? 'order_date').trim();
     const sortDir = searchParams.get('sortDir') === 'asc' ? 'asc' : 'desc';
     const page = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
@@ -26,6 +30,41 @@ export async function GET(req: Request) {
       : [];
 
     let merged = [...soData, ...posLedger];
+
+    if (product) {
+      const [soIdsRaw, posIdsRaw] = await Promise.all([
+        channel === 'pos' ? Promise.resolve<number[]>([]) : ImsSORepo.findSalesOrderIdsByProduct(product, businessId),
+        channel === 'b2b' ? Promise.resolve<number[]>([]) : ImsSORepo.findPosSaleIdsByProduct(product),
+      ]);
+      const soIds = new Set(soIdsRaw);
+      const posIds = new Set(posIdsRaw);
+      merged = merged.filter((row: any) => {
+        if (row?.is_pos_ledger) {
+          const pid = Number(row?.pos_sale_id ?? 0);
+          return posIds.has(pid);
+        }
+        const sid = Number(row?.id ?? 0);
+        return soIds.has(sid);
+      });
+    }
+
+    let rangeFrom = from;
+    let rangeTo = to;
+    if (!rangeFrom && !rangeTo && windowDays > 0) {
+      const end = new Date();
+      const start = new Date();
+      start.setDate(end.getDate() - Math.max(0, windowDays - 1));
+      rangeFrom = start.toISOString().slice(0, 10);
+      rangeTo = end.toISOString().slice(0, 10);
+    }
+    if (rangeFrom || rangeTo) {
+      const low = rangeFrom || '0000-01-01';
+      const high = rangeTo || '9999-12-31';
+      merged = merged.filter((row: any) => {
+        const d = String(row?.order_date ?? '').slice(0, 10);
+        return d >= low && d <= high;
+      });
+    }
 
     if (customer) {
       merged = merged.filter((row: any) => String(row?.customer_name ?? '').toLowerCase().includes(customer));

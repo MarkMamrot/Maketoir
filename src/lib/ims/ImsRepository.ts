@@ -1793,6 +1793,50 @@ export const ImsSORepo = {
     );
   },
 
+  async findSalesOrderIdsByProduct(search: string, businessId?: string): Promise<number[]> {
+    const q = `%${search.trim().toLowerCase()}%`;
+    if (!q || q === '%%') return [];
+    const params: any[] = [q, q, q, q, q];
+    const bizWhere = businessId ? ' AND so.business_id = ?' : '';
+    if (businessId) params.push(businessId);
+    const rows = await imsQuery<{ so_id: number }>(
+      `SELECT DISTINCT i.so_id
+       FROM ims_sales_order_items i
+       JOIN ims_sales_orders so ON so.id = i.so_id
+       LEFT JOIN ims_product_variants v ON v.variant_id = i.variant_id
+       LEFT JOIN ims_products p ON p.product_id = v.product_id
+       WHERE (
+         LOWER(COALESCE(i.name, '')) LIKE ?
+         OR LOWER(COALESCE(i.code, '')) LIKE ?
+         OR LOWER(COALESCE(v.sku, '')) LIKE ?
+         OR LOWER(COALESCE(p.name, '')) LIKE ?
+         OR LOWER(TRIM(CONCAT_WS(' / ', v.option1_value, v.option2_value, v.option3_value))) LIKE ?
+       )${bizWhere}`,
+      params,
+    );
+    return rows.map(r => Number(r.so_id)).filter(n => Number.isFinite(n) && n > 0);
+  },
+
+  async findPosSaleIdsByProduct(search: string): Promise<number[]> {
+    const q = `%${search.trim().toLowerCase()}%`;
+    if (!q || q === '%%') return [];
+    const rows = await imsQuery<{ sale_id: number }>(
+      `SELECT DISTINCT psi.sale_id
+       FROM pos_sale_items psi
+       LEFT JOIN ims_product_variants v ON v.variant_id = psi.variant_id
+       LEFT JOIN ims_products p ON p.product_id = v.product_id
+       WHERE (
+         LOWER(COALESCE(psi.name, '')) LIKE ?
+         OR LOWER(COALESCE(psi.code, '')) LIKE ?
+         OR LOWER(COALESCE(v.sku, '')) LIKE ?
+         OR LOWER(COALESCE(p.name, '')) LIKE ?
+         OR LOWER(TRIM(CONCAT_WS(' / ', v.option1_value, v.option2_value, v.option3_value))) LIKE ?
+       )`,
+      [q, q, q, q, q],
+    );
+    return rows.map(r => Number(r.sale_id)).filter(n => Number.isFinite(n) && n > 0);
+  },
+
   async get(id: number, businessId?: string): Promise<ImsSO | null> {
     await this.ensureTaxTreatmentColumn();
     const bizFilter = businessId ? ' AND so.business_id = ?' : '';
