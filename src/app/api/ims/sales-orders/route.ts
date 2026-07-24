@@ -10,6 +10,12 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status') as any ?? undefined;
+    const customer = (searchParams.get('customer') ?? '').trim().toLowerCase();
+    const sortCol = (searchParams.get('sortCol') ?? 'order_date').trim();
+    const sortDir = searchParams.get('sortDir') === 'asc' ? 'asc' : 'desc';
+    const page = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
+    const pageSizeRaw = Number(searchParams.get('pageSize') ?? '25') || 25;
+    const pageSize = Math.min(100, Math.max(10, pageSizeRaw));
     const rawChannel = (searchParams.get('channel') ?? 'b2b').toLowerCase();
     const channel = (['all', 'b2b', 'online', 'pos'].includes(rawChannel)
       ? rawChannel
@@ -19,12 +25,29 @@ export async function GET(req: Request) {
       ? await ImsSORepo.listPosLedger(status)
       : [];
 
-    const data = [...soData, ...posLedger].sort((a: any, b: any) => {
-      const ad = new Date(a?.order_date ?? a?.created_at ?? 0).getTime();
-      const bd = new Date(b?.order_date ?? b?.created_at ?? 0).getTime();
-      return bd - ad;
+    let merged = [...soData, ...posLedger];
+
+    if (customer) {
+      merged = merged.filter((row: any) => String(row?.customer_name ?? '').toLowerCase().includes(customer));
+    }
+
+    merged.sort((a: any, b: any) => {
+      const av = a?.[sortCol] ?? '';
+      const bv = b?.[sortCol] ?? '';
+      const an = Number(av);
+      const bn = Number(bv);
+      const bothNumeric = Number.isFinite(an) && Number.isFinite(bn) && String(av) !== '' && String(bv) !== '';
+      const cmp = bothNumeric
+        ? an - bn
+        : String(av).localeCompare(String(bv), undefined, { sensitivity: 'base' });
+      return sortDir === 'asc' ? cmp : -cmp;
     });
-    return NextResponse.json({ success: true, data });
+
+    const total = merged.length;
+    const start = (page - 1) * pageSize;
+    const data = merged.slice(start, start + pageSize);
+
+    return NextResponse.json({ success: true, data, total, page, pageSize });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

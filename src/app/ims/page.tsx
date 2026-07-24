@@ -10650,6 +10650,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const [sortCol, setSortCol] = useState<string>('order_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
+  const [totalRows, setTotalRows] = useState(0);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const { settings } = useImsSettings();
   const load = useCallback(() => {
@@ -10657,11 +10658,20 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     setLoadError('');
     const sp = new URLSearchParams();
     sp.set('channel', channelFilter);
+    if (statusFilter) sp.set('status', statusFilter);
+    if (filterCustomer.trim()) sp.set('customer', filterCustomer.trim());
+    sp.set('sortCol', sortCol);
+    sp.set('sortDir', sortDir);
+    sp.set('page', String(page));
+    sp.set('pageSize', String(PAGE_SIZE));
     fetch(`/api/ims/sales-orders?${sp.toString()}`).then(r => r.json()).then(d => {
-      if (d.success) setSos(d.data);
+      if (d.success) {
+        setSos(Array.isArray(d.data) ? d.data : []);
+        setTotalRows(Number(d.total ?? (Array.isArray(d.data) ? d.data.length : 0)));
+      }
       else setLoadError(d.error || 'Failed to load sales orders.');
     }).catch(e => setLoadError(e?.message || 'Failed to load sales orders.')).finally(() => setLoading(false));
-  }, [channelFilter]);
+  }, [channelFilter, statusFilter, filterCustomer, sortCol, sortDir, page]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -10944,20 +10954,12 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     fulfilled: 'Fulfilled',
     cancelled: 'Cancelled',
   };
-  const filteredSOs = sos.filter((s: any) => {
-    if (statusFilter && s.status !== statusFilter) return false;
-    if (filterCustomer && !(s.customer_name || '').toLowerCase().includes(filterCustomer.toLowerCase())) return false;
-    return true;
-  });
-  const sortedFilteredSOs = [...filteredSOs].sort((a: any, b: any) => {
-    let av = a[sortCol]; let bv = b[sortCol];
-    av = av ?? ''; bv = bv ?? '';
-    const cmp = typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv), undefined, { sensitivity: 'base' });
-    return sortDir === 'asc' ? cmp : -cmp;
-  });
-  const totalPagesSO = Math.max(1, Math.ceil(sortedFilteredSOs.length / PAGE_SIZE));
+  const totalPagesSO = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
   const safePageSO = Math.min(page, totalPagesSO);
-  const visibleSOs = sortedFilteredSOs.slice((safePageSO - 1) * PAGE_SIZE, safePageSO * PAGE_SIZE);
+  const visibleSOs = sos;
+  useEffect(() => {
+    if (page > totalPagesSO) setPage(totalPagesSO);
+  }, [page, totalPagesSO]);
   const toggleSort = (col: string) => {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortCol(col); setSortDir('asc'); }
@@ -11044,7 +11046,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
           <button onClick={() => { setStatusFilter(''); setFilterCustomer(''); setChannelFilter('b2b'); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
         )}
       </div>
-      {loading ? <Spinner /> : loadError ? <EmptyState text={`Could not load sales orders: ${loadError}`} /> : sortedFilteredSOs.length === 0 ? <EmptyState text="No sales orders match your filters." /> : (
+      {loading ? <Spinner /> : loadError ? <EmptyState text={`Could not load sales orders: ${loadError}`} /> : sos.length === 0 ? <EmptyState text="No sales orders match your filters." /> : (
         <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
@@ -11101,7 +11103,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14 }}>
           <button onClick={() => setPage(1)} disabled={safePageSO === 1} style={btnStyle('secondary', 'sm')}>«</button>
           <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePageSO === 1} style={btnStyle('secondary', 'sm')}>‹ Prev</button>
-          <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 8px' }}>Page {safePageSO} of {totalPagesSO} ({sortedFilteredSOs.length} orders)</span>
+          <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 8px' }}>Page {safePageSO} of {totalPagesSO} ({totalRows} orders)</span>
           <button onClick={() => setPage(p => Math.min(totalPagesSO, p + 1))} disabled={safePageSO === totalPagesSO} style={btnStyle('secondary', 'sm')}>Next ›</button>
           <button onClick={() => setPage(totalPagesSO)} disabled={safePageSO === totalPagesSO} style={btnStyle('secondary', 'sm')}>»</button>
         </div>
