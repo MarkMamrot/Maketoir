@@ -225,6 +225,26 @@ async function apiFetch(url: string, opts?: RequestInit) {
   return json;
 }
 
+function CostSummaryPills({ items }: { items: Array<{ label: string; value: string; tone?: 'default' | 'good' | 'warn' | 'bad' }> }) {
+  const toneColor = (tone?: 'default' | 'good' | 'warn' | 'bad') => {
+    if (tone === 'good') return 'var(--sv-mint,#0c9)';
+    if (tone === 'warn') return 'var(--sv-amber,#f59e0b)';
+    if (tone === 'bad') return 'var(--sv-red,#e05)';
+    return 'var(--sv-text-main)';
+  };
+
+  return (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+      {items.map((it, i) => (
+        <div key={`${it.label}-${i}`} style={{ padding: '6px 10px', borderRadius: 999, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>{it.label}</span>
+          <span style={{ fontSize: 12, color: toneColor(it.tone), fontWeight: 700 }}>{it.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared settings hook  (fetches ims_settings for the current business)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -8603,6 +8623,11 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
     return (
       <div style={{ marginTop: 24, borderTop: '1px dashed var(--sv-etch)', paddingTop: 8 }}>
         <XeroBadge />
+        <CostSummaryPills items={[
+          { label: 'Received Qty', value: fmtQty(lineItems.reduce((s: number, i: any) => s + Number(i.qty_received || 0), 0)) },
+          { label: 'Inventory Added (AUD)', value: fmtCurrency(lineItems.reduce((s: number, i: any) => s + Number(i.qty_received || 0) * Number(i.trueCostAud || 0), 0)) },
+          { label: 'Landed Costs (AUD)', value: fmtCurrency(totalLanded), tone: totalLanded > 0 ? 'warn' : 'default' },
+        ]} />
         <button onClick={() => setOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
           <span>🧮</span> <span style={{ textDecoration: 'underline dotted' }}>Accounting</span>
         </button>
@@ -8884,6 +8909,11 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
     return (
       <div style={{ marginTop: 24, borderTop: '1px dashed var(--sv-etch)', paddingTop: 8 }}>
         <XeroBadge />
+        <CostSummaryPills items={[
+          { label: 'Revenue (ex tax)', value: fmtFx(revenueSubtotal, currency) },
+          { label: 'COGS (AUD)', value: totalCogs !== null ? fmtCurrency(totalCogs) : '—', tone: totalCogs !== null ? 'default' : 'warn' },
+          { label: 'Gross Margin', value: grossMarginPct !== null ? `${grossMarginPct.toFixed(1)}%` : '—', tone: grossMarginPct !== null ? (grossMarginPct >= 0 ? 'good' : 'bad') : 'warn' },
+        ]} />
         <button onClick={() => setOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
           <span>🧮</span> <span style={{ textDecoration: 'underline dotted' }}>Accounting</span>
         </button>
@@ -9570,6 +9600,57 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
               </table>
             </div>
 
+            {(() => {
+              const items = (viewModal.cn.items ?? []).map((it: any) => {
+                const qty = Math.abs(Number(it.qty ?? 0));
+                const unitCost = it.unit_cost != null
+                  ? Number(it.unit_cost)
+                  : it.avg_cost != null
+                    ? Number(it.avg_cost)
+                    : null;
+                const cogsReversal = unitCost != null ? qty * unitCost : null;
+                const lineCredit = Number(it.line_total ?? qty * Number(it.unit_price ?? 0));
+                return { it, qty, unitCost, cogsReversal, lineCredit };
+              });
+              const hasCost = items.some((r: any) => r.unitCost != null);
+              const credited = items.reduce((s: number, r: any) => s + r.lineCredit, 0);
+              const cogsTotal = hasCost ? items.reduce((s: number, r: any) => s + (r.cogsReversal ?? 0), 0) : null;
+              return (
+                <div style={{ marginBottom: 12 }}>
+                  <CostSummaryPills items={[
+                    { label: 'Credit Value', value: fmtCurrency(credited) },
+                    { label: 'COGS Reversal', value: cogsTotal != null ? fmtCurrency(cogsTotal) : '—', tone: cogsTotal != null ? 'good' : 'warn' },
+                    { label: 'Cost Source', value: hasCost ? 'stored line cost' : 'not stored', tone: hasCost ? 'default' : 'warn' },
+                  ]} />
+                  <details style={{ border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '6px 10px', background: 'var(--sv-bg-1)' }}>
+                    <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--sv-text-dim)' }}>Cost and COGS line breakdown</summary>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8, fontSize: 11 }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                          <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>SKU</th>
+                          <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>Qty</th>
+                          <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>Avg Cost</th>
+                          <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>COGS Reversal</th>
+                          <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>Credit Line</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map((r: any, idx: number) => (
+                          <tr key={idx} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                            <td style={{ padding: '4px 6px' }}>{r.it.sku ?? r.it.code ?? '—'}</td>
+                            <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.qty}</td>
+                            <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.unitCost != null ? fmtCurrency(r.unitCost) : '—'}</td>
+                            <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.cogsReversal != null ? fmtCurrency(r.cogsReversal) : '—'}</td>
+                            <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtCurrency(r.lineCredit)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </details>
+                </div>
+              );
+            })()}
+
             {/* Xero Status (bottom, mirroring supplier CN modal) */}
             {(() => {
               const cn = viewModal.cn;
@@ -9992,6 +10073,50 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
                 </tr>
               </tfoot>
             </table>
+            {(() => {
+              const items = (viewModal.scn.items ?? []).map((it: any) => {
+                const qty = Math.abs(Number(it.qty ?? 0));
+                const unitCost = Number(it.unit_cost ?? 0);
+                const value = qty * unitCost;
+                const restock = Number(it.restock ?? 1) === 1;
+                return { it, qty, unitCost, value, restock };
+              });
+              const stockOutValue = items.reduce((s: number, r: any) => s + (r.restock ? r.value : 0), 0);
+              return (
+                <div style={{ marginBottom: 12 }}>
+                  <CostSummaryPills items={[
+                    { label: 'Supplier Credit', value: money(viewModal.scn.total_amount) },
+                    { label: 'Stock Value Removed', value: money(stockOutValue), tone: stockOutValue > 0 ? 'warn' : 'default' },
+                    { label: 'Cost Basis', value: 'unit_cost (ex tax)' },
+                  ]} />
+                  <details style={{ border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '6px 10px', background: 'var(--sv-bg-1)' }}>
+                    <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--sv-text-dim)' }}>Cost line breakdown</summary>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8, fontSize: 11 }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                          <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>SKU</th>
+                          <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>Qty</th>
+                          <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>Unit Cost</th>
+                          <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>Line Value</th>
+                          <th style={{ textAlign: 'center', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>Stock Out</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map((r: any, idx: number) => (
+                          <tr key={idx} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                            <td style={{ padding: '4px 6px' }}>{r.it.sku || '—'}</td>
+                            <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.qty}</td>
+                            <td style={{ padding: '4px 6px', textAlign: 'right' }}>{money(r.unitCost)}</td>
+                            <td style={{ padding: '4px 6px', textAlign: 'right' }}>{money(r.value)}</td>
+                            <td style={{ padding: '4px 6px', textAlign: 'center' }}>{r.restock ? 'Yes' : 'No'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </details>
+                </div>
+              );
+            })()}
             <div style={{ marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Supplier Credit Files</div>
@@ -12340,6 +12465,60 @@ function PosSalesView() {
                           <tr style={{ borderTop: '2px solid var(--sv-etch)' }}><td colSpan={5} style={{ padding: '5px 6px', textAlign: 'right', fontSize: 12, fontWeight: 600 }}>Total</td><td style={{ padding: '5px 6px', textAlign: 'right', fontWeight: 700, fontSize: 13 }}>{fmtMoney(sale.total)}</td></tr>
                         </tfoot>
                       </table>
+                      {(() => {
+                        const costRows = sale.items.map((item: any) => {
+                          const qty = Math.abs(Number(item.qty ?? 0));
+                          const avgCost = item.unit_cost != null
+                            ? Number(item.unit_cost)
+                            : item.avg_cost != null
+                              ? Number(item.avg_cost)
+                              : null;
+                          const cogs = avgCost != null ? qty * avgCost : null;
+                          const lineInc = Number(item.line_total || 0);
+                          const taxRatePct = Number(item.tax_rate ?? 10);
+                          const lineEx = taxRatePct > 0 ? lineInc / (1 + taxRatePct / 100) : lineInc;
+                          return { item, qty, avgCost, cogs, lineEx };
+                        });
+                        const hasCosts = costRows.some((r: any) => r.avgCost != null);
+                        const revenueEx = costRows.reduce((s: number, r: any) => s + r.lineEx, 0);
+                        const totalCogs = hasCosts ? costRows.reduce((s: number, r: any) => s + (r.cogs ?? 0), 0) : null;
+                        const grossProfit = totalCogs != null ? revenueEx - totalCogs : null;
+                        const marginPct = grossProfit != null && revenueEx > 0 ? (grossProfit / revenueEx) * 100 : null;
+                        return (
+                          <div style={{ marginTop: 10 }}>
+                            <CostSummaryPills items={[
+                              { label: 'Revenue (ex tax)', value: fmtMoney(revenueEx) },
+                              { label: 'COGS', value: totalCogs != null ? fmtMoney(totalCogs) : '—', tone: totalCogs != null ? 'default' : 'warn' },
+                              { label: 'Gross Margin', value: marginPct != null ? `${marginPct.toFixed(1)}%` : '—', tone: marginPct != null ? (marginPct >= 0 ? 'good' : 'bad') : 'warn' },
+                            ]} />
+                            <details style={{ border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '6px 10px', background: 'var(--sv-bg-1)' }}>
+                              <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--sv-text-dim)' }}>Cost and COGS line breakdown</summary>
+                              <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8, fontSize: 11 }}>
+                                <thead>
+                                  <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                                    <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>SKU</th>
+                                    <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>Qty</th>
+                                    <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>Avg Cost</th>
+                                    <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>COGS</th>
+                                    <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>Revenue (ex)</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {costRows.map((r: any, idx: number) => (
+                                    <tr key={idx} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                                      <td style={{ padding: '4px 6px' }}>{r.item.code || '—'}</td>
+                                      <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.qty}</td>
+                                      <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.avgCost != null ? fmtMoney(r.avgCost) : '—'}</td>
+                                      <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.cogs != null ? fmtMoney(r.cogs) : '—'}</td>
+                                      <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(r.lineEx)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </details>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
@@ -12840,6 +13019,58 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
                               </tr>
                             </tfoot>
                           </table>
+                          {(() => {
+                            const costRows = (order.items || []).map((item: any) => {
+                              const qty = Math.abs(Number(item.qty_ordered ?? 0));
+                              const avgCost = item.unit_cost != null
+                                ? Number(item.unit_cost)
+                                : item.avg_cost != null
+                                  ? Number(item.avg_cost)
+                                  : null;
+                              const cogs = avgCost != null ? qty * avgCost : null;
+                              const lineRevenue = Number(item.line_total || 0);
+                              return { item, qty, avgCost, cogs, lineRevenue };
+                            });
+                            const hasCosts = costRows.some((r: any) => r.avgCost != null);
+                            const revenue = costRows.reduce((s: number, r: any) => s + r.lineRevenue, 0);
+                            const totalCogs = hasCosts ? costRows.reduce((s: number, r: any) => s + (r.cogs ?? 0), 0) : null;
+                            const grossProfit = totalCogs != null ? revenue - totalCogs : null;
+                            const marginPct = grossProfit != null && revenue > 0 ? (grossProfit / revenue) * 100 : null;
+                            return (
+                              <div style={{ marginTop: 10 }}>
+                                <CostSummaryPills items={[
+                                  { label: 'Revenue', value: fmtMoney(revenue) },
+                                  { label: 'COGS', value: totalCogs != null ? fmtMoney(totalCogs) : '—', tone: totalCogs != null ? 'default' : 'warn' },
+                                  { label: 'Gross Margin', value: marginPct != null ? `${marginPct.toFixed(1)}%` : '—', tone: marginPct != null ? (marginPct >= 0 ? 'good' : 'bad') : 'warn' },
+                                ]} />
+                                <details style={{ border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '6px 10px', background: 'var(--sv-bg-1)' }}>
+                                  <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--sv-text-dim)' }}>Cost and COGS line breakdown</summary>
+                                  <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8, fontSize: 11 }}>
+                                    <thead>
+                                      <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                                        <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>SKU</th>
+                                        <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>Qty</th>
+                                        <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>Avg Cost</th>
+                                        <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>COGS</th>
+                                        <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>Revenue</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {costRows.map((r: any, idx: number) => (
+                                        <tr key={idx} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                                          <td style={{ padding: '4px 6px' }}>{r.item.sku || '—'}</td>
+                                          <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.qty}</td>
+                                          <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.avgCost != null ? fmtMoney(r.avgCost) : '—'}</td>
+                                          <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.cogs != null ? fmtMoney(r.cogs) : '—'}</td>
+                                          <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(r.lineRevenue)}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </details>
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
                     </div>
