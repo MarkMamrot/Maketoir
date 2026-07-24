@@ -1690,13 +1690,22 @@ export const ImsSORepo = {
     return { subtotal, tax_amount, total_amount };
   },
 
-  async list(status?: SOStatus, businessId?: string): Promise<ImsSO[]> {
+  async list(status?: SOStatus, businessId?: string, channel: 'all' | 'b2b' | 'online' | 'pos' = 'b2b'): Promise<ImsSO[]> {
     const columns = await this.ensureListColumns();
-    const wheres: string[] = columns.has('so_type') ? ["(so.so_type IS NULL OR so.so_type NOT IN ('online','pos'))"] : [];
+    const wheres: string[] = [];
+    if (columns.has('so_type')) {
+      if (channel === 'online') {
+        wheres.push("so.so_type = 'online'");
+      } else if (channel === 'pos') {
+        wheres.push("so.so_type = 'pos'");
+      } else if (channel === 'b2b') {
+        wheres.push("(so.so_type IS NULL OR so.so_type NOT IN ('online','pos'))");
+      }
+    }
     const params: any[] = [];
     if (businessId) { wheres.push('so.business_id = ?'); params.push(businessId); }
     if (status) { wheres.push('so.status = ?'); params.push(status); }
-    const where = 'WHERE ' + wheres.join(' AND ');
+    const where = wheres.length > 0 ? `WHERE ${wheres.join(' AND ')}` : '';
     try {
       return await imsQuery<ImsSO>(
         `SELECT so.*,

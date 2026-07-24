@@ -10,7 +10,11 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status') as any ?? undefined;
-    const data = await ImsSORepo.list(status, businessId);
+    const rawChannel = (searchParams.get('channel') ?? 'b2b').toLowerCase();
+    const channel = (['all', 'b2b', 'online', 'pos'].includes(rawChannel)
+      ? rawChannel
+      : 'b2b') as 'all' | 'b2b' | 'online' | 'pos';
+    const data = await ImsSORepo.list(status, businessId, channel);
     return NextResponse.json({ success: true, data });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });

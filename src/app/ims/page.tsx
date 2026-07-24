@@ -8643,162 +8643,84 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
       </div>
       <XeroBadge />
 
-      {/* A – Line Costs */}
-      <div style={lbl}>A — Line Costs {isFx ? `(${currency} → AUD @ ${rate.toFixed(4)})` : ''}</div>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-        <thead>
-          <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-            <th style={{ ...cell, textAlign: 'left', fontWeight: 600 }}>SKU / Product</th>
-            <th style={{ ...num, fontWeight: 600 }}>Qty</th>
-            <th style={{ ...num, fontWeight: 600 }}>Unit Cost ({currency})</th>
-            <th style={{ ...num, fontWeight: 600 }}>Tax%</th>
-            <th style={{ ...num, fontWeight: 600 }}>Line ({currency})</th>
-            <th style={{ ...num, fontWeight: 600 }}>Tax ({currency})</th>
-            {isFx && <th style={{ ...num, fontWeight: 600 }}>Line (AUD)</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {lineItems.map((item: any, i: number) => (
-            <tr key={i} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-              <td style={{ ...cell, color: 'var(--sv-text-main)' }}>{item.sku || '—'}{item.variant_label ? ` (${item.variant_label})` : ''}</td>
-              <td style={num}>{item.qty}</td>
-              <td style={num}>{fmtFx(item.cost, currency)}</td>
-              <td style={num}>{item.taxRate > 0 ? `${(item.taxRate * 100).toFixed(0)}%` : '—'}</td>
-              <td style={{ ...num, color: 'var(--sv-text-main)' }}>{fmtFx(item.lineTotal, currency)}</td>
-              <td style={num}>{item.taxAmt > 0 ? fmtFx(item.taxAmt, currency) : '—'}</td>
-              {isFx && <td style={num}>{fmtCurrency(item.lineTotal * rate)}</td>}
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr style={{ borderTop: '2px solid var(--sv-etch)' }}>
-            <td colSpan={4} style={{ ...cell, fontWeight: 700 }}>Goods subtotal</td>
-            <td style={{ ...num, fontWeight: 700 }}>{fmtFx(goodsSubtotal, currency)}</td>
-            <td style={{ ...num, fontWeight: 700 }}>{fmtFx(taxTotal, currency)}</td>
-            {isFx && <td style={{ ...num, fontWeight: 700 }}>{fmtCurrency(goodsSubtotalAud)}</td>}
-          </tr>
-        </tfoot>
-      </table>
-      <div style={{ ...dim, marginTop: 3 }}>= qty × unit_cost per line; tax_rate stored as decimal (0.1 = 10%)</div>
-
-      {/* B – Order Totals */}
-      <div style={lbl}>B — Order Totals</div>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-        {isFx && (
+      <div style={lbl}>Accounting Summary {isFx ? `(${currency} → AUD @ ${rate.toFixed(4)})` : ''}</div>
+      <div style={{ overflowX: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, minWidth: 940 }}>
           <thead>
-            <tr>
-              <td style={cell} />
-              <th style={{ ...num, fontWeight: 600 }}>In {currency}</th>
-              <th style={{ ...num, fontWeight: 600 }}>In AUD (×{rate.toFixed(4)})</th>
+            <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
+              <th style={{ ...cell, textAlign: 'left', fontWeight: 700 }}>SKU / Product</th>
+              <th style={{ ...num, fontWeight: 700 }}>Qty Ord</th>
+              <th style={{ ...num, fontWeight: 700 }}>Qty Rec</th>
+              <th style={{ ...num, fontWeight: 700 }}>Unit Cost ({currency})</th>
+              <th style={{ ...num, fontWeight: 700 }}>Tax%</th>
+              <th style={{ ...num, fontWeight: 700 }}>Line ({currency})</th>
+              <th style={{ ...num, fontWeight: 700 }}>Tax ({currency})</th>
+              <th style={{ ...num, fontWeight: 700 }}>Landed/Unit AUD</th>
+              <th style={{ ...num, fontWeight: 700 }}>True Cost AUD</th>
+              <th style={{ ...num, fontWeight: 700 }}>Inv Value AUD</th>
             </tr>
           </thead>
-        )}
-        <tbody>
-          <tr>
-            <td style={cell}>Goods subtotal</td>
-            <td style={num}>{fmtFx(goodsSubtotal, currency)}</td>
-            {isFx && <td style={{ ...num, color: 'var(--sv-text-dim)' }}>{fmtCurrency(goodsSubtotalAud)}</td>}
-          </tr>
-          <tr>
-            <td style={cell}>Tax ({po.tax_treatment || 'ex_tax'})</td>
-            <td style={num}>{fmtFx(taxTotal, currency)}</td>
-            {isFx && <td style={{ ...num, color: 'var(--sv-text-dim)' }}>{fmtCurrency(taxTotal * rate)}</td>}
-          </tr>
-          {freight > 0 && (
-            <tr>
-              <td style={cell}>Freight</td>
-              <td style={num}>{fmtFx(freight, currency)}</td>
-              {isFx && <td style={{ ...num, color: 'var(--sv-text-dim)' }}>{fmtCurrency(freight * rate)}</td>}
-            </tr>
-          )}
-          {Number(po.discount || 0) > 0 && (
-            <tr>
-              <td style={cell}>Discount (−)</td>
-              <td style={{ ...num, color: 'var(--sv-red)' }}>−{fmtFx(Number(po.discount), currency)}</td>
-              {isFx && <td style={{ ...num, color: 'var(--sv-red)' }}>−{fmtCurrency(Number(po.discount) * rate)}</td>}
-            </tr>
-          )}
-          <tr style={{ borderTop: '2px solid var(--sv-etch)' }}>
-            <td style={{ ...cell, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Order total</td>
-            <td style={{ ...num, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{fmtFx(Number(po.total_amount), currency)}</td>
-            {isFx && <td style={{ ...num, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{fmtCurrency(totalAud)}</td>}
-          </tr>
-        </tbody>
-      </table>
-      {totalLanded > 0 && (
-        <div style={{ ...dim, marginTop: 4 }}>Landed costs: {fmtCurrency(totalLanded)} AUD (separate invoices — distributed to units on receive, not included in Xero bill)</div>
-      )}
-
-      {/* C – Xero Bill */}
-      <div style={lbl}>C — Xero Bill (what will be sent)</div>
-      <div style={{ ...dim, lineHeight: 1.7 }}>
-        <div><strong>Type:</strong> ACCPAY (Accounts Payable) · <strong>Status:</strong> DRAFT · <strong>Lines:</strong> Exclusive (tax-exclusive)</div>
-        <div><strong>Currency:</strong> {currency}{isFx ? ` · Xero fetches live rate at bill date (stored rate ${rate.toFixed(4)} is for AUD calcs only)` : ''}</div>
-        <div><strong>Contact:</strong> {po.supplier_name || '—'} · <strong>Ref:</strong> {po.po_number}</div>
-        {po.supplier_invoice_number && <div><strong>Supplier invoice #:</strong> {po.supplier_invoice_number}</div>}
-        <div>
-          <strong>Tax:</strong> treatment <code>{po.tax_treatment || 'ex_tax'}</code>
-          {po.tax_code ? <> · code <code>{po.tax_code}</code></> : null}
-          {' · '}Xero TaxType <code>{(po.tax_treatment || 'ex_tax') === 'no_tax' ? 'NONE' : 'INPUT'}</code>
-          {' · '}LineAmountTypes <code>{(po.tax_treatment || 'ex_tax') === 'inc_tax' ? 'Inclusive' : 'Exclusive'}</code>
-        </div>
-        <div style={{ marginTop: 2 }}>
-          {lineItems.map((item: any, i: number) => (
-            <div key={i}>→ {item.sku || item.product_name || 'item'} ×{item.qty} @ {fmtFx(item.cost, currency)} = {fmtFx(item.lineTotal, currency)} → <strong>{hasDeposits ? 'Inventory in Transit' : 'Inventory Asset'}</strong>{item.taxAmt > 0 ? ` + tax ${fmtFx(item.taxAmt, currency)}` : ''}</div>
-          ))}
-          {freight > 0 && (
-            <div>→ Freight {fmtFx(freight, currency)} → <strong>{freightTreatment === 'capitalise' ? 'Inventory Asset (capitalised — adds to stock value)' : 'Freight / Shipping expense account'}</strong></div>
-          )}
-        </div>
-        <div style={{ marginTop: 2 }}><strong>Bill subtotal (excl. tax):</strong> {fmtFx(goodsSubtotal + freight, currency)}{isFx ? ` ≈ ${fmtCurrency((goodsSubtotal + freight) * rate)} AUD` : ''}</div>
-        <div><strong>Tax:</strong> {fmtFx(taxTotal, currency)} · <strong>Bill total (incl. tax):</strong> {fmtFx(Number(po.total_amount), currency)}</div>
-        {hasDeposits && (
-          <div style={{ color: 'var(--sv-amber,#f59e0b)', marginTop: 2 }}>⚠ Deposits exist → lines coded to Inventory in Transit. On receive, a DR Inventory Asset / CR Inventory in Transit journal will be posted.</div>
-        )}
-      </div>
-
-      {/* D – COGS on Receive */}
-      {po.status === 'complete' && (
-        <>
-          <div style={lbl}>D — COGS / Inventory Impact (status: complete)</div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-                <th style={{ ...cell, textAlign: 'left', fontWeight: 600 }}>SKU</th>
-                <th style={{ ...num, fontWeight: 600 }}>Qty</th>
-                {isFx && <th style={{ ...num, fontWeight: 600 }}>Cost ({currency})</th>}
-                {isFx && <th style={{ ...num, fontWeight: 600 }}>Base AUD (×{rate.toFixed(4)})</th>}
-                {!isFx && <th style={{ ...num, fontWeight: 600 }}>Unit Cost</th>}
-                <th style={{ ...num, fontWeight: 600 }}>Landed/Unit</th>
-                <th style={{ ...num, fontWeight: 600 }}>True Cost AUD</th>
-                <th style={{ ...num, fontWeight: 600 }}>Total Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lineItems.map((item: any, i: number) => (
+          <tbody>
+            {lineItems.map((item: any, i: number) => {
+              const qtyReceived = Number(item.qty_received ?? 0);
+              const qtyForValue = po.status === 'complete' ? qtyReceived : Number(item.qty);
+              return (
                 <tr key={i} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-                  <td style={cell}>{item.sku || '—'}</td>
-                  <td style={num}>{item.qty}</td>
-                  {isFx && <td style={num}>{fmtFx(item.cost, currency)}</td>}
-                  {isFx && <td style={num}>{fmtCurrency(item.cost * rate)}</td>}
-                  {!isFx && <td style={num}>{fmtCurrency(item.cost)}</td>}
+                  <td style={{ ...cell, color: 'var(--sv-text-main)' }}>{item.sku || item.product_name || '—'}{item.variant_label ? ` (${item.variant_label})` : ''}</td>
+                  <td style={num}>{fmtQty(item.qty)}</td>
+                  <td style={num}>{fmtQty(qtyReceived)}</td>
+                  <td style={num}>{fmtFx(item.cost, currency)}</td>
+                  <td style={num}>{item.taxRate > 0 ? `${(item.taxRate * 100).toFixed(0)}%` : '—'}</td>
+                  <td style={num}>{fmtFx(item.lineTotal, currency)}</td>
+                  <td style={num}>{item.taxAmt > 0 ? fmtFx(item.taxAmt, currency) : '—'}</td>
                   <td style={num}>{item.lcpu > 0 ? fmtCurrency(item.lcpu) : '—'}</td>
                   <td style={{ ...num, color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtCurrency(item.trueCostAud)}</td>
-                  <td style={{ ...num, color: 'var(--sv-text-main)' }}>{fmtCurrency(item.qty * item.trueCostAud)}</td>
+                  <td style={{ ...num, color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtCurrency(qtyForValue * item.trueCostAud)}</td>
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr style={{ borderTop: '2px solid var(--sv-etch)' }}>
-                <td colSpan={isFx ? 5 : 4} style={{ ...cell, fontWeight: 700 }}>Total inventory value added</td>
-                <td />
-                <td style={{ ...num, fontWeight: 700 }}>{fmtCurrency(lineItems.reduce((s: number, i: any) => s + i.qty * i.trueCostAud, 0))}</td>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr style={{ borderTop: '2px solid var(--sv-etch)' }}>
+              <td colSpan={5} style={{ ...cell, fontWeight: 700 }}>Goods subtotal</td>
+              <td style={{ ...num, fontWeight: 700 }}>{fmtFx(goodsSubtotal, currency)}</td>
+              <td style={{ ...num, fontWeight: 700 }}>{fmtFx(taxTotal, currency)}</td>
+              <td colSpan={2} style={{ ...num, fontWeight: 700 }}>Bill total</td>
+              <td style={{ ...num, fontWeight: 700 }}>{fmtFx(Number(po.total_amount), currency)}</td>
+            </tr>
+            {freight > 0 && (
+              <tr>
+                <td colSpan={9} style={{ ...cell }}>Freight ({freightTreatment === 'capitalise' ? 'capitalised' : 'expense'})</td>
+                <td style={num}>{fmtFx(freight, currency)}</td>
               </tr>
-            </tfoot>
-          </table>
-          <div style={{ ...dim, marginTop: 3 }}>true_cost_aud = unit_cost{isFx ? ` × rate(${rate.toFixed(4)})` : ''} + landed_cost_per_unit. avg_cost in ims_stock is updated to new weighted average on receive.</div>
-        </>
-      )}
+            )}
+            {Number(po.discount || 0) > 0 && (
+              <tr>
+                <td colSpan={9} style={{ ...cell }}>Discount (−)</td>
+                <td style={{ ...num, color: 'var(--sv-red)' }}>−{fmtFx(Number(po.discount), currency)}</td>
+              </tr>
+            )}
+            <tr>
+              <td colSpan={9} style={{ ...cell, fontWeight: 700 }}>Total inventory value added (AUD)</td>
+              <td style={{ ...num, fontWeight: 700 }}>
+                {fmtCurrency(lineItems.reduce((s: number, i: any) => {
+                  const qtyReceived = Number(i.qty_received ?? 0);
+                  const qtyForValue = po.status === 'complete' ? qtyReceived : Number(i.qty);
+                  return s + qtyForValue * Number(i.trueCostAud || 0);
+                }, 0))}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div style={{ ...dim, marginTop: 6, lineHeight: 1.7 }}>
+        <div>Tax treatment: <strong>{po.tax_treatment || 'ex_tax'}</strong>{po.tax_code ? <> · Tax code <strong>{po.tax_code}</strong></> : null} · Xero TaxType <strong>{(po.tax_treatment || 'ex_tax') === 'no_tax' ? 'NONE' : 'INPUT'}</strong> · LineAmountTypes <strong>{(po.tax_treatment || 'ex_tax') === 'inc_tax' ? 'Inclusive' : 'Exclusive'}</strong></div>
+        <div>Xero bill: <strong>ACCPAY</strong> draft to <strong>{po.supplier_name || '—'}</strong> · Ref <strong>{po.po_number}</strong>{po.supplier_invoice_number ? <> · Supplier invoice <strong>{po.supplier_invoice_number}</strong></> : null}</div>
+        {isFx && <div>Stored FX rate {rate.toFixed(4)} is used for IMS AUD costing. Xero applies its live conversion at bill date.</div>}
+        {totalLanded > 0 && <div>Landed costs: {fmtCurrency(totalLanded)} AUD (distributed into avg cost per unit on receive).</div>}
+        {hasDeposits && <div style={{ color: 'var(--sv-amber,#f59e0b)' }}>Deposits exist: purchase lines are posted to Inventory in Transit until receiving journals clear them to Inventory Asset.</div>}
+      </div>
     </div>
   );
 }
@@ -10627,10 +10549,20 @@ function ImportSOsModal({ locations, onClose, onDone }: {
 }
 
 function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, onReturnOrder }: { pendingOpenId?: number | null; onPendingHandled?: () => void; isAdvisor?: boolean; onReturnOrder?: (prefill: any) => void } = {}) {
+  const SO_CHANNEL_FILTER_KEY = 'marketoir:imsSalesOrdersChannel';
   const [sos, setSos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [channelFilter, setChannelFilter] = useState<'all' | 'b2b' | 'online' | 'pos'>(() => {
+    if (typeof window === 'undefined') return 'b2b';
+    try {
+      const saved = (localStorage.getItem(SO_CHANNEL_FILTER_KEY) ?? '').toLowerCase();
+      return (saved === 'all' || saved === 'b2b' || saved === 'online' || saved === 'pos') ? saved : 'b2b';
+    } catch {
+      return 'b2b';
+    }
+  });
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [viewModal, setViewModal] = useState<{ open: boolean; so: any | null }>({ open: false, so: null });
   const [soPayForm, setSoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string; method: string } | null>(null);
@@ -10654,13 +10586,19 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const load = useCallback(() => {
     setLoading(true);
     setLoadError('');
-    fetch('/api/ims/sales-orders').then(r => r.json()).then(d => {
+    const sp = new URLSearchParams();
+    sp.set('channel', channelFilter);
+    fetch(`/api/ims/sales-orders?${sp.toString()}`).then(r => r.json()).then(d => {
       if (d.success) setSos(d.data);
       else setLoadError(d.error || 'Failed to load sales orders.');
     }).catch(e => setLoadError(e?.message || 'Failed to load sales orders.')).finally(() => setLoading(false));
-  }, []);
+  }, [channelFilter]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    try { localStorage.setItem(SO_CHANNEL_FILTER_KEY, channelFilter); } catch {}
+  }, [SO_CHANNEL_FILTER_KEY, channelFilter]);
 
   useEffect(() => {
     fetch('/api/ims/contacts?type=b2b_customer&active=1').then(r => r.json()).then(d => { if (d.success) setCustomers(d.data); });
@@ -10959,6 +10897,16 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             {s || 'All'}
           </button>
         ))}
+        <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--sv-etch)', margin: '0 2px' }} />
+        {[['b2b', 'Wholesale / B2B'], ['all', 'All Orders'], ['online', 'Online'], ['pos', 'POS']].map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => { setChannelFilter(key as 'all' | 'b2b' | 'online' | 'pos'); setPage(1); }}
+            style={btnStyle(channelFilter === key ? 'mint' : 'ghost', 'sm')}
+          >
+            {label}
+          </button>
+        ))}
         <input
           list="so-customer-filter-list"
           placeholder="Filter by customer…"
@@ -10969,8 +10917,8 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         <datalist id="so-customer-filter-list">
           {customerOptions.map(c => <option key={c} value={c} />)}
         </datalist>
-        {(statusFilter || filterCustomer) && (
-          <button onClick={() => { setStatusFilter(''); setFilterCustomer(''); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
+        {(statusFilter || filterCustomer || channelFilter !== 'b2b') && (
+          <button onClick={() => { setStatusFilter(''); setFilterCustomer(''); setChannelFilter('b2b'); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
         )}
       </div>
       {loading ? <Spinner /> : loadError ? <EmptyState text={`Could not load sales orders: ${loadError}`} /> : sortedFilteredSOs.length === 0 ? <EmptyState text="No sales orders match your filters." /> : (
