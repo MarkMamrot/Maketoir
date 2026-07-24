@@ -152,6 +152,10 @@ export async function POST(req: Request) {
 </body>
 </html>`;
 
+  if (!process.env.RESEND_FROM_EMAIL) {
+    console.warn('Receipt email: RESEND_FROM_EMAIL is not set. Emails will be sent from onboarding@resend.dev which only works for the Resend account owner\'s email address.');
+  }
+
   try {
     const resend = new Resend(process.env.RESEND_API_KEY);
     const from = process.env.RESEND_FROM_EMAIL ?? 'Solvantis POS <onboarding@resend.dev>';
@@ -159,7 +163,12 @@ export async function POST(req: Request) {
       ? `Your receipt from ${businessName}`
       : 'Your receipt';
 
-    await resend.emails.send({ from, to: sanitiseEmail, subject, html });
+    const { data, error } = await resend.emails.send({ from, to: sanitiseEmail, subject, html });
+    if (error) {
+      console.error('Receipt email Resend error:', error);
+      return NextResponse.json({ success: false, error: error.message ?? 'Failed to send email.' }, { status: 500 });
+    }
+    console.log('Receipt email sent:', data?.id, '→', sanitiseEmail);
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error('Receipt email error:', err);
