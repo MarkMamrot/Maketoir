@@ -336,7 +336,15 @@ export const ImsContactsRepo = {
        data.charges_tax ?? 1, data.prices_include_tax ?? 0, data.tax_rate ?? null,
        data.website_url ?? null]
     );
-    return res.insertId;
+    const newId = res.insertId;
+    // Auto-assign a customer code if none was provided — format C-000142
+    if (!data.customer_code) {
+      await imsExecute(
+        `UPDATE ims_contacts SET customer_code = CONCAT('C-', LPAD(?, 6, '0')) WHERE id = ? AND (customer_code IS NULL OR customer_code = '')`,
+        [newId, newId],
+      ).catch(() => {});
+    }
+    return newId;
   },
 
   async update(id: number, data: Partial<ImsContact>): Promise<void> {

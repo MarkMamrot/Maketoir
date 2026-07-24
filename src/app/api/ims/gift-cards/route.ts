@@ -10,8 +10,9 @@ export async function GET(req: Request) {
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
     const { searchParams } = new URL(req.url);
-    const status  = searchParams.get('status')  ?? '';
-    const search  = searchParams.get('search')  ?? '';
+    const status           = searchParams.get('status')            ?? '';
+    const search           = searchParams.get('search')            ?? '';
+    const contactShopifyId = searchParams.get('contact_shopify_id') ?? '';
     const limit   = Math.min(parseInt(searchParams.get('limit')  ?? '200', 10), 500);
     const offset  = parseInt(searchParams.get('offset') ?? '0', 10);
 
@@ -19,6 +20,10 @@ export async function GET(req: Request) {
     const conditions: string[] = [];
     const params: any[] = [];
 
+    if (contactShopifyId.trim()) {
+      conditions.push('customer_id = ?');
+      params.push(contactShopifyId.trim());
+    }
     if (status && status !== 'all') {
       conditions.push('status = ?');
       params.push(status);

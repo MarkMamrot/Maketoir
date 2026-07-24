@@ -39,6 +39,10 @@ async function ensureMigration() {
   // Unique index on customer_code per business
   await imsExecute(`ALTER TABLE ims_contacts ADD UNIQUE INDEX idx_customer_code (business_id, customer_code)`).catch(() => {});
   await ensureContactShopifyCustomerSchema();
+  // Backfill: assign a C-XXXXXX code to any contact that has none
+  await imsExecute(
+    `UPDATE ims_contacts SET customer_code = CONCAT('C-', LPAD(id, 6, '0')) WHERE customer_code IS NULL OR customer_code = ''`
+  ).catch(() => {});
   migrationDone = true;
 }
 

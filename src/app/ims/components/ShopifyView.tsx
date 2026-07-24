@@ -1207,6 +1207,7 @@ function ShopifyGiftCardsTab() {
   } | null>(null);
   const [customerSyncError, setCustomerSyncError] = useState<string | null>(null);
   const [customerSyncProgress, setCustomerSyncProgress] = useState<string | null>(null);
+  const [customerInactiveMonths, setCustomerInactiveMonths] = useState('60');
 
   useEffect(() => {
     fetch('/api/ims/settings').then(r => r.json()).then(d => {
@@ -1267,7 +1268,7 @@ function ShopifyGiftCardsTab() {
         const r = await fetch('/api/ims/shopify/sync-customers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'pull', pageInfo: nextPageInfo, batchLimit: 100 }),
+          body: JSON.stringify({ mode: 'pull', pageInfo: nextPageInfo, batchLimit: 100, inactiveAfterMonths: Number(customerInactiveMonths) || 60 }),
         });
         const d = await readApiResponse(r);
         if (!r.ok || !d.success) throw new Error(d.error ?? 'Customer sync failed');
@@ -1378,6 +1379,18 @@ function ShopifyGiftCardsTab() {
           >
             {customerSyncing ? 'Syncing Customers…' : 'Pull Customers From Shopify'}
           </button>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, fontSize: 13, color: 'var(--sv-text-dim)' }}>
+            Inactive after
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={customerInactiveMonths}
+              onChange={e => setCustomerInactiveMonths(e.target.value)}
+              style={{ ...inputStyle, width: 84, padding: '6px 8px', margin: 0 }}
+            />
+            months
+          </label>
           <button
             onClick={runCustomerPush}
             disabled={customerSyncing}

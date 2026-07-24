@@ -165,12 +165,22 @@ export class ShopifyService {
       email: string | null;
       phone: string | null;
       state: string | null;
+      created_at?: string | null;
+      updated_at?: string | null;
+      tags?: string | null;
+      note?: string | null;
+      orders_count?: number | null;
+      last_order_id?: number | null;
+      accepts_marketing?: boolean | null;
+      marketing_opt_in_level?: string | null;
+      email_marketing_consent?: any;
+      sms_marketing_consent?: any;
     }>;
     nextPageInfo: string | null;
   }> {
     const params = new URLSearchParams({
       limit: String(Math.min(250, Math.max(1, limit))),
-      fields: 'id,first_name,last_name,email,phone,state',
+      fields: 'id,first_name,last_name,email,phone,state,created_at,updated_at,tags,note,orders_count,last_order_id,accepts_marketing,marketing_opt_in_level,email_marketing_consent,sms_marketing_consent',
     });
     if (pageInfo) params.set('page_info', pageInfo);
 

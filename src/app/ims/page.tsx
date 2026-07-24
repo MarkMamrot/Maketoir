@@ -44,14 +44,14 @@ const NAV = [
     { id: 'stock',         label: 'Stock Levels' },
     { id: 'brands',        label: 'Brands' },
     { id: 'gift-cards',    label: 'Gift Cards' },
-    { id: 'bulk-edit',     label: '✏️ Bulk Edit' },
+    { id: 'bulk-edit',     label: '▸ Bulk Edit' },
   ]},
   { id: '__orders',        label: 'Orders',           section: 'orders', children: [
     { id: 'purchase-orders',  label: 'Purchase Orders' },
     { id: 'sales-orders',     label: 'Sales Orders' },
     { id: 'credit-notes',     label: 'Credit Notes / Returns' },
     { id: 'supplier-credit-notes', label: 'Supplier Credit Notes' },
-    { id: 'smart-device-receive', label: '📱 Smart Device Receive' },
+    { id: 'smart-device-receive', label: '▸ Smart Device Receive' },
     { id: 'pos-sales',            label: 'POS Sales' },
     { id: 'online-sales',     label: 'Online Sales' },
     { id: 'order-planner',    label: 'Order Planner' },
@@ -60,10 +60,10 @@ const NAV = [
   { id: '__locations',     label: 'Locations',        section: 'locations', children: [
     { id: 'locations',      label: 'Locations' },
     { id: 'branch-transfers', label: 'Branch Transfers' },
-    { id: 'receive-transfers', label: '📦 Receive Transfers' },
+    { id: 'receive-transfers', label: '▸ Receive Transfers' },
   ]},
-  { id: 'stocktakes',       label: '📋 Stocktakes',     section: null },
-  { id: 'reports',          label: '📊 Reports',         section: null },
+  { id: 'stocktakes',       label: '▸ Stocktakes',     section: null },
+  { id: 'reports',          label: '▸ Reports',         section: null },
   { id: '__integrations',   label: 'Integrations',     section: 'integrations', children: [
     { id: 'xero',           label: 'Xero' },
     { id: 'shopify',        label: 'Shopify' },
@@ -1059,6 +1059,68 @@ const BLANK_CONTACT = {
   price_tier: 'retail', order_frequency_days: 45,
   charges_tax: 1, prices_include_tax: 0, tax_rate: '', website_url: '',
 };
+const CONTACT_EXPORT_HEADERS = [
+  'id', 'type', 'name', 'first_name', 'last_name', 'company', 'customer_code', 'customer_group', 'shopify_customer_id',
+  'email', 'phone', 'mobile', 'address', 'address2', 'suburb', 'city', 'state', 'postcode', 'country', 'notes',
+  'is_active', 'store_credit', 'on_account_limit', 'date_of_birth', 'gender', 'promo_email', 'promo_sms',
+  'price_tier', 'lead_time_days', 'order_frequency_days', 'charges_tax', 'prices_include_tax', 'tax_rate',
+  'website_url', 'cin7_supplier_id', 'cin7_contact_id',
+] as const;
+type ContactExportHeader = typeof CONTACT_EXPORT_HEADERS[number];
+
+const CONTACT_FIELD_GUIDE: Array<{ key: ContactExportHeader; label: string; description: string; example: string }> = [
+  { key: 'id', label: 'ID', description: 'Leave blank for new rows. When present, the importer updates the matching contact.', example: '1234' },
+  { key: 'type', label: 'Type', description: 'Contact role. Use supplier, b2b_customer, retail_customer, lead, or both.', example: 'retail_customer' },
+  { key: 'name', label: 'Name', description: 'Display name shown in IMS.', example: 'Jane Smith' },
+  { key: 'first_name', label: 'First Name', description: 'First name used for greetings and Shopify sync.', example: 'Jane' },
+  { key: 'last_name', label: 'Last Name', description: 'Surname used for greetings and Shopify sync.', example: 'Smith' },
+  { key: 'company', label: 'Company', description: 'Business or trading name attached to the contact.', example: 'Smith Retail Pty Ltd' },
+  { key: 'customer_code', label: 'Customer Code', description: 'External customer code from Sage / Lightspeed / another system.', example: 'CUST-10023' },
+  { key: 'customer_group', label: 'Customer Group', description: 'Optional grouping label for customers.', example: 'VIP' },
+  { key: 'shopify_customer_id', label: 'Shopify Customer ID', description: 'Numeric Shopify customer link used for sync and gift card matching.', example: '9876543210' },
+  { key: 'email', label: 'Email', description: 'Primary email address used for contact and Shopify matching.', example: 'jane@example.com' },
+  { key: 'phone', label: 'Phone', description: 'Main landline or alternate phone number.', example: '03 9000 0000' },
+  { key: 'mobile', label: 'Mobile', description: 'Mobile number. Shopify sync prefers this when present.', example: '0400 123 456' },
+  { key: 'address', label: 'Address', description: 'Street address line 1.', example: '12 Sample Street' },
+  { key: 'address2', label: 'Address 2', description: 'Apartment, unit, suite, or second address line.', example: 'Unit 4' },
+  { key: 'suburb', label: 'Suburb', description: 'Suburb or district.', example: 'Richmond' },
+  { key: 'city', label: 'City', description: 'City / town / locality.', example: 'Melbourne' },
+  { key: 'state', label: 'State', description: 'State or province.', example: 'VIC' },
+  { key: 'postcode', label: 'Postcode', description: 'Postal or ZIP code.', example: '3121' },
+  { key: 'country', label: 'Country', description: 'Country name. Defaults to Australia in the UI.', example: 'Australia' },
+  { key: 'notes', label: 'Notes', description: 'Internal notes for staff only.', example: 'Prefers email after 3pm' },
+  { key: 'is_active', label: 'Is Active', description: 'Use 1/0, yes/no, or true/false to control active status.', example: '1' },
+  { key: 'store_credit', label: 'Store Credit', description: 'Current store credit balance for retail customers.', example: '25.00' },
+  { key: 'on_account_limit', label: 'On Account Limit', description: 'Maximum credit account limit. Leave blank for no limit.', example: '500.00' },
+  { key: 'date_of_birth', label: 'Date of Birth', description: 'Retail customer date of birth in YYYY-MM-DD format.', example: '1988-07-14' },
+  { key: 'gender', label: 'Gender', description: 'Optional gender flag used by the retail contact form.', example: 'F' },
+  { key: 'promo_email', label: 'Promo Email', description: 'Marketing email opt-in. Use 1/0 or yes/no.', example: '1' },
+  { key: 'promo_sms', label: 'Promo SMS', description: 'Marketing SMS opt-in. Use 1/0 or yes/no.', example: '0' },
+  { key: 'price_tier', label: 'Price Tier', description: 'Retail or wholesale pricing tier for the contact.', example: 'retail' },
+  { key: 'lead_time_days', label: 'Lead Time Days', description: 'Supplier lead time in days.', example: '14' },
+  { key: 'order_frequency_days', label: 'Order Frequency Days', description: 'Supplier reorder cadence in days.', example: '45' },
+  { key: 'charges_tax', label: 'Charges Tax', description: 'Whether this supplier charges tax. Use 1/0 or yes/no.', example: '1' },
+  { key: 'prices_include_tax', label: 'Prices Include Tax', description: 'Whether supplier prices already include tax. Use 1/0 or yes/no.', example: '0' },
+  { key: 'tax_rate', label: 'Tax Rate', description: 'Tax override as a decimal percentage, e.g. 0.10 for 10%.', example: '0.10' },
+  { key: 'website_url', label: 'Website URL', description: 'Supplier website or contact site URL.', example: 'https://example.com' },
+  { key: 'cin7_supplier_id', label: 'Cin7 Supplier ID', description: 'Optional Cin7 supplier linkage ID.', example: '44882' },
+  { key: 'cin7_contact_id', label: 'Cin7 Contact ID', description: 'Optional Cin7 contact linkage ID.', example: '55219' },
+];
+
+type ParsedContactImportRow = { raw: Record<string, string>; action: 'new_contact' | 'update' | 'error'; errorMsg?: string; existingId?: number; changedFields?: string[] };
+const normalizeContactHeader = (value: string) => value.trim().toLowerCase().replace(/\s+/g, '_');
+const contactBool = (value: string | undefined) => {
+  if (value == null || value === '') return undefined;
+  const v = value.trim().toLowerCase();
+  if (['1', 'yes', 'y', 'true', 'on', 'active', 'enabled'].includes(v)) return 1;
+  if (['0', 'no', 'n', 'false', 'off', 'inactive', 'disabled'].includes(v)) return 0;
+  return undefined;
+};
+const contactNum = (value: string | undefined) => {
+  if (value == null || value.trim() === '') return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+};
 const CONTACT_TYPE_LABEL: Record<string, string> = {
   supplier:        'Supplier',
   b2b_customer:    'B2B Customer',
@@ -1071,12 +1133,22 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
   const [contacts, setContacts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('supplier');
+  const [priceTierFilter, setPriceTierFilter] = useState('all');
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [storeCreditFilter, setStoreCreditFilter] = useState('all');
+  const [promoEmailFilter, setPromoEmailFilter] = useState('all');
+  const [promoSmsFilter, setPromoSmsFilter] = useState('all');
+  const [contactsFiltersOpen, setContactsFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [form, setForm] = useState({ ...BLANK_CONTACT });
   const [saving, setSaving] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
+  const [selectedContacts, setSelectedContacts] = useState<Set<number>>(new Set());
+  const [bulkWorking, setBulkWorking] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [exportingContacts, setExportingContacts] = useState(false);
 
   const flashSyncMsg = useCallback((message: string) => {
     setSyncMsg(message);
@@ -1085,9 +1157,47 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
 
   const load = useCallback(() => {
     setLoading(true);
-    fetch('/api/ims/contacts').then(r => r.json()).then(d => {
-      if (d.success) setContacts(d.data);
-    }).finally(() => setLoading(false));
+    const normalize = (rows: any[]) => rows.slice().sort((a, b) => {
+      const weight = (c: any) => (c.type === 'supplier' || c.type === 'both' ? 0 : c.type === 'b2b_customer' ? 1 : c.type === 'retail_customer' ? 2 : 3);
+      const diff = weight(a) - weight(b);
+      return diff !== 0 ? diff : String(a.name ?? '').localeCompare(String(b.name ?? ''));
+    });
+    const mergeById = (base: any[], extra: any[]) => {
+      const map = new Map<number, any>();
+      for (const row of [...base, ...extra]) map.set(Number(row.id), row);
+      return normalize([...map.values()]);
+    };
+    const fetchContacts = async (params: string) => {
+      const res = await fetch(`/api/ims/contacts?${params}`);
+      const d = await res.json();
+      return d.success ? d.data ?? [] : [];
+    };
+    (async () => {
+      try {
+        const [supplierRows, b2bRows] = await Promise.all([
+          fetchContacts('type=supplier'),
+          fetchContacts('type=b2b_customer'),
+        ]);
+        const initial = mergeById(supplierRows, b2bRows);
+        setContacts(initial);
+        setLoading(false);
+
+        void (async () => {
+          try {
+            const [retailRows, leadRows] = await Promise.all([
+              fetchContacts('type=retail_customer'),
+              fetchContacts('type=lead'),
+            ]);
+            setContacts(prev => mergeById(prev, [...retailRows, ...leadRows]));
+          } catch {
+            // Background fill is best-effort.
+          }
+        })();
+      } catch (e) {
+        setContacts([]);
+        setLoading(false);
+      }
+    })();
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -1095,6 +1205,79 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
   const openNew = () => { setForm({ ...BLANK_CONTACT }); setModal({ open: true, edit: null }); };
   const openEdit = (c: any) => { setForm({ ...BLANK_CONTACT, ...c }); setModal({ open: true, edit: c }); };
   const closeModal = () => setModal({ open: false, edit: null });
+
+  const runInBatches = async <T,>(items: T[], batchSize: number, worker: (item: T) => Promise<void>) => {
+    for (let i = 0; i < items.length; i += batchSize) {
+      await Promise.all(items.slice(i, i + batchSize).map(worker));
+    }
+  };
+
+  const downloadContactsCsv = async () => {
+    setExportingContacts(true);
+    try {
+      const esc = (value: any) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+      const lines = [CONTACT_EXPORT_HEADERS.map(esc).join(',')];
+      for (const c of contacts) {
+        lines.push(CONTACT_EXPORT_HEADERS.map(h => esc((c as Record<string, any>)[h])).join(','));
+      }
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `contacts-export-${new Date().toLocaleDateString('sv-SE')}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      alert('Export failed: ' + e.message);
+    } finally {
+      setExportingContacts(false);
+    }
+  };
+
+  const toggleSelectContact = (id: number) => {
+    setSelectedContacts(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkSetActive = async (value: 0 | 1) => {
+    if (isAdvisor || selectedContacts.size === 0) return;
+    setBulkWorking(true);
+    try {
+      await runInBatches([...selectedContacts], 10, async id => {
+        await apiFetch(`/api/ims/contacts/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_active: value }),
+        });
+      });
+      setSelectedContacts(new Set());
+      load();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setBulkWorking(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (isAdvisor || selectedContacts.size === 0) return;
+    if (!confirm(`Delete ${selectedContacts.size} contact(s)? This cannot be undone.`)) return;
+    setBulkWorking(true);
+    try {
+      await runInBatches([...selectedContacts], 10, async id => {
+        await apiFetch(`/api/ims/contacts/${id}`, { method: 'DELETE' });
+      });
+      setSelectedContacts(new Set());
+      load();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setBulkWorking(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1146,39 +1329,126 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
 
   const typeMatchFn = (c: any) => {
-    if (!typeFilter) return true;
-    if (typeFilter === 'supplier' || typeFilter === 'b2b_customer') return c.type === typeFilter || c.type === 'both';
+    if (!typeFilter || typeFilter === 'supplier') return c.type === 'supplier' || c.type === 'b2b_customer' || c.type === 'both';
+    if (typeFilter === 'supplier_only') return c.type === 'supplier' || c.type === 'both';
     return c.type === typeFilter;
   };
+  const filterActive = priceTierFilter !== 'all' || activeFilter !== 'all' || storeCreditFilter !== 'all' || promoEmailFilter !== 'all' || promoSmsFilter !== 'all';
   const filtered = contacts.filter(c =>
     typeMatchFn(c) &&
-    (!filter || c.name.toLowerCase().includes(filter.toLowerCase()) || (c.company || '').toLowerCase().includes(filter.toLowerCase()) || (c.customer_code || '').toLowerCase().includes(filter.toLowerCase()) || (c.email || '').toLowerCase().includes(filter.toLowerCase()))
+    (!filter || c.name.toLowerCase().includes(filter.toLowerCase()) || (c.company || '').toLowerCase().includes(filter.toLowerCase()) || (c.customer_code || '').toLowerCase().includes(filter.toLowerCase()) || (c.email || '').toLowerCase().includes(filter.toLowerCase())) &&
+    (priceTierFilter === 'all' || (priceTierFilter === 'wholesale' ? c.price_tier === 'wholesale' : (c.price_tier ?? 'retail') !== 'wholesale')) &&
+    (activeFilter === 'all' || String(c.is_active) === activeFilter) &&
+    (storeCreditFilter === 'all' || (storeCreditFilter === 'positive' ? Number(c.store_credit ?? 0) > 0 : Number(c.store_credit ?? 0) <= 0)) &&
+    (promoEmailFilter === 'all' || String(Number(c.promo_email ?? 0)) === promoEmailFilter) &&
+    (promoSmsFilter === 'all' || String(Number(c.promo_sms ?? 0)) === promoSmsFilter)
   );
   const CONTACTS_PAGE_SIZE = 100;
   const totalPages = Math.max(1, Math.ceil(filtered.length / CONTACTS_PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const visible = filtered.slice((safePage - 1) * CONTACTS_PAGE_SIZE, safePage * CONTACTS_PAGE_SIZE);
+  const visibleIds = visible.map(c => c.id);
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedContacts.has(id));
+  const f = form as any;
+  const isSupplier = form.type === 'supplier' || form.type === 'both';
+  const isCustomer = form.type === 'b2b_customer' || form.type === 'retail_customer' || form.type === 'both';
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Contacts</h1>
+        <button onClick={downloadContactsCsv} disabled={exportingContacts || contacts.length === 0} style={btnStyle('ghost')}>
+          {exportingContacts ? 'Exporting…' : '⬇ Export CSV'}
+        </button>
+        {!isAdvisor && <button onClick={() => setImportOpen(true)} style={btnStyle('ghost')}>⬆ Import Contacts</button>}
         {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New Contact</button>}
       </div>
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-        <input placeholder="Search…" value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, width: 240 }} />
-        <select value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, width: 180 }}>
-          <option value="">All Types</option>
-          <option value="supplier">Suppliers</option>
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <input placeholder="Search contacts…" value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 220, flex: '1 1 220px' }} />
+        <select value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 220, flex: '1 1 220px' }}>
+          <option value="supplier">Suppliers + B2B Customers</option>
+          <option value="supplier_only">Suppliers Only</option>
           <option value="b2b_customer">B2B Customers</option>
           <option value="retail_customer">Retail Customers</option>
           <option value="lead">Leads</option>
           <option value="both">Supplier &amp; B2B Customer</option>
         </select>
+        {filterActive && (
+          <button onClick={() => {
+            setPriceTierFilter('all');
+            setActiveFilter('all');
+            setStoreCreditFilter('all');
+            setPromoEmailFilter('all');
+            setPromoSmsFilter('all');
+            setPage(1);
+          }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
+        )}
+        <div style={{ position: 'relative' }}>
+          <button onClick={() => setContactsFiltersOpen(v => !v)} style={{ ...btnStyle('secondary', 'sm'), ...(filterActive ? { background: 'color-mix(in srgb, var(--sv-action) 12%, var(--sv-bg-2))', borderColor: 'var(--sv-action)', color: 'var(--sv-action)' } : {}) }}>
+            Filters ▾{filterActive ? ' ●' : ''}
+          </button>
+          {contactsFiltersOpen && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setContactsFiltersOpen(false)} />
+              <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 100, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px', marginTop: 4, minWidth: 280, boxShadow: '0 6px 20px rgba(0,0,0,0.14)' }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 12 }}>Filters</p>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Price Tier</label>
+                  <select value={priceTierFilter} onChange={e => { setPriceTierFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, width: '100%' }}>
+                    <option value="all">All</option>
+                    <option value="retail">Retail</option>
+                    <option value="wholesale">Wholesale</option>
+                  </select>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Active</label>
+                  <select value={activeFilter} onChange={e => { setActiveFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, width: '100%' }}>
+                    <option value="all">All</option>
+                    <option value="1">Active</option>
+                    <option value="0">Inactive</option>
+                  </select>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Store Credit</label>
+                  <select value={storeCreditFilter} onChange={e => { setStoreCreditFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, width: '100%' }}>
+                    <option value="all">All</option>
+                    <option value="positive">&gt; 0</option>
+                    <option value="zero">0</option>
+                  </select>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Promo Emails</label>
+                  <select value={promoEmailFilter} onChange={e => { setPromoEmailFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, width: '100%' }}>
+                    <option value="all">All</option>
+                    <option value="1">Opted in</option>
+                    <option value="0">Opted out</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Promo SMS</label>
+                  <select value={promoSmsFilter} onChange={e => { setPromoSmsFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, width: '100%' }}>
+                    <option value="all">All</option>
+                    <option value="1">Opted in</option>
+                    <option value="0">Opted out</option>
+                  </select>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
       {syncMsg && (
         <div style={{ marginBottom: 14, padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(99,102,241,.25)', background: 'rgba(99,102,241,.08)', color: 'var(--sv-text-main)', fontSize: 13 }}>
           {syncMsg}
+        </div>
+      )}
+      {!isAdvisor && selectedContacts.size > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, marginBottom: 10 }}>
+          <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', flex: 1 }}>{selectedContacts.size} contact{selectedContacts.size !== 1 ? 's' : ''} selected</span>
+          <button disabled={bulkWorking} onClick={() => handleBulkSetActive(1)} style={btnStyle('secondary', 'sm')}>Activate</button>
+          <button disabled={bulkWorking} onClick={() => handleBulkSetActive(0)} style={btnStyle('secondary', 'sm')}>Inactivate</button>
+          <button disabled={bulkWorking} onClick={handleBulkDelete} style={btnStyle('danger', 'sm')}>Delete</button>
+          <button onClick={() => setSelectedContacts(new Set())} style={btnStyle('secondary', 'sm')}>Deselect all</button>
         </div>
       )}
       {loading ? <Spinner /> : (() => {
@@ -1199,9 +1469,18 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
         );
         if (isCustomerView) return (
           <ImsTable
-            cols={['Name', 'Code', 'Group', 'Type', 'Email', 'Mobile', 'Store Credit', 'On Account', 'Promo', 'Active', '']}
+            cols={[
+              !isAdvisor ? <input key="customer-select-all" type="checkbox" checked={allVisibleSelected} onChange={() => setSelectedContacts(prev => {
+                const next = new Set(prev);
+                if (allVisibleSelected) visible.forEach(c => next.delete(c.id));
+                else visible.forEach(c => next.add(c.id));
+                return next;
+              })} style={{ cursor: 'pointer' }} /> : '',
+              'Name', 'Code', 'Group', 'Type', 'Email', 'Mobile', 'Store Credit', 'On Account', 'Promo', 'Active', '',
+            ]}
             rows={visible}
             render={(c) => [
+              !isAdvisor ? <input type="checkbox" checked={selectedContacts.has(c.id)} onChange={() => toggleSelectContact(c.id)} style={{ cursor: 'pointer' }} /> : null,
               <button onClick={() => openEdit(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
               <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontVariantNumeric: 'tabular-nums' }}>{c.customer_code || '—'}</span>,
               c.customer_group || '—',
@@ -1225,11 +1504,20 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
         );
         return (
           <ImsTable
-            cols={isSupplierView
-              ? ['Name', 'Company', 'Type', 'Price Tier', 'Email', 'Phone', 'Order Freq.', 'Active', '']
-              : ['Name', 'Company', 'Type', 'Email', 'Mobile / Phone', 'Active', '']}
+            cols={[
+              !isAdvisor ? <input key="supplier-select-all" type="checkbox" checked={allVisibleSelected} onChange={() => setSelectedContacts(prev => {
+                const next = new Set(prev);
+                if (allVisibleSelected) visible.forEach(c => next.delete(c.id));
+                else visible.forEach(c => next.add(c.id));
+                return next;
+              })} style={{ cursor: 'pointer' }} /> : '',
+              ...(isSupplierView
+                ? ['Name', 'Company', 'Type', 'Price Tier', 'Email', 'Phone', 'Order Freq.', 'Active', '']
+                : ['Name', 'Company', 'Type', 'Email', 'Mobile / Phone', 'Active', ''])
+            ]}
             rows={visible}
             render={(c) => isSupplierView ? [
+              !isAdvisor ? <input type="checkbox" checked={selectedContacts.has(c.id)} onChange={() => toggleSelectContact(c.id)} style={{ cursor: 'pointer' }} /> : null,
               <button onClick={() => openEdit(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
               c.company || '—',
               typeBadge(c),
@@ -1242,6 +1530,7 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
               <ActiveDot active={c.is_active} />,
               actions(c),
             ] : [
+              !isAdvisor ? <input type="checkbox" checked={selectedContacts.has(c.id)} onChange={() => toggleSelectContact(c.id)} style={{ cursor: 'pointer' }} /> : null,
               <button onClick={() => openEdit(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
               c.company || '—',
               typeBadge(c),
@@ -1264,182 +1553,400 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
         </div>
       )}
 
-      {modal.open && (() => {
-        const f = form as any;
-        const isSupplier = form.type === 'supplier' || form.type === 'both';
-        const isCustomer = form.type === 'b2b_customer' || form.type === 'retail_customer' || form.type === 'both';
-        const isRetail = form.type === 'retail_customer';
-        const isLead = form.type === 'lead';
-        const SectionLabel = ({ children }: { children: React.ReactNode }) => (
-          <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--sv-text-dim)', margin: '14px 0 6px' }}>{children}</div>
-        );
-        return (
-          <Modal title={modal.edit ? 'Edit Contact' : 'New Contact'} onClose={closeModal}>
-            <form onSubmit={handleSubmit}>
+      {!isAdvisor && importOpen && (
+        <ImportContactsModal
+          contacts={contacts}
+          onClose={() => setImportOpen(false)}
+          onDone={() => { setImportOpen(false); load(); }}
+        />
+      )}
 
-              {/* ── Type & Status ── */}
-              <Row2>
-                <Field label="Type">
-                  <select value={form.type} onChange={sf('type')} style={inputStyle}>
-                    <option value="supplier">Supplier</option>
-                    <option value="b2b_customer">B2B Customer</option>
-                    <option value="retail_customer">Retail Customer</option>
-                    <option value="lead">Lead</option>
-                    <option value="both">Supplier &amp; B2B Customer</option>
-                  </select>
-                </Field>
-                <Field label="Active">
-                  <select value={form.is_active} onChange={sf('is_active')} style={inputStyle}>
-                    <option value={1}>Yes</option>
-                    <option value={0}>No</option>
-                  </select>
-                </Field>
-              </Row2>
-
-              {/* ── Identity ── */}
-              <SectionLabel>Identity</SectionLabel>
-              <Row2>
-                <Field label="First Name"><input value={f.first_name ?? ''} onChange={sf('first_name')} style={inputStyle} /></Field>
-                <Field label="Last Name"><input value={f.last_name ?? ''} onChange={sf('last_name')} style={inputStyle} /></Field>
-              </Row2>
-              <Row2>
-                <Field label="Display Name *"><input required value={form.name} onChange={sf('name')} placeholder="Auto-filled from First + Last" style={inputStyle} /></Field>
-                <Field label="Company"><input value={form.company} onChange={sf('company')} style={inputStyle} /></Field>
-              </Row2>
-              {(isCustomer || isLead) && (
-                <Row2>
-                  <Field label="Customer Code" title="Sage / Lightspeed customer code"><input value={f.customer_code ?? ''} onChange={sf('customer_code')} style={inputStyle} placeholder="e.g. SMITH-A4F2" /></Field>
-                  <Field label="Customer Group"><input value={f.customer_group ?? ''} onChange={sf('customer_group')} style={inputStyle} placeholder="e.g. VIP" /></Field>
-                </Row2>
-              )}
-
-              {/* ── Contact ── */}
-              <SectionLabel>Contact Details</SectionLabel>
-              <Row2>
-                <Field label="Email"><input type="email" value={form.email} onChange={sf('email')} style={inputStyle} /></Field>
-                <Field label="Mobile"><input value={f.mobile ?? ''} onChange={sf('mobile')} style={inputStyle} /></Field>
-              </Row2>
-              <Row2>
-                <Field label="Phone (land line)"><input value={form.phone} onChange={sf('phone')} style={inputStyle} /></Field>
-                {isSupplier && (
-                  <Field label="Website URL"><input type="url" value={f.website_url ?? ''} onChange={sf('website_url')} placeholder="https://" style={inputStyle} /></Field>
-                )}
-              </Row2>
-
-              {/* ── Address ── */}
-              <SectionLabel>Address</SectionLabel>
-              <Field label="Street Address"><input value={form.address} onChange={sf('address')} style={inputStyle} /></Field>
-              <Field label="Apt / Suite / Unit"><input value={f.address2 ?? ''} onChange={sf('address2')} style={inputStyle} placeholder="Unit 3, Level 2, etc." /></Field>
-              <Row2>
-                <Field label="Suburb"><input value={f.suburb ?? ''} onChange={sf('suburb')} style={inputStyle} /></Field>
-                <Field label="City"><input value={form.city} onChange={sf('city')} style={inputStyle} /></Field>
-              </Row2>
-              <Row3>
-                <Field label="State"><input value={form.state} onChange={sf('state')} style={inputStyle} /></Field>
-                <Field label="Postcode"><input value={form.postcode} onChange={sf('postcode')} style={inputStyle} /></Field>
-                <Field label="Country"><input value={form.country} onChange={sf('country')} style={inputStyle} /></Field>
-              </Row3>
-
-              {/* ── Customer fields ── */}
-              {isCustomer && (
-                <>
-                  <SectionLabel>Customer Details</SectionLabel>
-                  <Row2>
-                    <Field label="Store Credit ($)" title="Current store credit balance">
-                      <input type="number" min="0" step="0.01" value={f.store_credit ?? 0} onChange={sf('store_credit')} style={inputStyle} />
-                    </Field>
-                    <Field label="On Account Limit ($)" title="Leave blank for no account credit">
-                      <input type="number" min="0" step="0.01" value={f.on_account_limit ?? ''} onChange={sf('on_account_limit')} style={inputStyle} placeholder="No limit" />
-                    </Field>
-                  </Row2>
-                  <Row2>
-                    <Field label="Price Tier">
-                      <select value={f.price_tier ?? 'retail'} onChange={sf('price_tier')} style={inputStyle}>
-                        <option value="retail">Retail</option>
-                        <option value="wholesale">Wholesale</option>
-                      </select>
-                    </Field>
-                    {isRetail && (
-                      <Field label="Gender">
-                        <select value={f.gender ?? ''} onChange={sf('gender')} style={inputStyle}>
-                          <option value="">Not specified</option>
-                          <option value="M">Male</option>
-                          <option value="F">Female</option>
-                          <option value="X">Non-binary / Other</option>
-                        </select>
-                      </Field>
-                    )}
-                  </Row2>
-                  {isRetail && (
-                    <Field label="Date of Birth">
-                      <input type="date" value={f.date_of_birth ?? ''} onChange={sf('date_of_birth')} style={inputStyle} />
-                    </Field>
-                  )}
-                  <SectionLabel>Marketing Preferences</SectionLabel>
-                  <Row2>
-                    <Field label="Promo Emails">
-                      <select value={Number(f.promo_email ?? 0)} onChange={e => setForm(p => ({ ...p, promo_email: Number(e.target.value) }))} style={inputStyle}>
-                        <option value={1}>Opted in ✓</option>
-                        <option value={0}>Opted out</option>
-                      </select>
-                    </Field>
-                    <Field label="Promo SMS">
-                      <select value={Number(f.promo_sms ?? 0)} onChange={e => setForm(p => ({ ...p, promo_sms: Number(e.target.value) }))} style={inputStyle}>
-                        <option value={1}>Opted in ✓</option>
-                        <option value={0}>Opted out</option>
-                      </select>
-                    </Field>
-                  </Row2>
-                </>
-              )}
-
-              {/* ── Supplier fields ── */}
-              {isSupplier && (
-                <>
-                  <SectionLabel>Supplier Settings</SectionLabel>
-                  <Row2>
-                    <Field label="Price Tier">
-                      <select value={f.price_tier ?? 'retail'} onChange={sf('price_tier')} style={inputStyle}>
-                        <option value="retail">Retail</option>
-                        <option value="wholesale">Wholesale</option>
-                      </select>
-                    </Field>
-                    <Field label="Order Frequency (days)">
-                      <input type="number" min={1} value={f.order_frequency_days ?? 45} onChange={e => setForm(p => ({ ...p, order_frequency_days: Math.max(1, parseInt(e.target.value) || 45) }))} style={inputStyle} />
-                    </Field>
-                  </Row2>
-                  <Row3>
-                    <Field label="Charges sales tax?">
-                      <select value={Number(f.charges_tax ?? 1)} onChange={e => setForm(p => ({ ...p, charges_tax: Number(e.target.value) }))} style={inputStyle}>
-                        <option value={1}>Yes</option>
-                        <option value={0}>No</option>
-                      </select>
-                    </Field>
-                    <Field label="Prices include tax?">
-                      <select value={Number(f.prices_include_tax ?? 0)} disabled={!Number(f.charges_tax ?? 1)} onChange={e => setForm(p => ({ ...p, prices_include_tax: Number(e.target.value) }))} style={{ ...inputStyle, opacity: Number(f.charges_tax ?? 1) ? 1 : 0.5 }}>
-                        <option value={0}>Ex-tax (added on top)</option>
-                        <option value={1}>Inc-tax (already included)</option>
-                      </select>
-                    </Field>
-                    <Field label="Tax rate override (%)">
-                      <input type="number" min={0} step="0.01" placeholder="default" disabled={!Number(f.charges_tax ?? 1)} value={f.tax_rate === '' || f.tax_rate == null ? '' : Number(f.tax_rate) * 100} onChange={e => setForm(p => ({ ...p, tax_rate: e.target.value === '' ? '' : String(Number(e.target.value) / 100) }))} style={{ ...inputStyle, opacity: Number(f.charges_tax ?? 1) ? 1 : 0.5 }} />
-                    </Field>
-                  </Row3>
-                </>
-              )}
-
-              {/* ── Notes ── */}
-              <SectionLabel>Notes</SectionLabel>
-              <Field label="">
-                <textarea value={form.notes} onChange={sf('notes') as any} rows={2} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Internal notes…" />
+      {modal.open && (
+        <Modal title={modal.edit ? 'Edit Contact' : 'New Contact'} onClose={closeModal}>
+          <form onSubmit={handleSubmit}>
+            <Row2>
+              <Field label="Type">
+                <select value={form.type} onChange={sf('type')} style={inputStyle}>
+                  <option value="supplier">Supplier</option>
+                  <option value="b2b_customer">B2B Customer</option>
+                  <option value="retail_customer">Retail Customer</option>
+                  <option value="lead">Lead</option>
+                  <option value="both">Supplier &amp; B2B Customer</option>
+                </select>
               </Field>
+              <Field label="Active">
+                <select value={form.is_active} onChange={sf('is_active')} style={inputStyle}>
+                  <option value={1}>Yes</option>
+                  <option value={0}>No</option>
+                </select>
+              </Field>
+            </Row2>
 
-              <FormActions onCancel={closeModal} saving={saving} isEdit={!!modal.edit} />
-            </form>
-          </Modal>
-        );
-      })()}
+            <Row2>
+              <Field label="First Name"><input value={f.first_name ?? ''} onChange={sf('first_name')} style={inputStyle} /></Field>
+              <Field label="Last Name"><input value={f.last_name ?? ''} onChange={sf('last_name')} style={inputStyle} /></Field>
+            </Row2>
+            <Row2>
+              <Field label="Display Name *"><input required value={form.name} onChange={sf('name')} placeholder="Auto-filled from First + Last" style={inputStyle} /></Field>
+              <Field label="Company"><input value={form.company} onChange={sf('company')} style={inputStyle} /></Field>
+            </Row2>
+            <Row2>
+              <Field label="Customer Code"><input value={f.customer_code ?? ''} onChange={sf('customer_code')} style={inputStyle} /></Field>
+              <Field label="Customer Group"><input value={f.customer_group ?? ''} onChange={sf('customer_group')} style={inputStyle} /></Field>
+            </Row2>
+
+            <Row2>
+              <Field label="Email"><input type="email" value={form.email} onChange={sf('email')} style={inputStyle} /></Field>
+              <Field label="Mobile"><input value={f.mobile ?? ''} onChange={sf('mobile')} style={inputStyle} /></Field>
+            </Row2>
+            <Row2>
+              <Field label="Phone"><input value={form.phone} onChange={sf('phone')} style={inputStyle} /></Field>
+              <Field label="Website URL"><input type="url" value={f.website_url ?? ''} onChange={sf('website_url')} placeholder="https://" style={inputStyle} /></Field>
+            </Row2>
+
+            <SectionLabel>Address</SectionLabel>
+            <Field label="Street Address"><input value={form.address} onChange={sf('address')} style={inputStyle} /></Field>
+            <Field label="Apt / Suite / Unit"><input value={f.address2 ?? ''} onChange={sf('address2')} style={inputStyle} placeholder="Unit 3, Level 2, etc." /></Field>
+            <Row2>
+              <Field label="Suburb"><input value={f.suburb ?? ''} onChange={sf('suburb')} style={inputStyle} /></Field>
+              <Field label="City"><input value={form.city} onChange={sf('city')} style={inputStyle} /></Field>
+            </Row2>
+            <Row3>
+              <Field label="State"><input value={form.state} onChange={sf('state')} style={inputStyle} /></Field>
+              <Field label="Postcode"><input value={form.postcode} onChange={sf('postcode')} style={inputStyle} /></Field>
+              <Field label="Country"><input value={form.country} onChange={sf('country')} style={inputStyle} /></Field>
+            </Row3>
+
+            {isCustomer && (
+              <div style={{ marginTop: 14 }}>
+                <SectionLabel>Customer Details</SectionLabel>
+                <Row2>
+                  <Field label="Store Credit ($)"><input type="number" min="0" step="0.01" value={f.store_credit ?? 0} onChange={sf('store_credit')} style={inputStyle} /></Field>
+                  <Field label="On Account Limit ($)"><input type="number" min="0" step="0.01" value={f.on_account_limit ?? ''} onChange={sf('on_account_limit')} style={inputStyle} /></Field>
+                </Row2>
+                <Row2>
+                  <Field label="Price Tier">
+                    <select value={f.price_tier ?? 'retail'} onChange={sf('price_tier')} style={inputStyle}>
+                      <option value="retail">Retail</option>
+                      <option value="wholesale">Wholesale</option>
+                    </select>
+                  </Field>
+                  <Field label="Promo Emails">
+                    <select value={Number(f.promo_email ?? 0)} onChange={e => setForm(p => ({ ...p, promo_email: Number(e.target.value) }))} style={inputStyle}>
+                      <option value={1}>Opted in</option>
+                      <option value={0}>Opted out</option>
+                    </select>
+                  </Field>
+                </Row2>
+                <Row2>
+                  <Field label="Promo SMS">
+                    <select value={Number(f.promo_sms ?? 0)} onChange={e => setForm(p => ({ ...p, promo_sms: Number(e.target.value) }))} style={inputStyle}>
+                      <option value={1}>Opted in</option>
+                      <option value={0}>Opted out</option>
+                    </select>
+                  </Field>
+                  <Field label="Date of Birth"><input type="date" value={f.date_of_birth ?? ''} onChange={sf('date_of_birth')} style={inputStyle} /></Field>
+                </Row2>
+              </div>
+            )}
+
+            {isSupplier && (
+              <div style={{ marginTop: 14 }}>
+                <SectionLabel>Supplier Settings</SectionLabel>
+                <Row2>
+                  <Field label="Order Frequency (days)"><input type="number" min={1} value={f.order_frequency_days ?? 45} onChange={e => setForm(p => ({ ...p, order_frequency_days: Math.max(1, parseInt(e.target.value) || 45) }))} style={inputStyle} /></Field>
+                  <Field label="Charges sales tax?">
+                    <select value={Number(f.charges_tax ?? 1)} onChange={e => setForm(p => ({ ...p, charges_tax: Number(e.target.value) }))} style={inputStyle}>
+                      <option value={1}>Yes</option>
+                      <option value={0}>No</option>
+                    </select>
+                  </Field>
+                </Row2>
+                <Row2>
+                  <Field label="Prices include tax?">
+                    <select value={Number(f.prices_include_tax ?? 0)} disabled={!Number(f.charges_tax ?? 1)} onChange={e => setForm(p => ({ ...p, prices_include_tax: Number(e.target.value) }))} style={{ ...inputStyle, opacity: Number(f.charges_tax ?? 1) ? 1 : 0.5 }}>
+                      <option value={0}>Ex-tax</option>
+                      <option value={1}>Inc-tax</option>
+                    </select>
+                  </Field>
+                  <Field label="Tax rate override (%)"><input type="number" min={0} step="0.01" disabled={!Number(f.charges_tax ?? 1)} value={f.tax_rate === '' || f.tax_rate == null ? '' : Number(f.tax_rate) * 100} onChange={e => setForm(p => ({ ...p, tax_rate: e.target.value === '' ? '' : String(Number(e.target.value) / 100) }))} style={{ ...inputStyle, opacity: Number(f.charges_tax ?? 1) ? 1 : 0.5 }} /></Field>
+                </Row2>
+              </div>
+            )}
+
+            <SectionLabel>Notes</SectionLabel>
+            <Field label="">
+              <textarea value={form.notes} onChange={sf('notes') as any} rows={2} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Internal notes…" />
+            </Field>
+
+            {f.shopify_customer_id && (
+              <ContactOnlineStoreSection shopifyCustomerId={f.shopify_customer_id} />
+            )}
+            {f.shopify_customer_id && (
+              <ContactGiftCardsSection shopifyCustomerId={f.shopify_customer_id} />
+            )}
+
+            <FormActions onCancel={closeModal} saving={saving} isEdit={!!modal.edit} />
+          </form>
+        </Modal>
+      )}
     </div>
+  );
+}
+
+function ImportContactsModal({ contacts, onClose, onDone }: {
+  contacts: any[];
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [stage, setStage] = useState<'paste' | 'review' | 'importing' | 'done'>('paste');
+  const [pasteText, setPasteText] = useState(CONTACT_EXPORT_HEADERS.join('\t'));
+  const [rows, setRows] = useState<ParsedContactImportRow[]>([]);
+  const [result, setResult] = useState<{ created: number; updated: number; skipped: number; errors: string[] } | null>(null);
+
+  const headerSet = useMemo(() => new Set(CONTACT_EXPORT_HEADERS.map(h => h.toLowerCase())), []);
+
+  const existing = useMemo(() => {
+    const byId = new Map<number, any>();
+    const byCode = new Map<string, any>();
+    const byShopifyId = new Map<string, any>();
+    const byEmail = new Map<string, any>();
+    for (const c of contacts) {
+      byId.set(Number(c.id), c);
+      if (String(c.customer_code ?? '').trim()) byCode.set(String(c.customer_code).trim().toLowerCase(), c);
+      if (String(c.shopify_customer_id ?? '').trim()) byShopifyId.set(String(c.shopify_customer_id).trim(), c);
+      if (String(c.email ?? '').trim()) byEmail.set(String(c.email).trim().toLowerCase(), c);
+    }
+    return { byId, byCode, byShopifyId, byEmail };
+  }, [contacts]);
+
+  const parseRows = () => {
+    const lines = pasteText.split('\n').map(l => l.trimEnd()).filter(l => l.trim());
+    if (lines.length < 2) return [];
+
+    const firstCells = lines[0].split('\t').map(h => normalizeContactHeader(h));
+    const isHeaderLine = firstCells.some(c => headerSet.has(c));
+    const headers = isHeaderLine ? firstCells : CONTACT_EXPORT_HEADERS.map(h => h.toLowerCase());
+    const dataLines = isHeaderLine ? lines.slice(1) : lines;
+
+    return dataLines.map(line => {
+      const cells = line.split('\t');
+      const raw: Record<string, string> = {};
+      headers.forEach((h, i) => { raw[h] = (cells[i] ?? '').trim(); });
+
+      const id = contactNum(raw.id);
+      const customerCode = String(raw.customer_code ?? '').trim().toLowerCase();
+      const shopifyId = String(raw.shopify_customer_id ?? '').trim();
+      const email = String(raw.email ?? '').trim().toLowerCase();
+
+      const match =
+        (id != null && existing.byId.get(id)) ||
+        (customerCode && existing.byCode.get(customerCode)) ||
+        (shopifyId && existing.byShopifyId.get(shopifyId)) ||
+        (email && existing.byEmail.get(email));
+
+      if (!raw.type?.trim()) {
+        return { raw, action: 'error' as const, errorMsg: 'Missing Type' };
+      }
+
+      if (match) {
+        const changedFields = CONTACT_EXPORT_HEADERS.filter(key => {
+          if (key === 'id') return false;
+          const incoming = raw[key.toLowerCase()] ?? raw[key] ?? '';
+          const current = String((match as any)[key] ?? '');
+          return String(incoming ?? '').trim() !== current.trim();
+        }).map(String);
+        return { raw, action: 'update' as const, existingId: Number(match.id), changedFields };
+      }
+
+      return { raw, action: 'new_contact' as const };
+    }).filter(r => Object.values(r.raw).some(v => String(v ?? '').trim()));
+  };
+
+  const handleNext = () => {
+    const parsed = parseRows();
+    if (!parsed.length) { alert('No data rows found. Paste your contacts below the header row.'); return; }
+    setRows(parsed);
+    setStage('review');
+  };
+
+  const handleImport = async () => {
+    setStage('importing');
+    const errors: string[] = [];
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+
+    try {
+      for (const row of rows) {
+        if (row.action === 'error') { skipped++; errors.push(row.errorMsg ?? 'Invalid row'); continue; }
+
+        const raw = row.raw;
+        const payload: Record<string, any> = {
+          type: raw.type as any,
+          name: raw.name || [raw.first_name, raw.last_name].filter(Boolean).join(' ') || raw.company || 'Unnamed',
+          first_name: raw.first_name || undefined,
+          last_name: raw.last_name || undefined,
+          company: raw.company || undefined,
+          customer_code: raw.customer_code || undefined,
+          customer_group: raw.customer_group || undefined,
+          shopify_customer_id: raw.shopify_customer_id || undefined,
+          email: raw.email || undefined,
+          phone: raw.phone || undefined,
+          mobile: raw.mobile || undefined,
+          address: raw.address || undefined,
+          address2: raw.address2 || undefined,
+          suburb: raw.suburb || undefined,
+          city: raw.city || undefined,
+          state: raw.state || undefined,
+          postcode: raw.postcode || undefined,
+          country: raw.country || undefined,
+          notes: raw.notes || undefined,
+          is_active: contactBool(raw.is_active) ?? 1,
+          store_credit: contactNum(raw.store_credit) ?? 0,
+          on_account_limit: contactNum(raw.on_account_limit) ?? undefined,
+          date_of_birth: raw.date_of_birth || undefined,
+          gender: raw.gender || undefined,
+          promo_email: contactBool(raw.promo_email) ?? 0,
+          promo_sms: contactBool(raw.promo_sms) ?? 0,
+          price_tier: raw.price_tier || undefined,
+          lead_time_days: contactNum(raw.lead_time_days) ?? undefined,
+          order_frequency_days: contactNum(raw.order_frequency_days) ?? undefined,
+          charges_tax: contactBool(raw.charges_tax) ?? 1,
+          prices_include_tax: contactBool(raw.prices_include_tax) ?? 0,
+          tax_rate: raw.tax_rate === '' || raw.tax_rate == null ? undefined : Number(raw.tax_rate),
+          website_url: raw.website_url || undefined,
+          cin7_supplier_id: contactNum(raw.cin7_supplier_id) ?? undefined,
+          cin7_contact_id: contactNum(raw.cin7_contact_id) ?? undefined,
+        };
+
+        try {
+          if (row.action === 'update' && row.existingId) {
+            await apiFetch(`/api/ims/contacts/${row.existingId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            updated++;
+          } else {
+            await apiFetch('/api/ims/contacts', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            created++;
+          }
+        } catch (e: any) {
+          skipped++;
+          errors.push(`${payload.name}: ${e.message}`);
+        }
+      }
+
+      setResult({ created, updated, skipped, errors });
+      setStage('done');
+      onDone();
+    } catch (e: any) {
+      alert(e.message);
+      setStage('review');
+    }
+  };
+
+  const previewRows = rows.slice(0, 50);
+
+  return (
+    <Modal title="Import Contacts" onClose={onClose} wide wider>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {stage === 'paste' && (
+          <>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
+              Copy the header row below into Excel or Google Sheets, fill your contact rows underneath it, then paste the whole block back here.
+            </p>
+            <div style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
+              {CONTACT_FIELD_GUIDE.map(field => (
+                <div key={field.key} style={{ marginBottom: 8 }}>
+                  <strong style={{ color: 'var(--sv-text-main)' }}>{field.label}</strong> — {field.description}<br />
+                  <span style={{ color: 'var(--sv-text-dim)' }}>Example:</span> <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>{field.example}</code>
+                </div>
+              ))}
+            </div>
+            <textarea
+              value={pasteText}
+              onChange={e => setPasteText(e.target.value)}
+              spellCheck={false}
+              style={{ width: '100%', minHeight: 220, fontFamily: 'monospace', fontSize: 12, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, color: 'var(--sv-text-main)', padding: 12, resize: 'vertical', boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button type="button" onClick={onClose} style={btnStyle('ghost')}>Cancel</button>
+              <button type="button" onClick={handleNext} style={btnStyle('action')}>Review Contacts</button>
+            </div>
+          </>
+        )}
+
+        {stage === 'review' && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ fontWeight: 700, color: 'var(--sv-text-strong)' }}>Review import</div>
+              <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{rows.length} row{rows.length !== 1 ? 's' : ''}</div>
+              <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{rows.filter(r => r.action === 'update').length} update{rows.filter(r => r.action === 'update').length !== 1 ? 's' : ''}</div>
+              <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{rows.filter(r => r.action === 'new_contact').length} new</div>
+              <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{rows.filter(r => r.action === 'error').length} errors</div>
+            </div>
+            <div style={{ maxHeight: 320, overflow: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 8, background: 'var(--sv-bg-2)' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                    <th style={{ padding: '8px 10px', textAlign: 'left' }}>Action</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'left' }}>Name</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'left' }}>Type</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'left' }}>Email</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'left' }}>Phone</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'left' }}>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewRows.map((row, idx) => (
+                    <tr key={idx} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                      <td style={{ padding: '8px 10px' }}>{row.action === 'update' ? 'Update' : row.action === 'new_contact' ? 'New' : 'Error'}</td>
+                      <td style={{ padding: '8px 10px' }}>{row.raw.name || [row.raw.first_name, row.raw.last_name].filter(Boolean).join(' ') || '—'}</td>
+                      <td style={{ padding: '8px 10px' }}>{row.raw.type || '—'}</td>
+                      <td style={{ padding: '8px 10px' }}>{row.raw.email || '—'}</td>
+                      <td style={{ padding: '8px 10px' }}>{row.raw.mobile || row.raw.phone || '—'}</td>
+                      <td style={{ padding: '8px 10px', color: 'var(--sv-text-dim)' }}>{row.errorMsg || (row.changedFields?.length ? row.changedFields.slice(0, 4).join(', ') : '—')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button type="button" onClick={() => setStage('paste')} style={btnStyle('ghost')}>Back</button>
+              <button type="button" onClick={handleImport} style={btnStyle('action')}>Import {rows.length} Contact{rows.length !== 1 ? 's' : ''}</button>
+            </div>
+          </>
+        )}
+
+        {stage === 'importing' && (
+          <div style={{ padding: 20, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Importing contacts…</div>
+        )}
+
+        {stage === 'done' && result && (
+          <>
+            <div style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(16,185,129,.25)', background: 'rgba(16,185,129,.08)', color: 'var(--sv-text-main)', fontSize: 13 }}>
+              <strong style={{ color: '#34d399' }}>Import complete</strong>
+              <div style={{ marginTop: 6 }}>Created {result.created}, updated {result.updated}, skipped {result.skipped}.</div>
+            </div>
+            {result.errors.length > 0 && (
+              <div style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(248,113,113,.25)', background: 'rgba(248,113,113,.08)', color: 'var(--sv-text-main)', fontSize: 12, maxHeight: 160, overflow: 'auto' }}>
+                {result.errors.slice(0, 12).map((err, idx) => <div key={idx}>{err}</div>)}
+                {result.errors.length > 12 && <div>…and {result.errors.length - 12} more</div>}
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button type="button" onClick={onClose} style={btnStyle('ghost')}>Close</button>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
   );
 }
 
@@ -2824,6 +3331,128 @@ const DEFAULT_LABEL: LabelSettings = {
   sizeIdx: 0, showBarcode: true, showSku: false,
   showName: true, showBrand: false, priceMode: 'rrp', qty: 1,
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ContactOnlineStoreSection — Shopify link panel inside the contact edit modal
+// ─────────────────────────────────────────────────────────────────────────────
+function ContactOnlineStoreSection({ shopifyCustomerId }: { shopifyCustomerId: string }) {
+  const [shopDomain, setShopDomain] = React.useState<string | null>(null);
+  const [copied, setCopied] = React.useState(false);
+
+  React.useEffect(() => {
+    fetch('/api/ims/shopify/status')
+      .then(r => r.json())
+      .then(d => { if (d.success) setShopDomain(d.shop_domain ?? null); })
+      .catch(() => {});
+  }, []);
+
+  const adminUrl = shopDomain
+    ? `https://${shopDomain}/admin/customers/${shopifyCustomerId}`
+    : null;
+
+  const chip = (text: string, bg: string, color: string) => (
+    <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 9px', borderRadius: 99, background: bg, color }}>{text}</span>
+  );
+
+  const copyId = () => {
+    navigator.clipboard.writeText(shopifyCustomerId).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '16px 0 12px' }}>
+        <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Online Store</span>
+        <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+      </div>
+      <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '12px 14px', marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)' }}>Sync status:</span>
+          {chip('🛙 Linked to Shopify', 'rgba(16,185,129,.15)', '#10b981')}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', fontWeight: 600, flexShrink: 0 }}>Shopify ID:</span>
+          <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--sv-text-dim)', userSelect: 'all' }}>{shopifyCustomerId}</span>
+          <button
+            type="button"
+            onClick={copyId}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: copied ? '#10b981' : 'var(--sv-text-dim)', padding: '2px 6px' }}
+          >
+            {copied ? '✓ Copied' : '⎘ Copy'}
+          </button>
+        </div>
+        {adminUrl && (
+          <a href={adminUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--sv-action)', fontWeight: 600 }}>
+            Open in Shopify admin ↗
+          </a>
+        )}
+      </div>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ContactGiftCardsSection — linked gift cards inside the contact edit modal
+// ─────────────────────────────────────────────────────────────────────────────
+function ContactGiftCardsSection({ shopifyCustomerId }: { shopifyCustomerId: string }) {
+  const [cards, setCards] = React.useState<any[] | null>(null);
+
+  React.useEffect(() => {
+    fetch(`/api/ims/gift-cards?contact_shopify_id=${encodeURIComponent(shopifyCustomerId)}&limit=20`)
+      .then(r => r.json())
+      .then(d => { if (d.success) setCards(d.data ?? []); })
+      .catch(() => setCards([]));
+  }, [shopifyCustomerId]);
+
+  if (cards === null) return null;
+
+  const statusColor = (s: string) =>
+    s === 'active' ? '#10b981' : s === 'redeemed' ? 'var(--sv-text-dim)' : '#f87171';
+
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 12px' }}>
+        <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Linked Gift Cards</span>
+        <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+      </div>
+      {cards.length === 0 ? (
+        <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 14 }}>No linked gift cards.</p>
+      ) : (
+        <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden', marginBottom: 14 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)' }}>Code</th>
+                <th style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 600, color: 'var(--sv-text-dim)' }}>Balance</th>
+                <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)' }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cards.map((card: any) => (
+                <tr key={card.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                  <td style={{ padding: '7px 12px', fontFamily: 'monospace', color: 'var(--sv-text-main)' }}>
+                    {'****' + String(card.code ?? '').slice(-4)}
+                  </td>
+                  <td style={{ padding: '7px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: Number(card.balance) > 0 ? 'var(--sv-mint)' : 'var(--sv-text-dim)' }}>
+                    ${Number(card.balance ?? 0).toFixed(2)}
+                  </td>
+                  <td style={{ padding: '7px 12px' }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: statusColor(card.status) }}>
+                      {(card.status ?? 'unknown').charAt(0).toUpperCase() + (card.status ?? 'unknown').slice(1)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+}
 
 function BarcodeLabelDialog({ product, variants, onClose }: {
   product:  any;
@@ -5509,9 +6138,13 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
     const label = refLabel(m);
     if (m.reference_type === 'purchase_order' && m.reference_id && onNavigateToPO)
       return <button style={linkBtn} onClick={() => { onNavigateToPO(m.reference_id); onClose(); }}>{label}</button>;
-    if (m.reference_type === 'sales_order' && m.reference_id && onNavigateToSO)
-      return <button style={linkBtn} onClick={() => { onNavigateToSO(m.reference_id); onClose(); }}>{label}</button>;
-    return <span style={{ color: 'var(--sv-text-dim)' }}>{label}</span>;
+  function SectionLabel({ children }: { children: React.ReactNode }) {
+    return (
+      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--sv-text-dim)', margin: '14px 0 6px' }}>
+        {children}
+      </div>
+    );
+  }
   };
 
   const totalSoh = locationRows.reduce((s, r) => s + r.qty_on_hand, 0);
@@ -10342,7 +10975,7 @@ function SOActions({ so, onEdit, onDelete, onStatus, onReturn, isAdvisor = false
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ImsTable({ cols, rows, render }: {
-  cols: string[];
+  cols: React.ReactNode[];
   rows: any[];
   render: (row: any) => React.ReactNode[];
 }) {
@@ -10352,7 +10985,7 @@ function ImsTable({ cols, rows, render }: {
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-            {cols.map(c => <th key={c} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, whiteSpace: 'nowrap' }}>{c}</th>)}
+            {cols.map((c, idx) => <th key={idx} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, whiteSpace: 'nowrap' }}>{c}</th>)}
           </tr>
         </thead>
         <tbody>
