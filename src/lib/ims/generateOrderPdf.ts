@@ -52,9 +52,13 @@ function fmtDate(d: string | undefined): string {
 function calcDueDatePdf(orderDate: string | undefined, terms: string | undefined): string {
   if (!terms) return '—';
   if (terms === 'COD') return 'Cash on Delivery';
-  const days = parseInt(terms);
+  const daysMatch = terms.match(/\d+/);
+  const days = daysMatch ? parseInt(daysMatch[0], 10) : NaN;
   if (!orderDate || isNaN(days)) return '—';
   const d = new Date(orderDate);
+  if (/\beom\b/i.test(terms)) {
+    d.setMonth(d.getMonth() + 1, 0);
+  }
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
 }

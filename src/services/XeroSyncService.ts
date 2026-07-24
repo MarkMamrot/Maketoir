@@ -361,17 +361,24 @@ interface POForSync {
   payments?: { amount: number; payment_date: string }[];
 }
 
-/** Calculate DueDate from supplier_invoice_date + payment_terms, falling back to expected_date / order_date. */
-function calcDueDate(po: POForSync): string {
-  const base = po.supplier_invoice_date || po.order_date;
-  const m = (po.payment_terms ?? '').match(/\d+/);
-  const days = m ? parseInt(m[0]) : 0;
+function calcDueDateFromTerms(base: string, terms?: string): string {
+  const m = (terms ?? '').match(/\d+/);
+  const days = m ? parseInt(m[0], 10) : 0;
   if (days > 0) {
     const d = new Date(base);
+    if (/\beom\b/i.test(terms ?? '')) {
+      d.setMonth(d.getMonth() + 1, 0);
+    }
     d.setDate(d.getDate() + days);
     return d.toISOString().slice(0, 10);
   }
   return base;
+}
+
+/** Calculate PO DueDate from supplier_invoice_date/order_date and payment_terms. */
+function calcPoDueDate(po: POForSync): string {
+  const base = po.supplier_invoice_date || po.order_date;
+  return calcDueDateFromTerms(base, po.payment_terms);
 }
 
 /**
@@ -430,7 +437,7 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
     Type: 'ACCPAY',
     Contact: { Name: po.supplier_name || `Supplier #${po.supplier_id}` },
     Date: po.order_date,
-    DueDate: calcDueDate(po),
+    DueDate: calcPoDueDate(po),
     Reference: po.po_number,
     Status: 'DRAFT',
     LineAmountTypes: taxTreatment === 'inc_tax' ? 'Inclusive' : 'Exclusive',
@@ -522,7 +529,7 @@ export async function updateXeroDraftBill(businessId: string, po: POForSync, xer
     Type: 'ACCPAY',
     Contact: { Name: po.supplier_name || `Supplier #${po.supplier_id}` },
     Date: po.order_date,
-    DueDate: calcDueDate(po),
+    DueDate: calcPoDueDate(po),
     Reference: po.po_number,
     Status: 'DRAFT',
     LineAmountTypes: taxTreatment === 'inc_tax' ? 'Inclusive' : 'Exclusive',
@@ -681,6 +688,7 @@ interface SOForSync {
   freight?: number;
   discount?: number;
   total_amount: number;
+  payment_terms?: string;
   currency_code?: string;
   tax_treatment?: 'ex_tax' | 'inc_tax' | 'no_tax';
   items?: {
@@ -736,7 +744,7 @@ export async function syncSOAsInvoice(businessId: string, so: SOForSync): Promis
     Type: 'ACCREC',
     Contact: { Name: so.customer_name || `Customer #${so.customer_id}` },
     Date: so.order_date,
-    DueDate: so.expected_date || so.order_date,
+    DueDate: calcDueDateFromTerms(so.expected_date || so.order_date, so.payment_terms),
     Reference: so.so_number,
     Status: 'DRAFT',
     LineAmountTypes: taxTreatment === 'inc_tax' ? 'Inclusive' : 'Exclusive',
@@ -813,7 +821,7 @@ export async function updateXeroDraftInvoice(businessId: string, so: SOForSync, 
     Type: 'ACCREC',
     Contact: { Name: so.customer_name || `Customer #${so.customer_id}` },
     Date: so.order_date,
-    DueDate: so.expected_date || so.order_date,
+    DueDate: calcDueDateFromTerms(so.expected_date || so.order_date, so.payment_terms),
     Reference: so.so_number,
     Status: 'DRAFT',
     LineAmountTypes: taxTreatment === 'inc_tax' ? 'Inclusive' : 'Exclusive',
@@ -1579,7 +1587,7 @@ export async function syncSupplierCNAttachmentsToXero(
 
     const safeOriginalName = (f.original_name || f.filename).replace(/[^\w.\- ]/g, '_').slice(0, 120);
     const encodedName = encodeURIComponent(safeOriginalName);
-    const url = `https://api.xero.com/api.xro/2.0/CreditNotes/${xeroCreditNoteId}/Attachments/${encodedName}?IncludeOnline=true`;
+    const url = `https://api.xero.com/api.xro/2.0/CreditNotes/${xeroCreditNoteId}/Attachments/${encodedName}`;
 
     try {
       const buffer = fs.readFileSync(filePath);

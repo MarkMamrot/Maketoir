@@ -91,7 +91,7 @@ const fmtQty = (n: number | null | undefined) =>
 // the UTC off-by-one error that affects Australian evenings (UTC+10/+11).
 const today = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Australia/Sydney' });
 
-const PAYMENT_TERMS = ['', '10 Days', '15 Days', '30 Days', '60 Days', '90 Days', 'COD'];
+const PAYMENT_TERMS = ['', '10 Days', '15 Days', '30 Days', '30 EOM', '60 Days', '90 Days', 'COD'];
 const PO_CURRENCIES = ['AUD', 'USD', 'EUR', 'GBP', 'THB', 'CNY', 'JPY', 'INR', 'CAD', 'NZD'];
 
 function effectiveRRP(v: any, today: string): number {
@@ -207,9 +207,13 @@ function VariantSearch({ value, variants, onChange, style }: {
 function calcDueDate(orderDate: string | undefined, terms: string | undefined): string {
   if (!terms) return '—';
   if (terms === 'COD') return 'Cash on Delivery';
-  const days = parseInt(terms);
+  const daysMatch = terms.match(/\d+/);
+  const days = daysMatch ? parseInt(daysMatch[0], 10) : NaN;
   if (!orderDate || isNaN(days)) return '—';
   const d = new Date(orderDate);
+  if (/\beom\b/i.test(terms)) {
+    d.setMonth(d.getMonth() + 1, 0);
+  }
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
 }
