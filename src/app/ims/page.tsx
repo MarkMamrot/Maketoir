@@ -8619,6 +8619,50 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
   const lbl: React.CSSProperties = { color: 'var(--sv-text-dim)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4, marginTop: 8 };
   const cell: React.CSSProperties = { padding: '3px 8px', fontSize: 11, color: 'var(--sv-text-dim)' };
   const num: React.CSSProperties = { ...cell, textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
+  const stickySkuWidth = 240;
+  const stickyQtyWidth = 90;
+  const stickyHeadBg = 'var(--sv-bg-2)';
+  const stickyBodyBg = 'var(--sv-bg-1)';
+  const stickySkuHead: React.CSSProperties = {
+    ...cell,
+    textAlign: 'left',
+    fontWeight: 700,
+    position: 'sticky',
+    left: 0,
+    zIndex: 3,
+    background: stickyHeadBg,
+    minWidth: stickySkuWidth,
+    boxShadow: '2px 0 0 var(--sv-etch)'
+  };
+  const stickyQtyHead: React.CSSProperties = {
+    ...num,
+    fontWeight: 700,
+    position: 'sticky',
+    left: stickySkuWidth,
+    zIndex: 3,
+    background: stickyHeadBg,
+    minWidth: stickyQtyWidth,
+    boxShadow: '2px 0 0 var(--sv-etch)'
+  };
+  const stickySkuCell: React.CSSProperties = {
+    ...cell,
+    color: 'var(--sv-text-main)',
+    position: 'sticky',
+    left: 0,
+    zIndex: 2,
+    background: stickyBodyBg,
+    minWidth: stickySkuWidth,
+    boxShadow: '2px 0 0 var(--sv-etch)'
+  };
+  const stickyQtyCell: React.CSSProperties = {
+    ...num,
+    position: 'sticky',
+    left: stickySkuWidth,
+    zIndex: 2,
+    background: stickyBodyBg,
+    minWidth: stickyQtyWidth,
+    boxShadow: '2px 0 0 var(--sv-etch)'
+  };
 
   const onAccountingTableKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     const el = accountingScrollRef.current;
@@ -8668,8 +8712,8 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, minWidth: 940 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
-              <th style={{ ...cell, textAlign: 'left', fontWeight: 700 }}>SKU / Product</th>
-              <th style={{ ...num, fontWeight: 700 }}>Qty Ord</th>
+              <th style={stickySkuHead}>SKU / Product</th>
+              <th style={stickyQtyHead}>Qty Ord</th>
               <th style={{ ...num, fontWeight: 700 }}>Qty Rec</th>
               <th style={{ ...num, fontWeight: 700 }}>Unit Cost ({currency})</th>
               <th style={{ ...num, fontWeight: 700 }}>Tax%</th>
@@ -8688,8 +8732,8 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
               const avgCostNow = item.current_avg_cost != null ? Number(item.current_avg_cost) : null;
               return (
                 <tr key={i} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-                  <td style={{ ...cell, color: 'var(--sv-text-main)' }}>{item.sku || item.product_name || '—'}{item.variant_label ? ` (${item.variant_label})` : ''}</td>
-                  <td style={num}>{fmtQty(item.qty)}</td>
+                  <td style={stickySkuCell}>{item.sku || item.product_name || '—'}{item.variant_label ? ` (${item.variant_label})` : ''}</td>
+                  <td style={stickyQtyCell}>{fmtQty(item.qty)}</td>
                   <td style={num}>{fmtQty(qtyReceived)}</td>
                   <td style={num}>{fmtFx(item.cost, currency)}</td>
                   <td style={num}>{item.taxRate > 0 ? `${(item.taxRate * 100).toFixed(0)}%` : '—'}</td>
