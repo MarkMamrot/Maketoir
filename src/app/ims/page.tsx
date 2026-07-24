@@ -5066,13 +5066,6 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const SortIcon = ({ col }: { col: string }) => sortCol !== col ? null : (
     <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
   );
-  const posSale = posViewModal.sale;
-  const posItems = posViewModal.items || [];
-  const posPayments = posViewModal.payments || [];
-  const posIsReturn = posSale?.sale_type === 'return';
-  const posSaleStatus = String(posSale?.status || '');
-  const canVoidPosSale = !isAdvisor && (posSaleStatus === 'completed' || posSaleStatus === 'layby_complete');
-  const posPaidTotal = posPayments.reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
 
   const downloadProductsCsv = async () => {
     setExporting(true);
@@ -11023,6 +11016,13 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const SortIcon = ({ col }: { col: string }) => sortCol !== col ? null : (
     <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
   );
+  const posSale = posViewModal.sale;
+  const posItems = posViewModal.items || [];
+  const posPayments = posViewModal.payments || [];
+  const posIsReturn = posSale?.sale_type === 'return';
+  const posSaleStatus = String(posSale?.status || '');
+  const canVoidPosSale = !isAdvisor && (posSaleStatus === 'completed' || posSaleStatus === 'layby_complete');
+  const posPaidTotal = posPayments.reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
 
   return (
     <div>
