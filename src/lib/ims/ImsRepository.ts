@@ -924,14 +924,17 @@ export const ImsPORepo = {
         `SELECT i.*,
                 COALESCE(v.sku, i.sku_raw)       AS sku,
                 COALESCE(p.name, i.name_raw)      AS product_name,
+                st.avg_cost                       AS current_avg_cost,
                 CONCAT_WS(' / ',
                   NULLIF(v.option1_value,''),
                   NULLIF(v.option2_value,''),
                   NULLIF(v.option3_value,'')
                 ) AS variant_label
          FROM ims_purchase_order_items i
+         JOIN ims_purchase_orders po ON po.id = i.po_id
          LEFT JOIN ims_product_variants v ON v.variant_id = i.variant_id
          LEFT JOIN ims_products p ON p.product_id = v.product_id
+         LEFT JOIN ims_stock st ON st.variant_id = i.variant_id AND st.location_id = po.location_id
          WHERE i.po_id = ?`,
         [id]
       );
@@ -941,14 +944,17 @@ export const ImsPORepo = {
         `SELECT i.*,
                 v.sku                            AS sku,
                 p.name                           AS product_name,
+                st.avg_cost                      AS current_avg_cost,
                 CONCAT_WS(' / ',
                   NULLIF(v.option1_value,''),
                   NULLIF(v.option2_value,''),
                   NULLIF(v.option3_value,'')
                 ) AS variant_label
          FROM ims_purchase_order_items i
+         JOIN ims_purchase_orders po ON po.id = i.po_id
          LEFT JOIN ims_product_variants v ON v.variant_id = i.variant_id
          LEFT JOIN ims_products p ON p.product_id = v.product_id
+         LEFT JOIN ims_stock st ON st.variant_id = i.variant_id AND st.location_id = po.location_id
          WHERE i.po_id = ?`,
         [id]
       );

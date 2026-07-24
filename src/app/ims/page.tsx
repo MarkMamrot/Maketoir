@@ -8505,6 +8505,7 @@ function POActions({ po, onEdit, onReceive, onDelete, onStatus, context = 'list'
 
 function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Record<string, string>; onVoided?: () => void }) {
   const [open, setOpen] = useState(false);
+  const accountingScrollRef = useRef<HTMLDivElement | null>(null);
   const [xeroRetrying, setXeroRetrying] = useState(false);
   const [xeroRetried, setXeroRetried] = useState<boolean | null>(null);
   const [xeroVoiding, setXeroVoiding] = useState(false);
@@ -8619,6 +8620,19 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
   const cell: React.CSSProperties = { padding: '3px 8px', fontSize: 11, color: 'var(--sv-text-dim)' };
   const num: React.CSSProperties = { ...cell, textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
 
+  const onAccountingTableKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const el = accountingScrollRef.current;
+    if (!el) return;
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      el.scrollBy({ left: 160, behavior: 'smooth' });
+    }
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      el.scrollBy({ left: -160, behavior: 'smooth' });
+    }
+  };
+
   if (!open) {
     return (
       <div style={{ marginTop: 24, borderTop: '1px dashed var(--sv-etch)', paddingTop: 8 }}>
@@ -8644,7 +8658,13 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
       <XeroBadge />
 
       <div style={lbl}>Accounting Summary {isFx ? `(${currency} → AUD @ ${rate.toFixed(4)})` : ''}</div>
-      <div style={{ overflowX: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
+      <div
+        ref={accountingScrollRef}
+        tabIndex={0}
+        onKeyDown={onAccountingTableKeyDown}
+        title="Use Left/Right arrow keys to scroll"
+        style={{ overflowX: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 8, outline: 'none' }}
+      >
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, minWidth: 940 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
@@ -8657,6 +8677,7 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
               <th style={{ ...num, fontWeight: 700 }}>Tax ({currency})</th>
               <th style={{ ...num, fontWeight: 700 }}>Landed/Unit AUD</th>
               <th style={{ ...num, fontWeight: 700 }}>True Cost AUD</th>
+              <th style={{ ...num, fontWeight: 700 }}>Avg Cost Now AUD</th>
               <th style={{ ...num, fontWeight: 700 }}>Inv Value AUD</th>
             </tr>
           </thead>
@@ -8664,6 +8685,7 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
             {lineItems.map((item: any, i: number) => {
               const qtyReceived = Number(item.qty_received ?? 0);
               const qtyForValue = po.status === 'complete' ? qtyReceived : Number(item.qty);
+              const avgCostNow = item.current_avg_cost != null ? Number(item.current_avg_cost) : null;
               return (
                 <tr key={i} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
                   <td style={{ ...cell, color: 'var(--sv-text-main)' }}>{item.sku || item.product_name || '—'}{item.variant_label ? ` (${item.variant_label})` : ''}</td>
@@ -8675,6 +8697,7 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
                   <td style={num}>{item.taxAmt > 0 ? fmtFx(item.taxAmt, currency) : '—'}</td>
                   <td style={num}>{item.lcpu > 0 ? fmtCurrency(item.lcpu) : '—'}</td>
                   <td style={{ ...num, color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtCurrency(item.trueCostAud)}</td>
+                  <td style={{ ...num, color: avgCostNow != null ? 'var(--sv-mint,#0c9)' : 'var(--sv-text-dim)', fontWeight: 600 }}>{avgCostNow != null ? fmtCurrency(avgCostNow) : '—'}</td>
                   <td style={{ ...num, color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtCurrency(qtyForValue * item.trueCostAud)}</td>
                 </tr>
               );
@@ -8685,23 +8708,23 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
               <td colSpan={5} style={{ ...cell, fontWeight: 700 }}>Goods subtotal</td>
               <td style={{ ...num, fontWeight: 700 }}>{fmtFx(goodsSubtotal, currency)}</td>
               <td style={{ ...num, fontWeight: 700 }}>{fmtFx(taxTotal, currency)}</td>
-              <td colSpan={2} style={{ ...num, fontWeight: 700 }}>Bill total</td>
+              <td colSpan={3} style={{ ...num, fontWeight: 700 }}>Bill total</td>
               <td style={{ ...num, fontWeight: 700 }}>{fmtFx(Number(po.total_amount), currency)}</td>
             </tr>
             {freight > 0 && (
               <tr>
-                <td colSpan={9} style={{ ...cell }}>Freight ({freightTreatment === 'capitalise' ? 'capitalised' : 'expense'})</td>
+                <td colSpan={10} style={{ ...cell }}>Freight ({freightTreatment === 'capitalise' ? 'capitalised' : 'expense'})</td>
                 <td style={num}>{fmtFx(freight, currency)}</td>
               </tr>
             )}
             {Number(po.discount || 0) > 0 && (
               <tr>
-                <td colSpan={9} style={{ ...cell }}>Discount (−)</td>
+                <td colSpan={10} style={{ ...cell }}>Discount (−)</td>
                 <td style={{ ...num, color: 'var(--sv-red)' }}>−{fmtFx(Number(po.discount), currency)}</td>
               </tr>
             )}
             <tr>
-              <td colSpan={9} style={{ ...cell, fontWeight: 700 }}>Total inventory value added (AUD)</td>
+              <td colSpan={10} style={{ ...cell, fontWeight: 700 }}>Total inventory value added (AUD)</td>
               <td style={{ ...num, fontWeight: 700 }}>
                 {fmtCurrency(lineItems.reduce((s: number, i: any) => {
                   const qtyReceived = Number(i.qty_received ?? 0);
@@ -8715,6 +8738,7 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
       </div>
 
       <div style={{ ...dim, marginTop: 6, lineHeight: 1.7 }}>
+        <div>Tip: focus the table and use ← / → arrow keys to scroll horizontally.</div>
         <div>Tax treatment: <strong>{po.tax_treatment || 'ex_tax'}</strong>{po.tax_code ? <> · Tax code <strong>{po.tax_code}</strong></> : null} · Xero TaxType <strong>{(po.tax_treatment || 'ex_tax') === 'no_tax' ? 'NONE' : 'INPUT'}</strong> · LineAmountTypes <strong>{(po.tax_treatment || 'ex_tax') === 'inc_tax' ? 'Inclusive' : 'Exclusive'}</strong></div>
         <div>Xero bill: <strong>ACCPAY</strong> draft to <strong>{po.supplier_name || '—'}</strong> · Ref <strong>{po.po_number}</strong>{po.supplier_invoice_number ? <> · Supplier invoice <strong>{po.supplier_invoice_number}</strong></> : null}</div>
         {isFx && <div>Stored FX rate {rate.toFixed(4)} is used for IMS AUD costing. Xero applies its live conversion at bill date.</div>}
