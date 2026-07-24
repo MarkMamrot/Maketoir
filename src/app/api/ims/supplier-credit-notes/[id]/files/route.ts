@@ -3,6 +3,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import fs from 'fs';
 import path from 'path';
 import { ImsSupplierCNRepo, ImsSupplierCNFilesRepo } from '@/lib/ims/ImsRepository';
+import { syncSupplierCNAttachmentsToXero } from '@/services/XeroSyncService';
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png']);
@@ -55,6 +56,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       file.type,
       file.size,
     );
+
+    if (scn.xero_credit_note_id) {
+      await syncSupplierCNAttachmentsToXero(
+        session.businessId,
+        scnId,
+        scn.scn_number,
+        scn.xero_credit_note_id,
+        [filename],
+      );
+    }
 
     const files = await ImsSupplierCNFilesRepo.list(scnId, session.businessId);
     return NextResponse.json({ success: true, files });

@@ -1528,21 +1528,33 @@ function getSupplierCNUploadDir(businessId: string, scnNumber: string): string {
   return path.join(base, businessId, 'SCNs', safeScnNumber);
 }
 
-async function uploadSupplierCNAttachmentsToXero(
+export async function syncSupplierCNAttachmentsToXero(
   businessId: string,
   scnId: number,
   scnNumber: string,
   xeroCreditNoteId: string,
+  onlyFilenames?: string[],
 ): Promise<void> {
   let files: SupplierCNFileRow[] = [];
   try {
-    files = await imsQuery<SupplierCNFileRow>(
-      `SELECT filename, original_name, mime_type
-         FROM ims_supplier_credit_note_files
-        WHERE scn_id = ? AND business_id = ?
-        ORDER BY uploaded_at ASC`,
-      [scnId, businessId],
-    );
+    if (onlyFilenames?.length) {
+      const placeholders = onlyFilenames.map(() => '?').join(', ');
+      files = await imsQuery<SupplierCNFileRow>(
+        `SELECT filename, original_name, mime_type
+           FROM ims_supplier_credit_note_files
+          WHERE scn_id = ? AND business_id = ? AND filename IN (${placeholders})
+          ORDER BY uploaded_at ASC`,
+        [scnId, businessId, ...onlyFilenames],
+      );
+    } else {
+      files = await imsQuery<SupplierCNFileRow>(
+        `SELECT filename, original_name, mime_type
+           FROM ims_supplier_credit_note_files
+          WHERE scn_id = ? AND business_id = ?
+          ORDER BY uploaded_at ASC`,
+        [scnId, businessId],
+      );
+    }
   } catch {
     return;
   }
@@ -1683,7 +1695,7 @@ export async function syncSupplierCNAsCreditNote(businessId: string, scn: Suppli
     });
     const xeroId = result.CreditNotes?.[0]?.CreditNoteID ?? null;
     if (xeroId) {
-      await uploadSupplierCNAttachmentsToXero(businessId, scn.id, scn.scn_number, xeroId);
+      await syncSupplierCNAttachmentsToXero(businessId, scn.id, scn.scn_number, xeroId);
     }
     await logSync(businessId, 'scn_credit_note', scn.id, xeroId, 'success', `Supplier credit note created: ${scn.scn_number}`, result.CreditNotes?.[0]?.Status ?? 'DRAFT');
     await markSupplierCNXeroStatus(scn.id, 'synced', xeroId);
@@ -1703,7 +1715,7 @@ export async function syncSupplierCNAsCreditNote(businessId: string, scn: Suppli
         });
         const xeroId = retry.CreditNotes?.[0]?.CreditNoteID ?? null;
         if (xeroId) {
-          await uploadSupplierCNAttachmentsToXero(businessId, scn.id, scn.scn_number, xeroId);
+          await syncSupplierCNAttachmentsToXero(businessId, scn.id, scn.scn_number, xeroId);
         }
         await logSync(
           businessId,

@@ -9659,6 +9659,28 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
     }
   };
 
+  const syncScnFileToXero = async (scnId: number, fileId: number) => {
+    await apiFetch(`/api/ims/supplier-credit-notes/${scnId}/files/${fileId}/sync`, {
+      method: 'POST',
+    });
+    await loadScnFileSync(scnId);
+  };
+
+  const syncPendingScnFilesToXero = async (scn: any, files: any[], statusByFilename?: Record<string, { status: 'success' | 'error' | 'skipped' | 'pending' | 'not_synced' }>) => {
+    if (!scn?.xero_credit_note_id || !files.length) return;
+    const retryable = files.filter(f => ['pending', 'error', 'skipped'].includes(statusByFilename?.[f.filename]?.status ?? 'pending'));
+    for (const file of retryable) {
+      try {
+        await apiFetch(`/api/ims/supplier-credit-notes/${scn.id}/files/${file.id}/sync`, { method: 'POST' });
+      } catch {
+        // Keep the file visible as pending/error; the status endpoint will surface the latest result.
+      }
+    }
+    if (retryable.length) {
+      await loadScnFileSync(scn.id);
+    }
+  };
+
   const loadScnXeroStatus = async (scnId: number) => {
     try {
       const x = await apiFetch(`/api/ims/supplier-credit-notes/${scnId}/xero-status`);
@@ -9882,7 +9904,7 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
                     <span style={{ color: '#34d399', fontWeight: 700 }}>✓ Synced to Xero</span>
                     {xeroAt && <span style={{ color: 'var(--sv-text-dim)' }}>{xeroAt}</span>}
                     <span style={{ color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 10 }}>{xeroId.slice(0, 8)}…</span>
-                    <a href={`https://go.xero.com/AccountsPayable/CreditNote.aspx?creditNoteID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sv-mint)' }}>View in Xero ↗</a>
+                    <a href={`https://go.xero.com/AccountsPayable/EditCreditNote.aspx?creditNoteID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sv-mint)' }}>View in Xero ↗</a>
                   </div>
                 );
               }
@@ -9985,6 +10007,21 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
                       <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
                         {(f.file_size / 1024).toFixed(0)} KB · {new Date(f.uploaded_at).toLocaleDateString()}
                       </span>
+                      {viewModal.scn.xero_credit_note_id && ['pending', 'error', 'skipped'].includes(scnFileSync[f.filename]?.status ?? 'pending') && (
+                        <button
+                          type="button"
+                          style={btnStyle('mint', 'xs')}
+                          onClick={async () => {
+                            try {
+                              await syncScnFileToXero(viewModal.scn.id, f.id);
+                            } catch (err: any) {
+                              alert(err.message || 'Xero upload failed');
+                            }
+                          }}
+                        >
+                          {(scnFileSync[f.filename]?.status ?? 'pending') === 'pending' ? 'Upload to Xero' : 'Retry Xero Upload'}
+                        </button>
+                      )}
                       <a href={`/api/ims/supplier-credit-notes/${viewModal.scn.id}/files/${f.id}`} target="_blank" rel="noopener noreferrer" style={{ ...btnStyle('ghost', 'xs') as any, textDecoration: 'none' }}>View</a>
                       <button style={btnStyle('danger', 'xs')} onClick={async () => {
                         if (!viewModal.scn) return;
@@ -16676,6 +16713,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+      await syncPendingScnFilesToXero(d.data, d.data?.files ?? [], s.statusByFilename ?? {});
     if (!form.from_location_id) { alert('Source location is required.'); return; }
     if (!form.to_location_id)   { alert('Destination location is required.'); return; }
     if (form.from_location_id === form.to_location_id) { alert('Source and destination cannot be the same.'); return; }
