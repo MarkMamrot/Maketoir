@@ -29,7 +29,12 @@ export class ShopifyService {
       const text = await res.text();
       throw new Error(`Shopify ${res.status} ${method} ${path}: ${text.slice(0, 300)}`);
     }
-    return res.json();
+    // Wrap json() — a truncated/empty body on a 2xx response should not obscure a successful operation
+    try {
+      return await res.json();
+    } catch {
+      return {};
+    }
   }
 
   private async customerFetch(method: string, path: string, body?: object): Promise<any> {
@@ -77,9 +82,22 @@ export class ShopifyService {
     return data.gift_card;
   }
 
-  /** Disables (permanently cancels) a Shopify gift card. Cannot be undone. */
-  async disableGiftCard(shopifyGcId: number): Promise<void> {
-    await this.gcFetch('POST', `/gift_cards/${shopifyGcId}/disable.json`, {});
+  /**
+   * Disables (permanently cancels) a Shopify gift card. Cannot be undone.
+   * Returns false if the card was already disabled (treated as a no-op success).
+   */
+  async disableGiftCard(shopifyGcId: number): Promise<boolean> {
+    try {
+      await this.gcFetch('POST', `/gift_cards/${shopifyGcId}/disable.json`, {});
+      return true;
+    } catch (e: any) {
+      const msg: string = e.message ?? '';
+      // 422 = already disabled — treat as no-op success so replacement creation can still proceed
+      if (msg.includes('422') || msg.toLowerCase().includes('already been disabled')) {
+        return false; // false = was already disabled
+      }
+      throw e;
+    }
   }
 
   /**

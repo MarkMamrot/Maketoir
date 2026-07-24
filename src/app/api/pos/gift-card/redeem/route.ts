@@ -102,13 +102,19 @@ export async function POST(req: Request) {
   // ── Shopify sync (combined mode) ──────────────────────────────────────────
   let newCode: string | null = null;
   let newShopifyGcId: number | null = null;
+  let shopifySynced: boolean | null = null; // null = not applicable (non-combined mode)
 
   if (gcMode === 'combined' && card.shopify_gc_id) {
+    shopifySynced = false; // will be set to true only on full success
     try {
       const shopify = await getShopify(session.businessId);
       if (shopify) {
-        // Always disable the old card — REST API can't adjust balance
-        await shopify.disableGiftCard(card.shopify_gc_id);
+        // Disable the old card. Returns false if already disabled (previous partial attempt),
+        // which is treated as no-op success so replacement creation can still proceed.
+        const freshlyDisabled = await shopify.disableGiftCard(card.shopify_gc_id);
+        if (!freshlyDisabled) {
+          console.warn(`[POS gift-card/redeem] GC shopify_id=${card.shopify_gc_id} was already disabled — continuing with replacement creation`, { card_id: card.id });
+        }
 
         if (newBalance > 0) {
           // Issue a replacement card in Shopify with the remaining balance
@@ -119,10 +125,15 @@ export async function POST(req: Request) {
           newCode        = replacement.code;
           newShopifyGcId = replacement.id;
         }
+        shopifySynced = true;
       }
     } catch (e: any) {
-      // Shopify sync failed — still complete the IMS debit, log the error
-      console.error('[POS gift-card/redeem] Shopify sync failed:', e.message);
+      // Shopify sync failed — still complete the IMS debit (sale already committed), but warn caller
+      console.error('[POS gift-card/redeem] Shopify sync failed:', e.message, {
+        card_id:       card.id,
+        shopify_gc_id: card.shopify_gc_id,
+        newBalance,
+      });
     }
   }
 
@@ -157,6 +168,8 @@ export async function POST(req: Request) {
     success:       true,
     balance_after: newBalance,
     status:        newStatus,
+    // shopify_synced: true = Shopify updated, false = sync failed (staff should check Shopify admin), null = not in combined mode
+    shopify_synced: shopifySynced,
     // new_code is set when combined mode issued a replacement card — cashier must give this to customer
     ...(newCode ? { new_code: newCode } : {}),
   });

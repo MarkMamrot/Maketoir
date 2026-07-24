@@ -1687,6 +1687,7 @@ function MainPos({
       // GC redemptions are awaited so we can capture new_code (combined Shopify mode).
       // All other post-sale calls remain fire-and-forget.
       const gcReplacementCodes: { old_code: string; new_code: string }[] = [];
+      const gcSyncWarnings: string[] = [];
       if (serverId) {
         for (const p of payments) {
           if (p.method === 'Gift Card' && p.reference) {
@@ -1694,6 +1695,7 @@ function MainPos({
               const redeemRes  = await fetch('/api/pos/gift-card/redeem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: p.reference, amount: Math.abs(p.amount), pos_sale_id: serverId }) });
               const redeemData = await redeemRes.json().catch(() => ({}));
               if (redeemData.new_code) gcReplacementCodes.push({ old_code: p.reference, new_code: redeemData.new_code });
+              if (redeemData.shopify_synced === false) gcSyncWarnings.push(p.reference);
             } catch { /* offline — IMS will reconcile when reconnected */ }
           } else if (p.method === 'Store Credit' && linkedContact) {
             fetch('/api/pos/store-credit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact_id: linkedContact.id, amount: Math.abs(p.amount), type: 'debit', pos_sale_id: serverId }) }).catch(() => {});
@@ -1726,6 +1728,7 @@ function MainPos({
         customer_phone:       customerPhone || null,
         created_at:           now,
         gc_replacement_codes: gcReplacementCodes.length ? gcReplacementCodes : undefined,
+        gc_sync_warnings:     gcSyncWarnings.length ? gcSyncWarnings : undefined,
       };
 
       // lastSale is lifted to PosPage — notify parent instead
@@ -4409,6 +4412,18 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
                 <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)' }}>Old code (cancelled): <span style={{ fontFamily: 'monospace', textDecoration: 'line-through' }}>{r.old_code}</span></div>
                 <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--sv-text-strong)', fontFamily: 'monospace', letterSpacing: 2, marginTop: 4, padding: '6px 10px', background: 'var(--sv-bg-1)', borderRadius: 6, border: '1px solid var(--sv-etch)' }}>{r.new_code}</div>
               </div>
+            ))}
+          </div>
+        )}
+        {/* Shopify sync failure warning — shown when combined-mode GC redemption couldn't update Shopify */}
+        {sale.gc_sync_warnings && sale.gc_sync_warnings.length > 0 && (
+          <div className='no-print' style={{ width: 300, padding: '1rem 1.25rem', borderRadius: 10, background: 'rgba(239,68,68,.1)', border: '2px solid rgba(239,68,68,.4)', fontFamily: 'system-ui,sans-serif', alignSelf: 'center' }}>
+            <div style={{ fontSize: '.72rem', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: '#ef4444', marginBottom: 8 }}>⚠ Shopify Sync Failed</div>
+            <p style={{ margin: '0 0 8px', fontSize: '.82rem', color: 'var(--sv-text-main)', lineHeight: 1.5 }}>
+              The gift card was debited in POS but could not be updated in Shopify. Please manually deactivate or adjust the following card(s) in Shopify admin:
+            </p>
+            {sale.gc_sync_warnings.map(code => (
+              <div key={code} style={{ fontFamily: 'monospace', fontSize: '.9rem', fontWeight: 700, color: 'var(--sv-text-strong)', padding: '4px 8px', background: 'var(--sv-bg-1)', borderRadius: 4, marginBottom: 4 }}>{code}</div>
             ))}
           </div>
         )}
