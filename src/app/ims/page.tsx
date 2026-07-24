@@ -5066,6 +5066,13 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const SortIcon = ({ col }: { col: string }) => sortCol !== col ? null : (
     <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
   );
+  const posSale = posViewModal.sale;
+  const posItems = posViewModal.items || [];
+  const posPayments = posViewModal.payments || [];
+  const posIsReturn = posSale?.sale_type === 'return';
+  const posSaleStatus = String(posSale?.status || '');
+  const canVoidPosSale = !isAdvisor && (posSaleStatus === 'completed' || posSaleStatus === 'layby_complete');
+  const posPaidTotal = posPayments.reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
 
   const downloadProductsCsv = async () => {
     setExporting(true);
@@ -10634,6 +10641,8 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   });
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [viewModal, setViewModal] = useState<{ open: boolean; so: any | null }>({ open: false, so: null });
+  const [posViewModal, setPosViewModal] = useState<{ open: boolean; sale: any | null; items: any[]; payments: any[] }>({ open: false, sale: null, items: [], payments: [] });
+  const [posVoiding, setPosVoiding] = useState(false);
   const [soPayForm, setSoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string; method: string } | null>(null);
   const [customers, setCustomers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
@@ -10802,6 +10811,52 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);
     setViewModal({ open: true, so: d.data });
     setSoPayForm(null);
+  };
+
+  const getPosSaleIdFromRow = (row: any): number | null => {
+    const id = Number(row?.pos_sale_id ?? 0);
+    if (id > 0) return id;
+    const m = String(row?.so_number ?? '').match(/^POS-(\d+)$/i);
+    return m ? Number(m[1]) : null;
+  };
+
+  const openPosView = async (row: any) => {
+    const posSaleId = getPosSaleIdFromRow(row);
+    if (!posSaleId) { alert('Missing POS sale id for this row.'); return; }
+    const d = await apiFetch(`/api/ims/pos-sales/${posSaleId}`);
+    const payload = d.data ?? d;
+    setPosViewModal({ open: true, sale: payload.sale ?? null, items: payload.items ?? [], payments: payload.payments ?? [] });
+  };
+
+  const refreshPosView = async (id: number) => {
+    const d = await apiFetch(`/api/ims/pos-sales/${id}`);
+    const payload = d.data ?? d;
+    setPosViewModal({ open: true, sale: payload.sale ?? null, items: payload.items ?? [], payments: payload.payments ?? [] });
+  };
+
+  const handleVoidPosSale = async () => {
+    if (!posViewModal.sale) return;
+    const sale = posViewModal.sale;
+    const saleStatus = String(sale.status || '');
+    if (saleStatus === 'voided') return;
+    const managerPin = window.prompt('Manager PIN required to void this POS transaction:');
+    if (!managerPin) return;
+    if (!confirm(`Void POS sale #${sale.id}? This will reverse stock movements and cannot be undone.`)) return;
+    setPosVoiding(true);
+    try {
+      const res = await apiFetch(`/api/ims/pos-sales/${sale.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'voided', manager_pin: managerPin }),
+      });
+      if (res?.stockWarning) alert(`Voided, but stock warning: ${res.stockWarning}`);
+      await refreshPosView(Number(sale.id));
+      load();
+    } catch (e: any) {
+      alert(e.message || 'Failed to void POS sale.');
+    } finally {
+      setPosVoiding(false);
+    }
   };
 
   const refreshSoView = async (id: number) => {
@@ -11074,7 +11129,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                 <tr key={so.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}>
                   <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {so.is_pos_ledger ? (
-                      <span style={{ color: 'var(--sv-text-main)', fontSize: 13 }}>{so.so_number}</span>
+                      <button onClick={() => openPosView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{so.so_number}</button>
                     ) : (
                       <button onClick={() => openView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{so.so_number}</button>
                     )}
@@ -11086,9 +11141,12 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                   <td style={{ padding: '10px 12px' }}><StatusBadge status={so.status} /></td>
                   <td style={{ padding: '10px 12px' }}>
                     {so.is_pos_ledger ? (
-                      <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>
-                        POS Sale
-                      </span>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>
+                          POS Sale
+                        </span>
+                        <button onClick={() => openPosView(so)} style={btnStyle('ghost', 'xs')}>View</button>
+                      </div>
                     ) : (
                       <SOActions isAdvisor={isAdvisor} so={so} onEdit={() => editSoWithWarn(so)} onDelete={() => deleteSoWithWarn(so)} onStatus={changeStatus} onReturn={() => handleReturn(so)} />
                     )}
@@ -11489,6 +11547,107 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
           <SoAccountingSection so={viewModal.so} settings={settings} onVoided={async () => { try { const d = await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}`); setViewModal(v => ({ ...v, so: d.data })); } catch {} }} />
         </Modal>
       )}
+
+      {/* View POS detail modal */}
+      {posViewModal.open && posViewModal.sale && (
+        <Modal title={`POS-${posViewModal.sale.id} — ${posViewModal.sale.status}`} onClose={() => setPosViewModal({ open: false, sale: null, items: [], payments: [] })} wide>
+          <>
+                <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>
+                    POS Sale
+                  </span>
+                  {canVoidPosSale && <button onClick={handleVoidPosSale} disabled={posVoiding} style={btnStyle('danger', 'sm')}>{posVoiding ? 'Voiding…' : 'Void Sale'}</button>}
+                  {posSaleStatus === 'voided' && <span style={{ fontSize: 12, color: 'var(--sv-red)' }}>Voided transaction</span>}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+                  <div><div style={labelStyle}>Customer</div><div>{posSale?.customer_name || 'Walk-in'}</div></div>
+                  <div><div style={labelStyle}>Location</div><div>{posSale?.location_name || '—'}</div></div>
+                  <div><div style={labelStyle}>Status</div><StatusBadge status={posSaleStatus === 'voided' ? 'cancelled' : 'completed'} /></div>
+                  <div><div style={labelStyle}>Completed</div><div>{posSale?.completed_at ? String(posSale.completed_at).slice(0, 10) : String(posSale?.created_at || '').slice(0, 10)}</div></div>
+                  <div><div style={labelStyle}>Register</div><div>{posSale?.register_name || '—'}</div></div>
+                  <div><div style={labelStyle}>Cashier</div><div>{posSale?.cashier_name || '—'}</div></div>
+                  <div><div style={labelStyle}>Sale Type</div><div>{posIsReturn ? 'Return' : posSale?.sale_type || 'Sale'}</div></div>
+                  <div><div style={labelStyle}>Currency</div><div>AUD</div></div>
+                  <div><div style={labelStyle}>Tax Mode</div><div>Tax inclusive</div></div>
+                </div>
+
+                {posSale?.notes && <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--sv-bg-2)', borderRadius: 6, fontSize: 13, color: 'var(--sv-text-dim)' }}>{posSale.notes}</div>}
+
+                <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--sv-bg-1)' }}>
+                      {['SKU','Product','Qty','Unit Price','Tax %','Line Total'].map(h => (
+                        <th key={h} style={{ padding: '8px 10px', textAlign: h === 'Qty' || h === 'Unit Price' || h === 'Tax %' || h === 'Line Total' ? 'right' : 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {posItems.map((item: any, i: number) => (
+                      <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                        <td style={{ padding: '8px 10px' }}><code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{item.code || '—'}</code></td>
+                        <td style={{ padding: '8px 10px', fontSize: 13 }}>{item.name || '—'}</td>
+                        <td style={{ padding: '8px 10px', fontSize: 13, textAlign: 'right' }}>{fmtQty(item.qty)}</td>
+                        <td style={{ padding: '8px 10px', fontSize: 13, textAlign: 'right' }}>{fmtCurrency(item.unit_price)}</td>
+                        <td style={{ padding: '8px 10px', fontSize: 13, textAlign: 'right' }}>{Number(item.tax_rate || 0).toFixed(2)}%</td>
+                        <td style={{ padding: '8px 10px', fontSize: 13, fontWeight: 600, textAlign: 'right' }}>{fmtCurrency(item.line_total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    {Number(posSale?.discount_total || 0) > 0 && (
+                      <tr>
+                        <td colSpan={5} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Discount (−)</td>
+                        <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-red)', textAlign: 'right' }}>−{fmtCurrency(posSale?.discount_total)}</td>
+                      </tr>
+                    )}
+                    {Number(posSale?.tax_total || 0) > 0 && (
+                      <tr>
+                        <td colSpan={5} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>GST included</td>
+                        <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)', textAlign: 'right' }}>{fmtCurrency(posSale?.tax_total)}</td>
+                      </tr>
+                    )}
+                    <tr style={{ borderTop: '2px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
+                      <td colSpan={5} style={{ padding: '8px 10px', textAlign: 'right', fontSize: 13, color: 'var(--sv-text-dim)' }}>Total</td>
+                      <td style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--sv-text-strong)', textAlign: 'right' }}>{fmtCurrency(posSale?.total)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+
+                <div style={{ marginTop: 20 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 8 }}>Payments</div>
+                  {posPayments.length > 0 ? (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', fontSize: 13 }}>
+                      <thead>
+                        <tr style={{ background: 'var(--sv-bg-1)' }}>
+                          {['Method', 'Amount', 'Reference'].map((h: string, idx: number) => (
+                            <th key={idx} style={{ padding: '6px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {posPayments.map((p: any) => (
+                          <tr key={p.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                            <td style={{ padding: '6px 10px' }}>{p.payment_method || '—'}</td>
+                            <td style={{ padding: '6px 10px', fontWeight: 600 }}>{fmtCurrency(p.amount)}</td>
+                            <td style={{ padding: '6px 10px', color: 'var(--sv-text-dim)' }}>{p.reference || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>No payment rows recorded for this transaction.</div>
+                  )}
+                  <div style={{ display: 'flex', gap: 16, padding: '8px 12px', background: 'var(--sv-bg-2)', borderRadius: 6, fontSize: 13, marginTop: 10, flexWrap: 'wrap' }}>
+                    <span><span style={{ color: 'var(--sv-text-dim)' }}>Total: </span><strong>{fmtCurrency(posSale?.total)}</strong></span>
+                    <span><span style={{ color: 'var(--sv-text-dim)' }}>Paid: </span><strong style={{ color: 'var(--sv-mint,#0c9)' }}>{fmtCurrency(posPaidTotal)}</strong></span>
+                    <span><span style={{ color: 'var(--sv-text-dim)' }}>Balance: </span><strong style={{ color: Math.abs(Number(posSale?.total || 0) - posPaidTotal) > 0.005 ? 'var(--sv-orange,#f80)' : 'var(--sv-mint,#0c9)' }}>{fmtCurrency(Number(posSale?.total || 0) - posPaidTotal)}</strong></span>
+                  </div>
+                </div>
+          </>
+        </Modal>
+      )}
+
       {importSOsOpen && (
         <ImportSOsModal
           locations={locations}
