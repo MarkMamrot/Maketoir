@@ -1433,7 +1433,7 @@ export async function syncCNAsCreditNote(businessId: string, cn: CNForSync): Pro
   }
 
   const creditNote: any = {
-    Type: 'ACCREC',
+    Type: 'ACCRECCREDIT',
     Contact: { Name: cn.customer_name || `Customer #${cn.customer_id}` },
     Date: cn.cn_date,
     CreditNoteNumber: cn.cn_number,
@@ -1624,7 +1624,7 @@ export async function markSupplierCNXeroStatus(
 }
 
 /**
- * Post a DRAFT Xero Credit Note (ACCPAY) for a completed supplier credit note.
+ * Post a DRAFT Xero Credit Note (ACCPAYCREDIT) for a completed supplier credit note.
  * DRAFT is used for broad tenant compatibility (some orgs reject AUTHORISED
  * creation via API). Restock lines (goods returned) post to Inventory Asset
  * (reverses stock value); non-stock lines (rebates/overcharges) post to the
@@ -1666,7 +1666,7 @@ export async function syncSupplierCNAsCreditNote(businessId: string, scn: Suppli
   }
 
   const creditNoteBase: any = {
-    Type: 'ACCPAY',
+    Type: 'ACCPAYCREDIT',
     Contact: { Name: scn.supplier_name || `Supplier #${scn.supplier_id}` },
     Date: scn.scn_date,
     CreditNoteNumber: scn.scn_number,
