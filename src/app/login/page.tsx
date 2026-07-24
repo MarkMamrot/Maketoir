@@ -97,6 +97,7 @@ function LoginForm() {
             <label className="text-xs font-bold text-gray-600 uppercase">Email Address</label>
             <input
               type="email" value={email} onChange={e => setEmail(e.target.value)} required
+              autoComplete="email"
               className="w-full p-2 border border-gray-300 rounded mt-1"
             />
           </div>
@@ -104,6 +105,7 @@ function LoginForm() {
             <label className="text-xs font-bold text-gray-600 uppercase">Password</label>
             <input
               type="password" value={password} onChange={e => setPassword(e.target.value)} required
+              autoComplete="current-password"
               className="w-full p-2 border border-gray-300 rounded mt-1"
             />
             <div className="text-right mt-1">

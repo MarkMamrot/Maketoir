@@ -31,7 +31,9 @@ export async function POST(req: Request) {
     cookies().set('marketoir_session', JSON.stringify(userData), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      // OAuth providers (Xero) return via a cross-site top-level redirect.
+      // strict can drop session visibility during that navigation.
+      sameSite: 'lax',
       maxAge: 60 * 60 * 8, // 8 hours
       path: '/',
     });
