@@ -1603,6 +1603,9 @@ export async function syncSupplierCNAttachmentsToXero(
       });
       if (!res.ok) {
         const text = await res.text();
+        if (res.status === 401 && /AuthorizationUnsuccessful/i.test(text)) {
+          throw new Error('Xero attachment upload unauthorized. Reconnect Xero to grant the accounting.attachments scope, then retry the file upload.');
+        }
         throw new Error(`Xero attachment upload failed (${res.status}): ${text}`);
       }
       await logSync(
