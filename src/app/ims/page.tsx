@@ -9897,54 +9897,12 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
               <h2 style={{ margin: 0, fontSize: 17, color: 'var(--sv-text-strong)' }}>{viewModal.scn.scn_number} {statusBadge(viewModal.scn.status)}</h2>
               <button onClick={() => { setViewModal({ open: false, scn: null }); setScnFiles([]); setScnFileSync({}); setScnXeroLatest(null); setScnXeroAwaitingResult(false); }} style={btnStyle('ghost', 'sm')}>Close</button>
             </div>
-            {(() => {
-              const scn = viewModal.scn;
-              const xeroStatus = scn.xero_sync_status as string | null;
-              const xeroId = scn.xero_credit_note_id as string | null;
-              const xeroAt = scn.xero_synced_at ? new Date(scn.xero_synced_at).toLocaleString() : null;
-              if (xeroStatus === 'synced' && xeroId) {
-                return (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', background: 'rgba(16,185,129,.1)', borderRadius: 6, fontSize: 11, marginBottom: 12, flexWrap: 'wrap' }}>
-                    <span style={{ color: '#34d399', fontWeight: 700 }}>✓ Synced to Xero</span>
-                    {xeroAt && <span style={{ color: 'var(--sv-text-dim)' }}>{xeroAt}</span>}
-                    <span style={{ color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 10 }}>{xeroId.slice(0, 8)}…</span>
-                    <a href={`https://go.xero.com/AccountsPayable/EditCreditNote.aspx?creditNoteID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sv-mint)' }}>View in Xero ↗</a>
-                  </div>
-                );
-              }
-              return null;
-            })()}
             <div style={{ fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.9, marginBottom: 12 }}>
               <div><strong>Supplier:</strong> {viewModal.scn.supplier_name ?? '—'}</div>
               <div><strong>Location:</strong> {viewModal.scn.location_name}</div>
               <div><strong>Date:</strong> {viewModal.scn.scn_date?.slice(0, 10)}</div>
               {viewModal.scn.supplier_credit_ref && <div><strong>Supplier Ref:</strong> {viewModal.scn.supplier_credit_ref}</div>}
               {viewModal.scn.reference && <div><strong>Reference:</strong> {viewModal.scn.reference}</div>}
-              {!viewModal.scn.xero_credit_note_id && (viewModal.scn.xero_sync_status === 'queued' || viewModal.scn.xero_sync_status === 'error') && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <strong>Xero:</strong>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#fbbf24' }}>
-                    {viewModal.scn.xero_sync_status === 'queued' ? 'Queued for retry' : 'Sync failed'}
-                  </span>
-                  {!isAdvisor && (
-                    <button type="button" onClick={() => retryScnXeroSync(viewModal.scn.id)} disabled={retryingScnXero} style={{ ...btnStyle('mint', 'xs'), opacity: retryingScnXero ? .7 : 1 }}>
-                      {retryingScnXero ? 'Retrying…' : 'Retry Xero Sync'}
-                    </button>
-                  )}
-                  <button type="button" onClick={async () => { await loadScnXeroStatus(viewModal.scn.id); setScnXeroAwaitingResult(false); }} style={btnStyle('ghost', 'xs')}>Refresh status</button>
-                </div>
-              )}
-              {scnXeroAwaitingResult && (viewModal.scn.xero_sync_status === 'queued' || viewModal.scn.xero_sync_status === 'error') && (
-                <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.4 }}>
-                  <strong>Last Xero message:</strong> waiting for a fresh retry result...
-                </div>
-              )}
-              {scnXeroLatest?.detail && (viewModal.scn.xero_sync_status === 'queued' || viewModal.scn.xero_sync_status === 'error') && (
-                <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.4 }}>
-                  <div><strong>Last Xero attempt:</strong> {new Date(scnXeroLatest.created_at).toLocaleString()}</div>
-                  <strong>Last Xero message:</strong> {scnXeroLatest.detail}
-                </div>
-              )}
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 12 }}>
               <thead><tr style={{ background: 'var(--sv-bg-2)' }}>{['Product','Qty','Unit Cost','Return stock','Line'].map(h => <th key={h} style={{ padding: '6px 8px', textAlign: 'left', color: 'var(--sv-text-dim)' }}>{h}</th>)}</tr></thead>
@@ -9959,6 +9917,20 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                  <td colSpan={4} style={{ padding: '6px 8px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Subtotal</td>
+                  <td style={{ padding: '6px 8px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{money(viewModal.scn.subtotal)}</td>
+                </tr>
+                <tr>
+                  <td colSpan={4} style={{ padding: '4px 8px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>GST Total</td>
+                  <td style={{ padding: '4px 8px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{money(viewModal.scn.tax_amount)}</td>
+                </tr>
+                <tr style={{ borderTop: '2px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
+                  <td colSpan={4} style={{ padding: '8px 8px', textAlign: 'right', fontSize: 13, color: 'var(--sv-text-dim)' }}>Total</td>
+                  <td style={{ padding: '8px 8px', fontWeight: 700, color: 'var(--sv-text-strong)' }}>{money(viewModal.scn.total_amount)}</td>
+                </tr>
+              </tfoot>
             </table>
             <div style={{ marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -10061,7 +10033,60 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
                 </div>
               )}
             </div>
-            <div style={{ textAlign: 'right', fontWeight: 700, color: 'var(--sv-text-strong)' }}>Total: {money(viewModal.scn.total_amount)}</div>
+            {(() => {
+              const scn = viewModal.scn;
+              const xeroStatus = scn.xero_sync_status as string | null;
+              const xeroId = scn.xero_credit_note_id as string | null;
+              const xeroAt = scn.xero_synced_at ? new Date(scn.xero_synced_at).toLocaleString() : null;
+              const baseStyle = { display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', borderRadius: 6, fontSize: 11, marginBottom: 8, flexWrap: 'wrap' } as const;
+
+              if (xeroStatus === 'synced' && xeroId) {
+                return (
+                  <div style={{ ...baseStyle, background: 'rgba(16,185,129,.1)' }}>
+                    <span style={{ color: '#34d399', fontWeight: 700 }}>✓ Synced to Xero</span>
+                    {xeroAt && <span style={{ color: 'var(--sv-text-dim)' }}>{xeroAt}</span>}
+                    <span style={{ color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 10 }}>{xeroId.slice(0, 8)}…</span>
+                    <a href={`https://go.xero.com/AccountsPayable/EditCreditNote.aspx?creditNoteID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sv-mint)' }}>View in Xero ↗</a>
+                  </div>
+                );
+              }
+
+              if (xeroStatus === 'queued' || xeroStatus === 'error') {
+                return (
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ ...baseStyle, background: 'rgba(251,191,36,.1)' }}>
+                      <strong style={{ color: 'var(--sv-text-main)' }}>Xero:</strong>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#fbbf24' }}>
+                        {xeroStatus === 'queued' ? 'Queued for retry' : 'Sync failed'}
+                      </span>
+                      {!isAdvisor && (
+                        <button type="button" onClick={() => retryScnXeroSync(viewModal.scn.id)} disabled={retryingScnXero} style={{ ...btnStyle('mint', 'xs'), opacity: retryingScnXero ? .7 : 1 }}>
+                          {retryingScnXero ? 'Retrying…' : 'Retry Xero Sync'}
+                        </button>
+                      )}
+                      <button type="button" onClick={async () => { await loadScnXeroStatus(viewModal.scn.id); setScnXeroAwaitingResult(false); }} style={btnStyle('ghost', 'xs')}>Refresh status</button>
+                    </div>
+                    {scnXeroAwaitingResult && (
+                      <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.4, marginBottom: 6 }}>
+                        <strong>Last Xero message:</strong> waiting for a fresh retry result...
+                      </div>
+                    )}
+                    {scnXeroLatest?.detail && (
+                      <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.4, marginBottom: 6 }}>
+                        <div><strong>Last Xero attempt:</strong> {new Date(scnXeroLatest.created_at).toLocaleString()}</div>
+                        <strong>Last Xero message:</strong> {scnXeroLatest.detail}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              return (
+                <div style={{ ...baseStyle, background: 'var(--sv-bg-2)' }}>
+                  <span style={{ color: 'var(--sv-text-dim)' }}>○ Not yet synced to Xero</span>
+                </div>
+              );
+            })()}
             {!isAdvisor && viewModal.scn.status === 'draft' && (
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
                 <button onClick={() => { setViewModal({ open: false, scn: null }); openEdit(viewModal.scn); }} style={btnStyle('ghost')}>Edit</button>

@@ -27,6 +27,7 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const databaseId = searchParams.get('databaseId');
+  const debug = searchParams.get('debug') === '1';
   const denied = assertBusinessAccess(user, databaseId);
   if (denied) return denied;
 
@@ -57,5 +58,17 @@ export async function GET(req: Request) {
   });
 
   const authUrl = buildAuthorizeUrl(state, codeChallenge);
+
+  if (debug) {
+    const parsed = new URL(authUrl);
+    return NextResponse.json({
+      success: true,
+      appOrigin: requestOrigin(req),
+      redirectUriSent: parsed.searchParams.get('redirect_uri'),
+      scopeSent: parsed.searchParams.get('scope'),
+      authUrl,
+    });
+  }
+
   return NextResponse.redirect(authUrl);
 }
