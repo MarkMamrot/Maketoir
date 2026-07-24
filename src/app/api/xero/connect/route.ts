@@ -14,6 +14,13 @@ function base64url(buf: Buffer): string {
   return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
 
+function requestOrigin(req: Request): string {
+  const xfProto = req.headers.get('x-forwarded-proto')?.split(',')[0]?.trim();
+  const xfHost = req.headers.get('x-forwarded-host')?.split(',')[0]?.trim();
+  if (xfProto && xfHost) return `${xfProto}://${xfHost}`;
+  return new URL(req.url).origin;
+}
+
 export async function GET(req: Request) {
   const { user, response } = requireAdminSession();
   if (response) return response;
@@ -35,8 +42,13 @@ export async function GET(req: Request) {
   const codeChallenge = generateCodeChallenge(codeVerifier);
   const state = base64url(randomBytes(16));
 
-  // Store state + verifier + businessId in a short-lived cookie (10 min)
-  const xeroOAuthCookie = JSON.stringify({ state, codeVerifier, databaseId });
+  // Store state + verifier + businessId + caller origin in a short-lived cookie (10 min)
+  const xeroOAuthCookie = JSON.stringify({
+    state,
+    codeVerifier,
+    databaseId,
+    returnBase: requestOrigin(req),
+  });
   cookies().set('xero_oauth', xeroOAuthCookie, {
     httpOnly: true,
     sameSite: 'lax',

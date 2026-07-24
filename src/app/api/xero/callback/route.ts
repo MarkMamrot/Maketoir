@@ -8,11 +8,28 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { exchangeCodeForTokens, getConnectedTenants, saveXeroTokens } from '@/services/XeroService';
 
+function normalizeOrigin(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return null;
+  }
+}
+
+function requestOrigin(req: Request): string {
+  const xfProto = req.headers.get('x-forwarded-proto')?.split(',')[0]?.trim();
+  const xfHost = req.headers.get('x-forwarded-host')?.split(',')[0]?.trim();
+  if (xfProto && xfHost) return `${xfProto}://${xfHost}`;
+  return new URL(req.url).origin;
+}
+
 export async function GET(req: Request) {
-  // Use the public app URL as the redirect base so Railway's internal proxy
-  // hostname (localhost:8080) doesn't leak into the redirect target.
-  const appBase = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '')
-    ?? new URL(req.url).origin;
+  // Prefer the origin captured at connect time, then current request origin.
+  // NEXT_PUBLIC_APP_URL is a last resort fallback only.
+  let appBase = requestOrigin(req);
 
   function redirect(path: string) {
     return NextResponse.redirect(`${appBase}${path}`);
@@ -38,12 +55,17 @@ export async function GET(req: Request) {
     return redirect('/ims?xero=error&reason=session_expired');
   }
 
-  let cookieData: { state: string; codeVerifier: string; databaseId: string };
+  let cookieData: { state: string; codeVerifier: string; databaseId: string; returnBase?: string };
   try {
     cookieData = JSON.parse(rawCookie);
   } catch {
     return redirect('/ims?xero=error&reason=bad_cookie');
   }
+
+  appBase = normalizeOrigin(cookieData.returnBase)
+    ?? normalizeOrigin(appBase)
+    ?? normalizeOrigin(process.env.NEXT_PUBLIC_APP_URL)
+    ?? appBase;
 
   if (cookieData.state !== state) {
     return redirect('/ims?xero=error&reason=state_mismatch');
