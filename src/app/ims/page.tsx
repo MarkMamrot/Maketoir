@@ -9578,7 +9578,7 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
   const [viewModal, setViewModal] = useState<{ open: boolean; scn: any | null }>({ open: false, scn: null });
   const [scnFiles, setScnFiles] = useState<any[]>([]);
   const [scnFileUploading, setScnFileUploading] = useState(false);
-  const [scnFileSync, setScnFileSync] = useState<Record<string, { status: 'success' | 'error' | 'skipped' | 'pending' | 'not_synced'; detail?: string; at?: string }>>({});
+  const [scnFileSync, setScnFileSync] = useState<Record<string, { status: 'success' | 'error' | 'skipped' | 'pending' | 'not_synced'; detail?: string; message?: string; needsReconnect?: boolean; at?: string }>>({});
   const [scnXeroLatest, setScnXeroLatest] = useState<{ status: 'success' | 'error' | 'skipped'; detail: string | null; created_at: string; xero_id: string | null } | null>(null);
   const [retryingScnXero, setRetryingScnXero] = useState(false);
   const [scnXeroAwaitingResult, setScnXeroAwaitingResult] = useState(false);
@@ -9993,11 +9993,13 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {scnFiles.map((f: any) => (
-                    <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--sv-bg-2)', borderRadius: 6, padding: '6px 10px', fontSize: 13 }}>
-                      <span style={{ fontSize: 16 }}>{f.mime_type === 'application/pdf' ? '📄' : '🖼️'}</span>
-                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.original_name}</span>
+                    <div key={f.id} style={{ display: 'flex', flexDirection: 'column', gap: 4, background: 'var(--sv-bg-2)', borderRadius: 6, padding: '6px 10px', fontSize: 13 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 16 }}>{f.mime_type === 'application/pdf' ? '📄' : '🖼️'}</span>
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.original_name}</span>
                       {(() => {
-                        const s = scnFileSync[f.filename]?.status ?? (viewModal.scn?.xero_credit_note_id ? 'pending' : 'not_synced');
+                        const entry = scnFileSync[f.filename];
+                        const s = entry?.status ?? (viewModal.scn?.xero_credit_note_id ? 'pending' : 'not_synced');
                         const map: Record<string, { label: string; color: string; bg: string; title: string }> = {
                           success: { label: 'Uploaded to Xero', color: '#34d399', bg: 'rgba(52,211,153,.12)', title: 'Attachment uploaded to Xero' },
                           error: { label: 'Xero upload failed', color: '#f87171', bg: 'rgba(248,113,113,.12)', title: 'Attachment failed to upload to Xero. Check sync log details.' },
@@ -10008,36 +10010,52 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
                         const cfg = map[s] ?? map.pending;
                         return <span title={cfg.title} style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 12, color: cfg.color, background: cfg.bg, whiteSpace: 'nowrap' }}>{cfg.label}</span>;
                       })()}
-                      <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
-                        {(f.file_size / 1024).toFixed(0)} KB · {new Date(f.uploaded_at).toLocaleDateString()}
-                      </span>
-                      {viewModal.scn.xero_credit_note_id && ['pending', 'error', 'skipped'].includes(scnFileSync[f.filename]?.status ?? 'pending') && (
-                        <button
-                          type="button"
-                          style={btnStyle('mint', 'xs')}
-                          onClick={async () => {
-                            try {
-                              await syncScnFileToXero(viewModal.scn.id, f.id);
-                            } catch (err: any) {
-                              alert(err.message || 'Xero upload failed');
-                            }
-                          }}
-                        >
-                          {(scnFileSync[f.filename]?.status ?? 'pending') === 'pending' ? 'Upload to Xero' : 'Retry Xero Upload'}
-                        </button>
+                        <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
+                          {(f.file_size / 1024).toFixed(0)} KB · {new Date(f.uploaded_at).toLocaleDateString()}
+                        </span>
+                        {viewModal.scn.xero_credit_note_id && ['pending', 'error', 'skipped'].includes(scnFileSync[f.filename]?.status ?? 'pending') && (
+                          <button
+                            type="button"
+                            style={btnStyle('mint', 'xs')}
+                            onClick={async () => {
+                              try {
+                                await syncScnFileToXero(viewModal.scn.id, f.id);
+                              } catch (err: any) {
+                                alert(err.message || 'Xero upload failed');
+                              }
+                            }}
+                          >
+                            {(scnFileSync[f.filename]?.status ?? 'pending') === 'pending' ? 'Upload to Xero' : 'Retry Xero Upload'}
+                          </button>
+                        )}
+                        <a href={`/api/ims/supplier-credit-notes/${viewModal.scn.id}/files/${f.id}`} target="_blank" rel="noopener noreferrer" style={{ ...btnStyle('ghost', 'xs') as any, textDecoration: 'none' }}>View</a>
+                        <button style={btnStyle('danger', 'xs')} onClick={async () => {
+                          if (!viewModal.scn) return;
+                          if (!confirm('Remove this file?')) return;
+                          const res = await fetch(`/api/ims/supplier-credit-notes/${viewModal.scn.id}/files/${f.id}`, { method: 'DELETE' });
+                          const data = await res.json();
+                          if (res.ok) {
+                            setScnFiles(data.files ?? []);
+                            await loadScnFileSync(viewModal.scn.id);
+                          }
+                          else alert(data.error || 'Delete failed');
+                        }}>✕</button>
+                      </div>
+                      {scnFileSync[f.filename]?.status === 'error' && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginLeft: 26 }}>
+                          <span style={{ fontSize: 11, color: '#fca5a5' }}>
+                            {scnFileSync[f.filename]?.message || scnFileSync[f.filename]?.detail || 'Xero upload failed'}
+                          </span>
+                          {scnFileSync[f.filename]?.needsReconnect && (
+                            <a
+                              href="/setup"
+                              style={{ ...btnStyle('ghost', 'xs') as any, textDecoration: 'none' }}
+                            >
+                              Reconnect Xero
+                            </a>
+                          )}
+                        </div>
                       )}
-                      <a href={`/api/ims/supplier-credit-notes/${viewModal.scn.id}/files/${f.id}`} target="_blank" rel="noopener noreferrer" style={{ ...btnStyle('ghost', 'xs') as any, textDecoration: 'none' }}>View</a>
-                      <button style={btnStyle('danger', 'xs')} onClick={async () => {
-                        if (!viewModal.scn) return;
-                        if (!confirm('Remove this file?')) return;
-                        const res = await fetch(`/api/ims/supplier-credit-notes/${viewModal.scn.id}/files/${f.id}`, { method: 'DELETE' });
-                        const data = await res.json();
-                        if (res.ok) {
-                          setScnFiles(data.files ?? []);
-                          await loadScnFileSync(viewModal.scn.id);
-                        }
-                        else alert(data.error || 'Delete failed');
-                      }}>✕</button>
                     </div>
                   ))}
                 </div>
@@ -16717,7 +16735,6 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-      await syncPendingScnFilesToXero(d.data, d.data?.files ?? [], s.statusByFilename ?? {});
     if (!form.from_location_id) { alert('Source location is required.'); return; }
     if (!form.to_location_id)   { alert('Destination location is required.'); return; }
     if (form.from_location_id === form.to_location_id) { alert('Source and destination cannot be the same.'); return; }

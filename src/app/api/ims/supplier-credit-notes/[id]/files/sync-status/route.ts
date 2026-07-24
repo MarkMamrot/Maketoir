@@ -8,6 +8,12 @@ function extractValue(detail: string, key: string): string | null {
   return m ? m[1] : null;
 }
 
+function parseLog(detail: string) {
+  const message = extractValue(detail, 'message') ?? detail;
+  const needsReconnect = /accounting\.attachments|unauthorized|AuthorizationUnsuccessful/i.test(message);
+  return { message, needsReconnect };
+}
+
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -19,7 +25,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   if (!scn) return NextResponse.json({ error: 'Supplier credit note not found' }, { status: 404 });
 
   const files = await ImsSupplierCNFilesRepo.list(scnId, session.businessId).catch(() => []);
-  const statusByFilename: Record<string, { status: 'success' | 'error' | 'skipped' | 'pending' | 'not_synced'; detail?: string; at?: string }> = {};
+  const statusByFilename: Record<string, { status: 'success' | 'error' | 'skipped' | 'pending' | 'not_synced'; detail?: string; message?: string; needsReconnect?: boolean; at?: string }> = {};
 
   if (!scn.xero_credit_note_id) {
     for (const f of files) {
@@ -46,7 +52,14 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
     const file = extractValue(detail, 'file');
     if (!file) continue;
     if (statusByFilename[file]) continue;
-    statusByFilename[file] = { status: log.status, detail, at: log.created_at };
+    const parsed = parseLog(detail);
+    statusByFilename[file] = {
+      status: log.status,
+      detail,
+      message: parsed.message,
+      needsReconnect: parsed.needsReconnect,
+      at: log.created_at,
+    };
   }
 
   for (const f of files) {

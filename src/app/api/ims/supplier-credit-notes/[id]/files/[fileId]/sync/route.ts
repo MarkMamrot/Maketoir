@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsSupplierCNRepo, ImsSupplierCNFilesRepo } from '@/lib/ims/ImsRepository';
 import { syncSupplierCNAttachmentsToXero } from '@/services/XeroSyncService';
+import { query } from '@/services/MySQLService';
+
+function extractValue(detail: string, key: string): string | null {
+  const m = detail.match(new RegExp(`${key}=([^;]*)`));
+  return m ? m[1] : null;
+}
 
 export async function POST(_: Request, { params }: { params: { id: string; fileId: string } }) {
   const session = await getImsSession();
@@ -24,13 +30,48 @@ export async function POST(_: Request, { params }: { params: { id: string; fileI
     return NextResponse.json({ error: 'File not found' }, { status: 404 });
   }
 
-  await syncSupplierCNAttachmentsToXero(
-    session.businessId,
-    scnId,
-    scn.scn_number,
-    scn.xero_credit_note_id,
-    [file.filename],
-  );
+  try {
+    await syncSupplierCNAttachmentsToXero(
+      session.businessId,
+      scnId,
+      scn.scn_number,
+      scn.xero_credit_note_id,
+      [file.filename],
+    );
 
-  return NextResponse.json({ success: true });
+    const logs = await query<{ status: 'success' | 'error' | 'skipped'; detail: string | null; created_at: string }>(
+      `SELECT status, detail, created_at
+         FROM xero_sync_log
+        WHERE business_id = ?
+          AND sync_type = 'scn_attachment'
+          AND reference_id = ?
+          AND detail LIKE ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1`,
+      [session.businessId, scnId, `%file=${file.filename};%`],
+    ).catch(() => []);
+
+    const latest = logs[0];
+    if (latest && latest.status !== 'success') {
+      const detail = String(latest.detail ?? '');
+      const message = extractValue(detail, 'message') || detail || 'Xero attachment upload failed.';
+      const needsReconnect = /accounting\.attachments|unauthorized|AuthorizationUnsuccessful/i.test(message);
+      return NextResponse.json(
+        {
+          success: false,
+          error: needsReconnect
+            ? 'Xero rejected attachment upload. Reconnect Xero in Setup > Connections to grant accounting.attachments, then retry.'
+            : message,
+          detail: message,
+          needsReconnect,
+          at: latest.created_at,
+        },
+        { status: 409 },
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (e: any) {
+    return NextResponse.json({ success: false, error: e?.message || 'Xero upload failed.' }, { status: 500 });
+  }
 }
