@@ -23,7 +23,9 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
 
   if (!scn.xero_credit_note_id) {
     for (const f of files) {
-      statusByFilename[f.filename] = { status: 'not_synced' };
+      statusByFilename[f.filename] = {
+        status: (scn.xero_sync_status === 'queued' || scn.xero_sync_status === 'error') ? 'pending' : 'not_synced',
+      };
     }
     return NextResponse.json({ success: true, statusByFilename });
   }

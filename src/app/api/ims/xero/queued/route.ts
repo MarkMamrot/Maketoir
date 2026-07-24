@@ -1,6 +1,6 @@
 /**
  * GET /api/ims/xero/queued
- * Returns all POs and SOs with xero_sync_status = 'queued'.
+ * Returns all POs, SOs and supplier credit notes with xero_sync_status = 'queued'.
  */
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
@@ -32,7 +32,17 @@ export async function GET() {
         ORDER BY so.xero_synced_at DESC`,
       [businessId]
     ).catch(() => [] as any[]);
-    return NextResponse.json({ queued: [...pos, ...sos], count: pos.length + sos.length });
+    const scns = await imsQuery<any>(
+      `SELECT scn.id, scn.scn_number AS reference, 'scn' AS type, scn.status,
+              scn.total_amount, scn.xero_synced_at,
+              COALESCE(c.name) AS contact_name
+         FROM ims_supplier_credit_notes scn
+         LEFT JOIN ims_contacts c ON c.id = scn.supplier_id
+        WHERE scn.xero_sync_status = 'queued' AND scn.business_id = ?
+        ORDER BY scn.xero_synced_at DESC`,
+      [businessId]
+    ).catch(() => [] as any[]);
+    return NextResponse.json({ queued: [...pos, ...sos, ...scns], count: pos.length + sos.length + scns.length });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

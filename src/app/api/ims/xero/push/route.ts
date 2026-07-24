@@ -1,11 +1,11 @@
 /**
  * POST /api/ims/xero/push
- * Body: { type: 'po' | 'so', id: number }
+ * Body: { type: 'po' | 'so' | 'scn', id: number }
  * Re-triggers the Xero sync for a queued or failed order.
  */
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
-import { triggerPOXeroSync, triggerSOXeroSync } from '@/lib/ims/xeroHooks';
+import { triggerPOXeroSync, triggerSOXeroSync, triggerSupplierCNXeroSync } from '@/lib/ims/xeroHooks';
 import { imsQuery } from '@/services/IMSMySQLService';
 
 
@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   const businessId: string = session.businessId;
 
   try {
-    const { type, id } = await req.json() as { type: 'po' | 'so'; id: number };
+    const { type, id } = await req.json() as { type: 'po' | 'so' | 'scn'; id: number };
     if (!type || !id) return NextResponse.json({ error: 'type and id required' }, { status: 400 });
 
     if (type === 'po') {
@@ -24,8 +24,10 @@ export async function POST(req: Request) {
       const status = rows[0]?.status ?? 'confirmed';
       const syncStatus = status === 'complete' ? 'complete' : 'confirmed';
       await triggerPOXeroSync(businessId, id, syncStatus);
-    } else {
+    } else if (type === 'so') {
       await triggerSOXeroSync(businessId, id, 'confirmed');
+    } else {
+      await triggerSupplierCNXeroSync(businessId, id);
     }
 
     return NextResponse.json({ success: true });
