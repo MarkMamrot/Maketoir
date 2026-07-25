@@ -19,6 +19,7 @@
 import { getValidAccessToken, xeroApiFetch } from '@/services/XeroService';
 import { query, execute } from '@/services/MySQLService';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
+import { buildCogsJournalLines } from '@/lib/xero/cogsPeriods';
 import fs from 'fs';
 import path from 'path';
 
@@ -35,6 +36,7 @@ interface AccountMapping {
   rounding?: string; // Optional dedicated account for cash rounding adjustments
   merchant_fees?: string;      // Shopify/payment processing fees (expense)
   shopify_clearing?: string;   // Shopify Payments clearing bank account
+  gift_card_liability?: string; // Outstanding gift card balances (liability)
   supplier_credit_note?: string; // Non-stock supplier credit lines (rebates/overcharges)
 }
 
@@ -1172,7 +1174,66 @@ export async function syncShopifyPayout(businessId: string, p: ShopifyPayoutSync
   }
 }
 
-// ─── Monthly COGS Journal ────────────────────────────────────────────────────
+// ─── COGS Journals ───────────────────────────────────────────────────────────
+
+export async function syncCogsJournal(input: {
+  businessId: string;
+  label: string;
+  journalDate: string;
+  amount: number;
+  runKind?: 'original' | 'adjustment';
+  locationId?: number;
+}): Promise<{ journalId: string; xeroState: string }> {
+  const accounts = await getAccountMappings(input.businessId);
+  const trackingMappings = await getTrackingMappings(input.businessId);
+
+  if (!accounts.cogs || !accounts.inventory_asset) {
+    await logSync(input.businessId, 'cogs_journal', null, null, 'skipped', 'Missing COGS or Inventory Asset account mapping');
+    throw new Error('Missing Xero account mappings: cogs and inventory_asset are required');
+  }
+
+  const runLabel = input.runKind === 'adjustment' ? 'COGS adjustment' : 'COGS';
+  const description = `${runLabel} - ${input.label}`;
+  const tracking = getTrackingForLocation(trackingMappings, input.locationId ?? null);
+  const journalLines = buildCogsJournalLines({
+    amount: input.amount,
+    cogsAccountCode: accounts.cogs,
+    inventoryAccountCode: accounts.inventory_asset,
+    description,
+  }).map(line => ({ ...line, Tracking: tracking }));
+
+  if (journalLines.length === 0) throw new Error('Cannot post a zero-value COGS journal');
+
+  const journal = {
+    Narration: `${description}${input.locationId ? ` (Location ${input.locationId})` : ''}`,
+    Date: input.journalDate,
+    JournalLines: journalLines,
+  };
+
+  try {
+    const result = await xeroApiFetch(input.businessId, '/ManualJournals', {
+      method: 'POST',
+      body: { ManualJournals: [journal] },
+    });
+    const posted = result.ManualJournals?.[0];
+    const journalId = posted?.ManualJournalID;
+    if (!journalId) throw new Error('Xero did not return a ManualJournalID');
+    const xeroState = posted?.Status ?? 'POSTED';
+    await logSync(
+      input.businessId,
+      'cogs_journal',
+      null,
+      journalId,
+      'success',
+      `${description}: $${Math.abs(input.amount).toFixed(2)}`,
+      xeroState,
+    );
+    return { journalId, xeroState };
+  } catch (err: any) {
+    await logSync(input.businessId, 'cogs_journal', null, null, 'error', `${description}: ${err.message}`);
+    throw err;
+  }
+}
 
 /**
  * Post a manual journal: DR Cost of Goods Sold, CR Inventory Asset.
@@ -1184,34 +1245,16 @@ export async function syncMonthlyCOGSJournal(
   totalCOGS: number,
   locationId?: number,
 ): Promise<string | null> {
-  const accounts = await getAccountMappings(businessId);
-  const trackingMappings = await getTrackingMappings(businessId);
-
-  if (!accounts.cogs || !accounts.inventory_asset) {
-    await logSync(businessId, 'cogs_journal', null, null, 'skipped', 'Missing COGS or Inventory Asset account mapping');
-    return null;
-  }
-
-  const tracking = getTrackingForLocation(trackingMappings, locationId ?? null);
-
-  const journal = {
-    Narration: `Monthly COGS — ${month}${locationId ? ` (Location ${locationId})` : ''}`,
-    Date: `${month}-01`,
-    JournalLines: [
-      { AccountCode: accounts.cogs, DebitAmount: totalCOGS, Tracking: tracking },
-      { AccountCode: accounts.inventory_asset, CreditAmount: totalCOGS, Tracking: tracking },
-    ],
-  };
-
-  try {
-    const result = await xeroApiFetch(businessId, '/ManualJournals', { method: 'POST', body: { ManualJournals: [journal] } });
-    const journalId = result.ManualJournals?.[0]?.ManualJournalID ?? null;
-    await logSync(businessId, 'cogs_journal', null, journalId, 'success', `COGS journal ${month}: $${totalCOGS.toFixed(2)}`);
-    return journalId;
-  } catch (err: any) {
-    await logSync(businessId, 'cogs_journal', null, null, 'error', err.message);
-    return null;
-  }
+  const [year, monthNumber] = month.split('-').map(Number);
+  const journalDate = new Date(Date.UTC(year, monthNumber, 0)).toISOString().slice(0, 10);
+  const result = await syncCogsJournal({
+    businessId,
+    label: month,
+    journalDate,
+    amount: totalCOGS,
+    locationId,
+  });
+  return result.journalId;
 }
 
 // ─── POS EOD → Xero (one invoice per payment method) ─────────────────────────

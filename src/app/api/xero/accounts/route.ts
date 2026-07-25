@@ -60,6 +60,7 @@ export async function POST(req: Request) {
   const validRoles = [
     'inventory_asset', 'inventory_in_transit', 'cogs', 'sales_revenue',
     'credit_note', 'freight', 'stock_adjustment', 'merchant_fees', 'shopify_clearing',
+    'gift_card_liability',
     'supplier_credit_note',
   ];
   if (!validRoles.includes(roleKey)) {

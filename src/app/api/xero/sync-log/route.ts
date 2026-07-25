@@ -6,6 +6,7 @@
  *   - Individual wholesale/b2b SOs (so_invoice) — NOT POS or Online SOs
  *   - POS EOD reconciliation entries (eod_reconciliation) — per-method per-day Xero invoices
  *   - Stocktake journals (stocktake_journal)
+ *   - COGS originals and adjustments (cogs_journal)
  *   - Daily Online batch summaries (online_batch) from ims_sales_orders WHERE so_type='online'
  *
  * NOTE: POS sales are NOT shown as computed batch rows.  The actual Xero pushes happen
@@ -22,7 +23,7 @@ import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 import { query } from '@/services/MySQLService';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { xeroApiFetch } from '@/services/XeroService';
-import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { getImsDbNameStrict } from '@/lib/db/BusinessRegistry';
 
 /** Extract "YYYY-MM-DD" from a MySQL DATE value (Date object or string). */
 function batchDateStr(v: unknown): string {
@@ -85,7 +86,10 @@ export async function GET(req: Request) {
   const databaseId = searchParams.get('databaseId');
   const denied = assertBusinessAccess(user, databaseId);
   if (denied) return denied;
-  await enterImsForBusiness(databaseId!);
+  const imsDbName = await getImsDbNameStrict(databaseId!);
+  if (!imsDbName) {
+    return NextResponse.json({ error: 'IMS tenant database is not configured.' }, { status: 409 });
+  }
 
   // NOTE: limit is inlined into SQL below (not a placeholder) because mysql2
   // prepared statements (pool.execute) reject `LIMIT ?`. It is clamped to a
@@ -105,6 +109,8 @@ export async function GET(req: Request) {
           AND (po.is_historical = 0 OR po.is_historical IS NULL)
         ORDER BY po.order_date DESC, po.id DESC
         LIMIT ${limit}`,
+      [],
+      imsDbName,
     );
 
     // ── 2. Wholesale/B2B SOs only — exclude POS, Online, and historical Cin7 records ──
@@ -119,6 +125,8 @@ export async function GET(req: Request) {
           AND so.status NOT IN ('cancelled','draft')
         ORDER BY so.order_date DESC, so.id DESC
         LIMIT ${limit}`,
+      [],
+      imsDbName,
     );
 
     // ── 3. Online daily batches from ims_sales_orders WHERE so_type='online' ──
@@ -134,6 +142,8 @@ export async function GET(req: Request) {
         GROUP BY DATE(so.order_date)
         ORDER BY batch_date DESC
         LIMIT ${limit}`,
+      [],
+      imsDbName,
     );
 
     // ── 4. Build IDs / keys for sync log lookups ──────────────────────────
@@ -148,6 +158,7 @@ export async function GET(req: Request) {
     let soLogs: any[] = [];
     let batchLogs: any[] = [];
     let eventLogs: any[] = [];
+    let cogsRuns: any[] = [];
 
     try {
       if (poIds.length > 0) {
@@ -216,6 +227,26 @@ export async function GET(req: Request) {
       // xero_sync_log table may not yet exist — return PO/SO list with null sync status
       // rather than failing the whole request.
       console.warn('[xero/sync-log] xero_sync_log unavailable (table may not exist yet):', logErr?.message);
+    }
+
+    try {
+      cogsRuns = await query<any>(
+        `SELECT id, period_start, period_end, journal_date, frequency, run_kind,
+                target_amount, posted_delta, included_movement_count,
+                missing_cost_movement_count, zero_cost_movement_count,
+                excluded_movement_count, orphaned_movement_count,
+                status, xero_id, xero_state, error_detail, override_reason,
+                created_at AS synced_at
+           FROM xero_cogs_journal_runs
+          WHERE business_id = ?
+          ORDER BY created_at DESC
+          LIMIT ${limit}`,
+        [databaseId],
+      );
+    } catch (cogsErr: any) {
+      // The COGS tables are deployed separately; older Xero history remains usable
+      // until that migration has run.
+      console.warn('[xero/sync-log] xero_cogs_journal_runs unavailable:', cogsErr?.message);
     }
 
     // ── 6. Index logs ────────────────────────────────────────────────────────────────────────────
@@ -329,8 +360,45 @@ export async function GET(req: Request) {
       payments: [],
     }));
 
+    const cogsEntries = cogsRuns.map((run: any) => {
+      const startDate = batchDateStr(run.period_start);
+      const endExclusive = batchDateStr(run.period_end);
+      const endDate = endExclusive
+        ? new Date(`${endExclusive}T00:00:00Z`).toISOString().slice(0, 10)
+        : '';
+      if (endDate) {
+        const date = new Date(`${endDate}T00:00:00Z`);
+        date.setUTCDate(date.getUTCDate() - 1);
+        run.period_end_inclusive = date.toISOString().slice(0, 10);
+      }
+      const quality = [
+        run.missing_cost_movement_count ? `${run.missing_cost_movement_count} missing-cost` : null,
+        run.zero_cost_movement_count ? `${run.zero_cost_movement_count} zero-cost` : null,
+        run.excluded_movement_count ? `${run.excluded_movement_count} imported excluded` : null,
+        run.orphaned_movement_count ? `${run.orphaned_movement_count} orphaned` : null,
+      ].filter(Boolean).join(', ');
+      const runLabel = run.run_kind === 'adjustment' ? 'Adjustment' : 'Original';
+      return {
+        sync_type: 'cogs_journal',
+        reference_id: null,
+        reference: `COGS · ${startDate} to ${run.period_end_inclusive || endExclusive} · ${runLabel}`,
+        contact_name: quality || `${run.included_movement_count} included movements`,
+        amount: Number(run.posted_delta),
+        item_date: batchDateStr(run.journal_date),
+        is_historical: 0,
+        xero_sync_status: null,
+        log_id: run.id,
+        xero_id: run.xero_id ?? null,
+        last_sync_status: run.status,
+        last_xero_state: run.xero_state ?? null,
+        last_sync_detail: run.error_detail || (run.override_reason ? `Override: ${run.override_reason}` : `Target $${Number(run.target_amount).toFixed(2)}`),
+        last_sync_at: run.synced_at,
+        payments: [],
+      };
+    });
+
     // Merge + sort by item_date DESC, then slice to limit
-    const entries = [...poEntries, ...soEntries, ...onlineBatchEntries, ...eventEntries]
+    const entries = [...poEntries, ...soEntries, ...onlineBatchEntries, ...eventEntries, ...cogsEntries]
       .sort((a, b) => {
         const da = a.item_date ? new Date(a.item_date).getTime() : 0;
         const db2 = b.item_date ? new Date(b.item_date).getTime() : 0;

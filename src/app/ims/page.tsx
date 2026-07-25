@@ -14495,6 +14495,14 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
   );
   const [testing, setTesting] = React.useState(false);
   const [testResult, setTestResult] = React.useState<{ ok: boolean; message: string } | null>(null);
+  const [cogsSettings, setCogsSettings] = React.useState<{
+    enabled: boolean; frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly';
+    timeZone: string; reliableFrom: string | null;
+  } | null>(null);
+  const [savingCogs, setSavingCogs] = React.useState(false);
+  const [cogsBusy, setCogsBusy] = React.useState<'preview' | 'post' | null>(null);
+  const [cogsMessage, setCogsMessage] = React.useState<{ ok: boolean; text: string } | null>(null);
+  const [cogsPreview, setCogsPreview] = React.useState<any>(null);
 
   // Advisor access to the Account & Tracking Mapping (stored in ims_settings).
   const [advisorMapping, setAdvisorMapping] = React.useState<boolean | null>(null);
@@ -14514,6 +14522,81 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
         body: JSON.stringify({ advisor_xero_mapping_enabled: enabled ? 'true' : 'false' }),
       });
     } finally { setSavingAdvisor(false); }
+  };
+
+  React.useEffect(() => {
+    fetch(`/api/xero/cogs/settings?databaseId=${encodeURIComponent(getBusinessId())}`)
+      .then(async r => r.ok ? r.json() : Promise.reject(new Error((await r.json()).error || 'Unable to load COGS settings')))
+      .then(j => setCogsSettings(j.settings))
+      .catch(e => setCogsMessage({ ok: false, text: e.message }));
+  }, []);
+
+  const saveCogsSettings = async () => {
+    if (!cogsSettings) return;
+    setSavingCogs(true);
+    setCogsMessage(null);
+    try {
+      const res = await fetch('/api/xero/cogs/settings', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId: getBusinessId(), ...cogsSettings }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unable to save COGS settings');
+      setCogsMessage({ ok: true, text: 'COGS schedule saved.' });
+    } catch (e: any) {
+      setCogsMessage({ ok: false, text: e.message });
+    } finally { setSavingCogs(false); }
+  };
+
+  const previewCogs = async () => {
+    if (!cogsSettings) return;
+    setCogsBusy('preview');
+    setCogsMessage(null);
+    try {
+      const res = await fetch('/api/xero/cogs/preview', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId: getBusinessId(), frequency: cogsSettings.frequency, timeZone: cogsSettings.timeZone }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unable to preview COGS');
+      setCogsPreview(data);
+    } catch (e: any) {
+      setCogsMessage({ ok: false, text: e.message });
+    } finally { setCogsBusy(null); }
+  };
+
+  const postCogs = async () => {
+    if (!cogsSettings || !cogsPreview) return;
+    let overrideReason: string | undefined;
+    if (cogsPreview.calculation?.blocked) {
+      const reason = window.prompt('This period contains missing or zero costs. Enter an override reason to post the understated amount, or Cancel to fix the costs first.');
+      if (!reason?.trim()) return;
+      overrideReason = reason.trim();
+    } else if (!confirm(`Post COGS for ${cogsPreview.period?.label}?`)) return;
+
+    setCogsBusy('post');
+    setCogsMessage(null);
+    try {
+      const res = await fetch('/api/xero/cogs/post', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          databaseId: getBusinessId(), frequency: cogsSettings.frequency,
+          timeZone: cogsSettings.timeZone, overrideReason,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok && res.status !== 202) throw new Error(data.error || data.reason || 'Unable to post COGS');
+      const text = data.outcome === 'posted'
+        ? `${data.runKind === 'adjustment' ? 'Adjustment' : 'COGS journal'} posted to Xero.`
+        : data.outcome === 'current'
+          ? 'This period already matches the amount posted to Xero.'
+          : data.outcome === 'unknown'
+            ? 'Xero did not confirm the result. Check Xero before retrying.'
+            : `COGS post status: ${data.outcome}.`;
+      setCogsMessage({ ok: data.outcome !== 'unknown', text });
+    } catch (e: any) {
+      setCogsMessage({ ok: false, text: e.message });
+    } finally { setCogsBusy(null); }
   };
 
   const lastRefreshed = tokenExpiry ? tokenExpiry.toLocaleString() : null;
@@ -14617,6 +14700,81 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
         </div>
       </div>
 
+      {/* COGS schedule */}
+      <div style={{ gridColumn: '1 / -1', padding: 20, background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>COGS journals</h3>
+            <p style={{ margin: '5px 0 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>Post completed calendar periods to Cost of Goods Sold and Inventory Asset.</p>
+          </div>
+          {cogsSettings && (
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={cogsSettings.enabled} onChange={e => setCogsSettings(s => s ? ({ ...s, enabled: e.target.checked }) : s)} />
+              Automatic sync
+            </label>
+          )}
+        </div>
+
+        {!cogsSettings ? (
+          <div style={{ marginTop: 16, fontSize: 12, color: 'var(--sv-text-dim)' }}>Loading COGS settings...</div>
+        ) : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginTop: 16 }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)' }}>Frequency</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
+                  {(['daily', 'weekly', 'monthly', 'quarterly'] as const).map(frequency => (
+                    <button key={frequency} onClick={() => setCogsSettings(s => s ? ({ ...s, frequency }) : s)} style={{
+                      border: 'none', borderRight: frequency === 'quarterly' ? 'none' : '1px solid var(--sv-etch)', padding: '7px 5px', cursor: 'pointer',
+                      background: cogsSettings.frequency === frequency ? 'var(--sv-action)' : 'var(--sv-bg-1)',
+                      color: cogsSettings.frequency === frequency ? '#fff' : 'var(--sv-text-main)', fontSize: 11, textTransform: 'capitalize',
+                    }}>{frequency}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)' }}>First reliable COGS date</label>
+                <input type="date" value={cogsSettings.reliableFrom || ''} onChange={e => setCogsSettings(s => s ? ({ ...s, reliableFrom: e.target.value || null }) : s)} style={{ width: '100%', boxSizing: 'border-box', padding: '7px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)' }}>Timezone</label>
+                <select value={cogsSettings.timeZone} onChange={e => setCogsSettings(s => s ? ({ ...s, timeZone: e.target.value }) : s)} style={{ width: '100%', padding: '7px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}>
+                  <option value="Australia/Sydney">Sydney</option>
+                  <option value="Australia/Melbourne">Melbourne</option>
+                  <option value="Australia/Brisbane">Brisbane</option>
+                  <option value="Australia/Adelaide">Adelaide</option>
+                  <option value="Australia/Perth">Perth</option>
+                  <option value="Australia/Hobart">Hobart</option>
+                  <option value="Australia/Darwin">Darwin</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+              <button onClick={saveCogsSettings} disabled={savingCogs} style={{ padding: '7px 14px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: savingCogs ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>{savingCogs ? 'Saving...' : 'Save schedule'}</button>
+              <button onClick={previewCogs} disabled={cogsBusy !== null} style={{ padding: '7px 14px', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: cogsBusy ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>{cogsBusy === 'preview' ? 'Calculating...' : 'Preview completed period'}</button>
+            </div>
+
+            {cogsPreview && (
+              <div style={{ marginTop: 14, padding: 12, border: `1px solid ${cogsPreview.calculation?.blocked ? 'rgba(248,113,113,.4)' : 'var(--sv-etch)'}`, borderRadius: 6, background: cogsPreview.calculation?.blocked ? 'rgba(248,113,113,.06)' : 'var(--sv-bg-1)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div>
+                    <strong style={{ color: 'var(--sv-text-strong)', fontSize: 13 }}>{cogsPreview.period?.label}</strong>
+                    <span style={{ marginLeft: 10, color: 'var(--sv-text-main)', fontSize: 13 }}>${Number(cogsPreview.calculation?.totalCOGS || 0).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <div style={{ marginTop: 4, fontSize: 11, color: 'var(--sv-text-dim)' }}>
+                      {cogsPreview.calculation?.includedMovementCount || 0} included movements · {cogsPreview.calculation?.excludedHistoricalMovementCount || 0} imported excluded · {cogsPreview.calculation?.orphanedMovementCount || 0} orphaned
+                    </div>
+                    {cogsPreview.calculation?.blocked && <div style={{ marginTop: 5, fontSize: 11, color: '#f87171' }}>{cogsPreview.calculation?.missingCostMovementCount || 0} missing-cost and {cogsPreview.calculation?.zeroCostMovementCount || 0} zero-cost movements require correction or an override reason.</div>}
+                  </div>
+                  <button onClick={postCogs} disabled={cogsBusy !== null || Number(cogsPreview.calculation?.totalCOGS || 0) === 0} style={{ padding: '7px 14px', background: cogsPreview.calculation?.blocked ? 'rgba(248,113,113,.15)' : 'rgba(16,185,129,.15)', color: cogsPreview.calculation?.blocked ? '#f87171' : '#34d399', border: `1px solid ${cogsPreview.calculation?.blocked ? 'rgba(248,113,113,.35)' : 'rgba(16,185,129,.35)'}`, borderRadius: 6, cursor: cogsBusy ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>{cogsBusy === 'post' ? 'Posting...' : 'Post to Xero'}</button>
+                </div>
+              </div>
+            )}
+            {cogsMessage && <div style={{ marginTop: 10, fontSize: 12, color: cogsMessage.ok ? '#34d399' : '#f87171' }}>{cogsMessage.text}</div>}
+          </>
+        )}
+      </div>
+
       {/* Actions */}
       <div style={{ gridColumn: '1 / -1', padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
         <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Quick Actions</h3>
@@ -14626,9 +14784,6 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
           </button>
           <button disabled style={{ padding: '8px 16px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: 'not-allowed', fontSize: 13, color: 'var(--sv-text-dim)' }}>
             Post Daily Sales Batch
-          </button>
-          <button disabled style={{ padding: '8px 16px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: 'not-allowed', fontSize: 13, color: 'var(--sv-text-dim)' }}>
-            Post Monthly COGS Journal
           </button>
         </div>
         <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>
@@ -14869,6 +15024,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
     { key: 'stock_adjustment', label: 'Stock Adjustment / Shrinkage', desc: 'Stocktake variance expense account (P&L) — used for stock write-offs and surpluses', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'merchant_fees', label: 'Merchant / Payment Fees', desc: 'Shopify Payments processing fees expense (P&L)', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'shopify_clearing', label: 'Shopify Payments Clearing', desc: 'Bank/clearing account that receives each payout; reconciles against the actual deposit', filter: (a: any) => a.type === 'BANK' },
+    { key: 'gift_card_liability', label: 'Gift Card Liability', desc: 'Liability account for outstanding gift card balances', filter: (a: any) => a.class === 'LIABILITY' },
     { key: 'supplier_credit_note', label: 'Supplier Credit Notes', desc: 'Account for non-stock supplier credit lines (rebates / overcharges). Returned-stock lines post to Inventory Asset. Defaults to COGS if unset.', filter: (a: any) => a.class === 'EXPENSE' || a.class === 'ASSET' },
   ].filter(r => !(r.key === 'freight' && freightTreatment === 'capitalise'));
 
@@ -15068,7 +15224,14 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
   const [adding, setAdding]     = useState(false);
   const [newForm, setNewForm]   = useState({ gateway_name: '', display_name: '', clearing_account_code: '', clearing_account_name: '', fee_account_code: '', fee_account_name: '' });
   const [saving, setSaving]     = useState(false);
-  const [detectedGateways, setDetectedGateways] = useState<string[]>([]);
+  const [discoveredMethods, setDiscoveredMethods] = useState<{
+    gateway_name: string;
+    display_name: string;
+    order_count: number;
+    example_order: string | null;
+  }[]>([]);
+  const [loadingMethods, setLoadingMethods] = useState(false);
+  const [methodError, setMethodError] = useState<string | null>(null);
 
   const bid = getBusinessId();
   const bankAccounts = accounts.filter((a: any) => a.type === 'BANK' || a.class === 'ASSET');
@@ -15080,18 +15243,24 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
   };
   useEffect(() => { load(); }, []);
 
-  // Auto-detect gateway names already in the orders DB for convenience.
-  useEffect(() => {
+  const loadDiscoveredMethods = async () => {
     if (!bid) return;
-    fetch(`/api/ims/online-sales/day?date=${new Date().toISOString().slice(0, 10)}&limit=0&_gateways=1`).catch(() => {});
-    // Quick heuristic: load last day's orders and collect gateways shown.
-    fetch(`/api/ims/online-sales?databaseId=${encodeURIComponent(bid)}`).then(r => r.json()).then(d => {
-      const days: any[] = d.days ?? [];
-      if (!days.length) return;
-      // We don't have a gateway-list endpoint; provide common AU defaults instead.
-      setDetectedGateways(['paypal', 'afterpay', 'zip', 'stripe', 'braintree', 'square']);
-    }).catch(() => {});
-  }, [bid]);
+    setLoadingMethods(true);
+    setMethodError(null);
+    try {
+      const res = await fetch('/api/ims/shopify/payment-methods');
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || `Failed to load gateway methods (${res.status})`);
+      setDiscoveredMethods(Array.isArray(data.methods) ? data.methods : []);
+    } catch (e: any) {
+      setMethodError(e.message);
+      setDiscoveredMethods([]);
+    } finally {
+      setLoadingMethods(false);
+    }
+  };
+
+  useEffect(() => { loadDiscoveredMethods(); }, [bid]);
 
   const save = async () => {
     if (!newForm.gateway_name || !newForm.clearing_account_code) return alert('Gateway name and clearing account are required.');
@@ -15125,10 +15294,52 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
         <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Online Gateway Clearing Accounts</h3>
         <button onClick={() => setAdding(p => !p)} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer' }}>+ Add gateway</button>
+        <button onClick={loadDiscoveredMethods} disabled={loadingMethods} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', cursor: loadingMethods ? 'not-allowed' : 'pointer' }}>
+          {loadingMethods ? 'Refreshing…' : 'Refresh Shopify gateways'}
+        </button>
       </div>
       <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
         Maps each online payment gateway (PayPal, Afterpay, etc.) to a dedicated Xero bank/clearing account. When configured, the nightly batch posts a <strong>separate invoice per gateway per day</strong> and immediately applies a payment to the clearing account — ready for bank reconciliation. Gateways with no mapping still post to the combined daily invoice. Shopify Payments is handled separately via the payout sync.
       </p>
+
+      <div style={{ marginBottom: 12, padding: '12px 14px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 8 }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Discovered Shopify payment methods</div>
+            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Pulled from recent Shopify orders so you can map only the gateways you actually use.</div>
+          </div>
+          {methodError && <span style={{ fontSize: 11, color: 'var(--sv-red)' }}>{methodError}</span>}
+        </div>
+        {discoveredMethods.length > 0 ? (
+          <div style={{ display: 'grid', gap: 8 }}>
+            {discoveredMethods.map(method => (
+              <div key={method.gateway_name} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.4fr) auto auto', gap: 10, alignItems: 'center', padding: '8px 10px', background: 'var(--sv-bg-2)', borderRadius: 6, border: '1px solid var(--sv-etch)' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-main)' }}>{method.display_name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{method.gateway_name}</div>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', textAlign: 'right' }}>
+                  {method.order_count} order{method.order_count === 1 ? '' : 's'}
+                </div>
+                <button
+                  onClick={() => setNewForm(f => ({
+                    ...f,
+                    gateway_name: method.gateway_name,
+                    display_name: method.display_name,
+                  }))}
+                  style={{ fontSize: 11, padding: '4px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-main)', cursor: 'pointer' }}
+                >
+                  Use
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>
+            {loadingMethods ? 'Loading payment methods…' : 'No Shopify payment methods found yet. Run an order import first or refresh after new orders arrive.'}
+          </div>
+        )}
+      </div>
 
       {mappings.length > 0 && (
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 10, border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden' }}>
@@ -15169,7 +15380,7 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
               <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Gateway name (match pattern) *</label>
               <input list="gateways-list" value={newForm.gateway_name} onChange={e => setNewForm(f => ({ ...f, gateway_name: e.target.value.toLowerCase(), display_name: f.display_name || e.target.value }))}
                 placeholder="e.g. paypal" style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12 }} />
-              <datalist id="gateways-list">{detectedGateways.map(g => <option key={g} value={g} />)}</datalist>
+              <datalist id="gateways-list">{discoveredMethods.map(g => <option key={g.gateway_name} value={g.gateway_name} />)}</datalist>
               <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginTop: 2 }}>Matched using LIKE against payment_gateway column (lowercase). E.g. "paypal" matches "PayPal Express", "paypal".</div>
             </div>
             <div>
@@ -15217,6 +15428,9 @@ function XeroStatusBadge({ status, isHistorical }: { status: string | null; isHi
   if (isHistorical) return <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(251,191,36,.15)', color: '#fbbf24' }}>Historical</span>;
   if (status === 'success') return <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(16,185,129,.15)', color: '#34d399' }}>Synced</span>;
   if (status === 'error') return <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(248,113,113,.15)', color: '#f87171' }}>Failed</span>;
+  if (status === 'failed') return <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(248,113,113,.15)', color: '#f87171' }}>Failed</span>;
+  if (status === 'unknown') return <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(251,191,36,.15)', color: '#fbbf24' }}>Check Xero</span>;
+  if (status === 'pending') return <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(56,189,248,.15)', color: '#38bdf8' }}>Posting</span>;
   if (status === 'skipped') return <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(156,163,175,.15)', color: '#9ca3af' }}>Skipped</span>;
   return <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(248,113,113,.15)', color: '#f87171' }}>Not Synced</span>;
 }
@@ -15310,7 +15524,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
   const xeroLink = (syncType: string, id: string): string => {
     if (syncType === 'po_bill' || syncType === 'po_bill_void' || syncType === 'po_payment')
       return `https://go.xero.com/AccountsPayable/View.aspx?InvoiceID=${id}`;
-    if (syncType === 'stocktake_journal')
+    if (syncType === 'stocktake_journal' || syncType === 'cogs_journal')
       return `https://go.xero.com/ManualJournals/View.aspx?manualJournalID=${id}`;
     return `https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${id}`;
   };
