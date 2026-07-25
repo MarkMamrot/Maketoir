@@ -14744,15 +14744,16 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
       <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
         <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sync Configuration</h3>
         <div style={{ fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 2 }}>
-          <div>• POs → Xero Bills <span style={{ color: 'var(--sv-text-dim)' }}>(on create/payment/receive)</span></div>
-          <div>• SOs → Xero Invoices <span style={{ color: 'var(--sv-text-dim)' }}>(wholesale: individual)</span></div>
-          <div>• POS Sales → Xero <span style={{ color: 'var(--sv-text-dim)' }}>(daily batch per location, ~1am)</span></div>
-          <div>• Online Sales — all gateways → Xero <span style={{ color: 'var(--sv-text-dim)' }}>(daily batch ~1am, split by gateway if clearing accounts configured)</span></div>
-          <div>• Customer + Supplier Credit Notes → Xero Credit Notes <span style={{ color: 'var(--sv-text-dim)' }}>(queued on completion, visible in Sync History, retry/void supported)</span></div>
-          <div>• COGS Journal <span style={{ color: 'var(--sv-text-dim)' }}>(daily/weekly/monthly/quarterly schedule, with manual preview/post)</span></div>
+          <div>• POs → Xero Bills <span style={{ color: 'var(--sv-text-dim)' }}>(DRAFT when ordered or partially received; AUTHORISED when fully received; payments applied separately)</span></div>
+          <div>• Wholesale SOs → Xero Invoices <span style={{ color: 'var(--sv-text-dim)' }}>(DRAFT when confirmed; AUTHORISED when fulfilled; payments applied separately)</span></div>
+          <div>• POS EOD → Xero Invoices <span style={{ color: 'var(--sv-text-dim)' }}>(on EOD save or manual retry; one AUTHORISED invoice per counted payment method and register session)</span></div>
+          <div>• Online Sales → Xero Invoices <span style={{ color: 'var(--sv-text-dim)' }}>(completed days only; nightly schedule with login catch-up)</span></div>
+          <div>• Customer Credit Notes → Xero Credit Notes <span style={{ color: 'var(--sv-text-dim)' }}>(queued as AUTHORISED on completion; retry and void supported)</span></div>
+          <div>• Supplier Credit Notes → Xero Credit Notes <span style={{ color: 'var(--sv-text-dim)' }}>(queued as DRAFT on completion; retry and void supported)</span></div>
+          <div>• COGS Journal <span style={{ color: 'var(--sv-text-dim)' }}>(completed calendar periods on a daily, weekly, monthly or quarterly schedule; manual preview/post available)</span></div>
         </div>
         <div style={{ marginTop: 10, fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6, padding: '8px 10px', background: 'rgba(96,165,250,.07)', borderRadius: 6 }}>
-          💡 Online sales are posted through the nightly batch. Gateways with a clearing mapping post as separate (day × gateway) invoices; unmapped gateways post into the combined daily invoice.
+          Online gateway detail: with no clearing mappings, the scheduled sync posts one combined invoice per day. Once any mapping exists, scheduled runs post one invoice per day and gateway; mapped gateways also receive a payment into their clearing account, while unmapped gateways remain unpaid in Xero. Login catch-up posts one combined invoice per day.
         </div>
       </div>
 
