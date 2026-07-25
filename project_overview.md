@@ -51,3 +51,9 @@ Target user: retail store owners/managers who need a unified view of POS sales, 
 - **Key Integrations:** Cin7 (inventory), Xero (accounting), Shopify (online sales), Google Ads, Meta Ads, Google Analytics, Google Sheets (legacy reporting)
 - **Tax:** Australian GST 10%. All POS prices stored **tax-inclusive**. GST is always extracted, never added.
 - **POS stack:** Browser-based POS at `/pos`, service worker for offline shell, localStorage for device config + product cache + offline queue
+
+### Customer Returns and Store Credit
+- IMS customer credit notes are the authoritative return records. Completing a manual IMS credit note issues the customer store credit; drafts do not affect the balance.
+- POS returns automatically create completed `source='pos'` IMS credit notes. Store-credit returns issue credit through that note; cash/card refunds create the note without changing store credit.
+- POS-sourced credit notes remain in the existing POS/EOD Xero accounting flow and are not posted as separate Xero credit notes. Shopify credit notes remain externally settled by Shopify.
+- `ims_contacts.store_credit` is a read-only cached balance. Runtime mutations must be recorded through `store_credit_transactions`; generic contact updates must never replace it.

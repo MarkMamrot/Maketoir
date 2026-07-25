@@ -114,11 +114,11 @@ describe('/api/xero/pos-payment-mappings', () => {
     }));
 
     expect(response.status).toBe(400);
-    expect((await response.json()).error).toContain('active Xero bank account');
+    expect((await response.json()).error).toContain('active Xero account that accepts payments');
     expect(mockExecute.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO'))).toBe(false);
   });
 
-  it('rejects a bank account that does not accept payments', async () => {
+  it('accepts a Xero bank account even when the optional payment flag is false', async () => {
     mockImsQuery.mockResolvedValueOnce([{ id: 2 }]);
     mockXeroApiFetch.mockResolvedValueOnce({ Accounts: [{
       AccountID: 'bank-2', Code: '092', Name: 'Locked Bank', Type: 'BANK', Status: 'ACTIVE', EnablePaymentsToAccount: false,
@@ -129,8 +129,24 @@ describe('/api/xero/pos-payment-mappings', () => {
       xeroAccountId: 'bank-2', xeroAccountCode: '092',
     }));
 
-    expect(response.status).toBe(400);
-    expect(mockExecute.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO'))).toBe(false);
+    expect(response.status).toBe(200);
+    expect(mockExecute.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO xero_pos_clearing_mappings'))).toBe(true);
+  });
+
+  it('accepts a non-bank clearing account that Xero explicitly enables for payments', async () => {
+    mockImsQuery.mockResolvedValueOnce([{ id: 2 }]);
+    mockXeroApiFetch.mockResolvedValueOnce({ Accounts: [{
+      AccountID: 'clearing-1', Code: '610', Name: 'Card Clearing', Type: 'CURRENT', Status: 'ACTIVE', EnablePaymentsToAccount: true,
+    }] });
+
+    const response = await POST(postRequest({
+      databaseId: 'biz-1', locationId: 2, paymentMethod: 'Card',
+      xeroAccountId: 'clearing-1', xeroAccountCode: '610',
+    }));
+
+    expect(response.status).toBe(200);
+    const upsert = mockExecute.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO xero_pos_clearing_mappings'));
+    expect(upsert?.[1]).toEqual(['biz-1', 2, 'Card', 'clearing-1', '610', 'Card Clearing']);
   });
 
   it('removes one location and method cell without calling Xero', async () => {

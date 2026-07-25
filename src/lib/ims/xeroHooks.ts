@@ -299,9 +299,9 @@ export async function triggerSOXeroVoid(businessId: string, soId: number): Promi
  * Fire-and-forget — called after CN.complete().
  */
 export async function triggerCNXeroSync(businessId: string, cnId: number): Promise<void> {
-  if (!(await isXeroConnected(businessId))) return;
   const cn = await ImsCNRepo.get(cnId, businessId);
-  if (!cn || cn.status !== 'complete') return;
+  if (!cn || cn.status !== 'complete' || cn.source === 'pos') return;
+  if (!(await isXeroConnected(businessId))) return;
 
   await withRetry(
     () => syncCNAsCreditNote(businessId, {

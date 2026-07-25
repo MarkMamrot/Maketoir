@@ -30,7 +30,11 @@ const TABLE_DDLS = [
     original_so_number  VARCHAR(100) NULL,
     location_id         INT          NOT NULL,
     status              ENUM('draft','awaiting_product','complete','cancelled') NOT NULL DEFAULT 'draft',
-    source              ENUM('manual','shopify') NOT NULL DEFAULT 'manual',
+    source              ENUM('manual','shopify','pos') NOT NULL DEFAULT 'manual',
+    pos_sale_id         INT          NULL,
+    settlement_method   ENUM('store_credit','refund','external') NOT NULL DEFAULT 'store_credit',
+    settlement_status   ENUM('pending','complete','error') NOT NULL DEFAULT 'pending',
+    store_credit_transaction_id INT NULL,
     shopify_return_id   VARCHAR(100) NULL,
     cn_date             DATE         NOT NULL,
     completed_at        DATETIME     NULL,
@@ -50,7 +54,8 @@ const TABLE_DDLS = [
     INDEX idx_business (business_id),
     INDEX idx_status (status),
     INDEX idx_customer (customer_id),
-    INDEX idx_shopify_return (business_id, shopify_return_id)
+    INDEX idx_shopify_return (business_id, shopify_return_id),
+    UNIQUE INDEX uq_cn_pos_sale (business_id, pos_sale_id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS ims_credit_note_items (
     id           INT AUTO_INCREMENT PRIMARY KEY,
@@ -168,7 +173,11 @@ const COLUMNS = [
   // ── ims_credit_notes ─────────────────────────────────────────────────────
   ['ims_credit_notes', 'so_id',               'INT NULL'],
   ['ims_credit_notes', 'original_so_number',  'VARCHAR(100) NULL'],
-  ['ims_credit_notes', 'source',              "ENUM('manual','shopify') NOT NULL DEFAULT 'manual'"],
+  ['ims_credit_notes', 'source',              "ENUM('manual','shopify','pos') NOT NULL DEFAULT 'manual'"],
+  ['ims_credit_notes', 'pos_sale_id',         'INT NULL'],
+  ['ims_credit_notes', 'settlement_method',   "ENUM('store_credit','refund','external') NOT NULL DEFAULT 'store_credit'"],
+  ['ims_credit_notes', 'settlement_status',   "ENUM('pending','complete','error') NOT NULL DEFAULT 'pending'"],
+  ['ims_credit_notes', 'store_credit_transaction_id', 'INT NULL'],
   ['ims_credit_notes', 'shopify_return_id',   'VARCHAR(100) NULL'],
   ['ims_credit_notes', 'completed_at',        'DATETIME NULL'],
   ['ims_credit_notes', 'xero_credit_note_id', 'VARCHAR(100) NULL'],
@@ -216,11 +225,21 @@ const COLUMNS = [
   ['ims_contacts', 'password_hash',   'VARCHAR(255) NULL'],
   ['ims_contacts', 'cin7_contact_id', 'INT NULL'],
   ['ims_contacts', 'shopify_customer_id', 'VARCHAR(100) NULL'],
+  // ── pos_sales / store_credit_transactions ───────────────────────────────
+  ['pos_sales', 'customer_id',       'INT NULL'],
+  ['pos_sales', 'credit_note_id',    'INT NULL'],
+  ['store_credit_transactions', 'credit_note_id',   'INT NULL'],
+  ['store_credit_transactions', 'idempotency_key',  'VARCHAR(191) NULL'],
 ];
 
 const INDEXES = [
   ['ims_contacts', 'idx_shopify_customer_id', 'UNIQUE INDEX `idx_shopify_customer_id` (`business_id`, `shopify_customer_id`)'],
   ['ims_credit_notes', 'idx_shopify_return', 'INDEX `idx_shopify_return` (`business_id`, `shopify_return_id`)'],
+  ['ims_credit_notes', 'uq_cn_pos_sale', 'UNIQUE INDEX `uq_cn_pos_sale` (`business_id`, `pos_sale_id`)'],
+  ['pos_sales', 'idx_ps_customer', 'INDEX `idx_ps_customer` (`customer_id`)'],
+  ['pos_sales', 'uq_ps_credit_note', 'UNIQUE INDEX `uq_ps_credit_note` (`business_id`, `credit_note_id`)'],
+  ['store_credit_transactions', 'idx_sct_credit_note', 'INDEX `idx_sct_credit_note` (`credit_note_id`)'],
+  ['store_credit_transactions', 'uq_sct_idempotency', 'UNIQUE INDEX `uq_sct_idempotency` (`idempotency_key`)'],
   ['ims_supplier_credit_notes', 'uq_business_scn', 'UNIQUE INDEX `uq_business_scn` (`business_id`, `scn_number`)'],
 ];
 
@@ -301,6 +320,7 @@ async function migrateSchema(schema) {
 
   try {
     await ensureEnumValues(schema, 'ims_credit_notes', 'status', ['draft', 'awaiting_product', 'complete', 'cancelled']);
+    await ensureEnumValues(schema, 'ims_credit_notes', 'source', ['manual', 'shopify', 'pos']);
     await ensureEnumValues(schema, 'ims_stock_movements', 'movement_type', ['cn_returned', 'scn_returned']);
     await ensureEnumValues(schema, 'ims_stock_movements', 'reference_type', ['credit_note', 'supplier_credit_note']);
   } catch (e) {

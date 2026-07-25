@@ -1656,6 +1656,7 @@ function MainPos({
         cashier_id:     session.pos_user_id,
         sale_type:      isLayby ? 'layby' : cart.some(i => i.qty < 0) ? 'return' : 'sale',
         status:         isLayby ? 'layby_active' : 'completed',
+        customer_id:    linkedContact?.id ?? null,
         customer_name:  customerName || null,
         customer_phone: customerPhone || null,
         notes:          saleNotes || null,
@@ -1702,8 +1703,6 @@ function MainPos({
           } else if (p.method === 'Gift Card (Issue)') {
             const gcCode = p.reference?.trim() || `GC-R${serverId}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
             fetch('/api/pos/gift-card', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: gcCode, amount: Math.abs(p.amount), pos_sale_id: serverId }) }).catch(() => {});
-          } else if (p.method === 'Store Credit (Issue)' && linkedContact) {
-            fetch('/api/pos/store-credit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact_id: linkedContact.id, amount: Math.abs(p.amount), type: 'credit', pos_sale_id: serverId }) }).catch(() => {});
           }
         }
         // Issue gift cards for sold GC cart items (Phase 2)
@@ -4196,7 +4195,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
             {/* Store Credit Issue — confirmation */}
             {activeMethod === 'Store Credit (Issue)' && linkedContact && (
               <div style={{ padding: '.4rem .6rem', background: 'rgba(37,99,235,.1)', border: '1px solid rgba(37,99,235,.3)', borderRadius: 6, fontSize: '.85rem', color: 'var(--sv-action)', marginBottom: '.75rem' }}>
-                Credit will be added to <strong>{linkedContact.name}</strong>
+                Completing this return creates an IMS credit note and adds the credit to <strong>{linkedContact.name}</strong>.
               </div>
             )}
             {/* Amount input — shown for all methods */}
@@ -6865,12 +6864,12 @@ function PosHelpModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
         <h3 style={h3}>Sale types</h3>
         <ul style={ul}>
           <li><strong>Sale</strong> — Standard completed transaction. Stock is deducted immediately.</li>
-          <li><strong>Return / Refund</strong> — Toggle "Return Mode" in the header. Negative quantities reverse stock and post a negative POS sale.</li>
+          <li><strong>Return / Refund</strong> — Toggle "Return Mode" in the header. Completing the return creates a POS-sourced IMS customer credit note, which returns stock once. Choose Store Credit to add the completed note value to the linked customer, or cash/card to refund without changing store credit.</li>
           <li><strong>Layby</strong> — Toggle "Layby" in the header. Recorded as a pending sale; no stock movement until fulfilled.</li>
           <li><strong>Park Sale</strong> — Save a cart with a label to resume later (same device only). Parked sales do not commit stock and are lost if the browser is cleared.</li>
         </ul>
         <h3 style={h3}>Daily Xero batch</h3>
-        <p style={p}>POS sales are not individually synced to Xero. Instead, a single summary invoice is created per location per day from the <strong>Register → EOD</strong> screen.</p>
+        <p style={p}>POS sales and returns are not individually synced to Xero. Instead, they remain in the existing summary accounting flow from the <strong>Register → EOD</strong> screen. POS-sourced IMS credit notes are operational records and are not posted again as separate Xero credit notes.</p>
       </div>
     );
     if (active === 'register') return (

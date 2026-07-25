@@ -1150,7 +1150,7 @@ const CONTACT_FIELD_GUIDE: Array<{ key: ContactExportHeader; label: string; desc
   { key: 'country', label: 'Country', description: 'Country name. Defaults to Australia in the UI.', example: 'Australia' },
   { key: 'notes', label: 'Notes', description: 'Internal notes for staff only.', example: 'Prefers email after 3pm' },
   { key: 'is_active', label: 'Is Active', description: 'Use 1/0, yes/no, or true/false to control active status.', example: '1' },
-  { key: 'store_credit', label: 'Store Credit', description: 'Current store credit balance for retail customers.', example: '25.00' },
+  { key: 'store_credit', label: 'Store Credit', description: 'Read-only balance created by completed IMS or POS customer credit notes.', example: '25.00' },
   { key: 'on_account_limit', label: 'On Account Limit', description: 'Maximum credit account limit. Leave blank for no limit.', example: '500.00' },
   { key: 'date_of_birth', label: 'Date of Birth', description: 'Retail customer date of birth in YYYY-MM-DD format.', example: '1988-07-14' },
   { key: 'gender', label: 'Gender', description: 'Optional gender flag used by the retail contact form.', example: 'F' },
@@ -1357,6 +1357,7 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
         date_of_birth: f.date_of_birth || null,
         gender: f.gender || null,
       };
+      if (modal.edit) delete payload.store_credit;
       const result = await apiFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       load(); closeModal();
       const sync = result.shopifySync;
@@ -1681,7 +1682,7 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
               <div style={{ marginTop: 14 }}>
                 <SectionLabel>Customer Details</SectionLabel>
                 <Row2>
-                  <Field label="Store Credit ($)"><input type="number" min="0" step="0.01" value={f.store_credit ?? 0} onChange={sf('store_credit')} style={inputStyle} /></Field>
+                  <Field label="Store Credit ($)"><input type="number" value={f.store_credit ?? 0} readOnly title="Store credit is changed by completing customer credit notes." style={{ ...inputStyle, opacity: .72, cursor: 'not-allowed' }} /></Field>
                   <Field label="On Account Limit ($)"><input type="number" min="0" step="0.01" value={f.on_account_limit ?? ''} onChange={sf('on_account_limit')} style={inputStyle} /></Field>
                 </Row2>
                 <Row2>
@@ -9385,8 +9386,12 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
   };
 
   const sourceBadge = (source: string) => {
-    if (source !== 'shopify') return null;
-    return <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 10, background: 'rgba(16,185,129,.1)', color: 'var(--sv-mint)', marginLeft: 6 }}>Shopify</span>;
+    const meta = source === 'shopify'
+      ? { label: 'Shopify', background: 'rgba(16,185,129,.1)', color: 'var(--sv-mint)' }
+      : source === 'pos'
+        ? { label: 'POS', background: 'rgba(56,189,248,.12)', color: '#38bdf8' }
+        : { label: 'Manual', background: 'rgba(156,163,175,.12)', color: 'var(--sv-text-dim)' };
+    return <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 10, background: meta.background, color: meta.color, marginLeft: 6 }}>{meta.label}</span>;
   };
 
   return (
@@ -9396,6 +9401,9 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Credit Notes / Returns</h1>
         {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New Credit Note</button>}
       </div>
+      <p style={{ margin: '-10px 0 16px', color: 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.5 }}>
+        Completing a manual credit note adds its value to the customer&apos;s read-only store-credit balance. POS returns create POS credit notes automatically; cash/card refunds do not add store credit. Shopify credits are settled by Shopify.
+      </p>
 
       {/* Filters */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
@@ -9433,7 +9441,8 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
                   <td style={{ padding: '10px 12px' }}>{statusBadge(cn.status)}</td>
                   <td style={{ padding: '10px 12px', fontWeight: 600 }}>{fmtCurrency(cn.total_amount)}</td>
                   <td style={{ padding: '10px 12px' }}>
-                    {cn.source === 'shopify' ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }} title="Imported from Shopify">shopify import</span>
+                    {cn.source === 'shopify' ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }} title="Imported and settled by Shopify">Shopify</span>
+                      : cn.source === 'pos' ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }} title="Included in the POS end-of-day accounting flow">POS / EOD</span>
                       : cn.xero_sync_status === 'synced' ? <span style={{ color: '#34d399', fontSize: 11 }}>✓ Synced</span>
                       : cn.xero_sync_status === 'queued' ? <span style={{ color: '#fbbf24', fontSize: 11 }}>⚠ Queued</span>
                       : cn.xero_sync_status === 'error' ? <span style={{ color: '#f87171', fontSize: 11 }}>✕ Error</span>
@@ -15069,7 +15078,7 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<Record<string, string>>({});
-  const bankAccounts = accounts.filter(account => account.type === 'BANK' && account.enablePaymentsToAccount !== false);
+  const clearingAccounts = accounts.filter(account => account.type === 'BANK' || account.enablePaymentsToAccount === true);
 
   const cellKey = (locationId: number, paymentMethod: string) => `${locationId}:${paymentMethod.trim().toLowerCase()}`;
   const mappingFor = (locationId: number, paymentMethod: string) => mappings.find(mapping =>
@@ -15108,7 +15117,7 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
     setSaving(key);
     setSaveError(previous => ({ ...previous, [key]: '' }));
     try {
-      const account = bankAccounts.find(candidate => candidate.accountId === accountId);
+      const account = clearingAccounts.find(candidate => candidate.accountId === accountId);
       const res = await fetch('/api/xero/pos-payment-mappings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -15154,6 +15163,11 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
       <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
         Choose the bank or clearing account that receives each shop&apos;s settlement. EOD invoice lines still use Sales Revenue and the shop&apos;s Xero tracking category.
       </p>
+      {!loading && clearingAccounts.length === 0 && (
+        <div style={{ marginBottom: 12, padding: '8px 10px', borderRadius: 6, border: '1px solid var(--sv-amber)', color: 'var(--sv-amber)', fontSize: 11 }}>
+          No eligible payment accounts were returned by Xero. In Xero, use a bank account or enable payments on the clearing account, then reload this page.
+        </div>
+      )}
       {loading ? <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading…</div> : methods.length === 0 ? (
         <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: 0 }}>No POS payment types configured yet. Add them in POS settings first.</p>
       ) : locations.length === 0 ? (
@@ -15180,8 +15194,8 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
                           disabled={saving === key}
                           style={{ width: '100%', minWidth: 220, padding: '6px 8px', borderRadius: 5, border: `1px solid ${saveError[key] ? 'var(--sv-red)' : mapping ? 'var(--sv-mint)' : 'var(--sv-amber)'}`, background: 'var(--sv-bg-1)', color: mapping ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontSize: 12 }}
                         >
-                          <option value="">— mapping required —</option>
-                          {bankAccounts.map(account => (
+                          <option value="">{clearingAccounts.length ? '— mapping required —' : '— no eligible Xero accounts —'}</option>
+                          {clearingAccounts.map(account => (
                             <option key={account.accountId} value={account.accountId}>{account.code} — {account.name}</option>
                           ))}
                         </select>
@@ -22565,7 +22579,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           { trigger: 'SO reverted or cancelled',      object: 'Invoice (ACCREC)',     status: 'VOIDED',       notes: 'Voided automatically if no payments applied; warning shown if payments exist (manual action required)' },
           { trigger: 'Payment added to SO',           object: 'Payment',              status: 'Applied',      notes: 'Applied to the Xero invoice' },
           { trigger: 'Daily batch (manual/scheduled)',object: 'Invoice (ACCREC)',     status: 'AUTHORISED',   notes: 'One invoice per location per day for POS; one per day for online. If gateway clearing accounts are configured, one invoice per (day × gateway) with payment into clearing account.' },
-          { trigger: 'Customer credit note completed', object: 'Credit Note (ACCREC)', status: 'AUTHORISED',   notes: 'Completed customer credit notes queue immediate async sync; outcome appears in Sync History and can be retried if failed.' },
+          { trigger: 'Manual customer credit note completed', object: 'Credit Note (ACCREC)', status: 'AUTHORISED', notes: 'Manual IMS credit notes sync individually. POS-sourced credit notes remain part of the POS EOD flow so the return is not reversed twice.' },
           { trigger: 'Supplier credit note completed', object: 'Credit Note (ACCPAY)', status: 'DRAFT',        notes: 'Completed supplier credit notes queue immediate async sync; outcome appears in Sync History and can be retried if failed.' },
           { trigger: 'COGS (scheduled or manual)',     object: 'Manual Journal',       status: 'Posted',       notes: 'DR Cost of Goods Sold / CR Inventory Asset with reconciliation and adjustment support' },
         ]} />

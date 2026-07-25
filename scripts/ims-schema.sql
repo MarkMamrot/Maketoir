@@ -293,7 +293,11 @@ CREATE TABLE IF NOT EXISTS ims_credit_notes (
   original_so_number  VARCHAR(100) NULL,
   location_id         INT          NOT NULL,
   status              ENUM('draft','awaiting_product','complete','cancelled') NOT NULL DEFAULT 'draft',
-  source              ENUM('manual','shopify') NOT NULL DEFAULT 'manual',
+  source              ENUM('manual','shopify','pos') NOT NULL DEFAULT 'manual',
+  pos_sale_id         INT          NULL,
+  settlement_method   ENUM('store_credit','refund','external') NOT NULL DEFAULT 'store_credit',
+  settlement_status   ENUM('pending','complete','error') NOT NULL DEFAULT 'pending',
+  store_credit_transaction_id INT NULL,
   shopify_return_id   VARCHAR(100) NULL,
   cn_date             DATE         NOT NULL,
   completed_at        DATETIME     NULL,
@@ -313,7 +317,8 @@ CREATE TABLE IF NOT EXISTS ims_credit_notes (
   INDEX idx_business (business_id),
   INDEX idx_status (status),
   INDEX idx_customer (customer_id),
-  INDEX idx_shopify_return (business_id, shopify_return_id)
+  INDEX idx_shopify_return (business_id, shopify_return_id),
+  UNIQUE INDEX uq_cn_pos_sale (business_id, pos_sale_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS ims_credit_note_items (
@@ -544,6 +549,8 @@ CREATE TABLE IF NOT EXISTS pos_sales (
   cashier_name      VARCHAR(255),
   sale_type         ENUM('sale','return','layby') NOT NULL DEFAULT 'sale',
   status            ENUM('open','parked','completed','voided','layby_active','layby_complete') NOT NULL DEFAULT 'open',
+  customer_id       INT NULL,
+  credit_note_id    INT NULL,
   customer_name     VARCHAR(255),
   customer_phone    VARCHAR(50),
   subtotal          DECIMAL(12,2) NOT NULL DEFAULT 0,
@@ -561,7 +568,9 @@ CREATE TABLE IF NOT EXISTS pos_sales (
   INDEX idx_pos_loc_date (location_id, created_at),
   INDEX idx_business_id (business_id),
   INDEX idx_ps_register (register_id),
-  INDEX idx_ps_session (register_session_id)
+  INDEX idx_ps_session (register_session_id),
+  INDEX idx_ps_customer (customer_id),
+  UNIQUE INDEX uq_ps_credit_note (business_id, credit_note_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── POS Sale Items ────────────────────────────────────────────
@@ -718,6 +727,8 @@ CREATE TABLE IF NOT EXISTS gift_card_transactions (
   amount        DECIMAL(12,2) NOT NULL,
   balance_after DECIMAL(12,2) NOT NULL,
   pos_sale_id   INT NULL,
+  credit_note_id INT NULL,
+  idempotency_key VARCHAR(191) NULL,
   notes         VARCHAR(255) NULL,
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_gct_card (card_id),
@@ -736,5 +747,7 @@ CREATE TABLE IF NOT EXISTS store_credit_transactions (
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_sct_contact (contact_id),
   INDEX idx_sct_sale    (pos_sale_id),
+  INDEX idx_sct_credit_note (credit_note_id),
+  UNIQUE INDEX uq_sct_idempotency (idempotency_key),
   CONSTRAINT fk_sct_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

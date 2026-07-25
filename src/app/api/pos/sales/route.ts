@@ -4,11 +4,69 @@ import { PosSalesRepo, PosRegisterSessionRepo } from '@/lib/db/PosRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { createNotification } from '@/lib/ims/createNotification';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { ImsCNRepo } from '@/lib/ims/ImsRepository';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
   if (!raw) return null;
   try { return JSON.parse(raw); } catch { return null; }
+}
+
+function localDate(): string {
+  const tz = process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney';
+  return new Date().toLocaleDateString('en-CA', { timeZone: tz });
+}
+
+async function ensurePosReturnCreditNote(body: any, saleId: number, businessId: string, locationId: number, createdBy?: string) {
+  if ((body.sale_type ?? 'sale') !== 'return' || (body.status ?? 'completed') !== 'completed') return null;
+
+  const existing = await ImsCNRepo.getByPosSale(saleId, businessId);
+  if (existing) {
+    await ImsCNRepo.complete(existing.id, businessId);
+    await PosSalesRepo.linkCreditNote(saleId, existing.id, businessId);
+    return existing.id;
+  }
+
+  const settlementMethod = (body.payments ?? []).some((payment: any) => payment.payment_method === 'Store Credit (Issue)')
+    ? 'store_credit'
+    : 'refund';
+  if (settlementMethod === 'store_credit' && !body.customer_id) {
+    throw new Error('Select a customer before issuing store credit for a return');
+  }
+
+  const items = (body.items ?? []).map((item: any) => {
+    const qty = Math.abs(Number(item.qty ?? 0));
+    const grossLine = Math.abs(Number(item.line_total ?? 0));
+    return {
+      variant_id: item.variant_id ?? null,
+      code: item.code ?? null,
+      name: item.name ?? 'POS return',
+      qty,
+      unit_price: qty > 0 ? grossLine / qty : Math.abs(Number(item.unit_price ?? 0)),
+      price_basis: 'custom' as const,
+      restock: true,
+      tax_rate: Math.abs(Number(item.tax_rate ?? 0)),
+    };
+  }).filter((item: any) => item.qty > 0);
+  if (!items.length) throw new Error('POS return must contain at least one item');
+
+  const creditNoteId = await ImsCNRepo.create({
+    location_id: locationId,
+    cn_date: body.trading_date ?? localDate(),
+    reference: `POS Return #${saleId}`,
+    tax_treatment: 'inc_tax',
+    tax_code: null,
+    notes: body.notes ?? null,
+    customer_id: body.customer_id ?? null,
+    source: 'pos',
+    pos_sale_id: saleId,
+    settlement_method: settlementMethod,
+    original_so_number: body.return_of_sale_id ? `POS Sale #${body.return_of_sale_id}` : null,
+  }, items, businessId, createdBy);
+
+  await ImsCNRepo.complete(creditNoteId, businessId);
+  await PosSalesRepo.linkCreditNote(saleId, creditNoteId, businessId);
+  return creditNoteId;
 }
 
 // GET /api/pos/sales?location_id=3&date=2025-06-02&parked=1
@@ -39,12 +97,23 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
+    const businessId = String(session.businessId ?? '');
+    if (!businessId) return NextResponse.json({ error: 'Business context is required.' }, { status: 400 });
+    const locationId = Number(body.location_id ?? session.location_id);
+    if (!Number.isFinite(locationId)) return NextResponse.json({ error: 'POS location is required.' }, { status: 400 });
+
+    const isStoreCreditReturn = (body.sale_type ?? 'sale') === 'return'
+      && (body.payments ?? []).some((payment: any) => payment.payment_method === 'Store Credit (Issue)');
+    if (isStoreCreditReturn && !body.customer_id) {
+      return NextResponse.json({ error: 'Select a customer before issuing store credit for a return.' }, { status: 400 });
+    }
 
     // Idempotency: if local_id already exists, return the existing sale id
     if (body.local_id) {
       const existing = await PosSalesRepo.findByLocalId(body.local_id);
       if (existing) {
-        return NextResponse.json({ success: true, id: existing.id, duplicate: true });
+        const creditNoteId = await ensurePosReturnCreditNote(body, existing.id, businessId, locationId, session.username ?? session.full_name);
+        return NextResponse.json({ success: true, id: existing.id, credit_note_id: creditNoteId, duplicate: true });
       }
     }
 
@@ -59,14 +128,16 @@ export async function POST(req: Request) {
     }
 
     const { saleId, stockError } = await PosSalesRepo.complete({
+      business_id:       businessId,
       local_id:          body.local_id ?? null,
       register_id:       registerId,
       register_session_id: registerSessionId,
-      location_id:       body.location_id ?? session.location_id,
+      location_id:       locationId,
       cashier_id:        (body.cashier_id || session.pos_user_id) || null,
       cashier_name:      session.full_name || session.username || null,
       sale_type:         body.sale_type   ?? 'sale',
       status:            body.status      ?? 'completed',
+      customer_id:       body.customer_id ?? null,
       customer_name:     body.customer_name  ?? null,
       customer_phone:    body.customer_phone ?? null,
       subtotal:          Number(body.subtotal       ?? 0),
@@ -80,6 +151,7 @@ export async function POST(req: Request) {
       items:             body.items    ?? [],
       payments:          body.payments ?? [],
     });
+    const creditNoteId = await ensurePosReturnCreditNote(body, saleId, businessId, locationId, session.username ?? session.full_name);
 
     // EVENT-DRIVEN CACHE UPDATE: update sales velocity and stock for the variants sold
     if (body.status === 'completed' && body.items?.length > 0) {
@@ -113,7 +185,7 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, id: saleId, ...(stockError ? { stockWarning: stockError } : {}) });
+    return NextResponse.json({ success: true, id: saleId, credit_note_id: creditNoteId, ...(stockError ? { stockWarning: stockError } : {}) });
   } catch (err: any) {
     console.error('POS sale create error:', err);
     return NextResponse.json({ error: err.message || String(err) }, { status: 500 });

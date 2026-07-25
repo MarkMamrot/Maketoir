@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
+import { imsQuery, getIMSPool } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
-import { syncStoreCreditIssueReclass, syncStoreCreditRedemptionReclass } from '@/services/XeroSyncService';
+import { syncStoreCreditRedemptionReclass } from '@/services/XeroSyncService';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -42,8 +42,8 @@ export async function GET(req: Request) {
   });
 }
 
-// POST /api/pos/store-credit — debit or credit a contact's store credit
-// Body: { contact_id, amount, type: 'debit'|'credit', pos_sale_id?, notes? }
+// POST /api/pos/store-credit — redeem existing credit. Issues are owned by completed credit notes.
+// Body: { contact_id, amount, type: 'debit', pos_sale_id?, notes? }
 export async function POST(req: Request) {
   const session = getPosSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
@@ -56,50 +56,77 @@ export async function POST(req: Request) {
   if (!contact_id) return NextResponse.json({ error: 'contact_id is required.' }, { status: 400 });
   const amt = Number(amount);
   if (!amt || amt <= 0) return NextResponse.json({ error: 'A positive amount is required.' }, { status: 400 });
-  if (type !== 'debit' && type !== 'credit')
-    return NextResponse.json({ error: 'type must be "debit" or "credit".' }, { status: 400 });
+  if (type !== 'debit') {
+    return NextResponse.json(
+      { error: 'Store credit can only be issued by completing a customer credit note.' },
+      { status: 400 },
+    );
+  }
 
-  const rows = await imsQuery(
-    'SELECT id, store_credit FROM ims_contacts WHERE id = ? LIMIT 1',
-    [contact_id],
-  );
-  if (!rows.length) return NextResponse.json({ error: 'Contact not found.' }, { status: 404 });
-  const contact = rows[0];
-  const current = Number(contact.store_credit ?? 0);
+  const businessId = String(session.businessId ?? '');
+  const pool = getIMSPool();
+  const conn = await pool.getConnection();
+  let newBalance = 0;
+  let txId = 0;
+  try {
+    await conn.beginTransaction();
+    const [rows] = await conn.execute(
+      `SELECT id, type, store_credit
+         FROM ims_contacts
+        WHERE id = ? AND business_id = ? AND is_active = 1
+        FOR UPDATE`,
+      [contact_id, businessId],
+    );
+    const contact = (rows as { id: number; type: string; store_credit: number }[])[0];
+    if (!contact || !['retail_customer', 'b2b_customer', 'both'].includes(contact.type)) {
+      await conn.rollback();
+      return NextResponse.json({ error: 'Active customer contact not found.' }, { status: 404 });
+    }
 
-  const delta      = type === 'debit' ? -Math.min(amt, current) : amt;
-  const newBalance = Math.max(0, Math.round((current + delta) * 100) / 100);
-
-  await imsExecute('UPDATE ims_contacts SET store_credit = ? WHERE id = ?', [newBalance, contact_id]);
-  const txRes = await imsExecute(
-    `INSERT INTO store_credit_transactions (contact_id, type, amount, balance_after, pos_sale_id, notes)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [contact_id, type === 'debit' ? 'redeem' : 'issue', Math.abs(delta), newBalance, pos_sale_id ?? null, notes ?? null],
-  );
+    const current = Number(contact.store_credit ?? 0);
+    if (amt > current) {
+      await conn.rollback();
+      return NextResponse.json({ error: 'Insufficient store credit.' }, { status: 400 });
+    }
+    newBalance = Math.round((current - amt) * 100) / 100;
+    await conn.execute(
+      `UPDATE ims_contacts SET store_credit = ? WHERE id = ? AND business_id = ?`,
+      [newBalance, contact_id, businessId],
+    );
+    const [txResult] = await conn.execute(
+      `INSERT INTO store_credit_transactions (contact_id, type, amount, balance_after, pos_sale_id, notes)
+       VALUES (?, 'redeem', ?, ?, ?, ?)`,
+      [contact_id, amt, newBalance, pos_sale_id ?? null, notes ?? null],
+    );
+    txId = Number((txResult as any).insertId ?? 0);
+    await conn.commit();
+  } catch (error) {
+    await conn.rollback();
+    throw error;
+  } finally {
+    conn.release();
+  }
 
   let xeroSynced: boolean | null = null;
   let xeroWarning: string | null = null;
-  if (session?.businessId && Math.abs(delta) > 0) {
+  if (session?.businessId && amt > 0) {
     try {
-      const txId = Number((txRes as any)?.insertId ?? 0);
       const dedupeKey = txId > 0
-        ? `store credit ${type === 'debit' ? 'redeem' : 'issue'} tx ${txId}`
-        : `store credit ${type === 'debit' ? 'redeem' : 'issue'} contact ${contact_id}|${Math.abs(delta).toFixed(2)}|${pos_sale_id ?? 'na'}`;
+        ? `store credit redeem tx ${txId}`
+        : `store credit redeem contact ${contact_id}|${amt.toFixed(2)}|${pos_sale_id ?? 'na'}`;
       const payload = {
         businessId: session.businessId,
-        amount: Math.abs(delta),
+        amount: amt,
         date: new Date().toISOString().slice(0, 10),
         channel: 'pos' as const,
         locationId: session.location_id ?? undefined,
         dedupeKey,
         referenceId: txId > 0 ? txId : undefined,
       };
-      const xeroId = type === 'debit'
-        ? await syncStoreCreditRedemptionReclass(payload)
-        : await syncStoreCreditIssueReclass(payload);
+      const xeroId = await syncStoreCreditRedemptionReclass(payload);
       xeroSynced = !!xeroId;
     } catch (e: any) {
-      xeroWarning = e?.message ?? `Store credit ${type === 'debit' ? 'redeem' : 'issue'} synced locally but failed to post reclass to Xero`;
+      xeroWarning = e?.message ?? 'Store credit redemption synced locally but failed to post reclass to Xero';
     }
   }
 

@@ -10,6 +10,7 @@ function localNow(): string {
 
 export interface PosSaleRow {
   id:                number;
+  business_id:       string;
   local_id:          string | null;
   register_id:       number | null;
   register_session_id: number | null;
@@ -18,6 +19,8 @@ export interface PosSaleRow {
   cashier_name:      string | null;
   sale_type:         'sale' | 'return' | 'layby';
   status:            'open' | 'parked' | 'completed' | 'voided' | 'layby_active' | 'layby_complete';
+  customer_id:       number | null;
+  credit_note_id:    number | null;
   customer_name:     string | null;
   customer_phone:    string | null;
   subtotal:          number;
@@ -188,6 +191,7 @@ export const PosSalesRepo = {
    * Returns the new sale id.
    */
   async complete(data: {
+    business_id:       string;
     local_id:          string | null;
     register_id:       number | null;
     register_session_id?: number | null;
@@ -196,6 +200,7 @@ export const PosSalesRepo = {
     cashier_name:      string | null;
     sale_type:         'sale' | 'return' | 'layby';
     status:            'completed' | 'layby_active' | 'layby_complete' | 'parked' | 'voided';
+    customer_id?:      number | null;
     customer_name?:    string | null;
     customer_phone?:   string | null;
     subtotal:          number;
@@ -236,11 +241,12 @@ export const PosSalesRepo = {
       // 1. Insert sale
       const [saleResult]: any = await conn.execute(
         `INSERT INTO pos_sales
-           (local_id, register_id, register_session_id, location_id, cashier_id, cashier_name, sale_type, status,
-            customer_name, customer_phone, subtotal, discount_total,
+          (business_id, local_id, register_id, register_session_id, location_id, cashier_id, cashier_name, sale_type, status,
+          customer_id, customer_name, customer_phone, subtotal, discount_total,
             tax_total, total, cash_rounding, notes, parked_label, return_of_sale_id, completed_at, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
+         data.business_id,
           data.local_id ?? null,
           data.register_id ?? null,
           data.register_session_id ?? null,
@@ -249,6 +255,7 @@ export const PosSalesRepo = {
           data.cashier_name ?? null,
           data.sale_type,
           data.status,
+          data.customer_id ?? null,
           data.customer_name ?? null,
           data.customer_phone ?? null,
           data.subtotal,
@@ -306,14 +313,14 @@ export const PosSalesRepo = {
       //    Returns stockError string if deduction failed — API returns success
       //    anyway so the client clears the queue, but logs the issue.
       let stockError: string | undefined;
-      if (data.status === 'completed' || data.status === 'layby_complete') {
+      if ((data.status === 'completed' || data.status === 'layby_complete') && data.sale_type !== 'return') {
         const pool = getIMSPool();
         const stockConn = await pool.getConnection();
         try {
           await stockConn.beginTransaction();
           for (const item of data.items) {
             if (!item.variant_id) continue;
-            const qtyChange = data.sale_type === 'return' ? item.qty : -item.qty;
+            const qtyChange = -item.qty;
             const [stockRows]: any = await stockConn.execute(
               `SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id = ? AND location_id = ? LIMIT 1`,
               [item.variant_id, data.location_id],
@@ -359,6 +366,13 @@ export const PosSalesRepo = {
     } finally {
       conn.release();
     }
+  },
+
+  async linkCreditNote(saleId: number, creditNoteId: number, businessId: string): Promise<void> {
+    await imsExecute(
+      `UPDATE pos_sales SET credit_note_id = ? WHERE id = ? AND business_id = ?`,
+      [creditNoteId, saleId, businessId],
+    );
   },
 
   async updateStatus(id: number, status: PosSaleRow['status'], extra?: { parked_label?: string }): Promise<void> {

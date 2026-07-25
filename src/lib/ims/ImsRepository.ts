@@ -335,7 +335,7 @@ export const ImsContactsRepo = {
        data.address ?? null, data.address2 ?? null, data.suburb ?? null,
        data.city ?? null, data.state ?? null, data.postcode ?? null, data.country ?? null,
        data.notes ?? null, data.is_active ?? 1,
-       data.store_credit ?? 0, data.on_account_limit ?? null,
+      0, data.on_account_limit ?? null,
        data.date_of_birth ?? null, data.gender ?? null,
        data.promo_email ?? 0, data.promo_sms ?? 0,
        data.cin7_supplier_id ?? null, data.lead_time_days ?? null,
@@ -358,7 +358,7 @@ export const ImsContactsRepo = {
     const fields = [
       'type','name','first_name','last_name','company','customer_code','customer_group','shopify_customer_id',
       'email','phone','mobile','address','address2','suburb','city','state','postcode','country','notes','is_active',
-      'store_credit','on_account_limit','date_of_birth','gender','promo_email','promo_sms',
+      'on_account_limit','date_of_birth','gender','promo_email','promo_sms',
       'cin7_supplier_id','lead_time_days','order_frequency_days','price_tier','charges_tax','prices_include_tax','tax_rate','website_url',
     ];
     const sets: string[] = [];
@@ -3792,7 +3792,11 @@ export interface ImsCN {
   original_so_number?: string | null;
   location_id: number;
   status: CNStatus;
-  source?: 'manual' | 'shopify';
+  source?: 'manual' | 'shopify' | 'pos';
+  pos_sale_id?: number | null;
+  settlement_method?: 'store_credit' | 'refund' | 'external';
+  settlement_status?: 'pending' | 'complete' | 'error';
+  store_credit_transaction_id?: number | null;
   shopify_refund_id?: string | null;
   shopify_return_id?: string | null;   // Shopify Returns API id (links return approval to refund)
   cn_date: string;
@@ -3833,6 +3837,31 @@ export interface ImsCNItem {
   product_name?: string | null;
   variant_label?: string | null;
   avg_cost?: number | null;
+}
+
+export function calculateCNTotals(
+  items: Array<Pick<ImsCNItem, 'qty' | 'unit_price' | 'tax_rate'>>,
+  taxTreatment: ImsCN['tax_treatment'],
+): { subtotal: number; tax_amount: number; total_amount: number } {
+  let subtotal = 0;
+  let taxAmount = 0;
+  for (const item of items) {
+    const lineAmount = Number(item.qty) * Number(item.unit_price);
+    const taxRate = Number(item.tax_rate ?? 0);
+    if (taxTreatment === 'inc_tax' && taxRate > 0) {
+      const lineSubtotal = lineAmount / (1 + taxRate);
+      subtotal += lineSubtotal;
+      taxAmount += lineAmount - lineSubtotal;
+    } else {
+      subtotal += lineAmount;
+      taxAmount += lineAmount * taxRate;
+    }
+  }
+  return {
+    subtotal,
+    tax_amount: taxAmount,
+    total_amount: subtotal + taxAmount,
+  };
 }
 
 async function nextCNNumber(businessId: string): Promise<string> {
@@ -3939,27 +3968,23 @@ export const ImsCNRepo = {
 
   async create(
     data: Pick<ImsCN, 'location_id' | 'cn_date' | 'reference' | 'tax_treatment' | 'tax_code' | 'notes' | 'customer_id'> &
-      Partial<Pick<ImsCN, 'so_id' | 'original_so_number' | 'source' | 'shopify_refund_id'>>,
+      Partial<Pick<ImsCN, 'so_id' | 'original_so_number' | 'source' | 'shopify_refund_id' | 'pos_sale_id' | 'settlement_method'>>,
     items: (Omit<ImsCNItem, 'id' | 'cn_id' | 'line_total' | 'sku' | 'product_name' | 'variant_label' | 'avg_cost'>)[],
     businessId: string,
     createdBy?: string,
   ): Promise<number> {
     const cn_number = await nextCNNumber(businessId);
-    let subtotal = 0, tax_amount = 0;
-    for (const item of items) {
-      const line = Number(item.qty) * Number(item.unit_price);
-      subtotal   += line;
-      tax_amount += line * Number(item.tax_rate ?? 0);
-    }
+    const { subtotal, tax_amount, total_amount } = calculateCNTotals(items, data.tax_treatment);
     const res = await imsExecute(
       `INSERT INTO ims_credit_notes
-         (business_id,cn_number,customer_id,so_id,original_so_number,location_id,status,source,shopify_refund_id,cn_date,reference,
-          tax_treatment,tax_code,subtotal,tax_amount,total_amount,notes,created_by)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        (business_id,cn_number,customer_id,so_id,original_so_number,location_id,status,source,pos_sale_id,settlement_method,
+         shopify_refund_id,cn_date,reference,tax_treatment,tax_code,subtotal,tax_amount,total_amount,notes,created_by)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [businessId, cn_number, data.customer_id ?? null, data.so_id ?? null, data.original_so_number ?? null,
-       data.location_id, 'draft', data.source ?? 'manual', data.shopify_refund_id ?? null,
+       data.location_id, 'draft', data.source ?? 'manual', data.pos_sale_id ?? null,
+       data.source === 'shopify' ? 'external' : (data.settlement_method ?? 'store_credit'), data.shopify_refund_id ?? null,
        data.cn_date, data.reference ?? null, data.tax_treatment, data.tax_code ?? null,
-       subtotal, tax_amount, subtotal + tax_amount,
+      subtotal, tax_amount, total_amount,
        data.notes ?? null, createdBy ?? null],
     );
     const cn_id = (res as any).insertId;
@@ -3978,6 +4003,14 @@ export const ImsCNRepo = {
     return cn_id;
   },
 
+  async getByPosSale(posSaleId: number, businessId: string): Promise<ImsCN | null> {
+    const rows = await imsQuery<{ id: number }>(
+      `SELECT id FROM ims_credit_notes WHERE business_id = ? AND pos_sale_id = ? LIMIT 1`,
+      [businessId, posSaleId],
+    );
+    return rows[0] ? ImsCNRepo.get(rows[0].id, businessId) : null;
+  },
+
   async update(
     id: number,
     businessId: string,
@@ -3994,15 +4027,10 @@ export const ImsCNRepo = {
       }
     }
     if (items !== undefined) {
-      // Recompute totals
-      let subtotal = 0, tax_amount = 0;
-      for (const item of items) {
-        const line = Number(item.qty) * Number(item.unit_price);
-        subtotal   += line;
-        tax_amount += line * Number(item.tax_rate ?? 0);
-      }
+      const taxTreatment = data.tax_treatment ?? (await ImsCNRepo.get(id, businessId))?.tax_treatment ?? 'ex_tax';
+      const { subtotal, tax_amount, total_amount } = calculateCNTotals(items, taxTreatment);
       sets.push('subtotal = ?', 'tax_amount = ?', 'total_amount = ?');
-      vals.push(subtotal, tax_amount, subtotal + tax_amount);
+      vals.push(subtotal, tax_amount, total_amount);
     }
     if (sets.length) {
       vals.push(id, businessId);
@@ -4037,31 +4065,86 @@ export const ImsCNRepo = {
     );
   },
 
-  /** Complete a draft/awaiting CN: return stock for restock lines, insert movements, mark complete. Atomic. */
+  /** Complete a CN, applying stock and its settlement exactly once in one transaction. */
   async complete(id: number, businessId: string): Promise<void> {
-    const cn = await ImsCNRepo.get(id, businessId);
-    if (!cn) throw new Error('Credit note not found');
-    if (cn.status === 'complete') throw new Error('Credit note is already complete');
-    if (cn.status !== 'draft' && cn.status !== 'awaiting_product') throw new Error('Only draft or awaiting credit notes can be completed');
-
-    // Determine the return channel from the linked SO (for stock movement reporting).
-    let channel: string | null = null;
-    if (cn.so_id) {
-      const soRows = await imsQuery<{ so_type: string }>(
-        `SELECT so_type FROM ims_sales_orders WHERE id = ? AND business_id = ?`,
-        [cn.so_id, businessId],
-      );
-      channel = soRows[0]?.so_type === 'online' ? 'online' : soRows[0] ? 'wholesale' : null;
-    }
-
     const pool = getIMSPool();
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
-      await restockCreditNoteItemsTx(conn, cn.id, cn.location_id, cn.items ?? [], channel);
-      await conn.execute(
-        `UPDATE ims_credit_notes SET status = 'complete', completed_at = NOW() WHERE id = ?`,
+
+      const [cnRows] = await conn.execute(
+        `SELECT * FROM ims_credit_notes WHERE id = ? AND business_id = ? FOR UPDATE`,
+        [id, businessId],
+      );
+      const cn = (cnRows as ImsCN[])[0];
+      if (!cn) throw new Error('Credit note not found');
+      if (cn.status === 'complete') {
+        await conn.commit();
+        return;
+      }
+      if (cn.status !== 'draft' && cn.status !== 'awaiting_product') {
+        throw new Error('Only draft or awaiting credit notes can be completed');
+      }
+
+      const [itemRows] = await conn.execute(
+        `SELECT * FROM ims_credit_note_items WHERE cn_id = ?`,
         [id],
+      );
+      const items = itemRows as ImsCNItem[];
+
+      let channel: string | null = cn.source === 'pos' ? 'pos' : null;
+      if (cn.so_id) {
+        const [soRows] = await conn.execute(
+          `SELECT so_type FROM ims_sales_orders WHERE id = ? AND business_id = ?`,
+          [cn.so_id, businessId],
+        );
+        const so = (soRows as { so_type: string }[])[0];
+        channel = so?.so_type === 'online' ? 'online' : so ? 'wholesale' : channel;
+      }
+
+      const settlementMethod = cn.source === 'shopify'
+        ? 'external'
+        : (cn.settlement_method ?? 'store_credit');
+
+      let storeCreditTransactionId: number | null = null;
+      if (settlementMethod === 'store_credit') {
+        if (!cn.customer_id) throw new Error('A customer is required to issue store credit');
+        const [contactRows] = await conn.execute(
+          `SELECT id, type, store_credit
+             FROM ims_contacts
+            WHERE id = ? AND business_id = ? AND is_active = 1
+            FOR UPDATE`,
+          [cn.customer_id, businessId],
+        );
+        const contact = (contactRows as { id: number; type: ContactType; store_credit: number }[])[0];
+        if (!contact || !['retail_customer', 'b2b_customer', 'both'].includes(contact.type)) {
+          throw new Error('An active customer contact is required to issue store credit');
+        }
+
+        const amount = Math.round(Number(cn.total_amount) * 100) / 100;
+        if (!(amount > 0)) throw new Error('Credit note total must be greater than zero');
+        const balanceAfter = Math.round((Number(contact.store_credit ?? 0) + amount) * 100) / 100;
+        const idempotencyKey = `credit-note:${businessId}:${id}`;
+        const [txResult] = await conn.execute(
+          `INSERT INTO store_credit_transactions
+             (contact_id, type, amount, balance_after, pos_sale_id, credit_note_id, idempotency_key, notes)
+           VALUES (?, 'issue', ?, ?, ?, ?, ?, ?)`,
+          [cn.customer_id, amount, balanceAfter, cn.pos_sale_id ?? null, id, idempotencyKey, `Issued from ${cn.cn_number}`],
+        );
+        storeCreditTransactionId = Number((txResult as any).insertId);
+        await conn.execute(
+          `UPDATE ims_contacts SET store_credit = ? WHERE id = ? AND business_id = ?`,
+          [balanceAfter, cn.customer_id, businessId],
+        );
+      }
+
+      await restockCreditNoteItemsTx(conn, cn.id, cn.location_id, items, channel);
+      await conn.execute(
+        `UPDATE ims_credit_notes
+            SET status = 'complete', completed_at = NOW(), settlement_method = ?,
+                settlement_status = 'complete', store_credit_transaction_id = ?
+          WHERE id = ? AND business_id = ?`,
+        [settlementMethod, storeCreditTransactionId, id, businessId],
       );
       await conn.commit();
     } catch (err) {

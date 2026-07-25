@@ -46,7 +46,13 @@ export async function POST(req: NextRequest) {
     if (normalized.error) {
       return NextResponse.json({ success: false, error: normalized.error }, { status: 400 });
     }
-    const id = await ImsCNRepo.create(data, normalized.items, businessId, session.username ?? undefined);
+    const id = await ImsCNRepo.create({
+      ...data,
+      source: 'manual',
+      pos_sale_id: null,
+      settlement_method: 'store_credit',
+      shopify_refund_id: null,
+    }, normalized.items, businessId, session.name ?? session.email ?? undefined);
     const cn = await ImsCNRepo.get(id, businessId);
     return NextResponse.json({ success: true, data: cn });
   } catch (e: any) {

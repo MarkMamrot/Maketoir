@@ -159,8 +159,9 @@ export async function POST(req: Request) {
 
     const accountResponse = await xeroApiFetch(databaseId, `/Accounts/${encodeURIComponent(accountId)}`);
     const account = (accountResponse?.Accounts ?? []).find((candidate: any) => candidate.AccountID === accountId);
-    if (!account || account.Status !== 'ACTIVE' || account.Type !== 'BANK' || account.EnablePaymentsToAccount === false || String(account.Code ?? '') !== accountCode) {
-      return NextResponse.json({ success: false, error: 'Select an active Xero bank account' }, { status: 400 });
+    const acceptsPayments = account?.Type === 'BANK' || account?.EnablePaymentsToAccount === true;
+    if (!account || account.Status !== 'ACTIVE' || !acceptsPayments || String(account.Code ?? '') !== accountCode) {
+      return NextResponse.json({ success: false, error: 'Select an active Xero account that accepts payments' }, { status: 400 });
     }
 
     await execute(

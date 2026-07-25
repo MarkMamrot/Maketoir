@@ -25,6 +25,12 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     const existing = await ImsContactsRepo.get(Number(params.id), businessId);
     if (!existing) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
     const body = await req.json();
+    if (Object.prototype.hasOwnProperty.call(body, 'store_credit')) {
+      return NextResponse.json(
+        { success: false, error: 'Store credit is read-only and is changed through completed customer credit notes.' },
+        { status: 400 },
+      );
+    }
     await ImsContactsRepo.update(Number(params.id), body);
     const updated = await ImsContactsRepo.get(Number(params.id), businessId);
     const shopifySync = updated ? await syncRetailCustomerToShopify(updated, businessId) : null;

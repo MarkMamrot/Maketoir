@@ -33,6 +33,10 @@ Railway (auto-deploy on push to `main`, no test gate other than CI below).
 4. **Schema migrations must be multi-tenant safe.** Use `scripts/catchup-schema-all-tenants.mjs`
    (iterates every schema in `businesses.ims_db_name` + env fallback, checks
    `information_schema.COLUMNS` before each ALTER, safe to re-run) — not a single-schema script.
+5. **Customer store credit is ledger-owned.** Never update `ims_contacts.store_credit` through
+  generic contact writes. Manual and POS-issued credit must come from idempotent customer credit-note
+  completion and write `store_credit_transactions` in the same tenant transaction. POS returns use
+  the linked CN as the sole stock owner; do not restock in both POS and CN paths.
 
 ## Testing
 - Vitest is configured (`npm test` / `npm run test:watch`) but only has light coverage under
