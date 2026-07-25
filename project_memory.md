@@ -242,3 +242,4 @@ Always read this file when starting a new session or implementing a feature to u
 * Unified Xero sync history (`/api/xero/sync-log`) now includes CN/SCN events (including void events), not just PO/SO/EOD/COGS.
 * Xero Sync tab now recognizes CN/SCN (+ void) event types with labels/colors, link routing, and retry actions for failed CN/SCN sync attempts.
 * CN and SCN view modals now include a `Void in Xero` action when synced.
+* `POST /api/ims/xero/push` now guards CN/SCN retries with MySQL named locks (`GET_LOCK`) to prevent duplicate concurrent retries, and short-circuits with `skipped: true, reason: 'already_synced'` when a credit note already has synced status + stored Xero ID.
