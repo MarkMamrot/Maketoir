@@ -19,6 +19,7 @@ import { toBusinessDate, toBusinessDateTime } from '@/lib/shopifyDate';
 import { parseShopifyRefund } from '@/lib/shopifyRefund';
 import { createNotification } from '@/lib/ims/createNotification';
 import { runImsForBusiness, getImsDbNameStrict } from '@/lib/db/BusinessRegistry';
+import { triggerCNXeroSync } from '@/lib/ims/xeroHooks';
 
 export const runtime = 'nodejs';
 
@@ -246,6 +247,16 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
               note: `Shopify refund via ${topic}`,
               restockLines: norm.restockLines,
             });
+            const cnRows = await imsQuery<{ id: number }>(
+              `SELECT id FROM ims_credit_notes
+               WHERE business_id = ? AND shopify_refund_id = ?
+               LIMIT 1`,
+              [businessId, norm.shopifyRefundId],
+            );
+            const cnId = Number(cnRows[0]?.id ?? 0);
+            if (cnId > 0) {
+              triggerCNXeroSync(businessId, cnId).catch((err: any) => console.error('[Xero] Shopify refund CN sync failed:', err?.message));
+            }
             // Reflect financial status if the whole order is now refunded.
             await imsQuery(
               `UPDATE ims_sales_orders SET financial_status = CASE

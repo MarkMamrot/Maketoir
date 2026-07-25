@@ -496,33 +496,6 @@ export class ShopifyService {
     } catch { return []; }
   }
 
-  // ── Shopify Payments payouts (requires read_shopify_payments_payouts scope) ──
-
-  /**
-   * List Shopify Payments payouts, newest first.
-   * @param params e.g. { limit, status: 'paid', date_min, date_max, since_id }
-   */
-  async listPayouts(params: Record<string, any> = {}): Promise<any[]> {
-    const list = await (this.shopify as any).payout.list({ limit: 50, ...params });
-    return (list ?? []) as any[];
-  }
-
-  /** Get a single payout by id (includes the summary breakdown). */
-  async getPayout(id: number | string): Promise<any> {
-    return (this.shopify as any).payout.get(Number(id));
-  }
-
-  /**
-   * List balance transactions (charges/refunds/fees/adjustments) that make up a
-   * payout. Filter by { payout_id } to reconcile a payout to individual orders.
-   * Each row: { id, type, amount, fee, net, source_type, source_id,
-   * source_order_id, source_order_transaction_id, payout_id, payout_status }.
-   */
-  async listBalanceTransactions(params: Record<string, any> = {}): Promise<any[]> {
-    const rows = await (this.shopify as any).balance.transactions({ limit: 250, ...params });
-    return (rows ?? []) as any[];
-  }
-
   async updateVariant(id: number | string, updates: Record<string, any>): Promise<void> {
     await (this.shopify as any).productVariant.update(Number(id), updates);
   }

@@ -2221,8 +2221,8 @@ export const ImsSORepo = {
   ): Promise<{ processed: boolean; restocked: number }> {
     // A Shopify refund becomes a source='shopify', status='complete' credit note
     // linked to the sales order. Idempotent on shopify_refund_id (unique key).
-    // Xero is intentionally NOT posted here — Shopify Payments refunds are
-    // accounted for via the payout reconciliation (net of refunds).
+    // Xero posting is triggered by webhook/import orchestrators after this write,
+    // so the DB transaction here stays focused on inventory and source-of-truth data.
     const pool = getIMSPool();
     const conn = await pool.getConnection();
     try {

@@ -59,18 +59,7 @@ export async function POST(req: Request) {
     ).catch(() => [] as { c: number }[]);
     if (Number(hasRecentOrders[0]?.c ?? 0) === 0) return;
 
-    // When Shopify Payments payout sync is on (cash basis), those orders are
-    // posted via the payout flow instead — exclude them here to avoid double-counting.
-    const spSettings = await imsQuery<{ key: string; value: string }>(
-      "SELECT `key`, value FROM ims_settings WHERE business_id = ? AND `key` IN ('shopify_payments_payout_sync_enabled','shopify_revenue_basis')",
-      [business_id],
-    ).catch(() => [] as { key: string; value: string }[]);
-    const spEnabled = spSettings.find(s => s.key === 'shopify_payments_payout_sync_enabled')?.value === '1';
-    const basis = spSettings.find(s => s.key === 'shopify_revenue_basis')?.value || 'cash';
-    const excludeSP = spEnabled && basis === 'cash';
-    const gatewayFilter = excludeSP
-      ? " AND (payment_gateway IS NULL OR payment_gateway NOT LIKE '%shopify_payments%')"
-      : '';
+    const gatewayFilter = '';
 
     // Load gateway clearing-account mappings for this business.
     const gwMappings = await query<{ gateway_name: string; clearing_account_code: string | null }>(

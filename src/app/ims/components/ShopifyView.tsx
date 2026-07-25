@@ -749,8 +749,6 @@ function ShopifyOrdersTab({ businessId }: { businessId: string }) {
       {/* Inventory → Shopify sync */}
       <InventorySyncCard card={card} label={label} input={input} btn={btn} />
 
-      {/* Shopify Payments payout → Xero */}
-      <PayoutSyncCard card={card} label={label} input={input} btn={btn} />
     </div>
   );
 }
@@ -1097,83 +1095,6 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// ─── Payout Sync Card (Shopify Payments → Xero) ───────────────────────────────
-function PayoutSyncCard({ card, label, input, btn }: { card: React.CSSProperties; label: React.CSSProperties; input: React.CSSProperties; btn: (p?: boolean) => React.CSSProperties }) {
-  const [enabled, setEnabled] = useState(false);
-  const [basis, setBasis]     = useState<'cash' | 'accrual'>('cash');
-  const [busy, setBusy]       = useState(false);
-  const [msg, setMsg]         = useState<string | null>(null);
-  const [results, setResults] = useState<any[] | null>(null);
-
-  useEffect(() => {
-    fetch('/api/ims/settings').then(r => r.ok ? r.json() : null).then(d => {
-      const s = d?.data ?? d?.settings ?? d ?? {};
-      setEnabled(s.shopify_payments_payout_sync_enabled === '1' || s.shopify_payments_payout_sync_enabled === 1);
-      if (s.shopify_revenue_basis === 'accrual') setBasis('accrual');
-    }).catch(() => {});
-  }, []);
-
-  const save = async (patch: Record<string, string>) => {
-    await fetch('/api/ims/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: patch }) }).catch(() => {});
-  };
-
-  const runNow = async () => {
-    setBusy(true); setMsg(null); setResults(null);
-    try {
-      const r = await fetch('/api/ims/shopify/payout-sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lookbackDays: 14 }) });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error ?? 'Sync failed');
-      setResults(d.results ?? []);
-      setMsg(`✓ Posted ${d.posted} payout(s) to Xero`);
-    } catch (e: any) { setMsg(`⚠️ ${e.message}`); }
-    setBusy(false);
-  };
-
-  return (
-    <div style={card}>
-      <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Shopify Payments → Xero (payouts)</h3>
-      <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
-        Posts each confirmed Shopify Payments payout to Xero as one invoice whose total equals the bank deposit — net of processing fees and refunds — with a payment into your Shopify clearing account. Runs automatically each morning (~11am) after Shopify releases the payout. Other gateways (PayPal etc.) keep using the nightly sales batch.
-      </p>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-        <div onClick={async () => { const next = !enabled; setEnabled(next); await save({ shopify_payments_payout_sync_enabled: next ? '1' : '0' }); }}
-          style={{ width: 46, height: 25, borderRadius: 99, background: enabled ? '#10b981' : 'var(--sv-etch)', position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
-          <div style={{ position: 'absolute', top: 3, left: enabled ? 24 : 3, width: 19, height: 19, borderRadius: '50%', background: '#fff', transition: 'left .2s' }} />
-        </div>
-        <span style={{ fontSize: 13, fontWeight: 600, color: enabled ? '#10b981' : 'var(--sv-text-dim)' }}>{enabled ? 'Payout sync enabled' : 'Payout sync disabled'}</span>
-      </div>
-
-      <div style={{ marginBottom: 14 }}>
-        <label style={label}>Revenue recognition</label>
-        <select value={basis} onChange={async e => { const v = e.target.value as 'cash' | 'accrual'; setBasis(v); await save({ shopify_revenue_basis: v }); }} style={input}>
-          <option value="cash">Cash basis — recognise revenue on the payout date (recommended)</option>
-          <option value="accrual">Accrual — recognise on order date (uses the nightly sales batch)</option>
-        </select>
-        <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 4 }}>
-          Requires Xero account roles <strong>Sales Revenue</strong>, <strong>Merchant / Payment Fees</strong> and <strong>Shopify Payments Clearing</strong> (a bank account) to be mapped in the Xero integration settings.
-        </div>
-      </div>
-
-      <button onClick={runNow} disabled={busy || !enabled} style={btn(true)}>{busy ? 'Syncing…' : '⬆ Sync Payouts Now'}</button>
-      {basis === 'accrual' && <div style={{ marginTop: 10, fontSize: 12, color: '#fbbf24' }}>Accrual mode posts via the nightly sales batch — the payout-based posting only runs on cash basis.</div>}
-
-      {msg && <div style={{ marginTop: 12, fontSize: 13, color: msg.startsWith('✓') ? '#34d399' : 'var(--sv-red)' }}>{msg}</div>}
-
-      {results && results.length > 0 && (
-        <div style={{ marginTop: 12, padding: 12, background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)', fontSize: 12 }}>
-          {results.map((r: any, i: number) => (
-            <div key={i} style={{ padding: '3px 0', color: r.posted ? '#34d399' : r.error ? 'var(--sv-red)' : 'var(--sv-text-dim)' }}>
-              Payout {r.payoutId} ({r.date}): {r.posted ? 'posted ✓' : r.skipped ? r.skipped : r.error ? `error — ${r.error}` : 'not posted'}
-            </div>
-          ))}
-        </div>
-      )}
-      {results && results.length === 0 && <div style={{ marginTop: 12, fontSize: 12, color: 'var(--sv-text-dim)' }}>No new confirmed payouts to post.</div>}
     </div>
   );
 }

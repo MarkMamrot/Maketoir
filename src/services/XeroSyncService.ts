@@ -34,8 +34,6 @@ interface AccountMapping {
   stock_adjustment?: string;
   credit_note?: string;
   rounding?: string; // Optional dedicated account for cash rounding adjustments
-  merchant_fees?: string;      // Shopify/payment processing fees (expense)
-  shopify_clearing?: string;   // Shopify Payments clearing bank account
   gift_card_liability?: string; // Outstanding gift card balances (liability)
   supplier_credit_note?: string; // Non-stock supplier credit lines (rebates/overcharges)
 }
@@ -62,6 +60,25 @@ export async function getTrackingMappings(businessId: string): Promise<TrackingM
     'SELECT ims_location_id, ims_channel, xero_tracking_category_id, xero_tracking_option_id FROM xero_tracking_mappings WHERE business_id = ?',
     [businessId],
   );
+}
+
+async function getPosPaymentMethodMappings(businessId: string): Promise<Record<string, string>> {
+  try {
+    const rows = await query<{ payment_method: string; xero_account_code: string }>(
+      `SELECT payment_method, xero_account_code
+       FROM xero_pos_payment_mappings
+       WHERE business_id = ?`,
+      [businessId],
+    );
+    const map: Record<string, string> = {};
+    for (const row of rows) {
+      const key = row.payment_method.trim().toLowerCase();
+      if (key) map[key] = row.xero_account_code;
+    }
+    return map;
+  } catch {
+    return {};
+  }
 }
 
 /** Returns 'capitalise' if freight should be absorbed into stock value, else 'expense' (default). */
@@ -1033,147 +1050,6 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
   }
 }
 
-// ─── Shopify Payments Payout → Xero (cash-basis reconciliation) ───────────────
-
-export interface ShopifyPayoutSync {
-  payoutId: number;        // Shopify payout id
-  date: string;            // YYYY-MM-DD (payout/deposit date)
-  currency: string;        // e.g. 'AUD'
-  netInclTax: number;      // charges_gross − refunds_gross (money customers paid, incl tax)
-  totalTax: number;        // GST on charges − GST on refunds (from IMS orders)
-  totalFees: number;       // charges_fee + refunds_fee + adjustments_fee (all positive)
-  adjustmentsGross: number;// disputes/other adjustments gross (usually 0)
-  netAmount: number;       // payout.amount — the actual bank deposit (for validation)
-  orderCount: number;      // number of charge orders in the payout (for the description)
-}
-
-/**
- * Post one confirmed Shopify Payments payout to Xero as a single ACCREC invoice
- * whose total equals the bank deposit, then apply a payment into the configured
- * Shopify clearing (bank) account. The real bank deposit is later reconciled
- * against the clearing account, which nets to zero.
- *
- *   Line 1  Online sales (net of refunds, ex-tax)      → sales_revenue   (+GST)
- *   Line 2  Shopify payment fees ex-GST (negative)      → merchant_fees   (INPUT tax — AU GST claimable)
- *   Line 3  Adjustments ex-GST (negative, only if ≠0)  → merchant_fees   (INPUT tax)
- *   Total = netInclTax − totalFees − adjustmentsGross = netAmount (deposit)
- *
- * Shopify AU processing fees include 10% GST — we post the ex-GST amount and let
- * Xero calculate the claimable INPUT tax (GST on Expenses) automatically.
- *
- * Requires account roles: sales_revenue, merchant_fees, shopify_clearing (BANK).
- * Idempotency is handled by the caller (ims_shopify_payouts + xero_sync_log).
- */
-export async function syncShopifyPayout(businessId: string, p: ShopifyPayoutSync): Promise<string | null> {
-  const accounts = await getAccountMappings(businessId);
-  const trackingMappings = await getTrackingMappings(businessId);
-
-  if (!accounts.sales_revenue) {
-    await logSync(businessId, 'shopify_payout', null, null, 'skipped', `No sales_revenue account mapped — payout ${p.payoutId}`);
-    return null;
-  }
-  if (!accounts.merchant_fees) {
-    await logSync(businessId, 'shopify_payout', null, null, 'skipped', `No merchant_fees account mapped — payout ${p.payoutId}`);
-    return null;
-  }
-  if (!accounts.shopify_clearing) {
-    await logSync(businessId, 'shopify_payout', null, null, 'skipped', `No shopify_clearing (bank) account mapped — payout ${p.payoutId}`);
-    return null;
-  }
-
-  const round2 = (n: number) => Math.round(n * 100) / 100;
-  const tracking = getTrackingForLocation(trackingMappings, null, 'online');
-  const salesExTax = round2(p.netInclTax - p.totalTax);
-  const totalFees  = round2(p.totalFees);
-  const adjustments = round2(p.adjustmentsGross);
-
-  const lineItems: any[] = [{
-    Description: `Online sales via Shopify Payments — payout ${p.date} (${p.orderCount} order${p.orderCount === 1 ? '' : 's'}${adjustments ? ', incl. adjustments' : ''})`,
-    Quantity: 1,
-    UnitAmount: salesExTax,
-    AccountCode: accounts.sales_revenue,
-    TaxAmount: round2(p.totalTax),
-    Tracking: tracking,
-  }];
-
-  // Shopify AU fees are GST-inclusive — post ex-GST amount so Xero can claim the INPUT tax credit.
-  const feeExGst = round2(totalFees / 1.1);
-
-  if (totalFees > 0) {
-    lineItems.push({
-      Description: 'Shopify payment processing fees (incl. GST)',
-      Quantity: 1,
-      UnitAmount: -feeExGst,
-      AccountCode: accounts.merchant_fees,
-      TaxType: 'INPUT',
-      Tracking: tracking,
-    });
-  }
-
-  if (adjustments !== 0) {
-    // Adjustments = disputes / chargebacks / reserves — money movements, no GST.
-    // Sign: adjustments from Shopify is negative when a dispute deduction reduces the payout,
-    // so we pass it through directly (positive adds, negative subtracts from invoice total).
-    lineItems.push({
-      Description: 'Shopify payout adjustments (disputes / reserves)',
-      Quantity: 1,
-      UnitAmount: adjustments,
-      AccountCode: accounts.merchant_fees,
-      TaxType: 'NONE',
-      TaxAmount: 0,
-      Tracking: tracking,
-    });
-  }
-
-  const invoice: any = {
-    Type: 'ACCREC',
-    Contact: { Name: 'Shopify Payments' },
-    Date: p.date,
-    DueDate: p.date,
-    Reference: `SP-PAYOUT-${p.payoutId}`,
-    Status: 'AUTHORISED',
-    LineAmountTypes: 'Exclusive',
-    CurrencyCode: p.currency || 'AUD',
-    LineItems: lineItems,
-  };
-
-  try {
-    const invRes = await xeroApiFetch(businessId, '/Invoices', { method: 'POST', body: { Invoices: [invoice] } });
-    const inv = invRes.Invoices?.[0];
-    const xeroId = inv?.InvoiceID ?? null;
-    if (!xeroId) {
-      await logSync(businessId, 'shopify_payout', null, null, 'error', `No InvoiceID returned for payout ${p.payoutId}`);
-      return null;
-    }
-
-    // Apply payment for the net deposit into the clearing (bank) account.
-    if (p.netAmount > 0) {
-      try {
-        await xeroApiFetch(businessId, '/Payments', {
-          method: 'POST',
-          body: { Payments: [{
-            Invoice: { InvoiceID: xeroId },
-            Account: { Code: accounts.shopify_clearing },
-            Date: p.date,
-            Amount: round2(p.netAmount),
-            Reference: `Shopify payout ${p.payoutId}`,
-          }] },
-        });
-      } catch (payErr: any) {
-        // Invoice posted but payment failed — surface it; invoice can be paid manually.
-        await logSync(businessId, 'shopify_payout', null, xeroId, 'error', `Invoice ok but payment failed for payout ${p.payoutId}: ${payErr.message}`);
-        return xeroId;
-      }
-    }
-
-    await logSync(businessId, 'shopify_payout', null, xeroId, 'success', `payout ${p.payoutId} ${p.date}: net $${p.netAmount.toFixed(2)}`, inv?.Status ?? 'AUTHORISED');
-    return xeroId;
-  } catch (err: any) {
-    await logSync(businessId, 'shopify_payout', null, null, 'error', `payout ${p.payoutId}: ${err.message}`);
-    return null;
-  }
-}
-
 // ─── COGS Journals ───────────────────────────────────────────────────────────
 
 export async function syncCogsJournal(input: {
@@ -1274,6 +1150,7 @@ export async function syncEodEntry(
     registerName?: string | null;
     sessionId?: number | null;
     method: string;
+    methodAccountCode?: string;
     salesAmount: number; // cash: counted − float; others: counted
     cashRounding?: number; // net cash rounding adjustment for the session (Cash only)
   },
@@ -1281,9 +1158,12 @@ export async function syncEodEntry(
   const accounts         = await getAccountMappings(businessId);
   const trackingMappings = await getTrackingMappings(businessId);
 
-  if (!accounts.sales_revenue) {
+  const methodAccountCode = entry.methodAccountCode?.trim() || '';
+  const salesAccountCode = methodAccountCode || accounts.sales_revenue;
+
+  if (!salesAccountCode) {
     await logSync(businessId, 'eod_reconciliation', null, null, 'skipped',
-      `No sales_revenue account mapped — EOD ${entry.date} ${entry.method}`);
+      `No account mapped for EOD ${entry.date} ${entry.method} (method mapping or sales_revenue)`);
     return null;
   }
 
@@ -1307,7 +1187,7 @@ export async function syncEodEntry(
         Description: `${entry.method} Sales — ${entry.locationName}${regLabel}${sessLabel} — ${entry.date}`,
         Quantity:    1,
         UnitAmount:  entry.salesAmount,
-        AccountCode: accounts.sales_revenue,
+        AccountCode: salesAccountCode,
         TaxType:     'OUTPUT',
         Tracking:    tracking,
       },
@@ -1319,7 +1199,7 @@ export async function syncEodEntry(
             Description: `Cash Rounding Adjustment — ${entry.locationName} — ${entry.date}`,
             Quantity:    1,
             UnitAmount:  entry.cashRounding,
-            AccountCode: accounts.rounding ?? accounts.sales_revenue,
+            AccountCode: accounts.rounding ?? salesAccountCode,
             TaxType:     'NONE',
           }]
         : []),
@@ -1364,6 +1244,7 @@ export async function triggerEodXeroSync(
   registerName?: string | null,
 ): Promise<{ method: string; xeroId: string; invoiceNumber: string }[]> {
   const results: { method: string; xeroId: string; invoiceNumber: string }[] = [];
+  const posMethodMappings = await getPosPaymentMethodMappings(businessId);
 
   // Sum net cash rounding for the session so we can attach it to the Cash invoice.
   // Positive = customers paid slightly more (round up); negative = slightly less (round down).
@@ -1393,12 +1274,14 @@ export async function triggerEodXeroSync(
     const openFloat  = row.payment_method === 'Cash' ? (row.opening_float ?? 0) : 0;
     const salesAmount = row.counted_amount - openFloat;
     if (salesAmount <= 0) continue;
+    const methodAccountCode = posMethodMappings[row.payment_method.trim().toLowerCase()];
     const result = await syncEodEntry(businessId, {
       date, locationId, locationName,
       registerId: registerId ?? undefined,
       registerName: registerName ?? undefined,
       sessionId: row.register_session_id ?? undefined,
       method: row.payment_method,
+      methodAccountCode,
       salesAmount,
       cashRounding: /cash/i.test(row.payment_method) && netCashRounding !== 0 ? netCashRounding : undefined,
     });

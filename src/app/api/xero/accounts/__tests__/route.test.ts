@@ -68,6 +68,26 @@ describe('POST /api/xero/accounts', () => {
     expect(params).toEqual(['biz-1', 'gift_card_liability', 'acc-123', '230', 'Gift Card Liability']);
   });
 
+  it('accepts rounding as a valid role and upserts mapping', async () => {
+    const req = makeRequest({
+      databaseId: 'biz-1',
+      roleKey: 'rounding',
+      xeroAccountId: 'acc-789',
+      xeroAccountCode: '899',
+      xeroAccountName: 'Cash Rounding',
+    });
+
+    const res = await POST(req);
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.success).toBe(true);
+    expect(mockExecute).toHaveBeenCalledTimes(1);
+
+    const [, params] = mockExecute.mock.calls[0];
+    expect(params).toEqual(['biz-1', 'rounding', 'acc-789', '899', 'Cash Rounding']);
+  });
+
   it('rejects an unknown role_key with 400', async () => {
     const req = makeRequest({
       databaseId: 'biz-1',
@@ -114,10 +134,10 @@ describe('POST /api/xero/accounts', () => {
 
     const req = makeRequest({
       databaseId: 'biz-1',
-      roleKey: 'merchant_fees',
+      roleKey: 'sales_revenue',
       xeroAccountId: 'acc-2',
-      xeroAccountCode: '720',
-      xeroAccountName: 'Merchant Fees',
+      xeroAccountCode: '200',
+      xeroAccountName: 'Sales',
     });
 
     const res = await POST(req);

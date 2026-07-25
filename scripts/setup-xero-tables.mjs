@@ -31,6 +31,7 @@ async function main() {
   console.log('✔ xero_sync_log created');
   console.log('✔ xero_cogs_settings created');
   console.log('✔ xero_cogs_journal_runs created');
+  console.log('✔ xero_pos_payment_mappings created');
 
   await conn.end();
   console.log('Done.');

@@ -18,6 +18,7 @@ import { decrypt } from '@/lib/encryption';
 import { toBusinessDate, toBusinessDateTime } from '@/lib/shopifyDate';
 import { parseShopifyRefund } from '@/lib/shopifyRefund';
 import { createNotification } from '@/lib/ims/createNotification';
+import { triggerCNXeroSync } from '@/lib/ims/xeroHooks';
 
 
 async function getSetting(businessId: string, key: string): Promise<string | null> {
@@ -287,6 +288,16 @@ export async function POST(req: Request) {
                 note: 'Shopify refund (import backfill)',
                 restockLines: norm.restockLines,
               });
+              const cnRows = await imsQuery<{ id: number }>(
+                `SELECT id FROM ims_credit_notes
+                 WHERE business_id = ? AND shopify_refund_id = ?
+                 LIMIT 1`,
+                [businessId, norm.shopifyRefundId],
+              );
+              const cnId = Number(cnRows[0]?.id ?? 0);
+              if (cnId > 0) {
+                await triggerCNXeroSync(businessId, cnId);
+              }
             }
           } catch (e: any) { errors.push(`Order ${order.name} refund: ${e.message}`); }
         }

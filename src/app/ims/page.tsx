@@ -9408,7 +9408,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
                   <td style={{ padding: '10px 12px' }}>{statusBadge(cn.status)}</td>
                   <td style={{ padding: '10px 12px', fontWeight: 600 }}>{fmtCurrency(cn.total_amount)}</td>
                   <td style={{ padding: '10px 12px' }}>
-                    {cn.source === 'shopify' ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }} title="Accounted via Shopify payout">via payout</span>
+                    {cn.source === 'shopify' ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }} title="Imported from Shopify">shopify import</span>
                       : cn.xero_sync_status === 'synced' ? <span style={{ color: '#34d399', fontSize: 11 }}>✓ Synced</span>
                       : cn.xero_sync_status === 'queued' ? <span style={{ color: '#fbbf24', fontSize: 11 }}>⚠ Queued</span>
                       : cn.xero_sync_status === 'error' ? <span style={{ color: '#f87171', fontSize: 11 }}>✕ Error</span>
@@ -11009,7 +11009,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   };
 
   const handleReturn = async (so: any) => {
-    // Shopify orders must be refunded in Shopify (auto-restocks + payout handles Xero).
+    // Shopify orders must be refunded in Shopify so refund events sync back correctly.
     if (so.shopify_order_id) {
       alert('This order originated in Shopify. Returns and refunds must be initiated in Shopify — they sync back into IMS automatically.');
       return;
@@ -13087,8 +13087,7 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
       <div style={{ marginBottom: 18, padding: '9px 14px', borderRadius: 8, background: 'rgba(96,165,250,.07)', border: '1px solid rgba(96,165,250,.15)', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.7 }}>
         <strong style={{ color: 'var(--sv-text-main)' }}>How online sales reach Xero</strong>
         {' · '}
-        <strong style={{ color: '#34d399' }}>Shopify Payments</strong>: one invoice per confirmed payout (~11am daily), net of processing fees. Enable in{' '}
-        <span style={{ fontStyle: 'italic' }}>Shopify tab → Orders → Shopify Payments → Xero</span>.
+        <strong style={{ color: '#34d399' }}>Shopify Payments</strong>: included in the nightly online batch sync.
         {' · '}
         <strong style={{ color: '#60a5fa' }}>Other gateways</strong> (PayPal, Afterpay, etc.): nightly batch, split by gateway if clearing accounts are configured in{' '}
         <span style={{ fontStyle: 'italic' }}>Xero → Mapping → Online Gateway Clearing Accounts</span>.
@@ -13180,7 +13179,7 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
                     setXeroSyncing(null);
                   }}
                   disabled={xeroSyncing === day.day}
-                  title="Post this day's non-Shopify-Payments orders to Xero as a daily sales invoice. Shopify Payments orders are automatically handled via the payout sync (~11am daily)."
+                  title="Post this day's online orders to Xero as a daily sales invoice."
                   style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: xeroResults[day.day] === 'ok' ? 'rgba(16,185,129,.1)' : 'none', color: xeroResults[day.day] === 'ok' ? 'var(--sv-mint)' : xeroResults[day.day] === 'err' ? 'var(--sv-red)' : 'var(--sv-text-muted)', fontSize: 11, fontWeight: 600, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
                 >{xeroSyncing === day.day ? 'Syncing…' : xeroResults[day.day] === 'ok' ? '✓ Xero' : xeroResults[day.day] === 'err' ? '✗ Xero' : 'Sync Xero'}</button>
               ) : (
@@ -14690,13 +14689,12 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
           <div>• POs → Xero Bills <span style={{ color: 'var(--sv-text-dim)' }}>(on create/payment/receive)</span></div>
           <div>• SOs → Xero Invoices <span style={{ color: 'var(--sv-text-dim)' }}>(wholesale: individual)</span></div>
           <div>• POS Sales → Xero <span style={{ color: 'var(--sv-text-dim)' }}>(daily batch per location, ~1am)</span></div>
-          <div>• Online Sales — Shopify Payments → Xero <span style={{ color: 'var(--sv-text-dim)' }}>(one invoice per confirmed payout, ~11am)</span></div>
-          <div>• Online Sales — other gateways → Xero <span style={{ color: 'var(--sv-text-dim)' }}>(daily batch ~1am, split by gateway if clearing accounts configured)</span></div>
-          <div>• Credit Notes (manual) → Xero Credit Note <span style={{ color: 'var(--sv-text-dim)' }}>(on CN completion; Shopify refunds handled via payout)</span></div>
+          <div>• Online Sales — all gateways → Xero <span style={{ color: 'var(--sv-text-dim)' }}>(daily batch ~1am, split by gateway if clearing accounts configured)</span></div>
+          <div>• Credit Notes → Xero Credit Note <span style={{ color: 'var(--sv-text-dim)' }}>(on CN completion)</span></div>
           <div>• Monthly COGS Journal <span style={{ color: 'var(--sv-text-dim)' }}>(manual, end of month)</span></div>
         </div>
         <div style={{ marginTop: 10, fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6, padding: '8px 10px', background: 'rgba(96,165,250,.07)', borderRadius: 6 }}>
-          💡 Shopify Payments orders are excluded from the nightly batch when payout sync is active — to prevent double-counting. Other gateways (PayPal, Afterpay) continue through the nightly batch unless you assign them a clearing account in <strong>Mapping → Online Gateway Clearing Accounts</strong>.
+          💡 Online sales are posted through the nightly batch. Gateways with a clearing mapping post as separate (day × gateway) invoices; unmapped gateways post into the combined daily invoice.
         </div>
       </div>
 
@@ -15004,6 +15002,90 @@ function XeroPaymentMappingSection({ type, label, accounts }: { type: 'po' | 'so
   );
 }
 
+function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: { accountId: string; code: string; name: string; type: string }[]; getBusinessId: () => string }) {
+  const [methods, setMethods] = useState<Array<{ payment_method: string; xero_account_code: string | null }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const load = async () => {
+    const bid = getBusinessId();
+    if (!bid) { setLoading(false); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/xero/pos-payment-mappings?databaseId=${encodeURIComponent(bid)}`).then(r => r.json());
+      if (res.success) setMethods(Array.isArray(res.methods) ? res.methods : []);
+      else setMethods([]);
+    } catch {
+      setMethods([]);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleMapAccount = async (paymentMethod: string, accountCode: string) => {
+    const bid = getBusinessId();
+    if (!bid) return;
+    setSaving(paymentMethod);
+    try {
+      const account = accounts.find(a => a.code === accountCode);
+      const res = await fetch('/api/xero/pos-payment-mappings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          databaseId: bid,
+          paymentMethod,
+          xeroAccountCode: accountCode,
+          xeroAccountName: account?.name ?? null,
+        }),
+      });
+      if (!res.ok) throw new Error('save failed');
+      setMethods(prev => prev.map(m => m.payment_method === paymentMethod
+        ? { ...m, xero_account_code: accountCode || null }
+        : m));
+    } catch {}
+    setSaving(null);
+  };
+
+  return (
+    <div style={{ marginTop: 16, padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
+      <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>POS Payment Types — Xero Accounts</h3>
+      <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
+        Map each POS payment type to a Xero account for EOD invoice posting. New payment types created in POS Settings appear here automatically.
+      </p>
+      {loading ? <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading…</div> : methods.length === 0 ? (
+        <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: 0 }}>No POS payment types configured yet. Add them in POS settings first.</p>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead><tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+            {['Payment Type', 'Xero Account'].map(h => <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {methods.map(m => (
+              <tr key={m.payment_method} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                <td style={{ padding: '8px 8px', color: 'var(--sv-text-main)' }}>{m.payment_method}</td>
+                <td style={{ padding: '4px 8px' }}>
+                  <select
+                    value={m.xero_account_code || ''}
+                    onChange={e => handleMapAccount(m.payment_method, e.target.value)}
+                    disabled={saving === m.payment_method}
+                    style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: m.xero_account_code ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontSize: 13, minWidth: 260 }}
+                  >
+                    <option value="">— use Sales Revenue fallback —</option>
+                    {accounts.map(a => (
+                      <option key={a.accountId} value={a.code}>{a.code} — {a.name}</option>
+                    ))}
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
   const [accounts, setAccounts] = useState<{ accountId: string; code: string; name: string; type: string; class: string }[]>([]);
   const [mappings, setMappings] = useState<Record<string, { xero_account_id: string; xero_account_code: string; xero_account_name: string }>>({});
@@ -15020,10 +15102,9 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
     { key: 'cogs', label: 'Cost of Goods Sold', desc: 'COGS expense (P&L)', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'sales_revenue', label: 'Sales Revenue', desc: 'Income from sales (P&L)', filter: (a: any) => a.class === 'REVENUE' },
     { key: 'credit_note', label: 'Credit Notes (Customer Returns)', desc: 'Revenue/contra-revenue account for customer credit note lines (returns & refunds). Defaults to Sales Revenue if not set.', filter: (a: any) => a.class === 'REVENUE' },
+    { key: 'rounding', label: 'Cash Rounding', desc: 'Optional account for POS cash-rounding adjustments. Falls back to Sales Revenue if unset.', filter: (a: any) => a.class === 'EXPENSE' || a.class === 'REVENUE' },
     { key: 'freight', label: 'Freight / Shipping', desc: 'Freight Paid expense account (P&L). Only used when PO Freight Treatment = Expense.', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'stock_adjustment', label: 'Stock Adjustment / Shrinkage', desc: 'Stocktake variance expense account (P&L) — used for stock write-offs and surpluses', filter: (a: any) => a.class === 'EXPENSE' },
-    { key: 'merchant_fees', label: 'Merchant / Payment Fees', desc: 'Shopify Payments processing fees expense (P&L)', filter: (a: any) => a.class === 'EXPENSE' },
-    { key: 'shopify_clearing', label: 'Shopify Payments Clearing', desc: 'Bank/clearing account that receives each payout; reconciles against the actual deposit', filter: (a: any) => a.type === 'BANK' },
     { key: 'gift_card_liability', label: 'Gift Card Liability', desc: 'Liability account for outstanding gift card balances', filter: (a: any) => a.class === 'LIABILITY' },
     { key: 'supplier_credit_note', label: 'Supplier Credit Notes', desc: 'Account for non-stock supplier credit lines (rebates / overcharges). Returned-stock lines post to Inventory Asset. Defaults to COGS if unset.', filter: (a: any) => a.class === 'EXPENSE' || a.class === 'ASSET' },
   ].filter(r => !(r.key === 'freight' && freightTreatment === 'capitalise'));
@@ -15210,6 +15291,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
       {/* Payment Methods */}
       <XeroPaymentMappingSection type="po" label="PO Payment Methods — Xero Bank Accounts" accounts={accounts} />
       <XeroPaymentMappingSection type="so" label="SO Payment Methods — Xero Bank Accounts" accounts={accounts} />
+      <XeroPosPaymentMappingSection accounts={accounts} getBusinessId={getBusinessId} />
 
       {/* Online Gateway Clearing Accounts */}
       <XeroGatewayClearingSection accounts={accounts} getBusinessId={getBusinessId} />
@@ -15299,7 +15381,7 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
         </button>
       </div>
       <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
-        Maps each online payment gateway (PayPal, Afterpay, etc.) to a dedicated Xero bank/clearing account. When configured, the nightly batch posts a <strong>separate invoice per gateway per day</strong> and immediately applies a payment to the clearing account — ready for bank reconciliation. Gateways with no mapping still post to the combined daily invoice. Shopify Payments is handled separately via the payout sync.
+        Maps each online payment gateway (PayPal, Afterpay, etc.) to a dedicated Xero bank/clearing account. When configured, the nightly batch posts a <strong>separate invoice per gateway per day</strong> and immediately applies a payment to the clearing account — ready for bank reconciliation. Gateways with no mapping still post to the combined daily invoice.
       </p>
 
       <div style={{ marginBottom: 12, padding: '12px 14px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
@@ -21950,9 +22032,8 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           { trigger: 'SO fulfilled — edit or delete', object: 'Invoice (ACCREC)',     status: 'Manual',       notes: '⚠️ Xero invoice is AUTHORISED — changes do not auto-sync. A warning with a bookkeeper draft message is shown.' },
           { trigger: 'SO reverted or cancelled',      object: 'Invoice (ACCREC)',     status: 'VOIDED',       notes: 'Voided automatically if no payments applied; warning shown if payments exist (manual action required)' },
           { trigger: 'Payment added to SO',           object: 'Payment',              status: 'Applied',      notes: 'Applied to the Xero invoice' },
-          { trigger: 'Daily batch (manual/scheduled)',object: 'Invoice (ACCREC)',     status: 'AUTHORISED',   notes: 'One invoice per location per day for POS; one per day for online (non-Shopify-Payments). If gateway clearing accounts are configured, one invoice per (day × gateway) with payment into clearing account.' },
-          { trigger: 'Shopify Payments payout',       object: 'Invoice (ACCREC)',     status: 'PAID',         notes: 'One invoice per confirmed payout (~11am daily). Revenue − fees − refunds = bank deposit. Payment applied to shopify_clearing bank account. Fee line posts ex-GST with claimable INPUT tax.' },
-          { trigger: 'Credit note completed',         object: 'Credit Note (ACCREC)', status: 'AUTHORISED',   notes: 'Shopify-sourced returns do NOT post a credit note (accounted via payout). Manual/wholesale returns post an ACCREC credit note.' },
+          { trigger: 'Daily batch (manual/scheduled)',object: 'Invoice (ACCREC)',     status: 'AUTHORISED',   notes: 'One invoice per location per day for POS; one per day for online. If gateway clearing accounts are configured, one invoice per (day × gateway) with payment into clearing account.' },
+          { trigger: 'Credit note completed',         object: 'Credit Note (ACCREC)', status: 'AUTHORISED',   notes: 'Completed credit notes post to Xero as ACCREC credit notes (including Shopify refund-sourced credit notes).' },
           { trigger: 'Monthly COGS (manual)',         object: 'Manual Journal',       status: 'Posted',       notes: 'DR Cost of Goods Sold / CR Inventory Asset; one journal per branch' },
         ]} />
 
@@ -21966,8 +22047,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           { role: 'inventory_in_transit',  type: 'Asset',   description: 'Goods ordered but not yet received — used when a PO has deposits/prepayments', required: true },
           { role: 'cogs',                  type: 'Expense', description: 'Cost of goods sold — debited in monthly COGS journals', required: true },
           { role: 'sales_revenue',         type: 'Revenue', description: 'Sales income — used for SO and batch POS/online invoice lines', required: true },
-          { role: 'merchant_fees',         type: 'Expense', description: 'Shopify payment processing fees — posted as a negative ex-GST line on each payout invoice (GST claimable as INPUT tax)', required: false },
-          { role: 'shopify_clearing',      type: 'Bank',    description: 'Shopify Payments bank/clearing account — payout invoice payments are applied here, matching the actual bank deposit', required: false },
+          { role: 'rounding',              type: 'Revenue/Expense', description: 'Optional account for POS cash-rounding adjustments; defaults to Sales Revenue when not mapped', required: false },
           { role: 'freight',               type: 'Expense', description: 'Freight / shipping expense — used when freight treatment is set to "Expense"', required: false },
           { role: 'credit_note',           type: 'Revenue', description: 'Account for manual credit note lines — defaults to sales_revenue if not set', required: false },
           { role: 'stock_adjustment',      type: 'Expense', description: 'Stocktake variance account — debited on write-offs, credited on surpluses', required: false },
@@ -22043,12 +22123,12 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
       <div style={{ padding: 32, maxWidth: 820 }}>
         <h2 style={h2}>Shopify Integration</h2>
         <p style={{ ...p, color: 'var(--sv-text-dim)', fontSize: 13 }}>
-          The Shopify integration is a <strong>three-way sync</strong>: orders and refunds flow <em>Shopify → IMS</em>, stock levels flow <em>IMS → Shopify</em>, and financial summaries flow <em>IMS → Xero</em> via two separate paths depending on how the customer paid.
+          The Shopify integration is a <strong>three-way sync</strong>: orders and refunds flow <em>Shopify → IMS</em>, stock levels flow <em>IMS → Shopify</em>, and financial summaries flow <em>IMS → Xero</em> through the daily online batch flow.
         </p>
 
         <h3 style={h3}>Before you start — setup checklist</h3>
         <ul style={ul}>
-          <li>✅ Enter your Shopify Store URL and Access Token in <strong>Setup → Connections</strong>. The token needs scopes: <span style={code}>read_orders</span>, <span style={code}>read_products</span>, <span style={code}>write_inventory</span>, <span style={code}>read_fulfillments</span>, <span style={code}>read_shopify_payments_payouts</span>.</li>
+          <li>✅ Enter your Shopify Store URL and Access Token in <strong>Setup → Connections</strong>. The token needs scopes: <span style={code}>read_orders</span>, <span style={code}>read_products</span>, <span style={code}>write_inventory</span>, <span style={code}>read_fulfillments</span>.</li>
           <li>✅ Run <strong>Reconcile products</strong> in the Shopify tab to link your IMS product catalog to Shopify variants by SKU.</li>
           <li>✅ Register the following webhook topics in <strong>Shopify Admin → Settings → Notifications → Webhooks</strong>. Use the URL shown in the Shopify → Orders tab. All webhooks must share the same signing secret, which you then paste into Settings → IMS Settings → Shopify webhook secret.
             <div style={{ marginTop: 8, background: 'var(--sv-bg-0)', borderRadius: 6, padding: '8px 12px', fontFamily: 'monospace', fontSize: 11, color: 'var(--sv-mint)', lineHeight: 1.9 }}>
@@ -22060,7 +22140,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           </li>
           <li>✅ Set the <strong>Online pick location</strong> in Settings → IMS Settings — the warehouse location orders are picked from.</li>
           <li>✅ To push stock back to Shopify, go to Shopify → Orders → Inventory Sync, enable the toggle, and select the Shopify inventory location.</li>
-          <li>✅ For Shopify Payments payout-to-Xero, map three Xero accounts in Xero → Mapping: <span style={code}>sales_revenue</span>, <span style={code}>merchant_fees</span>, <span style={code}>shopify_clearing</span> (a bank account).</li>
+          <li>✅ Ensure <strong>Sales Revenue</strong> is mapped in Xero → Mapping before running daily sales sync.</li>
         </ul>
 
         <h3 style={h3}>1 — Orders: Shopify → IMS</h3>
@@ -22070,7 +22150,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           { trigger: 'Order edited',            object: 'IMS Sales Order',     status: 'Updated',    notes: 'Financial totals (price, tax, freight, discount) updated immediately. Line items re-synced only if the SO is still Draft.' },
           { trigger: 'Order fulfilled',         object: 'IMS Sales Order',     status: 'Fulfilled',  notes: 'Stock moved from committed → on hand via a fulfilled movement. Occurs on fulfillments/create or orders/fulfilled topic.' },
           { trigger: 'Order cancelled/voided',  object: 'IMS Sales Order',     status: 'Cancelled',  notes: 'Committed stock released. Triggered by orders/cancelled or financial_status = voided.' },
-          { trigger: 'Refund issued (refunds/create)', object: 'IMS Credit Note', status: 'Complete', notes: 'Handles all three scenarios: (1) goodwill/no-restock, (2) return + immediate refund, (3) deferred refund after return. Lines with restock_type = return/cancel are restocked; no_restock lines credit value only. No Xero credit note — accounted via payout.' },
+          { trigger: 'Refund issued (refunds/create)', object: 'IMS Credit Note', status: 'Complete', notes: 'Handles all three scenarios: (1) goodwill/no-restock, (2) return + immediate refund, (3) deferred refund after return. Lines with restock_type = return/cancel are restocked; no_restock lines credit value only.' },
         ]} />
 
         <h3 style={h3}>2 — Returns & refunds in detail</h3>
@@ -22094,32 +22174,20 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         </ul>
 
         <h3 style={h3}>4 — Money: Shopify → Xero</h3>
-        <p style={p}>Revenue flows to Xero via two different paths depending on how the customer paid:</p>
-        <p style={{ ...p, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 4 }}>Path A — Shopify Payments (card payments Shopify settles)</p>
+        <p style={p}>Online sales post via the nightly sales batch. If you've configured a clearing account for a gateway in <em>Xero → Mapping → Online Gateway Clearing Accounts</em>, that gateway posts as its own invoice per day and a payment is applied to that clearing account.</p>
         <ul style={ul}>
-          <li>Shopify holds funds and releases them as a <strong>Payout</strong> every business day at ~10am Sydney time.</li>
-          <li>IMS checks for confirmed payouts each morning (~11am) and posts one Xero invoice per payout.</li>
-          <li>The invoice equals the exact bank deposit: <em>sales (ex-GST) + GST − processing fees (ex-GST, with claimable INPUT tax) ± adjustments</em>. A payment is immediately applied to your <span style={code}>shopify_clearing</span> bank account, ready for bank reconciliation.</li>
-          <li>Refunds within the payout period reduce the deposit and are netted into the payout invoice — no separate Xero credit note is posted for Shopify refunds.</li>
-          <li>Enable in Shopify → Orders → <em>Shopify Payments → Xero (payouts)</em> toggle, and choose <em>Cash basis</em> (recommended) or <em>Accrual</em>.</li>
-        </ul>
-        <p style={{ ...p, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 4 }}>Path B — Other gateways (PayPal, Afterpay, etc.)</p>
-        <ul style={ul}>
-          <li>Each gateway that IS NOT Shopify Payments posts via the <strong>nightly sales batch</strong> (1am AEST).</li>
-          <li>If you've configured a clearing account for a gateway in <em>Xero → Mapping → Online Gateway Clearing Accounts</em>, that gateway gets its own invoice per day and a payment is applied to its clearing account.</li>
-          <li>Gateways with no clearing account mapped still post as a combined daily invoice to your Sales Revenue account (no payment applied — bookkeeper reconciles manually).</li>
-          <li>Shopify Payments orders are automatically excluded from this batch when payout sync is active, to prevent double-counting.</li>
+          <li>Gateways with no clearing account mapping post as part of the combined daily online invoice.</li>
+          <li>All online channels, including Shopify Payments, are included in this flow.</li>
         </ul>
 
         <h3 style={h3}>5 — The Xero sync log</h3>
-        <p style={p}>Every payout posted to Xero is recorded in the Xero sync log (IMS → Xero → Sync History tab). If a sync fails (e.g. missing account mapping, Xero API issue), it appears there with the error detail and can be retried.</p>
+        <p style={p}>Each daily online batch posted to Xero is recorded in the Xero sync log (IMS → Xero → Sync History tab). If a sync fails (e.g. missing account mapping, Xero API issue), it appears there with the error detail and can be retried.</p>
 
         <h3 style={h3}>Common issues</h3>
         <ul style={ul}>
           <li><strong>"No linked variants" / order has 0 items</strong> — The Shopify variants aren't linked to IMS products yet. Run <em>Shopify → Reconcile Products</em> to link them by SKU, then re-import the affected order.</li>
           <li><strong>Stock not updating in Shopify</strong> — Check that: (1) Inventory Sync is enabled, (2) a Shopify inventory location is selected, and (3) your pick location has stock. Use Preview to diagnose.</li>
-          <li><strong>Payout sync skipped</strong> — Check that all three Xero account roles (<span style={code}>sales_revenue</span>, <span style={code}>merchant_fees</span>, <span style={code}>shopify_clearing</span>) are mapped in Xero → Mapping.</li>
-          <li><strong>Duplicate revenue</strong> — If you see the same day's sales appearing twice in Xero, Shopify Payments orders may be in both the payout invoice and the daily batch. Ensure payout sync is enabled and set to Cash basis — IMS will then exclude those orders from the nightly batch.</li>
+          <li><strong>Daily batch skipped</strong> — Check that required Xero account roles are mapped (especially <span style={code}>sales_revenue</span>).</li>
           <li><strong>Return shows as a manual return in IMS</strong> — This is correct if the return was initiated in IMS rather than in Shopify. Shopify-sourced returns show a green "Shopify" badge. Manual returns show a "Manual" badge and do post a separate Xero credit note.</li>
           <li><strong>Webhook not firing</strong> — Verify the webhook URL and signing secret match exactly. Check Shopify Admin → Settings → Notifications → Webhooks for delivery failures.</li>
         </ul>

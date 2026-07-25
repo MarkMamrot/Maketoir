@@ -68,10 +68,6 @@ function makeImsQueryForPerGateway() {
       return [{ c: 1 }];
     }
 
-    if (normalized.includes("from ims_settings where business_id = ? and `key` in ('shopify_payments_payout_sync_enabled','shopify_revenue_basis')")) {
-      return [];
-    }
-
     if (normalized.includes('group by date_format(order_date')) {
       return [{ day: '2026-07-24', gateway: 'paypal express' }];
     }
@@ -90,10 +86,6 @@ function makeImsQueryForLegacy() {
 
     if (normalized.includes('select count(*) as c from ims_sales_orders')) {
       return [{ c: 1 }];
-    }
-
-    if (normalized.includes("from ims_settings where business_id = ? and `key` in ('shopify_payments_payout_sync_enabled','shopify_revenue_basis')")) {
-      return [];
     }
 
     if (normalized.includes('group by date_format(order_date')) {
