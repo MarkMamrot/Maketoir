@@ -38,6 +38,7 @@ export async function GET(req: Request) {
       type: a.Type,
       class: a.Class,
       status: a.Status,
+      enablePaymentsToAccount: a.EnablePaymentsToAccount !== false,
     })).filter((a: any) => a.status === 'ACTIVE');
 
     return NextResponse.json({ accounts, mappings });

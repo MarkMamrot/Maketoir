@@ -15062,14 +15062,14 @@ function XeroPaymentMappingSection({ type, label, accounts }: { type: 'po' | 'so
   );
 }
 
-function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: { accountId: string; code: string; name: string; type: string }[]; getBusinessId: () => string }) {
+function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: { accountId: string; code: string; name: string; type: string; enablePaymentsToAccount?: boolean }[]; getBusinessId: () => string }) {
   const [methods, setMethods] = useState<Array<{ payment_method: string }>>([]);
   const [locations, setLocations] = useState<Array<{ id: number; name: string }>>([]);
   const [mappings, setMappings] = useState<Array<{ ims_location_id: number; payment_method: string; xero_account_id: string; xero_account_code: string; xero_account_name: string | null }>>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<Record<string, string>>({});
-  const bankAccounts = accounts.filter(account => account.type === 'BANK');
+  const bankAccounts = accounts.filter(account => account.type === 'BANK' && account.enablePaymentsToAccount !== false);
 
   const cellKey = (locationId: number, paymentMethod: string) => `${locationId}:${paymentMethod.trim().toLowerCase()}`;
   const mappingFor = (locationId: number, paymentMethod: string) => mappings.find(mapping =>
@@ -15200,7 +15200,7 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
 }
 
 function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
-  const [accounts, setAccounts] = useState<{ accountId: string; code: string; name: string; type: string; class: string }[]>([]);
+  const [accounts, setAccounts] = useState<{ accountId: string; code: string; name: string; type: string; class: string; enablePaymentsToAccount?: boolean }[]>([]);
   const [mappings, setMappings] = useState<Record<string, { xero_account_id: string; xero_account_code: string; xero_account_name: string }>>({});
   const [trackingCategories, setTrackingCategories] = useState<{ trackingCategoryId: string; name: string; options: { trackingOptionId: string; name: string }[] }[]>([]);
   const [trackingMappings, setTrackingMappings] = useState<{ ims_location_id: number | null; ims_channel: string | null; xero_tracking_option_id: string }[]>([]);

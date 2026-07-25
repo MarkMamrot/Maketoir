@@ -118,6 +118,21 @@ describe('/api/xero/pos-payment-mappings', () => {
     expect(mockExecute.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO'))).toBe(false);
   });
 
+  it('rejects a bank account that does not accept payments', async () => {
+    mockImsQuery.mockResolvedValueOnce([{ id: 2 }]);
+    mockXeroApiFetch.mockResolvedValueOnce({ Accounts: [{
+      AccountID: 'bank-2', Code: '092', Name: 'Locked Bank', Type: 'BANK', Status: 'ACTIVE', EnablePaymentsToAccount: false,
+    }] });
+
+    const response = await POST(postRequest({
+      databaseId: 'biz-1', locationId: 2, paymentMethod: 'Card',
+      xeroAccountId: 'bank-2', xeroAccountCode: '092',
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mockExecute.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO'))).toBe(false);
+  });
+
   it('removes one location and method cell without calling Xero', async () => {
     mockImsQuery.mockResolvedValueOnce([{ id: 2 }]);
 

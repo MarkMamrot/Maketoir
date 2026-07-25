@@ -69,6 +69,13 @@ Always read this file when starting a new session or implementing a feature to u
 * Phase 1 OAuth scaffolding is complete (connect/callback/status/disconnect routes + Connections UI card).
 * **✅ DONE (architectural fix):** `xero_client_id` / `xero_redirect_uri` moved back to `.env` — they are app-level config, not per-business. The Xero card in Connections now shows a warning if env vars are missing, and the Connect button when they are set.
 
+### POS location/payment clearing accounts (2026-07-25)
+* POS EOD invoice lines always post to the global Sales Revenue mapping with the existing location tracking option. A separate required location × payment-method matrix selects the Xero BANK account that receives the payment.
+* Missing matrix cells block only that payment method's Xero posting; EOD/register closure continues and other mapped methods still sync.
+* EOD sync persists the AUTHORISED invoice ID before calling Xero `/Payments`. Payment failures retain the invoice and retry only the payment, preventing duplicate invoices.
+* Legacy `xero_pos_payment_mappings` rows are revenue-semantic and are intentionally not migrated. Existing EOD invoices have `xero_payment_required = 0` and are never backfilled.
+* Deployment order: run `node scripts/setup-xero-tables.mjs` against the main DB, then `node scripts/catchup-schema-all-tenants.mjs` for every IMS tenant before deploying code that writes the new EOD payment-state columns.
+
 ## 🛒 POS System — Updates (2026-06-23)
 
 ### Tax Handling (IMPORTANT)

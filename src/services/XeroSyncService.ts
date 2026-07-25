@@ -1690,11 +1690,11 @@ export async function triggerEodXeroSync(
       invoiceNumber = invoiceResult.invoiceNumber;
       amountDue = invoiceResult.amountDue;
       await persistence.setXeroInvoice(locationId, date, row.payment_method, xeroId, clearingAccountCode, registerId);
-    } else {
-      amountDue = await getEodInvoiceAmountDue(businessId, xeroId, amountDue);
     }
-
     try {
+      if (row.xero_invoice_id) {
+        amountDue = await getEodInvoiceAmountDue(businessId, xeroId, amountDue);
+      }
       const paymentId = await applyEodClearingPayment(businessId, {
         xeroId,
         date,
