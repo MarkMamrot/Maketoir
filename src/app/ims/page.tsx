@@ -1682,7 +1682,7 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
               <div style={{ marginTop: 14 }}>
                 <SectionLabel>Customer Details</SectionLabel>
                 <Row2>
-                  <Field label="Store Credit ($)"><input type="number" value={f.store_credit ?? 0} readOnly title="Store credit is changed by completing customer credit notes." style={{ ...inputStyle, opacity: .72, cursor: 'not-allowed' }} /></Field>
+                  <Field label="Store Credit ($)"><input type="number" value={f.store_credit ?? 0} readOnly title="Read-only balance updated by completed manual or POS-generated customer credit notes." style={{ ...inputStyle, opacity: .72, cursor: 'not-allowed' }} /></Field>
                   <Field label="On Account Limit ($)"><input type="number" min="0" step="0.01" value={f.on_account_limit ?? ''} onChange={sf('on_account_limit')} style={inputStyle} /></Field>
                 </Row2>
                 <Row2>
@@ -9402,7 +9402,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
         {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New Credit Note</button>}
       </div>
       <p style={{ margin: '-10px 0 16px', color: 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.5 }}>
-        Completing a manual credit note adds its value to the customer&apos;s read-only store-credit balance. POS returns create POS credit notes automatically; cash/card refunds do not add store credit. Shopify credits are settled by Shopify.
+        Completing a manual credit note adds its value to the customer&apos;s read-only store-credit balance. POS returns create POS credit notes automatically; cash/card refunds do not add store credit. Shopify credits are settled by Shopify. Every balance change is recorded in the customer store-credit ledger.
       </p>
 
       {/* Filters */}
@@ -9609,6 +9609,8 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
                 ['Location', viewModal.cn.location_name],
                 ['Customer', viewModal.cn.customer_name ?? '—'],
                 ['Reference', viewModal.cn.reference ?? '—'],
+                ['Source', viewModal.cn.source === 'pos' ? 'POS return' : viewModal.cn.source === 'shopify' ? 'Shopify' : 'Manual IMS'],
+                ['Settlement', viewModal.cn.settlement_method === 'store_credit' ? 'Customer store credit' : viewModal.cn.settlement_method === 'refund' ? 'Cash / card refund' : 'External (Shopify)'],
                 ['Tax Treatment', viewModal.cn.tax_treatment === 'inc_tax' ? 'Inc-Tax' : 'Ex-Tax'],
                 ['Status', viewModal.cn.status],
               ].map(([label, val]) => (
@@ -14758,7 +14760,7 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
           <div>• Wholesale SOs → Xero Invoices <span style={{ color: 'var(--sv-text-dim)' }}>(DRAFT when confirmed; AUTHORISED when fulfilled; payments applied separately)</span></div>
           <div>• POS EOD → Xero Invoices + Payments <span style={{ color: 'var(--sv-text-dim)' }}>(one AUTHORISED invoice per counted location/register-session/payment method, paid into its required clearing account)</span></div>
           <div>• Online Sales → Xero Invoices <span style={{ color: 'var(--sv-text-dim)' }}>(completed days only; nightly schedule with login catch-up)</span></div>
-          <div>• Customer Credit Notes → Xero Credit Notes <span style={{ color: 'var(--sv-text-dim)' }}>(queued as AUTHORISED on completion; retry and void supported)</span></div>
+          <div>• Manual Customer Credit Notes → Xero Credit Notes <span style={{ color: 'var(--sv-text-dim)' }}>(queued as AUTHORISED on completion; POS notes remain in EOD accounting and Shopify notes remain externally settled)</span></div>
           <div>• Supplier Credit Notes → Xero Credit Notes <span style={{ color: 'var(--sv-text-dim)' }}>(queued as DRAFT on completion; retry and void supported)</span></div>
           <div>• COGS Journal <span style={{ color: 'var(--sv-text-dim)' }}>(completed calendar periods on a daily, weekly, monthly or quarterly schedule; manual preview/post available)</span></div>
         </div>
@@ -22699,18 +22701,18 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           { trigger: 'Order edited',            object: 'IMS Sales Order',     status: 'Updated',    notes: 'Financial totals (price, tax, freight, discount) updated immediately. Line items re-synced only if the SO is still Draft.' },
           { trigger: 'Order fulfilled',         object: 'IMS Sales Order',     status: 'Fulfilled',  notes: 'Stock moved from committed → on hand via a fulfilled movement. Occurs on fulfillments/create or orders/fulfilled topic.' },
           { trigger: 'Order cancelled/voided',  object: 'IMS Sales Order',     status: 'Cancelled',  notes: 'Committed stock released. Triggered by orders/cancelled or financial_status = voided.' },
-          { trigger: 'Refund issued (refunds/create)', object: 'IMS Credit Note', status: 'Complete', notes: 'Handles all three scenarios: (1) goodwill/no-restock, (2) return + immediate refund, (3) deferred refund after return. Lines with restock_type = return/cancel are restocked; no_restock lines credit value only.' },
+          { trigger: 'Refund issued (refunds/create)', object: 'IMS Credit Note', status: 'Complete / external', notes: 'Records the Shopify-settled refund in IMS. Lines with restock_type = return/cancel are restocked; no_restock lines record value only. Shopify notes never issue IMS store credit.' },
         ]} />
 
         <h3 style={h3}>2 — Returns & refunds in detail</h3>
         <p style={p}><strong>Rule:</strong> All returns for Shopify orders must be initiated in Shopify Admin. The Return button in IMS Online Sales will link you to the Shopify order. Everything is driven by the <span style={code}>refunds/create</span> webhook — Shopify sends this whenever a refund is issued, and it includes per-line <span style={code}>restock_type</span> flags:</p>
         <ul style={ul}>
-          <li><strong>Instant refund, no physical return</strong> (e.g. goodwill refund, damaged goods) — <span style={code}>restock_type: no_restock</span>. IMS creates a completed credit note. Money is credited but stock is NOT restocked.</li>
-          <li><strong>Return + refund at the same time</strong> — <span style={code}>restock_type: return</span> or <span style={code}>cancel</span>. IMS creates a completed credit note and immediately restocks the returned items.</li>
+          <li><strong>Instant refund, no physical return</strong> (e.g. goodwill refund, damaged goods) — <span style={code}>restock_type: no_restock</span>. IMS records a completed, externally settled credit note; Shopify handles the refund and IMS store credit is unchanged.</li>
+          <li><strong>Return + refund at the same time</strong> — <span style={code}>restock_type: return</span> or <span style={code}>cancel</span>. IMS records the externally settled credit note and immediately restocks the returned items; no IMS store credit is issued.</li>
           <li><strong>Wait for goods before refunding</strong> — Shopify doesn't fire <span style={code}>refunds/create</span> until you process the refund. Once you do (after receiving the goods), IMS creates and completes the credit note, restocking the items. To track the physical return in IMS before money moves, you can manually open a draft credit note in <strong>IMS → Credit Notes / Returns</strong> and set it to <em>Awaiting product</em> status.</li>
         </ul>
         <p style={p}><strong>Note on Returns webhooks:</strong> Shopify's <span style={code}>returns/*</span> webhook topics (which would enable automatic "Awaiting product" tracking) require the separate <span style={code}>returns</span> access scope, a Shopify/Advanced/Plus plan, and must be registered via the Shopify Admin API rather than the UI. For now, <span style={code}>refunds/create</span> covers all scenarios and the awaiting state is set manually when needed.</p>
-        <p style={p}>All returns — both Shopify-sourced and manual — appear in <strong>IMS → Credit Notes / Returns</strong>. Shopify-sourced credit notes are read-only and show a Shopify badge. Manual returns (for wholesale or non-Shopify online orders) are created directly in IMS.</p>
+        <p style={p}>All customer returns appear in <strong>IMS → Credit Notes / Returns</strong>. Shopify-sourced notes are read-only and externally settled, POS returns are auto-created and completed with their selected refund/store-credit settlement, and manual notes are created directly in IMS.</p>
 
         <h3 style={h3}>3 — Stock levels: IMS → Shopify</h3>
         <p style={p}>IMS is the source of truth for stock. Every stock movement (PO received, order fulfilled, POS sale, stocktake, return, transfer) automatically queues the affected variant for a Shopify stock update. The sync then drains that queue every 15 minutes.</p>
@@ -22727,19 +22729,19 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <ul style={ul}>
           <li>Gateways with no clearing account mapping post as part of the combined daily online invoice.</li>
           <li>All online channels, including Shopify Payments, are included in this flow.</li>
-          <li>Gift card and store credit tenders are not payout gateways, so they do not use clearing accounts. They are posted through liability lifecycle journal events instead (issue/redeem).</li>
+          <li>Gift card and store credit tenders are not payout gateways, so they do not use gateway clearing mappings. CN-backed store-credit issuance is represented by the completed customer credit note plus its customer ledger entry; it is not posted as a second revenue-reclassification journal.</li>
         </ul>
 
         <h3 style={h3}>5 — The Xero sync log</h3>
         <p style={p}>Each daily online batch posted to Xero is recorded in the Xero sync log (IMS → Xero → Sync History tab). If a sync fails (e.g. missing account mapping, Xero API issue), it appears there with the error detail and can be retried.</p>
-        <p style={p}>The same log also shows gift card and store credit lifecycle events (<em>Gift Card Issue</em>, <em>Gift Card Liability</em>, <em>Gift Card Redemption</em>, <em>Store Credit Issue</em>, <em>Store Credit Redemption</em>) so finance can trace deferred-revenue movements separately from clearing-account settlements.</p>
+        <p style={p}>The same log also shows gift card lifecycle events and store-credit redemption or legacy standalone issue events. CN-backed store-credit issuance is traced through the customer credit note and store-credit ledger instead, avoiding a duplicate revenue event.</p>
 
         <h3 style={h3}>Common issues</h3>
         <ul style={ul}>
           <li><strong>"No linked variants" / order has 0 items</strong> — The Shopify variants aren't linked to IMS products yet. Run <em>Shopify → Reconcile Products</em> to link them by SKU, then re-import the affected order.</li>
           <li><strong>Stock not updating in Shopify</strong> — Check that: (1) Inventory Sync is enabled, (2) a Shopify inventory location is selected, and (3) your pick location has stock. Use Preview to diagnose.</li>
           <li><strong>Daily batch skipped</strong> — Check that required Xero account roles are mapped (especially <span style={code}>sales_revenue</span>).</li>
-          <li><strong>Return shows as a manual return in IMS</strong> — This is correct if the return was initiated in IMS rather than in Shopify. Shopify-sourced returns show a green "Shopify" badge. Manual returns show a "Manual" badge and do post a separate Xero credit note.</li>
+          <li><strong>Return source badge</strong> — Shopify notes are imported and externally settled; Manual notes issue store credit on completion and sync as individual Xero credit notes; POS notes are auto-created from the register and remain in the POS EOD accounting flow.</li>
           <li><strong>Webhook not firing</strong> — Verify the webhook URL and signing secret match exactly. Check Shopify Admin → Settings → Notifications → Webhooks for delivery failures.</li>
         </ul>
       </div>

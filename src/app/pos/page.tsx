@@ -2158,7 +2158,8 @@ function MainPos({
               ) : (
                 <div style={{ position: 'relative' }}>
                   <input
-                    placeholder='Search contact for store credit…'
+                    placeholder='Link customer for store credit…'
+                    title='Link a customer to redeem existing store credit or issue store credit from a completed POS return credit note.'
                     value={contactSearch}
                     onChange={e => setContactSearch(e.target.value)}
                     style={{ ...inputStyle, width: '100%', marginBottom: 0, padding: '.35rem .5rem', fontSize: '.78rem', boxSizing: 'border-box' }}
@@ -4124,6 +4125,11 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
         {!isZeroTotal && <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem', marginBottom: '1rem' }}>
           {methods.map(m => (
             <button key={m} onClick={() => { setActiveMethod(m); amountRef.current?.focus(); }}
+              title={m === 'Store Credit (Issue)'
+                ? 'Creates and completes an IMS customer credit note, then adds its value to the linked customer store-credit balance.'
+                : isRefund
+                  ? 'Refunds through this payment method. The POS return still creates an IMS credit note, but customer store credit is unchanged.'
+                  : undefined}
               style={{ padding: '.5rem 1rem', borderRadius: 8, border: '1px solid', borderColor: m === activeMethod ? 'var(--sv-action)' : 'var(--sv-etch)', background: m === activeMethod ? 'rgba(37,99,235,.18)' : 'var(--sv-bg-2)', color: m === activeMethod ? 'var(--sv-action)' : 'var(--sv-text-main)', cursor: 'pointer', fontWeight: m === activeMethod ? 700 : 400 }}>
               {m}
             </button>
