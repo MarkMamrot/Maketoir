@@ -20,6 +20,7 @@ import { parseShopifyRefund } from '@/lib/shopifyRefund';
 import { createNotification } from '@/lib/ims/createNotification';
 import { runImsForBusiness, getImsDbNameStrict } from '@/lib/db/BusinessRegistry';
 import { triggerCNXeroSync } from '@/lib/ims/xeroHooks';
+import { getOrCreateShopifyFallbackVariantId } from '@/lib/shopifyFallbackVariant';
 
 export const runtime = 'nodejs';
 
@@ -126,12 +127,21 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
     );
     const shopifyToIms = new Map(variantRows.map(r => [String(r.shopify_variant_id), r.variant_id]));
 
+    const fallbackVariantId = await getOrCreateShopifyFallbackVariantId(businessId);
     const items: any[] = [];
     const giftCardAmount = getShopifyGiftCardAmount(payload.line_items ?? []);
     for (const li of payload.line_items ?? []) {
-      const imsId = shopifyToIms.get(String(li.variant_id ?? ''));
-      if (!imsId) continue;
-      items.push({ shopify_line_item_id: String(li.id ?? ''), variant_id: imsId, qty_ordered: li.quantity, unit_price: parseFloat(li.price ?? '0'), line_total: li.quantity * parseFloat(li.price ?? '0'), notes: li.name ?? '' });
+      const imsId = shopifyToIms.get(String(li.variant_id ?? '')) ?? fallbackVariantId;
+      const qty = Number(li.quantity ?? 1);
+      const unitPrice = parseFloat(li.price ?? '0');
+      items.push({
+        shopify_line_item_id: String(li.id ?? ''),
+        variant_id: imsId,
+        qty_ordered: qty,
+        unit_price: unitPrice,
+        line_total: qty * unitPrice,
+        notes: li.name ?? '',
+      });
     }
     if (!items.length && giftCardAmount <= 0) return respond();
 
@@ -152,7 +162,7 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
           `INSERT INTO ims_sales_orders
              (business_id, so_number, so_type, location_id, status, order_date, freight, discount,
               subtotal, tax_amount, total_amount, gift_card_amount, shopify_order_id, shopify_order_name, payment_gateway, financial_status, price_tier, tax_treatment, notes)
-            VALUES (?, ?, 'online', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'retail', 'inc_tax', ?)`,
+            VALUES (?, ?, 'online', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'retail', 'inc_tax', ?)`,
           [businessId, soNumber, config.locationId, orderDateTime, freight, discount,
             subtotal, taxAmount, parseFloat(payload.total_price ?? '0'), giftCardAmount, orderIdStr, payload.name ?? null,
            gateway, payload.financial_status ?? null,
@@ -331,6 +341,7 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
 
           // Only update line items when the SO hasn't committed stock yet (draft).
           if (so.status === 'draft' && Array.isArray(payload.line_items)) {
+            const fallbackVariantId = await getOrCreateShopifyFallbackVariantId(businessId);
             const variantRows = await imsQuery<{ variant_id: string; shopify_variant_id: string }>(
               `SELECT v.variant_id, v.shopify_variant_id
                  FROM ims_product_variants v JOIN ims_products p ON p.product_id = v.product_id
@@ -340,8 +351,7 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
             const shopifyToIms = new Map(variantRows.map(r => [String(r.shopify_variant_id), r.variant_id]));
             await imsExecute(`DELETE FROM ims_sales_order_items WHERE so_id = ?`, [so.id]);
             for (const li of payload.line_items) {
-              const imsId = shopifyToIms.get(String(li.variant_id ?? ''));
-              if (!imsId) continue;
+              const imsId = shopifyToIms.get(String(li.variant_id ?? '')) ?? fallbackVariantId;
               const qty = Number(li.quantity ?? 1);
               const price = parseFloat(li.price ?? '0');
               await imsExecute(

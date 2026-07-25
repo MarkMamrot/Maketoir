@@ -17170,6 +17170,7 @@ export default function ImsPage() {
   const [notifUnread, setNotifUnread]       = useState(0);
   const [notifLoading, setNotifLoading]     = useState(false);
   const [notifExpanded, setNotifExpanded]   = useState<number | null>(null);
+  const notifTz = process.env.NEXT_PUBLIC_BUSINESS_TIMEZONE ?? 'Australia/Sydney';
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -17536,7 +17537,7 @@ export default function ImsPage() {
                               {n.detail ? JSON.stringify(n.detail, null, 2) : '(no detail)'}
                             </pre>
                             <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginTop: 6 }}>
-                              {new Date(n.created_at).toLocaleString('en-AU', { dateStyle: 'medium', timeStyle: 'short' })}
+                              {new Date(n.created_at).toLocaleString('en-AU', { dateStyle: 'medium', timeStyle: 'short', timeZone: notifTz })}
                             </div>
                           </div>
                         )}

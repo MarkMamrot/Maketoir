@@ -19,6 +19,7 @@ import { toBusinessDate, toBusinessDateTime } from '@/lib/shopifyDate';
 import { parseShopifyRefund } from '@/lib/shopifyRefund';
 import { createNotification } from '@/lib/ims/createNotification';
 import { triggerCNXeroSync } from '@/lib/ims/xeroHooks';
+import { getOrCreateShopifyFallbackVariantId } from '@/lib/shopifyFallbackVariant';
 
 function getShopifyGiftCardAmount(lineItems: any[]): number {
   if (!Array.isArray(lineItems)) return 0;
@@ -159,6 +160,7 @@ export async function POST(req: Request) {
   const shopifyToIms = new Map<string, string>(
     variantRows.map(r => [String(r.shopify_variant_id), r.variant_id]),
   );
+  const fallbackVariantId = await getOrCreateShopifyFallbackVariantId(businessId);
 
   // Existing shopify orders — id → {id, status} so we can self-heal stuck drafts.
   const existingRows = await imsQuery<{ id: number; shopify_order_id: string; status: string }>(
@@ -216,8 +218,7 @@ export async function POST(req: Request) {
     // Map line items to IMS variants
     const items: { variant_id: string; shopify_line_item_id: string; qty_ordered: number; unit_price: number; tax_rate: number; notes: string }[] = [];
     for (const li of order.line_items ?? []) {
-      const imsVariantId = shopifyToIms.get(String(li.variant_id ?? ''));
-      if (!imsVariantId) continue;
+      const imsVariantId = shopifyToIms.get(String(li.variant_id ?? '')) ?? fallbackVariantId;
       items.push({
         variant_id:  imsVariantId,
         shopify_line_item_id: String(li.id ?? ''),

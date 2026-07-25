@@ -1165,7 +1165,7 @@ function ShopifyGiftCardsTab() {
       let nextPageInfo: string | null = null;
       let batchNumber = 0;
       const aggregate = {
-        mode: 'pull',
+        mode: 'pull' as const,
         synced: 0,
         created: 0,
         linked: 0,
@@ -1229,6 +1229,7 @@ function ShopifyGiftCardsTab() {
 
   const card: React.CSSProperties  = { padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 };
   const label: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 6, textTransform: 'uppercase' as const, letterSpacing: '0.04em' };
+  const inputStyle: React.CSSProperties = { padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 13, width: '100%', boxSizing: 'border-box' };
 
   return (
     <div>
