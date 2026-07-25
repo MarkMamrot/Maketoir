@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { CogsFrequency, getLastCompletedCogsPeriod } from '@/lib/xero/cogsPeriods';
 import { postCogsPeriod } from '@/services/XeroCogsService';
 
@@ -13,7 +15,6 @@ export async function POST(req: Request) {
     const body = await req.json();
     const databaseId = String(body.databaseId ?? '');
     const frequency = String(body.frequency ?? 'monthly') as CogsFrequency;
-    const timeZone = String(body.timeZone ?? process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney');
     const overrideReason = typeof body.overrideReason === 'string' ? body.overrideReason : undefined;
 
     const denied = assertBusinessAccess(user, databaseId);
@@ -21,6 +22,7 @@ export async function POST(req: Request) {
     if (!FREQUENCIES.has(frequency)) {
       return NextResponse.json({ error: 'Frequency must be daily, weekly, monthly, or quarterly.' }, { status: 400 });
     }
+    const timeZone = await runImsForBusiness(databaseId, () => getBusinessTimeZone(databaseId));
 
     let period;
     try {

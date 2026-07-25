@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 
 export async function GET(req: Request) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const tz = process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney';
-  const defaultDate = new Date().toLocaleDateString('sv-SE', { timeZone: tz });
+  const timeZone = await getBusinessTimeZone(session.businessId);
+  const defaultDate = new Date().toLocaleDateString('sv-SE', { timeZone });
   const date = searchParams.get('date') ?? defaultDate;
   const biz = session.businessId as string;
 

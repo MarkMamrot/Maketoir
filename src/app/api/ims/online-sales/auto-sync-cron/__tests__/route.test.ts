@@ -7,6 +7,7 @@ const {
   mockSyncDailySalesBatch,
   mockSyncGiftCardLiabilityReclass,
   mockRunImsForBusiness,
+  mockGetBusinessTimeZone,
 } = vi.hoisted(() => ({
   mockQuery: vi.fn(),
   mockImsQuery: vi.fn(),
@@ -14,6 +15,7 @@ const {
   mockSyncDailySalesBatch: vi.fn(),
   mockSyncGiftCardLiabilityReclass: vi.fn(),
   mockRunImsForBusiness: vi.fn(),
+  mockGetBusinessTimeZone: vi.fn(),
 }));
 
 vi.mock('@/services/MySQLService', () => ({
@@ -34,6 +36,10 @@ vi.mock('@/lib/db/BusinessRegistry', () => ({
   runImsForBusiness: mockRunImsForBusiness,
 }));
 
+vi.mock('@/lib/ims/businessTimeZone', () => ({
+  getBusinessTimeZone: mockGetBusinessTimeZone,
+}));
+
 import { POST } from '../route';
 
 function cronRequest(secret?: string): Request {
@@ -47,6 +53,7 @@ function setupDefaultMocks() {
   process.env.CRON_SECRET = 'cron-secret';
   process.env.BUSINESS_TIMEZONE = 'Australia/Sydney';
   mockRunImsForBusiness.mockImplementation(async (_businessId: string, callback: () => Promise<void>) => callback());
+  mockGetBusinessTimeZone.mockResolvedValue('Australia/Sydney');
   mockImsExecute.mockResolvedValue({});
   mockQuery.mockImplementation(async (sql: string) => {
     const normalized = String(sql).replace(/\s+/g, ' ').trim().toLowerCase();

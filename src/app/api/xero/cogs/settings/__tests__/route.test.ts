@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockRequireAdminSession, mockAssertBusinessAccess, mockExecute, mockQuery } = vi.hoisted(() => ({
+const { mockRequireAdminSession, mockAssertBusinessAccess, mockExecute, mockQuery, mockRunImsForBusiness, mockGetBusinessTimeZone } = vi.hoisted(() => ({
   mockRequireAdminSession: vi.fn(),
   mockAssertBusinessAccess: vi.fn(),
   mockExecute: vi.fn(),
   mockQuery: vi.fn(),
+  mockRunImsForBusiness: vi.fn(),
+  mockGetBusinessTimeZone: vi.fn(),
 }));
 
 vi.mock('@/lib/sessionUtils', () => ({
@@ -12,6 +14,8 @@ vi.mock('@/lib/sessionUtils', () => ({
   assertBusinessAccess: mockAssertBusinessAccess,
 }));
 vi.mock('@/services/MySQLService', () => ({ execute: mockExecute, query: mockQuery }));
+vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mockRunImsForBusiness }));
+vi.mock('@/lib/ims/businessTimeZone', () => ({ getBusinessTimeZone: mockGetBusinessTimeZone }));
 
 import { GET, PUT } from '../route';
 
@@ -30,6 +34,8 @@ describe('/api/xero/cogs/settings', () => {
     mockAssertBusinessAccess.mockReturnValue(null);
     mockQuery.mockResolvedValue([]);
     mockExecute.mockResolvedValue({ affectedRows: 1 });
+    mockGetBusinessTimeZone.mockResolvedValue('Australia/Sydney');
+    mockRunImsForBusiness.mockImplementation(async (_businessId, callback) => callback());
   });
 
   it('returns safe monthly defaults before configuration', async () => {
@@ -46,7 +52,7 @@ describe('/api/xero/cogs/settings', () => {
     expect(mockExecute).not.toHaveBeenCalled();
   });
 
-  it('persists a validated selectable frequency', async () => {
+  it('persists frequency using the timezone from General Settings', async () => {
     const response = await PUT(putRequest({
       databaseId: 'biz-1',
       enabled: true,
@@ -56,7 +62,7 @@ describe('/api/xero/cogs/settings', () => {
     }));
     expect(response.status).toBe(200);
     expect(mockExecute.mock.calls[0][1]).toEqual([
-      'biz-1', 1, 'quarterly', 'Australia/Brisbane', '2026-07-01', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      'biz-1', 1, 'quarterly', 'Australia/Sydney', '2026-07-01', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
     ]);
   });
 

@@ -13,6 +13,7 @@ import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 import { syncDailySalesBatch } from '@/services/XeroSyncService';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 
 const IMS_OR_POS_SESSION = ['marketoir_session', 'pos_session'];
 
@@ -52,10 +53,10 @@ export async function POST(req: Request) {
     preflightImport.error = String(e?.message ?? e);
   }
 
-  const tz = process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney';
+  const timeZone = await getBusinessTimeZone(businessId);
 
   // Today in business timezone — don't sync today (incomplete day)
-  const today = new Date().toLocaleDateString('sv-SE', { timeZone: tz });
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone });
 
   try {
     // Find days with syncable online orders in the last 14 days

@@ -91,12 +91,13 @@ const fmtQty = (n: number | null | undefined) =>
 // Returns today's calendar date as YYYY-MM-DD in the business timezone.
 // Using 'sv-SE' locale gives the ISO YYYY-MM-DD format; explicit TZ prevents
 // the UTC off-by-one error that affects Australian evenings (UTC+10/+11).
-const today = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Australia/Sydney' });
+let activeBusinessTimeZone = 'Australia/Sydney';
+const today = () => new Date().toLocaleDateString('sv-SE', { timeZone: activeBusinessTimeZone });
 
 const daysAgoSydney = (n: number) => {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return d.toLocaleDateString('sv-SE', { timeZone: 'Australia/Sydney' });
+  return d.toLocaleDateString('sv-SE', { timeZone: activeBusinessTimeZone });
 };
 
 const DEFAULT_DATE_RANGE: SBDateRange = { kind: 'window', window: 90, label: '90 Days' };
@@ -281,11 +282,15 @@ function useImsSettings() {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const fetchSettings = useCallback(() => {
     fetch('/api/ims/settings').then(r => r.json()).then(d => {
-      if (d.success) setSettings(d.data || {});
+      if (d.success) {
+        activeBusinessTimeZone = d.data?.business_timezone || 'Australia/Sydney';
+        setSettings(d.data || {});
+      }
     }).catch(() => {});
   }, []);
   useEffect(() => { fetchSettings(); }, [fetchSettings]);
   const saveSettings = useCallback(async (updates: Record<string, string>) => {
+    if (updates.business_timezone) activeBusinessTimeZone = updates.business_timezone;
     setSettings(prev => ({ ...prev, ...updates }));
     try {
       await fetch('/api/ims/settings', {
@@ -13624,8 +13629,8 @@ type PosRegisterSession = {
 };
 
 function PosRegistersReportView({ onBack }: { onBack: () => void }) {
-  const tz = process.env.NEXT_PUBLIC_BUSINESS_TIMEZONE ?? 'Australia/Sydney';
-  const todayAest = new Date().toLocaleDateString('sv-SE', { timeZone: 'Australia/Sydney' });
+  const tz = activeBusinessTimeZone;
+  const todayAest = new Date().toLocaleDateString('sv-SE', { timeZone: tz });
 
   const [date, setDate] = React.useState(todayAest);
   const [sessions, setSessions] = React.useState<PosRegisterSession[]>([]);
@@ -14296,6 +14301,7 @@ function SettingsView() {
 
   useEffect(() => {
     setDraft({
+      business_timezone:     'Australia/Sydney',
       sales_tax_rate:        '',
       sales_tax_on_sales:    'yes',
       sales_tax_code:        '',
@@ -14334,6 +14340,21 @@ function SettingsView() {
   return (
     <div>
       <h1 style={{ margin: '0 0 24px', fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>General Settings</h1>
+
+      <div style={card}>
+        <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Business</h3>
+        <Field label="Timezone">
+          <select value={draft.business_timezone ?? 'Australia/Sydney'} onChange={sd('business_timezone')} style={{ ...inputStyle, width: 240 }}>
+            <option value="Australia/Sydney">Sydney</option>
+            <option value="Australia/Melbourne">Melbourne</option>
+            <option value="Australia/Brisbane">Brisbane</option>
+            <option value="Australia/Adelaide">Adelaide</option>
+            <option value="Australia/Perth">Perth</option>
+            <option value="Australia/Hobart">Hobart</option>
+            <option value="Australia/Darwin">Darwin</option>
+          </select>
+        </Field>
+      </div>
 
       <div style={card}>
         <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Sales Tax</h3>
@@ -14566,7 +14587,7 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
   const [testResult, setTestResult] = React.useState<{ ok: boolean; message: string } | null>(null);
   const [cogsSettings, setCogsSettings] = React.useState<{
     enabled: boolean; frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly';
-    timeZone: string; reliableFrom: string | null;
+    reliableFrom: string | null;
   } | null>(null);
   const [savingCogs, setSavingCogs] = React.useState(false);
   const [cogsBusy, setCogsBusy] = React.useState<'preview' | 'post' | null>(null);
@@ -14624,7 +14645,7 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
     try {
       const res = await fetch('/api/xero/cogs/preview', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ databaseId: getBusinessId(), frequency: cogsSettings.frequency, timeZone: cogsSettings.timeZone }),
+        body: JSON.stringify({ databaseId: getBusinessId(), frequency: cogsSettings.frequency }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Unable to preview COGS');
@@ -14650,7 +14671,7 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           databaseId: getBusinessId(), frequency: cogsSettings.frequency,
-          timeZone: cogsSettings.timeZone, overrideReason,
+          overrideReason,
         }),
       });
       const data = await res.json();
@@ -14804,18 +14825,6 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
               <div>
                 <label style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)' }}>First reliable COGS date</label>
                 <input type="date" value={cogsSettings.reliableFrom || ''} onChange={e => setCogsSettings(s => s ? ({ ...s, reliableFrom: e.target.value || null }) : s)} style={{ width: '100%', boxSizing: 'border-box', padding: '7px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)' }}>Timezone</label>
-                <select value={cogsSettings.timeZone} onChange={e => setCogsSettings(s => s ? ({ ...s, timeZone: e.target.value }) : s)} style={{ width: '100%', padding: '7px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}>
-                  <option value="Australia/Sydney">Sydney</option>
-                  <option value="Australia/Melbourne">Melbourne</option>
-                  <option value="Australia/Brisbane">Brisbane</option>
-                  <option value="Australia/Adelaide">Adelaide</option>
-                  <option value="Australia/Perth">Perth</option>
-                  <option value="Australia/Hobart">Hobart</option>
-                  <option value="Australia/Darwin">Darwin</option>
-                </select>
               </div>
             </div>
 
@@ -15712,7 +15721,6 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
   const [cogsReport, setCogsReport] = useState<CogsReportData | null>(null);
   const [cogsFilters, setCogsFilters] = useState<{
     frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly';
-    timeZone: string;
     startDate: string;
     endDateExclusive: string;
     locationId: string;
@@ -15720,7 +15728,6 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
     reconciliationState: '' | 'current' | 'adjustment_required' | 'blocked';
   }>({
     frequency: 'monthly',
-    timeZone: 'Australia/Sydney',
     startDate: '',
     endDateExclusive: '',
     locationId: '',
@@ -15744,7 +15751,6 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
       const params = new URLSearchParams({
         databaseId: getBusinessId(),
         frequency: cogsFilters.frequency,
-        timeZone: cogsFilters.timeZone,
       });
       if (cogsFilters.startDate) params.set('startDate', cogsFilters.startDate);
       if (cogsFilters.endDateExclusive) params.set('endDateExclusive', cogsFilters.endDateExclusive);
@@ -15856,7 +15862,6 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
         body: JSON.stringify({
           databaseId: getBusinessId(),
           frequency: cogsFilters.frequency,
-          timeZone: cogsFilters.timeZone,
         }),
       });
       const data = await res.json();
@@ -15893,7 +15898,6 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
         body: JSON.stringify({
           databaseId: getBusinessId(),
           frequency: cogsFilters.frequency,
-          timeZone: cogsFilters.timeZone,
           overrideReason,
         }),
       });
@@ -16044,18 +16048,6 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                 <option value="weekly">Weekly</option>
                 <option value="monthly">Monthly</option>
                 <option value="quarterly">Quarterly</option>
-              </select>
-            </label>
-            <label style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>
-              Timezone
-              <select value={cogsFilters.timeZone} onChange={e => setCogsFilters(s => ({ ...s, timeZone: e.target.value }))} style={{ width: '100%', marginTop: 4, padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}>
-                <option value="Australia/Sydney">Sydney</option>
-                <option value="Australia/Melbourne">Melbourne</option>
-                <option value="Australia/Brisbane">Brisbane</option>
-                <option value="Australia/Adelaide">Adelaide</option>
-                <option value="Australia/Perth">Perth</option>
-                <option value="Australia/Hobart">Hobart</option>
-                <option value="Australia/Darwin">Darwin</option>
               </select>
             </label>
             <label style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>
@@ -17170,7 +17162,7 @@ export default function ImsPage() {
   const [notifUnread, setNotifUnread]       = useState(0);
   const [notifLoading, setNotifLoading]     = useState(false);
   const [notifExpanded, setNotifExpanded]   = useState<number | null>(null);
-  const notifTz = process.env.NEXT_PUBLIC_BUSINESS_TIMEZONE ?? 'Australia/Sydney';
+  const notifTz = pageSettings.business_timezone || 'Australia/Sydney';
 
   const fetchNotifications = useCallback(async () => {
     try {

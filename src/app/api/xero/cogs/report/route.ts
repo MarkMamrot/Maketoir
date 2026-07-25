@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import {
   calculateCogsForPeriod,
   validateCogsDateRange,
@@ -60,15 +62,6 @@ function toIso(value: string | Date | null): string | null {
   const date = value instanceof Date ? value : new Date(value);
   if (!Number.isFinite(date.getTime())) return null;
   return date.toISOString();
-}
-
-function validTimeZone(timeZone: string): boolean {
-  try {
-    new Intl.DateTimeFormat('en-AU', { timeZone }).format();
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 function resolveReconState(input: { variance: number; blocked: boolean }): 'current' | 'adjustment_required' | 'blocked' {
@@ -145,7 +138,6 @@ export async function GET(req: Request) {
   if (denied) return denied;
 
   const frequencyInput = String(url.searchParams.get('frequency') ?? 'monthly') as CogsFrequency;
-  const timeZone = String(url.searchParams.get('timeZone') ?? process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney');
   const startDate = String(url.searchParams.get('startDate') ?? '').trim();
   const endDateExclusive = String(url.searchParams.get('endDateExclusive') ?? '').trim();
   const channel = String(url.searchParams.get('channel') ?? '').trim();
@@ -156,9 +148,6 @@ export async function GET(req: Request) {
   if (!databaseId) return NextResponse.json({ error: 'databaseId is required.' }, { status: 400 });
   if (!FREQUENCIES.has(frequencyInput)) {
     return NextResponse.json({ error: 'Frequency must be daily, weekly, monthly, or quarterly.' }, { status: 400 });
-  }
-  if (!validTimeZone(timeZone)) {
-    return NextResponse.json({ error: 'Invalid business timezone.' }, { status: 400 });
   }
   if (channel && !CHANNELS.has(channel)) {
     return NextResponse.json({ error: 'Invalid channel filter.' }, { status: 400 });
@@ -176,6 +165,7 @@ export async function GET(req: Request) {
   }
 
   try {
+    const timeZone = await runImsForBusiness(databaseId, () => getBusinessTimeZone(databaseId));
     await ensureCogsTables();
 
     const settingsRows = await query<CogsSettingsRow>(
@@ -271,7 +261,7 @@ export async function GET(req: Request) {
       settings: {
         enabled: Boolean(saved?.enabled ?? false),
         frequency: saved?.frequency ?? 'monthly',
-        timeZone: saved?.timezone ?? (process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney'),
+        timeZone,
         reliableFrom,
       },
       period,

@@ -14,6 +14,7 @@ import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 import { syncDailySalesBatch, syncGiftCardLiabilityReclass } from '@/services/XeroSyncService';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 
 export const runtime = 'nodejs';
 
@@ -22,9 +23,6 @@ export async function POST(req: Request) {
   if (!secret || secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   }
-
-  const tz = process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney';
-  const today = new Date().toLocaleDateString('sv-SE', { timeZone: tz });
 
   // Iterate businesses from the main registry and bind each tenant's IMS schema
   // before querying orders. Do not discover businesses from the default IMS DB.
@@ -47,6 +45,8 @@ export async function POST(req: Request) {
   // (callback form — the only AsyncLocalStorage pattern that reliably
   // propagates across awaits).
   const processBusiness = async (business_id: string) => {
+    const timeZone = await getBusinessTimeZone(business_id);
+    const today = new Date().toLocaleDateString('sv-SE', { timeZone });
     const settingRows = await imsQuery<{ value: string }>(
       "SELECT value FROM ims_settings WHERE business_id = ? AND `key` = 'shopify_xero_auto_sync_enabled' LIMIT 1",
       [business_id],
@@ -239,7 +239,7 @@ export async function POST(req: Request) {
     try {
       await runImsForBusiness(business_id, () => processBusiness(business_id));
     } catch (e: any) {
-      results.push({ businessId: business_id, date: today, success: false, error: e?.message });
+      results.push({ businessId: business_id, date: '', success: false, error: e?.message });
     }
   }
 

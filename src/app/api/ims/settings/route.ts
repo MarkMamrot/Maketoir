@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { DEFAULT_BUSINESS_TIME_ZONE, isValidBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 
 // Settings whose changes affect the inventory qty pushed to Shopify.
 // When any of these keys change we must re-enqueue every linked variant so the
@@ -23,6 +24,7 @@ export async function GET() {
     );
     const settings: Record<string, string> = {};
     for (const row of rows) settings[row.key] = row.value ?? '';
+    settings.business_timezone ||= DEFAULT_BUSINESS_TIME_ZONE;
     // Include Shopify shop domain so client can build admin links without a separate fetch
     const conn = await ConnectionsRepository.get(businessId);
     const shopDomain: string = conn?.shopify_shop_id ?? '';
@@ -45,6 +47,10 @@ export async function PUT(req: Request) {
     // Accept either { key, value } or { settings: { key: value, ... } }
     const pairs: Record<string, string> =
       body.settings ?? (body.key !== undefined ? { [body.key]: body.value } : body);
+
+    if (pairs.business_timezone !== undefined && !isValidBusinessTimeZone(String(pairs.business_timezone))) {
+      return NextResponse.json({ success: false, error: 'Invalid business timezone.' }, { status: 400 });
+    }
 
     for (const [key, value] of Object.entries(pairs)) {
       await imsExecute(

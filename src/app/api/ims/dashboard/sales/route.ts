@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 
 // Compute the start-of-period cutoff as an AEST datetime string.
 // pos_sales.created_at stores AEST datetimes (no TZ info).
 // days=1 → start of today AEST; days=30 → start of 30 days ago AEST, etc.
-function aestCutoff(days: number): string {
-  const tz = process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney';
+function businessCutoff(days: number, timeZone: string): string {
   const offsetMs = (days - 1) * 24 * 60 * 60 * 1000;
   const cutoffDate = new Date(Date.now() - offsetMs);
-  const dateStr = cutoffDate.toLocaleDateString('sv-SE', { timeZone: tz }); // YYYY-MM-DD
+  const dateStr = cutoffDate.toLocaleDateString('sv-SE', { timeZone }); // YYYY-MM-DD
   return `${dateStr} 00:00:00`;
 }
 
@@ -20,7 +20,8 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const days = Math.max(1, Math.min(365, parseInt(searchParams.get('days') || '1', 10)));
   const biz = session.businessId as string;
-  const cutoff = aestCutoff(days);
+  const timeZone = await getBusinessTimeZone(biz);
+  const cutoff = businessCutoff(days, timeZone);
   const soBizClause = biz ? 'AND so.business_id = ?' : '';
 
   // POS channel — scope by ims_locations.business_id (pos_sales.business_id is not reliably set)

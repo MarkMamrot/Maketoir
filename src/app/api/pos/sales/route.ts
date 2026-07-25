@@ -5,6 +5,7 @@ import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { createNotification } from '@/lib/ims/createNotification';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsCNRepo } from '@/lib/ims/ImsRepository';
+import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -12,9 +13,9 @@ function getPosSession() {
   try { return JSON.parse(raw); } catch { return null; }
 }
 
-function localDate(): string {
-  const tz = process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney';
-  return new Date().toLocaleDateString('en-CA', { timeZone: tz });
+async function localDate(businessId: string): Promise<string> {
+  const timeZone = await getBusinessTimeZone(businessId);
+  return new Date().toLocaleDateString('en-CA', { timeZone });
 }
 
 async function ensurePosReturnCreditNote(body: any, saleId: number, businessId: string, locationId: number, createdBy?: string) {
@@ -52,7 +53,7 @@ async function ensurePosReturnCreditNote(body: any, saleId: number, businessId: 
 
   const creditNoteId = await ImsCNRepo.create({
     location_id: locationId,
-    cn_date: body.trading_date ?? localDate(),
+    cn_date: body.trading_date ?? await localDate(businessId),
     reference: `POS Return #${saleId}`,
     tax_treatment: 'inc_tax',
     tax_code: null,

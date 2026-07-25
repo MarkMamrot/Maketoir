@@ -5,10 +5,14 @@ const {
   mockRequireAdminSession,
   mockAssertBusinessAccess,
   mockCalculateCogsForPeriod,
+  mockRunImsForBusiness,
+  mockGetBusinessTimeZone,
 } = vi.hoisted(() => ({
   mockRequireAdminSession: vi.fn(),
   mockAssertBusinessAccess: vi.fn(),
   mockCalculateCogsForPeriod: vi.fn(),
+  mockRunImsForBusiness: vi.fn(),
+  mockGetBusinessTimeZone: vi.fn(),
 }));
 
 vi.mock('@/lib/sessionUtils', () => ({
@@ -19,6 +23,8 @@ vi.mock('@/lib/sessionUtils', () => ({
 vi.mock('@/lib/xero/cogsCalculator', () => ({
   calculateCogsForPeriod: mockCalculateCogsForPeriod,
 }));
+vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mockRunImsForBusiness }));
+vi.mock('@/lib/ims/businessTimeZone', () => ({ getBusinessTimeZone: mockGetBusinessTimeZone }));
 
 import { POST } from '../route';
 
@@ -36,6 +42,8 @@ describe('POST /api/xero/cogs/preview', () => {
     mockRequireAdminSession.mockReturnValue({ user: { id: 'u1' }, response: null });
     mockAssertBusinessAccess.mockReturnValue(null);
     mockCalculateCogsForPeriod.mockResolvedValue({ totalCOGS: 125, blocked: false });
+    mockGetBusinessTimeZone.mockResolvedValue('Australia/Sydney');
+    mockRunImsForBusiness.mockImplementation(async (_businessId, callback) => callback());
   });
 
   it('previews the last completed period without posting', async () => {

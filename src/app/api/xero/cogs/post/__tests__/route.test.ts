@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockRequireAdminSession, mockAssertBusinessAccess, mockPostCogsPeriod } = vi.hoisted(() => ({
+const { mockRequireAdminSession, mockAssertBusinessAccess, mockPostCogsPeriod, mockRunImsForBusiness, mockGetBusinessTimeZone } = vi.hoisted(() => ({
   mockRequireAdminSession: vi.fn(),
   mockAssertBusinessAccess: vi.fn(),
   mockPostCogsPeriod: vi.fn(),
+  mockRunImsForBusiness: vi.fn(),
+  mockGetBusinessTimeZone: vi.fn(),
 }));
 
 vi.mock('@/lib/sessionUtils', () => ({
@@ -11,6 +13,8 @@ vi.mock('@/lib/sessionUtils', () => ({
   assertBusinessAccess: mockAssertBusinessAccess,
 }));
 vi.mock('@/services/XeroCogsService', () => ({ postCogsPeriod: mockPostCogsPeriod }));
+vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mockRunImsForBusiness }));
+vi.mock('@/lib/ims/businessTimeZone', () => ({ getBusinessTimeZone: mockGetBusinessTimeZone }));
 
 import { POST } from '../route';
 
@@ -28,6 +32,8 @@ describe('POST /api/xero/cogs/post', () => {
     mockRequireAdminSession.mockReturnValue({ user: { id: 'u1' }, response: null });
     mockAssertBusinessAccess.mockReturnValue(null);
     mockPostCogsPeriod.mockResolvedValue({ outcome: 'posted', runId: 1, xeroId: 'xero-1' });
+    mockGetBusinessTimeZone.mockResolvedValue('Australia/Sydney');
+    mockRunImsForBusiness.mockImplementation(async (_businessId, callback) => callback());
   });
 
   it('posts only a completed calendar period', async () => {

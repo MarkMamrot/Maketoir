@@ -2,6 +2,7 @@
 import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -99,8 +100,8 @@ export async function GET(req: Request) {
     [locationId, session.businessId],
   );
 
-  const tz    = process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney';
-  const today = new Date().toLocaleDateString('sv-SE', { timeZone: tz });
+  const timeZone = await getBusinessTimeZone(session.businessId);
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone });
 
   const products = rows.map((r) => {
     const opts = [r.option1_value, r.option2_value, r.option3_value]

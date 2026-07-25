@@ -1,13 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockQuery, mockRunImsForBusiness, mockPostCogsPeriod } = vi.hoisted(() => ({
+const { mockQuery, mockRunImsForBusiness, mockPostCogsPeriod, mockGetBusinessTimeZone } = vi.hoisted(() => ({
   mockQuery: vi.fn(),
   mockRunImsForBusiness: vi.fn(),
   mockPostCogsPeriod: vi.fn(),
+  mockGetBusinessTimeZone: vi.fn(),
 }));
 
 vi.mock('@/services/MySQLService', () => ({ query: mockQuery, execute: vi.fn().mockResolvedValue({ affectedRows: 1 }) }));
 vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mockRunImsForBusiness }));
+vi.mock('@/lib/ims/businessTimeZone', () => ({ getBusinessTimeZone: mockGetBusinessTimeZone }));
 vi.mock('@/services/XeroCogsService', () => ({ postCogsPeriod: mockPostCogsPeriod }));
 
 import { POST } from '../route';
@@ -24,6 +26,7 @@ describe('POST /api/xero/cogs/cron', () => {
     vi.clearAllMocks();
     process.env.CRON_SECRET = 'test-secret';
     mockRunImsForBusiness.mockImplementation(async (_businessId, callback) => callback());
+    mockGetBusinessTimeZone.mockResolvedValue('Australia/Sydney');
     mockPostCogsPeriod.mockResolvedValue({ outcome: 'posted' });
   });
 

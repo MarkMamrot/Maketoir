@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { CogsFrequency, getLastCompletedCogsPeriod } from '@/lib/xero/cogsPeriods';
 import { execute, query } from '@/services/MySQLService';
 
@@ -27,11 +29,11 @@ function isMissingTableError(error: unknown): boolean {
   return value?.code === 'ER_NO_SUCH_TABLE' || value?.errno === 1146;
 }
 
-function defaultSettings() {
+function defaultSettings(timeZone = 'Australia/Sydney') {
   return {
     enabled: false,
     frequency: 'monthly' as CogsFrequency,
-    timeZone: process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney',
+    timeZone,
     reliableFrom: null,
     nextPeriodStart: null,
     nextRunAt: null,
@@ -85,15 +87,6 @@ async function ensureCogsTables(): Promise<void> {
   );
 }
 
-function validTimeZone(timeZone: string): boolean {
-  try {
-    new Intl.DateTimeFormat('en-AU', { timeZone }).format();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 function dateString(value: string | Date | null): string | null {
   if (!value) return null;
   return (value instanceof Date ? value.toISOString() : String(value)).slice(0, 10);
@@ -107,11 +100,12 @@ export async function GET(req: Request) {
   const { user, response } = requireAdminSession();
   if (response) return response;
 
-  const databaseId = new URL(req.url).searchParams.get('databaseId');
+  const databaseId = String(new URL(req.url).searchParams.get('databaseId') ?? '');
   const denied = assertBusinessAccess(user, databaseId);
   if (denied) return denied;
 
   try {
+    const timeZone = await runImsForBusiness(databaseId, () => getBusinessTimeZone(databaseId));
     let rows: CogsSettingsRow[] = [];
     try {
       rows = await query<CogsSettingsRow>(
@@ -134,12 +128,12 @@ export async function GET(req: Request) {
       settings: row ? {
         enabled: Boolean(row.enabled),
         frequency: row.frequency,
-        timeZone: row.timezone,
+        timeZone,
         reliableFrom: dateString(row.reliable_from),
         nextPeriodStart: dateString(row.next_period_start),
         nextRunAt: row.next_run_at,
         updatedAt: row.updated_at,
-      } : defaultSettings(),
+      } : defaultSettings(timeZone),
     });
   } catch (error: unknown) {
     console.error('[xero/cogs/settings GET]', errorMessage(error));
@@ -155,7 +149,6 @@ export async function PUT(req: Request) {
     const body = await req.json();
     const databaseId = String(body.databaseId ?? '');
     const frequency = String(body.frequency ?? '') as CogsFrequency;
-    const timeZone = String(body.timeZone ?? '');
     const reliableFrom = body.reliableFrom == null || body.reliableFrom === '' ? null : String(body.reliableFrom);
     const enabled = body.enabled === true;
 
@@ -164,15 +157,13 @@ export async function PUT(req: Request) {
     if (!FREQUENCIES.has(frequency)) {
       return NextResponse.json({ error: 'Frequency must be daily, weekly, monthly, or quarterly.' }, { status: 400 });
     }
-    if (!validTimeZone(timeZone)) {
-      return NextResponse.json({ error: 'Invalid business timezone.' }, { status: 400 });
-    }
     if (reliableFrom && !DATE_FORMAT.test(reliableFrom)) {
       return NextResponse.json({ error: 'Reliable-from date must use YYYY-MM-DD format.' }, { status: 400 });
     }
     if (enabled && !reliableFrom) {
       return NextResponse.json({ error: 'Set the first reliable COGS date before enabling automatic sync.' }, { status: 400 });
     }
+    const timeZone = await runImsForBusiness(databaseId, () => getBusinessTimeZone(databaseId));
 
     let existingRows: CogsSettingsRow[];
     try {

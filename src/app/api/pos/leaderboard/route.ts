@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 
 function getSession() {
   const pos = cookies().get('pos_session')?.value;
@@ -21,12 +22,6 @@ export async function GET() {
   const locationId = parseInt(String(session.location_id ?? 0), 10);
   if (!locationId) return NextResponse.json({ error: 'No location in session.' }, { status: 400 });
 
-  // Compute today in the business timezone — created_at is stored in local time
-  // (via localNow()), so comparing against CURDATE() (MySQL UTC) would show
-  // the previous day's sales for the first ~10 hours of each new local day.
-  const tz    = process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney';
-  const today = new Date().toLocaleDateString('sv-SE', { timeZone: tz }); // YYYY-MM-DD
-
   // Get business_id so we can scope avatar settings to this business
   const locRows = await imsQuery<{ business_id: string | null }>(
     'SELECT business_id FROM ims_locations WHERE id = ? LIMIT 1',
@@ -36,6 +31,10 @@ export async function GET() {
   if (boundSession?.businessId && businessId && boundSession.businessId !== businessId) {
     return NextResponse.json({ error: 'Unauthorised.' }, { status: 403 });
   }
+
+  // created_at is stored in local time, so use the tenant's calendar day.
+  const timeZone = await getBusinessTimeZone(businessId);
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone });
 
   // Active locations + today's completed sales + open register status
   const locations = await imsQuery<{

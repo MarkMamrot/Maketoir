@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { PosRegisterSessionRepo } from '@/lib/db/PosRepository';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -26,7 +27,8 @@ export async function POST(req: NextRequest) {
 
   // Block double-open atomically: lock the register's open rows and re-check
   // inside a transaction so two simultaneous opens can't both insert.
-  const now = new Date().toLocaleString('sv-SE', { timeZone: process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney' }).replace('T', ' ');
+  const timeZone = await getBusinessTimeZone(session.business_id ?? session.businessId);
+  const now = new Date().toLocaleString('sv-SE', { timeZone }).replace('T', ' ');
   const sessionDate = body.session_date ?? now.slice(0, 10);
 
   const opened = await PosRegisterSessionRepo.openAtomic({

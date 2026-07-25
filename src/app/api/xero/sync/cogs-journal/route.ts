@@ -6,6 +6,8 @@
  */
 import { NextResponse } from 'next/server';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { getLastCompletedCogsPeriod, getMonthlyCogsPeriod } from '@/lib/xero/cogsPeriods';
 import { postCogsPeriod } from '@/services/XeroCogsService';
 
@@ -22,11 +24,12 @@ export async function POST(req: Request) {
   }
 
   try {
+    const timeZone = await runImsForBusiness(databaseId, () => getBusinessTimeZone(databaseId));
     const period = getMonthlyCogsPeriod(month);
     const lastCompleted = getLastCompletedCogsPeriod(
       'monthly',
       new Date(),
-      process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney',
+      timeZone,
     );
     if (period.endDateExclusive > lastCompleted.endDateExclusive) {
       return NextResponse.json({ error: 'Only completed calendar months can be posted.' }, { status: 400 });

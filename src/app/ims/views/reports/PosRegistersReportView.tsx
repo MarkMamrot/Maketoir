@@ -30,12 +30,22 @@ interface PosRegistersReportViewProps {
 }
 
 export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegistersReportViewProps) {
-  const todayAest = new Date().toLocaleDateString('sv-SE', { timeZone: 'Australia/Sydney' });
+  const defaultDate = new Date().toLocaleDateString('sv-SE', { timeZone: 'Australia/Sydney' });
 
-  const [date, setDate] = React.useState(todayAest);
+  const [date, setDate] = React.useState(defaultDate);
   const [sessions, setSessions] = React.useState<PosRegisterSession[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [fetched, setFetched] = React.useState(false);
+
+  React.useEffect(() => {
+    fetch('/api/ims/settings')
+      .then(response => response.json())
+      .then(result => {
+        const timeZone = result?.data?.business_timezone || 'Australia/Sydney';
+        setDate(new Date().toLocaleDateString('sv-SE', { timeZone }));
+      })
+      .catch(() => {});
+  }, []);
 
   async function run() {
     setLoading(true);
