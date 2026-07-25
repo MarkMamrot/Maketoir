@@ -974,6 +974,10 @@ interface DailySalesBatch {
   clearingAccountCode?: string; // if set, a Xero payment is applied into this bank/clearing account
 }
 
+function roundCurrency(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 /**
  * Post a single summary invoice for a day's POS or online sales.
  */
@@ -1046,6 +1050,144 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
     return xeroId;
   } catch (err: any) {
     await logSync(businessId, syncType, null, null, 'error', `${batchKey}: ${err.message}`);
+    return null;
+  }
+}
+
+export async function syncGiftCardIssueInvoice(input: {
+  businessId: string;
+  amount: number;
+  issueDate: string;
+  reference: string;
+  narration?: string;
+  dedupeKey: string;
+}): Promise<string | null> {
+  const amount = roundCurrency(Number(input.amount ?? 0));
+  if (!(amount > 0)) return null;
+
+  const existing = await query<{ id: number }>(
+    `SELECT id
+       FROM xero_sync_log
+      WHERE business_id = ?
+        AND sync_type = 'gift_card_issue'
+        AND status = 'success'
+        AND detail = ?
+      LIMIT 1`,
+    [input.businessId, input.dedupeKey],
+  ).catch(() => [] as { id: number }[]);
+  if (existing.length > 0) return null;
+
+  const accounts = await getAccountMappings(input.businessId);
+  if (!accounts.gift_card_liability) {
+    await logSync(input.businessId, 'gift_card_issue', null, null, 'skipped', `Missing gift_card_liability mapping: ${input.dedupeKey}`);
+    return null;
+  }
+
+  const invoice: any = {
+    Type: 'ACCREC',
+    Contact: { Name: 'Gift Card Sales' },
+    Date: input.issueDate,
+    DueDate: input.issueDate,
+    Reference: input.reference,
+    Status: 'AUTHORISED',
+    LineAmountTypes: 'Exclusive',
+    CurrencyCode: 'AUD',
+    LineItems: [{
+      Description: input.narration || 'Gift card issued',
+      Quantity: 1,
+      UnitAmount: amount,
+      AccountCode: accounts.gift_card_liability,
+      TaxType: 'NONE',
+      TaxAmount: 0,
+    }],
+  };
+
+  try {
+    const res = await xeroApiFetch(input.businessId, '/Invoices', { method: 'POST', body: { Invoices: [invoice] } });
+    const inv = res.Invoices?.[0];
+    const xeroId = inv?.InvoiceID ?? null;
+    if (!xeroId) {
+      await logSync(input.businessId, 'gift_card_issue', null, null, 'error', `No InvoiceID returned: ${input.dedupeKey}`);
+      return null;
+    }
+    await logSync(input.businessId, 'gift_card_issue', null, xeroId, 'success', input.dedupeKey, inv?.Status ?? 'AUTHORISED');
+    return xeroId;
+  } catch (err: any) {
+    await logSync(input.businessId, 'gift_card_issue', null, null, 'error', `${input.dedupeKey}: ${err.message}`);
+    return null;
+  }
+}
+
+export async function syncGiftCardLiabilityReclass(input: {
+  businessId: string;
+  amount: number;
+  date: string;
+  channel: 'pos' | 'online';
+  locationId?: number;
+  gateway?: string;
+  dedupeKey: string;
+}): Promise<string | null> {
+  const amount = roundCurrency(Number(input.amount ?? 0));
+  if (!(amount > 0)) return null;
+
+  const existing = await query<{ id: number }>(
+    `SELECT id
+       FROM xero_sync_log
+      WHERE business_id = ?
+        AND sync_type = 'gift_card_liability'
+        AND status = 'success'
+        AND detail = ?
+      LIMIT 1`,
+    [input.businessId, input.dedupeKey],
+  ).catch(() => [] as { id: number }[]);
+  if (existing.length > 0) return null;
+
+  const accounts = await getAccountMappings(input.businessId);
+  if (!accounts.sales_revenue || !accounts.gift_card_liability) {
+    await logSync(input.businessId, 'gift_card_liability', null, null, 'skipped', `Missing sales_revenue or gift_card_liability mapping: ${input.dedupeKey}`);
+    return null;
+  }
+
+  const trackingMappings = await getTrackingMappings(input.businessId);
+  const tracking = getTrackingForLocation(trackingMappings, input.locationId ?? null, input.channel);
+  const channelLabel = input.channel === 'pos' ? 'POS' : 'Online';
+  const gatewayLabel = input.gateway ? ` (${input.gateway})` : '';
+
+  const journal: any = {
+    Date: input.date,
+    Status: 'POSTED',
+    Narration: `Gift card liability reclass - ${channelLabel} ${input.date}${gatewayLabel}`,
+    ShowOnCashBasisReports: false,
+    JournalLines: [
+      {
+        Description: `Gift card liability reclass - ${channelLabel}${gatewayLabel}`,
+        AccountCode: accounts.sales_revenue,
+        DebitAmount: amount,
+        TaxType: 'NONE',
+        Tracking: tracking,
+      },
+      {
+        Description: `Gift card liability reclass - ${channelLabel}${gatewayLabel}`,
+        AccountCode: accounts.gift_card_liability,
+        CreditAmount: amount,
+        TaxType: 'NONE',
+        Tracking: tracking,
+      },
+    ],
+  };
+
+  try {
+    const res = await xeroApiFetch(input.businessId, '/ManualJournals', { method: 'POST', body: { ManualJournals: [journal] } });
+    const j = res.ManualJournals?.[0];
+    const xeroId = j?.ManualJournalID ?? null;
+    if (!xeroId) {
+      await logSync(input.businessId, 'gift_card_liability', null, null, 'error', `No ManualJournalID returned: ${input.dedupeKey}`);
+      return null;
+    }
+    await logSync(input.businessId, 'gift_card_liability', null, xeroId, 'success', input.dedupeKey, j?.Status ?? 'POSTED');
+    return xeroId;
+  } catch (err: any) {
+    await logSync(input.businessId, 'gift_card_liability', null, null, 'error', `${input.dedupeKey}: ${err.message}`);
     return null;
   }
 }
@@ -1290,6 +1432,41 @@ export async function triggerEodXeroSync(
       results.push({ method: row.payment_method, ...result });
     }
   }
+
+  // Reclass gift card issue value from revenue to liability once per EOD run.
+  // Gift card issues are already included in POS sales totals/invoices.
+  const registerSessionId = rows.find(r => r.register_session_id != null)?.register_session_id ?? null;
+  const giftCardRows = await imsQuery<{ issued_total: string }>(
+    registerSessionId
+      ? `SELECT COALESCE(SUM(gct.amount), 0) AS issued_total
+           FROM gift_card_transactions gct
+           JOIN pos_sales ps ON ps.id = gct.pos_sale_id
+          WHERE gct.type = 'issue'
+            AND ps.location_id = ?
+            AND ps.register_session_id = ?
+            AND ps.status IN ('completed','layby_complete')`
+      : `SELECT COALESCE(SUM(gct.amount), 0) AS issued_total
+           FROM gift_card_transactions gct
+           JOIN pos_sales ps ON ps.id = gct.pos_sale_id
+          WHERE gct.type = 'issue'
+            AND ps.location_id = ?
+            AND DATE(ps.completed_at) = ?
+            AND ps.status IN ('completed','layby_complete')`,
+    registerSessionId ? [locationId, registerSessionId] : [locationId, date],
+  ).catch(() => [] as { issued_total: string }[]);
+  const giftCardIssued = roundCurrency(Number(giftCardRows[0]?.issued_total ?? 0));
+  if (giftCardIssued > 0) {
+    const key = `gift card liability pos ${date}|L${locationId}${registerSessionId ? `|S${registerSessionId}` : ''}`;
+    await syncGiftCardLiabilityReclass({
+      businessId,
+      amount: giftCardIssued,
+      date,
+      channel: 'pos',
+      locationId,
+      dedupeKey: key,
+    });
+  }
+
   return results;
 }
 

@@ -25,6 +25,26 @@ export const runtime = 'nodejs';
 
 type Config = { businessId: string; secret: string; syncFrom: string; locationId: number; enabled: boolean };
 
+function getShopifyGiftCardAmount(lineItems: any[]): number {
+  if (!Array.isArray(lineItems)) return 0;
+  const total = lineItems.reduce((sum, li) => {
+    if (!li?.gift_card) return sum;
+    const qty = Number(li.quantity ?? 0);
+    const price = Number(li.price ?? 0);
+    if (!(qty > 0) || !(price >= 0)) return sum;
+    return sum + (qty * price);
+  }, 0);
+  return Math.round(total * 100) / 100;
+}
+
+async function ensureGiftCardAmountColumn(): Promise<void> {
+  await imsExecute(
+    `ALTER TABLE ims_sales_orders
+     ADD COLUMN gift_card_amount DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER total_amount`,
+    [],
+  ).catch(() => {});
+}
+
 async function getConfig(businessId: string): Promise<Config | null> {
   const rows = await imsQuery<{ key: string; value: string }>(
     `SELECT \`key\`, value FROM ims_settings
@@ -84,6 +104,7 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
 
   // ── orders/create ──────────────────────────────────────────────────────────
   if (topic === 'orders/create' || topic === 'orders/paid') {
+    await ensureGiftCardAmountColumn();
     const orderDate = toBusinessDate(payload.created_at);
     if (orderDate < config.syncFrom) return respond();
 
@@ -106,12 +127,13 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
     const shopifyToIms = new Map(variantRows.map(r => [String(r.shopify_variant_id), r.variant_id]));
 
     const items: any[] = [];
+    const giftCardAmount = getShopifyGiftCardAmount(payload.line_items ?? []);
     for (const li of payload.line_items ?? []) {
       const imsId = shopifyToIms.get(String(li.variant_id ?? ''));
       if (!imsId) continue;
       items.push({ shopify_line_item_id: String(li.id ?? ''), variant_id: imsId, qty_ordered: li.quantity, unit_price: parseFloat(li.price ?? '0'), line_total: li.quantity * parseFloat(li.price ?? '0'), notes: li.name ?? '' });
     }
-    if (!items.length) return respond();
+    if (!items.length && giftCardAmount <= 0) return respond();
 
     try {
       const pool = await getIMSPool();
@@ -129,10 +151,10 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
         const [r] = await conn.execute<any>(
           `INSERT INTO ims_sales_orders
              (business_id, so_number, so_type, location_id, status, order_date, freight, discount,
-              subtotal, tax_amount, total_amount, shopify_order_id, shopify_order_name, payment_gateway, financial_status, price_tier, tax_treatment, notes)
+              subtotal, tax_amount, total_amount, gift_card_amount, shopify_order_id, shopify_order_name, payment_gateway, financial_status, price_tier, tax_treatment, notes)
             VALUES (?, ?, 'online', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'retail', 'inc_tax', ?)`,
           [businessId, soNumber, config.locationId, orderDateTime, freight, discount,
-           subtotal, taxAmount, parseFloat(payload.total_price ?? '0'), orderIdStr, payload.name ?? null,
+            subtotal, taxAmount, parseFloat(payload.total_price ?? '0'), giftCardAmount, orderIdStr, payload.name ?? null,
            gateway, payload.financial_status ?? null,
            `Shopify ${payload.name ?? ''}`.trim()],
         );
@@ -276,6 +298,7 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
   // Handles merchant edits: price changes, line item additions/removals, financial status.
   // Doesn't re-process status transitions (those are handled by other topics).
   if (topic === 'orders/updated') {
+    await ensureGiftCardAmountColumn();
     const orderIdStr = String(payload.id ?? '');
     if (orderIdStr) {
       const existing = await imsQuery<{ id: number; status: string }>(
@@ -292,14 +315,17 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
           const freight     = parseFloat(payload.total_shipping_price_set?.shop_money?.amount ?? '0');
           const discount    = parseFloat(payload.total_discounts ?? '0');
           const gateway     = Array.isArray(payload.payment_gateway_names) ? payload.payment_gateway_names.join(', ') : null;
+           const giftCardAmount = getShopifyGiftCardAmount(payload.line_items ?? []);
           await imsExecute(
             `UPDATE ims_sales_orders
                SET subtotal = ?, tax_amount = ?, total_amount = ?, freight = ?, discount = ?,
+                 gift_card_amount = ?,
                    financial_status = COALESCE(?, financial_status),
                    payment_gateway  = COALESCE(?, payment_gateway),
                    shopify_order_name = COALESCE(?, shopify_order_name)
              WHERE id = ?`,
             [subtotal, taxAmount, totalAmount, freight, discount,
+             giftCardAmount,
              payload.financial_status ?? null, gateway, payload.name ?? null, so.id],
           );
 

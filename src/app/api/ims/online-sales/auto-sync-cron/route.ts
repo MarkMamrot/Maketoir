@@ -10,9 +10,9 @@
  * and pushes each one to Xero as a daily summary invoice.
  */
 import { NextResponse } from 'next/server';
-import { imsQuery } from '@/services/IMSMySQLService';
+import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
-import { syncDailySalesBatch } from '@/services/XeroSyncService';
+import { syncDailySalesBatch, syncGiftCardLiabilityReclass } from '@/services/XeroSyncService';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 
 export const runtime = 'nodejs';
@@ -47,6 +47,13 @@ export async function POST(req: Request) {
   // (callback form — the only AsyncLocalStorage pattern that reliably
   // propagates across awaits).
   const processBusiness = async (business_id: string) => {
+    // Rolling migration safety: needed for gift-card liability reclass in online batch.
+    await imsExecute(
+      `ALTER TABLE ims_sales_orders
+       ADD COLUMN gift_card_amount DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER total_amount`,
+      [],
+    ).catch(() => {});
+
     const hasRecentOrders = await imsQuery<{ c: number }>(
       `SELECT COUNT(*) AS c
        FROM ims_sales_orders
@@ -101,9 +108,10 @@ export async function POST(req: Request) {
         const key = `online batch ${day}|${gateway}`;
         if (syncedSet.has(key)) continue;
         try {
-          const rows = await imsQuery<{ ts: string; tt: string; tc: string }>(
+          const rows = await imsQuery<{ ts: string; tt: string; tc: string; gca: string }>(
             `SELECT COALESCE(SUM(total_amount), 0) AS ts,
                     COALESCE(SUM(tax_amount), 0)   AS tt,
+                    COALESCE(SUM(gift_card_amount), 0) AS gca,
                     COUNT(*) AS tc
              FROM ims_sales_orders
              WHERE business_id = ?
@@ -116,6 +124,7 @@ export async function POST(req: Request) {
           );
           const totalSales = Number(rows[0]?.ts ?? 0);
           const totalTax   = Number(rows[0]?.tt ?? 0);
+          const giftCardAmount = Number(rows[0]?.gca ?? 0);
           const count      = Number(rows[0]?.tc ?? 0);
           if (totalSales === 0) continue;
 
@@ -134,6 +143,16 @@ export async function POST(req: Request) {
             gateway,
             clearingAccountCode: clearingCode ?? undefined,
           });
+          if (giftCardAmount > 0) {
+            await syncGiftCardLiabilityReclass({
+              businessId: business_id,
+              amount: giftCardAmount,
+              date: day,
+              channel: 'online',
+              gateway,
+              dedupeKey: `gift card liability online ${day}|${gateway}`,
+            });
+          }
           results.push({ businessId: business_id, date: day, gateway, success: true });
         } catch (e: any) {
           results.push({ businessId: business_id, date: day, gateway, success: false, error: e?.message });
@@ -166,9 +185,10 @@ export async function POST(req: Request) {
 
       for (const { day } of days.filter(d => !syncedSet.has(d.day))) {
         try {
-          const rows = await imsQuery<{ ts: string; tt: string; tc: string }>(
+          const rows = await imsQuery<{ ts: string; tt: string; tc: string; gca: string }>(
             `SELECT COALESCE(SUM(total_amount), 0) AS ts,
                     COALESCE(SUM(tax_amount), 0)   AS tt,
+                    COALESCE(SUM(gift_card_amount), 0) AS gca,
                     COUNT(*) AS tc
              FROM ims_sales_orders
              WHERE business_id = ?
@@ -180,6 +200,7 @@ export async function POST(req: Request) {
           );
           const totalSales = Number(rows[0]?.ts ?? 0);
           const totalTax   = Number(rows[0]?.tt ?? 0);
+          const giftCardAmount = Number(rows[0]?.gca ?? 0);
           const count      = Number(rows[0]?.tc ?? 0);
           if (totalSales === 0) continue;
 
@@ -190,6 +211,15 @@ export async function POST(req: Request) {
             totalTax,
             lineDescription: `Online Sales ${day} (${count} orders)`,
           });
+          if (giftCardAmount > 0) {
+            await syncGiftCardLiabilityReclass({
+              businessId: business_id,
+              amount: giftCardAmount,
+              date: day,
+              channel: 'online',
+              dedupeKey: `gift card liability online ${day}`,
+            });
+          }
           results.push({ businessId: business_id, date: day, success: true });
         } catch (e: any) {
           results.push({ businessId: business_id, date: day, success: false, error: e?.message });

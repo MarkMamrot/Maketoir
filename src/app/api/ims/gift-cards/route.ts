@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { syncGiftCardIssueInvoice } from '@/services/XeroSyncService';
 
 // ── GET /api/ims/gift-cards ───────────────────────────────────────────────────
 // Query params: status, search, limit, offset
@@ -130,7 +131,25 @@ export async function POST(req: Request) {
       ],
     );
 
-    return NextResponse.json({ success: true, id: result.insertId });
+    const issueDate = String(created_at ?? '').slice(0, 10) || new Date().toISOString().slice(0, 10);
+    const amount = Number(initial_balance ?? balance ?? 0);
+    let xeroSynced = false;
+    let xeroWarning: string | null = null;
+    try {
+      const xeroId = await syncGiftCardIssueInvoice({
+        businessId: session.businessId,
+        amount,
+        issueDate,
+        reference: `IMS-GC-${String(result.insertId)}`,
+        narration: `Gift card issued in IMS (${code.trim().toUpperCase()})`,
+        dedupeKey: `gift card issue ims ${String(result.insertId)}|${code.trim().toUpperCase()}|${amount.toFixed(2)}`,
+      });
+      xeroSynced = !!xeroId;
+    } catch (err: any) {
+      xeroWarning = err?.message ?? 'Gift card created but failed to sync to Xero';
+    }
+
+    return NextResponse.json({ success: true, id: result.insertId, xero_synced: xeroSynced, xero_warning: xeroWarning });
   } catch (e: any) {
     if (e.code === 'ER_DUP_ENTRY') {
       return NextResponse.json({ error: 'A gift card with that code already exists.' }, { status: 409 });

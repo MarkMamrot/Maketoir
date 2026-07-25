@@ -20,6 +20,18 @@ import { parseShopifyRefund } from '@/lib/shopifyRefund';
 import { createNotification } from '@/lib/ims/createNotification';
 import { triggerCNXeroSync } from '@/lib/ims/xeroHooks';
 
+function getShopifyGiftCardAmount(lineItems: any[]): number {
+  if (!Array.isArray(lineItems)) return 0;
+  const total = lineItems.reduce((sum, li) => {
+    if (!li?.gift_card) return sum;
+    const qty = Number(li.quantity ?? 0);
+    const price = Number(li.price ?? 0);
+    if (!(qty > 0) || !(price >= 0)) return sum;
+    return sum + (qty * price);
+  }, 0);
+  return Math.round(total * 100) / 100;
+}
+
 
 async function getSetting(businessId: string, key: string): Promise<string | null> {
   const rows = await imsQuery<{ value: string }>(
@@ -73,6 +85,12 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const businessId: string = session.businessId ?? '';
+
+  await imsExecute(
+    `ALTER TABLE ims_sales_orders
+     ADD COLUMN gift_card_amount DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER total_amount`,
+    [],
+  ).catch(() => {});
 
   // Load config
   const syncEnabled = await getSetting(businessId, 'shopify_order_sync_enabled');
@@ -210,6 +228,7 @@ export async function POST(req: Request) {
       });
     }
 
+    const giftCardAmount = getShopifyGiftCardAmount(order.line_items ?? []);
     if (items.length === 0) { skippedNoItems++; continue; }
 
     const freight   = parseFloat(order.total_shipping_price_set?.shop_money?.amount ?? '0');

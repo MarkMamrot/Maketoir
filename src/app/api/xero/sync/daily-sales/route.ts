@@ -7,9 +7,9 @@
  */
 import { NextResponse } from 'next/server';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
-import { syncDailySalesBatch } from '@/services/XeroSyncService';
+import { syncDailySalesBatch, syncGiftCardLiabilityReclass } from '@/services/XeroSyncService';
 import { query } from '@/services/MySQLService';
-import { imsQuery } from '@/services/IMSMySQLService';
+import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
 
 export async function POST(req: Request) {
@@ -31,6 +31,7 @@ export async function POST(req: Request) {
   try {
     let totalSales = 0;
     let totalTax = 0;
+    let giftCardAmount = 0;
     let lineDescription = '';
 
     if (channel === 'pos') {
@@ -53,11 +54,18 @@ export async function POST(req: Request) {
       }
       lineDescription = `POS Sales ${date}${locName ? ` — ${locName}` : ''} (${count} transactions)`;
     } else {
+      await imsExecute(
+        `ALTER TABLE ims_sales_orders
+         ADD COLUMN gift_card_amount DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER total_amount`,
+        [],
+      ).catch(() => {});
+
       // Aggregate online sales for the given date (IMS DB).
       // Exclude is_historical=1 — those are pre-transition Cin7 orders already in Xero.
       // Exclude cancelled orders — they are not revenue.
-      const rows = await imsQuery<{ total_sales: number; total_tax: number; txn_count: number }>(
+      const rows = await imsQuery<{ total_sales: number; total_tax: number; txn_count: number; gift_card_amount: number }>(
         `SELECT COALESCE(SUM(total_amount), 0) AS total_sales, COALESCE(SUM(tax_amount), 0) AS total_tax, COUNT(*) AS txn_count
+                , COALESCE(SUM(gift_card_amount), 0) AS gift_card_amount
          FROM ims_sales_orders
          WHERE business_id = ? AND DATE(order_date) = ? AND so_type = 'online'
            AND (is_historical IS NULL OR is_historical = 0)
@@ -66,6 +74,7 @@ export async function POST(req: Request) {
       );
       totalSales = Number(rows[0]?.total_sales || 0);
       totalTax = Number(rows[0]?.total_tax || 0);
+      giftCardAmount = Number(rows[0]?.gift_card_amount || 0);
       const count = Number(rows[0]?.txn_count || 0);
       lineDescription = `Online Sales ${date} (${count} orders)`;
     }
@@ -82,6 +91,16 @@ export async function POST(req: Request) {
       totalTax,
       lineDescription,
     });
+
+    if (channel === 'online' && giftCardAmount > 0) {
+      await syncGiftCardLiabilityReclass({
+        businessId: databaseId,
+        amount: giftCardAmount,
+        date,
+        channel: 'online',
+        dedupeKey: `gift card liability online ${date}`,
+      });
+    }
 
     return NextResponse.json({ success: !!xeroId, xeroId, totalSales, totalTax });
   } catch (err: any) {

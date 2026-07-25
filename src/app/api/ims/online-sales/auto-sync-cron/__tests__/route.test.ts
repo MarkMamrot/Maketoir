@@ -3,12 +3,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const {
   mockQuery,
   mockImsQuery,
+  mockImsExecute,
   mockSyncDailySalesBatch,
+  mockSyncGiftCardLiabilityReclass,
   mockRunImsForBusiness,
 } = vi.hoisted(() => ({
   mockQuery: vi.fn(),
   mockImsQuery: vi.fn(),
+  mockImsExecute: vi.fn(),
   mockSyncDailySalesBatch: vi.fn(),
+  mockSyncGiftCardLiabilityReclass: vi.fn(),
   mockRunImsForBusiness: vi.fn(),
 }));
 
@@ -18,10 +22,12 @@ vi.mock('@/services/MySQLService', () => ({
 
 vi.mock('@/services/IMSMySQLService', () => ({
   imsQuery: mockImsQuery,
+  imsExecute: mockImsExecute,
 }));
 
 vi.mock('@/services/XeroSyncService', () => ({
   syncDailySalesBatch: mockSyncDailySalesBatch,
+  syncGiftCardLiabilityReclass: mockSyncGiftCardLiabilityReclass,
 }));
 
 vi.mock('@/lib/db/BusinessRegistry', () => ({
@@ -41,6 +47,7 @@ function setupDefaultMocks() {
   process.env.CRON_SECRET = 'cron-secret';
   process.env.BUSINESS_TIMEZONE = 'Australia/Sydney';
   mockRunImsForBusiness.mockImplementation(async (_businessId: string, callback: () => Promise<void>) => callback());
+  mockImsExecute.mockResolvedValue({});
   mockQuery.mockImplementation(async (sql: string) => {
     const normalized = String(sql).replace(/\s+/g, ' ').trim().toLowerCase();
 
@@ -105,6 +112,7 @@ describe('POST /api/ims/online-sales/auto-sync-cron', () => {
     vi.clearAllMocks();
     setupDefaultMocks();
     mockSyncDailySalesBatch.mockResolvedValue('xero-1');
+    mockSyncGiftCardLiabilityReclass.mockResolvedValue('journal-1');
   });
 
   it('rejects requests without the shared cron secret', async () => {

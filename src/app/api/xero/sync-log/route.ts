@@ -212,13 +212,13 @@ export async function GET(req: Request) {
         );
       }
       // Standalone sync events with no still-existing source document of their own
-      // (POS end-of-day reconciliations, stocktake journals). These are the actual
+      // (POS end-of-day reconciliations, stocktake journals, gift-card postings). These are the actual
       // Xero pushes — surface them directly so their status / amount / Xero ID show.
       eventLogs = await query<any>(
         `SELECT id, sync_type, xero_id, status, xero_state, detail, created_at AS synced_at
            FROM xero_sync_log
           WHERE business_id = ?
-            AND sync_type IN ('eod_reconciliation','stocktake_journal')
+            AND sync_type IN ('eod_reconciliation','stocktake_journal','gift_card_issue','gift_card_liability')
           ORDER BY created_at DESC
           LIMIT ${limit}`,
         [databaseId],
@@ -333,7 +333,7 @@ export async function GET(req: Request) {
       };
     });
 
-    // ── Standalone Xero sync events (EOD reconciliations, stocktake journals) ──
+    // ── Standalone Xero sync events (EOD, stocktake, gift-card postings) ──
     const parseAmt = (detail: string | null): number | null => {
       if (!detail) return null;
       const m = /\$\s*([\d,]+(?:\.\d+)?)/.exec(detail);
@@ -345,7 +345,11 @@ export async function GET(req: Request) {
       reference:
         e.sync_type === 'eod_reconciliation'
           ? (e.detail ? String(e.detail).split(' — ')[0] : 'EOD Reconciliation')
-          : 'Stocktake Journal',
+          : e.sync_type === 'stocktake_journal'
+            ? 'Stocktake Journal'
+            : e.sync_type === 'gift_card_issue'
+              ? 'Gift Card Issue'
+              : 'Gift Card Liability Reclass',
       contact_name: e.detail ?? null,
       amount: parseAmt(e.detail),
       item_date: e.synced_at,
