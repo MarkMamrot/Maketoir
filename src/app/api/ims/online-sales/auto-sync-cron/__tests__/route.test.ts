@@ -78,6 +78,10 @@ function makeImsQueryForPerGateway() {
   mockImsQuery.mockImplementation(async (sql: string) => {
     const normalized = String(sql).replace(/\s+/g, ' ').trim().toLowerCase();
 
+    if (normalized.includes("from ims_settings where business_id = ? and `key` in ('shopify_xero_auto_sync_enabled', 'shopify_xero_online_batch_mode')")) {
+      return [];
+    }
+
     if (normalized.includes('select count(*) as c from ims_sales_orders')) {
       return [{ c: 1 }];
     }
@@ -98,6 +102,10 @@ function makeImsQueryForLegacy() {
   mockImsQuery.mockImplementation(async (sql: string) => {
     const normalized = String(sql).replace(/\s+/g, ' ').trim().toLowerCase();
 
+    if (normalized.includes("from ims_settings where business_id = ? and `key` in ('shopify_xero_auto_sync_enabled', 'shopify_xero_online_batch_mode')")) {
+      return [];
+    }
+
     if (normalized.includes('select count(*) as c from ims_sales_orders')) {
       return [{ c: 1 }];
     }
@@ -108,6 +116,10 @@ function makeImsQueryForLegacy() {
 
     if (normalized.includes('select coalesce(sum(total_amount), 0) as ts')) {
       return [{ ts: '55.00', tt: '5.00', tc: '1' }];
+    }
+
+    if (normalized.includes("group by coalesce(lower(trim(payment_gateway)), '_unknown')")) {
+      return [{ gateway: 'paypal', ts: '55.00', tt: '5.00' }];
     }
 
     throw new Error(`Unhandled SQL in imsQuery mock: ${sql}`);

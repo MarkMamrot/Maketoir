@@ -14593,6 +14593,8 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
   const [cogsBusy, setCogsBusy] = React.useState<'preview' | 'post' | null>(null);
   const [cogsMessage, setCogsMessage] = React.useState<{ ok: boolean; text: string } | null>(null);
   const [cogsPreview, setCogsPreview] = React.useState<any>(null);
+  const [onlineBatchMode, setOnlineBatchMode] = React.useState<'combined' | 'per_gateway'>('per_gateway');
+  const [savingOnlineBatchMode, setSavingOnlineBatchMode] = React.useState(false);
 
   // Advisor access to the Account & Tracking Mapping (stored in ims_settings).
   const [advisorMapping, setAdvisorMapping] = React.useState<boolean | null>(null);
@@ -14601,6 +14603,8 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
     fetch('/api/ims/settings').then(r => r.ok ? r.json() : null).then(j => {
       const v = j?.data?.advisor_xero_mapping_enabled;
       setAdvisorMapping(v === 'true' || v === '1' || v === true);
+      const mode = String(j?.data?.shopify_xero_online_batch_mode ?? '').toLowerCase();
+      setOnlineBatchMode(mode === 'combined' ? 'combined' : 'per_gateway');
     }).catch(() => setAdvisorMapping(false));
   }, []);
   const saveAdvisorMapping = async (enabled: boolean) => {
@@ -14612,6 +14616,19 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
         body: JSON.stringify({ advisor_xero_mapping_enabled: enabled ? 'true' : 'false' }),
       });
     } finally { setSavingAdvisor(false); }
+  };
+
+  const saveOnlineBatchMode = async (mode: 'combined' | 'per_gateway') => {
+    setSavingOnlineBatchMode(true);
+    setOnlineBatchMode(mode);
+    try {
+      await fetch('/api/ims/settings', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shopify_xero_online_batch_mode: mode }),
+      });
+    } finally {
+      setSavingOnlineBatchMode(false);
+    }
   };
 
   React.useEffect(() => {
@@ -14776,6 +14793,46 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
       {/* Sync summary */}
       <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
         <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sync Configuration</h3>
+        <div style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 8, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 8 }}>Online sales batch mode</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              onClick={() => saveOnlineBatchMode('combined')}
+              disabled={savingOnlineBatchMode}
+              style={{
+                padding: '6px 10px',
+                borderRadius: 6,
+                border: '1px solid var(--sv-etch)',
+                cursor: savingOnlineBatchMode ? 'not-allowed' : 'pointer',
+                fontSize: 12,
+                fontWeight: 600,
+                background: onlineBatchMode === 'combined' ? 'var(--sv-action)' : 'var(--sv-bg-2)',
+                color: onlineBatchMode === 'combined' ? '#fff' : 'var(--sv-text-main)',
+              }}
+            >
+              Single combined invoice per day
+            </button>
+            <button
+              onClick={() => saveOnlineBatchMode('per_gateway')}
+              disabled={savingOnlineBatchMode}
+              style={{
+                padding: '6px 10px',
+                borderRadius: 6,
+                border: '1px solid var(--sv-etch)',
+                cursor: savingOnlineBatchMode ? 'not-allowed' : 'pointer',
+                fontSize: 12,
+                fontWeight: 600,
+                background: onlineBatchMode === 'per_gateway' ? 'var(--sv-action)' : 'var(--sv-bg-2)',
+                color: onlineBatchMode === 'per_gateway' ? '#fff' : 'var(--sv-text-main)',
+              }}
+            >
+              Split by gateway per day
+            </button>
+          </div>
+          <div style={{ marginTop: 6, fontSize: 11, color: 'var(--sv-text-dim)', lineHeight: 1.5 }}>
+            This controls both nightly cron sync and login catch-up sync. Split mode uses gateway mappings when present and applies payments only for gateways mapped to clearing accounts.
+          </div>
+        </div>
         <div style={{ fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 2 }}>
           <div>• POs → Xero Bills <span style={{ color: 'var(--sv-text-dim)' }}>(DRAFT when ordered or partially received; AUTHORISED when fully received; payments applied separately)</span></div>
           <div>• Wholesale SOs → Xero Invoices <span style={{ color: 'var(--sv-text-dim)' }}>(DRAFT when confirmed; AUTHORISED when fulfilled; payments applied separately)</span></div>
@@ -14786,7 +14843,7 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
           <div>• COGS Journal <span style={{ color: 'var(--sv-text-dim)' }}>(completed calendar periods on a daily, weekly, monthly or quarterly schedule; manual preview/post available)</span></div>
         </div>
         <div style={{ marginTop: 10, fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6, padding: '8px 10px', background: 'rgba(96,165,250,.07)', borderRadius: 6 }}>
-          Online gateway detail: with no clearing mappings, the scheduled sync posts one combined invoice per day. Once any mapping exists, scheduled runs post one invoice per day and gateway; mapped gateways also receive a payment into their clearing account, while unmapped gateways remain unpaid in Xero. Login catch-up posts one combined invoice per day.
+          Online gateway detail: combined mode posts one invoice per day, then applies one payment per mapped gateway to its clearing account. Split mode posts one invoice per gateway per day and applies one payment to that gateway's clearing account.
         </div>
       </div>
 
@@ -15534,7 +15591,7 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
         </button>
       </div>
       <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
-        Maps each online payment gateway (PayPal, Afterpay, etc.) to a dedicated Xero bank/clearing account. When configured, the nightly batch posts a <strong>separate invoice per gateway per day</strong> and immediately applies a payment to the clearing account — ready for bank reconciliation. Gateways with no mapping still post to the combined daily invoice.
+        Maps each online payment gateway (PayPal, Afterpay, etc.) to a dedicated Xero bank/clearing account. In combined mode, IMS posts one daily online invoice and applies one payment per mapped gateway to that same invoice. In split mode, IMS posts one invoice per gateway per day and applies one payment per invoice.
       </p>
 
       <div style={{ marginBottom: 12, padding: '12px 14px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
@@ -22718,9 +22775,9 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         </ul>
 
         <h3 style={h3}>4 — Money: Shopify → Xero</h3>
-        <p style={p}>Online sales post via the nightly sales batch. If you've configured a clearing account for a gateway in <em>Xero → Mapping → Online Gateway Clearing Accounts</em>, that gateway posts as its own invoice per day and a payment is applied to that clearing account.</p>
+        <p style={p}>Online sales post via the nightly sales batch. In <em>combined mode</em>, IMS posts one daily invoice and applies one payment per mapped gateway to its clearing account. In <em>split mode</em>, IMS posts one invoice per gateway per day and applies one payment per invoice.</p>
         <ul style={ul}>
-          <li>Gateways with no clearing account mapping post as part of the combined daily online invoice.</li>
+          <li>Gateway mappings are configured in <em>Xero → Mapping → Online Gateway Clearing Accounts</em>.</li>
           <li>All online channels, including Shopify Payments, are included in this flow.</li>
           <li>Gift card and store credit tenders are not payout gateways, so they do not use gateway clearing mappings. CN-backed store-credit issuance is represented by the completed customer credit note plus its customer ledger entry; it is not posted as a second revenue-reclassification journal.</li>
         </ul>

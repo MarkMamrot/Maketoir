@@ -18,6 +18,24 @@ import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 
 export const runtime = 'nodejs';
 
+function normalizeGateway(value: string | null | undefined): string {
+  const v = String(value ?? '').trim().toLowerCase();
+  return v || '_unknown';
+}
+
+function findGatewayClearingAccount(
+  gateway: string,
+  mappings: Array<{ gateway_name: string; clearing_account_code: string | null }>,
+): string | null {
+  const key = normalizeGateway(gateway);
+  for (const mapping of mappings) {
+    const name = normalizeGateway(mapping.gateway_name);
+    if (!name || !mapping.clearing_account_code) continue;
+    if (key.includes(name) || name.includes(key)) return mapping.clearing_account_code;
+  }
+  return null;
+}
+
 export async function POST(req: Request) {
   const secret = req.headers.get('x-cron-secret');
   if (!secret || secret !== process.env.CRON_SECRET) {
@@ -47,11 +65,15 @@ export async function POST(req: Request) {
   const processBusiness = async (business_id: string) => {
     const timeZone = await getBusinessTimeZone(business_id);
     const today = new Date().toLocaleDateString('sv-SE', { timeZone });
-    const settingRows = await imsQuery<{ value: string }>(
-      "SELECT value FROM ims_settings WHERE business_id = ? AND `key` = 'shopify_xero_auto_sync_enabled' LIMIT 1",
+    const settingRows = await imsQuery<{ key: string; value: string }>(
+      "SELECT `key`, value FROM ims_settings WHERE business_id = ? AND `key` IN ('shopify_xero_auto_sync_enabled', 'shopify_xero_online_batch_mode')",
       [business_id],
-    ).catch(() => [] as { value: string }[]);
-    const xeroAutoSyncEnabled = settingRows[0]?.value !== '0';
+    ).catch(() => [] as { key: string; value: string }[]);
+    const settings = new Map(settingRows.map(row => [row.key, row.value]));
+    const xeroAutoSyncEnabled = settings.get('shopify_xero_auto_sync_enabled') !== '0';
+    const onlineBatchMode = settings.get('shopify_xero_online_batch_mode') === 'combined'
+      ? 'combined'
+      : 'per_gateway';
     if (!xeroAutoSyncEnabled) return;
 
     // Rolling migration safety: needed for gift-card liability reclass in online batch.
@@ -80,10 +102,10 @@ export async function POST(req: Request) {
       `SELECT gateway_name, clearing_account_code FROM xero_gateway_mappings WHERE business_id = ?`,
       [business_id],
     ).catch(() => [] as { gateway_name: string; clearing_account_code: string | null }[]);
-    const gatewayMap = new Map(gwMappings.map(m => [m.gateway_name, m.clearing_account_code]));
-    const hasGatewayMappings = gatewayMap.size > 0;
+    const hasGatewayMappings = gwMappings.length > 0;
+    const shouldUsePerGateway = onlineBatchMode === 'per_gateway' && hasGatewayMappings;
 
-    if (hasGatewayMappings) {
+    if (shouldUsePerGateway) {
       // ── Per-gateway mode: one invoice per (day × gateway) ─────────────────
       // Find distinct (day, gateway) combos with syncable orders.
       const combos = await imsQuery<{ day: string; gateway: string }>(
@@ -136,9 +158,7 @@ export async function POST(req: Request) {
           if (totalSales === 0) continue;
 
           // Fuzzy-match gateway to configured mappings (the stored gateway_name uses LIKE).
-          const clearingCode = gwMappings.find(m =>
-            gateway.includes(m.gateway_name) || m.gateway_name.includes(gateway),
-          )?.clearing_account_code ?? undefined;
+          const clearingCode = findGatewayClearingAccount(gateway, gwMappings) ?? undefined;
 
           const displayGateway = gateway === '_unknown' ? 'Unknown' : gateway;
           await syncDailySalesBatch(business_id, {
@@ -211,12 +231,70 @@ export async function POST(req: Request) {
           const count      = Number(rows[0]?.tc ?? 0);
           if (totalSales === 0) continue;
 
+          const gatewayRows = await imsQuery<{ gateway: string; ts: string; tt: string }>(
+            `SELECT COALESCE(LOWER(TRIM(payment_gateway)), '_unknown') AS gateway,
+                    COALESCE(SUM(total_amount), 0) AS ts,
+                    COALESCE(SUM(tax_amount), 0) AS tt
+               FROM ims_sales_orders
+              WHERE business_id = ?
+                AND DATE_FORMAT(order_date, '%Y-%m-%d') = ?
+                AND so_type = 'online'
+                AND (is_historical IS NULL OR is_historical = 0)
+                AND status != 'cancelled'
+              GROUP BY COALESCE(LOWER(TRIM(payment_gateway)), '_unknown')`,
+            [business_id, day],
+          );
+
+          const paymentRows = gatewayRows
+            .map(row => {
+              const gateway = normalizeGateway(row.gateway);
+              const amount = Math.round((Number(row.ts ?? 0) + Number(row.tt ?? 0)) * 100) / 100;
+              if (!(amount > 0)) return null;
+              const accountCode = findGatewayClearingAccount(gateway, gwMappings);
+              return {
+                gateway,
+                amount,
+                accountCode,
+              };
+            })
+            .filter((row): row is { gateway: string; amount: number; accountCode: string | null } => !!row);
+
+          const missingMappings = paymentRows.filter(row => !row.accountCode);
+          if (gwMappings.length > 0 && missingMappings.length > 0) {
+            const missingLabel = missingMappings.map(row => row.gateway).join(', ');
+            results.push({
+              businessId: business_id,
+              date: day,
+              success: false,
+              error: `Missing gateway clearing mapping for: ${missingLabel}`,
+            });
+            continue;
+          }
+
+          const targetTotal = Math.round((totalSales + totalTax) * 100) / 100;
+          const clearingPayments = paymentRows
+            .filter(row => !!row.accountCode)
+            .map(row => ({
+              accountCode: row.accountCode as string,
+              amount: row.amount,
+              label: row.gateway === '_unknown' ? 'Unknown' : row.gateway,
+            }));
+          if (clearingPayments.length > 0) {
+            const allocated = Math.round(clearingPayments.reduce((sum, p) => sum + p.amount, 0) * 100) / 100;
+            const delta = Math.round((targetTotal - allocated) * 100) / 100;
+            if (Math.abs(delta) > 0.00001) {
+              const last = clearingPayments[clearingPayments.length - 1];
+              last.amount = Math.round((last.amount + delta) * 100) / 100;
+            }
+          }
+
           await syncDailySalesBatch(business_id, {
             date: day,
             channel: 'online',
             totalSales,
             totalTax,
             lineDescription: `Online Sales ${day} (${count} orders)`,
+            ...(clearingPayments.length > 0 ? { clearingPayments } : {}),
           });
           if (giftCardAmount > 0) {
             await syncGiftCardLiabilityReclass({

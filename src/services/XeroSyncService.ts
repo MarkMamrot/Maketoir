@@ -1064,6 +1064,11 @@ interface DailySalesBatch {
   lineDescription: string;
   gateway?: string;            // payment gateway label (for description + dedup key)
   clearingAccountCode?: string; // if set, a Xero payment is applied into this bank/clearing account
+  clearingPayments?: Array<{
+    accountCode: string;
+    amount: number;
+    label?: string;
+  }>;
 }
 
 function roundCurrency(value: number): number {
@@ -1114,22 +1119,40 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
     const batchInv = result.Invoices?.[0];
     const xeroId = batchInv?.InvoiceID ?? null;
 
-    // If a clearing account is configured, immediately apply a payment.
-    // This marks the invoice as PAID and routes the funds to the clearing account
-    // for bank reconciliation — the bookkeeper matches the actual deposit there.
-    if (xeroId && batch.clearingAccountCode) {
+    const totalDue = Math.round((batch.totalSales + batch.totalTax) * 100) / 100;
+    const configuredPayments = Array.isArray(batch.clearingPayments)
+      ? batch.clearingPayments
+      : [];
+    const clearingPayments = configuredPayments.length > 0
+      ? configuredPayments
+      : (batch.clearingAccountCode
+          ? [{
+              accountCode: batch.clearingAccountCode,
+              amount: totalDue,
+              label: batch.gateway,
+            }]
+          : []);
+
+    // If one or more clearing payments are configured, immediately apply them.
+    // This marks the invoice as PAID (when the full amount is covered) and routes
+    // funds to clearing accounts for bank reconciliation.
+    if (xeroId && clearingPayments.length > 0) {
       try {
-        const paymentAmount = Math.round((batch.totalSales + batch.totalTax) * 100) / 100;
-        await xeroApiFetch(businessId, '/Payments', {
-          method: 'POST',
-          body: { Payments: [{
-            Invoice: { InvoiceID: xeroId },
-            Account: { Code: batch.clearingAccountCode },
-            Date: batch.date,
-            Amount: paymentAmount,
-            Reference: `${batch.channel.toUpperCase()} clearing ${batch.date}${batch.gateway ? ` (${batch.gateway})` : ''}`,
-          }] },
-        });
+        for (const p of clearingPayments) {
+          const amount = Math.round(Number(p.amount ?? 0) * 100) / 100;
+          if (!(amount > 0)) continue;
+          const label = p.label || batch.gateway;
+          await xeroApiFetch(businessId, '/Payments', {
+            method: 'POST',
+            body: { Payments: [{
+              Invoice: { InvoiceID: xeroId },
+              Account: { Code: p.accountCode },
+              Date: batch.date,
+              Amount: amount,
+              Reference: `${batch.channel.toUpperCase()} clearing ${batch.date}${label ? ` (${label})` : ''}`,
+            }] },
+          });
+        }
       } catch (payErr: any) {
         // Invoice posted but payment failed — log separately; bookkeeper can apply manually.
         await logSync(businessId, syncType, null, xeroId, 'error',
