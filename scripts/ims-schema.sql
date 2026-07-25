@@ -283,6 +283,113 @@ CREATE TABLE IF NOT EXISTS ims_sales_order_items (
   INDEX idx_soi_so (so_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ── Customer Credit Notes / Returns ─────────────────────────
+CREATE TABLE IF NOT EXISTS ims_credit_notes (
+  id                  INT AUTO_INCREMENT PRIMARY KEY,
+  business_id         VARCHAR(150) NOT NULL,
+  cn_number           VARCHAR(30)  NOT NULL,
+  customer_id         INT          NULL,
+  so_id               INT          NULL,
+  original_so_number  VARCHAR(100) NULL,
+  location_id         INT          NOT NULL,
+  status              ENUM('draft','awaiting_product','complete','cancelled') NOT NULL DEFAULT 'draft',
+  source              ENUM('manual','shopify') NOT NULL DEFAULT 'manual',
+  shopify_return_id   VARCHAR(100) NULL,
+  cn_date             DATE         NOT NULL,
+  completed_at        DATETIME     NULL,
+  reference           VARCHAR(255) NULL COMMENT 'e.g. original SO or invoice number',
+  tax_treatment       ENUM('ex_tax','inc_tax') NOT NULL DEFAULT 'ex_tax',
+  tax_code            VARCHAR(50)  NULL,
+  subtotal            DECIMAL(12,2) NOT NULL DEFAULT 0,
+  tax_amount          DECIMAL(12,2) NOT NULL DEFAULT 0,
+  total_amount        DECIMAL(12,2) NOT NULL DEFAULT 0,
+  notes               TEXT         NULL,
+  xero_credit_note_id VARCHAR(100) NULL,
+  xero_synced_at      DATETIME     NULL,
+  xero_sync_status    ENUM('synced','queued','error') NULL,
+  created_by          VARCHAR(150) NULL,
+  created_at          DATETIME     DEFAULT CURRENT_TIMESTAMP,
+  updated_at          DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_business (business_id),
+  INDEX idx_status (status),
+  INDEX idx_customer (customer_id),
+  INDEX idx_shopify_return (business_id, shopify_return_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_credit_note_items (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  cn_id        INT           NOT NULL,
+  variant_id   VARCHAR(100)  NULL,
+  code         VARCHAR(100)  NULL,
+  name         VARCHAR(255)  NULL,
+  qty          DECIMAL(10,4) NOT NULL DEFAULT 1,
+  unit_price   DECIMAL(12,4) NOT NULL DEFAULT 0,
+  price_basis  ENUM('cost','wholesale','rrp','custom') NOT NULL DEFAULT 'custom',
+  restock      TINYINT(1)    NOT NULL DEFAULT 1,
+  tax_rate     DECIMAL(6,4)  NOT NULL DEFAULT 0,
+  line_total   DECIMAL(12,4) NOT NULL DEFAULT 0,
+  INDEX idx_cn (cn_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── Supplier Credit Notes ───────────────────────────────────
+CREATE TABLE IF NOT EXISTS ims_supplier_credit_notes (
+  id                  INT AUTO_INCREMENT PRIMARY KEY,
+  business_id         VARCHAR(150) NOT NULL,
+  scn_number          VARCHAR(30)  NOT NULL,
+  supplier_id         INT          NULL,
+  po_id               INT          NULL,
+  location_id         INT          NOT NULL,
+  status              ENUM('draft','complete','cancelled') NOT NULL DEFAULT 'draft',
+  scn_date            DATE         NOT NULL,
+  completed_at        DATETIME     NULL,
+  reference           VARCHAR(255) NULL COMMENT 'e.g. original PO / bill number',
+  supplier_credit_ref VARCHAR(100) NULL COMMENT 'the supplier''s own credit note number',
+  currency_code       VARCHAR(10)  NOT NULL DEFAULT 'AUD',
+  exchange_rate       DECIMAL(12,6) NOT NULL DEFAULT 1.000000,
+  tax_treatment       ENUM('ex_tax','inc_tax','no_tax') NOT NULL DEFAULT 'ex_tax',
+  subtotal            DECIMAL(12,2) NOT NULL DEFAULT 0,
+  tax_amount          DECIMAL(12,2) NOT NULL DEFAULT 0,
+  total_amount        DECIMAL(12,2) NOT NULL DEFAULT 0,
+  notes               TEXT         NULL,
+  xero_credit_note_id VARCHAR(100) NULL,
+  xero_synced_at      DATETIME     NULL,
+  xero_sync_status    ENUM('synced','queued','error') NULL,
+  created_by          VARCHAR(150) NULL,
+  created_at          DATETIME     DEFAULT CURRENT_TIMESTAMP,
+  updated_at          DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_business_scn (business_id, scn_number),
+  INDEX idx_business (business_id),
+  INDEX idx_status (status),
+  INDEX idx_supplier (supplier_id),
+  INDEX idx_po (po_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_supplier_credit_note_items (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  scn_id       INT           NOT NULL,
+  variant_id   VARCHAR(100)  NULL,
+  code         VARCHAR(100)  NULL,
+  name         VARCHAR(255)  NULL,
+  qty          DECIMAL(10,4) NOT NULL DEFAULT 1,
+  unit_cost    DECIMAL(12,4) NOT NULL DEFAULT 0,
+  restock      TINYINT(1)    NOT NULL DEFAULT 1,
+  tax_rate     DECIMAL(6,4)  NOT NULL DEFAULT 0,
+  line_total   DECIMAL(12,4) NOT NULL DEFAULT 0,
+  INDEX idx_scn (scn_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_supplier_credit_note_files (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  scn_id        INT          NOT NULL,
+  business_id   VARCHAR(100) NOT NULL,
+  filename      VARCHAR(255) NOT NULL,
+  original_name VARCHAR(255),
+  mime_type     VARCHAR(100),
+  file_size     INT,
+  uploaded_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_scn (scn_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ── Stock Movements (audit trail) ────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_stock_movements (
   id             INT AUTO_INCREMENT PRIMARY KEY,
@@ -292,10 +399,11 @@ CREATE TABLE IF NOT EXISTS ims_stock_movements (
   movement_type  ENUM(
     'po_approved','po_unapproved','po_received',
     'so_confirmed','so_unconfirmed','so_fulfilled',
+    'cn_returned','scn_returned',
     'adjustment','transfer_in','transfer_out',
     'pos_sale','pos_return','stocktake'
   ) NOT NULL,
-  reference_type ENUM('purchase_order','sales_order','manual','pos_sale','stocktake','branch_transfer') NOT NULL,
+  reference_type ENUM('purchase_order','sales_order','credit_note','supplier_credit_note','manual','pos_sale','stocktake','branch_transfer') NOT NULL,
   reference_id   INT,
   qty_change     DECIMAL(12,4) NOT NULL,
   qty_after_soh  DECIMAL(12,4) NOT NULL,

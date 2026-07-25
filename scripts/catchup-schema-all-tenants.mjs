@@ -20,6 +20,109 @@ const conn = await mysql.createConnection({
   connectTimeout: 20000,
 });
 
+const TABLE_DDLS = [
+  `CREATE TABLE IF NOT EXISTS ims_credit_notes (
+    id                  INT AUTO_INCREMENT PRIMARY KEY,
+    business_id         VARCHAR(150) NOT NULL,
+    cn_number           VARCHAR(30)  NOT NULL,
+    customer_id         INT          NULL,
+    so_id               INT          NULL,
+    original_so_number  VARCHAR(100) NULL,
+    location_id         INT          NOT NULL,
+    status              ENUM('draft','awaiting_product','complete','cancelled') NOT NULL DEFAULT 'draft',
+    source              ENUM('manual','shopify') NOT NULL DEFAULT 'manual',
+    shopify_return_id   VARCHAR(100) NULL,
+    cn_date             DATE         NOT NULL,
+    completed_at        DATETIME     NULL,
+    reference           VARCHAR(255) NULL,
+    tax_treatment       ENUM('ex_tax','inc_tax') NOT NULL DEFAULT 'ex_tax',
+    tax_code            VARCHAR(50)  NULL,
+    subtotal            DECIMAL(12,2) NOT NULL DEFAULT 0,
+    tax_amount          DECIMAL(12,2) NOT NULL DEFAULT 0,
+    total_amount        DECIMAL(12,2) NOT NULL DEFAULT 0,
+    notes               TEXT         NULL,
+    xero_credit_note_id VARCHAR(100) NULL,
+    xero_synced_at      DATETIME     NULL,
+    xero_sync_status    ENUM('synced','queued','error') NULL,
+    created_by          VARCHAR(150) NULL,
+    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_business (business_id),
+    INDEX idx_status (status),
+    INDEX idx_customer (customer_id),
+    INDEX idx_shopify_return (business_id, shopify_return_id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS ims_credit_note_items (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    cn_id        INT           NOT NULL,
+    variant_id   VARCHAR(100)  NULL,
+    code         VARCHAR(100)  NULL,
+    name         VARCHAR(255)  NULL,
+    qty          DECIMAL(10,4) NOT NULL DEFAULT 1,
+    unit_price   DECIMAL(12,4) NOT NULL DEFAULT 0,
+    price_basis  ENUM('cost','wholesale','rrp','custom') NOT NULL DEFAULT 'custom',
+    restock      TINYINT(1)    NOT NULL DEFAULT 1,
+    tax_rate     DECIMAL(6,4)  NOT NULL DEFAULT 0,
+    line_total   DECIMAL(12,4) NOT NULL DEFAULT 0,
+    INDEX idx_cn (cn_id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS ims_supplier_credit_notes (
+    id                  INT AUTO_INCREMENT PRIMARY KEY,
+    business_id         VARCHAR(150) NOT NULL,
+    scn_number          VARCHAR(30)  NOT NULL,
+    supplier_id         INT          NULL,
+    po_id               INT          NULL,
+    location_id         INT          NOT NULL,
+    status              ENUM('draft','complete','cancelled') NOT NULL DEFAULT 'draft',
+    scn_date            DATE         NOT NULL,
+    completed_at        DATETIME     NULL,
+    reference           VARCHAR(255) NULL,
+    supplier_credit_ref VARCHAR(100) NULL,
+    currency_code       VARCHAR(10)  NOT NULL DEFAULT 'AUD',
+    exchange_rate       DECIMAL(12,6) NOT NULL DEFAULT 1.000000,
+    tax_treatment       ENUM('ex_tax','inc_tax','no_tax') NOT NULL DEFAULT 'ex_tax',
+    subtotal            DECIMAL(12,2) NOT NULL DEFAULT 0,
+    tax_amount          DECIMAL(12,2) NOT NULL DEFAULT 0,
+    total_amount        DECIMAL(12,2) NOT NULL DEFAULT 0,
+    notes               TEXT         NULL,
+    xero_credit_note_id VARCHAR(100) NULL,
+    xero_synced_at      DATETIME     NULL,
+    xero_sync_status    ENUM('synced','queued','error') NULL,
+    created_by          VARCHAR(150) NULL,
+    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_business_scn (business_id, scn_number),
+    INDEX idx_business (business_id),
+    INDEX idx_status (status),
+    INDEX idx_supplier (supplier_id),
+    INDEX idx_po (po_id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS ims_supplier_credit_note_items (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    scn_id       INT           NOT NULL,
+    variant_id   VARCHAR(100)  NULL,
+    code         VARCHAR(100)  NULL,
+    name         VARCHAR(255)  NULL,
+    qty          DECIMAL(10,4) NOT NULL DEFAULT 1,
+    unit_cost    DECIMAL(12,4) NOT NULL DEFAULT 0,
+    restock      TINYINT(1)    NOT NULL DEFAULT 1,
+    tax_rate     DECIMAL(6,4)  NOT NULL DEFAULT 0,
+    line_total   DECIMAL(12,4) NOT NULL DEFAULT 0,
+    INDEX idx_scn (scn_id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS ims_supplier_credit_note_files (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    scn_id        INT          NOT NULL,
+    business_id   VARCHAR(100) NOT NULL,
+    filename      VARCHAR(255) NOT NULL,
+    original_name VARCHAR(255),
+    mime_type     VARCHAR(100),
+    file_size     INT,
+    uploaded_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_scn (scn_id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+];
+
 // Column definitions: [table, column, definition]
 const COLUMNS = [
   // ── ims_purchase_orders ──────────────────────────────────────────────────
@@ -56,6 +159,29 @@ const COLUMNS = [
   ['ims_sales_orders', 'refunded_amount',     'DECIMAL(12,2) NOT NULL DEFAULT 0.00'],
   ['ims_sales_orders', 'financial_status',    'VARCHAR(50) NULL'],
   ['ims_sales_orders', 'returned_at',         'DATETIME NULL'],
+  // ── ims_credit_notes ─────────────────────────────────────────────────────
+  ['ims_credit_notes', 'so_id',               'INT NULL'],
+  ['ims_credit_notes', 'original_so_number',  'VARCHAR(100) NULL'],
+  ['ims_credit_notes', 'source',              "ENUM('manual','shopify') NOT NULL DEFAULT 'manual'"],
+  ['ims_credit_notes', 'shopify_return_id',   'VARCHAR(100) NULL'],
+  ['ims_credit_notes', 'completed_at',        'DATETIME NULL'],
+  ['ims_credit_notes', 'xero_credit_note_id', 'VARCHAR(100) NULL'],
+  ['ims_credit_notes', 'xero_synced_at',      'DATETIME NULL'],
+  ['ims_credit_notes', 'xero_sync_status',    "ENUM('synced','queued','error') NULL"],
+  ['ims_credit_notes', 'created_by',          'VARCHAR(150) NULL'],
+  // ── ims_credit_note_items ────────────────────────────────────────────────
+  ['ims_credit_note_items', 'price_basis',    "ENUM('cost','wholesale','rrp','custom') NOT NULL DEFAULT 'custom'"],
+  ['ims_credit_note_items', 'restock',        'TINYINT(1) NOT NULL DEFAULT 1'],
+  // ── ims_supplier_credit_notes ────────────────────────────────────────────
+  ['ims_supplier_credit_notes', 'supplier_credit_ref', 'VARCHAR(100) NULL'],
+  ['ims_supplier_credit_notes', 'currency_code',       "VARCHAR(10) NOT NULL DEFAULT 'AUD'"],
+  ['ims_supplier_credit_notes', 'exchange_rate',       'DECIMAL(12,6) NOT NULL DEFAULT 1.000000'],
+  ['ims_supplier_credit_notes', 'xero_credit_note_id', 'VARCHAR(100) NULL'],
+  ['ims_supplier_credit_notes', 'xero_synced_at',      'DATETIME NULL'],
+  ['ims_supplier_credit_notes', 'xero_sync_status',    "ENUM('synced','queued','error') NULL"],
+  ['ims_supplier_credit_notes', 'created_by',          'VARCHAR(150) NULL'],
+  // ── ims_supplier_credit_note_items ───────────────────────────────────────
+  ['ims_supplier_credit_note_items', 'restock',        'TINYINT(1) NOT NULL DEFAULT 1'],
   // ── ims_product_variants ─────────────────────────────────────────────────
   ['ims_product_variants', 'cost_aud',                  'DECIMAL(12,4) NULL'],
   ['ims_product_variants', 'avg_cost',                  'DECIMAL(15,4) NULL'],
@@ -88,9 +214,51 @@ const COLUMNS = [
 
 const INDEXES = [
   ['ims_contacts', 'idx_shopify_customer_id', 'UNIQUE INDEX `idx_shopify_customer_id` (`business_id`, `shopify_customer_id`)'],
+  ['ims_credit_notes', 'idx_shopify_return', 'INDEX `idx_shopify_return` (`business_id`, `shopify_return_id`)'],
+  ['ims_supplier_credit_notes', 'uq_business_scn', 'UNIQUE INDEX `uq_business_scn` (`business_id`, `scn_number`)'],
 ];
 
+async function ensureEnumValues(schema, table, column, requiredValues) {
+  const [rows] = await conn.query(
+    `SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
+      LIMIT 1`,
+    [schema, table, column],
+  );
+  const row = rows[0];
+  if (!row || typeof row.COLUMN_TYPE !== 'string' || !row.COLUMN_TYPE.toLowerCase().startsWith('enum(')) return;
+
+  const existingValues = [];
+  const regex = /'((?:[^'\\]|\\.)*)'/g;
+  let match;
+  while ((match = regex.exec(row.COLUMN_TYPE)) !== null) {
+    existingValues.push(match[1].replace(/\\'/g, "'"));
+  }
+
+  const missing = requiredValues.filter(v => !existingValues.includes(v));
+  if (!missing.length) return;
+
+  const merged = [...existingValues, ...missing];
+  const enumSql = merged.map(v => `'${String(v).replace(/'/g, "\\'")}'`).join(',');
+  const nullSql = row.IS_NULLABLE === 'YES' ? 'NULL' : 'NOT NULL';
+  const defaultSql = row.COLUMN_DEFAULT === null ? '' : ` DEFAULT ${conn.escape(row.COLUMN_DEFAULT)}`;
+
+  await conn.query(
+    `ALTER TABLE \`${schema}\`.\`${table}\` MODIFY COLUMN \`${column}\` ENUM(${enumSql}) ${nullSql}${defaultSql}`,
+  );
+}
+
 async function migrateSchema(schema) {
+  for (const ddl of TABLE_DDLS) {
+    try {
+      await conn.query(`USE \`${schema}\``);
+      await conn.query(ddl);
+    } catch (e) {
+      console.error(`  ✗ ${schema} table bootstrap: ${e.message}`);
+    }
+  }
+
   // Load existing columns once per schema
   const [rows] = await conn.query(
     `SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ?`,
@@ -123,6 +291,14 @@ async function migrateSchema(schema) {
     } catch (e) {
       console.error(`  ✗ ${schema}.${table}.${indexName}: ${e.message}`);
     }
+  }
+
+  try {
+    await ensureEnumValues(schema, 'ims_credit_notes', 'status', ['draft', 'awaiting_product', 'complete', 'cancelled']);
+    await ensureEnumValues(schema, 'ims_stock_movements', 'movement_type', ['cn_returned', 'scn_returned']);
+    await ensureEnumValues(schema, 'ims_stock_movements', 'reference_type', ['credit_note', 'supplier_credit_note']);
+  } catch (e) {
+    console.error(`  ✗ ${schema} enum catch-up: ${e.message}`);
   }
 
   console.log(`✓ ${schema}: added ${added} columns, skipped ${skipped}, added ${indexesAdded} indexes, skipped ${indexesSkipped}`);
