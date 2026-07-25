@@ -14691,7 +14691,7 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
           <div>• POS Sales → Xero <span style={{ color: 'var(--sv-text-dim)' }}>(daily batch per location, ~1am)</span></div>
           <div>• Online Sales — all gateways → Xero <span style={{ color: 'var(--sv-text-dim)' }}>(daily batch ~1am, split by gateway if clearing accounts configured)</span></div>
           <div>• Credit Notes → Xero Credit Note <span style={{ color: 'var(--sv-text-dim)' }}>(on CN completion)</span></div>
-          <div>• Monthly COGS Journal <span style={{ color: 'var(--sv-text-dim)' }}>(manual, end of month)</span></div>
+          <div>• COGS Journal <span style={{ color: 'var(--sv-text-dim)' }}>(daily/weekly/monthly/quarterly schedule, with manual preview/post)</span></div>
         </div>
         <div style={{ marginTop: 10, fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6, padding: '8px 10px', background: 'rgba(96,165,250,.07)', borderRadius: 6 }}>
           💡 Online sales are posted through the nightly batch. Gateways with a clearing mapping post as separate (day × gateway) invoices; unmapped gateways post into the combined daily invoice.
@@ -15506,6 +15506,39 @@ type XeroSyncEntry = {
   payments: { id: number; po_id: number; xero_id: string | null; status: string; xero_state?: string | null; detail: string | null; synced_at: string; payment_date: string | null; amount: number | null; currency_code: string | null; notes: string | null }[];
 };
 
+type CogsReportData = {
+  settings?: { enabled: boolean; frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly'; timeZone: string; reliableFrom: string | null };
+  period: { frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly'; startDate: string; endDateExclusive: string; journalDate: string; key: string; label: string };
+  reconciliation: {
+    state: 'current' | 'adjustment_required' | 'blocked';
+    stateMatchesFilter: boolean;
+    calculatedTotal: number;
+    postedTotal: number;
+    variance: number;
+    adjustmentRequired: boolean;
+    blocked: boolean;
+  };
+  quality: {
+    includedMovementCount: number;
+    includedQuantity: number;
+    missingCostMovementCount: number;
+    missingCostQuantity: number;
+    zeroCostMovementCount: number;
+    zeroCostQuantity: number;
+    excludedHistoricalMovementCount: number;
+    excludedHistoricalQuantity: number;
+    orphanedMovementCount: number;
+    orphanedQuantity: number;
+  };
+  coverage: { reliableFrom: string | null; warning: boolean; warningText: string | null };
+  breakdown: Array<{ locationId: number; locationName: string; channel: string; totalCOGS: number; movementCount: number; quantity: number }>;
+  filteredTotals: { totalCOGS: number; movementCount: number; quantity: number };
+  locations: Array<{ id: number; name: string }>;
+  channels: string[];
+  lastPost: null | { id: number; runKind: 'original' | 'adjustment'; postedDelta: number; targetAmount: number; status: string; xeroId: string | null; xeroState: string | null; syncedAt: string | null };
+  runs: Array<{ id: number; startDate: string | null; endDateExclusive: string | null; journalDate: string | null; frequency: string; runKind: string; targetAmount: number; postedDelta: number; status: string; xeroId: string | null; xeroState: string | null; errorDetail: string | null; overrideReason: string | null; createdAt: string | null }>;
+};
+
 function XeroStatusBadge({ status, isHistorical }: { status: string | null; isHistorical?: boolean }) {
   if (isHistorical) return <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(251,191,36,.15)', color: '#fbbf24' }}>Historical</span>;
   if (status === 'success') return <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(16,185,129,.15)', color: '#34d399' }}>Synced</span>;
@@ -15536,11 +15569,58 @@ function XeroStateBadge({ state }: { state: string | null }) {
 function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
   const [entries, setEntries] = useState<XeroSyncEntry[]>([]);
   const [queued, setQueued] = useState<{ id: number; reference: string; type: 'po' | 'so'; status: string; total_amount: number; xero_synced_at: string | null; contact_name: string | null }[]>([]);
+  const [cogsReport, setCogsReport] = useState<CogsReportData | null>(null);
+  const [cogsFilters, setCogsFilters] = useState<{
+    frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly';
+    timeZone: string;
+    startDate: string;
+    endDateExclusive: string;
+    locationId: string;
+    channel: string;
+    reconciliationState: '' | 'current' | 'adjustment_required' | 'blocked';
+  }>({
+    frequency: 'monthly',
+    timeZone: 'Australia/Sydney',
+    startDate: '',
+    endDateExclusive: '',
+    locationId: '',
+    channel: '',
+    reconciliationState: '',
+  });
+  const [cogsLoading, setCogsLoading] = useState(false);
+  const [cogsError, setCogsError] = useState('');
+  const [cogsActionBusy, setCogsActionBusy] = useState<'preview' | 'post' | null>(null);
+  const [cogsActionMsg, setCogsActionMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState<Record<string, boolean>>({});
   const [pushAll, setPushAll] = useState(false);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [filterXeroState, setFilterXeroState] = useState('');
+
+  const loadCogsReport = async () => {
+    setCogsLoading(true);
+    setCogsError('');
+    try {
+      const params = new URLSearchParams({
+        databaseId: getBusinessId(),
+        frequency: cogsFilters.frequency,
+        timeZone: cogsFilters.timeZone,
+      });
+      if (cogsFilters.startDate) params.set('startDate', cogsFilters.startDate);
+      if (cogsFilters.endDateExclusive) params.set('endDateExclusive', cogsFilters.endDateExclusive);
+      if (cogsFilters.locationId) params.set('locationId', cogsFilters.locationId);
+      if (cogsFilters.channel) params.set('channel', cogsFilters.channel);
+      if (cogsFilters.reconciliationState) params.set('reconciliationState', cogsFilters.reconciliationState);
+      const res = await fetch(`/api/xero/cogs/report?${params.toString()}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unable to load COGS reconciliation report.');
+      setCogsReport(data);
+    } catch (e: any) {
+      setCogsError(e.message || 'Unable to load COGS reconciliation report.');
+    } finally {
+      setCogsLoading(false);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -15555,7 +15635,10 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
     setLoading(false);
   };
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    loadData();
+    loadCogsReport();
+  }, []);
 
   const retry = async (type: 'po' | 'so', id: number, key: string) => {
     setRetrying(r => ({ ...r, [key]: true }));
@@ -15615,6 +15698,120 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
   const fmtDay   = (d: string | null | undefined) => { if (!d) return '—'; try { const s = String(d); return new Date(s.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }); } catch { return String(d).slice(0, 10); } };
   const fmtMoney = (v: number | null) => v != null ? `$${Number(v).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
 
+  const previewCogsFromReport = async () => {
+    setCogsActionBusy('preview');
+    setCogsActionMsg(null);
+    try {
+      const res = await fetch('/api/xero/cogs/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          databaseId: getBusinessId(),
+          frequency: cogsFilters.frequency,
+          timeZone: cogsFilters.timeZone,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unable to preview COGS.');
+      setCogsActionMsg({ ok: true, text: `Preview loaded for ${data.period?.label}: ${fmtMoney(Number(data.calculation?.totalCOGS ?? 0))}.` });
+      await loadCogsReport();
+    } catch (e: any) {
+      setCogsActionMsg({ ok: false, text: e.message || 'Unable to preview COGS.' });
+    } finally {
+      setCogsActionBusy(null);
+    }
+  };
+
+  const postCogsFromReport = async () => {
+    setCogsActionBusy('post');
+    setCogsActionMsg(null);
+    try {
+      let overrideReason: string | undefined;
+      if (cogsReport?.reconciliation?.blocked) {
+        const reason = window.prompt('This period contains missing/zero-cost movements. Enter an override reason to post the understated amount, or Cancel to fix costs first.');
+        if (!reason?.trim()) {
+          setCogsActionBusy(null);
+          return;
+        }
+        overrideReason = reason.trim();
+      } else if (!confirm(`Post COGS for ${cogsReport?.period?.label ?? 'the selected period'}?`)) {
+        setCogsActionBusy(null);
+        return;
+      }
+
+      const res = await fetch('/api/xero/cogs/post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          databaseId: getBusinessId(),
+          frequency: cogsFilters.frequency,
+          timeZone: cogsFilters.timeZone,
+          overrideReason,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok && res.status !== 202) throw new Error(data.error || data.reason || 'Unable to post COGS.');
+      const text = data.outcome === 'posted'
+        ? `${data.runKind === 'adjustment' ? 'COGS adjustment' : 'COGS journal'} posted.`
+        : data.outcome === 'current'
+          ? 'COGS already current for this period.'
+          : data.outcome === 'blocked'
+            ? 'Posting blocked by missing/zero-cost movements.'
+            : data.outcome === 'unknown'
+              ? 'Xero did not confirm the result. Check Xero before retrying.'
+              : `COGS post status: ${data.outcome}.`;
+      setCogsActionMsg({ ok: data.outcome !== 'unknown' && data.outcome !== 'failed', text });
+      await Promise.all([loadData(), loadCogsReport()]);
+    } catch (e: any) {
+      setCogsActionMsg({ ok: false, text: e.message || 'Unable to post COGS.' });
+    } finally {
+      setCogsActionBusy(null);
+    }
+  };
+
+  const exportCogsCsv = () => {
+    if (!cogsReport) return;
+    const escapeCsv = (value: unknown) => {
+      const text = String(value ?? '');
+      return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+
+    const rows: string[][] = [];
+    rows.push(['Metric', 'Value']);
+    rows.push(['Period', cogsReport.period.label]);
+    rows.push(['Calculated COGS', String(cogsReport.reconciliation.calculatedTotal)]);
+    rows.push(['Posted Total', String(cogsReport.reconciliation.postedTotal)]);
+    rows.push(['Variance', String(cogsReport.reconciliation.variance)]);
+    rows.push(['State', cogsReport.reconciliation.state]);
+    rows.push(['Included Movements', String(cogsReport.quality.includedMovementCount)]);
+    rows.push(['Missing Cost Quantity', String(cogsReport.quality.missingCostQuantity)]);
+    rows.push(['Zero Cost Quantity', String(cogsReport.quality.zeroCostQuantity)]);
+    rows.push(['Excluded Historical Quantity', String(cogsReport.quality.excludedHistoricalQuantity)]);
+    rows.push(['Orphaned Quantity', String(cogsReport.quality.orphanedQuantity)]);
+    rows.push([]);
+    rows.push(['Location ID', 'Location', 'Channel', 'COGS', 'Movements', 'Quantity']);
+    for (const row of cogsReport.breakdown) {
+      rows.push([
+        String(row.locationId),
+        row.locationName,
+        row.channel,
+        String(row.totalCOGS),
+        String(row.movementCount),
+        String(row.quantity),
+      ]);
+    }
+
+    const csv = rows.map((line) => line.map(escapeCsv).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `cogs-reconciliation-${(cogsReport.period.startDate || 'period')}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+  };
+
   const th: React.CSSProperties = { padding: '8px 10px', color: 'var(--sv-text-dim)', fontWeight: 600, fontSize: 11, textAlign: 'left', whiteSpace: 'nowrap' };
   const td: React.CSSProperties = { padding: '9px 10px', fontSize: 13, color: 'var(--sv-text-main)', verticalAlign: 'middle' };
 
@@ -15672,6 +15869,177 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
           </table>
         </div>
       )}
+
+      {/* ── COGS reconciliation ── */}
+      <div style={{ background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>COGS Reconciliation</span>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button onClick={loadCogsReport} disabled={cogsLoading} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: cogsLoading ? 'not-allowed' : 'pointer', padding: '4px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{cogsLoading ? 'Loading…' : 'Refresh'}</button>
+            <button onClick={exportCogsCsv} disabled={!cogsReport} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: !cogsReport ? 'not-allowed' : 'pointer', padding: '4px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Export CSV</button>
+          </div>
+        </div>
+
+        <div style={{ padding: 16, display: 'grid', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+            <label style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>
+              Frequency
+              <select value={cogsFilters.frequency} onChange={e => setCogsFilters(s => ({ ...s, frequency: e.target.value as any }))} style={{ width: '100%', marginTop: 4, padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+              </select>
+            </label>
+            <label style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>
+              Timezone
+              <select value={cogsFilters.timeZone} onChange={e => setCogsFilters(s => ({ ...s, timeZone: e.target.value }))} style={{ width: '100%', marginTop: 4, padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}>
+                <option value="Australia/Sydney">Sydney</option>
+                <option value="Australia/Melbourne">Melbourne</option>
+                <option value="Australia/Brisbane">Brisbane</option>
+                <option value="Australia/Adelaide">Adelaide</option>
+                <option value="Australia/Perth">Perth</option>
+                <option value="Australia/Hobart">Hobart</option>
+                <option value="Australia/Darwin">Darwin</option>
+              </select>
+            </label>
+            <label style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>
+              Period Start (optional)
+              <input type="date" value={cogsFilters.startDate} onChange={e => setCogsFilters(s => ({ ...s, startDate: e.target.value }))} style={{ width: '100%', marginTop: 4, padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }} />
+            </label>
+            <label style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>
+              Period End Exclusive (optional)
+              <input type="date" value={cogsFilters.endDateExclusive} onChange={e => setCogsFilters(s => ({ ...s, endDateExclusive: e.target.value }))} style={{ width: '100%', marginTop: 4, padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }} />
+            </label>
+            <label style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>
+              Location
+              <select value={cogsFilters.locationId} onChange={e => setCogsFilters(s => ({ ...s, locationId: e.target.value }))} style={{ width: '100%', marginTop: 4, padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}>
+                <option value="">All locations</option>
+                {(cogsReport?.locations ?? []).map(loc => <option key={loc.id} value={String(loc.id)}>{loc.name}</option>)}
+              </select>
+            </label>
+            <label style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>
+              Channel
+              <select value={cogsFilters.channel} onChange={e => setCogsFilters(s => ({ ...s, channel: e.target.value }))} style={{ width: '100%', marginTop: 4, padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}>
+                <option value="">All channels</option>
+                {(cogsReport?.channels ?? ['pos', 'online', 'wholesale']).map(ch => <option key={ch} value={ch}>{ch}</option>)}
+              </select>
+            </label>
+            <label style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>
+              Reconciliation State
+              <select value={cogsFilters.reconciliationState} onChange={e => setCogsFilters(s => ({ ...s, reconciliationState: e.target.value as any }))} style={{ width: '100%', marginTop: 4, padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}>
+                <option value="">All states</option>
+                <option value="current">Current</option>
+                <option value="adjustment_required">Adjustment Required</option>
+                <option value="blocked">Blocked</option>
+              </select>
+            </label>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button onClick={loadCogsReport} disabled={cogsLoading} style={{ padding: '7px 12px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: cogsLoading ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>
+              {cogsLoading ? 'Loading…' : 'Apply Filters'}
+            </button>
+            <button onClick={previewCogsFromReport} disabled={cogsActionBusy !== null} style={{ padding: '7px 12px', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: cogsActionBusy ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>
+              {cogsActionBusy === 'preview' ? 'Previewing…' : 'Preview'}
+            </button>
+            <button onClick={postCogsFromReport} disabled={cogsActionBusy !== null || !cogsReport} style={{ padding: '7px 12px', background: 'rgba(16,185,129,.15)', color: '#34d399', border: '1px solid rgba(16,185,129,.35)', borderRadius: 6, cursor: cogsActionBusy || !cogsReport ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>
+              {cogsActionBusy === 'post' ? 'Posting…' : (cogsReport?.reconciliation.adjustmentRequired ? 'Post Adjustment' : 'Post COGS')}
+            </button>
+          </div>
+
+          {cogsError && <div style={{ fontSize: 12, color: '#f87171' }}>{cogsError}</div>}
+          {cogsActionMsg && <div style={{ fontSize: 12, color: cogsActionMsg.ok ? '#34d399' : '#f87171' }}>{cogsActionMsg.text}</div>}
+
+          {cogsReport && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
+                <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Period</div>
+                  <div style={{ fontSize: 13, color: 'var(--sv-text-strong)', fontWeight: 600 }}>{cogsReport.period.label}</div>
+                </div>
+                <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Calculated COGS</div>
+                  <div style={{ fontSize: 13, color: 'var(--sv-text-strong)', fontWeight: 600 }}>{fmtMoney(cogsReport.reconciliation.calculatedTotal)}</div>
+                </div>
+                <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Posted Total</div>
+                  <div style={{ fontSize: 13, color: 'var(--sv-text-strong)', fontWeight: 600 }}>{fmtMoney(cogsReport.reconciliation.postedTotal)}</div>
+                </div>
+                <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Variance</div>
+                  <div style={{ fontSize: 13, color: cogsReport.reconciliation.variance === 0 ? '#34d399' : '#fbbf24', fontWeight: 700 }}>{fmtMoney(cogsReport.reconciliation.variance)}</div>
+                </div>
+                <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>State</div>
+                  <div style={{ fontSize: 13, color: cogsReport.reconciliation.state === 'current' ? '#34d399' : cogsReport.reconciliation.state === 'blocked' ? '#f87171' : '#fbbf24', fontWeight: 700, textTransform: 'capitalize' }}>{cogsReport.reconciliation.state.replace('_', ' ')}</div>
+                </div>
+                <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Last Post</div>
+                  <div style={{ fontSize: 13, color: 'var(--sv-text-main)', fontWeight: 600 }}>
+                    {cogsReport.lastPost ? fmtDate(cogsReport.lastPost.syncedAt || '') : 'No successful post'}
+                  </div>
+                  {cogsReport.lastPost?.xeroId && (
+                    <a href={xeroLink('cogs_journal', cogsReport.lastPost.xeroId)} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#38bdf8', textDecoration: 'none' }}>
+                      Open in Xero
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {cogsReport.coverage.warning && (
+                <div style={{ padding: '8px 10px', border: '1px solid rgba(251,191,36,.35)', borderRadius: 6, background: 'rgba(251,191,36,.08)', color: '#fbbf24', fontSize: 12 }}>
+                  {cogsReport.coverage.warningText}
+                </div>
+              )}
+
+              {!cogsReport.reconciliation.stateMatchesFilter && (
+                <div style={{ padding: '8px 10px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-dim)', fontSize: 12 }}>
+                  The selected reconciliation state filter does not match this period.
+                </div>
+              )}
+
+              <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden' }}>
+                <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--sv-text-dim)', borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
+                  Location and channel breakdown • {cogsReport.filteredTotals.movementCount} movements • Qty {Number(cogsReport.filteredTotals.quantity).toLocaleString('en-AU')} • {fmtMoney(cogsReport.filteredTotals.totalCOGS)}
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                      <th style={th}>Location</th>
+                      <th style={th}>Channel</th>
+                      <th style={{ ...th, textAlign: 'right' }}>Movements</th>
+                      <th style={{ ...th, textAlign: 'right' }}>Quantity</th>
+                      <th style={{ ...th, textAlign: 'right' }}>COGS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cogsReport.breakdown.length === 0 ? (
+                      <tr><td colSpan={5} style={{ ...td, textAlign: 'center', color: 'var(--sv-text-dim)' }}>No breakdown rows for selected filters.</td></tr>
+                    ) : cogsReport.breakdown.map((row, index) => (
+                      <tr key={`${row.locationId}-${row.channel}-${index}`} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                        <td style={td}>{row.locationName}</td>
+                        <td style={{ ...td, textTransform: 'capitalize' }}>{row.channel}</td>
+                        <td style={{ ...td, textAlign: 'right' }}>{Number(row.movementCount).toLocaleString('en-AU')}</td>
+                        <td style={{ ...td, textAlign: 'right' }}>{Number(row.quantity).toLocaleString('en-AU')}</td>
+                        <td style={{ ...td, textAlign: 'right' }}>{fmtMoney(row.totalCOGS)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, fontSize: 12, color: 'var(--sv-text-dim)' }}>
+                <div>Included: {cogsReport.quality.includedMovementCount} movements / {Number(cogsReport.quality.includedQuantity).toLocaleString('en-AU')} qty</div>
+                <div>Missing cost: {cogsReport.quality.missingCostMovementCount} / {Number(cogsReport.quality.missingCostQuantity).toLocaleString('en-AU')} qty</div>
+                <div>Zero cost: {cogsReport.quality.zeroCostMovementCount} / {Number(cogsReport.quality.zeroCostQuantity).toLocaleString('en-AU')} qty</div>
+                <div>Excluded historical: {cogsReport.quality.excludedHistoricalMovementCount} / {Number(cogsReport.quality.excludedHistoricalQuantity).toLocaleString('en-AU')} qty</div>
+                <div>Orphaned: {cogsReport.quality.orphanedMovementCount} / {Number(cogsReport.quality.orphanedQuantity).toLocaleString('en-AU')} qty</div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
 
       {/* ── Sync history ── */}
       <div style={{ background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', overflow: 'hidden' }}>
@@ -22045,7 +22413,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <AccountTable rows={[
           { role: 'inventory_asset',       type: 'Asset',   description: 'Stock on hand — used for PO bill lines and inventory journals', required: true },
           { role: 'inventory_in_transit',  type: 'Asset',   description: 'Goods ordered but not yet received — used when a PO has deposits/prepayments', required: true },
-          { role: 'cogs',                  type: 'Expense', description: 'Cost of goods sold — debited in monthly COGS journals', required: true },
+          { role: 'cogs',                  type: 'Expense', description: 'Cost of goods sold — debited in scheduled COGS journals', required: true },
           { role: 'sales_revenue',         type: 'Revenue', description: 'Sales income — used for SO and batch POS/online invoice lines', required: true },
           { role: 'rounding',              type: 'Revenue/Expense', description: 'Optional account for POS cash-rounding adjustments; defaults to Sales Revenue when not mapped', required: false },
           { role: 'freight',               type: 'Expense', description: 'Freight / shipping expense — used when freight treatment is set to "Expense"', required: false },
@@ -22105,8 +22473,8 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         </ul>
         <p style={p}>If your Xero organisation uses different tax codes (e.g. UK VAT codes), update these in settings before syncing.</p>
 
-        <h3 style={h3}>Monthly COGS journal</h3>
-        <p style={p}>The COGS journal is a <strong>manual, on-demand action</strong> triggered from the Xero tab. It creates a Xero Manual Journal for each branch:</p>
+        <h3 style={h3}>COGS journal (scheduled or manual)</h3>
+        <p style={p}>The COGS journal can run on the configured schedule (daily/weekly/monthly/quarterly) or be posted manually from Xero. It creates a Xero Manual Journal for each branch:</p>
         <ul style={ul}>
           <li><strong>Debit:</strong> Cost of Goods Sold (<span style={code}>cogs</span> account)</li>
           <li><strong>Credit:</strong> Inventory Asset (<span style={code}>inventory_asset</span> account)</li>
