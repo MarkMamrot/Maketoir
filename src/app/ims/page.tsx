@@ -9137,6 +9137,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
   const [saving, setSaving] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [retryingCnXero, setRetryingCnXero] = useState(false);
+  const [voidingCnXero, setVoidingCnXero] = useState(false);
   const [dateRange, setDateRange] = useState<SBDateRange>(DEFAULT_DATE_RANGE);
   const { settings } = useImsSettings();
 
@@ -9340,6 +9341,29 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
       alert(err.message || 'Retry failed');
     } finally {
       setRetryingCnXero(false);
+    }
+  };
+
+  const voidCnInXero = async (cnId: number) => {
+    if (!confirm('Void this customer credit note in Xero? This cannot be undone.')) return;
+    setVoidingCnXero(true);
+    try {
+      const resp = await fetch('/api/ims/xero/void', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'cn', id: cnId }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.success) {
+        throw new Error(data.xeroWarning || data.error || 'Void failed');
+      }
+      await openView({ id: cnId });
+      load();
+      alert('Credit note voided in Xero.');
+    } catch (err: any) {
+      alert(err.message || 'Unable to void credit note in Xero.');
+    } finally {
+      setVoidingCnXero(false);
     }
   };
 
@@ -9692,6 +9716,11 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
                     {xeroAt && <span style={{ color: 'var(--sv-text-dim)' }}>{xeroAt}</span>}
                     {xeroId && <span style={{ color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 10 }}>{xeroId.slice(0, 8)}…</span>}
                     {xeroId && <a href={`https://go.xero.com/AccountsReceivable/CreditNote.aspx?creditNoteID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sv-mint)' }}>View in Xero ↗</a>}
+                    {!isAdvisor && xeroId && (
+                      <button type="button" onClick={() => voidCnInXero(viewModal.cn.id)} disabled={voidingCnXero} style={{ ...btnStyle('danger', 'xs'), opacity: voidingCnXero ? .7 : 1 }}>
+                        {voidingCnXero ? 'Voiding…' : 'Void in Xero'}
+                      </button>
+                    )}
                   </div>
                 );
               }
@@ -9749,6 +9778,7 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
   const [scnFileSync, setScnFileSync] = useState<Record<string, { status: 'success' | 'error' | 'skipped' | 'pending' | 'not_synced'; detail?: string; message?: string; needsReconnect?: boolean; at?: string }>>({});
   const [scnXeroLatest, setScnXeroLatest] = useState<{ status: 'success' | 'error' | 'skipped'; detail: string | null; created_at: string; xero_id: string | null } | null>(null);
   const [retryingScnXero, setRetryingScnXero] = useState(false);
+  const [voidingScnXero, setVoidingScnXero] = useState(false);
   const [scnXeroAwaitingResult, setScnXeroAwaitingResult] = useState(false);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
@@ -9881,6 +9911,29 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
       alert(err.message || 'Retry failed');
     } finally {
       setRetryingScnXero(false);
+    }
+  };
+
+  const voidScnInXero = async (scnId: number) => {
+    if (!confirm('Void this supplier credit note in Xero? This cannot be undone.')) return;
+    setVoidingScnXero(true);
+    try {
+      const resp = await fetch('/api/ims/xero/void', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'scn', id: scnId }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.success) {
+        throw new Error(data.xeroWarning || data.error || 'Void failed');
+      }
+      await openView({ id: scnId });
+      load();
+      alert('Supplier credit note voided in Xero.');
+    } catch (err: any) {
+      alert(err.message || 'Unable to void supplier credit note in Xero.');
+    } finally {
+      setVoidingScnXero(false);
     }
   };
 
@@ -10265,6 +10318,11 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
                     {xeroAt && <span style={{ color: 'var(--sv-text-dim)' }}>{xeroAt}</span>}
                     <span style={{ color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 10 }}>{xeroId.slice(0, 8)}…</span>
                     <a href={`https://go.xero.com/AccountsPayable/EditCreditNote.aspx?creditNoteID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sv-mint)' }}>View in Xero ↗</a>
+                    {!isAdvisor && (
+                      <button type="button" onClick={() => voidScnInXero(viewModal.scn.id)} disabled={voidingScnXero} style={{ ...btnStyle('danger', 'xs'), opacity: voidingScnXero ? .7 : 1 }}>
+                        {voidingScnXero ? 'Voiding…' : 'Void in Xero'}
+                      </button>
+                    )}
                   </div>
                 );
               }
@@ -14690,7 +14748,7 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
           <div>• SOs → Xero Invoices <span style={{ color: 'var(--sv-text-dim)' }}>(wholesale: individual)</span></div>
           <div>• POS Sales → Xero <span style={{ color: 'var(--sv-text-dim)' }}>(daily batch per location, ~1am)</span></div>
           <div>• Online Sales — all gateways → Xero <span style={{ color: 'var(--sv-text-dim)' }}>(daily batch ~1am, split by gateway if clearing accounts configured)</span></div>
-          <div>• Credit Notes → Xero Credit Note <span style={{ color: 'var(--sv-text-dim)' }}>(on CN completion)</span></div>
+          <div>• Customer + Supplier Credit Notes → Xero Credit Notes <span style={{ color: 'var(--sv-text-dim)' }}>(queued on completion, visible in Sync History, retry/void supported)</span></div>
           <div>• COGS Journal <span style={{ color: 'var(--sv-text-dim)' }}>(daily/weekly/monthly/quarterly schedule, with manual preview/post)</span></div>
         </div>
         <div style={{ marginTop: 10, fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6, padding: '8px 10px', background: 'rgba(96,165,250,.07)', borderRadius: 6 }}>
@@ -15306,6 +15364,7 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
   const [adding, setAdding]     = useState(false);
   const [newForm, setNewForm]   = useState({ gateway_name: '', display_name: '', clearing_account_code: '', clearing_account_name: '', fee_account_code: '', fee_account_name: '' });
   const [saving, setSaving]     = useState(false);
+  const formRef = useRef<HTMLDivElement>(null);
   const [discoveredMethods, setDiscoveredMethods] = useState<{
     gateway_name: string;
     display_name: string;
@@ -15371,6 +15430,19 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
     else setNewForm(f => ({ ...f, fee_account_code: code, fee_account_name: acc?.name ?? '' }));
   };
 
+  const addDiscoveredGateway = (method: { gateway_name: string; display_name: string }) => {
+    setNewForm({
+      gateway_name: method.gateway_name,
+      display_name: method.display_name,
+      clearing_account_code: '',
+      clearing_account_name: '',
+      fee_account_code: '',
+      fee_account_name: '',
+    });
+    setAdding(true);
+    requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+  };
+
   return (
     <div style={{ marginTop: 28 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
@@ -15404,14 +15476,10 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
                   {method.order_count} order{method.order_count === 1 ? '' : 's'}
                 </div>
                 <button
-                  onClick={() => setNewForm(f => ({
-                    ...f,
-                    gateway_name: method.gateway_name,
-                    display_name: method.display_name,
-                  }))}
+                  onClick={() => addDiscoveredGateway(method)}
                   style={{ fontSize: 11, padding: '4px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-main)', cursor: 'pointer' }}
                 >
-                  Use
+                  Add gateway
                 </button>
               </div>
             ))}
@@ -15456,7 +15524,7 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
       )}
 
       {adding && (
-        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 14, marginTop: 8 }}>
+        <div ref={formRef} style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 14, marginTop: 8 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
             <div>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Gateway name (match pattern) *</label>
@@ -15568,7 +15636,7 @@ function XeroStateBadge({ state }: { state: string | null }) {
 
 function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
   const [entries, setEntries] = useState<XeroSyncEntry[]>([]);
-  const [queued, setQueued] = useState<{ id: number; reference: string; type: 'po' | 'so'; status: string; total_amount: number; xero_synced_at: string | null; contact_name: string | null }[]>([]);
+  const [queued, setQueued] = useState<{ id: number; reference: string; type: 'po' | 'so' | 'cn' | 'scn'; status: string; total_amount: number; xero_synced_at: string | null; contact_name: string | null }[]>([]);
   const [cogsReport, setCogsReport] = useState<CogsReportData | null>(null);
   const [cogsFilters, setCogsFilters] = useState<{
     frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly';
@@ -15640,7 +15708,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
     loadCogsReport();
   }, []);
 
-  const retry = async (type: 'po' | 'so', id: number, key: string) => {
+  const retry = async (type: 'po' | 'so' | 'cn' | 'scn', id: number, key: string) => {
     setRetrying(r => ({ ...r, [key]: true }));
     try {
       await fetch('/api/ims/xero/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, id }) });
@@ -15649,7 +15717,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
     setRetrying(r => ({ ...r, [key]: false }));
   };
 
-  const dismiss = async (type: 'po' | 'so', id: number, reference: string, key: string) => {
+  const dismiss = async (type: 'po' | 'so' | 'cn' | 'scn', id: number, reference: string, key: string) => {
     if (!confirm(`Remove "${reference}" from the Xero sync queue?\n\nThis will not sync it — it will be marked as dismissed. You can retry manually from the sync history if needed.`)) return;
     setRetrying(r => ({ ...r, [key]: true }));
     try {
@@ -15683,12 +15751,16 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
 
   const toggleExpand = (id: number) => setExpanded(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
-  const typeLabel = (t: string) => ({ po_bill: 'Purchase Order', so_invoice: 'Wholesale SO', pos_batch: 'POS Sales (Batch)', online_batch: 'Online Sales (Batch)', cogs_journal: 'COGS Journal', eod_reconciliation: 'POS End-of-Day', stocktake_journal: 'Stocktake Journal', gift_card_issue: 'Gift Card Issue', gift_card_liability: 'Gift Card Liability' }[t] ?? t);
-  const typeColor = (t: string) => ({ po_bill: '#818cf8', so_invoice: '#34d399', pos_batch: '#fb923c', online_batch: '#38bdf8', cogs_journal: '#a78bfa', eod_reconciliation: '#fb923c', stocktake_journal: '#a78bfa', gift_card_issue: '#f59e0b', gift_card_liability: '#f59e0b' }[t] ?? '#9ca3af');
-  const typeBg = (t: string) => ({ po_bill: 'rgba(99,102,241,.13)', so_invoice: 'rgba(16,185,129,.13)', pos_batch: 'rgba(251,146,60,.13)', online_batch: 'rgba(56,189,248,.13)', cogs_journal: 'rgba(167,139,250,.13)', eod_reconciliation: 'rgba(251,146,60,.13)', stocktake_journal: 'rgba(167,139,250,.13)', gift_card_issue: 'rgba(245,158,11,.15)', gift_card_liability: 'rgba(245,158,11,.15)' }[t] ?? 'rgba(156,163,175,.13)');
+  const typeLabel = (t: string) => ({ po_bill: 'Purchase Order', so_invoice: 'Wholesale SO', cn_credit_note: 'Customer Credit Note', cn_credit_note_void: 'Customer Credit Note Void', scn_credit_note: 'Supplier Credit Note', scn_credit_note_void: 'Supplier Credit Note Void', pos_batch: 'POS Sales (Batch)', online_batch: 'Online Sales (Batch)', cogs_journal: 'COGS Journal', eod_reconciliation: 'POS End-of-Day', stocktake_journal: 'Stocktake Journal', gift_card_issue: 'Gift Card Issue', gift_card_liability: 'Gift Card Liability' }[t] ?? t);
+  const typeColor = (t: string) => ({ po_bill: '#818cf8', so_invoice: '#34d399', cn_credit_note: '#38bdf8', cn_credit_note_void: '#fb7185', scn_credit_note: '#f59e0b', scn_credit_note_void: '#fb7185', pos_batch: '#fb923c', online_batch: '#38bdf8', cogs_journal: '#a78bfa', eod_reconciliation: '#fb923c', stocktake_journal: '#a78bfa', gift_card_issue: '#f59e0b', gift_card_liability: '#f59e0b' }[t] ?? '#9ca3af');
+  const typeBg = (t: string) => ({ po_bill: 'rgba(99,102,241,.13)', so_invoice: 'rgba(16,185,129,.13)', cn_credit_note: 'rgba(56,189,248,.14)', cn_credit_note_void: 'rgba(251,113,133,.14)', scn_credit_note: 'rgba(245,158,11,.14)', scn_credit_note_void: 'rgba(251,113,133,.14)', pos_batch: 'rgba(251,146,60,.13)', online_batch: 'rgba(56,189,248,.13)', cogs_journal: 'rgba(167,139,250,.13)', eod_reconciliation: 'rgba(251,146,60,.13)', stocktake_journal: 'rgba(167,139,250,.13)', gift_card_issue: 'rgba(245,158,11,.15)', gift_card_liability: 'rgba(245,158,11,.15)' }[t] ?? 'rgba(156,163,175,.13)');
   const xeroLink = (syncType: string, id: string): string => {
     if (syncType === 'po_bill' || syncType === 'po_bill_void' || syncType === 'po_payment')
       return `https://go.xero.com/AccountsPayable/View.aspx?InvoiceID=${id}`;
+    if (syncType === 'scn_credit_note' || syncType === 'scn_credit_note_void')
+      return `https://go.xero.com/AccountsPayable/EditCreditNote.aspx?creditNoteID=${id}`;
+    if (syncType === 'cn_credit_note' || syncType === 'cn_credit_note_void')
+      return `https://go.xero.com/AccountsReceivable/CreditNote.aspx?creditNoteID=${id}`;
     if (syncType === 'stocktake_journal' || syncType === 'cogs_journal')
       return `https://go.xero.com/ManualJournals/View.aspx?manualJournalID=${id}`;
     return `https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${id}`;
@@ -15845,9 +15917,16 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
             <tbody>
               {queued.map(item => {
                 const key = `${item.type}-${item.id}`;
+                const badge = item.type === 'po'
+                  ? { bg: 'rgba(99,102,241,.15)', color: '#818cf8' }
+                  : item.type === 'so'
+                    ? { bg: 'rgba(16,185,129,.15)', color: '#34d399' }
+                    : item.type === 'cn'
+                      ? { bg: 'rgba(56,189,248,.15)', color: '#38bdf8' }
+                      : { bg: 'rgba(245,158,11,.15)', color: '#f59e0b' };
                 return (
                   <tr key={key} style={{ borderBottom: '1px solid rgba(251,191,36,.1)' }}>
-                    <td style={td}><span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: item.type === 'po' ? 'rgba(99,102,241,.15)' : 'rgba(16,185,129,.15)', color: item.type === 'po' ? '#818cf8' : '#34d399' }}>{item.type.toUpperCase()}</span></td>
+                    <td style={td}><span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: badge.bg, color: badge.color }}>{item.type.toUpperCase()}</span></td>
                     <td style={{ ...td, fontWeight: 600 }}>{item.reference}</td>
                     <td style={{ ...td, color: 'var(--sv-text-dim)' }}>{item.contact_name || '—'}</td>
                     <td style={td}>{item.total_amount != null ? fmtMoney(item.total_amount) : '—'}</td>
@@ -16089,6 +16168,8 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                 const retryKey = `entry-${ei}`;
                 const isPo = entry.sync_type === 'po_bill';
                 const isSo = entry.sync_type === 'so_invoice';
+                const isCn = entry.sync_type === 'cn_credit_note';
+                const isScn = entry.sync_type === 'scn_credit_note';
                 const isHistorical = entry.is_historical === 1;
 
                 return (
@@ -16128,9 +16209,9 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                       <td style={td}><XeroStatusBadge status={entry.last_sync_status} isHistorical={isHistorical} /></td>
                       <td style={td}><XeroStateBadge state={entry.last_xero_state ?? null} /></td>
                       <td style={{ ...td, textAlign: 'right' }}>
-                        {entry.last_sync_status === 'error' && !isHistorical && (isPo || isSo) && (
+                        {entry.last_sync_status === 'error' && !isHistorical && (isPo || isSo || isCn || isScn) && (
                           <button
-                            onClick={() => retry(isPo ? 'po' : 'so', entry.reference_id!, retryKey)}
+                            onClick={() => retry(isPo ? 'po' : isSo ? 'so' : isCn ? 'cn' : 'scn', entry.reference_id!, retryKey)}
                             disabled={retrying[retryKey]}
                             style={{ background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: '#f87171', fontWeight: 600 }}
                           >
@@ -22401,8 +22482,9 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           { trigger: 'SO reverted or cancelled',      object: 'Invoice (ACCREC)',     status: 'VOIDED',       notes: 'Voided automatically if no payments applied; warning shown if payments exist (manual action required)' },
           { trigger: 'Payment added to SO',           object: 'Payment',              status: 'Applied',      notes: 'Applied to the Xero invoice' },
           { trigger: 'Daily batch (manual/scheduled)',object: 'Invoice (ACCREC)',     status: 'AUTHORISED',   notes: 'One invoice per location per day for POS; one per day for online. If gateway clearing accounts are configured, one invoice per (day × gateway) with payment into clearing account.' },
-          { trigger: 'Credit note completed',         object: 'Credit Note (ACCREC)', status: 'AUTHORISED',   notes: 'Completed credit notes post to Xero as ACCREC credit notes (including Shopify refund-sourced credit notes).' },
-          { trigger: 'Monthly COGS (manual)',         object: 'Manual Journal',       status: 'Posted',       notes: 'DR Cost of Goods Sold / CR Inventory Asset; one journal per branch' },
+          { trigger: 'Customer credit note completed', object: 'Credit Note (ACCREC)', status: 'AUTHORISED',   notes: 'Completed customer credit notes queue immediate async sync; outcome appears in Sync History and can be retried if failed.' },
+          { trigger: 'Supplier credit note completed', object: 'Credit Note (ACCPAY)', status: 'DRAFT',        notes: 'Completed supplier credit notes queue immediate async sync; outcome appears in Sync History and can be retried if failed.' },
+          { trigger: 'COGS (scheduled or manual)',     object: 'Manual Journal',       status: 'Posted',       notes: 'DR Cost of Goods Sold / CR Inventory Asset with reconciliation and adjustment support' },
         ]} />
 
         <h3 style={h3}>PO Bill Due Date</h3>
@@ -22418,6 +22500,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           { role: 'rounding',              type: 'Revenue/Expense', description: 'Optional account for POS cash-rounding adjustments; defaults to Sales Revenue when not mapped', required: false },
           { role: 'freight',               type: 'Expense', description: 'Freight / shipping expense — used when freight treatment is set to "Expense"', required: false },
           { role: 'credit_note',           type: 'Revenue', description: 'Account for manual credit note lines — defaults to sales_revenue if not set', required: false },
+          { role: 'supplier_credit_note',  type: 'Expense/Asset', description: 'Account for non-restock supplier credit lines; restock lines post to inventory_asset (falls back to cogs if not set)', required: false },
           { role: 'stock_adjustment',      type: 'Expense', description: 'Stocktake variance account — debited on write-offs, credited on surpluses', required: false },
         ]} />
 
@@ -22461,6 +22544,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           <li><strong>PO revert / cancel</strong> — The Xero Draft Bill is voided. This is always safe: Draft Bills cannot have payments applied, so voiding never disrupts reconciliation.</li>
           <li><strong>SO revert / cancel (no payments)</strong> — The Xero Invoice is voided automatically if no payments have been applied yet.</li>
           <li><strong>SO revert / cancel (with payments)</strong> — The invoice cannot be auto-voided. IMS will show a warning: <em>"Xero invoice has payments applied — please void or raise a credit note manually in Xero."</em> You must resolve this in Xero before your accounts will reconcile correctly.</li>
+          <li><strong>Customer/Supplier credit note void</strong> — From each CN/SCN view, use <em>Void in Xero</em> after sync. IMS logs a dedicated void event and refreshes Xero state in Sync History.</li>
         </ul>
         <p style={p}>Both operations are <strong>non-blocking</strong>. If a void fails (e.g. Xero outage), the IMS revert still completes successfully. The failed void is logged to the Xero sync log and a warning is shown — follow up manually in Xero when connectivity is restored.</p>
 

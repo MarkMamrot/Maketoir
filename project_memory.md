@@ -228,3 +228,17 @@ Always read this file when starting a new session or implementing a feature to u
   * `SalesSearchView` -> `src/app/ims/views/reports/SalesSearchView.tsx`
 * Shared report filter/date helpers moved to `src/app/ims/views/reports/reportFilterHelpers.tsx` and imported back into `page.tsx` (behavior preserved).
 * Practical rule for this monolith: avoid single giant diffs; patch by anchor in small chunks and run diagnostics (`get_errors`) after each chunk.
+
+### CN/SCN Xero pathway hardening (2026-07-25)
+* `POST /api/ims/xero/void` now supports `type: 'cn' | 'scn'` in addition to PO/SO.
+* Added service-level Xero void functions for credit notes:
+  * `voidXeroCreditNote()` for customer credit notes (ACCREC)
+  * `voidXeroSupplierCreditNote()` for supplier credit notes (ACCPAY)
+* Added hook-level orchestration:
+  * `triggerCNXeroVoid()`
+  * `triggerSupplierCNXeroVoid()`
+* Complete endpoints for CN/SCN remain async fire-and-forget, but now return explicit queue metadata (`xeroSync.state/queuedAt/retryEligible/pollEndpoint`).
+* Added CN status polling endpoint parity at `GET /api/ims/credit-notes/[id]/xero-status`.
+* Unified Xero sync history (`/api/xero/sync-log`) now includes CN/SCN events (including void events), not just PO/SO/EOD/COGS.
+* Xero Sync tab now recognizes CN/SCN (+ void) event types with labels/colors, link routing, and retry actions for failed CN/SCN sync attempts.
+* CN and SCN view modals now include a `Void in Xero` action when synced.

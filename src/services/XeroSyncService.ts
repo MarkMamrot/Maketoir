@@ -961,6 +961,101 @@ export async function voidXeroInvoice(
   }
 }
 
+async function fetchXeroCreditNoteById(businessId: string, xeroCreditNoteId: string): Promise<any | null> {
+  try {
+    const byPath = await xeroApiFetch(businessId, `/CreditNotes/${xeroCreditNoteId}`);
+    const hit = byPath?.CreditNotes?.[0];
+    if (hit) return hit;
+  } catch {
+    // Fallback to query variant for tenants where direct path is inconsistent.
+  }
+
+  try {
+    const byQuery = await xeroApiFetch(businessId, `/CreditNotes?IDs=${xeroCreditNoteId}`);
+    return byQuery?.CreditNotes?.[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function voidXeroCreditNote(
+  businessId: string,
+  xeroCreditNoteId: string,
+  cnId: number,
+): Promise<string | null> {
+  try {
+    const current = await fetchXeroCreditNoteById(businessId, xeroCreditNoteId);
+    if (!current) {
+      await logSync(businessId, 'cn_credit_note_void', cnId, xeroCreditNoteId, 'error', 'Credit note not found in Xero');
+      return null;
+    }
+
+    const currentStatus = String(current.Status ?? '').toUpperCase();
+    if (currentStatus === 'VOIDED' || currentStatus === 'DELETED') {
+      await logSync(businessId, 'cn_credit_note_void', cnId, xeroCreditNoteId, 'success', `Credit note already ${currentStatus.toLowerCase()}`, currentStatus);
+      await markCNXeroStatus(cnId, 'synced', null);
+      return xeroCreditNoteId;
+    }
+
+    const targetStatus = currentStatus === 'DRAFT' ? 'DELETED' : 'VOIDED';
+    const res = await xeroApiFetch(businessId, `/CreditNotes/${xeroCreditNoteId}`, {
+      method: 'POST',
+      body: { CreditNotes: [{ CreditNoteID: xeroCreditNoteId, Status: targetStatus }] },
+    });
+    const result = res?.CreditNotes?.[0];
+    if (result?.Status === targetStatus) {
+      await logSync(businessId, 'cn_credit_note_void', cnId, xeroCreditNoteId, 'success', `Credit note ${targetStatus.toLowerCase()}`, targetStatus);
+      await markCNXeroStatus(cnId, 'synced', null);
+      return xeroCreditNoteId;
+    }
+
+    await logSync(businessId, 'cn_credit_note_void', cnId, xeroCreditNoteId, 'error', `Expected ${targetStatus}, got ${result?.Status}`);
+    return null;
+  } catch (e: any) {
+    await logSync(businessId, 'cn_credit_note_void', cnId, xeroCreditNoteId, 'error', e.message);
+    return null;
+  }
+}
+
+export async function voidXeroSupplierCreditNote(
+  businessId: string,
+  xeroCreditNoteId: string,
+  scnId: number,
+): Promise<string | null> {
+  try {
+    const current = await fetchXeroCreditNoteById(businessId, xeroCreditNoteId);
+    if (!current) {
+      await logSync(businessId, 'scn_credit_note_void', scnId, xeroCreditNoteId, 'error', 'Supplier credit note not found in Xero');
+      return null;
+    }
+
+    const currentStatus = String(current.Status ?? '').toUpperCase();
+    if (currentStatus === 'VOIDED' || currentStatus === 'DELETED') {
+      await logSync(businessId, 'scn_credit_note_void', scnId, xeroCreditNoteId, 'success', `Supplier credit note already ${currentStatus.toLowerCase()}`, currentStatus);
+      await markSupplierCNXeroStatus(scnId, 'synced', null);
+      return xeroCreditNoteId;
+    }
+
+    const targetStatus = currentStatus === 'DRAFT' ? 'DELETED' : 'VOIDED';
+    const res = await xeroApiFetch(businessId, `/CreditNotes/${xeroCreditNoteId}`, {
+      method: 'POST',
+      body: { CreditNotes: [{ CreditNoteID: xeroCreditNoteId, Status: targetStatus }] },
+    });
+    const result = res?.CreditNotes?.[0];
+    if (result?.Status === targetStatus) {
+      await logSync(businessId, 'scn_credit_note_void', scnId, xeroCreditNoteId, 'success', `Supplier credit note ${targetStatus.toLowerCase()}`, targetStatus);
+      await markSupplierCNXeroStatus(scnId, 'synced', null);
+      return xeroCreditNoteId;
+    }
+
+    await logSync(businessId, 'scn_credit_note_void', scnId, xeroCreditNoteId, 'error', `Expected ${targetStatus}, got ${result?.Status}`);
+    return null;
+  } catch (e: any) {
+    await logSync(businessId, 'scn_credit_note_void', scnId, xeroCreditNoteId, 'error', e.message);
+    return null;
+  }
+}
+
 // ─── POS/Online Daily Batch → Summary Invoice ────────────────────────────────
 
 interface DailySalesBatch {

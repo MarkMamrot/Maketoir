@@ -4,6 +4,8 @@
  * Returns sync history for the Xero Sync tab:
  *   - Individual POs (po_bill)
  *   - Individual wholesale/b2b SOs (so_invoice) — NOT POS or Online SOs
+ *   - Individual customer credit notes (cn_credit_note)
+ *   - Individual supplier credit notes (scn_credit_note)
  *   - POS EOD reconciliation entries (eod_reconciliation) — per-method per-day Xero invoices
  *   - Stocktake journals (stocktake_journal)
  *   - COGS originals and adjustments (cogs_journal)
@@ -72,6 +74,10 @@ function resolveXeroState(
     case 'eod_reconciliation':  return 'AUTHORISED';
     case 'stocktake_journal':   return 'POSTED';
     case 'online_batch':        return 'AUTHORISED';
+    case 'cn_credit_note':      return 'AUTHORISED';
+    case 'cn_credit_note_void': return 'VOIDED';
+    case 'scn_credit_note':     return 'DRAFT';
+    case 'scn_credit_note_void': return 'VOIDED';
     case 'po_payment':
     case 'so_payment':          return 'PAID';
     default:                    return null;
@@ -129,6 +135,32 @@ export async function GET(req: Request) {
       imsDbName,
     );
 
+    const cns = await imsQuery<any>(
+      `SELECT cn.id, cn.cn_number, cn.total_amount, cn.cn_date,
+              cn.xero_sync_status, cn.xero_synced_at,
+              COALESCE(c.name, '') AS contact_name
+         FROM ims_credit_notes cn
+         LEFT JOIN ims_contacts c ON c.id = cn.customer_id
+        WHERE cn.status = 'complete'
+        ORDER BY cn.cn_date DESC, cn.id DESC
+        LIMIT ${limit}`,
+      [],
+      imsDbName,
+    );
+
+    const scns = await imsQuery<any>(
+      `SELECT scn.id, scn.scn_number, scn.total_amount, scn.scn_date,
+              scn.xero_sync_status, scn.xero_synced_at,
+              COALESCE(c.name, '') AS contact_name
+         FROM ims_supplier_credit_notes scn
+         LEFT JOIN ims_contacts c ON c.id = scn.supplier_id
+        WHERE scn.status = 'complete'
+        ORDER BY scn.scn_date DESC, scn.id DESC
+        LIMIT ${limit}`,
+      [],
+      imsDbName,
+    );
+
     // ── 3. Online daily batches from ims_sales_orders WHERE so_type='online' ──
     //    (POS EOD recon is surfaced via eod_reconciliation in xero_sync_log, not here)
     const onlineBatches = await imsQuery<any>(
@@ -149,6 +181,8 @@ export async function GET(req: Request) {
     // ── 4. Build IDs / keys for sync log lookups ──────────────────────────
     const poIds = pos.map((p: any) => p.id as number);
     const soIds = sos.map((s: any) => s.id as number);
+    const cnIds = cns.map((cn: any) => cn.id as number);
+    const scnIds = scns.map((scn: any) => scn.id as number);
     // Keys must match xero_sync_log.detail format: 'online batch YYYY-MM-DD'
     const onlineBatchKeys = onlineBatches.map((b: any) => `online batch ${batchDateStr(b.batch_date)}`);
 
@@ -156,6 +190,8 @@ export async function GET(req: Request) {
     let poLogs: any[] = [];
     let paymentLogs: any[] = [];
     let soLogs: any[] = [];
+    let cnLogs: any[] = [];
+    let scnLogs: any[] = [];
     let batchLogs: any[] = [];
     let eventLogs: any[] = [];
     let cogsRuns: any[] = [];
@@ -195,6 +231,34 @@ export async function GET(req: Request) {
                  GROUP BY reference_id
               )`,
           [databaseId, ...soIds, databaseId],
+        );
+      }
+      if (cnIds.length > 0) {
+        cnLogs = await query<any>(
+          `SELECT reference_id, sync_type, xero_id, status, xero_state, detail, created_at AS synced_at
+             FROM xero_sync_log
+            WHERE business_id = ? AND sync_type IN ('cn_credit_note','cn_credit_note_void')
+              AND reference_id IN (${cnIds.map(() => '?').join(',')})
+              AND id IN (
+                SELECT MAX(id) FROM xero_sync_log
+                 WHERE business_id = ? AND sync_type IN ('cn_credit_note','cn_credit_note_void')
+                 GROUP BY reference_id
+              )`,
+          [databaseId, ...cnIds, databaseId],
+        );
+      }
+      if (scnIds.length > 0) {
+        scnLogs = await query<any>(
+          `SELECT reference_id, sync_type, xero_id, status, xero_state, detail, created_at AS synced_at
+             FROM xero_sync_log
+            WHERE business_id = ? AND sync_type IN ('scn_credit_note','scn_credit_note_void')
+              AND reference_id IN (${scnIds.map(() => '?').join(',')})
+              AND id IN (
+                SELECT MAX(id) FROM xero_sync_log
+                 WHERE business_id = ? AND sync_type IN ('scn_credit_note','scn_credit_note_void')
+                 GROUP BY reference_id
+              )`,
+          [databaseId, ...scnIds, databaseId],
         );
       }
       if (onlineBatchKeys.length > 0) {
@@ -252,6 +316,8 @@ export async function GET(req: Request) {
     // ── 6. Index logs ────────────────────────────────────────────────────────────────────────────
     const poLogByRef = new Map(poLogs.map((r: any) => [r.reference_id, r]));
     const soLogByRef = new Map(soLogs.map((r: any) => [r.reference_id, r]));
+    const cnLogByRef = new Map(cnLogs.map((r: any) => [r.reference_id, r]));
+    const scnLogByRef = new Map(scnLogs.map((r: any) => [r.reference_id, r]));
     // batchLogByKey is keyed by 'online batch YYYY-MM-DD'; look up by the same format
     const batchLogByKey = new Map(batchLogs.map((r: any) => [r.batch_key, r]));
     // Helper to get log for a batch date
@@ -305,6 +371,48 @@ export async function GET(req: Request) {
         xero_id: log?.xero_id ?? null,
         last_sync_status: log?.status ?? null,
         last_xero_state: resolveXeroState(log?.sync_type ?? 'so_invoice', log?.status, log?.detail, log?.xero_state),
+        last_sync_detail: log?.detail ?? null,
+        last_sync_at: log?.synced_at ?? null,
+        payments: [],
+      };
+    });
+
+    const cnEntries = cns.map((cn: any) => {
+      const log = cnLogByRef.get(cn.id);
+      return {
+        sync_type: log?.sync_type ?? 'cn_credit_note',
+        reference_id: cn.id,
+        reference: cn.cn_number,
+        contact_name: cn.contact_name || null,
+        amount: cn.total_amount,
+        item_date: cn.cn_date,
+        is_historical: 0,
+        xero_sync_status: cn.xero_sync_status || null,
+        log_id: null,
+        xero_id: log?.xero_id ?? null,
+        last_sync_status: log?.status ?? null,
+        last_xero_state: resolveXeroState(log?.sync_type ?? 'cn_credit_note', log?.status, log?.detail, log?.xero_state),
+        last_sync_detail: log?.detail ?? null,
+        last_sync_at: log?.synced_at ?? null,
+        payments: [],
+      };
+    });
+
+    const scnEntries = scns.map((scn: any) => {
+      const log = scnLogByRef.get(scn.id);
+      return {
+        sync_type: log?.sync_type ?? 'scn_credit_note',
+        reference_id: scn.id,
+        reference: scn.scn_number,
+        contact_name: scn.contact_name || null,
+        amount: scn.total_amount,
+        item_date: scn.scn_date,
+        is_historical: 0,
+        xero_sync_status: scn.xero_sync_status || null,
+        log_id: null,
+        xero_id: log?.xero_id ?? null,
+        last_sync_status: log?.status ?? null,
+        last_xero_state: resolveXeroState(log?.sync_type ?? 'scn_credit_note', log?.status, log?.detail, log?.xero_state),
         last_sync_detail: log?.detail ?? null,
         last_sync_at: log?.synced_at ?? null,
         payments: [],
@@ -402,7 +510,7 @@ export async function GET(req: Request) {
     });
 
     // Merge + sort by item_date DESC, then slice to limit
-    const entries = [...poEntries, ...soEntries, ...onlineBatchEntries, ...eventEntries, ...cogsEntries]
+    const entries = [...poEntries, ...soEntries, ...cnEntries, ...scnEntries, ...onlineBatchEntries, ...eventEntries, ...cogsEntries]
       .sort((a, b) => {
         const da = a.item_date ? new Date(a.item_date).getTime() : 0;
         const db2 = b.item_date ? new Date(b.item_date).getTime() : 0;
@@ -420,7 +528,11 @@ export async function GET(req: Request) {
       const invoiceXeroIds = entries
         .filter(e => e.xero_id && ['po_bill', 'so_invoice', 'eod_reconciliation', 'online_batch'].includes(e.sync_type))
         .map(e => e.xero_id as string);
+      const creditNoteXeroIds = entries
+        .filter(e => e.xero_id && ['cn_credit_note', 'scn_credit_note'].includes(e.sync_type))
+        .map(e => e.xero_id as string);
       const uniqueIds = [...new Set(invoiceXeroIds)];
+      const uniqueCreditNoteIds = [...new Set(creditNoteXeroIds)];
 
       if (uniqueIds.length > 0) {
         const liveStatus = new Map<string, string>(); // xeroId → Xero Status
@@ -442,6 +554,29 @@ export async function GET(req: Request) {
           if (!entry.xero_id) continue;
           if (!requestedSet.has(entry.xero_id)) continue;
           const live = liveStatus.get(entry.xero_id);
+          entry.last_xero_state = live ?? 'DELETED';
+        }
+      }
+
+      if (uniqueCreditNoteIds.length > 0) {
+        const liveCreditStatus = new Map<string, string>(); // xeroId → Xero Status
+        const BATCH = 100;
+        for (let i = 0; i < uniqueCreditNoteIds.length; i += BATCH) {
+          const chunk = uniqueCreditNoteIds.slice(i, i + BATCH);
+          const result = await xeroApiFetch(
+            databaseId!,
+            `/CreditNotes?IDs=${chunk.join(',')}`,
+          );
+          for (const note of result?.CreditNotes ?? []) {
+            if (note.CreditNoteID && note.Status) liveCreditStatus.set(note.CreditNoteID, note.Status);
+          }
+        }
+
+        const requestedCreditSet = new Set(uniqueCreditNoteIds);
+        for (const entry of entries) {
+          if (!entry.xero_id) continue;
+          if (!requestedCreditSet.has(entry.xero_id)) continue;
+          const live = liveCreditStatus.get(entry.xero_id);
           entry.last_xero_state = live ?? 'DELETED';
         }
       }

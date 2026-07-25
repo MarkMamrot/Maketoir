@@ -14,7 +14,16 @@ export async function POST(_: Request, { params }: { params: { id: string } }) {
     // Fire-and-forget Xero sync
     triggerCNXeroSync(businessId, cnId).catch(err => console.error('[Xero] CN credit note sync failed:', err));
     const cn = await ImsCNRepo.get(cnId, businessId);
-    return NextResponse.json({ success: true, data: cn });
+    return NextResponse.json({
+      success: true,
+      data: cn,
+      xeroSync: {
+        state: 'queued',
+        queuedAt: new Date().toISOString(),
+        retryEligible: true,
+        pollEndpoint: `/api/ims/credit-notes/${cnId}/xero-status`,
+      },
+    });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

@@ -14,7 +14,16 @@ export async function POST(_: Request, { params }: { params: { id: string } }) {
     // Fire-and-forget Xero ACCPAY credit note sync
     triggerSupplierCNXeroSync(businessId, scnId).catch(err => console.error('[Xero] supplier CN sync failed:', err));
     const scn = await ImsSupplierCNRepo.get(scnId, businessId);
-    return NextResponse.json({ success: true, data: scn });
+    return NextResponse.json({
+      success: true,
+      data: scn,
+      xeroSync: {
+        state: 'queued',
+        queuedAt: new Date().toISOString(),
+        retryEligible: true,
+        pollEndpoint: `/api/ims/supplier-credit-notes/${scnId}/xero-status`,
+      },
+    });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

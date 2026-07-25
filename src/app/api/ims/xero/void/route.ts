@@ -1,14 +1,14 @@
 /**
  * POST /api/ims/xero/void
- * Body: { type: 'po' | 'so', id: number }
+ * Body: { type: 'po' | 'so' | 'cn' | 'scn', id: number }
  *
- * Manually voids the Xero bill/invoice linked to a PO or SO.
+ * Manually voids the Xero document linked to a PO/SO/CN/SCN.
  * Returns { success, xeroWarning? } — xeroWarning is set when the void
  * failed or the document has payments applied (SO invoices only).
  */
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
-import { triggerPOXeroVoid, triggerSOXeroVoid } from '@/lib/ims/xeroHooks';
+import { triggerCNXeroVoid, triggerPOXeroVoid, triggerSOXeroVoid, triggerSupplierCNXeroVoid } from '@/lib/ims/xeroHooks';
 
 
 export async function POST(req: Request) {
@@ -17,12 +17,21 @@ export async function POST(req: Request) {
   const businessId: string = session.businessId;
 
   try {
-    const { type, id } = await req.json() as { type: 'po' | 'so'; id: number };
+    const { type, id } = await req.json() as { type: 'po' | 'so' | 'cn' | 'scn'; id: number };
     if (!type || !id) return NextResponse.json({ error: 'type and id required' }, { status: 400 });
 
-    const warning = type === 'po'
-      ? await triggerPOXeroVoid(businessId, Number(id))
-      : await triggerSOXeroVoid(businessId, Number(id));
+    let warning: string | null = null;
+    if (type === 'po') {
+      warning = await triggerPOXeroVoid(businessId, Number(id));
+    } else if (type === 'so') {
+      warning = await triggerSOXeroVoid(businessId, Number(id));
+    } else if (type === 'cn') {
+      warning = await triggerCNXeroVoid(businessId, Number(id));
+    } else if (type === 'scn') {
+      warning = await triggerSupplierCNXeroVoid(businessId, Number(id));
+    } else {
+      return NextResponse.json({ error: 'Unsupported type' }, { status: 400 });
+    }
 
     if (warning) {
       return NextResponse.json({ success: false, xeroWarning: warning });
