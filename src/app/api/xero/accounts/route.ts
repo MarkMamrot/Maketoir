@@ -62,6 +62,7 @@ export async function POST(req: Request) {
     'credit_note', 'freight', 'stock_adjustment',
     'rounding',
     'gift_card_liability',
+    'store_credit_liability',
     'supplier_credit_note',
   ];
   if (!validRoles.includes(roleKey)) {

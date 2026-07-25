@@ -159,6 +159,12 @@ const COLUMNS = [
   ['ims_sales_orders', 'refunded_amount',     'DECIMAL(12,2) NOT NULL DEFAULT 0.00'],
   ['ims_sales_orders', 'financial_status',    'VARCHAR(50) NULL'],
   ['ims_sales_orders', 'returned_at',         'DATETIME NULL'],
+  // ── pos_eod_reconciliations ─────────────────────────────────────────────
+  ['pos_eod_reconciliations', 'xero_payment_required',      'TINYINT(1) NOT NULL DEFAULT 0'],
+  ['pos_eod_reconciliations', 'xero_payment_id',            'VARCHAR(100) NULL'],
+  ['pos_eod_reconciliations', 'xero_payment_synced_at',     'DATETIME NULL'],
+  ['pos_eod_reconciliations', 'xero_payment_error',         'TEXT NULL'],
+  ['pos_eod_reconciliations', 'xero_clearing_account_code', 'VARCHAR(20) NULL'],
   // ── ims_credit_notes ─────────────────────────────────────────────────────
   ['ims_credit_notes', 'so_id',               'INT NULL'],
   ['ims_credit_notes', 'original_so_number',  'VARCHAR(100) NULL'],

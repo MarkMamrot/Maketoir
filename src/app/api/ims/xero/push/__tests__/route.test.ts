@@ -6,6 +6,10 @@ const {
   mockTriggerSOXeroSync,
   mockTriggerCNXeroSync,
   mockTriggerSupplierCNXeroSync,
+  mockSyncGiftCardIssueInvoice,
+  mockSyncGiftCardRedemptionReclass,
+  mockSyncStoreCreditIssueReclass,
+  mockSyncStoreCreditRedemptionReclass,
   mockImsQuery,
   mockQuery,
 } = vi.hoisted(() => ({
@@ -14,6 +18,10 @@ const {
   mockTriggerSOXeroSync: vi.fn(),
   mockTriggerCNXeroSync: vi.fn(),
   mockTriggerSupplierCNXeroSync: vi.fn(),
+  mockSyncGiftCardIssueInvoice: vi.fn(),
+  mockSyncGiftCardRedemptionReclass: vi.fn(),
+  mockSyncStoreCreditIssueReclass: vi.fn(),
+  mockSyncStoreCreditRedemptionReclass: vi.fn(),
   mockImsQuery: vi.fn(),
   mockQuery: vi.fn(),
 }));
@@ -37,6 +45,13 @@ vi.mock('@/services/MySQLService', () => ({
   query: mockQuery,
 }));
 
+vi.mock('@/services/XeroSyncService', () => ({
+  syncGiftCardIssueInvoice: mockSyncGiftCardIssueInvoice,
+  syncGiftCardRedemptionReclass: mockSyncGiftCardRedemptionReclass,
+  syncStoreCreditIssueReclass: mockSyncStoreCreditIssueReclass,
+  syncStoreCreditRedemptionReclass: mockSyncStoreCreditRedemptionReclass,
+}));
+
 import { POST } from '../route';
 
 function makeRequest(body: unknown): Request {
@@ -55,6 +70,10 @@ describe('POST /api/ims/xero/push', () => {
     mockTriggerSOXeroSync.mockResolvedValue(undefined);
     mockTriggerCNXeroSync.mockResolvedValue(undefined);
     mockTriggerSupplierCNXeroSync.mockResolvedValue(undefined);
+    mockSyncGiftCardIssueInvoice.mockResolvedValue('xero-gci-1');
+    mockSyncGiftCardRedemptionReclass.mockResolvedValue('xero-gcr-1');
+    mockSyncStoreCreditIssueReclass.mockResolvedValue('xero-sci-1');
+    mockSyncStoreCreditRedemptionReclass.mockResolvedValue('xero-scr-1');
     mockImsQuery.mockResolvedValue([]);
     mockQuery.mockResolvedValue([]);
   });
@@ -125,5 +144,45 @@ describe('POST /api/ims/xero/push', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: true });
     expect(mockTriggerSupplierCNXeroSync).toHaveBeenCalledWith('biz-1', 21);
+  });
+
+  it('replays gift card redemption retry by transaction id', async () => {
+    mockImsQuery.mockResolvedValueOnce([
+      { id: 17, amount: '22.50', tx_date: '2026-07-25', location_id: 4 },
+    ]);
+
+    const res = await POST(makeRequest({ type: 'gift_card_redeem', id: 17 }));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ success: true });
+    expect(mockSyncGiftCardRedemptionReclass).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'biz-1',
+      amount: 22.5,
+      date: '2026-07-25',
+      channel: 'pos',
+      locationId: 4,
+      dedupeKey: 'gift card redeem tx 17',
+      referenceId: 17,
+    }));
+  });
+
+  it('replays store credit issue retry by transaction id', async () => {
+    mockImsQuery.mockResolvedValueOnce([
+      { id: 31, type: 'issue', amount: '15.00', tx_date: '2026-07-24', location_id: 2 },
+    ]);
+
+    const res = await POST(makeRequest({ type: 'store_credit_issue', id: 31 }));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ success: true });
+    expect(mockSyncStoreCreditIssueReclass).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'biz-1',
+      amount: 15,
+      date: '2026-07-24',
+      channel: 'pos',
+      locationId: 2,
+      dedupeKey: 'store credit issue tx 31',
+      referenceId: 31,
+    }));
   });
 });

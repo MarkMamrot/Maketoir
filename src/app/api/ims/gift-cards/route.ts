@@ -143,6 +143,7 @@ export async function POST(req: Request) {
         reference: `IMS-GC-${String(result.insertId)}`,
         narration: `Gift card issued in IMS (${code.trim().toUpperCase()})`,
         dedupeKey: `gift card issue ims ${String(result.insertId)}|${code.trim().toUpperCase()}|${amount.toFixed(2)}`,
+        referenceId: Number(result.insertId),
       });
       xeroSynced = !!xeroId;
     } catch (err: any) {

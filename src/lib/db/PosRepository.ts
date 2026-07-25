@@ -72,6 +72,11 @@ export interface PosEodRow {
   notes:             string | null;
   xero_invoice_id?:  string | null;
   xero_synced_at?:   string | null;
+  xero_payment_required?: number;
+  xero_payment_id?: string | null;
+  xero_payment_synced_at?: string | null;
+  xero_payment_error?: string | null;
+  xero_clearing_account_code?: string | null;
   created_at:        string;
 }
 
@@ -862,6 +867,11 @@ export const PosEodRepo = {
        ON DUPLICATE KEY UPDATE
          xero_invoice_id   = IF(register_session_id <=> VALUES(register_session_id), xero_invoice_id, NULL),
          xero_synced_at    = IF(register_session_id <=> VALUES(register_session_id), xero_synced_at,  NULL),
+         xero_payment_required = IF(register_session_id <=> VALUES(register_session_id), xero_payment_required, 0),
+         xero_payment_id   = IF(register_session_id <=> VALUES(register_session_id), xero_payment_id, NULL),
+         xero_payment_synced_at = IF(register_session_id <=> VALUES(register_session_id), xero_payment_synced_at, NULL),
+         xero_payment_error = IF(register_session_id <=> VALUES(register_session_id), xero_payment_error, NULL),
+         xero_clearing_account_code = IF(register_session_id <=> VALUES(register_session_id), xero_clearing_account_code, NULL),
          register_session_id = VALUES(register_session_id),
          cashier_id        = VALUES(cashier_id),
          cashier_name      = VALUES(cashier_name),
@@ -887,20 +897,62 @@ export const PosEodRepo = {
     );
   },
 
-  async setXeroInvoice(locationId: number, date: string, method: string, invoiceId: string, registerId?: number | null): Promise<void> {
+  async setXeroInvoice(locationId: number, date: string, method: string, invoiceId: string, clearingAccountCode: string, registerId?: number | null): Promise<void> {
     if (registerId != null) {
       await imsExecute(
         `UPDATE pos_eod_reconciliations
-           SET xero_invoice_id = ?, xero_synced_at = NOW()
+           SET xero_invoice_id = ?, xero_synced_at = NOW(),
+               xero_payment_required = 1, xero_clearing_account_code = ?,
+               xero_payment_error = NULL
            WHERE location_id = ? AND register_id = ? AND recon_date = ? AND payment_method = ?`,
-        [invoiceId, locationId, registerId, date, method],
+        [invoiceId, clearingAccountCode, locationId, registerId, date, method],
       );
     } else {
       await imsExecute(
         `UPDATE pos_eod_reconciliations
-           SET xero_invoice_id = ?, xero_synced_at = NOW()
+           SET xero_invoice_id = ?, xero_synced_at = NOW(),
+               xero_payment_required = 1, xero_clearing_account_code = ?,
+               xero_payment_error = NULL
            WHERE location_id = ? AND recon_date = ? AND payment_method = ?`,
-        [invoiceId, locationId, date, method],
+        [invoiceId, clearingAccountCode, locationId, date, method],
+      );
+    }
+  },
+
+  async setXeroPayment(locationId: number, date: string, method: string, paymentId: string, clearingAccountCode: string, registerId?: number | null): Promise<void> {
+    if (registerId != null) {
+      await imsExecute(
+        `UPDATE pos_eod_reconciliations
+           SET xero_payment_id = ?, xero_payment_synced_at = NOW(),
+               xero_clearing_account_code = ?, xero_payment_error = NULL
+           WHERE location_id = ? AND register_id = ? AND recon_date = ? AND payment_method = ?`,
+        [paymentId, clearingAccountCode, locationId, registerId, date, method],
+      );
+    } else {
+      await imsExecute(
+        `UPDATE pos_eod_reconciliations
+           SET xero_payment_id = ?, xero_payment_synced_at = NOW(),
+               xero_clearing_account_code = ?, xero_payment_error = NULL
+           WHERE location_id = ? AND recon_date = ? AND payment_method = ?`,
+        [paymentId, clearingAccountCode, locationId, date, method],
+      );
+    }
+  },
+
+  async setXeroPaymentError(locationId: number, date: string, method: string, error: string, clearingAccountCode: string, registerId?: number | null): Promise<void> {
+    if (registerId != null) {
+      await imsExecute(
+        `UPDATE pos_eod_reconciliations
+           SET xero_payment_error = ?, xero_clearing_account_code = ?
+           WHERE location_id = ? AND register_id = ? AND recon_date = ? AND payment_method = ?`,
+        [error, clearingAccountCode, locationId, registerId, date, method],
+      );
+    } else {
+      await imsExecute(
+        `UPDATE pos_eod_reconciliations
+           SET xero_payment_error = ?, xero_clearing_account_code = ?
+           WHERE location_id = ? AND recon_date = ? AND payment_method = ?`,
+        [error, clearingAccountCode, locationId, date, method],
       );
     }
   },

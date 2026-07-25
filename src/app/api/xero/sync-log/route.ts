@@ -78,10 +78,31 @@ function resolveXeroState(
     case 'cn_credit_note_void': return 'VOIDED';
     case 'scn_credit_note':     return 'DRAFT';
     case 'scn_credit_note_void': return 'VOIDED';
+    case 'gift_card_liability': return 'POSTED';
+    case 'gift_card_redeem':    return 'POSTED';
+    case 'store_credit_issue':  return 'POSTED';
+    case 'store_credit_redeem': return 'POSTED';
     case 'po_payment':
     case 'so_payment':          return 'PAID';
     default:                    return null;
   }
+}
+
+function parseLifecycleReferenceId(syncType: string, detail: string | null | undefined): number | null {
+  const text = (detail ?? '').toLowerCase();
+  let m: RegExpMatchArray | null = null;
+  if (syncType === 'gift_card_issue') {
+    m = text.match(/gift\s*card\s*issue\s*ims\s*(\d+)/i);
+  } else if (syncType === 'gift_card_redeem') {
+    m = text.match(/gift\s*card\s*redeem\s*tx\s*(\d+)/i);
+  } else if (syncType === 'store_credit_issue') {
+    m = text.match(/store\s*credit\s*issue\s*tx\s*(\d+)/i);
+  } else if (syncType === 'store_credit_redeem') {
+    m = text.match(/store\s*credit\s*redeem\s*tx\s*(\d+)/i);
+  }
+  if (!m?.[1]) return null;
+  const id = Number(m[1]);
+  return Number.isFinite(id) && id > 0 ? id : null;
 }
 
 export async function GET(req: Request) {
@@ -279,10 +300,10 @@ export async function GET(req: Request) {
       // (POS end-of-day reconciliations, stocktake journals, gift-card postings). These are the actual
       // Xero pushes — surface them directly so their status / amount / Xero ID show.
       eventLogs = await query<any>(
-        `SELECT id, sync_type, xero_id, status, xero_state, detail, created_at AS synced_at
+        `SELECT id, reference_id, sync_type, xero_id, status, xero_state, detail, created_at AS synced_at
            FROM xero_sync_log
           WHERE business_id = ?
-            AND sync_type IN ('eod_reconciliation','stocktake_journal','gift_card_issue','gift_card_liability')
+            AND sync_type IN ('eod_reconciliation','stocktake_journal','gift_card_issue','gift_card_liability','gift_card_redeem','store_credit_issue','store_credit_redeem')
           ORDER BY created_at DESC
           LIMIT ${limit}`,
         [databaseId],
@@ -449,7 +470,7 @@ export async function GET(req: Request) {
     };
     const eventEntries = eventLogs.map((e: any) => ({
       sync_type: e.sync_type,
-      reference_id: null,
+      reference_id: e.reference_id ?? parseLifecycleReferenceId(e.sync_type, e.detail),
       reference:
         e.sync_type === 'eod_reconciliation'
           ? (e.detail ? String(e.detail).split(' — ')[0] : 'EOD Reconciliation')
@@ -457,7 +478,13 @@ export async function GET(req: Request) {
             ? 'Stocktake Journal'
             : e.sync_type === 'gift_card_issue'
               ? 'Gift Card Issue'
-              : 'Gift Card Liability Reclass',
+              : e.sync_type === 'gift_card_liability'
+                ? 'Gift Card Liability Reclass'
+                : e.sync_type === 'gift_card_redeem'
+                  ? 'Gift Card Redemption'
+                  : e.sync_type === 'store_credit_issue'
+                    ? 'Store Credit Issue'
+                    : 'Store Credit Redemption',
       contact_name: e.detail ?? null,
       amount: parseAmt(e.detail),
       item_date: e.synced_at,

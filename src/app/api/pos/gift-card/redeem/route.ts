@@ -5,6 +5,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
 import { ShopifyService } from '@/services/ShopifyService';
+import { syncGiftCardRedemptionReclass } from '@/services/XeroSyncService';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -158,11 +159,33 @@ export async function POST(req: Request) {
     );
   }
 
-  await imsExecute(
+  const txnRes = await imsExecute(
     `INSERT INTO gift_card_transactions (card_id, type, amount, balance_after, pos_sale_id)
      VALUES (?, 'redeem', ?, ?, ?)`,
     [card.id, -actualDebit, newBalance, pos_sale_id ?? null],
   );
+
+  let xeroSynced: boolean | null = null;
+  let xeroWarning: string | null = null;
+  if (actualDebit > 0 && session?.businessId) {
+    try {
+      const txId = Number((txnRes as any)?.insertId ?? 0);
+      const xeroId = await syncGiftCardRedemptionReclass({
+        businessId: session.businessId,
+        amount: actualDebit,
+        date: new Date().toISOString().slice(0, 10),
+        channel: 'pos',
+        locationId: session.location_id ?? undefined,
+        dedupeKey: txId > 0
+          ? `gift card redeem tx ${txId}`
+          : `gift card redeem pos ${card.id}|${pos_sale_id ?? 'na'}|${actualDebit.toFixed(2)}`,
+        referenceId: txId > 0 ? txId : undefined,
+      });
+      xeroSynced = !!xeroId;
+    } catch (e: any) {
+      xeroWarning = e?.message ?? 'Gift card redeemed but failed to sync redemption reclass to Xero';
+    }
+  }
 
   return NextResponse.json({
     success:       true,
@@ -170,6 +193,8 @@ export async function POST(req: Request) {
     status:        newStatus,
     // shopify_synced: true = Shopify updated, false = sync failed (staff should check Shopify admin), null = not in combined mode
     shopify_synced: shopifySynced,
+    xero_synced: xeroSynced,
+    xero_warning: xeroWarning,
     // new_code is set when combined mode issued a replacement card — cashier must give this to customer
     ...(newCode ? { new_code: newCode } : {}),
   });

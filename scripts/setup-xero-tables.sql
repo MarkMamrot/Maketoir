@@ -88,6 +88,8 @@ CREATE TABLE IF NOT EXISTS xero_cogs_journal_runs (
 
 -- POS payment-method account mapping: maps each configured POS payment method
 -- to a specific Xero account code for EOD invoice lines.
+-- Legacy only: these rows represent REVENUE accounts and must never be treated
+-- as clearing accounts or migrated into xero_pos_clearing_mappings.
 CREATE TABLE IF NOT EXISTS xero_pos_payment_mappings (
   id                BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id       VARCHAR(255) NOT NULL,
@@ -98,4 +100,20 @@ CREATE TABLE IF NOT EXISTS xero_pos_payment_mappings (
   updated_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_xero_pos_payment_method (business_id, payment_method),
   INDEX idx_xero_pos_payment_business (business_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- POS settlement mapping: every location/payment-method pair routes its Xero
+-- invoice payment into a dedicated bank or clearing account.
+CREATE TABLE IF NOT EXISTS xero_pos_clearing_mappings (
+  id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id       VARCHAR(255) NOT NULL,
+  ims_location_id   INT          NOT NULL,
+  payment_method    VARCHAR(255) NOT NULL,
+  xero_account_id   VARCHAR(100) NOT NULL,
+  xero_account_code VARCHAR(20)  NOT NULL,
+  xero_account_name VARCHAR(255) DEFAULT NULL,
+  created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_xero_pos_clearing (business_id, ims_location_id, payment_method),
+  INDEX idx_xero_pos_clearing_business (business_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

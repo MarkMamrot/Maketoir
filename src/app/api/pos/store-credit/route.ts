@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { syncStoreCreditIssueReclass, syncStoreCreditRedemptionReclass } from '@/services/XeroSyncService';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -70,11 +71,37 @@ export async function POST(req: Request) {
   const newBalance = Math.max(0, Math.round((current + delta) * 100) / 100);
 
   await imsExecute('UPDATE ims_contacts SET store_credit = ? WHERE id = ?', [newBalance, contact_id]);
-  await imsExecute(
+  const txRes = await imsExecute(
     `INSERT INTO store_credit_transactions (contact_id, type, amount, balance_after, pos_sale_id, notes)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [contact_id, type === 'debit' ? 'redeem' : 'issue', Math.abs(delta), newBalance, pos_sale_id ?? null, notes ?? null],
   );
 
-  return NextResponse.json({ success: true, balance_after: newBalance });
+  let xeroSynced: boolean | null = null;
+  let xeroWarning: string | null = null;
+  if (session?.businessId && Math.abs(delta) > 0) {
+    try {
+      const txId = Number((txRes as any)?.insertId ?? 0);
+      const dedupeKey = txId > 0
+        ? `store credit ${type === 'debit' ? 'redeem' : 'issue'} tx ${txId}`
+        : `store credit ${type === 'debit' ? 'redeem' : 'issue'} contact ${contact_id}|${Math.abs(delta).toFixed(2)}|${pos_sale_id ?? 'na'}`;
+      const payload = {
+        businessId: session.businessId,
+        amount: Math.abs(delta),
+        date: new Date().toISOString().slice(0, 10),
+        channel: 'pos' as const,
+        locationId: session.location_id ?? undefined,
+        dedupeKey,
+        referenceId: txId > 0 ? txId : undefined,
+      };
+      const xeroId = type === 'debit'
+        ? await syncStoreCreditRedemptionReclass(payload)
+        : await syncStoreCreditIssueReclass(payload);
+      xeroSynced = !!xeroId;
+    } catch (e: any) {
+      xeroWarning = e?.message ?? `Store credit ${type === 'debit' ? 'redeem' : 'issue'} synced locally but failed to post reclass to Xero`;
+    }
+  }
+
+  return NextResponse.json({ success: true, balance_after: newBalance, xero_synced: xeroSynced, xero_warning: xeroWarning });
 }

@@ -15062,9 +15062,18 @@ function XeroPaymentMappingSection({ type, label, accounts }: { type: 'po' | 'so
 }
 
 function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: { accountId: string; code: string; name: string; type: string }[]; getBusinessId: () => string }) {
-  const [methods, setMethods] = useState<Array<{ payment_method: string; xero_account_code: string | null }>>([]);
+  const [methods, setMethods] = useState<Array<{ payment_method: string }>>([]);
+  const [locations, setLocations] = useState<Array<{ id: number; name: string }>>([]);
+  const [mappings, setMappings] = useState<Array<{ ims_location_id: number; payment_method: string; xero_account_id: string; xero_account_code: string; xero_account_name: string | null }>>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<Record<string, string>>({});
+  const bankAccounts = accounts.filter(account => account.type === 'BANK');
+
+  const cellKey = (locationId: number, paymentMethod: string) => `${locationId}:${paymentMethod.trim().toLowerCase()}`;
+  const mappingFor = (locationId: number, paymentMethod: string) => mappings.find(mapping =>
+    mapping.ims_location_id === locationId && mapping.payment_method.trim().toLowerCase() === paymentMethod.trim().toLowerCase(),
+  );
 
   const load = async () => {
     const bid = getBusinessId();
@@ -15072,74 +15081,118 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
     setLoading(true);
     try {
       const res = await fetch(`/api/xero/pos-payment-mappings?databaseId=${encodeURIComponent(bid)}`).then(r => r.json());
-      if (res.success) setMethods(Array.isArray(res.methods) ? res.methods : []);
-      else setMethods([]);
+      if (res.success) {
+        setMethods(Array.isArray(res.methods) ? res.methods : []);
+        setLocations(Array.isArray(res.locations) ? res.locations : []);
+        setMappings(Array.isArray(res.mappings) ? res.mappings : []);
+      } else {
+        setMethods([]);
+        setLocations([]);
+        setMappings([]);
+      }
     } catch {
       setMethods([]);
+      setLocations([]);
+      setMappings([]);
     }
     setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
 
-  const handleMapAccount = async (paymentMethod: string, accountCode: string) => {
+  const handleMapAccount = async (locationId: number, paymentMethod: string, accountId: string) => {
     const bid = getBusinessId();
     if (!bid) return;
-    setSaving(paymentMethod);
+    const key = cellKey(locationId, paymentMethod);
+    setSaving(key);
+    setSaveError(previous => ({ ...previous, [key]: '' }));
     try {
-      const account = accounts.find(a => a.code === accountCode);
+      const account = bankAccounts.find(candidate => candidate.accountId === accountId);
       const res = await fetch('/api/xero/pos-payment-mappings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           databaseId: bid,
+          locationId,
           paymentMethod,
-          xeroAccountCode: accountCode,
-          xeroAccountName: account?.name ?? null,
+          xeroAccountId: account?.accountId ?? '',
+          xeroAccountCode: account?.code ?? '',
         }),
       });
-      if (!res.ok) throw new Error('save failed');
-      setMethods(prev => prev.map(m => m.payment_method === paymentMethod
-        ? { ...m, xero_account_code: accountCode || null }
-        : m));
-    } catch {}
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to save clearing account');
+      setMappings(previous => {
+        const remaining = previous.filter(mapping => cellKey(mapping.ims_location_id, mapping.payment_method) !== key);
+        return account ? [...remaining, {
+          ims_location_id: locationId,
+          payment_method: paymentMethod,
+          xero_account_id: account.accountId,
+          xero_account_code: account.code,
+          xero_account_name: account.name,
+        }] : remaining;
+      });
+    } catch (error: any) {
+      setSaveError(previous => ({ ...previous, [key]: error?.message ?? 'Save failed' }));
+    }
     setSaving(null);
   };
 
+  const requiredCount = locations.length * methods.length;
+  const mappedCount = locations.reduce((count, location) => count + methods.filter(method => mappingFor(location.id, method.payment_method)).length, 0);
+
   return (
     <div style={{ marginTop: 16, padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
-      <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>POS Payment Types — Xero Accounts</h3>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>POS Clearing Accounts</h3>
+        {!loading && requiredCount > 0 && (
+          <span style={{ fontSize: 11, fontWeight: 700, color: mappedCount === requiredCount ? 'var(--sv-mint)' : 'var(--sv-amber)' }}>
+            {mappedCount} of {requiredCount} configured
+          </span>
+        )}
+      </div>
       <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-        Map each POS payment type to a Xero account for EOD invoice posting. New payment types created in POS Settings appear here automatically.
+        Choose the bank or clearing account that receives each shop&apos;s settlement. EOD invoice lines still use Sales Revenue and the shop&apos;s Xero tracking category.
       </p>
       {loading ? <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading…</div> : methods.length === 0 ? (
         <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: 0 }}>No POS payment types configured yet. Add them in POS settings first.</p>
+      ) : locations.length === 0 ? (
+        <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: 0 }}>No active POS locations found.</p>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead><tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-            {['Payment Type', 'Xero Account'].map(h => <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>)}
-          </tr></thead>
-          <tbody>
-            {methods.map(m => (
-              <tr key={m.payment_method} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-                <td style={{ padding: '8px 8px', color: 'var(--sv-text-main)' }}>{m.payment_method}</td>
-                <td style={{ padding: '4px 8px' }}>
-                  <select
-                    value={m.xero_account_code || ''}
-                    onChange={e => handleMapAccount(m.payment_method, e.target.value)}
-                    disabled={saving === m.payment_method}
-                    style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: m.xero_account_code ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontSize: 13, minWidth: 260 }}
-                  >
-                    <option value="">— use Sales Revenue fallback —</option>
-                    {accounts.map(a => (
-                      <option key={a.accountId} value={a.code}>{a.code} — {a.name}</option>
-                    ))}
-                  </select>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: Math.max(620, 190 + methods.length * 250) }}>
+            <thead><tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+              <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>Location</th>
+              {methods.map(method => <th key={method.payment_method} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{method.payment_method}</th>)}
+            </tr></thead>
+            <tbody>
+              {locations.map(location => (
+                <tr key={location.id} style={{ borderBottom: '1px solid var(--sv-etch)', verticalAlign: 'top' }}>
+                  <td style={{ padding: '10px 8px', color: 'var(--sv-text-main)', fontWeight: 600, whiteSpace: 'nowrap' }}>{location.name}</td>
+                  {methods.map(method => {
+                    const key = cellKey(location.id, method.payment_method);
+                    const mapping = mappingFor(location.id, method.payment_method);
+                    return (
+                      <td key={method.payment_method} style={{ padding: '5px 8px' }}>
+                        <select
+                          value={mapping?.xero_account_id || ''}
+                          onChange={event => handleMapAccount(location.id, method.payment_method, event.target.value)}
+                          disabled={saving === key}
+                          style={{ width: '100%', minWidth: 220, padding: '6px 8px', borderRadius: 5, border: `1px solid ${saveError[key] ? 'var(--sv-red)' : mapping ? 'var(--sv-mint)' : 'var(--sv-amber)'}`, background: 'var(--sv-bg-1)', color: mapping ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontSize: 12 }}
+                        >
+                          <option value="">— mapping required —</option>
+                          {bankAccounts.map(account => (
+                            <option key={account.accountId} value={account.accountId}>{account.code} — {account.name}</option>
+                          ))}
+                        </select>
+                        {saveError[key] && <div style={{ marginTop: 3, fontSize: 10, color: 'var(--sv-red)' }}>{saveError[key]}</div>}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
@@ -15165,6 +15218,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
     { key: 'freight', label: 'Freight / Shipping', desc: 'Freight Paid expense account (P&L). Only used when PO Freight Treatment = Expense.', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'stock_adjustment', label: 'Stock Adjustment / Shrinkage', desc: 'Stocktake variance expense account (P&L) — used for stock write-offs and surpluses', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'gift_card_liability', label: 'Gift Card Liability', desc: 'Liability account for outstanding gift card balances', filter: (a: any) => a.class === 'LIABILITY' },
+    { key: 'store_credit_liability', label: 'Store Credit Liability', desc: 'Liability account for outstanding customer store credit balances', filter: (a: any) => a.class === 'LIABILITY' },
     { key: 'supplier_credit_note', label: 'Supplier Credit Notes', desc: 'Account for non-stock supplier credit lines (rebates / overcharges). Returned-stock lines post to Inventory Asset. Defaults to COGS if unset.', filter: (a: any) => a.class === 'EXPENSE' || a.class === 'ASSET' },
   ].filter(r => !(r.key === 'freight' && freightTreatment === 'capitalise'));
 
@@ -15709,7 +15763,11 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
     loadCogsReport();
   }, []);
 
-  const retry = async (type: 'po' | 'so' | 'cn' | 'scn', id: number, key: string) => {
+  const retry = async (
+    type: 'po' | 'so' | 'cn' | 'scn' | 'gift_card_issue' | 'gift_card_redeem' | 'store_credit_issue' | 'store_credit_redeem',
+    id: number,
+    key: string,
+  ) => {
     setRetrying(r => ({ ...r, [key]: true }));
     try {
       await fetch('/api/ims/xero/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, id }) });
@@ -15752,9 +15810,9 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
 
   const toggleExpand = (id: number) => setExpanded(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
-  const typeLabel = (t: string) => ({ po_bill: 'Purchase Order', so_invoice: 'Wholesale SO', cn_credit_note: 'Customer Credit Note', cn_credit_note_void: 'Customer Credit Note Void', scn_credit_note: 'Supplier Credit Note', scn_credit_note_void: 'Supplier Credit Note Void', pos_batch: 'POS Sales (Batch)', online_batch: 'Online Sales (Batch)', cogs_journal: 'COGS Journal', eod_reconciliation: 'POS End-of-Day', stocktake_journal: 'Stocktake Journal', gift_card_issue: 'Gift Card Issue', gift_card_liability: 'Gift Card Liability' }[t] ?? t);
-  const typeColor = (t: string) => ({ po_bill: '#818cf8', so_invoice: '#34d399', cn_credit_note: '#38bdf8', cn_credit_note_void: '#fb7185', scn_credit_note: '#f59e0b', scn_credit_note_void: '#fb7185', pos_batch: '#fb923c', online_batch: '#38bdf8', cogs_journal: '#a78bfa', eod_reconciliation: '#fb923c', stocktake_journal: '#a78bfa', gift_card_issue: '#f59e0b', gift_card_liability: '#f59e0b' }[t] ?? '#9ca3af');
-  const typeBg = (t: string) => ({ po_bill: 'rgba(99,102,241,.13)', so_invoice: 'rgba(16,185,129,.13)', cn_credit_note: 'rgba(56,189,248,.14)', cn_credit_note_void: 'rgba(251,113,133,.14)', scn_credit_note: 'rgba(245,158,11,.14)', scn_credit_note_void: 'rgba(251,113,133,.14)', pos_batch: 'rgba(251,146,60,.13)', online_batch: 'rgba(56,189,248,.13)', cogs_journal: 'rgba(167,139,250,.13)', eod_reconciliation: 'rgba(251,146,60,.13)', stocktake_journal: 'rgba(167,139,250,.13)', gift_card_issue: 'rgba(245,158,11,.15)', gift_card_liability: 'rgba(245,158,11,.15)' }[t] ?? 'rgba(156,163,175,.13)');
+  const typeLabel = (t: string) => ({ po_bill: 'Purchase Order', so_invoice: 'Wholesale SO', cn_credit_note: 'Customer Credit Note', cn_credit_note_void: 'Customer Credit Note Void', scn_credit_note: 'Supplier Credit Note', scn_credit_note_void: 'Supplier Credit Note Void', pos_batch: 'POS Sales (Batch)', online_batch: 'Online Sales (Batch)', cogs_journal: 'COGS Journal', eod_reconciliation: 'POS End-of-Day', stocktake_journal: 'Stocktake Journal', gift_card_issue: 'Gift Card Issue', gift_card_liability: 'Gift Card Liability', gift_card_redeem: 'Gift Card Redemption', store_credit_issue: 'Store Credit Issue', store_credit_redeem: 'Store Credit Redemption' }[t] ?? t);
+  const typeColor = (t: string) => ({ po_bill: '#818cf8', so_invoice: '#34d399', cn_credit_note: '#38bdf8', cn_credit_note_void: '#fb7185', scn_credit_note: '#f59e0b', scn_credit_note_void: '#fb7185', pos_batch: '#fb923c', online_batch: '#38bdf8', cogs_journal: '#a78bfa', eod_reconciliation: '#fb923c', stocktake_journal: '#a78bfa', gift_card_issue: '#f59e0b', gift_card_liability: '#f59e0b', gift_card_redeem: '#f97316', store_credit_issue: '#14b8a6', store_credit_redeem: '#0d9488' }[t] ?? '#9ca3af');
+  const typeBg = (t: string) => ({ po_bill: 'rgba(99,102,241,.13)', so_invoice: 'rgba(16,185,129,.13)', cn_credit_note: 'rgba(56,189,248,.14)', cn_credit_note_void: 'rgba(251,113,133,.14)', scn_credit_note: 'rgba(245,158,11,.14)', scn_credit_note_void: 'rgba(251,113,133,.14)', pos_batch: 'rgba(251,146,60,.13)', online_batch: 'rgba(56,189,248,.13)', cogs_journal: 'rgba(167,139,250,.13)', eod_reconciliation: 'rgba(251,146,60,.13)', stocktake_journal: 'rgba(167,139,250,.13)', gift_card_issue: 'rgba(245,158,11,.15)', gift_card_liability: 'rgba(245,158,11,.15)', gift_card_redeem: 'rgba(249,115,22,.15)', store_credit_issue: 'rgba(20,184,166,.15)', store_credit_redeem: 'rgba(13,148,136,.15)' }[t] ?? 'rgba(156,163,175,.13)');
   const xeroLink = (syncType: string, id: string): string => {
     if (syncType === 'po_bill' || syncType === 'po_bill_void' || syncType === 'po_payment')
       return `https://go.xero.com/AccountsPayable/View.aspx?InvoiceID=${id}`;
@@ -15762,7 +15820,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
       return `https://go.xero.com/AccountsPayable/EditCreditNote.aspx?creditNoteID=${id}`;
     if (syncType === 'cn_credit_note' || syncType === 'cn_credit_note_void')
       return `https://go.xero.com/AccountsReceivable/CreditNote.aspx?creditNoteID=${id}`;
-    if (syncType === 'stocktake_journal' || syncType === 'cogs_journal')
+    if (syncType === 'stocktake_journal' || syncType === 'cogs_journal' || syncType === 'gift_card_liability' || syncType === 'gift_card_redeem' || syncType === 'store_credit_issue' || syncType === 'store_credit_redeem')
       return `https://go.xero.com/ManualJournals/View.aspx?manualJournalID=${id}`;
     return `https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${id}`;
   };
@@ -16171,7 +16229,12 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                 const isSo = entry.sync_type === 'so_invoice';
                 const isCn = entry.sync_type === 'cn_credit_note';
                 const isScn = entry.sync_type === 'scn_credit_note';
+                const isGiftCardIssue = entry.sync_type === 'gift_card_issue';
+                const isGiftCardRedeem = entry.sync_type === 'gift_card_redeem';
+                const isStoreCreditIssue = entry.sync_type === 'store_credit_issue';
+                const isStoreCreditRedeem = entry.sync_type === 'store_credit_redeem';
                 const isHistorical = entry.is_historical === 1;
+                const canRetryLifecycle = !!entry.reference_id && (isGiftCardIssue || isGiftCardRedeem || isStoreCreditIssue || isStoreCreditRedeem);
 
                 return (
                   <React.Fragment key={entryKey}>
@@ -16210,9 +16273,27 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                       <td style={td}><XeroStatusBadge status={entry.last_sync_status} isHistorical={isHistorical} /></td>
                       <td style={td}><XeroStateBadge state={entry.last_xero_state ?? null} /></td>
                       <td style={{ ...td, textAlign: 'right' }}>
-                        {entry.last_sync_status === 'error' && !isHistorical && (isPo || isSo || isCn || isScn) && (
+                        {entry.last_sync_status === 'error' && !isHistorical && (isPo || isSo || isCn || isScn || canRetryLifecycle) && (
                           <button
-                            onClick={() => retry(isPo ? 'po' : isSo ? 'so' : isCn ? 'cn' : 'scn', entry.reference_id!, retryKey)}
+                            onClick={() => retry(
+                              isPo
+                                ? 'po'
+                                : isSo
+                                  ? 'so'
+                                  : isCn
+                                    ? 'cn'
+                                    : isScn
+                                      ? 'scn'
+                                      : isGiftCardIssue
+                                        ? 'gift_card_issue'
+                                        : isGiftCardRedeem
+                                          ? 'gift_card_redeem'
+                                          : isStoreCreditIssue
+                                            ? 'store_credit_issue'
+                                            : 'store_credit_redeem',
+                              entry.reference_id!,
+                              retryKey,
+                            )}
                             disabled={retrying[retryKey]}
                             style={{ background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: '#f87171', fontWeight: 600 }}
                           >
@@ -22631,10 +22712,12 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <ul style={ul}>
           <li>Gateways with no clearing account mapping post as part of the combined daily online invoice.</li>
           <li>All online channels, including Shopify Payments, are included in this flow.</li>
+          <li>Gift card and store credit tenders are not payout gateways, so they do not use clearing accounts. They are posted through liability lifecycle journal events instead (issue/redeem).</li>
         </ul>
 
         <h3 style={h3}>5 — The Xero sync log</h3>
         <p style={p}>Each daily online batch posted to Xero is recorded in the Xero sync log (IMS → Xero → Sync History tab). If a sync fails (e.g. missing account mapping, Xero API issue), it appears there with the error detail and can be retried.</p>
+        <p style={p}>The same log also shows gift card and store credit lifecycle events (<em>Gift Card Issue</em>, <em>Gift Card Liability</em>, <em>Gift Card Redemption</em>, <em>Store Credit Issue</em>, <em>Store Credit Redemption</em>) so finance can trace deferred-revenue movements separately from clearing-account settlements.</p>
 
         <h3 style={h3}>Common issues</h3>
         <ul style={ul}>

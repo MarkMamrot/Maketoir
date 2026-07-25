@@ -35,6 +35,7 @@ interface AccountMapping {
   credit_note?: string;
   rounding?: string; // Optional dedicated account for cash rounding adjustments
   gift_card_liability?: string; // Outstanding gift card balances (liability)
+  store_credit_liability?: string; // Outstanding store credit balances (liability)
   supplier_credit_note?: string; // Non-stock supplier credit lines (rebates/overcharges)
 }
 
@@ -62,23 +63,19 @@ export async function getTrackingMappings(businessId: string): Promise<TrackingM
   );
 }
 
-async function getPosPaymentMethodMappings(businessId: string): Promise<Record<string, string>> {
-  try {
-    const rows = await query<{ payment_method: string; xero_account_code: string }>(
-      `SELECT payment_method, xero_account_code
-       FROM xero_pos_payment_mappings
-       WHERE business_id = ?`,
-      [businessId],
-    );
-    const map: Record<string, string> = {};
-    for (const row of rows) {
-      const key = row.payment_method.trim().toLowerCase();
-      if (key) map[key] = row.xero_account_code;
-    }
-    return map;
-  } catch {
-    return {};
+async function getPosClearingMappings(businessId: string, locationId: number): Promise<Record<string, string>> {
+  const rows = await query<{ payment_method: string; xero_account_code: string }>(
+    `SELECT payment_method, xero_account_code
+       FROM xero_pos_clearing_mappings
+      WHERE business_id = ? AND ims_location_id = ?`,
+    [businessId, locationId],
+  );
+  const mappings: Record<string, string> = {};
+  for (const row of rows) {
+    const key = row.payment_method.trim().toLowerCase();
+    if (key) mappings[key] = row.xero_account_code;
   }
+  return mappings;
 }
 
 /** Returns 'capitalise' if freight should be absorbed into stock value, else 'expense' (default). */
@@ -1156,6 +1153,7 @@ export async function syncGiftCardIssueInvoice(input: {
   reference: string;
   narration?: string;
   dedupeKey: string;
+  referenceId?: number;
 }): Promise<string | null> {
   const amount = roundCurrency(Number(input.amount ?? 0));
   if (!(amount > 0)) return null;
@@ -1174,7 +1172,7 @@ export async function syncGiftCardIssueInvoice(input: {
 
   const accounts = await getAccountMappings(input.businessId);
   if (!accounts.gift_card_liability) {
-    await logSync(input.businessId, 'gift_card_issue', null, null, 'skipped', `Missing gift_card_liability mapping: ${input.dedupeKey}`);
+    await logSync(input.businessId, 'gift_card_issue', input.referenceId ?? null, null, 'skipped', `Missing gift_card_liability mapping: ${input.dedupeKey}`);
     return null;
   }
 
@@ -1202,13 +1200,13 @@ export async function syncGiftCardIssueInvoice(input: {
     const inv = res.Invoices?.[0];
     const xeroId = inv?.InvoiceID ?? null;
     if (!xeroId) {
-      await logSync(input.businessId, 'gift_card_issue', null, null, 'error', `No InvoiceID returned: ${input.dedupeKey}`);
+      await logSync(input.businessId, 'gift_card_issue', input.referenceId ?? null, null, 'error', `No InvoiceID returned: ${input.dedupeKey}`);
       return null;
     }
-    await logSync(input.businessId, 'gift_card_issue', null, xeroId, 'success', input.dedupeKey, inv?.Status ?? 'AUTHORISED');
+    await logSync(input.businessId, 'gift_card_issue', input.referenceId ?? null, xeroId, 'success', input.dedupeKey, inv?.Status ?? 'AUTHORISED');
     return xeroId;
   } catch (err: any) {
-    await logSync(input.businessId, 'gift_card_issue', null, null, 'error', `${input.dedupeKey}: ${err.message}`);
+    await logSync(input.businessId, 'gift_card_issue', input.referenceId ?? null, null, 'error', `${input.dedupeKey}: ${err.message}`);
     return null;
   }
 }
@@ -1222,6 +1220,29 @@ export async function syncGiftCardLiabilityReclass(input: {
   gateway?: string;
   dedupeKey: string;
 }): Promise<string | null> {
+  return syncDeferredLiabilityJournal({
+    ...input,
+    syncType: 'gift_card_liability',
+    liabilityRole: 'gift_card_liability',
+    liabilityLabel: 'Gift card',
+    direction: 'issue',
+  });
+}
+
+async function syncDeferredLiabilityJournal(input: {
+  businessId: string;
+  amount: number;
+  date: string;
+  channel: 'pos' | 'online';
+  locationId?: number;
+  gateway?: string;
+  dedupeKey: string;
+  referenceId?: number;
+  syncType: 'gift_card_liability' | 'gift_card_redeem' | 'store_credit_issue' | 'store_credit_redeem';
+  liabilityRole: 'gift_card_liability' | 'store_credit_liability';
+  liabilityLabel: 'Gift card' | 'Store credit';
+  direction: 'issue' | 'redeem';
+}): Promise<string | null> {
   const amount = roundCurrency(Number(input.amount ?? 0));
   if (!(amount > 0)) return null;
 
@@ -1229,17 +1250,20 @@ export async function syncGiftCardLiabilityReclass(input: {
     `SELECT id
        FROM xero_sync_log
       WHERE business_id = ?
-        AND sync_type = 'gift_card_liability'
+        AND sync_type = ?
         AND status = 'success'
         AND detail = ?
       LIMIT 1`,
-    [input.businessId, input.dedupeKey],
+    [input.businessId, input.syncType, input.dedupeKey],
   ).catch(() => [] as { id: number }[]);
   if (existing.length > 0) return null;
 
   const accounts = await getAccountMappings(input.businessId);
-  if (!accounts.sales_revenue || !accounts.gift_card_liability) {
-    await logSync(input.businessId, 'gift_card_liability', null, null, 'skipped', `Missing sales_revenue or gift_card_liability mapping: ${input.dedupeKey}`);
+  const liabilityCode = input.liabilityRole === 'gift_card_liability'
+    ? accounts.gift_card_liability
+    : accounts.store_credit_liability;
+  if (!accounts.sales_revenue || !liabilityCode) {
+    await logSync(input.businessId, input.syncType, input.referenceId ?? null, null, 'skipped', `Missing sales_revenue or ${input.liabilityRole} mapping: ${input.dedupeKey}`);
     return null;
   }
 
@@ -1247,28 +1271,47 @@ export async function syncGiftCardLiabilityReclass(input: {
   const tracking = getTrackingForLocation(trackingMappings, input.locationId ?? null, input.channel);
   const channelLabel = input.channel === 'pos' ? 'POS' : 'Online';
   const gatewayLabel = input.gateway ? ` (${input.gateway})` : '';
+  const actionLabel = input.direction === 'redeem' ? 'redemption' : 'liability reclass';
+  const description = `${input.liabilityLabel} ${actionLabel} - ${channelLabel}${gatewayLabel}`;
+
+  const firstLine = input.direction === 'redeem'
+    ? {
+      Description: description,
+      AccountCode: liabilityCode,
+      DebitAmount: amount,
+      TaxType: 'NONE',
+      Tracking: tracking,
+    }
+    : {
+      Description: description,
+      AccountCode: accounts.sales_revenue,
+      DebitAmount: amount,
+      TaxType: 'NONE',
+      Tracking: tracking,
+    };
+
+  const secondLine = input.direction === 'redeem'
+    ? {
+      Description: description,
+      AccountCode: accounts.sales_revenue,
+      CreditAmount: amount,
+      TaxType: 'NONE',
+      Tracking: tracking,
+    }
+    : {
+      Description: description,
+      AccountCode: liabilityCode,
+      CreditAmount: amount,
+      TaxType: 'NONE',
+      Tracking: tracking,
+    };
 
   const journal: any = {
     Date: input.date,
     Status: 'POSTED',
-    Narration: `Gift card liability reclass - ${channelLabel} ${input.date}${gatewayLabel}`,
+    Narration: `${input.liabilityLabel} ${actionLabel} - ${channelLabel} ${input.date}${gatewayLabel}`,
     ShowOnCashBasisReports: false,
-    JournalLines: [
-      {
-        Description: `Gift card liability reclass - ${channelLabel}${gatewayLabel}`,
-        AccountCode: accounts.sales_revenue,
-        DebitAmount: amount,
-        TaxType: 'NONE',
-        Tracking: tracking,
-      },
-      {
-        Description: `Gift card liability reclass - ${channelLabel}${gatewayLabel}`,
-        AccountCode: accounts.gift_card_liability,
-        CreditAmount: amount,
-        TaxType: 'NONE',
-        Tracking: tracking,
-      },
-    ],
+    JournalLines: [firstLine, secondLine],
   };
 
   try {
@@ -1276,15 +1319,72 @@ export async function syncGiftCardLiabilityReclass(input: {
     const j = res.ManualJournals?.[0];
     const xeroId = j?.ManualJournalID ?? null;
     if (!xeroId) {
-      await logSync(input.businessId, 'gift_card_liability', null, null, 'error', `No ManualJournalID returned: ${input.dedupeKey}`);
+      await logSync(input.businessId, input.syncType, input.referenceId ?? null, null, 'error', `No ManualJournalID returned: ${input.dedupeKey}`);
       return null;
     }
-    await logSync(input.businessId, 'gift_card_liability', null, xeroId, 'success', input.dedupeKey, j?.Status ?? 'POSTED');
+    await logSync(input.businessId, input.syncType, input.referenceId ?? null, xeroId, 'success', input.dedupeKey, j?.Status ?? 'POSTED');
     return xeroId;
   } catch (err: any) {
-    await logSync(input.businessId, 'gift_card_liability', null, null, 'error', `${input.dedupeKey}: ${err.message}`);
+    await logSync(input.businessId, input.syncType, input.referenceId ?? null, null, 'error', `${input.dedupeKey}: ${err.message}`);
     return null;
   }
+}
+
+export async function syncGiftCardRedemptionReclass(input: {
+  businessId: string;
+  amount: number;
+  date: string;
+  channel: 'pos' | 'online';
+  locationId?: number;
+  gateway?: string;
+  dedupeKey: string;
+  referenceId?: number;
+}): Promise<string | null> {
+  return syncDeferredLiabilityJournal({
+    ...input,
+    syncType: 'gift_card_redeem',
+    liabilityRole: 'gift_card_liability',
+    liabilityLabel: 'Gift card',
+    direction: 'redeem',
+  });
+}
+
+export async function syncStoreCreditIssueReclass(input: {
+  businessId: string;
+  amount: number;
+  date: string;
+  channel: 'pos' | 'online';
+  locationId?: number;
+  gateway?: string;
+  dedupeKey: string;
+  referenceId?: number;
+}): Promise<string | null> {
+  return syncDeferredLiabilityJournal({
+    ...input,
+    syncType: 'store_credit_issue',
+    liabilityRole: 'store_credit_liability',
+    liabilityLabel: 'Store credit',
+    direction: 'issue',
+  });
+}
+
+export async function syncStoreCreditRedemptionReclass(input: {
+  businessId: string;
+  amount: number;
+  date: string;
+  channel: 'pos' | 'online';
+  locationId?: number;
+  gateway?: string;
+  dedupeKey: string;
+  referenceId?: number;
+}): Promise<string | null> {
+  return syncDeferredLiabilityJournal({
+    ...input,
+    syncType: 'store_credit_redeem',
+    liabilityRole: 'store_credit_liability',
+    liabilityLabel: 'Store credit',
+    direction: 'redeem',
+  });
 }
 
 // ─── COGS Journals ───────────────────────────────────────────────────────────
@@ -1387,20 +1487,18 @@ export async function syncEodEntry(
     registerName?: string | null;
     sessionId?: number | null;
     method: string;
-    methodAccountCode?: string;
     salesAmount: number; // cash: counted − float; others: counted
     cashRounding?: number; // net cash rounding adjustment for the session (Cash only)
   },
-): Promise<{ xeroId: string; invoiceNumber: string } | null> {
+): Promise<{ xeroId: string; invoiceNumber: string; amountDue: number } | null> {
   const accounts         = await getAccountMappings(businessId);
   const trackingMappings = await getTrackingMappings(businessId);
 
-  const methodAccountCode = entry.methodAccountCode?.trim() || '';
-  const salesAccountCode = methodAccountCode || accounts.sales_revenue;
+  const salesAccountCode = accounts.sales_revenue;
 
   if (!salesAccountCode) {
     await logSync(businessId, 'eod_reconciliation', null, null, 'skipped',
-      `No account mapped for EOD ${entry.date} ${entry.method} (method mapping or sales_revenue)`);
+      `No Sales Revenue account mapped for EOD ${entry.date} ${entry.method}`);
     return null;
   }
 
@@ -1448,15 +1546,55 @@ export async function syncEodEntry(
     const inv           = result.Invoices?.[0];
     const xeroId        = inv?.InvoiceID ?? null;
     const invoiceNumber = inv?.InvoiceNumber ?? '';
-    await logSync(businessId, 'eod_reconciliation', null, xeroId, 'success',
-      `EOD ${entry.date} ${entry.method} — ${entry.locationName}: $${entry.salesAmount.toFixed(2)}`,
-      inv?.Status ?? 'AUTHORISED');
-    return xeroId ? { xeroId, invoiceNumber } : null;
+    const fallbackAmount = roundCurrency(entry.salesAmount + (entry.cashRounding ?? 0));
+    const amountDue = roundCurrency(Number(inv?.AmountDue ?? inv?.Total ?? fallbackAmount));
+    return xeroId ? { xeroId, invoiceNumber, amountDue } : null;
   } catch (err: any) {
     await logSync(businessId, 'eod_reconciliation', null, null, 'error',
       `EOD ${entry.date} ${entry.method}: ${err.message}`);
     return null;
   }
+}
+
+type EodSyncPersistence = {
+  setXeroInvoice: (locationId: number, date: string, method: string, invoiceId: string, clearingAccountCode: string, registerId?: number | null) => Promise<void>;
+  setXeroPayment: (locationId: number, date: string, method: string, paymentId: string, clearingAccountCode: string, registerId?: number | null) => Promise<void>;
+  setXeroPaymentError: (locationId: number, date: string, method: string, error: string, clearingAccountCode: string, registerId?: number | null) => Promise<void>;
+};
+
+export type EodXeroSyncResult = {
+  method: string;
+  status: 'paid' | 'blocked_missing_mapping' | 'invoice_posted_payment_failed' | 'already_paid' | 'invoice_failed';
+  xeroId?: string;
+  invoiceNumber?: string;
+  error?: string;
+};
+
+async function getEodInvoiceAmountDue(businessId: string, xeroId: string, fallback: number): Promise<number> {
+  const response = await xeroApiFetch(businessId, `/Invoices/${encodeURIComponent(xeroId)}`);
+  const invoice = response?.Invoices?.[0];
+  return roundCurrency(Number(invoice?.AmountDue ?? invoice?.Total ?? fallback));
+}
+
+async function applyEodClearingPayment(
+  businessId: string,
+  input: { xeroId: string; date: string; locationId: number; registerId?: number | null; sessionId?: number | null; method: string; clearingAccountCode: string; amount: number },
+): Promise<string> {
+  const registerPart = input.registerId ? ` R${input.registerId}` : '';
+  const sessionPart = input.sessionId ? ` S${input.sessionId}` : '';
+  const response = await xeroApiFetch(businessId, '/Payments', {
+    method: 'POST',
+    body: { Payments: [{
+      Invoice: { InvoiceID: input.xeroId },
+      Account: { Code: input.clearingAccountCode },
+      Date: input.date,
+      Amount: input.amount,
+      Reference: `EOD clearing L${input.locationId}${registerPart}${sessionPart} ${input.method} ${input.date}`,
+    }] },
+  });
+  const paymentId = response?.Payments?.[0]?.PaymentID;
+  if (!paymentId) throw new Error('Xero did not return a clearing payment ID');
+  return paymentId;
 }
 
 /**
@@ -1474,14 +1612,16 @@ export async function triggerEodXeroSync(
     opening_float:  number | null;
     register_session_id?: number | null;
     xero_invoice_id?: string | null;
+    xero_payment_required?: number;
+    xero_payment_id?: string | null;
   }>,
   locationName: string,
   registerId: number | null,
-  setXeroInvoice: (locationId: number, date: string, method: string, invoiceId: string, registerId?: number | null) => Promise<void>,
+  persistence: EodSyncPersistence,
   registerName?: string | null,
-): Promise<{ method: string; xeroId: string; invoiceNumber: string }[]> {
-  const results: { method: string; xeroId: string; invoiceNumber: string }[] = [];
-  const posMethodMappings = await getPosPaymentMethodMappings(businessId);
+): Promise<EodXeroSyncResult[]> {
+  const results: EodXeroSyncResult[] = [];
+  const clearingMappings = await getPosClearingMappings(businessId, locationId);
 
   // Sum net cash rounding for the session so we can attach it to the Cash invoice.
   // Positive = customers paid slightly more (round up); negative = slightly less (round down).
@@ -1506,25 +1646,77 @@ export async function triggerEodXeroSync(
 
   for (const row of rows) {
     if (row.counted_amount == null) continue;
-    // Skip re-sync if already synced
-    if (row.xero_invoice_id) continue;
     const openFloat  = row.payment_method === 'Cash' ? (row.opening_float ?? 0) : 0;
     const salesAmount = row.counted_amount - openFloat;
     if (salesAmount <= 0) continue;
-    const methodAccountCode = posMethodMappings[row.payment_method.trim().toLowerCase()];
-    const result = await syncEodEntry(businessId, {
-      date, locationId, locationName,
-      registerId: registerId ?? undefined,
-      registerName: registerName ?? undefined,
-      sessionId: row.register_session_id ?? undefined,
-      method: row.payment_method,
-      methodAccountCode,
-      salesAmount,
-      cashRounding: /cash/i.test(row.payment_method) && netCashRounding !== 0 ? netCashRounding : undefined,
-    });
-    if (result) {
-      await setXeroInvoice(locationId, date, row.payment_method, result.xeroId, registerId);
-      results.push({ method: row.payment_method, ...result });
+
+    if (row.xero_invoice_id && !row.xero_payment_required) {
+      results.push({ method: row.payment_method, status: 'already_paid', xeroId: row.xero_invoice_id });
+      continue;
+    }
+    if (row.xero_payment_id) {
+      results.push({ method: row.payment_method, status: 'already_paid', xeroId: row.xero_invoice_id ?? undefined });
+      continue;
+    }
+
+    const clearingAccountCode = clearingMappings[row.payment_method.trim().toLowerCase()];
+    if (!clearingAccountCode) {
+      const detail = `Missing POS clearing account mapping: ${locationName} / ${row.payment_method}`;
+      await logSync(businessId, 'eod_reconciliation', null, null, 'skipped', detail);
+      results.push({ method: row.payment_method, status: 'blocked_missing_mapping', error: detail });
+      continue;
+    }
+
+    const cashRounding = /cash/i.test(row.payment_method) && netCashRounding !== 0 ? netCashRounding : undefined;
+    let xeroId = row.xero_invoice_id ?? null;
+    let invoiceNumber = '';
+    let amountDue = roundCurrency(salesAmount + (cashRounding ?? 0));
+
+    if (!xeroId) {
+      const invoiceResult = await syncEodEntry(businessId, {
+        date, locationId, locationName,
+        registerId: registerId ?? undefined,
+        registerName: registerName ?? undefined,
+        sessionId: row.register_session_id ?? undefined,
+        method: row.payment_method,
+        salesAmount,
+        cashRounding,
+      });
+      if (!invoiceResult) {
+        results.push({ method: row.payment_method, status: 'invoice_failed' });
+        continue;
+      }
+      xeroId = invoiceResult.xeroId;
+      invoiceNumber = invoiceResult.invoiceNumber;
+      amountDue = invoiceResult.amountDue;
+      await persistence.setXeroInvoice(locationId, date, row.payment_method, xeroId, clearingAccountCode, registerId);
+    } else {
+      amountDue = await getEodInvoiceAmountDue(businessId, xeroId, amountDue);
+    }
+
+    try {
+      const paymentId = await applyEodClearingPayment(businessId, {
+        xeroId,
+        date,
+        locationId,
+        registerId,
+        sessionId: row.register_session_id ?? undefined,
+        method: row.payment_method,
+        clearingAccountCode,
+        amount: amountDue,
+      });
+      await persistence.setXeroPayment(locationId, date, row.payment_method, paymentId, clearingAccountCode, registerId);
+      await logSync(businessId, 'eod_reconciliation', null, xeroId, 'success',
+        `EOD ${date} ${row.payment_method} — ${locationName}: $${amountDue.toFixed(2)} paid to ${clearingAccountCode}`,
+        'PAID');
+      results.push({ method: row.payment_method, status: 'paid', xeroId, invoiceNumber });
+    } catch (error: any) {
+      const message = error?.message ?? 'Clearing payment failed';
+      await persistence.setXeroPaymentError(locationId, date, row.payment_method, message, clearingAccountCode, registerId);
+      await logSync(businessId, 'eod_reconciliation', null, xeroId, 'error',
+        `Invoice posted; clearing payment pending for ${locationName} / ${row.payment_method}: ${message}`,
+        'AUTHORISED');
+      results.push({ method: row.payment_method, status: 'invoice_posted_payment_failed', xeroId, invoiceNumber, error: message });
     }
   }
 

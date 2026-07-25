@@ -94,6 +94,13 @@ const DDL = [
     opening_float     DECIMAL(12,2),
     denomination_data JSON,
     notes             TEXT,
+    xero_invoice_id   VARCHAR(100) NULL,
+    xero_synced_at    DATETIME NULL,
+    xero_payment_required TINYINT(1) NOT NULL DEFAULT 0,
+    xero_payment_id   VARCHAR(100) NULL,
+    xero_payment_synced_at DATETIME NULL,
+    xero_payment_error TEXT NULL,
+    xero_clearing_account_code VARCHAR(20) NULL,
     created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_eod (location_id, recon_date, payment_method),
     INDEX idx_eod_loc_date (location_id, recon_date)

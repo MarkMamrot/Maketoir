@@ -59,7 +59,11 @@ export async function POST(req: Request) {
       rows,
       locationName,
       registerId ?? null,
-      PosEodRepo.setXeroInvoice.bind(PosEodRepo),
+      {
+        setXeroInvoice: PosEodRepo.setXeroInvoice.bind(PosEodRepo),
+        setXeroPayment: PosEodRepo.setXeroPayment.bind(PosEodRepo),
+        setXeroPaymentError: PosEodRepo.setXeroPaymentError.bind(PosEodRepo),
+      },
       registerName,
     );
 
