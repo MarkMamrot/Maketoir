@@ -376,6 +376,14 @@ function Field({ label, children, title }: { label: string; children: React.Reac
   );
 }
 
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--sv-text-dim)', margin: '14px 0 6px' }}>
+      {children}
+    </div>
+  );
+}
+
 function Row2({ children }: { children: React.ReactNode }) {
   return <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>{children}</div>;
 }
@@ -6190,13 +6198,6 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
     const label = refLabel(m);
     if (m.reference_type === 'purchase_order' && m.reference_id && onNavigateToPO)
       return <button style={linkBtn} onClick={() => { onNavigateToPO(m.reference_id); onClose(); }}>{label}</button>;
-  function SectionLabel({ children }: { children: React.ReactNode }) {
-    return (
-      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--sv-text-dim)', margin: '14px 0 6px' }}>
-        {children}
-      </div>
-    );
-  }
   };
 
   const totalSoh = locationRows.reduce((s, r) => s + r.qty_on_hand, 0);
@@ -14746,7 +14747,7 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
         <div style={{ fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 2 }}>
           <div>• POs → Xero Bills <span style={{ color: 'var(--sv-text-dim)' }}>(DRAFT when ordered or partially received; AUTHORISED when fully received; payments applied separately)</span></div>
           <div>• Wholesale SOs → Xero Invoices <span style={{ color: 'var(--sv-text-dim)' }}>(DRAFT when confirmed; AUTHORISED when fulfilled; payments applied separately)</span></div>
-          <div>• POS EOD → Xero Invoices <span style={{ color: 'var(--sv-text-dim)' }}>(on EOD save or manual retry; one AUTHORISED invoice per counted payment method and register session)</span></div>
+          <div>• POS EOD → Xero Invoices + Payments <span style={{ color: 'var(--sv-text-dim)' }}>(one AUTHORISED invoice per counted location/register-session/payment method, paid into its required clearing account)</span></div>
           <div>• Online Sales → Xero Invoices <span style={{ color: 'var(--sv-text-dim)' }}>(completed days only; nightly schedule with login catch-up)</span></div>
           <div>• Customer Credit Notes → Xero Credit Notes <span style={{ color: 'var(--sv-text-dim)' }}>(queued as AUTHORISED on completion; retry and void supported)</span></div>
           <div>• Supplier Credit Notes → Xero Credit Notes <span style={{ color: 'var(--sv-text-dim)' }}>(queued as DRAFT on completion; retry and void supported)</span></div>

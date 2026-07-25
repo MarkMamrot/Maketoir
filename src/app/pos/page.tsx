@@ -4603,6 +4603,15 @@ const AUD_DENOMS = [
 ];
 
 type EodEntryState = { counted: string; openingFloat: string; denominations: Record<string, string>; notes: string; showDenom: boolean };
+type EodXeroState = {
+  id?: string;
+  number: string;
+  syncedAt?: string;
+  paymentId?: string;
+  paymentRequired?: boolean;
+  status?: 'paid' | 'blocked_missing_mapping' | 'invoice_posted_payment_failed' | 'already_paid' | 'invoice_failed';
+  error?: string;
+};
 
 function calcCash(denoms: Record<string, string>): number {
   return AUD_DENOMS.reduce((sum, d) => sum + d.value * (parseFloat(denoms[String(d.value)] ?? '0') || 0), 0);
@@ -4621,7 +4630,7 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
   const [loading, setLoading]             = useState(false);
   const [saved, setSaved]                 = useState(false);
   const [methods, setMethods]             = useState<string[]>([]);
-  const [xeroInvoiceIds, setXeroInvoiceIds] = useState<Record<string, { id: string; number: string; syncedAt?: string }>>({});
+  const [xeroInvoiceIds, setXeroInvoiceIds] = useState<Record<string, EodXeroState>>({});
   const [regSession, setRegSession]       = useState<any>(null);
   const [regSessionLoading, setRegSessionLoading] = useState(!!session.register_id);
   const [offlineOpenDialog, setOfflineOpenDialog] = useState(false);
@@ -4691,9 +4700,22 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
         }
         setEntries(init);
         // Restore xero sync state from DB
-        const ids: Record<string, { id: string; number: string; syncedAt?: string }> = {};
+        const ids: Record<string, EodXeroState> = {};
         for (const rec of d.reconciliations ?? []) {
-          if (rec.xero_invoice_id) ids[rec.payment_method] = { id: rec.xero_invoice_id, number: '', syncedAt: rec.xero_synced_at ?? undefined };
+          if (rec.xero_invoice_id || rec.xero_payment_error) {
+            const paymentRequired = Number(rec.xero_payment_required ?? 0) === 1;
+            ids[rec.payment_method] = {
+              id: rec.xero_invoice_id ?? undefined,
+              number: '',
+              syncedAt: rec.xero_payment_synced_at ?? rec.xero_synced_at ?? undefined,
+              paymentId: rec.xero_payment_id ?? undefined,
+              paymentRequired,
+              status: paymentRequired
+                ? (rec.xero_payment_id ? 'paid' : 'invoice_posted_payment_failed')
+                : 'already_paid',
+              error: rec.xero_payment_error ?? undefined,
+            };
+          }
         }
         setXeroInvoiceIds(ids);
       })
@@ -5145,7 +5167,18 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
               onSynced={results => setXeroInvoiceIds(prev => {
                 const next = { ...prev };
                 const now = new Date().toISOString();
-                for (const r of results) next[r.method] = { id: r.xeroId, number: r.invoiceNumber, syncedAt: now };
+                for (const result of results) {
+                  const existing = next[result.method] ?? { number: '' };
+                  next[result.method] = {
+                    ...existing,
+                    id: result.xeroId ?? existing.id,
+                    number: result.invoiceNumber ?? existing.number,
+                    syncedAt: result.status === 'paid' ? now : existing.syncedAt,
+                    paymentRequired: result.status !== 'already_paid',
+                    status: result.status,
+                    error: result.error,
+                  };
+                }
                 return next;
               })}
             />
@@ -5268,9 +5301,9 @@ function EodAccountingSection({
   entries:        Record<string, EodEntryState>;
   defaultFloat:   number;
   date:           string;
-  xeroInvoiceIds: Record<string, { id: string; number: string; syncedAt?: string }>;
+  xeroInvoiceIds: Record<string, EodXeroState>;
   dayTotals:      { total_inc_tax: number; tax_total: number; total_exc_tax: number; sale_count: number } | null;
-  onSynced:       (results: { method: string; xeroId: string; invoiceNumber: string }[]) => void;
+  onSynced:       (results: Array<{ method: string; status: EodXeroState['status']; xeroId?: string; invoiceNumber?: string; error?: string }>) => void;
 }) {
   const [open, setOpen]         = useState(false);
   const [syncing, setSyncing]   = useState(false);
@@ -5301,8 +5334,10 @@ function EodAccountingSection({
   // $0 methods (e.g. an unused Gift Card line) are never synced, so they must
   // not count against "fully synced".
   const syncable  = rows.filter(r => r.salesAmt > 0.004);
-  const allSynced = syncable.length > 0 && syncable.every(r => r.synced);
-  const anySynced = rows.some(r => r.synced);
+  const isComplete = (state: EodXeroState | null) => !!state && (state.status === 'paid' || state.status === 'already_paid' || (!!state.id && !state.paymentRequired));
+  const allSynced = syncable.length > 0 && syncable.every(row => isComplete(row.synced));
+  const anySynced = rows.some(row => !!row.synced?.id);
+  const hasAttention = rows.some(row => row.synced?.status === 'blocked_missing_mapping' || row.synced?.status === 'invoice_posted_payment_failed' || row.synced?.status === 'invoice_failed');
 
   async function syncToXero() {
     setSyncing(true);
@@ -5333,7 +5368,7 @@ function EodAccountingSection({
         <span style={{ fontSize: '.88rem', fontWeight: 700, color: 'var(--sv-text-strong)' }}>🧮 Accounting</span>
         <div style={{ flex: 1 }} />
         {allSynced && <span style={{ fontSize: '.75rem', color: 'var(--sv-mint)', fontWeight: 600 }}>✓ Synced to Xero</span>}
-        {anySynced && !allSynced && <span style={{ fontSize: '.75rem', color: 'var(--sv-amber)', fontWeight: 600 }}>⚠ Partially synced</span>}
+        {(hasAttention || (anySynced && !allSynced)) && <span style={{ fontSize: '.75rem', color: 'var(--sv-amber)', fontWeight: 600 }}>Attention required</span>}
         <span style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>{open ? '▲' : '▼'}</span>
       </div>
 
@@ -5363,11 +5398,11 @@ function EodAccountingSection({
                     {r.variance >= 0 ? '+' : ''}{fmt(r.variance)}
                   </td>
                   <td style={{ ...tdA }}>
-                    {r.synced ? (
+                    {r.synced?.id ? (
                       <a href={`https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${r.synced.id}`}
                         target='_blank' rel='noopener noreferrer'
                         style={{ color: 'var(--sv-mint)', fontSize: '.8rem', textDecoration: 'none', fontWeight: 600 }}>
-                        ✓ {r.synced.number || 'View'} ↗
+                        {isComplete(r.synced) ? 'Paid' : 'Invoice posted'} · {r.synced.number || 'View'} ↗
                       </a>
                     ) : (
                       <span style={{ color: 'var(--sv-text-muted)', fontSize: '.78rem' }}>—</span>
@@ -5395,6 +5430,7 @@ function EodAccountingSection({
             <strong>What is sent to Xero:</strong> One ACCREC invoice (AUTHORISED) per payment method
             &nbsp;· Contact: <em>POS Reconciliation (Summary)</em>
             &nbsp;· Reference: EOD-L{session.location_id}-S{'{SessionID}'}-{date}-{'{Method}'}<br />
+            Sales post to Sales Revenue with location tracking, then a payment is applied to this shop&apos;s configured clearing account<br />
             Amount sent = Tax-Inc Total (Inclusive tax treatment) — Xero extracts the GST automatically<br />
             Cash Sales = Counted − Opening Float &nbsp;· Other methods = Counted amount
             &nbsp;· Auto-synced on EOD save when admin session is active
@@ -5409,9 +5445,11 @@ function EodAccountingSection({
               return (
                 <div key={r.method} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '.5rem .75rem', marginBottom: '.35rem', background: 'var(--sv-bg-0)', borderRadius: 8, border: `1px solid ${synced ? 'rgba(16,185,129,.25)' : 'var(--sv-etch)'}`, flexWrap: 'wrap' }}>
                   <div style={{ fontWeight: 600, fontSize: '.85rem', minWidth: 60 }}>{r.method}</div>
-                  {synced ? (
+                  {synced?.id ? (
                     <>
-                      <span style={{ background: 'rgba(16,185,129,.12)', color: 'var(--sv-mint)', fontSize: '.72rem', padding: '2px 7px', borderRadius: 99, fontWeight: 700 }}>✓ Synced to Xero</span>
+                      <span style={{ background: isComplete(synced) ? 'rgba(16,185,129,.12)' : 'rgba(245,158,11,.12)', color: isComplete(synced) ? 'var(--sv-mint)' : 'var(--sv-amber)', fontSize: '.72rem', padding: '2px 7px', borderRadius: 99, fontWeight: 700 }}>
+                        {isComplete(synced) ? 'Paid in Xero' : 'Invoice posted · payment pending'}
+                      </span>
                       {synced.number && (
                         <a href={`https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${synced.id}`}
                           target='_blank' rel='noopener noreferrer'
@@ -5429,13 +5467,17 @@ function EodAccountingSection({
                         &nbsp;· Sent to Xero: <strong style={{ color: mismatch ? 'var(--sv-amber)' : 'var(--sv-text-main)' }}>${fmt(r.taxInc)}</strong>
                         {mismatch && <span style={{ color: 'var(--sv-amber)', marginLeft: 6 }}>⚠ Mismatch — contact your bookkeeper</span>}
                       </span>
+                      {synced.error && <span style={{ width: '100%', fontSize: '.75rem', color: 'var(--sv-red)' }}>{synced.error}</span>}
                     </>
                   ) : (
                     <>
-                      <span style={{ background: 'var(--sv-bg-2)', color: 'var(--sv-text-muted)', fontSize: '.72rem', padding: '2px 7px', borderRadius: 99, fontWeight: 600 }}>○ Not synced</span>
+                      <span style={{ background: synced?.status === 'blocked_missing_mapping' ? 'rgba(245,158,11,.12)' : 'var(--sv-bg-2)', color: synced?.status === 'blocked_missing_mapping' ? 'var(--sv-amber)' : 'var(--sv-text-muted)', fontSize: '.72rem', padding: '2px 7px', borderRadius: 99, fontWeight: 600 }}>
+                        {synced?.status === 'blocked_missing_mapping' ? 'Clearing account required' : 'Not synced'}
+                      </span>
                       <span style={{ marginLeft: 'auto', fontSize: '.78rem', color: 'var(--sv-text-dim)' }}>
                         POS Expected: <strong>${fmt(r.exp)}</strong> · Would send: <strong>${fmt(r.taxInc)}</strong>
                       </span>
+                      {synced?.error && <span style={{ width: '100%', fontSize: '.75rem', color: 'var(--sv-amber)' }}>{synced.error}. Configure it in IMS → Settings → Xero → Mapping.</span>}
                     </>
                   )}
                 </div>
