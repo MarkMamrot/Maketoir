@@ -16,7 +16,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 
 const IMS_OR_POS_SESSION = ['marketoir_session', 'pos_session'];
 
-export async function POST() {
+export async function POST(req: Request) {
   const session = await getImsSession(IMS_OR_POS_SESSION);
   const businessId = session?.businessId;
   if (!businessId) return NextResponse.json({ skipped: true, reason: 'unauthenticated' });
@@ -28,6 +28,28 @@ export async function POST() {
   const xeroAutoSyncEnabled = setting[0]?.value !== '0';
   if (!xeroAutoSyncEnabled) {
     return NextResponse.json({ skipped: true, reason: 'setting_disabled' });
+  }
+
+  // Best-effort preflight import to close webhook gaps before batching to Xero.
+  const preflightImport: { attempted: boolean; success: boolean; imported?: number; confirmedDrafts?: number; error?: string } = { attempted: true, success: false };
+  try {
+    const fwHost = req.headers.get('x-forwarded-host');
+    const origin = fwHost
+      ? `https://${fwHost.split(',')[0].trim()}`
+      : new URL(req.url).origin;
+    const cookie = req.headers.get('cookie') ?? '';
+    const importRes = await fetch(`${origin}/api/ims/shopify/import-orders`, {
+      method: 'POST',
+      headers: cookie ? { cookie } : undefined,
+      cache: 'no-store',
+    });
+    const importJson = await importRes.json().catch(() => ({}));
+    preflightImport.success = importRes.ok && !!importJson?.success;
+    preflightImport.imported = Number(importJson?.imported ?? 0);
+    preflightImport.confirmedDrafts = Number(importJson?.confirmed_drafts ?? 0);
+    if (!importRes.ok) preflightImport.error = String(importJson?.error ?? 'import failed');
+  } catch (e: any) {
+    preflightImport.error = String(e?.message ?? e);
   }
 
   const tz = process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney';
@@ -101,8 +123,9 @@ export async function POST() {
       synced: results.filter(r => r.success).map(r => r.date),
       failed: results.filter(r => !r.success).map(r => r.date),
       skipped_already_done: syncedKeys.size,
+      preflightImport,
     });
   } catch {
-    return NextResponse.json({ skipped: true, reason: 'error' });
+    return NextResponse.json({ skipped: true, reason: 'error', preflightImport });
   }
 }

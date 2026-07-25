@@ -33,6 +33,7 @@ export async function POST(req: Request) {
     let totalTax = 0;
     let giftCardAmount = 0;
     let lineDescription = '';
+    let preflightImport: { attempted: boolean; success: boolean; imported?: number; confirmedDrafts?: number; error?: string } = { attempted: false, success: false };
 
     if (channel === 'pos') {
       // Aggregate POS sales for the given date and location
@@ -54,6 +55,36 @@ export async function POST(req: Request) {
       }
       lineDescription = `POS Sales ${date}${locName ? ` — ${locName}` : ''} (${count} transactions)`;
     } else {
+      // Best-effort preflight: pull latest Shopify orders before online batch sync,
+      // so transient webhook outages do not leave gaps in the Xero day batch.
+      preflightImport = { attempted: true, success: false };
+      try {
+        const fwHost = req.headers.get('x-forwarded-host');
+        const origin = fwHost
+          ? `https://${fwHost.split(',')[0].trim()}`
+          : new URL(req.url).origin;
+        const cookie = req.headers.get('cookie') ?? '';
+        const importRes = await fetch(`${origin}/api/ims/shopify/import-orders`, {
+          method: 'POST',
+          headers: cookie ? { cookie } : undefined,
+          cache: 'no-store',
+        });
+        const importJson = await importRes.json().catch(() => ({}));
+        preflightImport = {
+          attempted: true,
+          success: importRes.ok && !!importJson?.success,
+          imported: Number(importJson?.imported ?? 0),
+          confirmedDrafts: Number(importJson?.confirmed_drafts ?? 0),
+          error: importRes.ok ? undefined : String(importJson?.error ?? 'import failed'),
+        };
+      } catch (e: any) {
+        preflightImport = {
+          attempted: true,
+          success: false,
+          error: String(e?.message ?? e),
+        };
+      }
+
       await imsExecute(
         `ALTER TABLE ims_sales_orders
          ADD COLUMN gift_card_amount DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER total_amount`,
@@ -102,7 +133,7 @@ export async function POST(req: Request) {
       });
     }
 
-    return NextResponse.json({ success: !!xeroId, xeroId, totalSales, totalTax });
+    return NextResponse.json({ success: !!xeroId, xeroId, totalSales, totalTax, preflightImport });
   } catch (err: any) {
     console.error('[xero/daily-sales] error:', err?.message ?? err);
     return NextResponse.json({ error: `Daily sales sync failed: ${err?.message ?? 'unknown error'}` }, { status: 500 });
