@@ -47,6 +47,13 @@ export async function POST(req: Request) {
   // (callback form — the only AsyncLocalStorage pattern that reliably
   // propagates across awaits).
   const processBusiness = async (business_id: string) => {
+    const settingRows = await imsQuery<{ value: string }>(
+      "SELECT value FROM ims_settings WHERE business_id = ? AND `key` = 'shopify_xero_auto_sync_enabled' LIMIT 1",
+      [business_id],
+    ).catch(() => [] as { value: string }[]);
+    const xeroAutoSyncEnabled = settingRows[0]?.value !== '0';
+    if (!xeroAutoSyncEnabled) return;
+
     // Rolling migration safety: needed for gift-card liability reclass in online batch.
     await imsExecute(
       `ALTER TABLE ims_sales_orders

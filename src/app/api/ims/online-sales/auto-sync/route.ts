@@ -21,6 +21,15 @@ export async function POST() {
   const businessId = session?.businessId;
   if (!businessId) return NextResponse.json({ skipped: true, reason: 'unauthenticated' });
 
+  const setting = await imsQuery<{ value: string }>(
+    "SELECT value FROM ims_settings WHERE business_id = ? AND `key` = 'shopify_xero_auto_sync_enabled' LIMIT 1",
+    [businessId],
+  ).catch(() => [] as { value: string }[]);
+  const xeroAutoSyncEnabled = setting[0]?.value !== '0';
+  if (!xeroAutoSyncEnabled) {
+    return NextResponse.json({ skipped: true, reason: 'setting_disabled' });
+  }
+
   const tz = process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney';
 
   // Today in business timezone — don't sync today (incomplete day)

@@ -567,6 +567,7 @@ function ShopifyOrdersTab({ businessId }: { businessId: string }) {
   const [saving,         setSaving]         = useState(false);
   const [saveMsg,        setSaveMsg]        = useState<string | null>(null);
   const [syncEnabled,    setSyncEnabled]    = useState(false);
+  const [xeroAutoSyncEnabled, setXeroAutoSyncEnabled] = useState(true);
   const [importing,      setImporting]      = useState(false);
   const [importResult,   setImportResult]   = useState<any>(null);
   const [importError,    setImportError]    = useState<string | null>(null);
@@ -579,6 +580,7 @@ function ShopifyOrdersTab({ businessId }: { businessId: string }) {
         if (d.data.online_sales_location_id) setLocationId(d.data.online_sales_location_id);
         if (d.data.shopify_webhook_secret) setWebhookSecret(d.data.shopify_webhook_secret);
         setSyncEnabled(d.data.shopify_order_sync_enabled === '1');
+        setXeroAutoSyncEnabled(d.data.shopify_xero_auto_sync_enabled !== '0');
       }
     }).catch(() => {});
     // Load locations
@@ -595,6 +597,7 @@ function ShopifyOrdersTab({ businessId }: { businessId: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings: {
           shopify_order_sync_enabled: syncEnabled ? '1' : '0',
+          shopify_xero_auto_sync_enabled: xeroAutoSyncEnabled ? '1' : '0',
           shopify_order_sync_from: syncFrom,
           online_sales_location_id: locationId,
           shopify_webhook_secret: webhookSecret,
@@ -650,6 +653,33 @@ function ShopifyOrdersTab({ businessId }: { businessId: string }) {
       </div>
       <div style={card}>
         <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Order Sync Configuration</h3>
+        <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div
+              onClick={async () => {
+                const next = !xeroAutoSyncEnabled;
+                setXeroAutoSyncEnabled(next);
+                await fetch('/api/ims/settings', {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ settings: { shopify_xero_auto_sync_enabled: next ? '1' : '0' } }),
+                }).catch(() => {});
+              }}
+              style={{ width: 42, height: 22, borderRadius: 99, background: xeroAutoSyncEnabled ? '#10b981' : 'var(--sv-etch)', position: 'relative', cursor: 'pointer', flexShrink: 0 }}
+              title="Controls the automatic daily online-sales batch sync from IMS to Xero"
+            >
+              <div style={{ position: 'absolute', top: 2, left: xeroAutoSyncEnabled ? 22 : 2, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 4px rgba(0,0,0,.3)' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: xeroAutoSyncEnabled ? '#10b981' : 'var(--sv-text-dim)' }}>
+                Shopify → Xero Daily Batch Auto-Sync {xeroAutoSyncEnabled ? 'Enabled' : 'Disabled'}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 2, lineHeight: 1.5 }}>
+                When enabled, completed online sales days are posted automatically to Xero (nightly cron + login catch-up). When disabled, only manual sync from Xero settings will post.
+              </div>
+            </div>
+          </div>
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
           <div>
             <label style={label}>Transition Date (sync orders from)</label>
