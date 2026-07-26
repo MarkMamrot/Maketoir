@@ -9983,6 +9983,9 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
         : await apiFetch('/api/ims/supplier-credit-notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       setModal({ open: false, edit: null });
       load();
+      if (saved?.xeroWarning) {
+        alert(`Xero notice:\n\n${saved.xeroWarning}`);
+      }
       if (saved?.data?.id) {
         await openView(saved.data);
       }
@@ -15566,6 +15569,73 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
 }
 
 function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
+  type MappingRoleDef = {
+    key: string;
+    label: string;
+    help: string;
+    example: string;
+    filter: (a: any) => boolean;
+  };
+
+  function MappingHelpTooltip({ label, help, example }: { label: string; help: string; example: string }) {
+    const [open, setOpen] = useState(false);
+    return (
+      <span
+        style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+      >
+        <span>{label}</span>
+        <button
+          type="button"
+          aria-label={`${label} help`}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setOpen(false)}
+          onClick={() => setOpen(value => !value)}
+          style={{
+            width: 16,
+            height: 16,
+            borderRadius: 999,
+            border: '1px solid var(--sv-etch)',
+            background: 'var(--sv-bg-1)',
+            color: 'var(--sv-text-dim)',
+            fontSize: 10,
+            fontWeight: 700,
+            lineHeight: '14px',
+            padding: 0,
+            cursor: 'help',
+          }}
+        >
+          i
+        </button>
+        {open && (
+          <div
+            role="tooltip"
+            style={{
+              position: 'absolute',
+              top: 'calc(100% + 8px)',
+              left: 0,
+              zIndex: 40,
+              width: 280,
+              padding: '10px 12px',
+              borderRadius: 8,
+              border: '1px solid var(--sv-etch)',
+              background: 'var(--sv-bg-1)',
+              color: 'var(--sv-text-main)',
+              boxShadow: '0 10px 30px rgba(0,0,0,.18)',
+            }}
+          >
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 6 }}>{label}</div>
+            <div style={{ fontSize: 11, lineHeight: 1.45, color: 'var(--sv-text-main)' }}>{help}</div>
+            <div style={{ marginTop: 8, fontSize: 11, lineHeight: 1.45, color: 'var(--sv-text-dim)' }}>
+              <strong style={{ color: 'var(--sv-text-strong)' }}>Example:</strong> {example}
+            </div>
+          </div>
+        )}
+      </span>
+    );
+  }
+
   const [accounts, setAccounts] = useState<{ accountId: string; code: string; name: string; type: string; class: string; enablePaymentsToAccount?: boolean }[]>([]);
   const [mappings, setMappings] = useState<Record<string, { xero_account_id: string; xero_account_code: string; xero_account_name: string }>>({});
   const [trackingCategories, setTrackingCategories] = useState<{ trackingCategoryId: string; name: string; options: { trackingOptionId: string; name: string }[] }[]>([]);
@@ -15575,19 +15645,19 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
   const [saving, setSaving] = useState<string | null>(null);
   const [freightTreatment, setFreightTreatment] = useState<'expense' | 'capitalise'>('expense');
 
-  const ROLE_DEFS = [
-    { key: 'inventory_asset', label: 'Inventory Asset', desc: 'Stock on hand (Balance Sheet)', filter: (a: any) => a.class === 'ASSET' },
-    { key: 'inventory_in_transit', label: 'Inventory in Transit', desc: 'Goods ordered but not received', filter: (a: any) => a.class === 'ASSET' },
-    { key: 'cogs', label: 'Cost of Goods Sold', desc: 'COGS expense (P&L)', filter: (a: any) => a.class === 'EXPENSE' },
-    { key: 'sales_revenue', label: 'Sales Revenue', desc: 'Income from sales (P&L)', filter: (a: any) => a.class === 'REVENUE' },
-    { key: 'credit_note', label: 'Credit Notes (Customer Returns)', desc: 'Revenue/contra-revenue account for customer credit note lines (returns & refunds). Defaults to Sales Revenue if not set.', filter: (a: any) => a.class === 'REVENUE' },
-    { key: 'rounding', label: 'Cash Rounding', desc: 'Optional account for POS cash-rounding adjustments. Falls back to Sales Revenue if unset.', filter: (a: any) => a.class === 'EXPENSE' || a.class === 'REVENUE' },
-    { key: 'cash_over_short', label: 'Cash Over / Short', desc: 'Required for POS till and banking discrepancies. Entries use no GST.', filter: (a: any) => a.class === 'EXPENSE' || a.class === 'REVENUE' },
-    { key: 'freight', label: 'Freight / Shipping', desc: 'Freight Paid expense account (P&L). Only used when PO Freight Treatment = Expense.', filter: (a: any) => a.class === 'EXPENSE' },
-    { key: 'stock_adjustment', label: 'Stock Adjustment / Shrinkage', desc: 'Stocktake variance expense account (P&L) — used for stock write-offs and surpluses', filter: (a: any) => a.class === 'EXPENSE' },
-    { key: 'gift_card_liability', label: 'Gift Card Liability', desc: 'Liability account for outstanding gift card balances', filter: (a: any) => a.class === 'LIABILITY' },
-    { key: 'store_credit_liability', label: 'Store Credit Liability', desc: 'Liability account for outstanding customer store credit balances', filter: (a: any) => a.class === 'LIABILITY' },
-    { key: 'supplier_credit_note', label: 'Supplier Credit Notes', desc: 'Account for non-stock supplier credit lines (rebates / overcharges). Returned-stock lines post to Inventory Asset. Defaults to COGS if unset.', filter: (a: any) => a.class === 'EXPENSE' || a.class === 'ASSET' },
+  const ROLE_DEFS: MappingRoleDef[] = [
+    { key: 'inventory_asset', label: 'Inventory Asset', help: 'Stock on hand after goods are received. Used for inventory value on the balance sheet.', example: 'Receive $800 of stock: Inventory Asset goes up by $800.', filter: (a: any) => a.class === 'ASSET' },
+    { key: 'inventory_in_transit', label: 'Inventory in Transit', help: 'Holding account for stock that has been ordered or prepaid but not received yet. In this app it is used when a PO has deposits or prepayments.', example: 'Pay a $300 supplier deposit before stock arrives: hold that value in Inventory in Transit until receipt, then move it to Inventory Asset.', filter: (a: any) => a.class === 'ASSET' },
+    { key: 'cogs', label: 'Cost of Goods Sold', help: 'Expense account for the cost of stock sold. Used by scheduled COGS journals and as a fallback for some non-stock supplier credits.', example: 'Sell an item that cost $40: COGS increases by $40.', filter: (a: any) => a.class === 'EXPENSE' },
+    { key: 'sales_revenue', label: 'Sales Revenue', help: 'Main income account for sales. Used for wholesale and batch sales invoices, and as a fallback for some optional mappings.', example: 'Sell a product for $110 incl GST: the sale line posts to Sales Revenue.', filter: (a: any) => a.class === 'REVENUE' },
+    { key: 'credit_note', label: 'Customer Returns / Refunds', help: 'Used for customer return and refund credit note lines in Xero. This account reduces sales when you issue a customer credit note.', example: 'Refund a $110 sale: this account gets the $110 credit note line. If left blank, Sales Revenue is used.', filter: (a: any) => a.class === 'REVENUE' },
+    { key: 'rounding', label: 'Cash Rounding', help: 'Optional account for small cash-rounding differences on POS sales. If not set, the app falls back to Sales Revenue.', example: 'Sale total is $10.02 and cash collected is rounded to $10.00: the 2c difference posts here.', filter: (a: any) => a.class === 'EXPENSE' || a.class === 'REVENUE' },
+    { key: 'cash_over_short', label: 'Cash Over / Short', help: 'Required account for till variances and cash-banking discrepancies. These entries post without GST.', example: 'Expected cash is $500 but counted cash is $490: the $10 shortfall posts here.', filter: (a: any) => a.class === 'EXPENSE' || a.class === 'REVENUE' },
+    { key: 'freight', label: 'Freight / Shipping', help: 'Expense account for supplier freight when PO Freight Treatment is set to Expense. Not used when freight is capitalised into stock.', example: 'Supplier charges $25 freight on a PO and freight treatment is Expense: that $25 posts here.', filter: (a: any) => a.class === 'EXPENSE' },
+    { key: 'stock_adjustment', label: 'Stock Adjustment / Shrinkage', help: 'Expense account used for stocktake write-offs and surpluses.', example: 'Write off 3 units costing $12 each during a stocktake: the $36 variance posts here.', filter: (a: any) => a.class === 'EXPENSE' },
+    { key: 'gift_card_liability', label: 'Gift Card Liability', help: 'Liability account for unused gift card balances until they are redeemed.', example: 'Sell a $100 gift card: Gift Card Liability increases by $100 until the customer spends it.', filter: (a: any) => a.class === 'LIABILITY' },
+    { key: 'store_credit_liability', label: 'Store Credit Liability', help: 'Liability account for customer store credit that has been issued but not used yet.', example: 'Issue $60 store credit on a return: Store Credit Liability increases by $60 until the customer redeems it.', filter: (a: any) => a.class === 'LIABILITY' },
+    { key: 'supplier_credit_note', label: 'Supplier Credit Notes (Non-stock lines)', help: 'Used only for supplier credit note lines that do not return stock, such as rebates, pricing corrections, and overcharges. Returned-stock lines post to Inventory Asset instead.', example: 'Supplier gives a $75 rebate with no stock movement: that line posts here. If physical goods are returned, those lines post to Inventory Asset.', filter: (a: any) => a.class === 'EXPENSE' || a.class === 'ASSET' },
   ].filter(r => !(r.key === 'freight' && freightTreatment === 'capitalise'));
 
   useEffect(() => {
@@ -15700,7 +15770,9 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
             }
             return (
               <div key={role.key}>
-                <label style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 4, display: 'block' }}>{role.label}</label>
+                <label style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 4, display: 'block' }}>
+                  <MappingHelpTooltip label={role.label} help={role.help} example={role.example} />
+                </label>
                 <select
                   value={current?.xero_account_id ?? ''}
                   onChange={e => saveAccountMapping(role.key, e.target.value)}
@@ -15712,7 +15784,6 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
                     <option key={a.accountId} value={a.accountId}>{a.code} — {a.name}</option>
                   ))}
                 </select>
-                <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{role.desc}</span>
               </div>
             );
           })}
@@ -23148,8 +23219,8 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           { role: 'rounding',              type: 'Revenue/Expense', description: 'Optional account for POS cash-rounding adjustments; defaults to Sales Revenue when not mapped', required: false },
           { role: 'cash_over_short',        type: 'Revenue/Expense', description: 'Required for POS till and cash-banking discrepancies; entries are posted without GST', required: true },
           { role: 'freight',               type: 'Expense', description: 'Freight / shipping expense — used when freight treatment is set to "Expense"', required: false },
-          { role: 'credit_note',           type: 'Revenue', description: 'Account for manual credit note lines — defaults to sales_revenue if not set', required: false },
-          { role: 'supplier_credit_note',  type: 'Expense/Asset', description: 'Account for non-restock supplier credit lines; restock lines post to inventory_asset (falls back to cogs if not set)', required: false },
+          { role: 'credit_note',           type: 'Revenue', description: 'Used for customer return and refund credit note lines in Xero. This account reduces sales when you issue a customer credit note. If not mapped, the credit note uses sales_revenue.', required: false },
+          { role: 'supplier_credit_note',  type: 'Expense/Asset', description: 'Used only for supplier credit note lines that do not return stock, such as rebates, pricing corrections, and overcharges. Returned-stock lines post to inventory_asset instead. If not mapped, non-stock lines fall back to cogs.', required: false },
           { role: 'stock_adjustment',      type: 'Expense', description: 'Stocktake variance account — debited on write-offs, credited on surpluses', required: false },
         ]} />
 

@@ -859,6 +859,69 @@ export async function updateXeroDraftInvoice(businessId: string, so: SOForSync, 
   }
 }
 
+export async function updateXeroDraftSupplierCreditNote(businessId: string, scn: SupplierCNForSync, xeroId: string): Promise<boolean> {
+  const accounts = await getAccountMappings(businessId);
+  const trackingMappings = await getTrackingMappings(businessId);
+  const taxTypes = getTaxTypes(businessId);
+
+  const restockAccount = accounts.inventory_asset;
+  const nonStockAccount = accounts.supplier_credit_note || accounts.cogs;
+  if (!restockAccount && !nonStockAccount) {
+    await logSync(businessId, 'scn_credit_note', scn.id, xeroId, 'skipped', 'No inventory_asset / supplier_credit_note / cogs account mapped');
+    return false;
+  }
+
+  try {
+    const current = await xeroApiFetch(businessId, `/CreditNotes/${xeroId}`, { method: 'GET' });
+    const currentStatus = current.CreditNotes?.[0]?.Status;
+    if (currentStatus !== 'DRAFT') {
+      await logSync(businessId, 'scn_credit_note', scn.id, xeroId, 'skipped', `Credit note is ${currentStatus ?? 'unknown'}, cannot update`, currentStatus ?? undefined);
+      return false;
+    }
+  } catch (err: any) {
+    await logSync(businessId, 'scn_credit_note', scn.id, xeroId, 'error', `Failed to fetch credit note status: ${err.message}`);
+    return false;
+  }
+
+  const tracking = getTrackingForLocation(trackingMappings, scn.location_id, 'wholesale');
+  const lineAmountType = scn.tax_treatment === 'inc_tax' ? 'Inclusive' : 'Exclusive';
+  const lineItems = (scn.items ?? []).map(item => {
+    const restock = item.restock === undefined || item.restock === null ? true : !!Number(item.restock);
+    const acct = restock ? (restockAccount || nonStockAccount) : (nonStockAccount || restockAccount);
+    const taxed = Number(item.tax_rate) > 0 && scn.tax_treatment !== 'no_tax';
+    return {
+      Description: `${item.code || ''} ${item.name || ''}`.trim() || 'Supplier credit',
+      Quantity: item.qty,
+      UnitAmount: item.unit_cost,
+      AccountCode: acct,
+      TaxType: taxed ? taxTypes.purchases : taxTypes.exempt,
+      Tracking: tracking,
+    };
+  });
+
+  const creditNote: any = {
+    CreditNoteID: xeroId,
+    Type: 'ACCPAYCREDIT',
+    Contact: { Name: scn.supplier_name || `Supplier #${scn.supplier_id}` },
+    Date: scn.scn_date,
+    CreditNoteNumber: scn.scn_number,
+    Reference: scn.supplier_credit_ref || scn.reference || scn.scn_number,
+    Status: 'DRAFT',
+    LineAmountTypes: lineAmountType,
+    LineItems: lineItems,
+  };
+
+  try {
+    await xeroApiFetch(businessId, `/CreditNotes/${xeroId}`, { method: 'POST', body: { CreditNotes: [creditNote] } });
+    await logSync(businessId, 'scn_credit_note', scn.id, xeroId, 'success', `Draft supplier credit note updated: ${scn.scn_number}`, 'DRAFT');
+    await markSupplierCNXeroStatus(scn.id, 'synced', xeroId);
+    return true;
+  } catch (err: any) {
+    await logSync(businessId, 'scn_credit_note', scn.id, xeroId, 'error', `Update failed: ${err.message}`);
+    return false;
+  }
+}
+
 /**
  * Approve a Xero ACCREC Invoice (set Status: AUTHORISED) — called when SO is fulfilled.
  */

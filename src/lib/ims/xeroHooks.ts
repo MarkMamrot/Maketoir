@@ -8,7 +8,7 @@
 
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { ImsPORepo, ImsSORepo, ImsCNRepo, ImsSupplierCNRepo } from '@/lib/ims/ImsRepository';
-import { syncPOAsDraftBill, updateXeroDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOPayment, syncSOAsInvoice, updateXeroDraftInvoice, approveInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice, syncCNAsCreditNote, markCNXeroStatus, syncSupplierCNAsCreditNote, markSupplierCNXeroStatus, voidXeroCreditNote, voidXeroSupplierCreditNote } from '@/services/XeroSyncService';
+import { syncPOAsDraftBill, updateXeroDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOPayment, syncSOAsInvoice, updateXeroDraftInvoice, approveInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice, syncCNAsCreditNote, markCNXeroStatus, syncSupplierCNAsCreditNote, markSupplierCNXeroStatus, voidXeroCreditNote, voidXeroSupplierCreditNote, updateXeroDraftSupplierCreditNote } from '@/services/XeroSyncService';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 
@@ -221,6 +221,33 @@ export async function triggerSOXeroUpdate(businessId: string, soId: number): Pro
   try {
     await updateXeroDraftInvoice(businessId, so as any, xeroId);
   } catch { /* non-critical */ }
+}
+
+/**
+ * Triggered when a supplier credit note's fields/items are edited without a status change.
+ * Updates the existing Xero Draft Credit Note if one exists.
+ * Silently skips if no Xero credit note exists, Xero is not connected, or the note is no longer DRAFT.
+ */
+export async function triggerSupplierCNXeroUpdate(businessId: string, scnId: number): Promise<string | null> {
+  if (!await isXeroConnected(businessId)) return null;
+
+  const scn = await ImsSupplierCNRepo.get(scnId, businessId);
+  if (!scn) return null;
+
+  const xeroId = (scn as any).xero_credit_note_id ?? null;
+  if (!xeroId) {
+    return `Supplier credit note ${(scn as any).scn_number} has not been synced to Xero yet, so there is no draft credit note to update.`;
+  }
+
+  try {
+    const updated = await updateXeroDraftSupplierCreditNote(businessId, scn as any, xeroId);
+    if (!updated) {
+      return `Supplier credit note ${(scn as any).scn_number} could not be updated in Xero because the linked credit note is no longer DRAFT or could not be found.`;
+    }
+    return null;
+  } catch {
+    return `Supplier credit note ${(scn as any).scn_number} could not be updated in Xero right now.`;
+  }
 }
 
 /**

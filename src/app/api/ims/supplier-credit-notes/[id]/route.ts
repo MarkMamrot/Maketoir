@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsSupplierCNRepo } from '@/lib/ims/ImsRepository';
+import { triggerSupplierCNXeroUpdate } from '@/lib/ims/xeroHooks';
 
 function normalizeAndValidateSupplierCNItems(items: any[] | undefined): { items?: any[]; error: string | null } {
   if (items === undefined) return { items: undefined, error: null };
@@ -47,7 +48,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
     await ImsSupplierCNRepo.update(Number(params.id), businessId, data, normalized.items);
     const scn = await ImsSupplierCNRepo.get(Number(params.id), businessId);
-    return NextResponse.json({ success: true, data: scn });
+    const xeroWarning = await triggerSupplierCNXeroUpdate(businessId, Number(params.id)).catch(() => null);
+    return NextResponse.json({ success: true, data: scn, ...(xeroWarning ? { xeroWarning } : {}) });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
