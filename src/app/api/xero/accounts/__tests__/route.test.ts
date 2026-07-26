@@ -108,6 +108,23 @@ describe('POST /api/xero/accounts', () => {
     expect(params).toEqual(['biz-1', 'rounding', 'acc-789', '899', 'Cash Rounding']);
   });
 
+  it('accepts cash_over_short as a valid role and upserts mapping', async () => {
+    const req = makeRequest({
+      databaseId: 'biz-1',
+      roleKey: 'cash_over_short',
+      xeroAccountId: 'acc-790',
+      xeroAccountCode: '898',
+      xeroAccountName: 'Cash Over and Short',
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(200);
+    expect(mockExecute.mock.calls[0][1]).toEqual([
+      'biz-1', 'cash_over_short', 'acc-790', '898', 'Cash Over and Short',
+    ]);
+  });
+
   it('rejects an unknown role_key with 400', async () => {
     const req = makeRequest({
       databaseId: 'biz-1',

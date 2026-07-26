@@ -118,6 +118,146 @@ CREATE TABLE IF NOT EXISTS xero_pos_clearing_mappings (
   INDEX idx_xero_pos_clearing_business (business_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Versioned accounting state for one tenant POS cash reconciliation. Rows that
+-- already have Xero state but no plan remain legacy and are never reinterpreted.
+CREATE TABLE IF NOT EXISTS xero_pos_cash_eod_actions (
+  id                        BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id               VARCHAR(255) NOT NULL,
+  eod_reconciliation_id     BIGINT       NOT NULL,
+  accounting_version        INT          NOT NULL DEFAULT 2,
+  expected_amount           DECIMAL(14,2) NOT NULL,
+  counted_amount            DECIMAL(14,2) NOT NULL,
+  opening_float             DECIMAL(14,2) NOT NULL,
+  cash_rounding             DECIMAL(14,2) NOT NULL DEFAULT 0,
+  sales_amount              DECIMAL(14,2) NOT NULL,
+  till_variance             DECIMAL(14,2) NOT NULL,
+  clearing_account_code     VARCHAR(50)  NOT NULL,
+  over_short_account_code   VARCHAR(50)  DEFAULT NULL,
+  invoice_status            VARCHAR(30)  NOT NULL DEFAULT 'pending',
+  payment_status            VARCHAR(30)  NOT NULL DEFAULT 'pending',
+  variance_status           VARCHAR(30)  NOT NULL DEFAULT 'pending',
+  invoice_idempotency_key   VARCHAR(64)  NOT NULL,
+  payment_idempotency_key   VARCHAR(64)  NOT NULL,
+  variance_idempotency_key  VARCHAR(64)  NOT NULL,
+  xero_invoice_id           VARCHAR(100) DEFAULT NULL,
+  xero_payment_id           VARCHAR(100) DEFAULT NULL,
+  xero_variance_id          VARCHAR(100) DEFAULT NULL,
+  error_detail              TEXT         DEFAULT NULL,
+  attempt_count             INT          NOT NULL DEFAULT 0,
+  last_attempt_at           DATETIME     DEFAULT NULL,
+  completed_at              DATETIME     DEFAULT NULL,
+  created_at                DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at                DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_pos_cash_eod_action (business_id, eod_reconciliation_id),
+  INDEX idx_pos_cash_eod_status (business_id, invoice_status, payment_status, variance_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Default destination bank account for physical cash lodgements by shop.
+CREATE TABLE IF NOT EXISTS xero_cash_deposit_settings (
+  business_id                   VARCHAR(255) NOT NULL,
+  ims_location_id               INT          NOT NULL,
+  destination_account_id        VARCHAR(100) NOT NULL,
+  destination_account_code      VARCHAR(50)  NOT NULL,
+  destination_account_name      VARCHAR(255) NOT NULL,
+  created_at                    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at                    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (business_id, ims_location_id),
+  INDEX idx_cash_deposit_settings_business (business_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS xero_cash_deposits (
+  id                          BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id                 VARCHAR(255) NOT NULL,
+  ims_location_id             INT          NOT NULL,
+  lodgement_date              DATE         NOT NULL,
+  bank_reference              VARCHAR(255) DEFAULT NULL,
+  notes                       TEXT         DEFAULT NULL,
+  source_account_id           VARCHAR(100) NOT NULL,
+  source_account_code         VARCHAR(50)  NOT NULL,
+  source_account_name         VARCHAR(255) DEFAULT NULL,
+  over_short_account_id       VARCHAR(100) DEFAULT NULL,
+  over_short_account_code     VARCHAR(50)  DEFAULT NULL,
+  over_short_account_name     VARCHAR(255) DEFAULT NULL,
+  destination_account_id      VARCHAR(100) NOT NULL,
+  destination_account_code    VARCHAR(50)  NOT NULL,
+  destination_account_name    VARCHAR(255) NOT NULL,
+  expected_total              DECIMAL(14,2) NOT NULL,
+  counted_total               DECIMAL(14,2) NOT NULL,
+  variance_total              DECIMAL(14,2) NOT NULL,
+  status                      VARCHAR(30)  NOT NULL DEFAULT 'draft',
+  prepared_by_user_id         BIGINT       NOT NULL,
+  prepared_by_name            VARCHAR(255) NOT NULL,
+  posted_by_user_id           BIGINT       DEFAULT NULL,
+  posted_by_name              VARCHAR(255) DEFAULT NULL,
+  posted_at                   DATETIME     DEFAULT NULL,
+  xero_bank_transfer_id       VARCHAR(100) DEFAULT NULL,
+  error_detail                TEXT         DEFAULT NULL,
+  external_correction_note    TEXT         DEFAULT NULL,
+  external_correction_ref     VARCHAR(255) DEFAULT NULL,
+  external_correction_date    DATE         DEFAULT NULL,
+  created_at                  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at                  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_cash_deposit_business (business_id, ims_location_id, lodgement_date),
+  INDEX idx_cash_deposit_status (business_id, status, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS xero_cash_deposit_days (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  cash_deposit_id       BIGINT       NOT NULL,
+  business_id           VARCHAR(255) NOT NULL,
+  business_date         DATE         NOT NULL,
+  expected_custody      DECIMAL(14,2) NOT NULL,
+  counted_deposit       DECIMAL(14,2) NOT NULL,
+  banking_variance      DECIMAL(14,2) NOT NULL,
+  created_at            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_cash_deposit_day (cash_deposit_id, business_date),
+  INDEX idx_cash_deposit_day_business (business_id, business_date),
+  CONSTRAINT fk_cash_deposit_day_header FOREIGN KEY (cash_deposit_id) REFERENCES xero_cash_deposits(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS xero_cash_deposit_sources (
+  id                         BIGINT AUTO_INCREMENT PRIMARY KEY,
+  cash_deposit_id            BIGINT       NOT NULL,
+  cash_deposit_day_id        BIGINT       NOT NULL,
+  business_id                VARCHAR(255) NOT NULL,
+  eod_reconciliation_id      BIGINT       NOT NULL,
+  expected_amount            DECIMAL(14,2) NOT NULL,
+  counted_amount             DECIMAL(14,2) NOT NULL,
+  opening_float              DECIMAL(14,2) NOT NULL,
+  expected_custody           DECIMAL(14,2) NOT NULL,
+  till_variance              DECIMAL(14,2) NOT NULL,
+  accounting_version         INT          NOT NULL,
+  xero_invoice_id            VARCHAR(100) DEFAULT NULL,
+  xero_payment_id            VARCHAR(100) DEFAULT NULL,
+  created_at                 DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_cash_deposit_source (business_id, eod_reconciliation_id),
+  INDEX idx_cash_deposit_source_header (cash_deposit_id),
+  CONSTRAINT fk_cash_deposit_source_header FOREIGN KEY (cash_deposit_id) REFERENCES xero_cash_deposits(id) ON DELETE CASCADE,
+  CONSTRAINT fk_cash_deposit_source_day FOREIGN KEY (cash_deposit_day_id) REFERENCES xero_cash_deposit_days(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS xero_cash_deposit_actions (
+  id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
+  cash_deposit_id          BIGINT       NOT NULL,
+  business_id              VARCHAR(255) NOT NULL,
+  action_key               VARCHAR(255) NOT NULL,
+  action_type              VARCHAR(40)  NOT NULL,
+  business_date            DATE         DEFAULT NULL,
+  amount                   DECIMAL(14,2) NOT NULL,
+  status                   VARCHAR(30)  NOT NULL DEFAULT 'pending',
+  idempotency_key          VARCHAR(64)  NOT NULL,
+  xero_id                  VARCHAR(100) DEFAULT NULL,
+  error_detail             TEXT         DEFAULT NULL,
+  attempt_count            INT          NOT NULL DEFAULT 0,
+  last_attempt_at          DATETIME     DEFAULT NULL,
+  completed_at             DATETIME     DEFAULT NULL,
+  created_at               DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at               DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_cash_deposit_action (business_id, action_key),
+  INDEX idx_cash_deposit_action_header (cash_deposit_id, status),
+  CONSTRAINT fk_cash_deposit_action_header FOREIGN KEY (cash_deposit_id) REFERENCES xero_cash_deposits(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- One durable row per combined daily online invoice. payout_managed is an
 -- explicit cutover guard: legacy invoices must never be settled automatically.
 CREATE TABLE IF NOT EXISTS xero_online_batches (

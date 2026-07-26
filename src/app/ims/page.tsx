@@ -30,7 +30,7 @@ type ImsView =
   | 'purchase-orders' | 'sales-orders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
-  | 'reports' | 'report-sales-by-branch' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers'
+  | 'reports' | 'report-sales-by-branch' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
   | 'xero' | 'shopify';
 
 interface User { name: string; email: string; company: string; businessId: string; tier?: string; hasForesight?: boolean }
@@ -12617,6 +12617,173 @@ function GiftCardsView() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function PosSalesView() {
+  const [tab, setTab] = useState<'sales' | 'banking'>('sales');
+  return (
+    <div>
+      <div style={{ display: 'inline-flex', padding: 3, marginBottom: 18, borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
+        {(['sales', 'banking'] as const).map(value => (
+          <button key={value} onClick={() => setTab(value)} style={{ padding: '7px 18px', border: 0, borderRadius: 5, cursor: 'pointer', fontSize: 13, fontWeight: 650, color: tab === value ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', background: tab === value ? 'var(--sv-bg-3)' : 'transparent' }}>
+            {value === 'sales' ? 'Sales' : 'Banking'}
+          </button>
+        ))}
+      </div>
+      {tab === 'sales' ? <PosSalesLedgerView /> : <CashBankingView />}
+    </div>
+  );
+}
+
+function CashBankingView() {
+  const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
+  const [locationId, setLocationId] = useState<number | ''>('');
+  const [dateRange, setDateRange] = useState<SBDateRange>(DEFAULT_DATE_RANGE);
+  const [data, setData] = useState<any>(null);
+  const [deposits, setDeposits] = useState<any[]>([]);
+  const [canPost, setCanPost] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [counts, setCounts] = useState<Record<string, string>>({});
+  const [lodgementDate, setLodgementDate] = useState(today());
+  const [bankReference, setBankReference] = useState('');
+  const [destinationAccountId, setDestinationAccountId] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [postingId, setPostingId] = useState<number | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetch('/api/ims/locations').then(response => response.json()).then(result => {
+      if (result.success) setLocations(result.data ?? []);
+    }).catch(() => {});
+    fetch('/api/ims/money/cash-deposits').then(response => response.json()).then(result => {
+      if (result.success) { setDeposits(result.deposits ?? []); setCanPost(Boolean(result.canPost)); }
+    }).catch(() => {});
+  }, []);
+
+  const loadEligibility = useCallback(() => {
+    if (!locationId) { setData(null); return; }
+    const from = dateRange.kind === 'range' ? (dateRange.from <= dateRange.to ? dateRange.from : dateRange.to) : daysAgoSydney(Math.max(0, Number(dateRange.window || 0) - 1));
+    const to = dateRange.kind === 'range' ? (dateRange.from <= dateRange.to ? dateRange.to : dateRange.from) : today();
+    setLoading(true); setError(''); setSelected(new Set()); setCounts({});
+    fetch(`/api/ims/money/cash-deposits/eligible?locationId=${locationId}&from=${from}&to=${to}`)
+      .then(async response => ({ ok: response.ok, body: await response.json() }))
+      .then(({ ok, body }) => {
+        if (!ok) throw new Error(body.error || 'Could not load cash days');
+        setData(body);
+        setDestinationAccountId(body.defaultDestinationAccount?.destination_account_id ?? '');
+      })
+      .catch(reason => setError(reason.message))
+      .finally(() => setLoading(false));
+  }, [locationId, dateRange]);
+
+  useEffect(() => { loadEligibility(); }, [loadEligibility]);
+
+  const toggleDay = (day: any) => {
+    if (!day.eligible) return;
+    setSelected(previous => {
+      const next = new Set(previous);
+      if (next.has(day.date)) next.delete(day.date); else next.add(day.date);
+      return next;
+    });
+    setCounts(previous => ({ ...previous, [day.date]: previous[day.date] ?? Number(day.expectedCustody).toFixed(2) }));
+  };
+
+  const selectedDays = (data?.days ?? []).filter((day: any) => selected.has(day.date));
+  const expectedTotal = selectedDays.reduce((sum: number, day: any) => sum + Number(day.expectedCustody), 0);
+  const countedTotal = selectedDays.reduce((sum: number, day: any) => sum + Number(counts[day.date] || 0), 0);
+
+  const createDraft = async () => {
+    setSaving(true); setError('');
+    try {
+      const response = await fetch('/api/ims/money/cash-deposits', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locationId, lodgementDate, bankReference, destinationAccountId, days: selectedDays.map((day: any) => ({ date: day.date, countedAmount: Number(counts[day.date]) })) }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not create deposit draft');
+      setSelected(new Set()); setCounts({}); setBankReference('');
+      const history = await fetch('/api/ims/money/cash-deposits').then(item => item.json());
+      if (history.success) { setDeposits(history.deposits ?? []); setCanPost(Boolean(history.canPost)); }
+      loadEligibility();
+    } catch (reason: any) { setError(reason.message); }
+    setSaving(false);
+  };
+
+  const postDeposit = async (deposit: any) => {
+    const confirmed = window.confirm(`Post cash deposit #${deposit.id} to Xero? Completed Xero actions cannot be undone in Marketoir.`);
+    if (!confirmed) return;
+    setPostingId(Number(deposit.id)); setError('');
+    try {
+      const response = await fetch(`/api/ims/money/cash-deposits/${deposit.id}/post`, { method: 'POST' });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Cash deposit posting was not completed');
+      const history = await fetch('/api/ims/money/cash-deposits').then(item => item.json());
+      if (history.success) { setDeposits(history.deposits ?? []); setCanPost(Boolean(history.canPost)); }
+      loadEligibility();
+    } catch (reason: any) {
+      setError(reason.message);
+      const history = await fetch('/api/ims/money/cash-deposits').then(item => item.json()).catch(() => null);
+      if (history?.success) setDeposits(history.deposits ?? []);
+    }
+    setPostingId(null);
+  };
+
+  const controlStyle: React.CSSProperties = { padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'inherit', fontSize: 13 };
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 18 }}>
+        <h1 style={{ margin: 0, flex: 1, fontSize: 22, color: 'var(--sv-text-strong)' }}>Cash Banking</h1>
+        <select value={locationId} onChange={event => setLocationId(event.target.value ? Number(event.target.value) : '')} style={controlStyle}>
+          <option value="">Select branch</option>
+          {locations.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}
+        </select>
+        <SBDatePicker value={dateRange} onChange={setDateRange} />
+      </div>
+      {error && <div style={{ padding: '10px 12px', marginBottom: 14, border: '1px solid rgba(248,113,113,.4)', borderRadius: 6, color: 'var(--sv-red)', fontSize: 13 }}>{error}</div>}
+      {!locationId && <div style={{ padding: '36px', textAlign: 'center', color: 'var(--sv-text-dim)', borderTop: '1px solid var(--sv-etch)' }}>Select one branch to prepare a cash deposit.</div>}
+      {loading && <div style={{ padding: 36, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading cash days...</div>}
+      {data && !loading && <>
+        {(!data.cashClearingAccount || !data.defaultDestinationAccount) && <div style={{ marginBottom: 14, padding: '10px 12px', borderRadius: 6, border: '1px solid var(--sv-amber)', color: 'var(--sv-amber)', fontSize: 12 }}>
+          {!data.cashClearingAccount ? 'Map the branch Cash clearing account in Xero settings. ' : ''}
+          {!data.defaultDestinationAccount ? 'Set the branch default Cash Deposit Bank in Xero settings.' : ''}
+        </div>}
+        <div style={{ overflowX: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 7 }}>
+          <table style={{ width: '100%', minWidth: 760, borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead><tr style={{ background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)' }}>
+              <th style={{ padding: 9, width: 38 }}></th><th style={{ padding: 9, textAlign: 'left' }}>Trading day</th><th style={{ padding: 9, textAlign: 'right' }}>Expected custody</th><th style={{ padding: 9, textAlign: 'right' }}>Till variance</th><th style={{ padding: 9, textAlign: 'left' }}>Deposit count</th><th style={{ padding: 9, textAlign: 'left' }}>Status</th>
+            </tr></thead>
+            <tbody>{(data.days ?? []).map((day: any) => <tr key={day.date} style={{ borderTop: '1px solid var(--sv-etch)', opacity: day.eligible ? 1 : .58 }}>
+              <td style={{ padding: 9, textAlign: 'center' }}><input type="checkbox" checked={selected.has(day.date)} disabled={!day.eligible} onChange={() => toggleDay(day)} /></td>
+              <td style={{ padding: 9, fontWeight: 600 }}>{new Date(`${day.date}T00:00:00`).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}{day.legacy && <span title="This day used the previous cash accounting method." style={{ marginLeft: 7, color: 'var(--sv-amber)', fontSize: 10 }}>LEGACY</span>}</td>
+              <td style={{ padding: 9, textAlign: 'right' }}>{fmtCurrency(day.expectedCustody)}</td>
+              <td style={{ padding: 9, textAlign: 'right', color: Number(day.tillVariance) === 0 ? 'var(--sv-text-dim)' : 'var(--sv-amber)' }}>{fmtCurrency(day.tillVariance)}</td>
+              <td style={{ padding: 9 }}><input aria-label={`Deposit count for ${day.date}`} type="number" min="0" step="0.01" disabled={!selected.has(day.date)} value={counts[day.date] ?? ''} onChange={event => setCounts(previous => ({ ...previous, [day.date]: event.target.value }))} style={{ ...controlStyle, width: 130 }} /></td>
+              <td style={{ padding: 9, fontSize: 11, color: day.eligible ? 'var(--sv-mint)' : 'var(--sv-text-dim)' }}>{day.eligible ? 'Ready' : day.blockers.join('; ')}</td>
+            </tr>)}</tbody>
+          </table>
+        </div>
+        {(data.days ?? []).length === 0 && <div style={{ padding: 28, textAlign: 'center', color: 'var(--sv-text-dim)' }}>No counted cash reconciliations in this date range.</div>}
+        {selectedDays.length > 0 && <div style={{ marginTop: 14, padding: 14, borderTop: '1px solid var(--sv-etch)', borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'end', flexWrap: 'wrap' }}>
+            <label style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>LODGEMENT DATE<br /><input type="date" value={lodgementDate} onChange={event => setLodgementDate(event.target.value)} style={{ ...controlStyle, marginTop: 4 }} /></label>
+            <label style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>BANK REFERENCE<br /><input value={bankReference} onChange={event => setBankReference(event.target.value)} style={{ ...controlStyle, marginTop: 4, width: 210 }} /></label>
+            <label style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>DESTINATION BANK<br /><select title="Defaults from Xero settings and may be overridden for this draft." value={destinationAccountId} onChange={event => setDestinationAccountId(event.target.value)} style={{ ...controlStyle, display: 'block', marginTop: 4, minWidth: 220 }}><option value="">Select bank</option>{(data.bankAccounts ?? []).map((account: any) => <option key={account.accountId} value={account.accountId}>{account.code} — {account.name}</option>)}</select></label>
+            <span style={{ flex: 1 }} />
+            <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Expected<br /><strong style={{ fontSize: 17, color: 'var(--sv-text-strong)' }}>{fmtCurrency(expectedTotal)}</strong></div>
+            <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Counted<br /><strong style={{ fontSize: 17, color: 'var(--sv-text-strong)' }}>{fmtCurrency(countedTotal)}</strong></div>
+            <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Variance<br /><strong style={{ fontSize: 17, color: Math.abs(countedTotal - expectedTotal) < .005 ? 'var(--sv-mint)' : 'var(--sv-amber)' }}>{fmtCurrency(countedTotal - expectedTotal)}</strong></div>
+            <button disabled={saving || !lodgementDate || !data.cashClearingAccount || !destinationAccountId} onClick={createDraft} style={{ padding: '9px 15px', border: 0, borderRadius: 6, background: 'var(--sv-action)', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: saving ? .6 : 1 }}>{saving ? 'Creating...' : 'Create draft'}</button>
+          </div>
+        </div>}
+      </>}
+      <h2 style={{ margin: '28px 0 10px', fontSize: 15, color: 'var(--sv-text-strong)' }}>Recent deposits</h2>
+      <div style={{ borderTop: '1px solid var(--sv-etch)' }}>{deposits.length === 0 ? <div style={{ padding: 18, color: 'var(--sv-text-dim)', fontSize: 13 }}>No cash deposits prepared yet.</div> : deposits.map(deposit => <div key={deposit.id} style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '10px 8px', borderBottom: '1px solid var(--sv-etch)', fontSize: 12 }}>
+        <strong style={{ color: 'var(--sv-text-strong)' }}>#{deposit.id}</strong><span>{String(deposit.lodgement_date).slice(0, 10)}</span><span style={{ color: 'var(--sv-text-dim)' }}>{deposit.destination_account_name}</span><span style={{ flex: 1 }} /><span>{fmtCurrency(deposit.counted_total)}</span><span title={deposit.error_detail || ''} style={{ minWidth: 65, textTransform: 'capitalize', color: deposit.status === 'posted' ? 'var(--sv-mint)' : deposit.status === 'partial' ? 'var(--sv-red)' : 'var(--sv-amber)' }}>{deposit.status}</span>
+        {canPost && ['draft', 'partial', 'error'].includes(deposit.status) && <button onClick={() => postDeposit(deposit)} disabled={postingId === Number(deposit.id)} title={deposit.status === 'draft' ? 'Confirm and post the discrepancy entries and bank transfer to Xero' : 'Retry only unfinished Xero actions'} style={{ padding: '5px 9px', borderRadius: 5, border: '1px solid var(--sv-action)', background: 'transparent', color: 'var(--sv-action)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{postingId === Number(deposit.id) ? 'Posting...' : deposit.status === 'draft' ? 'Confirm & post' : 'Retry'}</button>}
+      </div>)}</div>
+    </div>
+  );
+}
+
+function PosSalesLedgerView() {
   const [locationId, setLocationId] = useState<number | ''>('');
   const [locations, setLocations]   = useState<{ id: number; name: string }[]>([]);
   const [dateRange, setDateRange] = useState<SBDateRange>(DEFAULT_DATE_RANGE);
@@ -13941,6 +14108,12 @@ const REPORT_CATALOG = [
     description: 'Per-register session breakdown by date: open/close times, opening float, close totals by payment type, variances, and Xero sync status.',
     icon: '🏪',
   },
+  {
+    id: 'report-cash-banking' as ImsView,
+    title: 'Cash Banking',
+    description: 'Cross-branch cash lodgements, discrepancies, posting status, preparers, and Xero transfer references.',
+    icon: '🏦',
+  },
 ];
 
 function ReportsView({ onNav }: { onNav: (v: ImsView) => void }) {
@@ -13978,6 +14151,58 @@ function ReportsView({ onNav }: { onNav: (v: ImsView) => void }) {
       </div>
     </div>
   );
+}
+
+function CashBankingReportView({ onBack }: { onBack: () => void }) {
+  const [from, setFrom] = useState(daysAgoSydney(89));
+  const [to, setTo] = useState(today());
+  const [status, setStatus] = useState('');
+  const [rows, setRows] = useState<any[]>([]);
+  const [canRecordCorrection, setCanRecordCorrection] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const load = useCallback(() => {
+    setLoading(true); setError('');
+    const params = new URLSearchParams({ from, to });
+    if (status) params.set('status', status);
+    fetch(`/api/ims/reports/cash-banking?${params}`)
+      .then(async response => ({ ok: response.ok, body: await response.json() }))
+      .then(({ ok, body }) => { if (!ok) throw new Error(body.error || 'Could not load report'); setRows(body.deposits ?? []); setCanRecordCorrection(Boolean(body.canRecordCorrection)); })
+      .catch(reason => setError(reason.message)).finally(() => setLoading(false));
+  }, [from, to, status]);
+  useEffect(() => { load(); }, [load]);
+  const recordCorrection = async (row: any) => {
+    const note = window.prompt('Describe the correction made manually in Xero:', row.external_correction_note ?? '');
+    if (!note?.trim()) return;
+    const reference = window.prompt('Xero reference (optional):', row.external_correction_ref ?? '') ?? '';
+    const correctionDate = window.prompt('Correction date (YYYY-MM-DD):', row.external_correction_date ? String(row.external_correction_date).slice(0, 10) : today());
+    if (!correctionDate) return;
+    const response = await fetch(`/api/ims/money/cash-deposits/${row.id}/correction-note`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note, reference, correctionDate }) });
+    const result = await response.json();
+    if (!response.ok) { setError(result.error || 'Could not record correction note'); return; }
+    load();
+  };
+  const exportCsv = () => {
+    const columns = ['Deposit ID', 'Lodgement Date', 'Branch', 'Destination Bank', 'Bank Reference', 'Expected', 'Counted', 'Variance', 'Status', 'Prepared By', 'Posted By', 'Posted At', 'Xero Bank Transfer ID'];
+    const values = rows.map(row => [row.id, String(row.lodgement_date).slice(0, 10), row.location_name, row.destination_account_name, row.bank_reference ?? '', row.expected_total, row.counted_total, row.variance_total, row.status, row.prepared_by_name, row.posted_by_name ?? '', row.posted_at ?? '', row.xero_bank_transfer_id ?? '']);
+    const escape = (value: any) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const blob = new Blob([[columns, ...values].map(line => line.map(escape).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `cash-banking-${from}-${to}.csv`; link.click(); URL.revokeObjectURL(link.href);
+  };
+  const control: React.CSSProperties = { padding: '6px 9px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'inherit', fontSize: 12 };
+  return <div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
+      <button onClick={onBack} style={control}>Back</button><h1 style={{ margin: 0, flex: 1, fontSize: 22, color: 'var(--sv-text-strong)' }}>Cash Banking Report</h1>
+      <input type="date" value={from} onChange={event => setFrom(event.target.value)} style={control} /><span style={{ color: 'var(--sv-text-dim)' }}>to</span><input type="date" value={to} onChange={event => setTo(event.target.value)} style={control} />
+      <select value={status} onChange={event => setStatus(event.target.value)} style={control}><option value="">All statuses</option><option value="draft">Draft</option><option value="partial">Partial</option><option value="posted">Posted</option></select>
+      <button onClick={exportCsv} disabled={!rows.length} style={control}>Export CSV</button>
+    </div>
+    {error && <div style={{ color: 'var(--sv-red)', marginBottom: 12 }}>{error}</div>}
+    {loading ? <div style={{ padding: 30, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading...</div> : <div style={{ overflowX: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 7 }}><table style={{ width: '100%', minWidth: 1020, borderCollapse: 'collapse', fontSize: 12 }}>
+      <thead><tr style={{ background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)' }}>{['ID','Lodgement','Branch','Destination','Expected','Counted','Variance','Status','Prepared','Posted','Xero transfer','Correction'].map(label => <th key={label} style={{ padding: 8, textAlign: ['Expected','Counted','Variance'].includes(label) ? 'right' : 'left' }}>{label}</th>)}</tr></thead>
+      <tbody>{rows.map(row => <tr key={row.id} style={{ borderTop: '1px solid var(--sv-etch)' }}><td style={{ padding: 8 }}>#{row.id}</td><td style={{ padding: 8 }}>{String(row.lodgement_date).slice(0, 10)}</td><td style={{ padding: 8 }}>{row.location_name}</td><td style={{ padding: 8 }}>{row.destination_account_name}</td><td style={{ padding: 8, textAlign: 'right' }}>{fmtCurrency(row.expected_total)}</td><td style={{ padding: 8, textAlign: 'right' }}>{fmtCurrency(row.counted_total)}</td><td style={{ padding: 8, textAlign: 'right', color: Number(row.variance_total) === 0 ? 'var(--sv-text-dim)' : 'var(--sv-amber)' }}>{fmtCurrency(row.variance_total)}</td><td style={{ padding: 8, textTransform: 'capitalize' }}>{row.status}</td><td style={{ padding: 8 }}>{row.prepared_by_name}</td><td style={{ padding: 8 }}>{row.posted_by_name ?? '—'}</td><td title={row.error_detail ?? ''} style={{ padding: 8 }}>{row.xero_bank_transfer_id ?? '—'}</td><td title={row.external_correction_note ?? ''} style={{ padding: 8 }}>{row.external_correction_note ? `${String(row.external_correction_date).slice(0, 10)}${row.external_correction_ref ? ` · ${row.external_correction_ref}` : ''}` : canRecordCorrection && row.status === 'posted' ? <button onClick={() => recordCorrection(row)} style={{ ...control, padding: '4px 7px' }}>Add note</button> : '—'}</td></tr>)}</tbody>
+    </table>{!rows.length && <div style={{ padding: 28, textAlign: 'center', color: 'var(--sv-text-dim)' }}>No deposits match these filters.</div>}</div>}
+  </div>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -15092,10 +15317,12 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
   const [methods, setMethods] = useState<Array<{ payment_method: string }>>([]);
   const [locations, setLocations] = useState<Array<{ id: number; name: string }>>([]);
   const [mappings, setMappings] = useState<Array<{ ims_location_id: number; payment_method: string; xero_account_id: string; xero_account_code: string; xero_account_name: string | null }>>([]);
+  const [depositSettings, setDepositSettings] = useState<Array<{ ims_location_id: number; destination_account_id: string; destination_account_code: string; destination_account_name: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<Record<string, string>>({});
   const clearingAccounts = accounts.filter(account => account.type === 'BANK' || account.enablePaymentsToAccount === true);
+  const bankAccounts = accounts.filter(account => account.type === 'BANK');
 
   const cellKey = (locationId: number, paymentMethod: string) => `${locationId}:${paymentMethod.trim().toLowerCase()}`;
   const mappingFor = (locationId: number, paymentMethod: string) => mappings.find(mapping =>
@@ -15107,11 +15334,15 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
     if (!bid) { setLoading(false); return; }
     setLoading(true);
     try {
-      const res = await fetch(`/api/xero/pos-payment-mappings?databaseId=${encodeURIComponent(bid)}`).then(r => r.json());
+      const [res, depositRes] = await Promise.all([
+        fetch(`/api/xero/pos-payment-mappings?databaseId=${encodeURIComponent(bid)}`).then(r => r.json()),
+        fetch(`/api/xero/cash-deposit-settings?databaseId=${encodeURIComponent(bid)}`).then(r => r.json()),
+      ]);
       if (res.success) {
         setMethods(Array.isArray(res.methods) ? res.methods : []);
         setLocations(Array.isArray(res.locations) ? res.locations : []);
         setMappings(Array.isArray(res.mappings) ? res.mappings : []);
+        setDepositSettings(Array.isArray(depositRes.settings) ? depositRes.settings : []);
       } else {
         setMethods([]);
         setLocations([]);
@@ -15164,6 +15395,41 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
     setSaving(null);
   };
 
+  const handleDepositBank = async (locationId: number, accountId: string) => {
+    const bid = getBusinessId();
+    if (!bid) return;
+    const key = `deposit:${locationId}`;
+    setSaving(key);
+    setSaveError(previous => ({ ...previous, [key]: '' }));
+    try {
+      const account = bankAccounts.find(candidate => candidate.accountId === accountId);
+      const response = await fetch('/api/xero/cash-deposit-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          databaseId: bid,
+          locationId,
+          xeroAccountId: account?.accountId ?? '',
+          xeroAccountCode: account?.code ?? '',
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Failed to save deposit bank');
+      setDepositSettings(previous => {
+        const remaining = previous.filter(setting => setting.ims_location_id !== locationId);
+        return account ? [...remaining, {
+          ims_location_id: locationId,
+          destination_account_id: account.accountId,
+          destination_account_code: account.code,
+          destination_account_name: account.name,
+        }] : remaining;
+      });
+    } catch (error: any) {
+      setSaveError(previous => ({ ...previous, [key]: error?.message ?? 'Save failed' }));
+    }
+    setSaving(null);
+  };
+
   const requiredCount = locations.length * methods.length;
   const mappedCount = locations.reduce((count, location) => count + methods.filter(method => mappingFor(location.id, method.payment_method)).length, 0);
 
@@ -15191,10 +15457,11 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
         <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: 0 }}>No active POS locations found.</p>
       ) : (
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: Math.max(620, 190 + methods.length * 250) }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: Math.max(860, 440 + methods.length * 250) }}>
             <thead><tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
               <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>Location</th>
               {methods.map(method => <th key={method.payment_method} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{method.payment_method}</th>)}
+              <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>Default Cash Deposit Bank</th>
             </tr></thead>
             <tbody>
               {locations.map(location => (
@@ -15220,6 +15487,25 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
                       </td>
                     );
                   })}
+                  <td style={{ padding: '5px 8px' }}>
+                    {(() => {
+                      const key = `deposit:${location.id}`;
+                      const setting = depositSettings.find(candidate => candidate.ims_location_id === location.id);
+                      return <>
+                        <select
+                          title="Default real bank account receiving physical cash deposits. Banking drafts may override it before posting."
+                          value={setting?.destination_account_id ?? ''}
+                          onChange={event => handleDepositBank(location.id, event.target.value)}
+                          disabled={saving === key}
+                          style={{ width: '100%', minWidth: 220, padding: '6px 8px', borderRadius: 5, border: `1px solid ${saveError[key] ? 'var(--sv-red)' : setting ? 'var(--sv-mint)' : 'var(--sv-amber)'}`, background: 'var(--sv-bg-1)', color: setting ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontSize: 12 }}
+                        >
+                          <option value="">— deposit bank required —</option>
+                          {bankAccounts.map(account => <option key={account.accountId} value={account.accountId}>{account.code} — {account.name}</option>)}
+                        </select>
+                        {saveError[key] && <div style={{ marginTop: 3, fontSize: 10, color: 'var(--sv-red)' }}>{saveError[key]}</div>}
+                      </>;
+                    })()}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -15247,6 +15533,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
     { key: 'sales_revenue', label: 'Sales Revenue', desc: 'Income from sales (P&L)', filter: (a: any) => a.class === 'REVENUE' },
     { key: 'credit_note', label: 'Credit Notes (Customer Returns)', desc: 'Revenue/contra-revenue account for customer credit note lines (returns & refunds). Defaults to Sales Revenue if not set.', filter: (a: any) => a.class === 'REVENUE' },
     { key: 'rounding', label: 'Cash Rounding', desc: 'Optional account for POS cash-rounding adjustments. Falls back to Sales Revenue if unset.', filter: (a: any) => a.class === 'EXPENSE' || a.class === 'REVENUE' },
+    { key: 'cash_over_short', label: 'Cash Over / Short', desc: 'Required for POS till and banking discrepancies. Entries use no GST.', filter: (a: any) => a.class === 'EXPENSE' || a.class === 'REVENUE' },
     { key: 'freight', label: 'Freight / Shipping', desc: 'Freight Paid expense account (P&L). Only used when PO Freight Treatment = Expense.', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'stock_adjustment', label: 'Stock Adjustment / Shrinkage', desc: 'Stocktake variance expense account (P&L) — used for stock write-offs and surpluses', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'gift_card_liability', label: 'Gift Card Liability', desc: 'Liability account for outstanding gift card balances', filter: (a: any) => a.class === 'LIABILITY' },
@@ -17292,7 +17579,7 @@ export default function ImsPage() {
     'pos-sales','online-sales','stocktakes',
     'reports','report-sales-by-branch','report-sales-search',
     'report-inventory-valuation','report-product-margin',
-    'report-pos-price-changes','report-pos-registers',
+    'report-pos-price-changes','report-pos-registers','report-cash-banking',
     'xero','shopify',
   ]), []);
 
@@ -17775,6 +18062,7 @@ export default function ImsPage() {
             ProductMarginView={ProductMarginView}
             PosPriceChangesView={PosPriceChangesView}
             PosRegistersReportView={PosRegistersReportView}
+            CashBankingReportView={CashBankingReportView}
             XeroView={XeroView}
             ShopifyView={ShopifyView}
             OrderPlannerView={OrderPlannerView}
@@ -22650,6 +22938,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           { role: 'cogs',                  type: 'Expense', description: 'Cost of goods sold — debited in scheduled COGS journals', required: true },
           { role: 'sales_revenue',         type: 'Revenue', description: 'Sales income — used for SO and batch POS/online invoice lines', required: true },
           { role: 'rounding',              type: 'Revenue/Expense', description: 'Optional account for POS cash-rounding adjustments; defaults to Sales Revenue when not mapped', required: false },
+          { role: 'cash_over_short',        type: 'Revenue/Expense', description: 'Required for POS till and cash-banking discrepancies; entries are posted without GST', required: true },
           { role: 'freight',               type: 'Expense', description: 'Freight / shipping expense — used when freight treatment is set to "Expense"', required: false },
           { role: 'credit_note',           type: 'Revenue', description: 'Account for manual credit note lines — defaults to sales_revenue if not set', required: false },
           { role: 'supplier_credit_note',  type: 'Expense/Asset', description: 'Account for non-restock supplier credit lines; restock lines post to inventory_asset (falls back to cogs if not set)', required: false },

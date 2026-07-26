@@ -62,6 +62,7 @@ export async function POST(req: Request) {
     'inventory_asset', 'inventory_in_transit', 'cogs', 'sales_revenue',
     'credit_note', 'freight', 'stock_adjustment',
     'rounding',
+    'cash_over_short',
     'gift_card_liability',
     'store_credit_liability',
     'supplier_credit_note',

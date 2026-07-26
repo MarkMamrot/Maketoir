@@ -151,6 +151,22 @@ export function requireStandardUserTier():
   return { user };
 }
 
+/** Require POS Manager or higher tier access for operational management tasks. */
+export function requirePosManagerTier():
+  | { user: AdminSession; response?: never }
+  | { user?: never; response: NextResponse } {
+  const user = getAdminSession();
+  if (!user || !hasTierAccess(user.tier, 'PosManager')) {
+    return {
+      response: NextResponse.json(
+        { error: 'POS Manager access required.' },
+        { status: 403 },
+      ),
+    };
+  }
+  return { user };
+}
+
 /**
  * Require any valid session (all tiers).
  */

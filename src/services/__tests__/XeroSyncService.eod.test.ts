@@ -143,4 +143,117 @@ describe('triggerEodXeroSync clearing payments', () => {
     expect(store.setXeroPaymentError).toHaveBeenCalledWith(4, '2026-07-25', 'Cash', 'bank account rejected', '090', 2);
     expect(results).toEqual([expect.objectContaining({ status: 'invoice_posted_payment_failed', xeroId: 'invoice-cash' })]);
   });
+
+  it('invoices expected cash sales then posts a till overage separately', async () => {
+    mockQuery.mockImplementation((sql: string) => {
+      if (sql.includes('xero_pos_clearing_mappings')) {
+        return Promise.resolve([{ payment_method: 'Cash', xero_account_code: '090' }]);
+      }
+      if (sql.includes('xero_account_mappings')) {
+        return Promise.resolve([
+          { role_key: 'sales_revenue', xero_account_code: '200' },
+          { role_key: 'cash_over_short', xero_account_code: '898' },
+        ]);
+      }
+      if (sql.includes('xero_tracking_mappings')) {
+        return Promise.resolve([{
+          ims_location_id: 4, ims_channel: null,
+          xero_tracking_category_id: 'category-1', xero_tracking_option_id: 'option-4',
+        }]);
+      }
+      if (sql.includes('xero_pos_cash_eod_actions')) return Promise.resolve([]);
+      return Promise.resolve([]);
+    });
+    mockXeroApiFetch
+      .mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'invoice-cash', AmountDue: 100 }] })
+      .mockResolvedValueOnce({ Payments: [{ PaymentID: 'payment-cash' }] })
+      .mockResolvedValueOnce({ BankTransactions: [{ BankTransactionID: 'variance-1' }] });
+    const store = persistence();
+
+    const results = await triggerEodXeroSync(
+      'biz-1', 4, '2026-07-25',
+      [{
+        id: 44,
+        payment_method: 'Cash',
+        expected_amount: 100,
+        counted_amount: 150.1,
+        opening_float: 50,
+        register_session_id: 8,
+      }],
+      'Newtown', 2, store, 'Front Till',
+    );
+
+    expect(mockXeroApiFetch.mock.calls.map(call => call[1])).toEqual(['/Invoices', '/Payments', '/BankTransactions']);
+    const invoiceOptions = mockXeroApiFetch.mock.calls[0][2];
+    expect(invoiceOptions.body.Invoices[0].LineItems[0]).toEqual(expect.objectContaining({
+      UnitAmount: 100,
+      AccountCode: '200',
+      TaxType: 'OUTPUT',
+    }));
+    expect(invoiceOptions.idempotencyKey).toHaveLength(64);
+    expect(mockXeroApiFetch.mock.calls[1][2]).toEqual(expect.objectContaining({ idempotencyKey: expect.any(String) }));
+    const varianceOptions = mockXeroApiFetch.mock.calls[2][2];
+    expect(varianceOptions.idempotencyKey).toHaveLength(64);
+    expect(varianceOptions.body.BankTransactions[0]).toEqual(expect.objectContaining({
+      Type: 'RECEIVE',
+      BankAccount: { Code: '090' },
+      LineItems: [expect.objectContaining({
+        UnitAmount: 0.1,
+        AccountCode: '898',
+        TaxType: 'NONE',
+        Tracking: [{ TrackingCategoryID: 'category-1', TrackingOptionID: 'option-4' }],
+      })],
+    }));
+    expect(mockExecute.mock.calls.some(call => String(call[0]).includes('INSERT INTO xero_pos_cash_eod_actions'))).toBe(true);
+    expect(results).toEqual([expect.objectContaining({ method: 'Cash', status: 'paid' })]);
+  });
+
+  it('retries only an unfinished till variance after the cash payment completed', async () => {
+    mockQuery.mockImplementation((sql: string) => {
+      if (sql.includes('xero_pos_clearing_mappings')) {
+        return Promise.resolve([{ payment_method: 'Cash', xero_account_code: '090' }]);
+      }
+      if (sql.includes('xero_pos_cash_eod_actions')) {
+        return Promise.resolve([{
+          eod_reconciliation_id: 44,
+          expected_amount: 100,
+          counted_amount: 150.1,
+          opening_float: 50,
+          cash_rounding: 0,
+          sales_amount: 100,
+          till_variance: 0.1,
+          clearing_account_code: '090',
+          over_short_account_code: '898',
+          invoice_status: 'completed',
+          payment_status: 'completed',
+          variance_status: 'error',
+          invoice_idempotency_key: 'invoice-key',
+          payment_idempotency_key: 'payment-key',
+          variance_idempotency_key: 'variance-key',
+          xero_variance_id: null,
+        }]);
+      }
+      return Promise.resolve([]);
+    });
+    mockXeroApiFetch.mockResolvedValueOnce({ BankTransactions: [{ BankTransactionID: 'variance-1' }] });
+
+    const results = await triggerEodXeroSync(
+      'biz-1', 4, '2026-07-25',
+      [{
+        id: 44,
+        payment_method: 'Cash',
+        expected_amount: 100,
+        counted_amount: 150.1,
+        opening_float: 50,
+        xero_invoice_id: 'invoice-cash',
+        xero_payment_id: 'payment-cash',
+        xero_payment_required: 0,
+      }],
+      'Newtown', 2, persistence(),
+    );
+
+    expect(mockXeroApiFetch.mock.calls.map(call => call[1])).toEqual(['/BankTransactions']);
+    expect(mockXeroApiFetch.mock.calls[0][2].idempotencyKey).toBe('variance-key');
+    expect(results).toEqual([expect.objectContaining({ status: 'paid', xeroId: 'invoice-cash' })]);
+  });
 });

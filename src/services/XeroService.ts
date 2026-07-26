@@ -63,6 +63,7 @@ const SCOPES = [
   'accounting.invoices',
   'accounting.attachments',
   'accounting.payments',
+  'accounting.transactions',
   'accounting.manualjournals',
 ].join(' ');
 

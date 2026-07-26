@@ -81,6 +81,12 @@ async function main() {
   console.log('✔ xero_cogs_journal_runs created');
   console.log('✔ xero_pos_payment_mappings created');
   console.log('✔ xero_pos_clearing_mappings created');
+  console.log('✔ xero_pos_cash_eod_actions created');
+  console.log('✔ xero_cash_deposit_settings created');
+  console.log('✔ xero_cash_deposits created');
+  console.log('✔ xero_cash_deposit_days created');
+  console.log('✔ xero_cash_deposit_sources created');
+  console.log('✔ xero_cash_deposit_actions created');
   console.log('✔ xero_online_batches created');
   console.log('✔ shopify_payment_payouts created');
   console.log('✔ shopify_payment_payout_transactions created');

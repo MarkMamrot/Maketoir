@@ -58,23 +58,26 @@ export async function GET(req: Request) {
     const recons = (reconBySession.get(s.id) ?? []).map(r => {
       const exp = parseFloat(r.expected_amount ?? '0') || 0;
       const cnt = parseFloat(r.counted_amount ?? '0') || 0;
+      const openingFloat = parseFloat(s.opening_float ?? '0') || 0;
+      const isCash = r.payment_method.trim().toLowerCase() === 'cash';
       return {
         payment_method: r.payment_method,
         expected_amount: r.expected_amount != null ? exp : null,
         counted_amount:  r.counted_amount  != null ? cnt : null,
-        variance:        r.counted_amount  != null ? cnt - exp : null,
+        variance:        r.counted_amount  != null ? cnt - (isCash ? openingFloat : 0) - exp : null,
         xero_invoice_id: r.xero_invoice_id,
         xero_synced_at:  r.xero_synced_at,
       };
     });
     const totalExpected = recons.reduce((sum, r) => sum + (r.expected_amount ?? 0), 0);
     const totalCounted  = recons.reduce((sum, r) => sum + (r.counted_amount  ?? 0), 0);
+    const totalVariance = recons.reduce((sum, r) => sum + (r.variance ?? 0), 0);
     return {
       ...s,
       reconciliations: recons,
       total_expected: totalExpected,
       total_counted:  totalCounted,
-      total_variance: totalCounted - totalExpected,
+      total_variance: totalVariance,
     };
   });
 

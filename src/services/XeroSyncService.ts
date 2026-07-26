@@ -20,6 +20,8 @@ import { getValidAccessToken, xeroApiFetch } from '@/services/XeroService';
 import { query, execute } from '@/services/MySQLService';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { buildCogsJournalLines } from '@/lib/xero/cogsPeriods';
+import { calculateCashPosition, splitExpectedCashTender } from '@/lib/ims/cashBankingMath';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 
@@ -34,6 +36,7 @@ interface AccountMapping {
   stock_adjustment?: string;
   credit_note?: string;
   rounding?: string; // Optional dedicated account for cash rounding adjustments
+  cash_over_short?: string; // POS till and banking discrepancies
   gift_card_liability?: string; // Outstanding gift card balances (liability)
   store_credit_liability?: string; // Outstanding store credit balances (liability)
   supplier_credit_note?: string; // Non-stock supplier credit lines (rebates/overcharges)
@@ -1545,6 +1548,7 @@ export async function syncEodEntry(
     method: string;
     salesAmount: number; // cash: counted − float; others: counted
     cashRounding?: number; // net cash rounding adjustment for the session (Cash only)
+    idempotencyKey?: string;
   },
 ): Promise<{ xeroId: string; invoiceNumber: string; amountDue: number } | null> {
   const accounts         = await getAccountMappings(businessId);
@@ -1598,7 +1602,11 @@ export async function syncEodEntry(
   };
 
   try {
-    const result        = await xeroApiFetch(businessId, '/Invoices', { method: 'POST', body: { Invoices: [invoice] } });
+    const result        = await xeroApiFetch(businessId, '/Invoices', {
+      method: 'POST',
+      body: { Invoices: [invoice] },
+      idempotencyKey: entry.idempotencyKey,
+    });
     const inv           = result.Invoices?.[0];
     const xeroId        = inv?.InvoiceID ?? null;
     const invoiceNumber = inv?.InvoiceNumber ?? '';
@@ -1620,7 +1628,7 @@ type EodSyncPersistence = {
 
 export type EodXeroSyncResult = {
   method: string;
-  status: 'paid' | 'blocked_missing_mapping' | 'invoice_posted_payment_failed' | 'already_paid' | 'invoice_failed';
+  status: 'paid' | 'blocked_missing_mapping' | 'blocked_missing_over_short_mapping' | 'invoice_posted_payment_failed' | 'paid_variance_failed' | 'already_paid' | 'invoice_failed';
   xeroId?: string;
   invoiceNumber?: string;
   error?: string;
@@ -1634,7 +1642,7 @@ async function getEodInvoiceAmountDue(businessId: string, xeroId: string, fallba
 
 async function applyEodClearingPayment(
   businessId: string,
-  input: { xeroId: string; date: string; locationId: number; registerId?: number | null; sessionId?: number | null; method: string; clearingAccountCode: string; amount: number },
+  input: { xeroId: string; date: string; locationId: number; registerId?: number | null; sessionId?: number | null; method: string; clearingAccountCode: string; amount: number; idempotencyKey?: string },
 ): Promise<string> {
   const registerPart = input.registerId ? ` R${input.registerId}` : '';
   const sessionPart = input.sessionId ? ` S${input.sessionId}` : '';
@@ -1647,10 +1655,142 @@ async function applyEodClearingPayment(
       Amount: input.amount,
       Reference: `EOD clearing L${input.locationId}${registerPart}${sessionPart} ${input.method} ${input.date}`,
     }] },
+    idempotencyKey: input.idempotencyKey,
   });
   const paymentId = response?.Payments?.[0]?.PaymentID;
   if (!paymentId) throw new Error('Xero did not return a clearing payment ID');
   return paymentId;
+}
+
+type CashEodPlan = {
+  eod_reconciliation_id: number;
+  expected_amount: number;
+  counted_amount: number;
+  opening_float: number;
+  cash_rounding: number;
+  sales_amount: number;
+  till_variance: number;
+  clearing_account_code: string;
+  over_short_account_code: string | null;
+  invoice_status: string;
+  payment_status: string;
+  variance_status: string;
+  invoice_idempotency_key: string;
+  payment_idempotency_key: string;
+  variance_idempotency_key: string;
+  xero_variance_id: string | null;
+};
+
+function cashActionKey(businessId: string, reconciliationId: number, action: string): string {
+  return crypto.createHash('sha256').update(`${businessId}|pos-cash-eod|${reconciliationId}|${action}`).digest('hex');
+}
+
+async function getOrCreateCashEodPlan(input: {
+  businessId: string;
+  reconciliationId: number;
+  expectedAmount: number;
+  countedAmount: number;
+  openingFloat: number;
+  cashRounding: number;
+  clearingAccountCode: string;
+  overShortAccountCode: string | null;
+}): Promise<CashEodPlan> {
+  const existing = await query<CashEodPlan>(
+    `SELECT * FROM xero_pos_cash_eod_actions
+      WHERE business_id = ? AND eod_reconciliation_id = ? LIMIT 1`,
+    [input.businessId, input.reconciliationId],
+  );
+  if (existing[0]) return existing[0];
+
+  const position = calculateCashPosition({
+    expectedAmount: input.expectedAmount,
+    countedAmount: input.countedAmount,
+    openingFloat: input.openingFloat,
+  });
+  const split = splitExpectedCashTender({
+    expectedAmount: input.expectedAmount,
+    cashRounding: input.cashRounding,
+  });
+  const plan: CashEodPlan = {
+    eod_reconciliation_id: input.reconciliationId,
+    expected_amount: position.cashTenderExpected,
+    counted_amount: input.countedAmount,
+    opening_float: input.openingFloat,
+    cash_rounding: split.roundingAmount,
+    sales_amount: split.salesAmount,
+    till_variance: position.tillVariance,
+    clearing_account_code: input.clearingAccountCode,
+    over_short_account_code: input.overShortAccountCode,
+    invoice_status: 'pending',
+    payment_status: 'pending',
+    variance_status: position.tillVariance === 0 ? 'not_required' : 'pending',
+    invoice_idempotency_key: cashActionKey(input.businessId, input.reconciliationId, 'invoice'),
+    payment_idempotency_key: cashActionKey(input.businessId, input.reconciliationId, 'payment'),
+    variance_idempotency_key: cashActionKey(input.businessId, input.reconciliationId, 'variance'),
+    xero_variance_id: null,
+  };
+  await execute(
+    `INSERT INTO xero_pos_cash_eod_actions
+       (business_id, eod_reconciliation_id, expected_amount, counted_amount, opening_float,
+        cash_rounding, sales_amount, till_variance, clearing_account_code,
+        over_short_account_code, variance_status, invoice_idempotency_key,
+        payment_idempotency_key, variance_idempotency_key)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      input.businessId, input.reconciliationId, plan.expected_amount, plan.counted_amount,
+      plan.opening_float, plan.cash_rounding, plan.sales_amount, plan.till_variance,
+      plan.clearing_account_code, plan.over_short_account_code, plan.variance_status,
+      plan.invoice_idempotency_key, plan.payment_idempotency_key, plan.variance_idempotency_key,
+    ],
+  );
+  return plan;
+}
+
+async function getCashEodPlan(businessId: string, reconciliationId: number): Promise<CashEodPlan | null> {
+  const rows = await query<CashEodPlan>(
+    `SELECT * FROM xero_pos_cash_eod_actions
+      WHERE business_id = ? AND eod_reconciliation_id = ? LIMIT 1`,
+    [businessId, reconciliationId],
+  );
+  return rows[0] ?? null;
+}
+
+async function postCashTillVariance(
+  businessId: string,
+  input: {
+    reconciliationId: number;
+    date: string;
+    locationName: string;
+    clearingAccountCode: string;
+    overShortAccountCode: string;
+    amount: number;
+    tracking: any[];
+    idempotencyKey: string;
+  },
+): Promise<string> {
+  const response = await xeroApiFetch(businessId, '/BankTransactions', {
+    method: 'POST',
+    idempotencyKey: input.idempotencyKey,
+    body: { BankTransactions: [{
+      Type: input.amount > 0 ? 'RECEIVE' : 'SPEND',
+      Contact: { Name: 'POS Reconciliation (Summary)' },
+      BankAccount: { Code: input.clearingAccountCode },
+      Date: input.date,
+      Reference: `POS till variance ${input.locationName} ${input.date}`,
+      LineAmountTypes: 'NoTax',
+      LineItems: [{
+        Description: `POS cash ${input.amount > 0 ? 'overage' : 'shortage'} — ${input.locationName} — ${input.date}`,
+        Quantity: 1,
+        UnitAmount: Math.abs(input.amount),
+        AccountCode: input.overShortAccountCode,
+        TaxType: 'NONE',
+        Tracking: input.tracking,
+      }],
+    }] },
+  });
+  const id = response?.BankTransactions?.[0]?.BankTransactionID;
+  if (!id) throw new Error('Xero did not return a till variance BankTransactionID');
+  return String(id);
 }
 
 /**
@@ -1663,7 +1803,9 @@ export async function triggerEodXeroSync(
   locationId: number,
   date: string,
   rows: Array<{
+    id?: number;
     payment_method: string;
+    expected_amount?: number | null;
     counted_amount: number | null;
     opening_float:  number | null;
     register_session_id?: number | null;
@@ -1678,6 +1820,8 @@ export async function triggerEodXeroSync(
 ): Promise<EodXeroSyncResult[]> {
   const results: EodXeroSyncResult[] = [];
   const clearingMappings = await getPosClearingMappings(businessId, locationId);
+  const accounts = await getAccountMappings(businessId);
+  const tracking = getTrackingForLocation(await getTrackingMappings(businessId), locationId);
 
   // Sum net cash rounding for the session so we can attach it to the Cash invoice.
   // Positive = customers paid slightly more (round up); negative = slightly less (round down).
@@ -1702,19 +1846,10 @@ export async function triggerEodXeroSync(
 
   for (const row of rows) {
     if (row.counted_amount == null) continue;
-    const openFloat  = row.payment_method === 'Cash' ? (row.opening_float ?? 0) : 0;
-    const salesAmount = row.counted_amount - openFloat;
-    if (salesAmount <= 0) continue;
-
-    if (row.xero_invoice_id && !row.xero_payment_required) {
-      results.push({ method: row.payment_method, status: 'already_paid', xeroId: row.xero_invoice_id });
-      continue;
-    }
-    if (row.xero_payment_id) {
-      results.push({ method: row.payment_method, status: 'already_paid', xeroId: row.xero_invoice_id ?? undefined });
-      continue;
-    }
-
+    const isCash = /^cash$/i.test(row.payment_method.trim());
+    const openFloat = isCash ? (row.opening_float ?? 0) : 0;
+    let salesAmount = row.counted_amount - openFloat;
+    let cashPlan: CashEodPlan | null = null;
     const clearingAccountCode = clearingMappings[row.payment_method.trim().toLowerCase()];
     if (!clearingAccountCode) {
       const detail = `Missing POS clearing account mapping: ${locationName} / ${row.payment_method}`;
@@ -1723,7 +1858,79 @@ export async function triggerEodXeroSync(
       continue;
     }
 
-    const cashRounding = /cash/i.test(row.payment_method) && netCashRounding !== 0 ? netCashRounding : undefined;
+    if (isCash && row.id != null) {
+      cashPlan = await getCashEodPlan(businessId, row.id);
+    }
+    if (isCash && row.id != null && !cashPlan && !row.xero_invoice_id) {
+      const expectedAmount = Number(row.expected_amount ?? 0);
+      const tillVariance = calculateCashPosition({
+        expectedAmount,
+        countedAmount: row.counted_amount,
+        openingFloat: openFloat,
+      }).tillVariance;
+      if (tillVariance !== 0 && !accounts.cash_over_short) {
+        const detail = `Missing Cash Over / Short account mapping for ${locationName}`;
+        await logSync(businessId, 'eod_reconciliation', row.id, null, 'skipped', detail);
+        results.push({ method: row.payment_method, status: 'blocked_missing_over_short_mapping', error: detail });
+        continue;
+      }
+      cashPlan = await getOrCreateCashEodPlan({
+        businessId,
+        reconciliationId: row.id,
+        expectedAmount,
+        countedAmount: row.counted_amount,
+        openingFloat: openFloat,
+        cashRounding: netCashRounding,
+        clearingAccountCode,
+        overShortAccountCode: accounts.cash_over_short ?? null,
+      });
+      salesAmount = cashPlan.sales_amount;
+    }
+    if (cashPlan) salesAmount = Number(cashPlan.sales_amount);
+    if (salesAmount <= 0) continue;
+
+    const paymentAlreadyComplete = !!row.xero_payment_id || (!!row.xero_invoice_id && !row.xero_payment_required);
+    if (paymentAlreadyComplete && cashPlan && Number(cashPlan.till_variance) !== 0 && cashPlan.variance_status !== 'completed') {
+      try {
+        const varianceId = await postCashTillVariance(businessId, {
+          reconciliationId: cashPlan.eod_reconciliation_id,
+          date,
+          locationName,
+          clearingAccountCode,
+          overShortAccountCode: cashPlan.over_short_account_code as string,
+          amount: Number(cashPlan.till_variance),
+          tracking,
+          idempotencyKey: cashPlan.variance_idempotency_key,
+        });
+        await execute(
+          `UPDATE xero_pos_cash_eod_actions
+              SET variance_status = 'completed', xero_variance_id = ?, error_detail = NULL,
+                  completed_at = NOW(), attempt_count = attempt_count + 1, last_attempt_at = NOW()
+            WHERE business_id = ? AND eod_reconciliation_id = ?`,
+          [varianceId, businessId, cashPlan.eod_reconciliation_id],
+        );
+        results.push({ method: row.payment_method, status: 'paid', xeroId: row.xero_invoice_id ?? undefined });
+      } catch (error: any) {
+        const message = error?.message ?? 'Till variance posting failed';
+        await execute(
+          `UPDATE xero_pos_cash_eod_actions
+              SET variance_status = 'error', error_detail = ?,
+                  attempt_count = attempt_count + 1, last_attempt_at = NOW()
+            WHERE business_id = ? AND eod_reconciliation_id = ?`,
+          [message, businessId, cashPlan.eod_reconciliation_id],
+        );
+        results.push({ method: row.payment_method, status: 'paid_variance_failed', xeroId: row.xero_invoice_id ?? undefined, error: message });
+      }
+      continue;
+    }
+    if (paymentAlreadyComplete) {
+      results.push({ method: row.payment_method, status: 'already_paid', xeroId: row.xero_invoice_id ?? undefined });
+      continue;
+    }
+
+    const cashRounding = cashPlan
+      ? (cashPlan.cash_rounding !== 0 ? cashPlan.cash_rounding : undefined)
+      : (/cash/i.test(row.payment_method) && netCashRounding !== 0 ? netCashRounding : undefined);
     let xeroId = row.xero_invoice_id ?? null;
     let invoiceNumber = '';
     let amountDue = roundCurrency(salesAmount + (cashRounding ?? 0));
@@ -1737,6 +1944,7 @@ export async function triggerEodXeroSync(
         method: row.payment_method,
         salesAmount,
         cashRounding,
+        idempotencyKey: cashPlan?.invoice_idempotency_key,
       });
       if (!invoiceResult) {
         results.push({ method: row.payment_method, status: 'invoice_failed' });
@@ -1746,6 +1954,15 @@ export async function triggerEodXeroSync(
       invoiceNumber = invoiceResult.invoiceNumber;
       amountDue = invoiceResult.amountDue;
       await persistence.setXeroInvoice(locationId, date, row.payment_method, xeroId, clearingAccountCode, registerId);
+      if (cashPlan) {
+        await execute(
+          `UPDATE xero_pos_cash_eod_actions
+              SET invoice_status = 'completed', xero_invoice_id = ?, error_detail = NULL,
+                  attempt_count = attempt_count + 1, last_attempt_at = NOW()
+            WHERE business_id = ? AND eod_reconciliation_id = ?`,
+          [xeroId, businessId, cashPlan.eod_reconciliation_id],
+        );
+      }
     }
     try {
       if (row.xero_invoice_id) {
@@ -1760,8 +1977,57 @@ export async function triggerEodXeroSync(
         method: row.payment_method,
         clearingAccountCode,
         amount: amountDue,
+        idempotencyKey: cashPlan?.payment_idempotency_key,
       });
       await persistence.setXeroPayment(locationId, date, row.payment_method, paymentId, clearingAccountCode, registerId);
+      if (cashPlan) {
+        await execute(
+          `UPDATE xero_pos_cash_eod_actions
+              SET payment_status = 'completed', xero_payment_id = ?, error_detail = NULL,
+                  attempt_count = attempt_count + 1, last_attempt_at = NOW()
+            WHERE business_id = ? AND eod_reconciliation_id = ?`,
+          [paymentId, businessId, cashPlan.eod_reconciliation_id],
+        );
+        if (cashPlan.till_variance !== 0 && cashPlan.variance_status !== 'completed') {
+          try {
+            const varianceId = await postCashTillVariance(businessId, {
+              reconciliationId: cashPlan.eod_reconciliation_id,
+              date,
+              locationName,
+              clearingAccountCode,
+              overShortAccountCode: cashPlan.over_short_account_code as string,
+              amount: cashPlan.till_variance,
+              tracking,
+              idempotencyKey: cashPlan.variance_idempotency_key,
+            });
+            await execute(
+              `UPDATE xero_pos_cash_eod_actions
+                  SET variance_status = 'completed', xero_variance_id = ?, error_detail = NULL,
+                      completed_at = NOW(), attempt_count = attempt_count + 1, last_attempt_at = NOW()
+                WHERE business_id = ? AND eod_reconciliation_id = ?`,
+              [varianceId, businessId, cashPlan.eod_reconciliation_id],
+            );
+          } catch (error: any) {
+            const message = error?.message ?? 'Till variance posting failed';
+            await execute(
+              `UPDATE xero_pos_cash_eod_actions
+                  SET variance_status = 'error', error_detail = ?,
+                      attempt_count = attempt_count + 1, last_attempt_at = NOW()
+                WHERE business_id = ? AND eod_reconciliation_id = ?`,
+              [message, businessId, cashPlan.eod_reconciliation_id],
+            );
+            results.push({ method: row.payment_method, status: 'paid_variance_failed', xeroId, invoiceNumber, error: message });
+            continue;
+          }
+        } else if (cashPlan.till_variance === 0) {
+          await execute(
+            `UPDATE xero_pos_cash_eod_actions
+                SET completed_at = NOW(), error_detail = NULL
+              WHERE business_id = ? AND eod_reconciliation_id = ?`,
+            [businessId, cashPlan.eod_reconciliation_id],
+          );
+        }
+      }
       await logSync(businessId, 'eod_reconciliation', null, xeroId, 'success',
         `EOD ${date} ${row.payment_method} — ${locationName}: $${amountDue.toFixed(2)} paid to ${clearingAccountCode}`,
         'PAID');

@@ -9,7 +9,7 @@ type ImsView =
   | 'purchase-orders' | 'sales-orders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
-  | 'reports' | 'report-sales-by-branch' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers'
+  | 'reports' | 'report-sales-by-branch' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
   | 'xero' | 'shopify';
 
 interface MainSectionsProps {
@@ -52,6 +52,7 @@ interface MainSectionsProps {
   ProductMarginView: any;
   PosPriceChangesView: any;
   PosRegistersReportView: any;
+  CashBankingReportView: any;
   XeroView: any;
   ShopifyView: any;
   OrderPlannerView: any;
@@ -104,6 +105,7 @@ export function MainSections(props: MainSectionsProps) {
     ProductMarginView,
     PosPriceChangesView,
     PosRegistersReportView,
+    CashBankingReportView,
     XeroView,
     ShopifyView,
     OrderPlannerView,
@@ -172,6 +174,7 @@ export function MainSections(props: MainSectionsProps) {
         ProductMarginView={ProductMarginView}
         PosPriceChangesView={PosPriceChangesView}
         PosRegistersReportView={PosRegistersReportView}
+        CashBankingReportView={CashBankingReportView}
       />
 
       {/* Integrations */}

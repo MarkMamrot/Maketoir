@@ -6,7 +6,7 @@ type ImsView =
   | 'purchase-orders' | 'sales-orders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
-  | 'reports' | 'report-sales-by-branch' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers'
+  | 'reports' | 'report-sales-by-branch' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
   | 'xero' | 'shopify';
 
 interface ReportsSectionProps {
@@ -19,6 +19,7 @@ interface ReportsSectionProps {
   ProductMarginView: any;
   PosPriceChangesView: any;
   PosRegistersReportView: any;
+  CashBankingReportView: any;
 }
 
 export function ReportsSection({
@@ -31,6 +32,7 @@ export function ReportsSection({
   ProductMarginView,
   PosPriceChangesView,
   PosRegistersReportView,
+  CashBankingReportView,
 }: ReportsSectionProps) {
   return (
     <>
@@ -41,6 +43,7 @@ export function ReportsSection({
       {view === 'report-product-margin' && <ProductMarginView onBack={() => setView('reports')} />}
       {view === 'report-pos-price-changes' && <PosPriceChangesView onBack={() => setView('reports')} />}
       {view === 'report-pos-registers' && <PosRegistersReportView onBack={() => setView('reports')} />}
+      {view === 'report-cash-banking' && <CashBankingReportView onBack={() => setView('reports')} />}
     </>
   );
 }
