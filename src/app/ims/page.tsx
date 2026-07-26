@@ -46,14 +46,14 @@ const NAV = [
     { id: 'stock',         label: 'Stock Levels' },
     { id: 'brands',        label: 'Brands' },
     { id: 'gift-cards',    label: 'Gift Cards' },
-    { id: 'bulk-edit',     label: '▸ Bulk Edit' },
+    { id: 'bulk-edit',     label: 'Bulk Edit' },
   ]},
   { id: '__orders',        label: 'Orders',           section: 'orders', children: [
     { id: 'purchase-orders',  label: 'Purchase Orders' },
     { id: 'sales-orders',     label: 'Sales Orders' },
     { id: 'credit-notes',     label: 'Credit Notes / Returns' },
     { id: 'supplier-credit-notes', label: 'Supplier Credit Notes' },
-    { id: 'smart-device-receive', label: '▸ Smart Device Receive' },
+    { id: 'smart-device-receive', label: 'Smart Device Receive' },
     { id: 'pos-sales',            label: 'POS Sales' },
     { id: 'online-sales',     label: 'Online Sales' },
     { id: 'order-planner',    label: 'Order Planner' },
@@ -62,7 +62,7 @@ const NAV = [
   { id: '__locations',     label: 'Locations',        section: 'locations', children: [
     { id: 'locations',      label: 'Locations' },
     { id: 'branch-transfers', label: 'Branch Transfers' },
-    { id: 'receive-transfers', label: '▸ Receive Transfers' },
+    { id: 'receive-transfers', label: 'Receive Transfers' },
   ]},
   { id: 'stocktakes',       label: 'Stocktakes',       section: null },
   { id: 'reports',          label: 'Reports',          section: null },
@@ -491,15 +491,15 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
 
         // Expanded mode
         return (
-          <div key={item.id}>
+          <div key={item.id} style={{ marginBottom: 2 }}>
             <button
               onClick={() => { if (hasChildren) toggleSection(item.id); else onSelect(item.id as ImsView); }}
               style={{
                 width: '100%', background: 'none', border: 'none', cursor: 'pointer',
                 padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8,
                 color: isActive ? 'var(--sv-text-strong)' : 'var(--sv-text-main)',
-                backgroundColor: isActive && !hasChildren ? 'rgba(37,99,235,.12)' : 'transparent',
-                textAlign: 'left', fontSize: 14, fontWeight: isActive ? 700 : 500,
+                backgroundColor: isActive && !hasChildren ? 'rgba(37,99,235,.12)' : (hasChildren && isGroupOpen ? 'rgba(148,163,184,.10)' : 'transparent'),
+                textAlign: 'left', fontSize: 14, fontWeight: isActive ? 700 : 600,
                 borderLeft: isActive && !hasChildren ? '3px solid var(--sv-action)' : '3px solid transparent',
                 transition: 'all .15s',
               }}
@@ -508,19 +508,19 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
               <span style={{ flex: 1, whiteSpace: 'nowrap' }}>{item.label}</span>
               {hasChildren && (
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                  style={{ transform: isGroupOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform .2s', opacity: .5, flexShrink: 0 }}>
+                  style={{ transform: isGroupOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform .2s', opacity: .75, flexShrink: 0 }}>
                   <path d="M6 9l6 6 6-6" />
                 </svg>
               )}
             </button>
             {hasChildren && isGroupOpen && (
-              <div>
+              <div style={{ marginLeft: 16, marginRight: 10, marginTop: 2, marginBottom: 4, borderLeft: '1px solid var(--sv-etch)', background: 'rgba(148,163,184,.06)', borderRadius: 8, overflow: 'hidden' }}>
                 {(item as any).children.map((child: any) => (
                   <button key={child.id} onClick={() => onSelect(child.id as ImsView)}
                     style={{
                       width: '100%', background: 'none', border: 'none', cursor: 'pointer',
-                      padding: '6px 16px 6px 40px', display: 'flex', alignItems: 'center',
-                      color: active === child.id ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)',
+                      padding: '7px 14px 7px 26px', display: 'flex', alignItems: 'center',
+                      color: active === child.id ? 'var(--sv-text-strong)' : 'var(--sv-text-main)',
                       backgroundColor: active === child.id ? 'rgba(37,99,235,.12)' : 'transparent',
                       fontSize: 13, fontWeight: active === child.id ? 700 : 500,
                       textAlign: 'left',
