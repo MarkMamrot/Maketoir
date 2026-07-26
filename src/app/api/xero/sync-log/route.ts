@@ -216,6 +216,7 @@ export async function GET(req: Request) {
     let batchLogs: any[] = [];
     let eventLogs: any[] = [];
     let cogsRuns: any[] = [];
+    let shopifyPayouts: any[] = [];
 
     try {
       if (poIds.length > 0) {
@@ -332,6 +333,29 @@ export async function GET(req: Request) {
       // The COGS tables are deployed separately; older Xero history remains usable
       // until that migration has run.
       console.warn('[xero/sync-log] xero_cogs_journal_runs unavailable:', cogsErr?.message);
+    }
+
+    try {
+      shopifyPayouts = await query<any>(
+        `SELECT p.id, p.shopify_payout_id, p.payout_date, p.currency, p.payout_amount,
+                p.transaction_net_total, p.reconciliation_status, p.error_detail,
+                p.reconciled_at, p.updated_at,
+                COUNT(a.id) AS action_count,
+                SUM(CASE WHEN a.status = 'completed' THEN 1 ELSE 0 END) AS completed_action_count
+           FROM shopify_payment_payouts p
+           LEFT JOIN shopify_payment_xero_actions a
+             ON a.business_id = p.business_id
+            AND a.shopify_payout_id = p.shopify_payout_id
+          WHERE p.business_id = ?
+          GROUP BY p.id, p.shopify_payout_id, p.payout_date, p.currency, p.payout_amount,
+                   p.transaction_net_total, p.reconciliation_status, p.error_detail,
+                   p.reconciled_at, p.updated_at
+          ORDER BY p.payout_date DESC, p.id DESC
+          LIMIT ${limit}`,
+        [databaseId],
+      );
+    } catch (payoutErr: any) {
+      console.warn('[xero/sync-log] Shopify payout tables unavailable:', payoutErr?.message);
     }
 
     // ── 6. Index logs ────────────────────────────────────────────────────────────────────────────
@@ -536,8 +560,38 @@ export async function GET(req: Request) {
       };
     });
 
+    const payoutEntries = shopifyPayouts.map((payout: any) => {
+      const status = String(payout.reconciliation_status ?? 'pending');
+      const actionCount = Number(payout.action_count ?? 0);
+      const completedCount = Number(payout.completed_action_count ?? 0);
+      const syncStatus = status === 'reconciled'
+        ? 'success'
+        : status === 'blocked' || status === 'partial'
+          ? 'error'
+          : 'pending';
+      return {
+        sync_type: 'shopify_payout',
+        payout_id: String(payout.shopify_payout_id),
+        payout_status: status,
+        reference_id: null,
+        reference: `Shopify Payout ${payout.shopify_payout_id}`,
+        contact_name: `${completedCount}/${actionCount} Xero actions complete`,
+        amount: Number(payout.payout_amount),
+        item_date: batchDateStr(payout.payout_date),
+        is_historical: 0,
+        xero_sync_status: null,
+        log_id: payout.id,
+        xero_id: null,
+        last_sync_status: syncStatus,
+        last_xero_state: status === 'reconciled' ? 'PAID' : null,
+        last_sync_detail: payout.error_detail || `Status: ${status}; transaction net $${Number(payout.transaction_net_total ?? 0).toFixed(2)}`,
+        last_sync_at: payout.reconciled_at ?? payout.updated_at,
+        payments: [],
+      };
+    });
+
     // Merge + sort by item_date DESC, then slice to limit
-    const entries = [...poEntries, ...soEntries, ...cnEntries, ...scnEntries, ...onlineBatchEntries, ...eventEntries, ...cogsEntries]
+    const entries = [...poEntries, ...soEntries, ...cnEntries, ...scnEntries, ...onlineBatchEntries, ...eventEntries, ...cogsEntries, ...payoutEntries]
       .sort((a, b) => {
         const da = a.item_date ? new Date(a.item_date).getTime() : 0;
         const db2 = b.item_date ? new Date(b.item_date).getTime() : 0;

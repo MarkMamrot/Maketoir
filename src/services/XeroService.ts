@@ -213,7 +213,7 @@ export async function getValidAccessToken(businessId: string): Promise<{ accessT
 export async function xeroApiFetch(
   businessId: string,
   path: string,
-  options: { method?: string; body?: unknown } = {},
+  options: { method?: string; body?: unknown; idempotencyKey?: string } = {},
 ): Promise<any> {
   const { accessToken, tenantId } = await getValidAccessToken(businessId);
   const url = path.startsWith('http') ? path : `${XERO_API_BASE}${path}`;
@@ -224,6 +224,7 @@ export async function xeroApiFetch(
       'xero-tenant-id': tenantId,
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      ...(options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : {}),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
   });

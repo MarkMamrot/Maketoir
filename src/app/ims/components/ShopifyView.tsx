@@ -719,6 +719,8 @@ function ShopifyOrdersTab({ businessId }: { businessId: string }) {
             ['orders/cancelled',   'Order cancelled — releases committed stock'],
             ['fulfillments/create','Order fulfilled — moves stock to fulfilled'],
             ['refunds/create',     'Refund issued — covers all refund + restock scenarios'],
+            ['shopify_payments/payouts/create', 'Payout created — captures settlement data for Xero reconciliation'],
+            ['shopify_payments/payouts/update', 'Payout updated — marks paid payouts ready for allocation'],
           ].map(([topic, desc]) => (
             <div key={topic} style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
               <code style={{ flexShrink: 0, padding: '1px 6px', background: 'var(--sv-bg-0)', borderRadius: 4, fontSize: 11, color: 'var(--sv-mint)', border: '1px solid var(--sv-etch)' }}>{topic}</code>
@@ -728,6 +730,9 @@ function ShopifyOrdersTab({ businessId }: { businessId: string }) {
         </div>
         <div style={{ marginBottom: 10, padding: '7px 10px', background: 'rgba(251,191,36,.07)', borderRadius: 6, fontSize: 11, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
           <strong style={{ color: '#fbbf24' }}>ℹ Returns webhooks</strong> — Shopify's <code style={{ fontFamily: 'monospace', fontSize: 10 }}>returns/*</code> topics require the <code style={{ fontFamily: 'monospace', fontSize: 10 }}>returns</code> access scope, a Shopify/Advanced/Plus plan, and must be registered via the Shopify Admin API (they don't appear in the UI dropdown). <strong>You don't need them</strong> — <code style={{ fontFamily: 'monospace', fontSize: 10 }}>refunds/create</code> already handles every refund and restock scenario. If you want to track a physical return before money is refunded, you can mark a credit note as <em>Awaiting product</em> manually in IMS → Credit Notes / Returns.
+        </div>
+        <div style={{ marginBottom: 10, padding: '7px 10px', background: 'rgba(56,189,248,.07)', borderRadius: 6, fontSize: 11, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
+          <strong style={{ color: '#38bdf8' }}>Shopify Payments payouts</strong> require the <code style={{ fontFamily: 'monospace', fontSize: 10 }}>shopify_payments_payouts</code> or <code style={{ fontFamily: 'monospace', fontSize: 10 }}>shopify_payments</code> access scope. Payout webhooks capture and plan settlement; Xero posting is confirmed from <strong>Xero → Sync History</strong>.
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <code style={{ flex: 1, padding: '8px 12px', background: 'var(--sv-bg-1)', borderRadius: 6, border: '1px solid var(--sv-etch)', fontSize: 12, color: 'var(--sv-mint)', overflowX: 'auto' as const }}>{webhookUrl}</code>

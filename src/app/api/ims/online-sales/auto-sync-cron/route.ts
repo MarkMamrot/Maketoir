@@ -15,26 +15,13 @@ import { query } from '@/services/MySQLService';
 import { syncDailySalesBatch, syncGiftCardLiabilityReclass } from '@/services/XeroSyncService';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
+import {
+  findOnlineGatewayClearingAccount,
+  isShopifyPaymentsGateway,
+  normalizeOnlineGateway,
+} from '@/lib/xero/onlineGatewayMappings';
 
 export const runtime = 'nodejs';
-
-function normalizeGateway(value: string | null | undefined): string {
-  const v = String(value ?? '').trim().toLowerCase();
-  return v || '_unknown';
-}
-
-function findGatewayClearingAccount(
-  gateway: string,
-  mappings: Array<{ gateway_name: string; clearing_account_code: string | null }>,
-): string | null {
-  const key = normalizeGateway(gateway);
-  for (const mapping of mappings) {
-    const name = normalizeGateway(mapping.gateway_name);
-    if (!name || !mapping.clearing_account_code) continue;
-    if (key.includes(name) || name.includes(key)) return mapping.clearing_account_code;
-  }
-  return null;
-}
 
 export async function POST(req: Request) {
   const secret = req.headers.get('x-cron-secret');
@@ -57,7 +44,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'DB error' }, { status: 500 });
   }
 
-  const results: { businessId: string; date: string; gateway?: string; success: boolean; error?: string }[] = [];
+  const results: { businessId: string; date: string; success: boolean; error?: string }[] = [];
 
   // Each business's work runs inside its own bound IMS schema context
   // (callback form — the only AsyncLocalStorage pattern that reliably
@@ -66,14 +53,11 @@ export async function POST(req: Request) {
     const timeZone = await getBusinessTimeZone(business_id);
     const today = new Date().toLocaleDateString('sv-SE', { timeZone });
     const settingRows = await imsQuery<{ key: string; value: string }>(
-      "SELECT `key`, value FROM ims_settings WHERE business_id = ? AND `key` IN ('shopify_xero_auto_sync_enabled', 'shopify_xero_online_batch_mode')",
+      "SELECT `key`, value FROM ims_settings WHERE business_id = ? AND `key` = 'shopify_xero_auto_sync_enabled'",
       [business_id],
     ).catch(() => [] as { key: string; value: string }[]);
     const settings = new Map(settingRows.map(row => [row.key, row.value]));
     const xeroAutoSyncEnabled = settings.get('shopify_xero_auto_sync_enabled') !== '0';
-    const onlineBatchMode = settings.get('shopify_xero_online_batch_mode') === 'combined'
-      ? 'combined'
-      : 'per_gateway';
     if (!xeroAutoSyncEnabled) return;
 
     // Rolling migration safety: needed for gift-card liability reclass in online batch.
@@ -95,98 +79,12 @@ export async function POST(req: Request) {
     ).catch(() => [] as { c: number }[]);
     if (Number(hasRecentOrders[0]?.c ?? 0) === 0) return;
 
-    const gatewayFilter = '';
-
     // Load gateway clearing-account mappings for this business.
     const gwMappings = await query<{ gateway_name: string; clearing_account_code: string | null }>(
       `SELECT gateway_name, clearing_account_code FROM xero_gateway_mappings WHERE business_id = ?`,
       [business_id],
     ).catch(() => [] as { gateway_name: string; clearing_account_code: string | null }[]);
-    const hasGatewayMappings = gwMappings.length > 0;
-    const shouldUsePerGateway = onlineBatchMode === 'per_gateway' && hasGatewayMappings;
-
-    if (shouldUsePerGateway) {
-      // ── Per-gateway mode: one invoice per (day × gateway) ─────────────────
-      // Find distinct (day, gateway) combos with syncable orders.
-      const combos = await imsQuery<{ day: string; gateway: string }>(
-        `SELECT DATE_FORMAT(order_date, '%Y-%m-%d') AS day,
-                COALESCE(LOWER(TRIM(payment_gateway)), '_unknown') AS gateway
-         FROM ims_sales_orders
-         WHERE so_type = 'online' AND business_id = ?
-           AND (is_historical IS NULL OR is_historical = 0)
-           AND status != 'cancelled'
-           AND DATE_FORMAT(order_date, '%Y-%m-%d') >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-           AND DATE_FORMAT(order_date, '%Y-%m-%d') < ?${gatewayFilter}
-         GROUP BY DATE_FORMAT(order_date, '%Y-%m-%d'), COALESCE(LOWER(TRIM(payment_gateway)), '_unknown')`,
-        [business_id, today],
-      ).catch(() => [] as { day: string; gateway: string }[]);
-
-      if (!combos.length) return;
-
-      // Which (day, gateway) combos are already synced? Detail format: 'online batch YYYY-MM-DD|gateway'
-      const detailKeys = combos.map(c => `online batch ${c.day}|${c.gateway}`);
-      const synced = await query<{ batch_key: string }>(
-        `SELECT detail AS batch_key FROM xero_sync_log
-         WHERE business_id = ? AND sync_type = 'online_batch' AND status = 'success'
-           AND detail IN (${detailKeys.map(() => '?').join(',')})`,
-        [business_id, ...detailKeys],
-      ).catch(() => [] as { batch_key: string }[]);
-      const syncedSet = new Set(synced.map(r => String(r.batch_key)));
-
-      for (const { day, gateway } of combos) {
-        const key = `online batch ${day}|${gateway}`;
-        if (syncedSet.has(key)) continue;
-        try {
-          const rows = await imsQuery<{ ts: string; tt: string; tc: string; gca: string }>(
-            `SELECT COALESCE(SUM(total_amount), 0) AS ts,
-                    COALESCE(SUM(tax_amount), 0)   AS tt,
-                    COALESCE(SUM(gift_card_amount), 0) AS gca,
-                    COUNT(*) AS tc
-             FROM ims_sales_orders
-             WHERE business_id = ?
-               AND DATE_FORMAT(order_date, '%Y-%m-%d') = ?
-               AND so_type = 'online'
-               AND (is_historical IS NULL OR is_historical = 0)
-               AND status != 'cancelled'
-               AND COALESCE(LOWER(TRIM(payment_gateway)), '_unknown') = ?${gatewayFilter}`,
-            [business_id, day, gateway],
-          );
-          const totalSales = Number(rows[0]?.ts ?? 0);
-          const totalTax   = Number(rows[0]?.tt ?? 0);
-          const giftCardAmount = Number(rows[0]?.gca ?? 0);
-          const count      = Number(rows[0]?.tc ?? 0);
-          if (totalSales === 0) continue;
-
-          // Fuzzy-match gateway to configured mappings (the stored gateway_name uses LIKE).
-          const clearingCode = findGatewayClearingAccount(gateway, gwMappings) ?? undefined;
-
-          const displayGateway = gateway === '_unknown' ? 'Unknown' : gateway;
-          await syncDailySalesBatch(business_id, {
-            date: day,
-            channel: 'online',
-            totalSales,
-            totalTax,
-            lineDescription: `Online Sales ${day} via ${displayGateway} (${count} orders)`,
-            gateway,
-            clearingAccountCode: clearingCode ?? undefined,
-          });
-          if (giftCardAmount > 0) {
-            await syncGiftCardLiabilityReclass({
-              businessId: business_id,
-              amount: giftCardAmount,
-              date: day,
-              channel: 'online',
-              gateway,
-              dedupeKey: `gift card liability online ${day}|${gateway}`,
-            });
-          }
-          results.push({ businessId: business_id, date: day, gateway, success: true });
-        } catch (e: any) {
-          results.push({ businessId: business_id, date: day, gateway, success: false, error: e?.message });
-        }
-      }
-    } else {
-      // ── Legacy combined mode: one invoice per day (original behaviour) ──────
+    // Supported model: one invoice per completed business day.
       const days = await imsQuery<{ day: string }>(
         `SELECT DATE_FORMAT(order_date, '%Y-%m-%d') AS day
          FROM ims_sales_orders
@@ -194,7 +92,7 @@ export async function POST(req: Request) {
            AND (is_historical IS NULL OR is_historical = 0)
            AND status != 'cancelled'
            AND DATE_FORMAT(order_date, '%Y-%m-%d') >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-           AND DATE_FORMAT(order_date, '%Y-%m-%d') < ?${gatewayFilter}
+           AND DATE_FORMAT(order_date, '%Y-%m-%d') < ?
          GROUP BY DATE_FORMAT(order_date, '%Y-%m-%d')`,
         [business_id, today],
       ).catch(() => [] as { day: string }[]);
@@ -222,7 +120,7 @@ export async function POST(req: Request) {
                AND DATE_FORMAT(order_date, '%Y-%m-%d') = ?
                AND so_type = 'online'
                AND (is_historical IS NULL OR is_historical = 0)
-               AND status != 'cancelled'${gatewayFilter}`,
+               AND status != 'cancelled'`,
             [business_id, day],
           );
           const totalSales = Number(rows[0]?.ts ?? 0);
@@ -247,19 +145,20 @@ export async function POST(req: Request) {
 
           const paymentRows = gatewayRows
             .map(row => {
-              const gateway = normalizeGateway(row.gateway);
+              const gateway = normalizeOnlineGateway(row.gateway);
               const amount = Math.round((Number(row.ts ?? 0) + Number(row.tt ?? 0)) * 100) / 100;
               if (!(amount > 0)) return null;
-              const accountCode = findGatewayClearingAccount(gateway, gwMappings);
+              const accountCode = findOnlineGatewayClearingAccount(gateway, gwMappings);
               return {
                 gateway,
                 amount,
                 accountCode,
+                payoutManaged: isShopifyPaymentsGateway(gateway),
               };
             })
-            .filter((row): row is { gateway: string; amount: number; accountCode: string | null } => !!row);
+            .filter((row): row is { gateway: string; amount: number; accountCode: string | null; payoutManaged: boolean } => !!row);
 
-          const missingMappings = paymentRows.filter(row => !row.accountCode);
+          const missingMappings = paymentRows.filter(row => !row.payoutManaged && !row.accountCode);
           if (gwMappings.length > 0 && missingMappings.length > 0) {
             const missingLabel = missingMappings.map(row => row.gateway).join(', ');
             results.push({
@@ -273,13 +172,16 @@ export async function POST(req: Request) {
 
           const targetTotal = Math.round((totalSales + totalTax) * 100) / 100;
           const clearingPayments = paymentRows
-            .filter(row => !!row.accountCode)
+            .filter(row => !row.payoutManaged && !!row.accountCode)
             .map(row => ({
               accountCode: row.accountCode as string,
               amount: row.amount,
               label: row.gateway === '_unknown' ? 'Unknown' : row.gateway,
             }));
-          if (clearingPayments.length > 0) {
+          const deferredShopifyTotal = paymentRows
+            .filter(row => row.payoutManaged)
+            .reduce((sum, row) => sum + row.amount, 0);
+          if (clearingPayments.length > 0 && deferredShopifyTotal === 0) {
             const allocated = Math.round(clearingPayments.reduce((sum, p) => sum + p.amount, 0) * 100) / 100;
             const delta = Math.round((targetTotal - allocated) * 100) / 100;
             if (Math.abs(delta) > 0.00001) {
@@ -295,6 +197,12 @@ export async function POST(req: Request) {
             totalTax,
             lineDescription: `Online Sales ${day} (${count} orders)`,
             ...(clearingPayments.length > 0 ? { clearingPayments } : {}),
+            payoutManaged: deferredShopifyTotal > 0,
+            gatewayAllocations: paymentRows.map(row => ({
+              gateway: row.gateway,
+              amount: row.amount,
+              payoutManaged: row.payoutManaged,
+            })),
           });
           if (giftCardAmount > 0) {
             await syncGiftCardLiabilityReclass({
@@ -309,7 +217,6 @@ export async function POST(req: Request) {
         } catch (e: any) {
           results.push({ businessId: business_id, date: day, success: false, error: e?.message });
         }
-      }
     }
   };
 

@@ -117,3 +117,98 @@ CREATE TABLE IF NOT EXISTS xero_pos_clearing_mappings (
   UNIQUE KEY uq_xero_pos_clearing (business_id, ims_location_id, payment_method),
   INDEX idx_xero_pos_clearing_business (business_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- One durable row per combined daily online invoice. payout_managed is an
+-- explicit cutover guard: legacy invoices must never be settled automatically.
+CREATE TABLE IF NOT EXISTS xero_online_batches (
+  id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id         VARCHAR(255) NOT NULL,
+  batch_date          DATE         NOT NULL,
+  xero_invoice_id     VARCHAR(100) DEFAULT NULL,
+  xero_invoice_number VARCHAR(100) DEFAULT NULL,
+  invoice_total       DECIMAL(14,2) NOT NULL DEFAULT 0,
+  invoice_status      VARCHAR(30)  NOT NULL DEFAULT 'pending',
+  gateway_allocations LONGTEXT     DEFAULT NULL,
+  payout_managed      TINYINT(1)   NOT NULL DEFAULT 0,
+  error_detail        TEXT         DEFAULT NULL,
+  created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_xero_online_batch (business_id, batch_date),
+  INDEX idx_xero_online_batch_status (business_id, payout_managed, invoice_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Shopify's paid payout is the settlement header. Reconciliation remains
+-- blocked until every canonical balance transaction has been persisted.
+CREATE TABLE IF NOT EXISTS shopify_payment_payouts (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(255) NOT NULL,
+  shopify_payout_id     VARCHAR(100) NOT NULL,
+  payout_date           DATE         DEFAULT NULL,
+  shopify_status        VARCHAR(30)  NOT NULL,
+  currency              VARCHAR(10)  NOT NULL,
+  payout_amount         DECIMAL(14,2) NOT NULL,
+  transaction_net_total DECIMAL(14,2) DEFAULT NULL,
+  reconciliation_status VARCHAR(30)  NOT NULL DEFAULT 'pending',
+  error_detail          TEXT         DEFAULT NULL,
+  raw_payload           LONGTEXT     DEFAULT NULL,
+  reconciled_at         DATETIME     DEFAULT NULL,
+  created_at            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_shopify_payment_payout (business_id, shopify_payout_id),
+  INDEX idx_shopify_payment_payout_status (business_id, reconciliation_status, payout_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Canonical Shopify Payments balance transactions. The transaction-level
+-- unique key makes repeated webhook delivery and catch-up polling harmless.
+CREATE TABLE IF NOT EXISTS shopify_payment_payout_transactions (
+  id                          BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id                 VARCHAR(255) NOT NULL,
+  shopify_transaction_id      VARCHAR(100) NOT NULL,
+  shopify_payout_id           VARCHAR(100) NOT NULL,
+  transaction_type            VARCHAR(50)  NOT NULL,
+  amount                      DECIMAL(14,2) NOT NULL,
+  fee                         DECIMAL(14,2) NOT NULL DEFAULT 0,
+  net                         DECIMAL(14,2) NOT NULL,
+  currency                    VARCHAR(10)   NOT NULL,
+  source_id                   VARCHAR(100)  DEFAULT NULL,
+  source_type                 VARCHAR(100)  DEFAULT NULL,
+  source_order_id             VARCHAR(100)  DEFAULT NULL,
+  source_order_transaction_id VARCHAR(100)  DEFAULT NULL,
+  processed_at                DATETIME      DEFAULT NULL,
+  business_date               DATE          DEFAULT NULL,
+  raw_payload                 LONGTEXT      DEFAULT NULL,
+  created_at                  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at                  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_shopify_payment_transaction (business_id, shopify_transaction_id),
+  INDEX idx_shopify_payment_transaction_payout (business_id, shopify_payout_id),
+  INDEX idx_shopify_payment_transaction_order (business_id, source_order_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Every external Xero mutation has a stable action key and independent retry
+-- state. This is the accounting idempotency ledger; xero_sync_log is audit only.
+CREATE TABLE IF NOT EXISTS shopify_payment_xero_actions (
+  id                     BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id            VARCHAR(255) NOT NULL,
+  shopify_payout_id      VARCHAR(100) NOT NULL,
+  action_key             VARCHAR(255) NOT NULL,
+  action_type            VARCHAR(40)  NOT NULL,
+  target_xero_document_id VARCHAR(100) DEFAULT NULL,
+  action_date            DATE         NOT NULL,
+  amount                 DECIMAL(14,2) NOT NULL,
+  currency               VARCHAR(10)  NOT NULL,
+  account_code           VARCHAR(50)  NOT NULL COMMENT 'Shopify clearing account',
+  offset_account_code    VARCHAR(50)  DEFAULT NULL COMMENT 'Expense account for bank transactions',
+  tax_type               VARCHAR(30)  DEFAULT NULL,
+  reference              VARCHAR(255) NOT NULL,
+  status                 VARCHAR(30)  NOT NULL DEFAULT 'pending',
+  xero_id                VARCHAR(100) DEFAULT NULL,
+  transaction_ids        LONGTEXT     DEFAULT NULL,
+  error_detail           TEXT         DEFAULT NULL,
+  attempt_count          INT          NOT NULL DEFAULT 0,
+  last_attempt_at        DATETIME     DEFAULT NULL,
+  completed_at           DATETIME     DEFAULT NULL,
+  created_at             DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at             DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_shopify_payment_xero_action (business_id, action_key),
+  INDEX idx_shopify_payment_xero_action_payout (business_id, shopify_payout_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -27,6 +27,8 @@ const REQUIRED_TOPICS = [
   'orders/cancelled',
   'fulfillments/create',
   'refunds/create',
+  'shopify_payments/payouts/create',
+  'shopify_payments/payouts/update',
 ];
 
 

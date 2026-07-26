@@ -6,7 +6,8 @@
  * Shopify Admin → Settings → Notifications → Webhooks, so events are always
  * routed to the correct tenant — no ambiguous "first match" lookup.
  *
- * Handles: orders/create, orders/paid, orders/cancelled, fulfillments/create, refunds/create
+ * Handles: orders/create, orders/paid, orders/cancelled, fulfillments/create,
+ * refunds/create, shopify_payments/payouts/create, shopify_payments/payouts/update
  *
  * The webhook signing secret is stored per-business in ims_settings as
  * 'shopify_webhook_secret'.
@@ -14,6 +15,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { imsQuery, imsExecute, getIMSPool } from '@/services/IMSMySQLService';
+import { execute as mainExecute } from '@/services/MySQLService';
 import { ImsSORepo } from '@/lib/ims/ImsRepository';
 import { toBusinessDate, toBusinessDateTime } from '@/lib/shopifyDate';
 import { parseShopifyRefund } from '@/lib/shopifyRefund';
@@ -21,6 +23,7 @@ import { createNotification } from '@/lib/ims/createNotification';
 import { runImsForBusiness, getImsDbNameStrict } from '@/lib/db/BusinessRegistry';
 import { triggerCNXeroSync } from '@/lib/ims/xeroHooks';
 import { getOrCreateShopifyFallbackVariantId } from '@/lib/shopifyFallbackVariant';
+import { getShopifyApiCreds, ingestShopifyPayout } from '@/lib/ims/shopifyPayoutIngestion';
 
 export const runtime = 'nodejs';
 
@@ -364,6 +367,30 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
           }
         } catch (e: any) { console.error('[shopify-webhook] orders/updated error:', e.message); }
       }
+    }
+  }
+
+  // ── shopify_payments/payouts/* ────────────────────────────────────────────
+  if (topic.startsWith('shopify_payments/payouts/')) {
+    const payoutId = String(payload?.id ?? payload?.payout?.id ?? payload?.payout_id ?? '').trim();
+    if (!payoutId) return respond();
+
+    try {
+      const creds = await getShopifyApiCreds(businessId);
+      await ingestShopifyPayout(businessId, payload, creds);
+    } catch (e: any) {
+      const msg = e?.message ?? String(e);
+      createNotification(
+        businessId,
+        'shopify_webhook',
+        `Shopify Webhook Failed — ${topic}`,
+        msg,
+        {
+          topic,
+          payout_id: payoutId,
+          error: msg,
+        },
+      ).catch(console.error);
     }
   }
 

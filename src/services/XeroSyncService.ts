@@ -1069,6 +1069,12 @@ interface DailySalesBatch {
     amount: number;
     label?: string;
   }>;
+  payoutManaged?: boolean;
+  gatewayAllocations?: Array<{
+    gateway: string;
+    amount: number;
+    payoutManaged: boolean;
+  }>;
 }
 
 function roundCurrency(value: number): number {
@@ -1120,6 +1126,33 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
     const xeroId = batchInv?.InvoiceID ?? null;
 
     const totalDue = Math.round((batch.totalSales + batch.totalTax) * 100) / 100;
+    if (batch.channel === 'online' && !batch.gateway && xeroId) {
+      await execute(
+        `INSERT INTO xero_online_batches
+           (business_id, batch_date, xero_invoice_id, xero_invoice_number, invoice_total,
+            invoice_status, gateway_allocations, payout_managed)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           xero_invoice_id = VALUES(xero_invoice_id),
+           xero_invoice_number = VALUES(xero_invoice_number),
+           invoice_total = VALUES(invoice_total),
+           invoice_status = VALUES(invoice_status),
+           gateway_allocations = VALUES(gateway_allocations),
+           payout_managed = VALUES(payout_managed),
+           error_detail = NULL`,
+        [
+          businessId,
+          batch.date,
+          xeroId,
+          batchInv?.InvoiceNumber ?? null,
+          totalDue,
+          batchInv?.Status ?? 'AUTHORISED',
+          JSON.stringify(batch.gatewayAllocations ?? []),
+          batch.payoutManaged ? 1 : 0,
+        ],
+      );
+    }
+
     const configuredPayments = Array.isArray(batch.clearingPayments)
       ? batch.clearingPayments
       : [];

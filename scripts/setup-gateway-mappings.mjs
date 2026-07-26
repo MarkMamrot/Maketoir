@@ -28,10 +28,26 @@ await conn.query(`
     clearing_account_name VARCHAR(150) NULL,
     fee_account_code VARCHAR(50) NULL COMMENT 'Optional: Xero expense account for gateway fees (handled manually if NULL)',
     fee_account_name VARCHAR(150) NULL,
+    fee_tax_type VARCHAR(30) NULL COMMENT 'Xero tax type for gateway fees, e.g. INPUT or NONE',
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uq_biz_gateway (business_id, gateway_name)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+const [feeTaxColumns] = await conn.query(`
+  SELECT 1
+    FROM information_schema.COLUMNS
+   WHERE TABLE_SCHEMA = DATABASE()
+     AND TABLE_NAME = 'xero_gateway_mappings'
+     AND COLUMN_NAME = 'fee_tax_type'
+   LIMIT 1`);
+if (feeTaxColumns.length === 0) {
+  await conn.query(`
+    ALTER TABLE xero_gateway_mappings
+      ADD COLUMN fee_tax_type VARCHAR(30) NULL
+      COMMENT 'Xero tax type for gateway fees, e.g. INPUT or NONE'
+      AFTER fee_account_name`);
+}
 console.log('✓ xero_gateway_mappings');
 
 await conn.end();

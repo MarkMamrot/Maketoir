@@ -13162,9 +13162,9 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
       <div style={{ marginBottom: 18, padding: '9px 14px', borderRadius: 8, background: 'rgba(96,165,250,.07)', border: '1px solid rgba(96,165,250,.15)', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.7 }}>
         <strong style={{ color: 'var(--sv-text-main)' }}>How online sales reach Xero</strong>
         {' · '}
-        <strong style={{ color: '#34d399' }}>Shopify Payments</strong>: included in the nightly online batch sync.
+        <strong style={{ color: '#34d399' }}>Daily sales</strong>: one combined Xero invoice after each completed business day.
         {' · '}
-        <strong style={{ color: '#60a5fa' }}>Other gateways</strong> (PayPal, Afterpay, etc.): nightly batch, split by gateway if clearing accounts are configured in{' '}
+        <strong style={{ color: '#60a5fa' }}>Settlement</strong>: other gateways pay immediately when mapped; Shopify Payments is allocated from the actual paid payout and posted from Xero Sync History. Configure accounts in{' '}
         <span style={{ fontStyle: 'italic' }}>Xero → Mapping → Online Gateway Clearing Accounts</span>.
         {' · '}
         <strong style={{ color: '#fbbf24' }}>Returns</strong>: initiate in Shopify — they sync back automatically.
@@ -14593,8 +14593,6 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
   const [cogsBusy, setCogsBusy] = React.useState<'preview' | 'post' | null>(null);
   const [cogsMessage, setCogsMessage] = React.useState<{ ok: boolean; text: string } | null>(null);
   const [cogsPreview, setCogsPreview] = React.useState<any>(null);
-  const [onlineBatchMode, setOnlineBatchMode] = React.useState<'combined' | 'per_gateway'>('per_gateway');
-  const [savingOnlineBatchMode, setSavingOnlineBatchMode] = React.useState(false);
 
   // Advisor access to the Account & Tracking Mapping (stored in ims_settings).
   const [advisorMapping, setAdvisorMapping] = React.useState<boolean | null>(null);
@@ -14603,8 +14601,6 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
     fetch('/api/ims/settings').then(r => r.ok ? r.json() : null).then(j => {
       const v = j?.data?.advisor_xero_mapping_enabled;
       setAdvisorMapping(v === 'true' || v === '1' || v === true);
-      const mode = String(j?.data?.shopify_xero_online_batch_mode ?? '').toLowerCase();
-      setOnlineBatchMode(mode === 'combined' ? 'combined' : 'per_gateway');
     }).catch(() => setAdvisorMapping(false));
   }, []);
   const saveAdvisorMapping = async (enabled: boolean) => {
@@ -14616,19 +14612,6 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
         body: JSON.stringify({ advisor_xero_mapping_enabled: enabled ? 'true' : 'false' }),
       });
     } finally { setSavingAdvisor(false); }
-  };
-
-  const saveOnlineBatchMode = async (mode: 'combined' | 'per_gateway') => {
-    setSavingOnlineBatchMode(true);
-    setOnlineBatchMode(mode);
-    try {
-      await fetch('/api/ims/settings', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shopify_xero_online_batch_mode: mode }),
-      });
-    } finally {
-      setSavingOnlineBatchMode(false);
-    }
   };
 
   React.useEffect(() => {
@@ -14794,43 +14777,9 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
       <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
         <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sync Configuration</h3>
         <div style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 8, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 8 }}>Online sales batch mode</div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button
-              onClick={() => saveOnlineBatchMode('combined')}
-              disabled={savingOnlineBatchMode}
-              style={{
-                padding: '6px 10px',
-                borderRadius: 6,
-                border: '1px solid var(--sv-etch)',
-                cursor: savingOnlineBatchMode ? 'not-allowed' : 'pointer',
-                fontSize: 12,
-                fontWeight: 600,
-                background: onlineBatchMode === 'combined' ? 'var(--sv-action)' : 'var(--sv-bg-2)',
-                color: onlineBatchMode === 'combined' ? '#fff' : 'var(--sv-text-main)',
-              }}
-            >
-              Single combined invoice per day
-            </button>
-            <button
-              onClick={() => saveOnlineBatchMode('per_gateway')}
-              disabled={savingOnlineBatchMode}
-              style={{
-                padding: '6px 10px',
-                borderRadius: 6,
-                border: '1px solid var(--sv-etch)',
-                cursor: savingOnlineBatchMode ? 'not-allowed' : 'pointer',
-                fontSize: 12,
-                fontWeight: 600,
-                background: onlineBatchMode === 'per_gateway' ? 'var(--sv-action)' : 'var(--sv-bg-2)',
-                color: onlineBatchMode === 'per_gateway' ? '#fff' : 'var(--sv-text-main)',
-              }}
-            >
-              Split by gateway per day
-            </button>
-          </div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 5 }}>Online sales: one daily invoice</div>
           <div style={{ marginTop: 6, fontSize: 11, color: 'var(--sv-text-dim)', lineHeight: 1.5 }}>
-            This controls both nightly cron sync and login catch-up sync. Split mode uses gateway mappings when present and applies payments only for gateways mapped to clearing accounts.
+            Completed online sales are combined into one Xero invoice per business day. Ordinary gateways pay their share immediately into mapped clearing accounts. Shopify Payments stays outstanding until a paid Shopify payout identifies the exact included transactions.
           </div>
         </div>
         <div style={{ fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 2 }}>
@@ -14843,7 +14792,7 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
           <div>• COGS Journal <span style={{ color: 'var(--sv-text-dim)' }}>(completed calendar periods on a daily, weekly, monthly or quarterly schedule; manual preview/post available)</span></div>
         </div>
         <div style={{ marginTop: 10, fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6, padding: '8px 10px', background: 'rgba(96,165,250,.07)', borderRadius: 6 }}>
-          Online gateway detail: combined mode posts one invoice per day, then applies one payment per mapped gateway to its clearing account. Split mode posts one invoice per gateway per day and applies one payment to that gateway's clearing account.
+          Paid Shopify payouts are planned from Shopify balance transactions. Gross amounts pay the included daily invoices; fees, refunds, reserves, disputes, and adjustments post separately against Shopify clearing. Review and post the plan from Xero → Sync History, then match the payout deposit to Shopify clearing in the Xero bank feed.
         </div>
       </div>
 
@@ -15500,7 +15449,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
 function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any[]; getBusinessId: () => string }) {
   const [mappings, setMappings] = useState<any[]>([]);
   const [adding, setAdding]     = useState(false);
-  const [newForm, setNewForm]   = useState({ gateway_name: '', display_name: '', clearing_account_code: '', clearing_account_name: '', fee_account_code: '', fee_account_name: '' });
+  const [newForm, setNewForm]   = useState({ gateway_name: '', display_name: '', clearing_account_code: '', clearing_account_name: '', fee_account_code: '', fee_account_name: '', fee_tax_type: 'NONE' });
   const [saving, setSaving]     = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
   const [discoveredMethods, setDiscoveredMethods] = useState<{
@@ -15545,12 +15494,14 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
     if (!newForm.gateway_name || !newForm.clearing_account_code) return alert('Gateway name and clearing account are required.');
     setSaving(true);
     try {
-      await fetch('/api/xero/gateway-mappings', {
+      const res = await fetch('/api/xero/gateway-mappings', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...newForm }),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unable to save gateway mapping');
       setAdding(false);
-      setNewForm({ gateway_name: '', display_name: '', clearing_account_code: '', clearing_account_name: '', fee_account_code: '', fee_account_name: '' });
+      setNewForm({ gateway_name: '', display_name: '', clearing_account_code: '', clearing_account_name: '', fee_account_code: '', fee_account_name: '', fee_tax_type: 'NONE' });
       load();
     } catch (e: any) { alert(e.message); }
     setSaving(false);
@@ -15576,6 +15527,7 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
       clearing_account_name: '',
       fee_account_code: '',
       fee_account_name: '',
+      fee_tax_type: 'NONE',
     });
     setAdding(true);
     requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
@@ -15591,7 +15543,7 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
         </button>
       </div>
       <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
-        Maps each online payment gateway (PayPal, Afterpay, etc.) to a dedicated Xero bank/clearing account. In combined mode, IMS posts one daily online invoice and applies one payment per mapped gateway to that same invoice. In split mode, IMS posts one invoice per gateway per day and applies one payment per invoice.
+        Maps each online payment gateway to its Xero clearing account. Non-Shopify gateways pay their portion of the daily invoice immediately. Shopify Payments uses its clearing account when a paid payout is planned and posted; its fee account and tax treatment are used for payout fees and adjustments.
       </p>
 
       <div style={{ marginBottom: 12, padding: '12px 14px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
@@ -15633,7 +15585,7 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 10, border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden' }}>
           <thead>
             <tr style={{ background: 'var(--sv-bg-1)', borderBottom: '1px solid var(--sv-etch)' }}>
-              {['Gateway (match pattern)', 'Clearing account', 'Fee account', ''].map(h => (
+              {['Gateway (match pattern)', 'Clearing account', 'Fee account', 'Fee tax', ''].map(h => (
                 <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
@@ -15649,6 +15601,7 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
                   {m.clearing_account_name ?? m.clearing_account_code ?? <span style={{ color: 'var(--sv-red)' }}>Not mapped</span>}
                 </td>
                 <td style={{ padding: '8px 12px', color: 'var(--sv-text-dim)', fontSize: 12 }}>{m.fee_account_name ?? m.fee_account_code ?? '— manual'}</td>
+                <td style={{ padding: '8px 12px', color: 'var(--sv-text-dim)', fontSize: 12 }}>{m.fee_tax_type === 'INPUT' ? 'GST on Expenses' : 'BAS Excluded'}</td>
                 <td style={{ padding: '8px 12px' }}>
                   <button onClick={() => del(m.gateway_name, m.display_name)} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--sv-etch)', background: 'transparent', color: '#f87171', cursor: 'pointer' }}>Remove</button>
                 </td>
@@ -15688,8 +15641,16 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
               <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Fee expense account (optional)</label>
               <select value={newForm.fee_account_code} onChange={e => selectAcc('fee', e.target.value)}
                 style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12 }}>
-                <option value="">Leave blank — handle fees manually</option>
+                <option value="">Select an account before posting Shopify payouts</option>
                 {expenseAccounts.map((a: any) => <option key={a.accountId} value={a.code}>{a.code} — {a.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Shopify fee tax treatment</label>
+              <select title="Controls the Xero tax code on Shopify processing-fee transactions. Adjustments, reserves, and disputes remain no-tax." value={newForm.fee_tax_type} onChange={e => setNewForm(f => ({ ...f, fee_tax_type: e.target.value }))}
+                style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12 }}>
+                <option value="NONE">BAS Excluded / no GST</option>
+                <option value="INPUT">GST on Expenses</option>
               </select>
             </div>
           </div>
@@ -15705,6 +15666,7 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
 
 type XeroSyncEntry = {
   sync_type: string; reference_id: number | null; reference: string;
+  payout_id?: string; payout_status?: string;
   contact_name: string | null; amount: number | null; item_date: string | null;
   is_historical: number; xero_sync_status: string | null;
   log_id: number | null; xero_id: string | null;
@@ -15888,11 +15850,31 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
     setRetrying(r => ({ ...r, [key]: false }));
   };
 
+  const processShopifyPayout = async (payoutId: string, action: 'plan' | 'execute', key: string, amount: number | null) => {
+    if (action === 'execute' && !confirm(`Post the planned Xero actions for Shopify payout ${payoutId}${amount != null ? ` (${fmtMoney(amount)})` : ''}?`)) return;
+    setRetrying(r => ({ ...r, [key]: true }));
+    try {
+      const res = await fetch(`/api/xero/shopify-payouts/${encodeURIComponent(payoutId)}?databaseId=${encodeURIComponent(getBusinessId())}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Payout ${action} failed`);
+      await loadData();
+    } catch (e: any) {
+      alert(e.message);
+      await loadData();
+    } finally {
+      setRetrying(r => ({ ...r, [key]: false }));
+    }
+  };
+
   const toggleExpand = (id: number) => setExpanded(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
-  const typeLabel = (t: string) => ({ po_bill: 'Purchase Order', so_invoice: 'Wholesale SO', cn_credit_note: 'Customer Credit Note', cn_credit_note_void: 'Customer Credit Note Void', scn_credit_note: 'Supplier Credit Note', scn_credit_note_void: 'Supplier Credit Note Void', pos_batch: 'POS Sales (Batch)', online_batch: 'Online Sales (Batch)', cogs_journal: 'COGS Journal', eod_reconciliation: 'POS End-of-Day', stocktake_journal: 'Stocktake Journal', gift_card_issue: 'Gift Card Issue', gift_card_liability: 'Gift Card Liability', gift_card_redeem: 'Gift Card Redemption', store_credit_issue: 'Store Credit Issue', store_credit_redeem: 'Store Credit Redemption' }[t] ?? t);
-  const typeColor = (t: string) => ({ po_bill: '#818cf8', so_invoice: '#34d399', cn_credit_note: '#38bdf8', cn_credit_note_void: '#fb7185', scn_credit_note: '#f59e0b', scn_credit_note_void: '#fb7185', pos_batch: '#fb923c', online_batch: '#38bdf8', cogs_journal: '#a78bfa', eod_reconciliation: '#fb923c', stocktake_journal: '#a78bfa', gift_card_issue: '#f59e0b', gift_card_liability: '#f59e0b', gift_card_redeem: '#f97316', store_credit_issue: '#14b8a6', store_credit_redeem: '#0d9488' }[t] ?? '#9ca3af');
-  const typeBg = (t: string) => ({ po_bill: 'rgba(99,102,241,.13)', so_invoice: 'rgba(16,185,129,.13)', cn_credit_note: 'rgba(56,189,248,.14)', cn_credit_note_void: 'rgba(251,113,133,.14)', scn_credit_note: 'rgba(245,158,11,.14)', scn_credit_note_void: 'rgba(251,113,133,.14)', pos_batch: 'rgba(251,146,60,.13)', online_batch: 'rgba(56,189,248,.13)', cogs_journal: 'rgba(167,139,250,.13)', eod_reconciliation: 'rgba(251,146,60,.13)', stocktake_journal: 'rgba(167,139,250,.13)', gift_card_issue: 'rgba(245,158,11,.15)', gift_card_liability: 'rgba(245,158,11,.15)', gift_card_redeem: 'rgba(249,115,22,.15)', store_credit_issue: 'rgba(20,184,166,.15)', store_credit_redeem: 'rgba(13,148,136,.15)' }[t] ?? 'rgba(156,163,175,.13)');
+  const typeLabel = (t: string) => ({ po_bill: 'Purchase Order', so_invoice: 'Wholesale SO', cn_credit_note: 'Customer Credit Note', cn_credit_note_void: 'Customer Credit Note Void', scn_credit_note: 'Supplier Credit Note', scn_credit_note_void: 'Supplier Credit Note Void', pos_batch: 'POS Sales (Batch)', online_batch: 'Online Sales (Batch)', shopify_payout: 'Shopify Payout', cogs_journal: 'COGS Journal', eod_reconciliation: 'POS End-of-Day', stocktake_journal: 'Stocktake Journal', gift_card_issue: 'Gift Card Issue', gift_card_liability: 'Gift Card Liability', gift_card_redeem: 'Gift Card Redemption', store_credit_issue: 'Store Credit Issue', store_credit_redeem: 'Store Credit Redemption' }[t] ?? t);
+  const typeColor = (t: string) => ({ po_bill: '#818cf8', so_invoice: '#34d399', cn_credit_note: '#38bdf8', cn_credit_note_void: '#fb7185', scn_credit_note: '#f59e0b', scn_credit_note_void: '#fb7185', pos_batch: '#fb923c', online_batch: '#38bdf8', shopify_payout: '#14b8a6', cogs_journal: '#a78bfa', eod_reconciliation: '#fb923c', stocktake_journal: '#a78bfa', gift_card_issue: '#f59e0b', gift_card_liability: '#f59e0b', gift_card_redeem: '#f97316', store_credit_issue: '#14b8a6', store_credit_redeem: '#0d9488' }[t] ?? '#9ca3af');
+  const typeBg = (t: string) => ({ po_bill: 'rgba(99,102,241,.13)', so_invoice: 'rgba(16,185,129,.13)', cn_credit_note: 'rgba(56,189,248,.14)', cn_credit_note_void: 'rgba(251,113,133,.14)', scn_credit_note: 'rgba(245,158,11,.14)', scn_credit_note_void: 'rgba(251,113,133,.14)', pos_batch: 'rgba(251,146,60,.13)', online_batch: 'rgba(56,189,248,.13)', shopify_payout: 'rgba(20,184,166,.15)', cogs_journal: 'rgba(167,139,250,.13)', eod_reconciliation: 'rgba(251,146,60,.13)', stocktake_journal: 'rgba(167,139,250,.13)', gift_card_issue: 'rgba(245,158,11,.15)', gift_card_liability: 'rgba(245,158,11,.15)', gift_card_redeem: 'rgba(249,115,22,.15)', store_credit_issue: 'rgba(20,184,166,.15)', store_credit_redeem: 'rgba(13,148,136,.15)' }[t] ?? 'rgba(156,163,175,.13)');
   const xeroLink = (syncType: string, id: string): string => {
     if (syncType === 'po_bill' || syncType === 'po_bill_void' || syncType === 'po_payment')
       return `https://go.xero.com/AccountsPayable/View.aspx?InvoiceID=${id}`;
@@ -16299,6 +16281,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                 const isGiftCardRedeem = entry.sync_type === 'gift_card_redeem';
                 const isStoreCreditIssue = entry.sync_type === 'store_credit_issue';
                 const isStoreCreditRedeem = entry.sync_type === 'store_credit_redeem';
+                const isShopifyPayout = entry.sync_type === 'shopify_payout';
                 const isHistorical = entry.is_historical === 1;
                 const canRetryLifecycle = !!entry.reference_id && (isGiftCardIssue || isGiftCardRedeem || isStoreCreditIssue || isStoreCreditRedeem);
 
@@ -16320,7 +16303,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                       </td>
                       <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{fmtDay(entry.item_date)}</td>
                       <td style={{ ...td, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{entry.reference}</td>
-                      <td style={{ ...td, color: 'var(--sv-text-dim)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <td title={entry.last_sync_detail ?? undefined} style={{ ...td, color: 'var(--sv-text-dim)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {entry.contact_name ?? '—'}
                         {entry.xero_id && (
                           <a
@@ -16373,6 +16356,26 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                             style={{ background: 'rgba(56,189,248,.12)', border: '1px solid rgba(56,189,248,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: '#38bdf8', fontWeight: 600 }}
                           >
                             {retrying[retryKey] ? '…' : '↑ Sync Now'}
+                          </button>
+                        )}
+                        {isShopifyPayout && entry.payout_id && ['blocked', 'ready_to_allocate'].includes(entry.payout_status ?? '') && (
+                          <button
+                            title="Rebuild the payout plan after fixing a missing invoice, credit note, mapping, or other blocker. This does not post to Xero."
+                            onClick={() => processShopifyPayout(entry.payout_id!, 'plan', retryKey, entry.amount)}
+                            disabled={retrying[retryKey]}
+                            style={{ background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: '#f87171', fontWeight: 600 }}
+                          >
+                            {retrying[retryKey] ? '…' : '↻ Replan'}
+                          </button>
+                        )}
+                        {isShopifyPayout && entry.payout_id && ['planned', 'partial'].includes(entry.payout_status ?? '') && (
+                          <button
+                            title={entry.payout_status === 'partial' ? 'Retry only unfinished payout actions. Completed Xero actions are not repeated.' : 'Preflight every planned invoice and credit note, then post the payout actions to Xero after confirmation.'}
+                            onClick={() => processShopifyPayout(entry.payout_id!, 'execute', retryKey, entry.amount)}
+                            disabled={retrying[retryKey]}
+                            style={{ background: 'rgba(20,184,166,.12)', border: '1px solid rgba(20,184,166,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: '#14b8a6', fontWeight: 600 }}
+                          >
+                            {retrying[retryKey] ? '…' : entry.payout_status === 'partial' ? '↻ Retry' : 'Post Payout'}
                           </button>
                         )}
                       </td>
@@ -22775,15 +22778,19 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         </ul>
 
         <h3 style={h3}>4 — Money: Shopify → Xero</h3>
-        <p style={p}>Online sales post via the nightly sales batch. In <em>combined mode</em>, IMS posts one daily invoice and applies one payment per mapped gateway to its clearing account. In <em>split mode</em>, IMS posts one invoice per gateway per day and applies one payment per invoice.</p>
+        <p style={p}>Completed online sales post as <strong>one combined Xero invoice per business day</strong>. Non-Shopify gateways pay their share immediately into their mapped clearing accounts. Shopify Payments remains outstanding until Shopify reports a paid payout and supplies the exact balance transactions included in it.</p>
         <ul style={ul}>
           <li>Gateway mappings are configured in <em>Xero → Mapping → Online Gateway Clearing Accounts</em>.</li>
-          <li>All online channels, including Shopify Payments, are included in this flow.</li>
+          <li>A payout can pay several daily invoices, including weekend sales in a later payout. Allocation follows Shopify's actual payout membership, never weekday assumptions.</li>
+          <li>Invoice payments are posted gross. Processing fees are separate Xero bank transactions from Shopify clearing to the configured fee expense account. Fee GST treatment is configured per merchant.</li>
+          <li>Shopify refunds settle their completed Xero customer credit notes from Shopify clearing. Reserves, disputes, fee reversals, and other adjustments post separately with their signed effect.</li>
+          <li>The payout row must balance exactly before it can be planned. Missing invoices, mappings, or Xero credit notes block it without partial fallback posting.</li>
+          <li>Posting is manually confirmed in <em>Xero → Sync History</em>. After posting, match the real Shopify deposit as a transfer from Shopify clearing to the bank account in Xero; IMS does not create that bank transfer.</li>
           <li>Gift card and store credit tenders are not payout gateways, so they do not use gateway clearing mappings. CN-backed store-credit issuance is represented by the completed customer credit note plus its customer ledger entry; it is not posted as a second revenue-reclassification journal.</li>
         </ul>
 
         <h3 style={h3}>5 — The Xero sync log</h3>
-        <p style={p}>Each daily online batch posted to Xero is recorded in the Xero sync log (IMS → Xero → Sync History tab). If a sync fails (e.g. missing account mapping, Xero API issue), it appears there with the error detail and can be retried.</p>
+        <p style={p}>Daily invoices and Shopify payouts appear in <strong>IMS → Xero → Sync History</strong>. A payout shows its planned/completed Xero action count and blocker detail. <strong>Replan</strong> rebuilds actions without posting; <strong>Post Payout</strong> preflights Xero balances and asks for confirmation; a partial retry resumes only unfinished idempotent actions.</p>
         <p style={p}>The same log also shows gift card lifecycle events and store-credit redemption or legacy standalone issue events. CN-backed store-credit issuance is traced through the customer credit note and store-credit ledger instead, avoiding a duplicate revenue event.</p>
 
         <h3 style={h3}>Common issues</h3>
@@ -22791,6 +22798,8 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           <li><strong>"No linked variants" / order has 0 items</strong> — The Shopify variants aren't linked to IMS products yet. Run <em>Shopify → Reconcile Products</em> to link them by SKU, then re-import the affected order.</li>
           <li><strong>Stock not updating in Shopify</strong> — Check that: (1) Inventory Sync is enabled, (2) a Shopify inventory location is selected, and (3) your pick location has stock. Use Preview to diagnose.</li>
           <li><strong>Daily batch skipped</strong> — Check that required Xero account roles are mapped (especially <span style={code}>sales_revenue</span>).</li>
+          <li><strong>Payout blocked</strong> — Hover the payout detail in Xero Sync History. Fix the named invoice, credit note, clearing account, fee account, tax treatment, currency, or payout-total mismatch, then select <em>Replan</em>.</li>
+          <li><strong>Payout missing</strong> — Confirm both Shopify Payments payout webhooks are registered and the app token has the <span style={code}>shopify_payments_payouts</span> or <span style={code}>shopify_payments</span> scope. The six-hour catch-up poll checks the previous 14 days by default; use the GitHub Actions manual trigger after correcting credentials or scopes.</li>
           <li><strong>Return source badge</strong> — Shopify notes are imported and externally settled; Manual notes issue store credit on completion and sync as individual Xero credit notes; POS notes are auto-created from the register and remain in the POS EOD accounting flow.</li>
           <li><strong>Webhook not firing</strong> — Verify the webhook URL and signing secret match exactly. Check Shopify Admin → Settings → Notifications → Webhooks for delivery failures.</li>
         </ul>

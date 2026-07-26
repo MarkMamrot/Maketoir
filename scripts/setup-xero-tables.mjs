@@ -26,6 +26,54 @@ async function main() {
   const sql = readFileSync(join(__dirname, 'setup-xero-tables.sql'), 'utf8');
   await conn.query(sql);
 
+  const [gatewayTables] = await conn.query(
+    `SELECT 1
+       FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'xero_gateway_mappings'
+      LIMIT 1`,
+  );
+  if (gatewayTables.length > 0) {
+    const [feeTaxColumns] = await conn.query(
+      `SELECT 1
+         FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'xero_gateway_mappings'
+          AND COLUMN_NAME = 'fee_tax_type'
+        LIMIT 1`,
+    );
+    if (feeTaxColumns.length === 0) {
+      await conn.query(
+        `ALTER TABLE xero_gateway_mappings
+           ADD COLUMN fee_tax_type VARCHAR(30) NULL
+           COMMENT 'Xero tax type for gateway fees, e.g. INPUT or NONE'
+           AFTER fee_account_name`,
+      );
+    }
+  }
+
+  const actionColumns = [
+    ['action_date', "DATE NULL AFTER target_xero_document_id"],
+    ['account_code', "VARCHAR(50) NULL COMMENT 'Shopify clearing account' AFTER currency"],
+    ['offset_account_code', "VARCHAR(50) NULL COMMENT 'Expense account for bank transactions' AFTER account_code"],
+    ['tax_type', "VARCHAR(30) NULL AFTER offset_account_code"],
+    ['reference', "VARCHAR(255) NULL AFTER tax_type"],
+  ];
+  for (const [columnName, definition] of actionColumns) {
+    const [columns] = await conn.query(
+      `SELECT 1
+         FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'shopify_payment_xero_actions'
+          AND COLUMN_NAME = ?
+        LIMIT 1`,
+      [columnName],
+    );
+    if (columns.length === 0) {
+      await conn.query(`ALTER TABLE shopify_payment_xero_actions ADD COLUMN ${columnName} ${definition}`);
+    }
+  }
+
   console.log('✔ xero_account_mappings created');
   console.log('✔ xero_tracking_mappings created');
   console.log('✔ xero_sync_log created');
@@ -33,6 +81,11 @@ async function main() {
   console.log('✔ xero_cogs_journal_runs created');
   console.log('✔ xero_pos_payment_mappings created');
   console.log('✔ xero_pos_clearing_mappings created');
+  console.log('✔ xero_online_batches created');
+  console.log('✔ shopify_payment_payouts created');
+  console.log('✔ shopify_payment_payout_transactions created');
+  console.log('✔ shopify_payment_xero_actions created');
+  console.log('✔ xero_gateway_mappings fee tax configuration checked');
 
   await conn.end();
   console.log('Done.');
