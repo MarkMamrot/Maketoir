@@ -35,7 +35,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Only completed calendar months can be posted.' }, { status: 400 });
     }
 
-    const result = await postCogsPeriod({ businessId: databaseId, period, overrideReason });
+    const result = await runImsForBusiness(
+      databaseId,
+      () => postCogsPeriod({ businessId: databaseId, period, overrideReason }),
+    );
     if (result.outcome === 'blocked') return NextResponse.json(result, { status: 422 });
     if (result.outcome === 'failed') return NextResponse.json(result, { status: 502 });
     if (result.outcome === 'unknown') return NextResponse.json(result, { status: 202 });

@@ -11030,20 +11030,15 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       alert('Assign a payment method before syncing this payment to Xero.');
       return;
     }
-    const databaseId = String(viewModal.so.business_id || '').trim();
-    if (!databaseId) {
-      alert('Unable to determine business ID for Xero sync.');
-      return;
-    }
     setSyncingSoPaymentId(Number(payment.id));
     try {
-      const res = await apiFetch('/api/xero/sync/so-payment', {
+      const res = await apiFetch('/api/ims/xero/push', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          databaseId,
-          soId: Number(viewModal.so.id),
-          paymentId: Number(payment.id),
+          type: 'so_payment',
+          id: Number(payment.id),
+          parentId: Number(viewModal.so.id),
         }),
       });
       if (!res?.success) throw new Error(res?.error || 'Xero payment sync failed.');

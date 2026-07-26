@@ -10,6 +10,7 @@ import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { ImsPORepo, ImsSORepo, ImsCNRepo, ImsSupplierCNRepo } from '@/lib/ims/ImsRepository';
 import { syncPOAsDraftBill, updateXeroDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOPayment, syncSOAsInvoice, updateXeroDraftInvoice, approveInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice, syncCNAsCreditNote, markCNXeroStatus, syncSupplierCNAsCreditNote, markSupplierCNXeroStatus, voidXeroCreditNote, voidXeroSupplierCreditNote } from '@/services/XeroSyncService';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { query } from '@/services/MySQLService';
 
 /**
  * Check if a business has Xero connected (quick check before doing any sync work).
@@ -42,7 +43,7 @@ async function withRetry<T>(
 export async function triggerPOXeroSync(businessId: string, poId: number, newStatus: string): Promise<void> {
   if (!await isXeroConnected(businessId)) return;
 
-  const po = await ImsPORepo.get(poId);
+  const po = await ImsPORepo.get(poId, businessId);
   if (!po) return;
 
   if (newStatus === 'confirmed') {
@@ -54,7 +55,7 @@ export async function triggerPOXeroSync(businessId: string, poId: number, newSta
   } else if (newStatus === 'complete') {
     // Prefer the stored xero_bill_id, fall back to sync_log lookup
     const storedXeroId = (po as any).xero_bill_id ?? null;
-    const logRows = storedXeroId ? [] : await imsQuery(
+    const logRows = storedXeroId ? [] : await query(
       `SELECT xero_id FROM xero_sync_log WHERE business_id = ? AND sync_type = 'po_bill' AND reference_id = ? AND status = 'success' AND xero_id IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
       [businessId, poId],
     );
@@ -85,7 +86,7 @@ export async function triggerPOXeroSync(businessId: string, poId: number, newSta
 export async function triggerPOXeroUpdate(businessId: string, poId: number): Promise<void> {
   if (!await isXeroConnected(businessId)) return;
 
-  const po = await ImsPORepo.get(poId);
+  const po = await ImsPORepo.get(poId, businessId);
   if (!po) return;
 
   const xeroId = (po as any).xero_bill_id ?? null;
@@ -103,12 +104,12 @@ export async function triggerPOXeroUpdate(businessId: string, poId: number): Pro
 export async function triggerPOPaymentXeroSync(businessId: string, poId: number, paymentId: number): Promise<void> {
   if (!await isXeroConnected(businessId)) return;
 
-  const po = await ImsPORepo.get(poId);
+  const po = await ImsPORepo.get(poId, businessId);
   if (!po) return;
 
   // Prefer stored xero_bill_id, fall back to sync_log
   const storedXeroId = (po as any).xero_bill_id ?? null;
-  let logRows = storedXeroId ? [] : await imsQuery(
+  let logRows = storedXeroId ? [] : await query(
     `SELECT xero_id FROM xero_sync_log WHERE business_id = ? AND sync_type = 'po_bill' AND reference_id = ? AND status = 'success' AND xero_id IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
     [businessId, poId],
   );
@@ -145,7 +146,7 @@ export async function triggerPOPaymentXeroSync(businessId: string, poId: number,
 export async function triggerSOPaymentXeroSync(businessId: string, soId: number, paymentId: number): Promise<void> {
   if (!await isXeroConnected(businessId)) return;
 
-  const so = await ImsSORepo.get(soId);
+  const so = await ImsSORepo.get(soId, businessId);
   if (!so) return;
 
   const payment = (so as any).payments?.find((p: any) => p.id === paymentId);
@@ -180,14 +181,14 @@ export async function triggerSOXeroSync(businessId: string, soId: number, newSta
   if (!await isXeroConnected(businessId)) return;
 
   if (newStatus === 'confirmed') {
-    const so = await ImsSORepo.get(soId);
+    const so = await ImsSORepo.get(soId, businessId);
     if (!so) return;
     await withRetry(
       () => syncSOAsInvoice(businessId, so as any),
       () => markSoXeroStatus(Number(soId), 'queued'),
     );
   } else if (newStatus === 'fulfilled') {
-    const so = await ImsSORepo.get(soId);
+    const so = await ImsSORepo.get(soId, businessId);
     if (!so) return;
     const storedXeroId = (so as any).xero_invoice_id ?? null;
     if (storedXeroId) {
@@ -211,7 +212,7 @@ export async function triggerSOXeroSync(businessId: string, soId: number, newSta
 export async function triggerSOXeroUpdate(businessId: string, soId: number): Promise<void> {
   if (!await isXeroConnected(businessId)) return;
 
-  const so = await ImsSORepo.get(soId);
+  const so = await ImsSORepo.get(soId, businessId);
   if (!so) return;
 
   const xeroId = (so as any).xero_invoice_id ?? null;
@@ -230,14 +231,14 @@ export async function triggerSOXeroUpdate(businessId: string, soId: number): Pro
 export async function triggerPOXeroVoid(businessId: string, poId: number): Promise<string | null> {
   if (!await isXeroConnected(businessId)) return null;
 
-  const po = await ImsPORepo.get(poId);
+  const po = await ImsPORepo.get(poId, businessId);
   if (!po) return null;
 
   // Prefer stored xero_bill_id, fall back to sync_log
   const storedXeroId = (po as any).xero_bill_id ?? null;
   let xeroInvoiceId = storedXeroId;
   if (!xeroInvoiceId) {
-    const logRows = await imsQuery(
+    const logRows = await query(
       `SELECT xero_id FROM xero_sync_log WHERE business_id = ? AND sync_type = 'po_bill' AND reference_id = ? AND status = 'success' AND xero_id IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
       [businessId, poId],
     );
@@ -263,13 +264,13 @@ export async function triggerPOXeroVoid(businessId: string, poId: number): Promi
 export async function triggerSOXeroVoid(businessId: string, soId: number): Promise<string | null> {
   if (!await isXeroConnected(businessId)) return null;
 
-  const so = await ImsSORepo.get(soId);
+  const so = await ImsSORepo.get(soId, businessId);
   if (!so) return null;
 
   const storedXeroId = (so as any).xero_invoice_id ?? null;
   let xeroInvoiceId = storedXeroId;
   if (!xeroInvoiceId) {
-    const logRows = await imsQuery(
+    const logRows = await query(
       `SELECT xero_id FROM xero_sync_log WHERE business_id = ? AND sync_type = 'so_invoice' AND reference_id = ? AND status = 'success' AND xero_id IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
       [businessId, soId],
     );
@@ -367,7 +368,7 @@ export async function triggerCNXeroVoid(businessId: string, cnId: number): Promi
   const storedXeroId = (cn as any).xero_credit_note_id ?? null;
   let xeroCreditNoteId = storedXeroId;
   if (!xeroCreditNoteId) {
-    const logRows = await imsQuery(
+    const logRows = await query(
       `SELECT xero_id FROM xero_sync_log WHERE business_id = ? AND sync_type = 'cn_credit_note' AND reference_id = ? AND status = 'success' AND xero_id IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
       [businessId, cnId],
     );
@@ -392,7 +393,7 @@ export async function triggerSupplierCNXeroVoid(businessId: string, scnId: numbe
   const storedXeroId = (scn as any).xero_credit_note_id ?? null;
   let xeroCreditNoteId = storedXeroId;
   if (!xeroCreditNoteId) {
-    const logRows = await imsQuery(
+    const logRows = await query(
       `SELECT xero_id FROM xero_sync_log WHERE business_id = ? AND sync_type = 'scn_credit_note' AND reference_id = ? AND status = 'success' AND xero_id IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
       [businessId, scnId],
     );

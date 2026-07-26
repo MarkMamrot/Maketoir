@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 import { syncStocktakeJournal } from '@/services/XeroSyncService';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 
 export async function POST(req: Request) {
   const { user, response } = requireAdminSession();
@@ -14,7 +15,10 @@ export async function POST(req: Request) {
     const denied = assertBusinessAccess(user, databaseId);
     if (denied) return denied;
 
-    const result = await syncStocktakeJournal(databaseId, Number(stocktakeId));
+    const result = await runImsForBusiness(
+      databaseId,
+      () => syncStocktakeJournal(databaseId, Number(stocktakeId)),
+    );
     return NextResponse.json({ ok: true, ...result });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 400 });

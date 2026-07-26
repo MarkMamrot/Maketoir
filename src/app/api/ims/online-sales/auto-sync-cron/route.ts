@@ -10,16 +10,11 @@
  * and pushes each one to Xero as a daily summary invoice.
  */
 import { NextResponse } from 'next/server';
-import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
+import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
-import { syncDailySalesBatch, syncGiftCardLiabilityReclass } from '@/services/XeroSyncService';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
-import {
-  findOnlineGatewayClearingAccount,
-  isShopifyPaymentsGateway,
-  normalizeOnlineGateway,
-} from '@/lib/xero/onlineGatewayMappings';
+import { syncOnlineDailySalesDay } from '@/lib/xero/onlineDailySalesSync';
 
 export const runtime = 'nodejs';
 
@@ -60,13 +55,6 @@ export async function POST(req: Request) {
     const xeroAutoSyncEnabled = settings.get('shopify_xero_auto_sync_enabled') !== '0';
     if (!xeroAutoSyncEnabled) return;
 
-    // Rolling migration safety: needed for gift-card liability reclass in online batch.
-    await imsExecute(
-      `ALTER TABLE ims_sales_orders
-       ADD COLUMN gift_card_amount DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER total_amount`,
-      [],
-    ).catch(() => {});
-
     const hasRecentOrders = await imsQuery<{ c: number }>(
       `SELECT COUNT(*) AS c
        FROM ims_sales_orders
@@ -79,11 +67,6 @@ export async function POST(req: Request) {
     ).catch(() => [] as { c: number }[]);
     if (Number(hasRecentOrders[0]?.c ?? 0) === 0) return;
 
-    // Load gateway clearing-account mappings for this business.
-    const gwMappings = await query<{ gateway_name: string; clearing_account_code: string | null }>(
-      `SELECT gateway_name, clearing_account_code FROM xero_gateway_mappings WHERE business_id = ?`,
-      [business_id],
-    ).catch(() => [] as { gateway_name: string; clearing_account_code: string | null }[]);
     // Supported model: one invoice per completed business day.
       const days = await imsQuery<{ day: string }>(
         `SELECT DATE_FORMAT(order_date, '%Y-%m-%d') AS day
@@ -110,110 +93,8 @@ export async function POST(req: Request) {
 
       for (const { day } of days.filter(d => !syncedSet.has(d.day))) {
         try {
-          const rows = await imsQuery<{ ts: string; tt: string; tc: string; gca: string }>(
-            `SELECT COALESCE(SUM(total_amount), 0) AS ts,
-                    COALESCE(SUM(tax_amount), 0)   AS tt,
-                    COALESCE(SUM(gift_card_amount), 0) AS gca,
-                    COUNT(*) AS tc
-             FROM ims_sales_orders
-             WHERE business_id = ?
-               AND DATE_FORMAT(order_date, '%Y-%m-%d') = ?
-               AND so_type = 'online'
-               AND (is_historical IS NULL OR is_historical = 0)
-               AND status != 'cancelled'`,
-            [business_id, day],
-          );
-          const totalSales = Number(rows[0]?.ts ?? 0);
-          const totalTax   = Number(rows[0]?.tt ?? 0);
-          const giftCardAmount = Number(rows[0]?.gca ?? 0);
-          const count      = Number(rows[0]?.tc ?? 0);
-          if (totalSales === 0) continue;
-
-          const gatewayRows = await imsQuery<{ gateway: string; ts: string; tt: string }>(
-            `SELECT COALESCE(LOWER(TRIM(payment_gateway)), '_unknown') AS gateway,
-                    COALESCE(SUM(total_amount), 0) AS ts,
-                    COALESCE(SUM(tax_amount), 0) AS tt
-               FROM ims_sales_orders
-              WHERE business_id = ?
-                AND DATE_FORMAT(order_date, '%Y-%m-%d') = ?
-                AND so_type = 'online'
-                AND (is_historical IS NULL OR is_historical = 0)
-                AND status != 'cancelled'
-              GROUP BY COALESCE(LOWER(TRIM(payment_gateway)), '_unknown')`,
-            [business_id, day],
-          );
-
-          const paymentRows = gatewayRows
-            .map(row => {
-              const gateway = normalizeOnlineGateway(row.gateway);
-              const amount = Math.round((Number(row.ts ?? 0) + Number(row.tt ?? 0)) * 100) / 100;
-              if (!(amount > 0)) return null;
-              const accountCode = findOnlineGatewayClearingAccount(gateway, gwMappings);
-              return {
-                gateway,
-                amount,
-                accountCode,
-                payoutManaged: isShopifyPaymentsGateway(gateway),
-              };
-            })
-            .filter((row): row is { gateway: string; amount: number; accountCode: string | null; payoutManaged: boolean } => !!row);
-
-          const missingMappings = paymentRows.filter(row => !row.payoutManaged && !row.accountCode);
-          if (gwMappings.length > 0 && missingMappings.length > 0) {
-            const missingLabel = missingMappings.map(row => row.gateway).join(', ');
-            results.push({
-              businessId: business_id,
-              date: day,
-              success: false,
-              error: `Missing gateway clearing mapping for: ${missingLabel}`,
-            });
-            continue;
-          }
-
-          const targetTotal = Math.round((totalSales + totalTax) * 100) / 100;
-          const clearingPayments = paymentRows
-            .filter(row => !row.payoutManaged && !!row.accountCode)
-            .map(row => ({
-              accountCode: row.accountCode as string,
-              amount: row.amount,
-              label: row.gateway === '_unknown' ? 'Unknown' : row.gateway,
-            }));
-          const deferredShopifyTotal = paymentRows
-            .filter(row => row.payoutManaged)
-            .reduce((sum, row) => sum + row.amount, 0);
-          if (clearingPayments.length > 0 && deferredShopifyTotal === 0) {
-            const allocated = Math.round(clearingPayments.reduce((sum, p) => sum + p.amount, 0) * 100) / 100;
-            const delta = Math.round((targetTotal - allocated) * 100) / 100;
-            if (Math.abs(delta) > 0.00001) {
-              const last = clearingPayments[clearingPayments.length - 1];
-              last.amount = Math.round((last.amount + delta) * 100) / 100;
-            }
-          }
-
-          await syncDailySalesBatch(business_id, {
-            date: day,
-            channel: 'online',
-            totalSales,
-            totalTax,
-            lineDescription: `Online Sales ${day} (${count} orders)`,
-            ...(clearingPayments.length > 0 ? { clearingPayments } : {}),
-            payoutManaged: deferredShopifyTotal > 0,
-            gatewayAllocations: paymentRows.map(row => ({
-              gateway: row.gateway,
-              amount: row.amount,
-              payoutManaged: row.payoutManaged,
-            })),
-          });
-          if (giftCardAmount > 0) {
-            await syncGiftCardLiabilityReclass({
-              businessId: business_id,
-              amount: giftCardAmount,
-              date: day,
-              channel: 'online',
-              dedupeKey: `gift card liability online ${day}`,
-            });
-          }
-          results.push({ businessId: business_id, date: day, success: true });
+          const result = await syncOnlineDailySalesDay(business_id, day);
+          results.push({ businessId: business_id, date: day, success: !!result.xeroId });
         } catch (e: any) {
           results.push({ businessId: business_id, date: day, success: false, error: e?.message });
         }

@@ -1122,9 +1122,107 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
     ? `${batch.channel} batch ${batch.date}|${batch.gateway.toLowerCase()}`
     : `${batch.channel} batch ${batch.date}`;
   const syncType = batch.channel === 'pos' ? 'pos_batch' : 'online_batch';
+  const isCanonicalOnlineBatch = batch.channel === 'online' && !batch.gateway;
+  let existingOnlineInvoiceId: string | null = null;
+
+  if (isCanonicalOnlineBatch) {
+    const existing = await query<{ xero_invoice_id: string | null }>(
+      `SELECT xero_invoice_id
+         FROM xero_online_batches
+        WHERE business_id = ? AND batch_date = ?
+        LIMIT 1`,
+      [businessId, batch.date],
+    );
+    existingOnlineInvoiceId = existing[0]?.xero_invoice_id ?? null;
+
+    if (!existingOnlineInvoiceId) {
+      const historical = await query<{ xero_id: string }>(
+        `SELECT xero_id
+           FROM xero_sync_log
+          WHERE business_id = ? AND sync_type = 'online_batch' AND status = 'success'
+            AND detail = ? AND xero_id IS NOT NULL
+          ORDER BY created_at DESC
+          LIMIT 1`,
+        [businessId, batchKey],
+      ).catch(() => []);
+      existingOnlineInvoiceId = historical[0]?.xero_id ?? null;
+    }
+    if (existingOnlineInvoiceId) {
+      await execute(
+        `INSERT INTO xero_online_batches
+           (business_id, batch_date, xero_invoice_id, invoice_total, invoice_status,
+            gateway_allocations, payout_managed)
+         VALUES (?, ?, ?, ?, 'AUTHORISED', ?, ?)
+         ON DUPLICATE KEY UPDATE
+           invoice_status = IF(xero_invoice_id IS NULL, VALUES(invoice_status), invoice_status),
+           xero_invoice_id = COALESCE(xero_invoice_id, VALUES(xero_invoice_id))`,
+        [
+          businessId,
+          batch.date,
+          existingOnlineInvoiceId,
+          roundCurrency(batch.totalSales + batch.totalTax),
+          JSON.stringify(batch.gatewayAllocations ?? []),
+          batch.payoutManaged ? 1 : 0,
+        ],
+      );
+    }
+
+    let claim = existingOnlineInvoiceId ? null : await execute(
+      `INSERT IGNORE INTO xero_online_batches
+         (business_id, batch_date, invoice_total, invoice_status, gateway_allocations, payout_managed)
+       VALUES (?, ?, ?, 'posting', ?, ?)`,
+      [
+        businessId,
+        batch.date,
+        roundCurrency(batch.totalSales + batch.totalTax),
+        JSON.stringify(batch.gatewayAllocations ?? []),
+        batch.payoutManaged ? 1 : 0,
+      ],
+    );
+
+    if (claim && claim.affectedRows === 0) {
+      claim = await execute(
+        `UPDATE xero_online_batches
+            SET invoice_status = 'posting', error_detail = NULL,
+                invoice_total = ?, gateway_allocations = ?, payout_managed = ?
+          WHERE business_id = ? AND batch_date = ? AND xero_invoice_id IS NULL
+            AND (
+              invoice_status IN ('pending', 'error') OR
+              (invoice_status = 'posting' AND updated_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE))
+            )`,
+        [
+          roundCurrency(batch.totalSales + batch.totalTax),
+          JSON.stringify(batch.gatewayAllocations ?? []),
+          batch.payoutManaged ? 1 : 0,
+          businessId,
+          batch.date,
+        ],
+      );
+    }
+
+    if (claim && claim.affectedRows === 0) {
+      const current = await query<{ xero_invoice_id: string | null }>(
+        `SELECT xero_invoice_id
+           FROM xero_online_batches
+          WHERE business_id = ? AND batch_date = ?
+          LIMIT 1`,
+        [businessId, batch.date],
+      );
+      return current[0]?.xero_invoice_id ?? null;
+    }
+  }
 
   try {
-    const result = await xeroApiFetch(businessId, '/Invoices', { method: 'POST', body: { Invoices: [invoice] } });
+    const invoiceIdempotencyKey = crypto.createHash('sha256')
+      .update(`${businessId}|${batchKey}|invoice`)
+      .digest('hex');
+    const result = existingOnlineInvoiceId
+      ? { Invoices: [{ InvoiceID: existingOnlineInvoiceId, Status: 'AUTHORISED' }] }
+      : await xeroApiFetch(businessId, '/Invoices', {
+          method: 'POST',
+          idempotencyKey: invoiceIdempotencyKey,
+          body: { Invoices: [invoice] },
+        });
     const batchInv = result.Invoices?.[0];
     const xeroId = batchInv?.InvoiceID ?? null;
 
@@ -1174,12 +1272,16 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
     // funds to clearing accounts for bank reconciliation.
     if (xeroId && clearingPayments.length > 0) {
       try {
-        for (const p of clearingPayments) {
+        for (const [paymentIndex, p] of clearingPayments.entries()) {
           const amount = Math.round(Number(p.amount ?? 0) * 100) / 100;
           if (!(amount > 0)) continue;
           const label = p.label || batch.gateway;
+          const paymentIdempotencyKey = crypto.createHash('sha256')
+            .update(`${businessId}|${batchKey}|payment|${paymentIndex}|${p.accountCode}|${amount.toFixed(2)}`)
+            .digest('hex');
           await xeroApiFetch(businessId, '/Payments', {
             method: 'POST',
+            idempotencyKey: paymentIdempotencyKey,
             body: { Payments: [{
               Invoice: { InvoiceID: xeroId },
               Account: { Code: p.accountCode },
@@ -1200,6 +1302,14 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
     await logSync(businessId, syncType, null, xeroId, 'success', batchKey, batchInv?.Status ?? 'AUTHORISED');
     return xeroId;
   } catch (err: any) {
+    if (isCanonicalOnlineBatch) {
+      await execute(
+        `UPDATE xero_online_batches
+            SET invoice_status = 'error', error_detail = ?
+          WHERE business_id = ? AND batch_date = ? AND xero_invoice_id IS NULL`,
+        [err.message, businessId, batch.date],
+      ).catch(() => {});
+    }
     await logSync(businessId, syncType, null, null, 'error', `${batchKey}: ${err.message}`);
     return null;
   }
@@ -1374,7 +1484,14 @@ async function syncDeferredLiabilityJournal(input: {
   };
 
   try {
-    const res = await xeroApiFetch(input.businessId, '/ManualJournals', { method: 'POST', body: { ManualJournals: [journal] } });
+    const idempotencyKey = crypto.createHash('sha256')
+      .update(`${input.businessId}|${input.syncType}|${input.dedupeKey}`)
+      .digest('hex');
+    const res = await xeroApiFetch(input.businessId, '/ManualJournals', {
+      method: 'POST',
+      idempotencyKey,
+      body: { ManualJournals: [journal] },
+    });
     const j = res.ManualJournals?.[0];
     const xeroId = j?.ManualJournalID ?? null;
     if (!xeroId) {
@@ -2123,6 +2240,12 @@ export async function markCNXeroStatus(
  * Returns the Xero CreditNoteID, or null on failure.
  */
 export async function syncCNAsCreditNote(businessId: string, cn: CNForSync): Promise<string | null> {
+  const stored = await imsQuery<{ xero_credit_note_id: string | null }>(
+    `SELECT xero_credit_note_id FROM ims_credit_notes WHERE id = ? LIMIT 1`,
+    [cn.id],
+  );
+  if (stored[0]?.xero_credit_note_id) return stored[0].xero_credit_note_id;
+
   const accounts = await getAccountMappings(businessId);
   const trackingMappings = await getTrackingMappings(businessId);
   const taxTypes = getTaxTypes(businessId);
@@ -2164,8 +2287,12 @@ export async function syncCNAsCreditNote(businessId: string, cn: CNForSync): Pro
   };
 
   try {
+    const idempotencyKey = crypto.createHash('sha256')
+      .update(`${businessId}|customer-credit-note|${cn.id}|${cn.cn_number}`)
+      .digest('hex');
     const result = await xeroApiFetch(businessId, '/CreditNotes', {
       method: 'POST',
+      idempotencyKey,
       body: { CreditNotes: [creditNote] },
     });
     const xeroId = result.CreditNotes?.[0]?.CreditNoteID ?? null;
@@ -2367,6 +2494,12 @@ export async function markSupplierCNXeroStatus(
  * CreditNoteID, or null on failure.
  */
 export async function syncSupplierCNAsCreditNote(businessId: string, scn: SupplierCNForSync): Promise<string | null> {
+  const stored = await imsQuery<{ xero_credit_note_id: string | null }>(
+    `SELECT xero_credit_note_id FROM ims_supplier_credit_notes WHERE id = ? LIMIT 1`,
+    [scn.id],
+  );
+  if (stored[0]?.xero_credit_note_id) return stored[0].xero_credit_note_id;
+
   const accounts = await getAccountMappings(businessId);
   const trackingMappings = await getTrackingMappings(businessId);
   const taxTypes = getTaxTypes(businessId);
@@ -2412,8 +2545,12 @@ export async function syncSupplierCNAsCreditNote(businessId: string, scn: Suppli
   };
 
   try {
+    const idempotencyKey = crypto.createHash('sha256')
+      .update(`${businessId}|supplier-credit-note|${scn.id}|${scn.scn_number}`)
+      .digest('hex');
     const result = await xeroApiFetch(businessId, '/CreditNotes', {
       method: 'POST',
+      idempotencyKey,
       body: { CreditNotes: [creditNoteBase] },
     });
     const xeroId = result.CreditNotes?.[0]?.CreditNoteID ?? null;
@@ -2434,6 +2571,9 @@ export async function syncSupplierCNAsCreditNote(businessId: string, scn: Suppli
         delete creditNoteNoNumber.CreditNoteNumber;
         const retry = await xeroApiFetch(businessId, '/CreditNotes', {
           method: 'POST',
+          idempotencyKey: crypto.createHash('sha256')
+            .update(`${businessId}|supplier-credit-note|${scn.id}|${scn.scn_number}|auto-number`)
+            .digest('hex'),
           body: { CreditNotes: [creditNoteNoNumber] },
         });
         const xeroId = retry.CreditNotes?.[0]?.CreditNoteID ?? null;

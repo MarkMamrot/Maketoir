@@ -5,9 +5,8 @@
  */
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
-import { triggerPOXeroSync, triggerSOXeroSync, triggerCNXeroSync, triggerSupplierCNXeroSync } from '@/lib/ims/xeroHooks';
+import { triggerPOXeroSync, triggerSOXeroSync, triggerCNXeroSync, triggerSupplierCNXeroSync, triggerPOPaymentXeroSync, triggerSOPaymentXeroSync } from '@/lib/ims/xeroHooks';
 import { imsQuery } from '@/services/IMSMySQLService';
-import { query } from '@/services/MySQLService';
 import {
   syncGiftCardIssueInvoice,
   syncGiftCardRedemptionReclass,
@@ -20,12 +19,12 @@ export async function POST(req: Request) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId: string = session.businessId;
-  let lockKey: string | null = null;
 
   try {
-    const { type, id } = await req.json() as {
-      type: 'po' | 'so' | 'cn' | 'scn' | 'gift_card_issue' | 'gift_card_redeem' | 'store_credit_issue' | 'store_credit_redeem';
+    const { type, id, parentId } = await req.json() as {
+      type: 'po' | 'so' | 'po_payment' | 'so_payment' | 'cn' | 'scn' | 'gift_card_issue' | 'gift_card_redeem' | 'store_credit_issue' | 'store_credit_redeem';
       id: number;
+      parentId?: number;
     };
     if (!type || !id) return NextResponse.json({ error: 'type and id required' }, { status: 400 });
 
@@ -37,12 +36,18 @@ export async function POST(req: Request) {
       await triggerPOXeroSync(businessId, id, syncStatus);
     } else if (type === 'so') {
       await triggerSOXeroSync(businessId, id, 'confirmed');
+    } else if (type === 'po_payment' || type === 'so_payment') {
+      if (!parentId) return NextResponse.json({ error: 'parentId is required for payment replay.' }, { status: 400 });
+      const table = type === 'po_payment' ? 'ims_purchase_order_payments' : 'ims_sales_order_payments';
+      const parentColumn = type === 'po_payment' ? 'po_id' : 'so_id';
+      const paymentRows = await imsQuery<{ id: number }>(
+        `SELECT id FROM ${table} WHERE id = ? AND ${parentColumn} = ? LIMIT 1`,
+        [id, parentId],
+      );
+      if (!paymentRows[0]) return NextResponse.json({ error: 'Payment not found.' }, { status: 404 });
+      if (type === 'po_payment') await triggerPOPaymentXeroSync(businessId, parentId, id);
+      else await triggerSOPaymentXeroSync(businessId, parentId, id);
     } else if (type === 'cn') {
-      lockKey = `xero:push:${businessId}:cn:${id}`;
-      const lockRows = await query<{ acquired: number }>(`SELECT GET_LOCK(?, 0) AS acquired`, [lockKey]);
-      if (!Number(lockRows[0]?.acquired)) {
-        return NextResponse.json({ error: 'Retry already in progress for this customer credit note.' }, { status: 409 });
-      }
       const cnRows = await imsQuery<{ xero_sync_status: string | null; xero_credit_note_id: string | null }>(
         `SELECT xero_sync_status, xero_credit_note_id FROM ims_credit_notes WHERE id = ? LIMIT 1`,
         [id],
@@ -52,6 +57,16 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: true, skipped: true, reason: 'already_synced' });
       }
       await triggerCNXeroSync(businessId, id);
+      const resultRows = await imsQuery<{ xero_sync_status: string | null; xero_credit_note_id: string | null }>(
+        `SELECT xero_sync_status, xero_credit_note_id FROM ims_credit_notes WHERE id = ? LIMIT 1`,
+        [id],
+      );
+      const result = resultRows[0];
+      return NextResponse.json({
+        success: result?.xero_sync_status === 'synced' && !!result.xero_credit_note_id,
+        status: result?.xero_sync_status ?? 'error',
+        xeroId: result?.xero_credit_note_id ?? null,
+      });
     } else if (type === 'gift_card_issue') {
       const rows = await imsQuery<{ id: number; code: string; amount: string; issue_date: string | null }>(
         `SELECT id, code,
@@ -130,11 +145,6 @@ export async function POST(req: Request) {
       if (type === 'store_credit_issue') await syncStoreCreditIssueReclass(payload);
       else await syncStoreCreditRedemptionReclass(payload);
     } else {
-      lockKey = `xero:push:${businessId}:scn:${id}`;
-      const lockRows = await query<{ acquired: number }>(`SELECT GET_LOCK(?, 0) AS acquired`, [lockKey]);
-      if (!Number(lockRows[0]?.acquired)) {
-        return NextResponse.json({ error: 'Retry already in progress for this supplier credit note.' }, { status: 409 });
-      }
       const scnRows = await imsQuery<{ xero_sync_status: string | null; xero_credit_note_id: string | null }>(
         `SELECT xero_sync_status, xero_credit_note_id FROM ims_supplier_credit_notes WHERE id = ? LIMIT 1`,
         [id],
@@ -144,18 +154,20 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: true, skipped: true, reason: 'already_synced' });
       }
       await triggerSupplierCNXeroSync(businessId, id);
+      const resultRows = await imsQuery<{ xero_sync_status: string | null; xero_credit_note_id: string | null }>(
+        `SELECT xero_sync_status, xero_credit_note_id FROM ims_supplier_credit_notes WHERE id = ? LIMIT 1`,
+        [id],
+      );
+      const result = resultRows[0];
+      return NextResponse.json({
+        success: result?.xero_sync_status === 'synced' && !!result.xero_credit_note_id,
+        status: result?.xero_sync_status ?? 'error',
+        xeroId: result?.xero_credit_note_id ?? null,
+      });
     }
 
     return NextResponse.json({ success: true });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
-  } finally {
-    if (lockKey) {
-      try {
-        await query(`SELECT RELEASE_LOCK(?)`, [lockKey]);
-      } catch {
-        // Non-critical; lock auto-releases when connection closes.
-      }
-    }
   }
 }

@@ -1,139 +1,66 @@
 /**
  * POST /api/xero/sync/daily-sales
- * Body: { databaseId, date, channel: 'pos' | 'online', locationId?: number }
+ * Body: { databaseId, date, channel: 'online' }
  *
- * Posts a summary invoice for a day's POS or online sales.
- * Aggregates from ims_pos_sales / ims_online_sales tables.
+ * Posts the canonical summary invoice for a day's online sales.
+ * POS revenue is posted exclusively by the per-method EOD flow.
  */
 import { NextResponse } from 'next/server';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
-import { syncDailySalesBatch, syncGiftCardLiabilityReclass } from '@/services/XeroSyncService';
-import { query } from '@/services/MySQLService';
-import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
-import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { syncOnlineDailySalesDay } from '@/lib/xero/onlineDailySalesSync';
 
 export async function POST(req: Request) {
   const { user, response } = requireAdminSession();
   if (response) return response;
 
-  const { databaseId, date, channel, locationId } = await req.json();
+  const { databaseId, date, channel } = await req.json();
   const denied = assertBusinessAccess(user, databaseId);
   if (denied) return denied;
-  await enterImsForBusiness(databaseId);
 
   if (!date || !channel) {
     return NextResponse.json({ error: 'date and channel are required.' }, { status: 400 });
   }
-  if (!['pos', 'online'].includes(channel)) {
-    return NextResponse.json({ error: 'channel must be "pos" or "online".' }, { status: 400 });
+  if (channel !== 'online') {
+    return NextResponse.json({
+      error: 'Daily sales sync supports online sales only. POS revenue is synced through POS end-of-day reconciliation.',
+    }, { status: 400 });
   }
 
   try {
-    let totalSales = 0;
-    let totalTax = 0;
-    let giftCardAmount = 0;
-    let lineDescription = '';
     let preflightImport: { attempted: boolean; success: boolean; imported?: number; confirmedDrafts?: number; error?: string } = { attempted: false, success: false };
-
-    if (channel === 'pos') {
-      // Aggregate POS sales for the given date and location
-      const rows = await query(
-        `SELECT COALESCE(SUM(total_amount), 0) AS total_sales, COALESCE(SUM(tax_amount), 0) AS total_tax, COUNT(*) AS txn_count
-         FROM ims_pos_sales
-         WHERE business_id = ? AND DATE(sale_date) = ? ${locationId ? 'AND location_id = ?' : ''}`,
-        locationId ? [databaseId, date, locationId] : [databaseId, date],
-      );
-      totalSales = Number(rows[0]?.total_sales || 0);
-      totalTax = Number(rows[0]?.total_tax || 0);
-      const count = Number(rows[0]?.txn_count || 0);
-
-      // Get location name
-      let locName = '';
-      if (locationId) {
-        const locRows = await query('SELECT name FROM ims_locations WHERE id = ?', [locationId]);
-        locName = locRows[0]?.name || `Location ${locationId}`;
-      }
-      lineDescription = `POS Sales ${date}${locName ? ` — ${locName}` : ''} (${count} transactions)`;
-    } else {
-      // Best-effort preflight: pull latest Shopify orders before online batch sync,
-      // so transient webhook outages do not leave gaps in the Xero day batch.
-      preflightImport = { attempted: true, success: false };
-      try {
-        const fwHost = req.headers.get('x-forwarded-host');
-        const origin = fwHost
-          ? `https://${fwHost.split(',')[0].trim()}`
-          : new URL(req.url).origin;
-        const cookie = req.headers.get('cookie') ?? '';
-        const importRes = await fetch(`${origin}/api/ims/shopify/import-orders`, {
-          method: 'POST',
-          headers: cookie ? { cookie } : undefined,
-          cache: 'no-store',
-        });
-        const importJson = await importRes.json().catch(() => ({}));
-        preflightImport = {
-          attempted: true,
-          success: importRes.ok && !!importJson?.success,
-          imported: Number(importJson?.imported ?? 0),
-          confirmedDrafts: Number(importJson?.confirmed_drafts ?? 0),
-          error: importRes.ok ? undefined : String(importJson?.error ?? 'import failed'),
-        };
-      } catch (e: any) {
-        preflightImport = {
-          attempted: true,
-          success: false,
-          error: String(e?.message ?? e),
-        };
-      }
-
-      await imsExecute(
-        `ALTER TABLE ims_sales_orders
-         ADD COLUMN gift_card_amount DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER total_amount`,
-        [],
-      ).catch(() => {});
-
-      // Aggregate online sales for the given date (IMS DB).
-      // Exclude is_historical=1 — those are pre-transition Cin7 orders already in Xero.
-      // Exclude cancelled orders — they are not revenue.
-      const rows = await imsQuery<{ total_sales: number; total_tax: number; txn_count: number; gift_card_amount: number }>(
-        `SELECT COALESCE(SUM(total_amount), 0) AS total_sales, COALESCE(SUM(tax_amount), 0) AS total_tax, COUNT(*) AS txn_count
-                , COALESCE(SUM(gift_card_amount), 0) AS gift_card_amount
-         FROM ims_sales_orders
-         WHERE business_id = ? AND DATE(order_date) = ? AND so_type = 'online'
-           AND (is_historical IS NULL OR is_historical = 0)
-           AND status != 'cancelled'`,
-        [databaseId, date],
-      );
-      totalSales = Number(rows[0]?.total_sales || 0);
-      totalTax = Number(rows[0]?.total_tax || 0);
-      giftCardAmount = Number(rows[0]?.gift_card_amount || 0);
-      const count = Number(rows[0]?.txn_count || 0);
-      lineDescription = `Online Sales ${date} (${count} orders)`;
+    preflightImport = { attempted: true, success: false };
+    try {
+      const fwHost = req.headers.get('x-forwarded-host');
+      const origin = fwHost ? `https://${fwHost.split(',')[0].trim()}` : new URL(req.url).origin;
+      const cookie = req.headers.get('cookie') ?? '';
+      const importRes = await fetch(`${origin}/api/ims/shopify/import-orders`, {
+        method: 'POST',
+        headers: cookie ? { cookie } : undefined,
+        cache: 'no-store',
+      });
+      const importJson = await importRes.json().catch(() => ({}));
+      preflightImport = {
+        attempted: true,
+        success: importRes.ok && !!importJson?.success,
+        imported: Number(importJson?.imported ?? 0),
+        confirmedDrafts: Number(importJson?.confirmed_drafts ?? 0),
+        error: importRes.ok ? undefined : String(importJson?.error ?? 'import failed'),
+      };
+    } catch (e: any) {
+      preflightImport = { attempted: true, success: false, error: String(e?.message ?? e) };
     }
 
-    if (totalSales === 0) {
+    const result = await syncOnlineDailySalesDay(databaseId, date);
+    if (result.totalSales === 0) {
       return NextResponse.json({ success: false, message: 'No sales found for this date/channel.' });
     }
-
-    const xeroId = await syncDailySalesBatch(databaseId, {
-      date,
-      locationId: locationId ?? undefined,
-      channel,
-      totalSales,
-      totalTax,
-      lineDescription,
+    return NextResponse.json({
+      success: !!result.xeroId,
+      xeroId: result.xeroId,
+      totalSales: result.totalSales,
+      totalTax: result.totalTax,
+      preflightImport,
     });
-
-    if (channel === 'online' && giftCardAmount > 0) {
-      await syncGiftCardLiabilityReclass({
-        businessId: databaseId,
-        amount: giftCardAmount,
-        date,
-        channel: 'online',
-        dedupeKey: `gift card liability online ${date}`,
-      });
-    }
-
-    return NextResponse.json({ success: !!xeroId, xeroId, totalSales, totalTax, preflightImport });
   } catch (err: any) {
     console.error('[xero/daily-sales] error:', err?.message ?? err);
     return NextResponse.json({ error: `Daily sales sync failed: ${err?.message ?? 'unknown error'}` }, { status: 500 });
