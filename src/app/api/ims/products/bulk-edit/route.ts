@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
+import { isShopifyFallbackProduct } from '@/lib/shopifyFallbackVariant';
 
 
 // ─── GET /api/ims/products/bulk-edit ─────────────────────────────────────────
@@ -151,6 +152,7 @@ export async function GET(req: Request) {
 export async function PUT(req: Request) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const businessId = session.businessId as string;
 
   try {
     const { location_id, updates } = await req.json() as {
@@ -181,9 +183,14 @@ export async function PUT(req: Request) {
     let productUpdates = 0;
     let stockUpdates = 0;
     let variantUpdates = 0;
+    let skippedSystemProducts = 0;
 
     for (const u of updates) {
       if (!u.product_id) continue;
+      if (await isShopifyFallbackProduct(u.product_id, businessId)) {
+        skippedSystemProducts++;
+        continue;
+      }
 
       // ── Product-level fields ───────────────────────────────────────────────
       const productFields: string[] = [];
@@ -284,7 +291,7 @@ export async function PUT(req: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true, productUpdates, stockUpdates, variantUpdates });
+    return NextResponse.json({ ok: true, productUpdates, stockUpdates, variantUpdates, skippedSystemProducts });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

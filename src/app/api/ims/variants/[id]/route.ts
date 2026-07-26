@@ -2,11 +2,18 @@ import { NextResponse } from 'next/server';
 import { ImsVariantsRepo } from '@/lib/ims/ImsRepository';
 import { getShopifyForBusiness, shopifyVariantPricePayload } from '@/lib/ims/shopifyInventorySync';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { isShopifyFallbackVariant } from '@/lib/shopifyFallbackVariant';
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
+    if (await isShopifyFallbackVariant(params.id, session.businessId as string)) {
+      return NextResponse.json(
+        { success: false, error: 'Shopify Misc Charge is a protected system variant and cannot be edited manually.' },
+        { status: 403 },
+      );
+    }
     const body = await req.json();
     await ImsVariantsRepo.update(params.id, body);
 
@@ -55,8 +62,15 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 }
 
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
-  if (!await getImsSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = await getImsSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
+    if (await isShopifyFallbackVariant(params.id, session.businessId as string)) {
+      return NextResponse.json(
+        { success: false, error: 'Shopify Misc Charge is a protected system variant and cannot be deleted.' },
+        { status: 403 },
+      );
+    }
     await ImsVariantsRepo.delete(params.id);
     return NextResponse.json({ success: true });
   } catch (e: any) {
