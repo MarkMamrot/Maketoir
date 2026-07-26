@@ -3,6 +3,7 @@ import mysql from 'mysql2/promise';
 import { randomUUID } from 'crypto';
 
 const APPLY = process.argv.includes('--apply');
+const HARD_DELETE = process.argv.includes('--hard-delete');
 const argBusinessId = process.argv.find((a) => a.startsWith('--business-id='))?.split('=')[1] || '';
 const argBusinessName = process.argv.find((a) => a.startsWith('--business-name='))?.split('=')[1] || 'Monsterthreads';
 
@@ -94,6 +95,7 @@ async function run() {
         businessId,
         businessName: business.name,
         imsDbName,
+        hardDeleteMode: HARD_DELETE,
         fallbackProducts: products.length,
         fallbackVariants: variants.length,
         canonicalProductId: canonicalProduct?.product_id || null,
@@ -107,7 +109,7 @@ async function run() {
       console.table([report]);
 
       if (!APPLY) {
-        console.log('No changes applied. Re-run with --apply to execute cleanup.');
+        console.log('No changes applied. Re-run with --apply to execute cleanup. Add --hard-delete to physically delete safe duplicate products.');
         return;
       }
 
@@ -146,6 +148,22 @@ async function run() {
       if (duplicateProducts.length > 0) {
         const productIds = duplicateProducts.map((p) => p.product_id);
         const placeholders = productIds.map(() => '?').join(',');
+
+        if (HARD_DELETE) {
+          // Physically delete only duplicate fallback products that have no
+          // variants attached. This keeps destructive cleanup safe.
+          await imsDb.execute(
+            `DELETE p
+               FROM ims_products p
+               LEFT JOIN ims_product_variants v ON v.product_id = p.product_id
+              WHERE p.business_id = ?
+                AND p.product_id IN (${placeholders})
+                AND v.product_id IS NULL`,
+            [businessId, ...productIds],
+          );
+        }
+
+        // Any duplicates not physically removed are soft-disabled.
         await imsDb.execute(
           `UPDATE ims_products
               SET is_active = 0,
@@ -188,9 +206,18 @@ async function run() {
         [businessId],
       );
 
+      const [postProductsTotal] = await imsDb.execute(
+        `SELECT COUNT(*) AS c
+           FROM ims_products
+          WHERE business_id = ?
+            AND UPPER(COALESCE(base_sku, '')) = 'SHOPIFY-MISC'`,
+        [businessId],
+      );
+
       console.log('Cleanup applied. Active fallback rows after cleanup:');
       console.table([
         {
+          totalFallbackProducts: Number(postProductsTotal[0]?.c || 0),
           activeFallbackProducts: Number(postProducts[0]?.c || 0),
           activeFallbackVariants: Number(postVariants[0]?.c || 0),
           fallbackVariantId: variantIdToUse,
