@@ -15857,6 +15857,7 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
   const [mappings, setMappings] = useState<any[]>([]);
   const [adding, setAdding]     = useState(false);
   const [newForm, setNewForm]   = useState({ gateway_name: '', display_name: '', clearing_account_code: '', clearing_account_name: '', fee_account_code: '', fee_account_name: '', fee_tax_type: 'NONE' });
+  const [editingGatewayName, setEditingGatewayName] = useState<string | null>(null);
   const [saving, setSaving]     = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
   const [discoveredMethods, setDiscoveredMethods] = useState<{
@@ -15908,15 +15909,38 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Unable to save gateway mapping');
       setAdding(false);
+      setEditingGatewayName(null);
       setNewForm({ gateway_name: '', display_name: '', clearing_account_code: '', clearing_account_name: '', fee_account_code: '', fee_account_name: '', fee_tax_type: 'NONE' });
       load();
     } catch (e: any) { alert(e.message); }
     setSaving(false);
   };
 
+  const startEdit = (mapping: any) => {
+    setEditingGatewayName(mapping.gateway_name);
+    setNewForm({
+      gateway_name: String(mapping.gateway_name ?? ''),
+      display_name: String(mapping.display_name ?? mapping.gateway_name ?? ''),
+      clearing_account_code: String(mapping.clearing_account_code ?? ''),
+      clearing_account_name: String(mapping.clearing_account_name ?? ''),
+      fee_account_code: String(mapping.fee_account_code ?? ''),
+      fee_account_name: String(mapping.fee_account_name ?? ''),
+      fee_tax_type: String(mapping.fee_tax_type ?? 'NONE'),
+    });
+    setAdding(true);
+    requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+  };
+
+  const cancelEdit = () => {
+    setAdding(false);
+    setEditingGatewayName(null);
+    setNewForm({ gateway_name: '', display_name: '', clearing_account_code: '', clearing_account_name: '', fee_account_code: '', fee_account_name: '', fee_tax_type: 'NONE' });
+  };
+
   const del = async (gateway_name: string, label: string) => {
     if (!confirm(`Remove gateway mapping for "${label}"?`)) return;
     await fetch(`/api/xero/gateway-mappings?gateway_name=${encodeURIComponent(gateway_name)}`, { method: 'DELETE' }).catch(() => {});
+    if (editingGatewayName === gateway_name) cancelEdit();
     load();
   };
 
@@ -15944,7 +15968,7 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
     <div style={{ marginTop: 28 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
         <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Online Gateway Clearing Accounts</h3>
-        <button onClick={() => setAdding(p => !p)} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer' }}>+ Add gateway</button>
+        <button onClick={() => { setAdding(p => !p); if (adding) cancelEdit(); }} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer' }}>+ Add gateway</button>
         <button onClick={loadDiscoveredMethods} disabled={loadingMethods} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', cursor: loadingMethods ? 'not-allowed' : 'pointer' }}>
           {loadingMethods ? 'Refreshing…' : 'Refresh Shopify gateways'}
         </button>
@@ -16010,7 +16034,10 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
                 <td style={{ padding: '8px 12px', color: 'var(--sv-text-dim)', fontSize: 12 }}>{m.fee_account_name ?? m.fee_account_code ?? '— manual'}</td>
                 <td style={{ padding: '8px 12px', color: 'var(--sv-text-dim)', fontSize: 12 }}>{m.fee_tax_type === 'INPUT' ? 'GST on Expenses' : 'BAS Excluded'}</td>
                 <td style={{ padding: '8px 12px' }}>
-                  <button onClick={() => del(m.gateway_name, m.display_name)} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--sv-etch)', background: 'transparent', color: '#f87171', cursor: 'pointer' }}>Remove</button>
+                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                    <button onClick={() => startEdit(m)} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-main)', cursor: 'pointer' }}>Edit</button>
+                    <button onClick={() => del(m.gateway_name, m.display_name)} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--sv-etch)', background: 'transparent', color: '#f87171', cursor: 'pointer' }}>Remove</button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -16023,11 +16050,17 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
 
       {adding && (
         <div ref={formRef} style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 14, marginTop: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{editingGatewayName ? 'Edit gateway mapping' : 'Add gateway mapping'}</div>
+            {editingGatewayName && (
+              <button onClick={cancelEdit} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer' }}>Cancel edit</button>
+            )}
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
             <div>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Gateway name (match pattern) *</label>
               <input list="gateways-list" value={newForm.gateway_name} onChange={e => setNewForm(f => ({ ...f, gateway_name: e.target.value.toLowerCase(), display_name: f.display_name || e.target.value }))}
-                placeholder="e.g. paypal" style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12 }} />
+                placeholder="e.g. paypal" disabled={Boolean(editingGatewayName)} style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: editingGatewayName ? 'var(--sv-bg-2)' : 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12, opacity: editingGatewayName ? 0.75 : 1, cursor: editingGatewayName ? 'not-allowed' : 'text' }} />
               <datalist id="gateways-list">{discoveredMethods.map(g => <option key={g.gateway_name} value={g.gateway_name} />)}</datalist>
               <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginTop: 2 }}>Matched using LIKE against payment_gateway column (lowercase). E.g. "paypal" matches "PayPal Express", "paypal".</div>
             </div>
@@ -16062,8 +16095,8 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={save} disabled={saving} style={{ fontSize: 12, padding: '5px 14px', borderRadius: 6, background: 'var(--sv-action)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600 }}>{saving ? 'Saving…' : 'Add Mapping'}</button>
-            <button onClick={() => setAdding(false)} style={{ fontSize: 12, padding: '5px 12px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer' }}>Cancel</button>
+            <button onClick={save} disabled={saving} style={{ fontSize: 12, padding: '5px 14px', borderRadius: 6, background: 'var(--sv-action)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600 }}>{saving ? 'Saving…' : (editingGatewayName ? 'Update Mapping' : 'Add Mapping')}</button>
+            <button onClick={cancelEdit} style={{ fontSize: 12, padding: '5px 12px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer' }}>Cancel</button>
           </div>
         </div>
       )}
