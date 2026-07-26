@@ -1,6 +1,7 @@
 ﻿'use client';
 import { useState, useEffect, useRef, useCallback, useMemo, useDeferredValue } from 'react';
 import type { DeviceConfig, PosSession, CachedProduct, CartItem, PaymentEntry, ParkedSale, CompletedSale } from './_types';
+import { createReceiptPrintGate } from './_receiptPrintGuard';
 import * as Zeller from '@/lib/zeller';
 import {
   loadDeviceConfig, saveDeviceConfig, clearDeviceConfig,
@@ -4347,6 +4348,7 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
   const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [emailError,  setEmailError]  = useState('');
   const printBtnRef = useRef<HTMLButtonElement>(null);
+  const printGateRef = useRef(createReceiptPrintGate());
 
   useEffect(() => {
     printBtnRef.current?.focus();
@@ -4361,13 +4363,30 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handlePrint = () => { setPrintMode('normal'); window.print(); };
+  const handlePrint = () => {
+    if (!printGateRef.current.request(() => {
+      setPrintMode('normal');
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        window.addEventListener('afterprint', () => {
+          setPrintMode('normal');
+          printGateRef.current.complete();
+        }, { once: true });
+        window.print();
+      }));
+    })) return;
+  };
+
   const handleGiftPrint = () => {
-    setPrintMode('gift');
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      window.addEventListener('afterprint', () => setPrintMode('normal'), { once: true });
-      window.print();
-    }));
+    if (!printGateRef.current.request(() => {
+      setPrintMode('gift');
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        window.addEventListener('afterprint', () => {
+          setPrintMode('normal');
+          printGateRef.current.complete();
+        }, { once: true });
+        window.print();
+      }));
+    })) return;
   };
 
   const sendEmail = async () => {
