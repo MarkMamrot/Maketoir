@@ -14846,8 +14846,8 @@ function XeroView({ businessId, isAdvisor = false, advisorMappingEnabled = false
           {/* Tab bar */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
             <button style={tabBtnStyle(tab === 'overview')} onClick={() => setTab('overview')}>Overview</button>
-            <button style={tabBtnStyle(tab === 'mapping')} onClick={() => setTab('mapping')}>Account & Tracking Mapping</button>
             <button style={tabBtnStyle(tab === 'sync')} onClick={() => setTab('sync')}>Sync History</button>
+            <button style={tabBtnStyle(tab === 'mapping')} onClick={() => setTab('mapping')} title="Also available in Settings -> Xero">Ledger Mapping</button>
           </div>
 
           {tab === 'overview' && <XeroOverviewTab status={status} getBusinessId={getBusinessId} />}
@@ -14856,6 +14856,31 @@ function XeroView({ businessId, isAdvisor = false, advisorMappingEnabled = false
         </>
       )}
     </div>
+  );
+}
+
+function HintBadge({ text }: { text: string }) {
+  return (
+    <span
+      title={text}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 16,
+        height: 16,
+        borderRadius: '50%',
+        border: '1px solid var(--sv-etch)',
+        color: 'var(--sv-text-dim)',
+        fontSize: 10,
+        fontWeight: 700,
+        cursor: 'help',
+        marginLeft: 6,
+        lineHeight: 1,
+      }}
+    >
+      i
+    </span>
   );
 }
 
@@ -14873,26 +14898,6 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
   const [cogsBusy, setCogsBusy] = React.useState<'preview' | 'post' | null>(null);
   const [cogsMessage, setCogsMessage] = React.useState<{ ok: boolean; text: string } | null>(null);
   const [cogsPreview, setCogsPreview] = React.useState<any>(null);
-
-  // Advisor access to the Account & Tracking Mapping (stored in ims_settings).
-  const [advisorMapping, setAdvisorMapping] = React.useState<boolean | null>(null);
-  const [savingAdvisor, setSavingAdvisor] = React.useState(false);
-  React.useEffect(() => {
-    fetch('/api/ims/settings').then(r => r.ok ? r.json() : null).then(j => {
-      const v = j?.data?.advisor_xero_mapping_enabled;
-      setAdvisorMapping(v === 'true' || v === '1' || v === true);
-    }).catch(() => setAdvisorMapping(false));
-  }, []);
-  const saveAdvisorMapping = async (enabled: boolean) => {
-    setSavingAdvisor(true);
-    setAdvisorMapping(enabled);
-    try {
-      await fetch('/api/ims/settings', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ advisor_xero_mapping_enabled: enabled ? 'true' : 'false' }),
-      });
-    } finally { setSavingAdvisor(false); }
-  };
 
   React.useEffect(() => {
     fetch(`/api/xero/cogs/settings?databaseId=${encodeURIComponent(getBusinessId())}`)
@@ -15055,24 +15060,48 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
 
       {/* Sync summary */}
       <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
-        <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sync Configuration</h3>
-        <div style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 8, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 5 }}>Online sales: one daily invoice</div>
-          <div style={{ marginTop: 6, fontSize: 11, color: 'var(--sv-text-dim)', lineHeight: 1.5 }}>
-            Completed online sales are combined into one Xero invoice per business day. Ordinary gateways pay their share immediately into mapped clearing accounts. Shopify Payments stays outstanding until a paid Shopify payout identifies the exact included transactions.
-          </div>
-        </div>
-        <div style={{ fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 2 }}>
-          <div>• POs → Xero Bills <span style={{ color: 'var(--sv-text-dim)' }}>(DRAFT when ordered or partially received; AUTHORISED when fully received; payments applied separately)</span></div>
-          <div>• Wholesale SOs → Xero Invoices <span style={{ color: 'var(--sv-text-dim)' }}>(DRAFT when confirmed; AUTHORISED when fulfilled; payments applied separately)</span></div>
-          <div>• POS EOD → Xero Invoices + Payments <span style={{ color: 'var(--sv-text-dim)' }}>(one AUTHORISED invoice per counted location/register-session/payment method, paid into its required clearing account)</span></div>
-          <div>• Online Sales → Xero Invoices <span style={{ color: 'var(--sv-text-dim)' }}>(completed days only; nightly schedule with login catch-up)</span></div>
-          <div>• Manual Customer Credit Notes → Xero Credit Notes <span style={{ color: 'var(--sv-text-dim)' }}>(queued as AUTHORISED on completion; POS notes remain in EOD accounting and Shopify notes remain externally settled)</span></div>
-          <div>• Supplier Credit Notes → Xero Credit Notes <span style={{ color: 'var(--sv-text-dim)' }}>(queued as DRAFT on completion; retry and void supported)</span></div>
-          <div>• COGS Journal <span style={{ color: 'var(--sv-text-dim)' }}>(completed calendar periods on a daily, weekly, monthly or quarterly schedule; manual preview/post available)</span></div>
-        </div>
-        <div style={{ marginTop: 10, fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6, padding: '8px 10px', background: 'rgba(96,165,250,.07)', borderRadius: 6 }}>
-          Paid Shopify payouts are planned from Shopify balance transactions. Gross amounts pay the included daily invoices; fees, refunds, reserves, disputes, and adjustments post separately against Shopify clearing. Review and post the plan from Xero → Sync History, then match the payout deposit to Shopify clearing in the Xero bank feed.
+        <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sync Flows</h3>
+        <div style={{ display: 'grid', gap: 8 }}>
+          {[
+            {
+              label: 'POs',
+              value: 'Bills (Draft -> Authorised on full receive)',
+              tip: 'Draft while ordered/partially received, then authorised when fully received. Payments are separate records.',
+            },
+            {
+              label: 'Wholesale SOs',
+              value: 'Invoices (Draft -> Authorised on fulfilment)',
+              tip: 'Confirmed SOs create draft invoices. Fulfilment authorises them.',
+            },
+            {
+              label: 'POS EOD',
+              value: 'Daily invoices + payments',
+              tip: 'One authorised invoice per counted location/register-session/payment method. Payments use required clearing mappings.',
+            },
+            {
+              label: 'Online Sales',
+              value: 'One invoice per completed business day',
+              tip: 'Non-Shopify gateways pay immediately into clearing. Shopify Payments settles when paid payouts confirm membership.',
+            },
+            {
+              label: 'Customer/Supplier CNs',
+              value: 'Credit notes with retry + void support',
+              tip: 'Manual customer CNs queue as authorised. Supplier CNs queue as draft. POS/Shopify flows keep their dedicated ownership rules.',
+            },
+            {
+              label: 'COGS',
+              value: 'Scheduled/manual journal posting',
+              tip: 'Posts completed periods only. Preview and manual posting controls are below.',
+            },
+          ].map(row => (
+            <div key={row.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, padding: '8px 10px', borderRadius: 7, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--sv-text-strong)', whiteSpace: 'nowrap' }}>{row.label}</span>
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', fontSize: 12, color: 'var(--sv-text-main)', textAlign: 'right' }}>
+                {row.value}
+                <HintBadge text={row.tip} />
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -15080,7 +15109,10 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
       <div style={{ gridColumn: '1 / -1', padding: 20, background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>COGS journals</h3>
+            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)', display: 'inline-flex', alignItems: 'center' }}>
+              COGS journals
+              <HintBadge text="Posts completed periods to Cost of Goods Sold and Inventory Asset. Missing or zero costs block posting unless you provide an override reason." />
+            </h3>
             <p style={{ margin: '5px 0 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>Post completed calendar periods to Cost of Goods Sold and Inventory Asset.</p>
           </div>
           {cogsSettings && (
@@ -15139,44 +15171,6 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
         )}
       </div>
 
-      {/* Actions */}
-      <div style={{ gridColumn: '1 / -1', padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
-        <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Quick Actions</h3>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button disabled style={{ padding: '8px 16px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: 'not-allowed', fontSize: 13, color: 'var(--sv-text-dim)' }}>
-            Sync All POs to Xero
-          </button>
-          <button disabled style={{ padding: '8px 16px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: 'not-allowed', fontSize: 13, color: 'var(--sv-text-dim)' }}>
-            Post Daily Sales Batch
-          </button>
-        </div>
-        <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-          Actions will be enabled once account mapping is configured below.
-        </p>
-      </div>
-
-      {/* Advisor access to Account & Tracking Mapping */}
-      <div style={{ gridColumn: '1 / -1', padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
-        <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Advisor Access</h3>
-        <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6, maxWidth: 620 }}>
-          Allow <strong>Advisor</strong> (read-only) users to view and edit the <strong>Account &amp; Tracking Mapping</strong>. When enabled, Advisors see <em>only</em> this mapping page in the Xero section — no other Xero settings, sync actions, or connection controls.
-        </p>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: advisorMapping === null || savingAdvisor ? 'default' : 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={!!advisorMapping}
-            disabled={advisorMapping === null || savingAdvisor}
-            onChange={e => saveAdvisorMapping(e.target.checked)}
-            style={{ width: 16, height: 16, cursor: 'inherit' }}
-          />
-          <span style={{ fontSize: 13, color: 'var(--sv-text-main)' }}>
-            {advisorMapping === null ? 'Loading…' : advisorMapping
-              ? 'Enabled — Advisors can manage Account & Tracking Mapping'
-              : 'Disabled — Advisors cannot access Xero mappings'}
-          </span>
-          {savingAdvisor && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>saving…</span>}
-        </label>
-      </div>
     </div>
   );
 }
@@ -21634,6 +21628,9 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   // Tax draft
   const [taxDraft, setTaxDraft] = useState<Record<string, string>>({});
   const [taxSaving, setTaxSaving] = useState(false);
+  const [xeroSettingsTab, setXeroSettingsTab] = useState<'setup' | 'mapping'>('setup');
+  const [xeroAdvisorEnabled, setXeroAdvisorEnabled] = useState(false);
+  const [xeroAdvisorSaving, setXeroAdvisorSaving] = useState(false);
   useEffect(() => {
     setTaxDraft({
       sales_tax_on_sales:       'yes',
@@ -21656,6 +21653,19 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
     setTaxSaving(true);
     await saveSettings(taxDraft);
     setTaxSaving(false);
+  };
+  useEffect(() => {
+    const v = settings['advisor_xero_mapping_enabled'];
+    setXeroAdvisorEnabled(v === 'true' || v === '1' || v === true);
+  }, [settings]);
+  const saveXeroAdvisorAccess = async (enabled: boolean) => {
+    setXeroAdvisorSaving(true);
+    setXeroAdvisorEnabled(enabled);
+    try {
+      await saveSettings({ advisor_xero_mapping_enabled: enabled ? 'true' : 'false' });
+    } finally {
+      setXeroAdvisorSaving(false);
+    }
   };
   // Display helpers (decimal stored → % shown)
   const taxRateDisplay = (key: string) => {
@@ -21854,8 +21864,180 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
         {/* ── Xero ── */}
         {active === 'xero' && (
-          <div style={{ padding: 32 }}>
-            <XeroMappingTab getBusinessId={() => businessId} />
+          <div style={{ padding: 32, maxWidth: 980 }}>
+            <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero Settings</h2>
+            <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
+              Configure accounting defaults here. Day-to-day sync monitoring remains in Integrations -> Xero.
+            </p>
+
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <button
+                onClick={() => setXeroSettingsTab('setup')}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: 6,
+                  border: '1px solid var(--sv-etch)',
+                  background: xeroSettingsTab === 'setup' ? 'var(--sv-action)' : 'var(--sv-bg-2)',
+                  color: xeroSettingsTab === 'setup' ? '#fff' : 'var(--sv-text-main)',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Accounting Setup
+              </button>
+              <button
+                onClick={() => setXeroSettingsTab('mapping')}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: 6,
+                  border: '1px solid var(--sv-etch)',
+                  background: xeroSettingsTab === 'mapping' ? 'var(--sv-action)' : 'var(--sv-bg-2)',
+                  color: xeroSettingsTab === 'mapping' ? '#fff' : 'var(--sv-text-main)',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Ledger Mapping
+              </button>
+            </div>
+
+            {xeroSettingsTab === 'setup' ? (
+              <>
+                <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 14 }}>
+                  <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)', display: 'inline-flex', alignItems: 'center' }}>
+                    Advisor Access
+                    <HintBadge text="When enabled, Advisor users can only access Xero mapping screens. They cannot run sync actions or change connection controls." />
+                  </h3>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: xeroAdvisorSaving ? 'default' : 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={xeroAdvisorEnabled}
+                      disabled={xeroAdvisorSaving}
+                      onChange={e => saveXeroAdvisorAccess(e.target.checked)}
+                      style={{ width: 16, height: 16, cursor: 'inherit' }}
+                    />
+                    <span style={{ fontSize: 13, color: 'var(--sv-text-main)' }}>
+                      {xeroAdvisorEnabled
+                        ? 'Enabled - Advisors can manage account/tracking mappings'
+                        : 'Disabled - Advisors cannot access Xero mappings'}
+                    </span>
+                    {xeroAdvisorSaving && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>saving...</span>}
+                  </label>
+                </div>
+
+                <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
+                  <h3 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)', display: 'inline-flex', alignItems: 'center' }}>
+                    Tax Type Defaults
+                    <HintBadge text="These are raw Xero TaxType values sent on lines. Typical AU values: OUTPUT, INPUT, NONE." />
+                  </h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginBottom: 12 }}>
+                    <div>
+                      <label style={labelStyle}>Sales (ACCREC)</label>
+                      <input
+                        style={inputStyle}
+                        value={taxDraft['xero_tax_type_sales'] ?? ''}
+                        onChange={e => setTaxDraft(p => ({ ...p, xero_tax_type_sales: e.target.value }))}
+                        placeholder="e.g. OUTPUT"
+                      />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Purchases (ACCPAY)</label>
+                      <input
+                        style={inputStyle}
+                        value={taxDraft['xero_tax_type_purchases'] ?? ''}
+                        onChange={e => setTaxDraft(p => ({ ...p, xero_tax_type_purchases: e.target.value }))}
+                        placeholder="e.g. INPUT"
+                      />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Tax-Exempt / Zero-Rated</label>
+                      <input
+                        style={inputStyle}
+                        value={taxDraft['xero_tax_type_exempt'] ?? ''}
+                        onChange={e => setTaxDraft(p => ({ ...p, xero_tax_type_exempt: e.target.value }))}
+                        placeholder="e.g. NONE"
+                      />
+                    </div>
+                  </div>
+                  <button type="button" disabled={taxSaving} onClick={saveTaxSettings} style={btnStyle('action', 'sm')}>
+                    {taxSaving ? 'Saving…' : 'Save Xero Settings'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <XeroMappingTab getBusinessId={() => businessId} />
+            )}
+          </div>
+        )}
+
+        {/* ── Shopify ── */}
+        {active === 'shopify' && (
+          <div style={{ padding: 32, maxWidth: 820 }}>
+            <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Shopify Settings</h2>
+            <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
+              Configure fulfillment routing here. Day-to-day imports, reconciliation, and inventory sync controls stay in Integrations -> Shopify.
+            </p>
+
+            <div style={{ marginBottom: 8 }}>
+              <CollHeader label="🌐 Online Pick Locations" open={onlinePickOpen} toggle={() => setOnlinePickOpen(o => !o)} />
+              {onlinePickOpen && (() => {
+                let priority: number[] = [];
+                try { const arr = JSON.parse(settings['online_pick_priority'] ?? '[]'); if (Array.isArray(arr)) priority = arr.map(Number).filter(Boolean); } catch {}
+                const setPriority = (loc: number, val: string) => {
+                  const rank = parseInt(val, 10);
+                  let next = priority.filter(id => id !== loc);
+                  if (Number.isFinite(rank) && rank > 0) {
+                    next.splice(Math.min(rank - 1, next.length), 0, loc);
+                  }
+                  saveSettings({ online_pick_priority: JSON.stringify(next) });
+                };
+                const rankOf = (loc: number) => { const i = priority.indexOf(loc); return i === -1 ? '' : String(i + 1); };
+                const sorted = [...pickLocations].sort((a, b) => {
+                  const ra = priority.indexOf(a.id), rb = priority.indexOf(b.id);
+                  if (ra !== -1 && rb !== -1) return ra - rb;
+                  if (ra !== -1) return -1;
+                  if (rb !== -1) return 1;
+                  return a.name.localeCompare(b.name);
+                });
+                return (
+                  <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                      <strong style={{ fontSize: 13, color: 'var(--sv-text-main)' }}>Fulfillment Priority</strong>
+                      <HintBadge text="IMS checks location #1 first for each online order, then #2 and so on. Leave blank to exclude a location from online picks." />
+                    </div>
+                    <table style={{ width: '100%', maxWidth: 520, borderCollapse: 'collapse', fontSize: 13 }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: .5 }}>
+                          <th style={{ textAlign: 'left', padding: '6px 10px' }}>Location</th>
+                          <th style={{ textAlign: 'right', padding: '6px 10px', width: 120 }}>Priority</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sorted.map(loc => (
+                          <tr key={loc.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                            <td style={{ padding: '8px 10px', color: 'var(--sv-text-main)' }}>{loc.name}{priority.includes(loc.id) && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--sv-mint)' }}>#{rankOf(loc.id)}</span>}</td>
+                            <td style={{ padding: '8px 10px', textAlign: 'right' }}>
+                              <input
+                                type="number" min={1} max={pickLocations.length}
+                                value={rankOf(loc.id)}
+                                onChange={e => setPriority(loc.id, e.target.value)}
+                                placeholder="—"
+                                style={{ width: 64, padding: '5px 8px', textAlign: 'center', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: 13 }}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                        {sorted.length === 0 && (
+                          <tr><td colSpan={2} style={{ padding: '12px 10px', color: 'var(--sv-text-dim)', fontSize: 13 }}>No locations found.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+            </div>
           </div>
         )}
 
@@ -22169,13 +22351,17 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
           {/* ── POS SECTION ── */}
           <div style={{ display: active === 'pos' ? undefined : 'none' }}>
 
+          <h2 style={{ margin: '0 0 14px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Point of Sale Settings</h2>
+
           {/* ── Orders / Payment Types ── */}
           <div style={{ marginBottom: 8 }}>
             <CollHeader label="🧾 Orders" open={ordersOpen} toggle={() => setOrdersOpen(o => !o)} />
             {ordersOpen && (
               <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
-                <label style={{ ...labelStyle, display: 'block', fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Payment Types</label>
-                <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 12, marginTop: 0 }}>Payment types available across POS and IMS. Shared with the POS terminal.</p>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', fontWeight: 600, fontSize: 13, marginBottom: 10 }}>
+                  Payment Types
+                  <HintBadge text="Payment types are shared across POS and IMS order/payment workflows." />
+                </label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
                   {paymentTypes.map(pt => (
                     <div key={pt} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 99, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', fontSize: 13 }}>
@@ -22190,8 +22376,10 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                   <button type="button" disabled={!newPaymentType.trim() || ptSaving} onClick={() => { if (newPaymentType.trim()) { savePaymentTypes([...paymentTypes, newPaymentType.trim()]); setNewPaymentType(''); } }} style={btnStyle('action', 'sm')}>{ptSaving ? 'Saving…' : 'Add'}</button>
                 </div>
                 <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--sv-etch)' }}>
-                  <label style={{ ...labelStyle, display: 'block', fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Default Cash Float</label>
-                  <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 10, marginTop: 0 }}>Expected amount in the till at the start of each day. Used in Open Register and EOD reconciliation.</p>
+                  <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', fontWeight: 600, fontSize: 13, marginBottom: 10 }}>
+                    Default Cash Float
+                    <HintBadge text="Expected till amount at register open. Used during opening and end-of-day reconciliation." />
+                  </label>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <span style={{ fontSize: 14, color: 'var(--sv-text-dim)' }}>$</span>
                     <input type="number" min="0" step="0.01" style={{ ...inputStyle, width: 120 }} value={defaultFloatInput} onChange={e => setDefaultFloatInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') saveDefaultFloat(); }} />
@@ -22208,8 +22396,10 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
             <CollHeader label="🖥️ POS Display" open={posDisplayOpen} toggle={() => setPosDisplayOpen(o => !o)} />
             {posDisplayOpen && (
               <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
-                <label style={{ ...labelStyle, display: 'block', fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Default Product View</label>
-                <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 12, marginTop: 0 }}>Controls which products appear in the POS grid on load, before any search or filter is applied.</p>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', fontWeight: 600, fontSize: 13, marginBottom: 12 }}>
+                  Default Product View
+                  <HintBadge text="Controls what appears in the POS grid before staff search or filter." />
+                </label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
 
                   {/* All Products */}
@@ -22368,8 +22558,10 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
                 {/* Branch Transfer Access */}
                 <div style={{ marginBottom: 20, padding: '14px 16px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
-                  <label style={{ ...labelStyle, display: 'block', fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Branch Transfer Access in POS</label>
-                  <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 10, marginTop: 0 }}>Controls which staff can create branch transfers from the POS terminal.</p>
+                  <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', fontWeight: 600, fontSize: 13, marginBottom: 10 }}>
+                    Branch Transfer Access in POS
+                    <HintBadge text="Defines which user tiers can create branch transfers from POS." />
+                  </label>
                   <select
                     value={settings['pos_bt_access'] ?? 'manager'}
                     onChange={async e => { await saveSettings({ pos_bt_access: e.target.value }); }}
@@ -22383,8 +22575,10 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
                 {/* Advisor Sync Access */}
                 <div style={{ marginBottom: 20, padding: '14px 16px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
-                  <label style={{ ...labelStyle, display: 'block', fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Advisor Sync Access</label>
-                  <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 10, marginTop: 0 }}>Allow Advisor (read-only) users to trigger a latest products &amp; stock sync from IMS.</p>
+                  <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', fontWeight: 600, fontSize: 13, marginBottom: 10 }}>
+                    Advisor Sync Access
+                    <HintBadge text="Allow Advisor users to trigger latest products and stock sync from IMS." />
+                  </label>
                   <select
                     value={settings['advisor_sync_enabled'] ?? 'false'}
                     onChange={async e => { await saveSettings({ advisor_sync_enabled: e.target.value }); }}
@@ -22395,8 +22589,10 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                   </select>
                 </div>
                 <div style={{ marginBottom: 16 }}>
-                  <label style={labelStyle}>POS Receipt Footer Text</label>
-                  <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 8, marginTop: 0 }}>This text appears at the bottom of the POS receipt.</p>
+                  <label style={{ ...labelStyle, display: 'flex', alignItems: 'center' }}>
+                    POS Receipt Footer Text
+                    <HintBadge text="Printed at the bottom of standard POS receipts." />
+                  </label>
                   <textarea 
                     style={{ ...inputStyle, minHeight: 60, fontFamily: 'sans-serif' }} 
                     value={profileDraft['pos_receipt_footer'] || ''} 
@@ -22405,8 +22601,10 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                   />
                 </div>
                 <div style={{ marginBottom: 16 }}>
-                  <label style={labelStyle}>Gift Receipt Message</label>
-                  <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 8, marginTop: 0 }}>Replaces the footer text on printed gift receipts (excludes prices).</p>
+                  <label style={{ ...labelStyle, display: 'flex', alignItems: 'center' }}>
+                    Gift Receipt Message
+                    <HintBadge text="Shown on gift receipts instead of the standard footer." />
+                  </label>
                   <textarea 
                     style={{ ...inputStyle, minHeight: 60, fontFamily: 'sans-serif' }} 
                     value={profileDraft['gift_receipt_message'] || ''} 
@@ -22416,8 +22614,10 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                 </div>
                 {/* ── Receipt Logo ── */}
                 <div style={{ marginBottom: 16 }}>
-                  <label style={labelStyle}>Receipt Logo</label>
-                  <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 8, marginTop: 0 }}>Displayed at the top of printed receipts. PNG or JPG recommended. Max displayed size: 180×80px.</p>
+                  <label style={{ ...labelStyle, display: 'flex', alignItems: 'center' }}>
+                    Receipt Logo
+                    <HintBadge text="Shown at the top of printed receipts. PNG/JPG works best. Display target is about 180x80px." />
+                  </label>
                   {settings['pos_receipt_logo'] && (
                     <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
                       <img src={settings['pos_receipt_logo']} alt="Receipt logo preview" style={{ maxWidth: 180, maxHeight: 80, objectFit: 'contain', border: '1px solid var(--sv-etch)', borderRadius: 4, background: '#fff', padding: 4 }} />
@@ -22467,67 +22667,6 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                 </div>
               </div>
             )}
-          </div>
-
-          {/* ── Online Pick Locations ── */}
-          <div style={{ marginBottom: 8 }}>
-            <CollHeader label="🌐 Online Pick Locations" open={onlinePickOpen} toggle={() => setOnlinePickOpen(o => !o)} />
-            {onlinePickOpen && (() => {
-              let priority: number[] = [];
-              try { const arr = JSON.parse(settings['online_pick_priority'] ?? '[]'); if (Array.isArray(arr)) priority = arr.map(Number).filter(Boolean); } catch {}
-              const setPriority = (loc: number, val: string) => {
-                const rank = parseInt(val, 10);
-                let next = priority.filter(id => id !== loc);
-                if (Number.isFinite(rank) && rank > 0) {
-                  // insert at position rank-1
-                  next.splice(Math.min(rank - 1, next.length), 0, loc);
-                }
-                saveSettings({ online_pick_priority: JSON.stringify(next) });
-              };
-              const rankOf = (loc: number) => { const i = priority.indexOf(loc); return i === -1 ? '' : String(i + 1); };
-              // sort: ranked first (by rank), then unranked by name
-              const sorted = [...pickLocations].sort((a, b) => {
-                const ra = priority.indexOf(a.id), rb = priority.indexOf(b.id);
-                if (ra !== -1 && rb !== -1) return ra - rb;
-                if (ra !== -1) return -1;
-                if (rb !== -1) return 1;
-                return a.name.localeCompare(b.name);
-              });
-              return (
-                <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
-                  <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', margin: '0 0 14px', lineHeight: 1.6 }}>
-                    Choose which locations online store orders are picked from, in priority order. When an order comes in, IMS looks at the location ranked <strong>1</strong> first — if it has enough available stock, that becomes the pick location. If not, it tries <strong>2</strong>, then <strong>3</strong>, and so on. If none of your pick locations have the item available, the order is flagged with <strong style={{ color: 'var(--sv-red)' }}>⚠ Missing stock</strong> and the #1 location is shown as the intended pick-from. Leave a location blank to exclude it from online picking.
-                  </p>
-                  <table style={{ width: '100%', maxWidth: 480, borderCollapse: 'collapse', fontSize: 13 }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: .5 }}>
-                        <th style={{ textAlign: 'left', padding: '6px 10px' }}>Location</th>
-                        <th style={{ textAlign: 'right', padding: '6px 10px', width: 120 }}>Pick Priority</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sorted.map(loc => (
-                        <tr key={loc.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-                          <td style={{ padding: '8px 10px', color: 'var(--sv-text-main)' }}>{loc.name}{priority.includes(loc.id) && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--sv-mint)' }}>#{rankOf(loc.id)}</span>}</td>
-                          <td style={{ padding: '8px 10px', textAlign: 'right' }}>
-                            <input
-                              type="number" min={1} max={pickLocations.length}
-                              value={rankOf(loc.id)}
-                              onChange={e => setPriority(loc.id, e.target.value)}
-                              placeholder="—"
-                              style={{ width: 64, padding: '5px 8px', textAlign: 'center', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: 13 }}
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                      {sorted.length === 0 && (
-                        <tr><td colSpan={2} style={{ padding: '12px 10px', color: 'var(--sv-text-dim)', fontSize: 13 }}>No locations found.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              );
-            })()}
           </div>
 
           {/* ── Card Terminals ── */}
