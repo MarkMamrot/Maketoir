@@ -64,8 +64,8 @@ const NAV = [
     { id: 'branch-transfers', label: 'Branch Transfers' },
     { id: 'receive-transfers', label: '▸ Receive Transfers' },
   ]},
-  { id: 'stocktakes',       label: '▸ Stocktakes',     section: null },
-  { id: 'reports',          label: '▸ Reports',         section: null },
+  { id: 'stocktakes',       label: 'Stocktakes',       section: null },
+  { id: 'reports',          label: 'Reports',          section: null },
   { id: '__integrations',   label: 'Integrations',     section: 'integrations', children: [
     { id: 'xero',           label: 'Xero' },
     { id: 'shopify',        label: 'Shopify' },
@@ -21611,6 +21611,20 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
       refetchSettings();
     }
   }, [defaultSection, isOpen, refetchSettings]);
+
+  // Match keyboard behavior with the modal close/back action.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
+
   const [poDraft, setPoDraft] = useState<Record<string, string>>({});
   const [soDraft, setSoDraft] = useState<Record<string, string>>({});
   const [poSaving, setPoSaving] = useState(false);
