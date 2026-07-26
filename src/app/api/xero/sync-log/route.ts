@@ -210,6 +210,7 @@ export async function GET(req: Request) {
     // ── 5. Sync log lookups (main DB) ───────────────────────────────────────────────
     let poLogs: any[] = [];
     let paymentLogs: any[] = [];
+    let soPaymentLogs: any[] = [];
     let soLogs: any[] = [];
     let cnLogs: any[] = [];
     let scnLogs: any[] = [];
@@ -253,6 +254,14 @@ export async function GET(req: Request) {
                  GROUP BY reference_id
               )`,
           [databaseId, ...soIds, databaseId],
+        );
+        soPaymentLogs = await query<any>(
+          `SELECT reference_id AS so_id, xero_id, status, xero_state, detail, created_at AS synced_at
+             FROM xero_sync_log
+            WHERE business_id = ? AND sync_type = 'so_payment'
+              AND reference_id IN (${soIds.map(() => '?').join(',')})
+            ORDER BY created_at DESC`,
+          [databaseId, ...soIds],
         );
       }
       if (cnIds.length > 0) {
@@ -373,6 +382,12 @@ export async function GET(req: Request) {
       arr.push(p);
       paysByPo.set(p.po_id, arr);
     }
+    const paysBySo = new Map<number, any[]>();
+    for (const p of soPaymentLogs) {
+      const arr = paysBySo.get(p.so_id) ?? [];
+      arr.push(p);
+      paysBySo.set(p.so_id, arr);
+    }
 
     // ── 7. Shape entries ────────────────────────────────────────────────────────────────────────────
     const poEntries = pos.map((po: any) => {
@@ -418,7 +433,19 @@ export async function GET(req: Request) {
         last_xero_state: resolveXeroState(log?.sync_type ?? 'so_invoice', log?.status, log?.detail, log?.xero_state),
         last_sync_detail: log?.detail ?? null,
         last_sync_at: log?.synced_at ?? null,
-        payments: [],
+        payments: (paysBySo.get(so.id) ?? []).map((p: any) => ({
+          id: null,
+          so_id: so.id,
+          xero_id: p.xero_id,
+          status: p.status,
+          xero_state: resolveXeroState('so_payment', p.status, p.detail, p.xero_state),
+          detail: p.detail,
+          synced_at: p.synced_at,
+          payment_date: null,
+          amount: null,
+          currency_code: null,
+          notes: null,
+        })),
       };
     });
 

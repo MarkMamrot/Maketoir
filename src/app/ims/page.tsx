@@ -10755,6 +10755,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const [posViewModal, setPosViewModal] = useState<{ open: boolean; sale: any | null; items: any[]; payments: any[] }>({ open: false, sale: null, items: [], payments: [] });
   const [posVoiding, setPosVoiding] = useState(false);
   const [soPayForm, setSoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string; method: string } | null>(null);
+  const [syncingSoPaymentId, setSyncingSoPaymentId] = useState<number | null>(null);
   const [customers, setCustomers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [variants, setVariants] = useState<any[]>([]);
@@ -11000,10 +11001,59 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
 
   const handleDeleteSoPayment = async (paymentId: number) => {
     if (!viewModal.so) return;
+    const payment = (viewModal.so.payments || []).find((p: any) => Number(p.id) === Number(paymentId));
+    const currency = (viewModal.so.currency_code || 'AUD').toUpperCase();
+    const dateStr = payment?.payment_date?.slice(0, 10) ?? '';
+    const amtStr = payment ? fmtFx(payment.amount, currency) : '';
+    const confirmed = confirm(
+      `⚠️ Delete this payment?\n\n` +
+      `Date: ${dateStr}\n` +
+      `Amount: ${amtStr}\n` +
+      (payment?.notes ? `Notes: ${payment.notes}\n` : '') +
+      `\n──────────────────────────────\n` +
+      `IMPORTANT: This payment is NOT automatically removed from Xero.\n` +
+      `If it was already synced, your bookkeeper must remove the matching Xero payment manually.\n` +
+      `──────────────────────────────\n\n` +
+      `Click OK to delete the payment from IMS only.`
+    );
+    if (!confirmed) return;
     try {
-      await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}/payments/${paymentId}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}/payments/${paymentId}`, { method: 'DELETE' });
       await refreshSoView(viewModal.so.id);
+      if (res?.xeroWarning) alert(`Xero notice:\n\n${res.xeroWarning}`);
     } catch (e: any) { alert(e.message); }
+  };
+
+  const handleManualSyncSoPayment = async (payment: any) => {
+    if (!viewModal.so) return;
+    if (!payment?.payment_method_id) {
+      alert('Assign a payment method before syncing this payment to Xero.');
+      return;
+    }
+    const databaseId = String(viewModal.so.business_id || '').trim();
+    if (!databaseId) {
+      alert('Unable to determine business ID for Xero sync.');
+      return;
+    }
+    setSyncingSoPaymentId(Number(payment.id));
+    try {
+      const res = await apiFetch('/api/xero/sync/so-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          databaseId,
+          soId: Number(viewModal.so.id),
+          paymentId: Number(payment.id),
+        }),
+      });
+      if (!res?.success) throw new Error(res?.error || 'Xero payment sync failed.');
+      alert('Payment synced to Xero.');
+      await refreshSoView(viewModal.so.id);
+      load();
+    } catch (e: any) {
+      alert(e.message || 'Xero payment sync failed.');
+    }
+    setSyncingSoPaymentId(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -11610,7 +11660,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                   <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 10, border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', fontSize: 13 }}>
                     <thead>
                       <tr style={{ background: 'var(--sv-bg-1)' }}>
-                        {(['Date', 'Amount', ...(isFx ? ['Rate', 'AUD'] : []), 'Method', 'Notes', '']).map((h: string, idx: number) => (
+                        {(['Date', 'Amount', ...(isFx ? ['Rate', 'AUD'] : []), 'Method', 'Notes', 'Xero', '']).map((h: string, idx: number) => (
                           <th key={idx} style={{ padding: '5px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
                         ))}
                       </tr>
@@ -11624,6 +11674,16 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                           {isFx && <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{fmtCurrency(p.amount_local)}</td>}
                           <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{p.payment_method_name || '—'}</td>
                           <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.notes || '—'}</td>
+                          <td style={{ padding: '5px 10px' }}>
+                            <button
+                              disabled={syncingSoPaymentId === Number(p.id) || !p.payment_method_id}
+                              onClick={() => handleManualSyncSoPayment(p)}
+                              title={!p.payment_method_id ? 'Assign a payment method first' : 'Manually sync this payment to Xero'}
+                              style={btnStyle('ghost', 'xs')}
+                            >
+                              {syncingSoPaymentId === Number(p.id) ? 'Syncing…' : 'Sync Xero'}
+                            </button>
+                          </td>
                           <td style={{ padding: '5px 10px', textAlign: 'right' }}>
                             <button onClick={() => handleDeleteSoPayment(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>✕</button>
                           </td>
