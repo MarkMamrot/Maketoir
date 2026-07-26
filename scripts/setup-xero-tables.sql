@@ -277,6 +277,27 @@ CREATE TABLE IF NOT EXISTS xero_online_batches (
   INDEX idx_xero_online_batch_status (business_id, payout_managed, invoice_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Durable per-order payments applied to a combined daily online invoice.
+-- Used for gateways such as PayPal where each gross customer receipt appears
+-- separately in the gateway's Xero bank account.
+CREATE TABLE IF NOT EXISTS xero_online_order_payments (
+  id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id         VARCHAR(255) NOT NULL,
+  payment_key         VARCHAR(255) NOT NULL,
+  batch_date          DATE NOT NULL,
+  xero_invoice_id     VARCHAR(100) NOT NULL,
+  xero_payment_id     VARCHAR(100) DEFAULT NULL,
+  account_code        VARCHAR(50) NOT NULL,
+  amount              DECIMAL(14,2) NOT NULL,
+  reference           VARCHAR(255) DEFAULT NULL,
+  status              VARCHAR(30) NOT NULL DEFAULT 'pending',
+  error_detail        TEXT DEFAULT NULL,
+  created_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_xero_online_order_payment (business_id, payment_key),
+  INDEX idx_xero_online_order_payment_batch (business_id, batch_date, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Shopify's paid payout is the settlement header. Reconciliation remains
 -- blocked until every canonical balance transaction has been persisted.
 CREATE TABLE IF NOT EXISTS shopify_payment_payouts (

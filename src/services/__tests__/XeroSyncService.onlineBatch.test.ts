@@ -47,7 +47,13 @@ describe('syncDailySalesBatch online payout state', () => {
         { gateway: 'shopify_payments', amount: 110, payoutManaged: true },
         { gateway: 'paypal', amount: 55, payoutManaged: false },
       ],
-      clearingPayments: [{ accountCode: '092', amount: 55, label: 'paypal' }],
+      clearingPayments: [{
+        accountCode: '092',
+        amount: 55,
+        label: 'paypal',
+        paymentKey: 'paypal-order-1002',
+        reference: 'PayPal #1002',
+      }],
     });
 
     expect(result).toBe('invoice-1');
@@ -65,9 +71,44 @@ describe('syncDailySalesBatch online payout state', () => {
     expect(mockXeroApiFetch.mock.calls[1][2].body.Payments[0]).toMatchObject({
       Account: { Code: '092' },
       Amount: 55,
+      Reference: 'PayPal #1002',
     });
     expect(mockXeroApiFetch.mock.calls[0][2].idempotencyKey).toMatch(/^[a-f0-9]{64}$/);
     expect(mockXeroApiFetch.mock.calls[1][2].idempotencyKey).toMatch(/^[a-f0-9]{64}$/);
+    expect(mockExecute.mock.calls.some(call => String(call[0]).includes('INSERT IGNORE INTO xero_online_order_payments'))).toBe(true);
+    expect(mockExecute.mock.calls.some(call => String(call[0]).includes("SET status = 'completed'"))).toBe(true);
+  });
+
+  it('does not repost an order payment already owned or completed by another run', async () => {
+    mockQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM xero_account_mappings')) {
+        return [{ role_key: 'sales_revenue', xero_account_code: '200' }];
+      }
+      if (sql.includes('FROM xero_tracking_mappings')) return [];
+      if (sql.includes('FROM xero_online_batches')) return [{ xero_invoice_id: 'invoice-existing' }];
+      return [];
+    });
+    mockExecute.mockImplementation(async (sql: string) => {
+      if (sql.includes('xero_online_order_payments')) return { affectedRows: 0 };
+      return { affectedRows: 1 };
+    });
+
+    const result = await syncDailySalesBatch('biz-1', {
+      date: '2026-07-25',
+      channel: 'online',
+      totalSales: 50,
+      totalTax: 5,
+      lineDescription: 'Online Sales 2026-07-25',
+      clearingPayments: [{
+        accountCode: '092',
+        amount: 55,
+        paymentKey: 'paypal-order-1002',
+        reference: 'PayPal #1002',
+      }],
+    });
+
+    expect(result).toBe('invoice-existing');
+    expect(mockXeroApiFetch).not.toHaveBeenCalled();
   });
 
   it('returns the existing canonical invoice without posting again', async () => {

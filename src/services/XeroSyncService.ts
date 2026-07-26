@@ -1134,6 +1134,8 @@ interface DailySalesBatch {
     accountCode: string;
     amount: number;
     label?: string;
+    paymentKey?: string;
+    reference?: string;
   }>;
   payoutManaged?: boolean;
   gatewayAllocations?: Array<{
@@ -1339,20 +1341,63 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
           const amount = Math.round(Number(p.amount ?? 0) * 100) / 100;
           if (!(amount > 0)) continue;
           const label = p.label || batch.gateway;
+          const paymentKey = p.paymentKey || `${paymentIndex}|${p.accountCode}|${amount.toFixed(2)}`;
+          if (p.paymentKey) {
+            let claim = await execute(
+              `INSERT IGNORE INTO xero_online_order_payments
+                 (business_id, payment_key, batch_date, xero_invoice_id, account_code, amount, reference, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'posting')`,
+              [businessId, p.paymentKey, batch.date, xeroId, p.accountCode, amount, p.reference ?? null],
+            );
+            if (claim.affectedRows === 0) {
+              claim = await execute(
+                `UPDATE xero_online_order_payments
+                    SET status = 'posting', error_detail = NULL,
+                        xero_invoice_id = ?, account_code = ?, amount = ?, reference = ?
+                  WHERE business_id = ? AND payment_key = ?
+                    AND (
+                      status IN ('pending', 'error') OR
+                      (status = 'posting' AND updated_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE))
+                    )`,
+                [xeroId, p.accountCode, amount, p.reference ?? null, businessId, p.paymentKey],
+              );
+            }
+            if (claim.affectedRows === 0) continue;
+          }
           const paymentIdempotencyKey = crypto.createHash('sha256')
-            .update(`${businessId}|${batchKey}|payment|${paymentIndex}|${p.accountCode}|${amount.toFixed(2)}`)
+            .update(`${businessId}|${batchKey}|payment|${paymentKey}`)
             .digest('hex');
-          await xeroApiFetch(businessId, '/Payments', {
-            method: 'POST',
-            idempotencyKey: paymentIdempotencyKey,
-            body: { Payments: [{
-              Invoice: { InvoiceID: xeroId },
-              Account: { Code: p.accountCode },
-              Date: batch.date,
-              Amount: amount,
-              Reference: `${batch.channel.toUpperCase()} clearing ${batch.date}${label ? ` (${label})` : ''}`,
-            }] },
-          });
+          try {
+            const paymentResult = await xeroApiFetch(businessId, '/Payments', {
+              method: 'POST',
+              idempotencyKey: paymentIdempotencyKey,
+              body: { Payments: [{
+                Invoice: { InvoiceID: xeroId },
+                Account: { Code: p.accountCode },
+                Date: batch.date,
+                Amount: amount,
+                Reference: p.reference || `${batch.channel.toUpperCase()} clearing ${batch.date}${label ? ` (${label})` : ''}`,
+              }] },
+            });
+            if (p.paymentKey) {
+              await execute(
+                `UPDATE xero_online_order_payments
+                    SET status = 'completed', xero_payment_id = ?, error_detail = NULL
+                  WHERE business_id = ? AND payment_key = ?`,
+                [paymentResult?.Payments?.[0]?.PaymentID ?? null, businessId, p.paymentKey],
+              );
+            }
+          } catch (paymentError: any) {
+            if (p.paymentKey) {
+              await execute(
+                `UPDATE xero_online_order_payments
+                    SET status = 'error', error_detail = ?
+                  WHERE business_id = ? AND payment_key = ?`,
+                [paymentError?.message ?? 'Payment failed', businessId, p.paymentKey],
+              ).catch(() => {});
+            }
+            throw paymentError;
+          }
         }
       } catch (payErr: any) {
         // Invoice posted but payment failed — log separately; bookkeeper can apply manually.

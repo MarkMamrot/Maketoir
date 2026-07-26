@@ -8,6 +8,10 @@ import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 import { syncDailySalesBatch, syncGiftCardLiabilityReclass } from '@/services/XeroSyncService';
 
+function isPayPalGateway(value: string): boolean {
+  return normalizeOnlineGateway(value).includes('paypal');
+}
+
 export interface OnlineDailySalesSyncResult {
   xeroId: string | null;
   totalSales: number;
@@ -21,7 +25,7 @@ export async function syncOnlineDailySalesDay(
   date: string,
 ): Promise<OnlineDailySalesSyncResult> {
   return runImsForBusiness(businessId, async () => {
-    const [totals, gatewayRows, gatewayMappings] = await Promise.all([
+    const [totals, gatewayRows, orderRows, gatewayMappings] = await Promise.all([
       imsQuery<{ total_sales: string; total_tax: string; gift_card_amount: string; order_count: string }>(
         `SELECT COALESCE(SUM(total_amount), 0) AS total_sales,
                 COALESCE(SUM(tax_amount), 0) AS total_tax,
@@ -46,6 +50,22 @@ export async function syncOnlineDailySalesDay(
           GROUP BY COALESCE(LOWER(TRIM(payment_gateway)), '_unknown')`,
         [businessId, date],
       ),
+      imsQuery<{
+        shopify_order_id: string | null;
+        shopify_order_name: string | null;
+        payment_gateway: string | null;
+        total_amount: string;
+        tax_amount: string;
+      }>(
+        `SELECT shopify_order_id, shopify_order_name, payment_gateway, total_amount, tax_amount
+           FROM ims_sales_orders
+          WHERE business_id = ? AND DATE_FORMAT(order_date, '%Y-%m-%d') = ?
+            AND so_type = 'online'
+            AND (is_historical IS NULL OR is_historical = 0)
+            AND status != 'cancelled'
+          ORDER BY id ASC`,
+        [businessId, date],
+      ),
       query<{ gateway_name: string; clearing_account_code: string | null }>(
         `SELECT gateway_name, clearing_account_code
            FROM xero_gateway_mappings
@@ -65,7 +85,7 @@ export async function syncOnlineDailySalesDay(
     const paymentRows = gatewayRows
       .map(row => {
         const gateway = normalizeOnlineGateway(row.gateway);
-        const amount = Math.round((Number(row.total_sales) + Number(row.total_tax)) * 100) / 100;
+        const amount = Math.round(Number(row.total_sales) * 100) / 100;
         if (!(amount > 0)) return null;
         const accountCode = findOnlineGatewayClearingAccount(gateway, gatewayMappings);
         return {
@@ -83,16 +103,39 @@ export async function syncOnlineDailySalesDay(
     }
 
     const clearingPayments = paymentRows
-      .filter(row => !row.payoutManaged && !!row.accountCode)
+      .filter(row => !row.payoutManaged && !isPayPalGateway(row.gateway) && !!row.accountCode)
       .map(row => ({
         accountCode: row.accountCode as string,
         amount: row.amount,
         label: row.gateway === '_unknown' ? 'Unknown' : row.gateway,
       }));
+    const paypalOrderRows = orderRows.filter(row => isPayPalGateway(String(row.payment_gateway ?? '')));
+    const paypalOrdersMissingIds = paypalOrderRows.filter(row => !String(row.shopify_order_id ?? '').trim());
+    if (paypalOrdersMissingIds.length > 0) {
+      throw new Error(`${paypalOrdersMissingIds.length} PayPal order(s) have no Shopify order ID and cannot be posted safely`);
+    }
+    const paypalPayments = paypalOrderRows
+      .map(row => {
+        const gateway = normalizeOnlineGateway(row.payment_gateway);
+        const accountCode = findOnlineGatewayClearingAccount(gateway, gatewayMappings);
+        const orderId = String(row.shopify_order_id ?? '').trim();
+        const orderName = String(row.shopify_order_name ?? '').trim();
+        const amount = Math.round(Number(row.total_amount) * 100) / 100;
+        if (!accountCode || !orderId || !(amount > 0)) return null;
+        return {
+          accountCode,
+          amount,
+          label: gateway,
+          paymentKey: `paypal-order-${orderId}`,
+          reference: orderName ? `PayPal ${orderName}` : `PayPal order ${orderId}`,
+        };
+      })
+      .filter((payment): payment is NonNullable<typeof payment> => !!payment);
+    clearingPayments.push(...paypalPayments);
     const deferredShopifyTotal = paymentRows
       .filter(row => row.payoutManaged)
       .reduce((sum, row) => sum + row.amount, 0);
-    const targetTotal = Math.round((totalSales + totalTax) * 100) / 100;
+    const targetTotal = Math.round(totalSales * 100) / 100;
     if (clearingPayments.length > 0 && deferredShopifyTotal === 0) {
       const allocated = Math.round(clearingPayments.reduce((sum, payment) => sum + payment.amount, 0) * 100) / 100;
       const delta = Math.round((targetTotal - allocated) * 100) / 100;
@@ -105,7 +148,7 @@ export async function syncOnlineDailySalesDay(
     const xeroId = await syncDailySalesBatch(businessId, {
       date,
       channel: 'online',
-      totalSales,
+      totalSales: Math.round((totalSales - totalTax) * 100) / 100,
       totalTax,
       lineDescription: `Online Sales ${date} (${orderCount} orders)`,
       ...(clearingPayments.length > 0 ? { clearingPayments } : {}),
