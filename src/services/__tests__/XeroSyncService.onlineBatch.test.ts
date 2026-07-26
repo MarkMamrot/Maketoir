@@ -111,6 +111,70 @@ describe('syncDailySalesBatch online payout state', () => {
     expect(mockXeroApiFetch).not.toHaveBeenCalled();
   });
 
+  it('posts a separate durable fee spend after the gross order payment', async () => {
+    mockXeroApiFetch
+      .mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'invoice-1', Status: 'AUTHORISED' }] })
+      .mockResolvedValueOnce({ Payments: [{ PaymentID: 'payment-1' }] })
+      .mockResolvedValueOnce({ BankTransactions: [{ BankTransactionID: 'fee-1' }] });
+
+    const result = await syncDailySalesBatch('biz-1', {
+      date: '2026-07-25',
+      channel: 'online',
+      totalSales: 90.91,
+      totalTax: 9.09,
+      lineDescription: 'Online Sales 2026-07-25',
+      clearingPayments: [{
+        accountCode: '093',
+        amount: 100,
+        label: 'afterpay',
+        paymentKey: 'gateway-order-3001',
+        reference: 'afterpay #3001',
+        fee: { amount: 1.3, gatewayName: 'afterpay', accountCode: '404', taxType: 'INPUT' },
+      }],
+    });
+
+    expect(result).toBe('invoice-1');
+    expect(mockXeroApiFetch.mock.calls[1][1]).toBe('/Payments');
+    expect(mockXeroApiFetch.mock.calls[2][1]).toBe('/BankTransactions');
+    expect(mockXeroApiFetch.mock.calls[2][2].body.BankTransactions[0]).toMatchObject({
+      Type: 'SPEND',
+      BankAccount: { Code: '093' },
+      LineAmountTypes: 'Inclusive',
+      LineItems: [{ UnitAmount: 1.3, AccountCode: '404', TaxType: 'INPUT' }],
+    });
+    expect(mockExecute.mock.calls.some(call => String(call[0]).includes('INSERT IGNORE INTO xero_online_order_fees'))).toBe(true);
+  });
+
+  it('retries a failed fee without reposting its completed gross payment', async () => {
+    mockQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM xero_account_mappings')) return [{ role_key: 'sales_revenue', xero_account_code: '200' }];
+      if (sql.includes('FROM xero_tracking_mappings')) return [];
+      if (sql.includes('FROM xero_online_batches')) return [{ xero_invoice_id: 'invoice-existing' }];
+      if (sql.includes('FROM xero_online_order_payments')) return [{ status: 'completed' }];
+      return [];
+    });
+    mockExecute.mockImplementation(async (sql: string) => {
+      if (sql.includes('xero_online_order_payments')) return { affectedRows: 0 };
+      return { affectedRows: 1 };
+    });
+    mockXeroApiFetch.mockResolvedValueOnce({ BankTransactions: [{ BankTransactionID: 'fee-2' }] });
+
+    await syncDailySalesBatch('biz-1', {
+      date: '2026-07-25',
+      channel: 'online',
+      totalSales: 90.91,
+      totalTax: 9.09,
+      lineDescription: 'Online Sales 2026-07-25',
+      clearingPayments: [{
+        accountCode: '093', amount: 100, paymentKey: 'gateway-order-3001',
+        fee: { amount: 1.3, gatewayName: 'afterpay', accountCode: '404', taxType: 'NONE' },
+      }],
+    });
+
+    expect(mockXeroApiFetch).toHaveBeenCalledTimes(1);
+    expect(mockXeroApiFetch.mock.calls[0][1]).toBe('/BankTransactions');
+  });
+
   it('returns the existing canonical invoice without posting again', async () => {
     mockQuery.mockImplementation(async (sql: string) => {
       if (sql.includes('FROM xero_account_mappings')) {

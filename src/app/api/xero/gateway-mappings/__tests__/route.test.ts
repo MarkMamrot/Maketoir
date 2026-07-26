@@ -64,8 +64,56 @@ describe('/api/xero/gateway-mappings', () => {
 
     expect(response.status).toBe(200);
     expect(mockExecute.mock.calls[0][1]).toEqual([
-      'biz-1', 'shopify_payments', 'Shopify Payments', '091', null, '404', null, 'INPUT',
+      'biz-1', 'shopify_payments', 'Shopify Payments', '091', null, '404', null, 'INPUT', 0, 0, 0,
     ]);
+  });
+
+  it('persists per-payment fee settings for a non-Shopify, non-PayPal gateway', async () => {
+    const response = await POST(postRequest({
+      gateway_name: 'afterpay',
+      display_name: 'Afterpay',
+      clearing_account_code: '092',
+      fee_account_code: '404',
+      fee_tax_type: 'NONE',
+      deduct_fee_enabled: true,
+      fixed_fee_amount: 0.3,
+      percentage_fee_rate: 1,
+    }) as any);
+
+    expect(response.status).toBe(200);
+    expect(mockExecute.mock.calls[0][1]).toEqual([
+      'biz-1', 'afterpay', 'Afterpay', '092', null, '404', null, 'NONE', 1, 0.3, 1,
+    ]);
+  });
+
+  it('forces PayPal fee deduction off', async () => {
+    const response = await POST(postRequest({
+      gateway_name: 'paypal',
+      clearing_account_code: '092',
+      fee_account_code: '404',
+      deduct_fee_enabled: true,
+      fixed_fee_amount: 0.3,
+      percentage_fee_rate: 1,
+    }) as any);
+
+    expect(response.status).toBe(200);
+    expect(mockExecute.mock.calls[0][1]).toEqual([
+      'biz-1', 'paypal', 'paypal', '092', null, '404', null, null, 0, 0.3, 1,
+    ]);
+  });
+
+  it('requires a fee account when fee deduction is enabled', async () => {
+    const response = await POST(postRequest({
+      gateway_name: 'afterpay',
+      clearing_account_code: '092',
+      deduct_fee_enabled: true,
+      fixed_fee_amount: 0.3,
+      percentage_fee_rate: 1,
+    }) as any);
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain('fee_account_code');
+    expect(mockExecute).not.toHaveBeenCalled();
   });
 
   it('rejects unsupported fee tax treatments', async () => {

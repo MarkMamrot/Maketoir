@@ -22,7 +22,14 @@ vi.mock('@/services/XeroSyncService', () => ({
   syncGiftCardLiabilityReclass: mockSyncGiftCardLiabilityReclass,
 }));
 
-import { syncOnlineDailySalesDay } from '../onlineDailySalesSync';
+import { calculateGatewayFee, syncOnlineDailySalesDay } from '../onlineDailySalesSync';
+
+describe('calculateGatewayFee', () => {
+  it('rounds a fixed plus percentage fee to cents', () => {
+    expect(calculateGatewayFee(100, 0.3, 1)).toBe(1.3);
+    expect(calculateGatewayFee(55, 0.3, 1.75)).toBe(1.26);
+  });
+});
 
 describe('syncOnlineDailySalesDay', () => {
   beforeEach(() => {
@@ -91,6 +98,35 @@ describe('syncOnlineDailySalesDay', () => {
         expect.objectContaining({ amount: 55, paymentKey: 'paypal-order-2001', reference: 'PayPal #2001' }),
         expect.objectContaining({ amount: 143, paymentKey: 'paypal-order-2002', reference: 'PayPal #2002' }),
       ],
+    }));
+  });
+
+  it('creates gross per-order payments with separate calculated fees when enabled', async () => {
+    mockQuery.mockResolvedValueOnce([{
+      gateway_name: 'afterpay',
+      clearing_account_code: '093',
+      fee_account_code: '404',
+      fee_tax_type: 'INPUT',
+      deduct_fee_enabled: 1,
+      fixed_fee_amount: '0.30',
+      percentage_fee_rate: '1.00',
+    }]);
+    mockImsQuery.mockReset();
+    mockImsQuery
+      .mockResolvedValueOnce([{ total_sales: '100', total_tax: '9.09', gift_card_amount: '0', order_count: '1' }])
+      .mockResolvedValueOnce([{ gateway: 'afterpay', total_sales: '100', total_tax: '9.09' }])
+      .mockResolvedValueOnce([{
+        shopify_order_id: '3001', shopify_order_name: '#3001', payment_gateway: 'Afterpay', total_amount: '100', tax_amount: '9.09',
+      }]);
+
+    await syncOnlineDailySalesDay('biz-1', '2026-07-25');
+
+    expect(mockSyncDailySalesBatch).toHaveBeenCalledWith('biz-1', expect.objectContaining({
+      clearingPayments: [expect.objectContaining({
+        amount: 100,
+        paymentKey: 'gateway-order-3001',
+        fee: { amount: 1.3, gatewayName: 'afterpay', accountCode: '404', taxType: 'INPUT' },
+      })],
     }));
   });
 });

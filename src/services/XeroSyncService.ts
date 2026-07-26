@@ -1136,6 +1136,12 @@ interface DailySalesBatch {
     label?: string;
     paymentKey?: string;
     reference?: string;
+    fee?: {
+      amount: number;
+      gatewayName: string;
+      accountCode: string;
+      taxType: 'INPUT' | 'NONE';
+    };
   }>;
   payoutManaged?: boolean;
   gatewayAllocations?: Array<{
@@ -1342,6 +1348,7 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
           if (!(amount > 0)) continue;
           const label = p.label || batch.gateway;
           const paymentKey = p.paymentKey || `${paymentIndex}|${p.accountCode}|${amount.toFixed(2)}`;
+          let paymentCompleted = false;
           if (p.paymentKey) {
             let claim = await execute(
               `INSERT IGNORE INTO xero_online_order_payments
@@ -1362,12 +1369,23 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
                 [xeroId, p.accountCode, amount, p.reference ?? null, businessId, p.paymentKey],
               );
             }
-            if (claim.affectedRows === 0) continue;
+            if (claim.affectedRows === 0) {
+              const existingPayment = await query<{ status: string }>(
+                `SELECT status
+                   FROM xero_online_order_payments
+                  WHERE business_id = ? AND payment_key = ?
+                  LIMIT 1`,
+                [businessId, p.paymentKey],
+              );
+              if (existingPayment[0]?.status !== 'completed') continue;
+              paymentCompleted = true;
+            }
           }
           const paymentIdempotencyKey = crypto.createHash('sha256')
             .update(`${businessId}|${batchKey}|payment|${paymentKey}`)
             .digest('hex');
           try {
+            if (!paymentCompleted) {
             const paymentResult = await xeroApiFetch(businessId, '/Payments', {
               method: 'POST',
               idempotencyKey: paymentIdempotencyKey,
@@ -1387,8 +1405,75 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
                 [paymentResult?.Payments?.[0]?.PaymentID ?? null, businessId, p.paymentKey],
               );
             }
+            paymentCompleted = true;
+            }
+
+            const feeAmount = roundCurrency(Number(p.fee?.amount ?? 0));
+            if (paymentCompleted && p.paymentKey && p.fee && feeAmount > 0) {
+              const feeKey = `${p.paymentKey}-fee`;
+              let feeClaim = await execute(
+                `INSERT IGNORE INTO xero_online_order_fees
+                   (business_id, fee_key, payment_key, batch_date, gateway_name,
+                    bank_account_code, fee_account_code, fee_tax_type, fee_amount, reference, status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'posting')`,
+                [businessId, feeKey, p.paymentKey, batch.date, p.fee.gatewayName,
+                 p.accountCode, p.fee.accountCode, p.fee.taxType, feeAmount, p.reference ?? null],
+              );
+              if (feeClaim.affectedRows === 0) {
+                feeClaim = await execute(
+                  `UPDATE xero_online_order_fees
+                      SET status = 'posting', error_detail = NULL, fee_amount = ?, reference = ?
+                    WHERE business_id = ? AND fee_key = ?
+                      AND (
+                        status IN ('pending', 'error') OR
+                        (status = 'posting' AND updated_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE))
+                      )`,
+                  [feeAmount, p.reference ?? null, businessId, feeKey],
+                );
+              }
+              if (feeClaim.affectedRows > 0) {
+                const feeIdempotencyKey = crypto.createHash('sha256')
+                  .update(`${businessId}|${batchKey}|fee|${feeKey}`)
+                  .digest('hex');
+                try {
+                  const feeResult = await xeroApiFetch(businessId, '/BankTransactions', {
+                    method: 'POST',
+                    idempotencyKey: feeIdempotencyKey,
+                    body: { BankTransactions: [{
+                      Type: 'SPEND',
+                      Contact: { Name: p.fee.gatewayName },
+                      Date: batch.date,
+                      LineAmountTypes: p.fee.taxType === 'INPUT' ? 'Inclusive' : 'NoTax',
+                      BankAccount: { Code: p.accountCode },
+                      Reference: p.reference || `${p.fee.gatewayName} fee ${batch.date}`,
+                      LineItems: [{
+                        Description: p.reference || `${p.fee.gatewayName} processing fee`,
+                        Quantity: 1,
+                        UnitAmount: feeAmount,
+                        AccountCode: p.fee.accountCode,
+                        TaxType: p.fee.taxType,
+                      }],
+                    }] },
+                  });
+                  await execute(
+                    `UPDATE xero_online_order_fees
+                        SET status = 'completed', xero_bank_transaction_id = ?, error_detail = NULL
+                      WHERE business_id = ? AND fee_key = ?`,
+                    [feeResult?.BankTransactions?.[0]?.BankTransactionID ?? null, businessId, feeKey],
+                  );
+                } catch (feeError: any) {
+                  await execute(
+                    `UPDATE xero_online_order_fees
+                        SET status = 'error', error_detail = ?
+                      WHERE business_id = ? AND fee_key = ?`,
+                    [feeError?.message ?? 'Fee posting failed', businessId, feeKey],
+                  ).catch(() => {});
+                  throw feeError;
+                }
+              }
+            }
           } catch (paymentError: any) {
-            if (p.paymentKey) {
+            if (p.paymentKey && !paymentCompleted) {
               await execute(
                 `UPDATE xero_online_order_payments
                     SET status = 'error', error_detail = ?

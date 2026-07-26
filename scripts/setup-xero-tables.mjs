@@ -50,6 +50,25 @@ async function main() {
            AFTER fee_account_name`,
       );
     }
+    const gatewayFeeColumns = [
+      ['deduct_fee_enabled', "TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Post a calculated fee spend for each gross order payment' AFTER fee_tax_type"],
+      ['fixed_fee_amount', 'DECIMAL(10,4) NOT NULL DEFAULT 0 AFTER deduct_fee_enabled'],
+      ['percentage_fee_rate', "DECIMAL(8,4) NOT NULL DEFAULT 0 COMMENT 'Percentage points, e.g. 1.5 means 1.5%' AFTER fixed_fee_amount"],
+    ];
+    for (const [columnName, definition] of gatewayFeeColumns) {
+      const [columns] = await conn.query(
+        `SELECT 1
+           FROM information_schema.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'xero_gateway_mappings'
+            AND COLUMN_NAME = ?
+          LIMIT 1`,
+        [columnName],
+      );
+      if (columns.length === 0) {
+        await conn.query(`ALTER TABLE xero_gateway_mappings ADD COLUMN ${columnName} ${definition}`);
+      }
+    }
   }
 
   const actionColumns = [
@@ -89,6 +108,7 @@ async function main() {
   console.log('✔ xero_cash_deposit_actions created');
   console.log('✔ xero_online_batches created');
   console.log('✔ xero_online_order_payments created');
+  console.log('✔ xero_online_order_fees created');
   console.log('✔ shopify_payment_payouts created');
   console.log('✔ shopify_payment_payout_transactions created');
   console.log('✔ shopify_payment_xero_actions created');

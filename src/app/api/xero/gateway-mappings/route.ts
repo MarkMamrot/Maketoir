@@ -12,6 +12,12 @@ import { assertBusinessAccess, requireAdminSession } from '@/lib/sessionUtils';
 
 const FEE_TAX_TYPES = new Set(['INPUT', 'NONE']);
 
+function normalizeNonNegativeAmount(value: unknown, field: string): number {
+  const amount = Number(value ?? 0);
+  if (!Number.isFinite(amount) || amount < 0) throw new Error(`${field} must be zero or greater`);
+  return Math.round(amount * 10000) / 10000;
+}
+
 function normalizeFeeTaxType(value: unknown): string | null {
   if (value == null || value === '') return null;
   const normalized = String(value).trim().toUpperCase();
@@ -30,7 +36,8 @@ export async function GET(req: NextRequest) {
   try {
     const rows = await query(
       `SELECT id, gateway_name, display_name, clearing_account_code, clearing_account_name,
-              fee_account_code, fee_account_name, fee_tax_type
+              fee_account_code, fee_account_name, fee_tax_type,
+              deduct_fee_enabled, fixed_fee_amount, percentage_fee_rate
          FROM xero_gateway_mappings WHERE business_id = ? ORDER BY display_name`,
       [bid],
     );
@@ -49,24 +56,38 @@ export async function POST(req: NextRequest) {
   if (!gateway_name) return NextResponse.json({ error: 'gateway_name required' }, { status: 400 });
   try {
     const feeTaxType = normalizeFeeTaxType(body.fee_tax_type);
+    const normalizedGateway = String(gateway_name).trim().toLowerCase();
+    const feeExcluded = normalizedGateway.includes('shopify_payment') || normalizedGateway.includes('paypal');
+    const deductFeeEnabled = !feeExcluded && body.deduct_fee_enabled === true;
+    const fixedFeeAmount = normalizeNonNegativeAmount(body.fixed_fee_amount, 'fixed_fee_amount');
+    const percentageFeeRate = normalizeNonNegativeAmount(body.percentage_fee_rate, 'percentage_fee_rate');
+    if (percentageFeeRate > 100) throw new Error('percentage_fee_rate must not exceed 100');
+    if (deductFeeEnabled && !fee_account_code) {
+      throw new Error('fee_account_code is required when fee deduction is enabled');
+    }
     await execute(
       `INSERT INTO xero_gateway_mappings
-         (business_id, gateway_name, display_name, clearing_account_code, clearing_account_name, fee_account_code, fee_account_name, fee_tax_type)
-       VALUES (?,?,?,?,?,?,?,?)
+         (business_id, gateway_name, display_name, clearing_account_code, clearing_account_name,
+          fee_account_code, fee_account_name, fee_tax_type, deduct_fee_enabled, fixed_fee_amount, percentage_fee_rate)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)
        ON DUPLICATE KEY UPDATE
          display_name = VALUES(display_name),
          clearing_account_code = VALUES(clearing_account_code),
          clearing_account_name = VALUES(clearing_account_name),
          fee_account_code = VALUES(fee_account_code),
          fee_account_name = VALUES(fee_account_name),
-         fee_tax_type = VALUES(fee_tax_type)`,
-      [bid, String(gateway_name).toLowerCase(), display_name ?? gateway_name,
+         fee_tax_type = VALUES(fee_tax_type),
+         deduct_fee_enabled = VALUES(deduct_fee_enabled),
+         fixed_fee_amount = VALUES(fixed_fee_amount),
+         percentage_fee_rate = VALUES(percentage_fee_rate)`,
+      [bid, normalizedGateway, display_name ?? gateway_name,
        clearing_account_code ?? null, clearing_account_name ?? null,
-       fee_account_code ?? null, fee_account_name ?? null, feeTaxType],
+       fee_account_code ?? null, fee_account_name ?? null, feeTaxType,
+       deductFeeEnabled ? 1 : 0, fixedFeeAmount, percentageFeeRate],
     );
     return NextResponse.json({ success: true });
   } catch (e: any) {
-    const status = e.message?.startsWith('fee_tax_type') ? 400 : 500;
+    const status = /^(fee_tax_type|fixed_fee_amount|percentage_fee_rate|fee_account_code)/.test(e.message ?? '') ? 400 : 500;
     return NextResponse.json({ success: false, error: e.message }, { status });
   }
 }

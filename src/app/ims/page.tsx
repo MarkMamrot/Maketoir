@@ -15856,7 +15856,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
 function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any[]; getBusinessId: () => string }) {
   const [mappings, setMappings] = useState<any[]>([]);
   const [adding, setAdding]     = useState(false);
-  const [newForm, setNewForm]   = useState({ gateway_name: '', display_name: '', clearing_account_code: '', clearing_account_name: '', fee_account_code: '', fee_account_name: '', fee_tax_type: 'NONE' });
+  const [newForm, setNewForm]   = useState({ gateway_name: '', display_name: '', clearing_account_code: '', clearing_account_name: '', fee_account_code: '', fee_account_name: '', fee_tax_type: 'NONE', deduct_fee_enabled: false, fixed_fee_amount: '0', percentage_fee_rate: '0' });
   const [editingGatewayName, setEditingGatewayName] = useState<string | null>(null);
   const [saving, setSaving]     = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
@@ -15872,6 +15872,8 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
   const bid = getBusinessId();
   const bankAccounts = accounts.filter((a: any) => a.type === 'BANK' || a.class === 'ASSET');
   const expenseAccounts = accounts.filter((a: any) => a.class === 'EXPENSE');
+  const normalizedFormGateway = newForm.gateway_name.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  const supportsCalculatedFees = !normalizedFormGateway.includes('shopify_payment') && !normalizedFormGateway.includes('paypal');
 
   const load = () => {
     if (!bid) return;
@@ -15910,7 +15912,7 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
       if (!res.ok) throw new Error(data.error || 'Unable to save gateway mapping');
       setAdding(false);
       setEditingGatewayName(null);
-      setNewForm({ gateway_name: '', display_name: '', clearing_account_code: '', clearing_account_name: '', fee_account_code: '', fee_account_name: '', fee_tax_type: 'NONE' });
+      setNewForm({ gateway_name: '', display_name: '', clearing_account_code: '', clearing_account_name: '', fee_account_code: '', fee_account_name: '', fee_tax_type: 'NONE', deduct_fee_enabled: false, fixed_fee_amount: '0', percentage_fee_rate: '0' });
       load();
     } catch (e: any) { alert(e.message); }
     setSaving(false);
@@ -15926,6 +15928,9 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
       fee_account_code: String(mapping.fee_account_code ?? ''),
       fee_account_name: String(mapping.fee_account_name ?? ''),
       fee_tax_type: String(mapping.fee_tax_type ?? 'NONE'),
+      deduct_fee_enabled: Boolean(mapping.deduct_fee_enabled),
+      fixed_fee_amount: String(mapping.fixed_fee_amount ?? '0'),
+      percentage_fee_rate: String(mapping.percentage_fee_rate ?? '0'),
     });
     setAdding(true);
     requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
@@ -15934,7 +15939,7 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
   const cancelEdit = () => {
     setAdding(false);
     setEditingGatewayName(null);
-    setNewForm({ gateway_name: '', display_name: '', clearing_account_code: '', clearing_account_name: '', fee_account_code: '', fee_account_name: '', fee_tax_type: 'NONE' });
+    setNewForm({ gateway_name: '', display_name: '', clearing_account_code: '', clearing_account_name: '', fee_account_code: '', fee_account_name: '', fee_tax_type: 'NONE', deduct_fee_enabled: false, fixed_fee_amount: '0', percentage_fee_rate: '0' });
   };
 
   const del = async (gateway_name: string, label: string) => {
@@ -15959,6 +15964,9 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
       fee_account_code: '',
       fee_account_name: '',
       fee_tax_type: 'NONE',
+      deduct_fee_enabled: false,
+      fixed_fee_amount: '0',
+      percentage_fee_rate: '0',
     });
     setAdding(true);
     requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
@@ -16016,7 +16024,7 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 10, border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden' }}>
           <thead>
             <tr style={{ background: 'var(--sv-bg-1)', borderBottom: '1px solid var(--sv-etch)' }}>
-              {['Gateway (match pattern)', 'Clearing account', 'Fee account', 'Fee tax', ''].map(h => (
+              {['Gateway (match pattern)', 'Clearing account', 'Fee account', 'Fee tax', 'Calculated fees', ''].map(h => (
                 <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
@@ -16033,6 +16041,9 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
                 </td>
                 <td style={{ padding: '8px 12px', color: 'var(--sv-text-dim)', fontSize: 12 }}>{m.fee_account_name ?? m.fee_account_code ?? '— manual'}</td>
                 <td style={{ padding: '8px 12px', color: 'var(--sv-text-dim)', fontSize: 12 }}>{m.fee_tax_type === 'INPUT' ? 'GST on Expenses' : 'BAS Excluded'}</td>
+                <td style={{ padding: '8px 12px', color: 'var(--sv-text-dim)', fontSize: 12 }}>
+                  {m.deduct_fee_enabled ? `$${Number(m.fixed_fee_amount ?? 0).toFixed(2)} + ${Number(m.percentage_fee_rate ?? 0).toFixed(2)}% per order` : 'No'}
+                </td>
                 <td style={{ padding: '8px 12px' }}>
                   <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                     <button onClick={() => startEdit(m)} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-main)', cursor: 'pointer' }}>Edit</button>
@@ -16086,13 +16097,40 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
               </select>
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Shopify fee tax treatment</label>
-              <select title="Controls the Xero tax code on Shopify processing-fee transactions. Adjustments, reserves, and disputes remain no-tax." value={newForm.fee_tax_type} onChange={e => setNewForm(f => ({ ...f, fee_tax_type: e.target.value }))}
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Fee tax treatment</label>
+              <select title="Controls the Xero tax code on processing-fee transactions." value={newForm.fee_tax_type} onChange={e => setNewForm(f => ({ ...f, fee_tax_type: e.target.value }))}
                 style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12 }}>
                 <option value="NONE">BAS Excluded / no GST</option>
                 <option value="INPUT">GST on Expenses</option>
               </select>
             </div>
+            {supportsCalculatedFees && (
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Deduct fees from payout?</label>
+                <select value={newForm.deduct_fee_enabled ? 'yes' : 'no'} onChange={e => setNewForm(f => ({ ...f, deduct_fee_enabled: e.target.value === 'yes' }))}
+                  style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12 }}>
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </div>
+            )}
+            {supportsCalculatedFees && newForm.deduct_fee_enabled && (
+              <>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Fixed amount per payment</label>
+                  <input type="number" min="0" step="0.01" value={newForm.fixed_fee_amount} onChange={e => setNewForm(f => ({ ...f, fixed_fee_amount: e.target.value }))}
+                    style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12 }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Percentage amount</label>
+                  <div style={{ position: 'relative' }}>
+                    <input type="number" min="0" max="100" step="0.01" value={newForm.percentage_fee_rate} onChange={e => setNewForm(f => ({ ...f, percentage_fee_rate: e.target.value }))}
+                      style={{ width: '100%', padding: '6px 26px 6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12 }} />
+                    <span style={{ position: 'absolute', right: 9, top: 6, color: 'var(--sv-text-dim)', fontSize: 12 }}>%</span>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={save} disabled={saving} style={{ fontSize: 12, padding: '5px 14px', borderRadius: 6, background: 'var(--sv-action)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600 }}>{saving ? 'Saving…' : (editingGatewayName ? 'Update Mapping' : 'Add Mapping')}</button>

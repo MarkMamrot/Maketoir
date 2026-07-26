@@ -1,8 +1,10 @@
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import {
   findOnlineGatewayClearingAccount,
+  findOnlineGatewayMapping,
   isShopifyPaymentsGateway,
   normalizeOnlineGateway,
+  type OnlineGatewayMapping,
 } from '@/lib/xero/onlineGatewayMappings';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
@@ -10,6 +12,17 @@ import { syncDailySalesBatch, syncGiftCardLiabilityReclass } from '@/services/Xe
 
 function isPayPalGateway(value: string): boolean {
   return normalizeOnlineGateway(value).includes('paypal');
+}
+
+export function calculateGatewayFee(grossAmount: number, fixedAmount: number, percentageRate: number): number {
+  return Math.round((fixedAmount + grossAmount * percentageRate / 100) * 100) / 100;
+}
+
+function hasCalculatedFees(gateway: string, mapping: OnlineGatewayMapping | null): boolean {
+  return !isShopifyPaymentsGateway(gateway)
+    && !isPayPalGateway(gateway)
+    && Boolean(mapping?.deduct_fee_enabled)
+    && Boolean(mapping?.fee_account_code);
 }
 
 export interface OnlineDailySalesSyncResult {
@@ -66,8 +79,9 @@ export async function syncOnlineDailySalesDay(
           ORDER BY id ASC`,
         [businessId, date],
       ),
-      query<{ gateway_name: string; clearing_account_code: string | null }>(
-        `SELECT gateway_name, clearing_account_code
+      query<OnlineGatewayMapping>(
+        `SELECT gateway_name, clearing_account_code, fee_account_code, fee_tax_type,
+                deduct_fee_enabled, fixed_fee_amount, percentage_fee_rate
            FROM xero_gateway_mappings
           WHERE business_id = ?`,
         [businessId],
@@ -103,12 +117,45 @@ export async function syncOnlineDailySalesDay(
     }
 
     const clearingPayments = paymentRows
-      .filter(row => !row.payoutManaged && !isPayPalGateway(row.gateway) && !!row.accountCode)
+      .filter(row => !row.payoutManaged && !isPayPalGateway(row.gateway)
+        && !hasCalculatedFees(row.gateway, findOnlineGatewayMapping(row.gateway, gatewayMappings))
+        && !!row.accountCode)
       .map(row => ({
         accountCode: row.accountCode as string,
         amount: row.amount,
         label: row.gateway === '_unknown' ? 'Unknown' : row.gateway,
       }));
+    const feeEnabledPayments = orderRows
+      .map(row => {
+        const gateway = normalizeOnlineGateway(row.payment_gateway);
+        const mapping = findOnlineGatewayMapping(gateway, gatewayMappings);
+        if (!hasCalculatedFees(gateway, mapping) || !mapping?.clearing_account_code || !mapping.fee_account_code) return null;
+        const orderId = String(row.shopify_order_id ?? '').trim();
+        const orderName = String(row.shopify_order_name ?? '').trim();
+        const amount = Math.round(Number(row.total_amount) * 100) / 100;
+        if (!orderId || !(amount > 0)) return null;
+        const feeAmount = calculateGatewayFee(
+          amount,
+          Number(mapping.fixed_fee_amount ?? 0),
+          Number(mapping.percentage_fee_rate ?? 0),
+        );
+        return {
+          accountCode: mapping.clearing_account_code,
+          amount,
+          label: gateway,
+          paymentKey: `gateway-order-${orderId}`,
+          reference: orderName ? `${mapping.gateway_name} ${orderName}` : `${mapping.gateway_name} order ${orderId}`,
+          ...(feeAmount > 0 ? {
+            fee: {
+              amount: feeAmount,
+              gatewayName: mapping.gateway_name,
+              accountCode: mapping.fee_account_code,
+              taxType: mapping.fee_tax_type === 'INPUT' ? 'INPUT' : 'NONE',
+            },
+          } : {}),
+        };
+      })
+      .filter((payment): payment is NonNullable<typeof payment> => !!payment);
     const paypalOrderRows = orderRows.filter(row => isPayPalGateway(String(row.payment_gateway ?? '')));
     const paypalOrdersMissingIds = paypalOrderRows.filter(row => !String(row.shopify_order_id ?? '').trim());
     if (paypalOrdersMissingIds.length > 0) {
@@ -131,7 +178,7 @@ export async function syncOnlineDailySalesDay(
         };
       })
       .filter((payment): payment is NonNullable<typeof payment> => !!payment);
-    clearingPayments.push(...paypalPayments);
+    clearingPayments.push(...feeEnabledPayments, ...paypalPayments);
     const deferredShopifyTotal = paymentRows
       .filter(row => row.payoutManaged)
       .reduce((sum, row) => sum + row.amount, 0);

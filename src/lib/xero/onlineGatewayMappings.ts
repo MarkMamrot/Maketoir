@@ -1,6 +1,11 @@
 export interface OnlineGatewayMapping {
   gateway_name: string;
   clearing_account_code: string | null;
+  fee_account_code?: string | null;
+  fee_tax_type?: string | null;
+  deduct_fee_enabled?: boolean | number | null;
+  fixed_fee_amount?: number | string | null;
+  percentage_fee_rate?: number | string | null;
 }
 
 export function normalizeOnlineGateway(value: string | null | undefined): string {
@@ -38,4 +43,15 @@ export function findOnlineGatewayClearingAccount(
     }
   }
   return null;
+}
+
+export function findOnlineGatewayMapping(
+  gateway: string,
+  mappings: OnlineGatewayMapping[],
+): OnlineGatewayMapping | null {
+  const gatewayNames = splitOnlineGateways(gateway);
+  return mappings.find(mapping => {
+    const mappingName = normalizeOnlineGateway(mapping.gateway_name);
+    return mappingName !== '_unknown' && gatewayNames.some(name => name.includes(mappingName) || mappingName.includes(name));
+  }) ?? null;
 }
