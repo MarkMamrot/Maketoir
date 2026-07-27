@@ -20001,7 +20001,23 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
   const [applying, setApplying]         = useState(false);
   const [savingDraft, setSavingDraft]   = useState(false);
   const [xeroSyncing, setXeroSyncing]   = useState(false);
+  const [xeroErrorModal, setXeroErrorModal] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
   // (add-item search state is now handled inside StocktakeVariantSearch)
+
+  const formatXeroErrorForDisplay = useCallback((raw: unknown) => {
+    const msg = String(raw ?? 'Sync failed');
+    const marker = msg.indexOf('{');
+    if (marker < 0) return msg;
+
+    const prefix = msg.slice(0, marker).trim();
+    const jsonPart = msg.slice(marker).trim();
+    try {
+      const parsed = JSON.parse(jsonPart);
+      return `${prefix}\n\n${JSON.stringify(parsed, null, 2)}`.trim();
+    } catch {
+      return msg;
+    }
+  }, []);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -20729,7 +20745,12 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                           const fresh = (d2.items || []).find((fi: any) => fi.id === it.id);
                           return fresh ? { ...it, avg_cost: fresh.avg_cost } : it;
                         }));
-                      } catch (e: any) { alert(e.message); }
+                      } catch (e: any) {
+                        setXeroErrorModal({
+                          open: true,
+                          message: formatXeroErrorForDisplay(e?.message ?? 'Xero sync failed.'),
+                        });
+                      }
                       finally { setXeroSyncing(false); }
                     }} style={btnStyle('action', 'sm')}>
                       {xeroSyncing ? '…' : ss === 'error' ? 'Retry Xero Sync' : 'Sync to Xero'}
@@ -20785,6 +20806,35 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
               </div>
             );
           })()}
+        </Modal>
+      )}
+
+      {xeroErrorModal.open && (
+        <Modal title="Xero Sync Error" onClose={() => setXeroErrorModal({ open: false, message: '' })} width={780}>
+          <div style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 8 }}>
+            The full response is selectable. Copy it and send it to support if needed.
+          </div>
+          <textarea
+            readOnly
+            value={xeroErrorModal.message}
+            style={{ ...inputStyle, minHeight: 320, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', whiteSpace: 'pre', resize: 'vertical' }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 10 }}>
+            <button
+              type="button"
+              onClick={() => navigator.clipboard.writeText(xeroErrorModal.message).catch(() => {})}
+              style={btnStyle('secondary', 'sm')}
+            >
+              Copy Error
+            </button>
+            <button
+              type="button"
+              onClick={() => setXeroErrorModal({ open: false, message: '' })}
+              style={btnStyle('action', 'sm')}
+            >
+              Close
+            </button>
+          </div>
         </Modal>
       )}
     </div>

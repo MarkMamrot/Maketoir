@@ -2623,7 +2623,7 @@ export const ImsStocktakeRepo = {
                 NULLIF(v.option2_value,''),
                 NULLIF(v.option3_value,'')
               ) AS variant_label,
-              sk.avg_cost
+              COALESCE(NULLIF(sk.avg_cost, 0), NULLIF(v.avg_cost, 0), NULLIF(v.cost_aud, 0), 0) AS avg_cost
        FROM ims_stocktake_items i
        JOIN ims_product_variants v ON v.variant_id = i.variant_id AND v.business_id = ?
        JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = ?
@@ -2815,8 +2815,15 @@ export const ImsStocktakeRepo = {
           [businessId, item.variant_id, full.location_id]
         );
         await conn.execute(
-          `UPDATE ims_stock SET business_id = ?, qty_on_hand = ? WHERE variant_id = ? AND location_id = ? AND business_id = ?`,
-          [businessId, counted, item.variant_id, full.location_id, businessId]
+          `UPDATE ims_stock
+              SET business_id = ?,
+                  qty_on_hand = ?,
+                  avg_cost = CASE
+                    WHEN ? > 0 AND (avg_cost IS NULL OR avg_cost <= 0) THEN ?
+                    ELSE avg_cost
+                  END
+            WHERE variant_id = ? AND location_id = ? AND business_id = ?`,
+          [businessId, counted, counted, avgCostAtTime, item.variant_id, full.location_id, businessId]
         );
         if (counted !== expected) {
           variances++;

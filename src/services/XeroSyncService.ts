@@ -249,14 +249,17 @@ export async function syncStocktakeJournal(
 
   const items = await imsQuery<{
     variant_id: string; sku: string | null; product_name: string;
-    expected_qty: string; counted_qty: string | null; avg_cost: string | null;
+    expected_qty: string; counted_qty: string | null;
+    location_avg_cost: string | null; variant_avg_cost: string | null; cost_aud: string | null;
   }>(
     `SELECT si.variant_id,
             pv.sku,
             p.name AS product_name,
             si.expected_qty,
             si.counted_qty,
-            sk.avg_cost
+            sk.avg_cost AS location_avg_cost,
+            pv.avg_cost AS variant_avg_cost,
+            pv.cost_aud
        FROM ims_stocktake_items si
        JOIN ims_stocktakes st ON st.id = si.stocktake_id
        LEFT JOIN ims_product_variants pv ON pv.variant_id = si.variant_id AND pv.business_id = st.business_id
@@ -272,6 +275,7 @@ export async function syncStocktakeJournal(
 
   const journalLines: any[] = [];
   let totalValue = 0;
+  let skippedZeroValue = 0;
 
   for (const item of items) {
     const expected = Number(item.expected_qty);
@@ -279,8 +283,15 @@ export async function syncStocktakeJournal(
     const variance = counted - expected;
     if (Math.abs(variance) < 0.00001) continue; // zero variance — skip
 
-    const avgCost     = Number(item.avg_cost ?? 0);
+    const locationAvg = Number(item.location_avg_cost ?? 0);
+    const variantAvg  = Number(item.variant_avg_cost ?? 0);
+    const fallbackAud = Number(item.cost_aud ?? 0);
+    const avgCost     = locationAvg > 0 ? locationAvg : variantAvg > 0 ? variantAvg : fallbackAud > 0 ? fallbackAud : 0;
     const absValue    = Math.abs(variance * avgCost);
+    if (absValue < 0.00001) {
+      skippedZeroValue += 1;
+      continue;
+    }
     totalValue       += absValue;
     const description = `${item.sku || item.variant_id} — ${item.product_name || 'Unknown'} (exp ${expected}, counted ${counted})`;
 
@@ -296,7 +307,10 @@ export async function syncStocktakeJournal(
   }
 
   if (journalLines.length === 0) {
-    await logSync(businessId, 'stocktake_journal', stocktakeId, null, 'skipped', 'No non-zero variances to post');
+    const detail = skippedZeroValue > 0
+      ? `No non-zero variance value to post (skipped ${skippedZeroValue} variance line${skippedZeroValue !== 1 ? 's' : ''} with zero unit cost).`
+      : 'No non-zero variances to post';
+    await logSync(businessId, 'stocktake_journal', stocktakeId, null, 'skipped', detail);
     await markStocktakeXeroStatus(businessId, stocktakeId, 'synced', null);
     return { journalId: null, lines: 0, totalValue: 0 };
   }
@@ -314,8 +328,11 @@ export async function syncStocktakeJournal(
     });
     const journalId = result.ManualJournals?.[0]?.ManualJournalID ?? null;
     const journalState = result.ManualJournals?.[0]?.Status ?? 'POSTED';
+    const skippedSuffix = skippedZeroValue > 0
+      ? `; skipped ${skippedZeroValue} zero-value variance line${skippedZeroValue !== 1 ? 's' : ''}`
+      : '';
     await logSync(businessId, 'stocktake_journal', stocktakeId, journalId, 'success',
-      `Journal posted: ${journalLines.length / 2} variance lines, total $${totalValue.toFixed(2)}`,
+      `Journal posted: ${journalLines.length / 2} variance lines, total $${totalValue.toFixed(2)}${skippedSuffix}`,
       journalState);
     await markStocktakeXeroStatus(businessId, stocktakeId, 'synced', journalId);
     return { journalId, lines: journalLines.length / 2, totalValue };
