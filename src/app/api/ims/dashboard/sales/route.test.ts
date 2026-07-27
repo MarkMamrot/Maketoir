@@ -9,8 +9,8 @@ describe('normaliseDashboardSalesRows', () => {
     ]);
 
     expect(rows).toEqual([
-      { channel: 'pos', location_name: 'Main', total: 123.45, gross_profit: 45.67, order_count: 3 },
-      { channel: 'online', location_name: 'Web', total: 20, gross_profit: 0, order_count: 1 },
+      { channel: 'pos', location_name: 'Main', total: 123.45, tax: 0, cogs: 0, gross_profit: 45.67, order_count: 3 },
+      { channel: 'online', location_name: 'Web', total: 20, tax: 0, cogs: 0, gross_profit: 0, order_count: 1 },
     ]);
   });
 });

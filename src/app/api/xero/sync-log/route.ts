@@ -26,6 +26,7 @@ import { query } from '@/services/MySQLService';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { xeroApiFetch } from '@/services/XeroService';
 import { getImsDbNameStrict } from '@/lib/db/BusinessRegistry';
+import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 
 /** Extract "YYYY-MM-DD" from a MySQL DATE value (Date object or string). */
 function batchDateStr(v: unknown): string {
@@ -183,7 +184,11 @@ export async function GET(req: Request) {
     );
 
     // ── 3. Online daily batches from ims_sales_orders WHERE so_type='online' ──
+    //    Exclude today (incomplete day — cannot be synced to Xero until the day is closed).
+    //    Uses the business timezone so an AEST business isn't shown a 'today' row based on UTC.
     //    (POS EOD recon is surfaced via eod_reconciliation in xero_sync_log, not here)
+    const timeZone = await getBusinessTimeZone(databaseId!).catch(() => 'Australia/Sydney');
+    const todayForBusiness = new Date().toLocaleDateString('sv-SE', { timeZone });
     const onlineBatches = await imsQuery<any>(
       `SELECT DATE(so.order_date) AS batch_date,
               COUNT(*) AS sale_count,
@@ -192,10 +197,11 @@ export async function GET(req: Request) {
         WHERE so.so_type = 'online'
           AND (so.is_historical = 0 OR so.is_historical IS NULL)
           AND so.status NOT IN ('cancelled','draft')
+          AND DATE_FORMAT(so.order_date, '%Y-%m-%d') < ?
         GROUP BY DATE(so.order_date)
         ORDER BY batch_date DESC
         LIMIT ${limit}`,
-      [],
+      [todayForBusiness],
       imsDbName,
     );
 
