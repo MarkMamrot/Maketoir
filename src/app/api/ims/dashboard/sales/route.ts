@@ -36,21 +36,42 @@ export async function GET(req: Request) {
     biz ? [biz, cutoff] : [cutoff]
   );
 
-  // SO channel — fulfilled SOs, channel derived from so_type.
-  // Bucket by order_date (actual order date, e.g. Shopify) — NOT created_at (DB insert time),
-  // so late-synced orders still count on the day the order was placed.
-  const soRows = await imsQuery<{ channel: string; location_name: string; total: number; order_count: number }>(
-    `SELECT CASE WHEN so.so_type = 'online' THEN 'online' ELSE 'wholesale' END AS channel,
-            COALESCE(l.name, 'Unknown') AS location_name,
-            SUM(so.total_amount) AS total, COUNT(*) AS order_count
-     FROM ims_sales_orders so
-     LEFT JOIN ims_locations l ON l.id = so.location_id
-     WHERE so.status = 'fulfilled'
-       AND so.order_date >= ?
-       ${soBizClause}
-     GROUP BY channel, l.id, l.name`,
-    biz ? [cutoff, biz] : [cutoff]
-  );
+  // SO channel split logic:
+  // - Online must mirror Online Sales / daily batch detection:
+  //   so_type='online', non-historical only, status != cancelled.
+  // - Wholesale remains fulfilled-only revenue.
+  // Both use order_date (wall-clock business date), not created_at.
+  const [onlineRows, wholesaleRows] = await Promise.all([
+    imsQuery<{ channel: string; location_name: string; total: number; order_count: number }>(
+      `SELECT 'online' AS channel,
+              COALESCE(l.name, 'Unknown') AS location_name,
+              SUM(so.total_amount) AS total,
+              COUNT(*) AS order_count
+       FROM ims_sales_orders so
+       LEFT JOIN ims_locations l ON l.id = so.location_id
+       WHERE so.so_type = 'online'
+         AND so.order_date >= ?
+         AND (so.is_historical IS NULL OR so.is_historical = 0)
+         AND so.status != 'cancelled'
+         ${soBizClause}
+       GROUP BY l.id, l.name`,
+      biz ? [cutoff, biz] : [cutoff]
+    ),
+    imsQuery<{ channel: string; location_name: string; total: number; order_count: number }>(
+      `SELECT 'wholesale' AS channel,
+              COALESCE(l.name, 'Unknown') AS location_name,
+              SUM(so.total_amount) AS total,
+              COUNT(*) AS order_count
+       FROM ims_sales_orders so
+       LEFT JOIN ims_locations l ON l.id = so.location_id
+       WHERE so.so_type != 'online'
+         AND so.status = 'fulfilled'
+         AND so.order_date >= ?
+         ${soBizClause}
+       GROUP BY l.id, l.name`,
+      biz ? [cutoff, biz] : [cutoff]
+    ),
+  ]);
 
   // Recent POS sales (last 20, regardless of period filter)
   const recentPOS = await imsQuery<any>(
@@ -66,7 +87,7 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     success: true,
-    channelData: [...posRows, ...soRows],
+    channelData: [...posRows, ...onlineRows, ...wholesaleRows],
     recentPOS,
   });
 }
