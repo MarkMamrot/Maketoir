@@ -21,6 +21,7 @@ import {
   getOnlinePickLocationIds,
   getShopifyForBusiness,
   getShopifyInventoryLocationId,
+  shouldRunInventorySync,
 } from '@/lib/ims/shopifyInventorySync';
 
 export const runtime = 'nodejs';
@@ -37,7 +38,7 @@ export async function GET() {
     await enterImsForBusiness(businessId);
     const rows = await imsQuery<{ key: string; value: string }>(
       `SELECT \`key\`, value FROM ims_settings WHERE business_id = ?
-         AND \`key\` IN ('shopify_inventory_sync_enabled','online_pick_priority','shopify_inventory_buffer')`,
+         AND \`key\` IN ('shopify_inventory_sync_enabled','online_pick_priority','shopify_inventory_buffer','shopify_inventory_sync_interval_minutes','shopify_inventory_sync_last_run_at')`,
       [businessId],
     ).catch(() => [] as { key: string; value: string }[]);
     const get = (k: string) => rows.find(r => r.key === k)?.value ?? '';
@@ -77,6 +78,8 @@ export async function GET() {
       imsLocations: imsLocs,
       pickLocationIds,
       buffer: parseInt(get('shopify_inventory_buffer') || '0', 10) || 0,
+      intervalMinutes: Math.max(1, parseInt(get('shopify_inventory_sync_interval_minutes') || '15', 10) || 15),
+      lastRunAt: get('shopify_inventory_sync_last_run_at') || null,
       queuedCount: queued[0]?.n ?? 0,
       linkedVariants: linked[0]?.n ?? 0,
     });
@@ -109,10 +112,31 @@ async function handlePost(req: Request) {
     const businesses = await query<{ business_id: string }>(
       'SELECT business_id FROM businesses WHERE deleted_at IS NULL',
     ).catch(() => [] as { business_id: string }[]);
-    const totals = { processed: 0, pushed: 0, businesses: 0, errors: [] as string[] };
+    const totals = { processed: 0, pushed: 0, businesses: 0, skipped: 0, errors: [] as string[] };
     for (const { business_id } of businesses) {
       try {
-        const res = await runImsForBusiness(business_id, () => drainInventoryQueue(Number(body?.limit ?? 250)));
+        const res = await runImsForBusiness(business_id, async () => {
+          const settingsRows = await imsQuery<{ key: string; value: string }>(
+            `SELECT \`key\`, value FROM ims_settings WHERE business_id = ? AND \`key\` IN ('shopify_inventory_sync_interval_minutes','shopify_inventory_sync_last_run_at')`,
+            [business_id],
+          ).catch(() => [] as { key: string; value: string }[]);
+          const intervalMinutes = Math.max(1, parseInt(settingsRows.find(r => r.key === 'shopify_inventory_sync_interval_minutes')?.value || '15', 10) || 15);
+          const lastRunAt = settingsRows.find(r => r.key === 'shopify_inventory_sync_last_run_at')?.value ?? null;
+          if (!shouldRunInventorySync(lastRunAt, intervalMinutes, new Date())) {
+            return { skipped: true, processed: 0, pushed: 0, businesses: 0, errors: [] as string[] };
+          }
+          const result = await drainInventoryQueue(Number(body?.limit ?? 250), business_id);
+          await imsExecute(
+            `INSERT INTO ims_settings (business_id, \`key\`, value) VALUES (?, 'shopify_inventory_sync_last_run_at', ?)
+             ON DUPLICATE KEY UPDATE value = VALUES(value)`,
+            [business_id, new Date().toISOString()],
+          );
+          return { skipped: false, ...result };
+        });
+        if (res.skipped) {
+          totals.skipped += 1;
+          continue;
+        }
         totals.processed += res.processed;
         totals.pushed += res.pushed;
         totals.businesses += res.businesses;

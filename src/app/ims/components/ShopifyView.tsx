@@ -511,6 +511,7 @@ function ShopifyProductsTab() {
 function ShopifyLogTab() {
   const [log, setLog]     = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -540,18 +541,38 @@ function ShopifyLogTab() {
           {log.length === 0 && (
             <tr><td colSpan={4} style={{ padding: 24, textAlign: 'center', color: 'var(--sv-text-dim)' }}>No sync history yet.</td></tr>
           )}
-          {log.map(row => (
-            <tr key={row.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-              <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
-                {new Date(row.created_at).toLocaleString()}
-              </td>
-              <td style={{ padding: '10px 12px', color: 'var(--sv-text-main)', fontWeight: 500 }}>
-                {actionLabel(row.action)}
-              </td>
-              <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)' }}>{row.summary}</td>
-              <td style={{ padding: '10px 12px', textAlign: 'center' }}>{statusBadge(row.status)}</td>
-            </tr>
-          ))}
+          {log.map(row => {
+            const payload = row.detail ? (() => {
+              try { return JSON.parse(row.detail); } catch { return row.detail; }
+            })() : null;
+            const isExpanded = expandedId === row.id;
+            return (
+              <React.Fragment key={row.id}>
+                <tr style={{ borderBottom: '1px solid var(--sv-etch)', cursor: 'pointer' }} onClick={() => setExpandedId(isExpanded ? null : row.id)}>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
+                    {new Date(row.created_at).toLocaleString()}
+                  </td>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-main)', fontWeight: 500 }}>
+                    {actionLabel(row.action)}
+                  </td>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)' }}>{row.summary}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center' }}>{statusBadge(row.status)}</td>
+                </tr>
+                {isExpanded && (
+                  <tr>
+                    <td colSpan={4} style={{ padding: '0 12px 12px', background: 'rgba(37,99,235,.04)' }}>
+                      <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 12, background: 'var(--sv-bg-1)' }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 8 }}>Full payload</div>
+                        <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 12, color: 'var(--sv-text-main)' }}>
+                          {payload === null ? 'No payload stored.' : JSON.stringify(payload, null, 2)}
+                        </pre>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -913,6 +934,7 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
   const [imsLocations, setImsLocations] = useState<{ id: number; name: string }[]>([]);
   const [pickLocationIds, setPickIds]   = useState<number[]>([]);
   const [buffer, setBuffer]             = useState<number>(0);
+  const [intervalMinutes, setIntervalMinutes] = useState(15);
   const [queued, setQueued]             = useState(0);
   const [linkedCount, setLinkedCount]   = useState(0);
   const [busy, setBusy]                 = useState<string | null>(null);
@@ -927,6 +949,7 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
         setImsLocations(d.imsLocations ?? []);
         setPickIds(d.pickLocationIds ?? []);
         setBuffer(d.buffer ?? 0);
+        setIntervalMinutes(d.intervalMinutes ?? 15);
         setQueued(d.queuedCount ?? 0);
         setLinkedCount(d.linkedVariants ?? 0);
       }
@@ -993,7 +1016,7 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
     <div style={card}>
       <h3 style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Inventory Sync → Shopify</h3>
       <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
-        Tick the IMS branches whose stock should count toward the Shopify available number. Set a safety buffer to deduct from the total. The combined result is pushed to Shopify automatically every 15 minutes.
+        Tick the IMS branches whose stock should count toward the Shopify available number. Set a safety buffer to deduct from the total. The combined result is pushed to Shopify automatically every {intervalMinutes} minute{intervalMinutes === 1 ? '' : 's'}.
       </p>
 
       {/* Enable toggle */}
@@ -1028,7 +1051,7 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
       </div>
 
       {/* Buffer qty */}
-      <div style={{ marginBottom: 18, display: 'flex', alignItems: 'flex-end', gap: 14 }}>
+      <div style={{ marginBottom: 18, display: 'flex', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap' }}>
         <div>
           <label style={{ ...label, display: 'block', marginBottom: 4 }}>Safety buffer (units)</label>
           <input
@@ -1038,8 +1061,17 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
             style={{ ...input, width: 90 }}
           />
         </div>
+        <div>
+          <label style={{ ...label, display: 'block', marginBottom: 4 }}>Auto-sync interval (mins)</label>
+          <input
+            type="number" min="1" step="1" value={intervalMinutes}
+            onChange={e => setIntervalMinutes(Math.max(1, parseInt(e.target.value || '15', 10)))}
+            onBlur={async () => saveSetting({ shopify_inventory_sync_interval_minutes: String(intervalMinutes) })}
+            style={{ ...input, width: 110 }}
+          />
+        </div>
         <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', lineHeight: 1.5, paddingBottom: 2 }}>
-          Deducted from the total before pushing.<br/>Use 2–5 to guard against counting errors.
+          Deducted from the total before pushing.<br/>The queue drains on this cadence when the cron runs.
         </div>
       </div>
 

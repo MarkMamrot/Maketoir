@@ -14,8 +14,17 @@ import { ShopifyService } from '@/services/ShopifyService';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
 import { createNotification } from '@/lib/ims/createNotification';
+import { ImsShopifyRepo } from '@/lib/ims/ImsRepository';
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+export function shouldRunInventorySync(lastRunAt: string | null | undefined, intervalMinutes: number, now = new Date()): boolean {
+  const mins = Math.max(1, Math.floor(Number(intervalMinutes) || 15));
+  if (!lastRunAt) return true;
+  const last = new Date(lastRunAt);
+  if (Number.isNaN(last.getTime())) return true;
+  return now.getTime() - last.getTime() >= mins * 60 * 1000;
+}
 
 async function getSetting(businessId: string, key: string): Promise<string> {
   const rows = await imsQuery<{ value: string }>(
@@ -261,6 +270,7 @@ export async function drainInventoryQueue(limit = 250): Promise<{ processed: num
       pushed += res.pushed;
       if (res.errors.length) {
         drainErrors.push(...res.errors.slice(0, 3));
+        await ImsShopifyRepo.logAction('upload', 'error', `Inventory sync failed for ${res.errors.length} issue(s): ${res.errors[0]}`, businessId, { variant_ids: variantIds, errors: res.errors }).catch(() => {});
         createNotification(
           businessId,
           'shopify_inventory',
@@ -268,11 +278,14 @@ export async function drainInventoryQueue(limit = 250): Promise<{ processed: num
           res.errors[0],
           { errors: res.errors, variant_ids: variantIds },
         ).catch(err => console.error('[notifications] inventory sync notify failed:', err));
+      } else {
+        await ImsShopifyRepo.logAction('upload', 'success', `Inventory sync pushed ${res.pushed} variant(s) to Shopify`, businessId, { variant_ids: variantIds, pushed: res.pushed }).catch(() => {});
       }
     } catch (e: any) {
       const msg = e?.message ?? 'unknown error';
       console.error('[inventory-sync] business', businessId, msg);
       drainErrors.push(msg);
+      await ImsShopifyRepo.logAction('upload', 'error', `Inventory sync crashed: ${msg}`, businessId, { variant_ids: variantIds, error: msg }).catch(() => {});
       createNotification(
         businessId,
         'shopify_inventory',
