@@ -6348,6 +6348,13 @@ function StockView() {
   const [filterBrand, setFilterBrand] = useState('');
   const [filterSupplier, setFilterSupplier] = useState('');
   const [showLowOnly, setShowLowOnly] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filterSohOp, setFilterSohOp] = useState<'>=' | '<=' | '='>('>=');
+  const [filterSohVal, setFilterSohVal] = useState('');
+  const [filterAvailOp, setFilterAvailOp] = useState<'>=' | '<=' | '='>('>=');
+  const [filterAvailVal, setFilterAvailVal] = useState('');
+  const [filterCostOp, setFilterCostOp] = useState<'>=' | '<=' | '='>('>=');
+  const [filterCostVal, setFilterCostVal] = useState('');
   const [sortCol, setSortCol] = useState<string>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
@@ -6374,6 +6381,38 @@ function StockView() {
     // Show items where available qty has hit the min_qty trigger.
     // min_qty = 0 is valid — it means "replenish when out of stock" (SOH ≤ 0).
     if (showLowOnly && !(Number(s.qty_on_hand) <= Number(s.min_qty))) return false;
+
+    const soh = Number(s.qty_on_hand || 0);
+    const available = Number(s.qty_on_hand || 0) - Number(s.qty_committed || 0);
+    const avgCost = Number(s.avg_cost || 0);
+
+    if (filterSohVal !== '') {
+      const val = Number(filterSohVal);
+      if (!Number.isNaN(val)) {
+        if (filterSohOp === '>=' && soh < val) return false;
+        if (filterSohOp === '<=' && soh > val) return false;
+        if (filterSohOp === '=' && soh !== val) return false;
+      }
+    }
+
+    if (filterAvailVal !== '') {
+      const val = Number(filterAvailVal);
+      if (!Number.isNaN(val)) {
+        if (filterAvailOp === '>=' && available < val) return false;
+        if (filterAvailOp === '<=' && available > val) return false;
+        if (filterAvailOp === '=' && available !== val) return false;
+      }
+    }
+
+    if (filterCostVal !== '') {
+      const val = Number(filterCostVal);
+      if (!Number.isNaN(val)) {
+        if (filterCostOp === '>=' && avgCost < val) return false;
+        if (filterCostOp === '<=' && avgCost > val) return false;
+        if (filterCostOp === '=' && avgCost !== val) return false;
+      }
+    }
+
     if (filter) {
       const q = filter.toLowerCase();
       if (!(s.sku || '').toLowerCase().includes(q) &&
@@ -6420,7 +6459,7 @@ function StockView() {
     letterSpacing: .8, whiteSpace: 'nowrap',
   };
 
-  const anyFilter = filter || filterBrand || filterSupplier || showLowOnly;
+  const anyFilter = filter || filterBrand || filterSupplier || showLowOnly || filterSohVal !== '' || filterAvailVal !== '' || filterCostVal !== '';
 
   return (
     <div>
@@ -6459,8 +6498,68 @@ function StockView() {
           <input type="checkbox" checked={showLowOnly} onChange={e => { setShowLowOnly(e.target.checked); setPage(1); }} />
           Low stock only
         </label>
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setFiltersOpen(p => !p)}
+            style={{
+              ...btnStyle('secondary', 'sm'),
+              ...(filterSohVal !== '' || filterAvailVal !== '' || filterCostVal !== ''
+                ? { background: 'color-mix(in srgb, var(--sv-action) 12%, var(--sv-bg-2))', borderColor: 'var(--sv-action)', color: 'var(--sv-action)' }
+                : {}),
+            }}
+          >
+            Filters ▾{(filterSohVal !== '' || filterAvailVal !== '' || filterCostVal !== '') ? ' ●' : ''}
+          </button>
+          {filtersOpen && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setFiltersOpen(false)} />
+              <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 100, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px', marginTop: 4, minWidth: 320, boxShadow: '0 6px 20px rgba(0,0,0,0.14)' }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 12 }}>Filters</p>
+
+                <div style={{ marginBottom: 10 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>SOH</label>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <select value={filterSohOp} onChange={e => { setFilterSohOp(e.target.value as any); setPage(1); }} style={{ ...inputStyle, width: 64 }}>
+                      <option value=">=">≥</option>
+                      <option value="<=">≤</option>
+                      <option value="=">=</option>
+                    </select>
+                    <input type="number" value={filterSohVal} onChange={e => { setFilterSohVal(e.target.value); setPage(1); }} placeholder="qty" style={{ ...inputStyle, width: 110 }} />
+                    {filterSohVal !== '' && <button onClick={() => { setFilterSohVal(''); setPage(1); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 16 }}>×</button>}
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 10 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Stock Available</label>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <select value={filterAvailOp} onChange={e => { setFilterAvailOp(e.target.value as any); setPage(1); }} style={{ ...inputStyle, width: 64 }}>
+                      <option value=">=">≥</option>
+                      <option value="<=">≤</option>
+                      <option value="=">=</option>
+                    </select>
+                    <input type="number" value={filterAvailVal} onChange={e => { setFilterAvailVal(e.target.value); setPage(1); }} placeholder="qty" style={{ ...inputStyle, width: 110 }} />
+                    {filterAvailVal !== '' && <button onClick={() => { setFilterAvailVal(''); setPage(1); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 16 }}>×</button>}
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Average Cost (Location)</label>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <select value={filterCostOp} onChange={e => { setFilterCostOp(e.target.value as any); setPage(1); }} style={{ ...inputStyle, width: 64 }}>
+                      <option value=">=">≥</option>
+                      <option value="<=">≤</option>
+                      <option value="=">=</option>
+                    </select>
+                    <input type="number" step="0.0001" value={filterCostVal} onChange={e => { setFilterCostVal(e.target.value); setPage(1); }} placeholder="cost" style={{ ...inputStyle, width: 110 }} />
+                    {filterCostVal !== '' && <button onClick={() => { setFilterCostVal(''); setPage(1); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 16 }}>×</button>}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
         {anyFilter && (
-          <button onClick={() => { setFilter(''); setFilterBrand(''); setFilterSupplier(''); setShowLowOnly(false); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
+          <button onClick={() => { setFilter(''); setFilterBrand(''); setFilterSupplier(''); setShowLowOnly(false); setFilterSohVal(''); setFilterAvailVal(''); setFilterCostVal(''); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
         )}
       </div>
 
