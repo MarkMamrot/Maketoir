@@ -4,6 +4,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { verifyManagerPin } from '@/lib/pos/managerPin';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { enrichPosSaleItemsWithCosts } from '@/lib/ims/posSaleCosts.server';
 
 // GET /api/ims/pos-sales/[id]
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
@@ -15,6 +16,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
   const data = await PosSalesRepo.get(id);
   if (!data) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
+  const items = await enrichPosSaleItemsWithCosts(data.items);
 
   const [loc] = await imsQuery<{ name: string | null }>('SELECT name FROM ims_locations WHERE id = ? LIMIT 1', [data.sale.location_id]);
   const [reg] = data.sale.register_id
@@ -25,6 +27,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     success: true,
     data: {
       ...data,
+      items,
       sale: {
         ...data.sale,
         location_name: loc?.name ?? null,

@@ -6,6 +6,7 @@ import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
 import { buildBarcodeLabelHtml, renderCode128Svg } from '@/lib/ims/barcodeLabelPrinter';
+import { summarizePosMargin } from '@/lib/ims/posSaleCosts';
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 import { MainSections } from './views/MainSections';
 import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports/SalesByBranchView';
@@ -11095,6 +11096,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const posSale = posViewModal.sale;
   const posItems = posViewModal.items || [];
   const posPayments = posViewModal.payments || [];
+  const posMargin = summarizePosMargin(posItems);
   const posIsReturn = posSale?.sale_type === 'return';
   const posSaleStatus = String(posSale?.status || '');
   const canVoidPosSale = !isAdvisor && (posSaleStatus === 'completed' || posSaleStatus === 'layby_complete');
@@ -11707,6 +11709,42 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                     </tr>
                   </tfoot>
                 </table>
+
+                <div style={{ marginTop: 12 }}>
+                  <CostSummaryPills items={[
+                    { label: 'Revenue (ex tax)', value: fmtCurrency(posMargin.revenueEx) },
+                    { label: 'COGS', value: posMargin.totalCogs != null ? fmtCurrency(posMargin.totalCogs) : '—', tone: posMargin.totalCogs != null ? 'default' : 'warn' },
+                    { label: 'Gross Margin', value: posMargin.marginPct != null ? `${posMargin.marginPct.toFixed(1)}%` : '—', tone: posMargin.marginPct != null ? (posMargin.marginPct >= 0 ? 'good' : 'bad') : 'warn' },
+                  ]} />
+                  <details style={{ border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '6px 10px', background: 'var(--sv-bg-1)' }}>
+                    <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--sv-text-dim)' }}>Cost and COGS line breakdown</summary>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8, fontSize: 11 }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                          <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>SKU</th>
+                          <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>Qty</th>
+                          <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>Avg Cost</th>
+                          <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>COGS</th>
+                          <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>Revenue (ex)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {posMargin.rows.map((row, idx) => (
+                          <tr key={idx} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                            <td style={{ padding: '4px 6px' }}>{(row.item as any).code || '—'}</td>
+                            <td style={{ padding: '4px 6px', textAlign: 'right' }}>{row.qty}</td>
+                            <td style={{ padding: '4px 6px', textAlign: 'right' }}>{row.unitCost != null ? fmtCurrency(row.unitCost) : '—'}</td>
+                            <td style={{ padding: '4px 6px', textAlign: 'right' }}>{row.cogs != null ? fmtCurrency(row.cogs) : '—'}</td>
+                            <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtCurrency(row.lineEx)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 6 }}>
+                      Cost uses the weighted average variant cost, falling back to the standard cost when an avg cost is not available.
+                    </div>
+                  </details>
+                </div>
 
                 <div style={{ marginTop: 20 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 8 }}>Payments</div>
@@ -12972,30 +13010,13 @@ function PosSalesLedgerView() {
                         </tfoot>
                       </table>
                       {(() => {
-                        const costRows = sale.items.map((item: any) => {
-                          const qty = Math.abs(Number(item.qty ?? 0));
-                          const avgCost = item.unit_cost != null
-                            ? Number(item.unit_cost)
-                            : item.avg_cost != null
-                              ? Number(item.avg_cost)
-                              : null;
-                          const cogs = avgCost != null ? qty * avgCost : null;
-                          const lineInc = Number(item.line_total || 0);
-                          const taxRatePct = Number(item.tax_rate ?? 10);
-                          const lineEx = taxRatePct > 0 ? lineInc / (1 + taxRatePct / 100) : lineInc;
-                          return { item, qty, avgCost, cogs, lineEx };
-                        });
-                        const hasCosts = costRows.some((r: any) => r.avgCost != null);
-                        const revenueEx = costRows.reduce((s: number, r: any) => s + r.lineEx, 0);
-                        const totalCogs = hasCosts ? costRows.reduce((s: number, r: any) => s + (r.cogs ?? 0), 0) : null;
-                        const grossProfit = totalCogs != null ? revenueEx - totalCogs : null;
-                        const marginPct = grossProfit != null && revenueEx > 0 ? (grossProfit / revenueEx) * 100 : null;
+                        const margin = summarizePosMargin(sale.items ?? []);
                         return (
                           <div style={{ marginTop: 10 }}>
                             <CostSummaryPills items={[
-                              { label: 'Revenue (ex tax)', value: fmtMoney(revenueEx) },
-                              { label: 'COGS', value: totalCogs != null ? fmtMoney(totalCogs) : '—', tone: totalCogs != null ? 'default' : 'warn' },
-                              { label: 'Gross Margin', value: marginPct != null ? `${marginPct.toFixed(1)}%` : '—', tone: marginPct != null ? (marginPct >= 0 ? 'good' : 'bad') : 'warn' },
+                              { label: 'Revenue (ex tax)', value: fmtMoney(margin.revenueEx) },
+                              { label: 'COGS', value: margin.totalCogs != null ? fmtMoney(margin.totalCogs) : '—', tone: margin.totalCogs != null ? 'default' : 'warn' },
+                              { label: 'Gross Margin', value: margin.marginPct != null ? `${margin.marginPct.toFixed(1)}%` : '—', tone: margin.marginPct != null ? (margin.marginPct >= 0 ? 'good' : 'bad') : 'warn' },
                             ]} />
                             <details style={{ border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '6px 10px', background: 'var(--sv-bg-1)' }}>
                               <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--sv-text-dim)' }}>Cost and COGS line breakdown</summary>
@@ -13010,11 +13031,11 @@ function PosSalesLedgerView() {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {costRows.map((r: any, idx: number) => (
+                                  {margin.rows.map((r: any, idx: number) => (
                                     <tr key={idx} style={{ borderTop: '1px solid var(--sv-etch)' }}>
                                       <td style={{ padding: '4px 6px' }}>{r.item.code || '—'}</td>
                                       <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.qty}</td>
-                                      <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.avgCost != null ? fmtMoney(r.avgCost) : '—'}</td>
+                                      <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.unitCost != null ? fmtMoney(r.unitCost) : '—'}</td>
                                       <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.cogs != null ? fmtMoney(r.cogs) : '—'}</td>
                                       <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(r.lineEx)}</td>
                                     </tr>

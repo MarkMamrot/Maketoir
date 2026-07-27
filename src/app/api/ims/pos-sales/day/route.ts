@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { enrichPosSaleItemsWithCosts } from '@/lib/ims/posSaleCosts.server';
 
 // GET /api/ims/pos-sales/day?date=YYYY-MM-DD&location_id=X
 // Returns all sales (with items) for a given day.
@@ -39,8 +40,10 @@ export async function GET(req: NextRequest) {
       saleIds,
     );
 
+    const enrichedItems = await enrichPosSaleItemsWithCosts(items);
+
     const itemsBySale = new Map<number, any[]>();
-    for (const item of items) {
+    for (const item of enrichedItems) {
       if (!itemsBySale.has(item.sale_id)) itemsBySale.set(item.sale_id, []);
       itemsBySale.get(item.sale_id)!.push(item);
     }
