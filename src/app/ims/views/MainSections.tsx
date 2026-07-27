@@ -27,6 +27,9 @@ interface MainSectionsProps {
   setPendingOpenPO: (id: number | null) => void;
   setPendingOpenSO: (id: number | null) => void;
   setCnPrefill: (v: any) => void;
+  onOpenPurchaseOrder?: (id: number) => void;
+  onOpenSalesOrder?: (id: number) => void;
+  onOpenPosSale?: (id: number) => void;
 
   DashboardView: any;
   ProductsView: any;
@@ -81,6 +84,9 @@ export function MainSections(props: MainSectionsProps) {
     setPendingOpenPO,
     setPendingOpenSO,
     setCnPrefill,
+    onOpenPurchaseOrder,
+    onOpenSalesOrder,
+    onOpenPosSale,
     DashboardView,
     ProductsView,
     StockView,
@@ -118,6 +124,9 @@ export function MainSections(props: MainSectionsProps) {
         <DashboardView
           onNav={setView}
           onOpenSettings={(s: any) => { setSettingsSection(s); setSettingsOpen(true); }}
+          onOpenPurchaseOrder={onOpenPurchaseOrder}
+          onOpenSalesOrder={onOpenSalesOrder}
+          onOpenPosSale={onOpenPosSale}
         />
       )}
       {view === 'contacts' && <ContactsView />}

@@ -566,7 +566,7 @@ const IMS_ONBOARDING_ACTIONS: Record<string, ImsOnboardingAction> = {
   pos_ready:        { type: 'settings', section: 'pos',              label: 'Review POS Setup' },
 };
 
-function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void; onOpenSettings?: (section: string) => void }) {
+function DashboardView({ onNav, onOpenSettings, onOpenPurchaseOrder, onOpenSalesOrder, onOpenPosSale }: { onNav: (v: ImsView) => void; onOpenSettings?: (section: string) => void; onOpenPurchaseOrder?: (id: number) => void; onOpenSalesOrder?: (id: number) => void; onOpenPosSale?: (id: number) => void }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(1);
@@ -932,9 +932,9 @@ function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void;
 
           {/* ── Sales by Channel ── */}
           <div style={{ marginTop: 24 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales by Channel</div>
-              <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales & Gross Profit by Channel</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {([1, 30, 120, 365] as const).map(d => (
                   <button key={d} onClick={() => setDays(d)}
                     style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, borderRadius: 6,
@@ -957,92 +957,108 @@ function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void;
               const CH_LABEL: Record<string, string> = { pos: 'POS', wholesale: 'Wholesale', online: 'Online' };
               const activeChannels = (['pos','wholesale','online'] as const).filter(ch => CD.some((d: any) => d.channel === ch));
               const locations = [...new Set(CD.map((d: any) => d.location_name as string))];
-              const getVal = (ch: string, loc: string) => Number(CD.find((d: any) => d.channel === ch && d.location_name === loc)?.total ?? 0);
+              const getSales = (ch: string, loc: string) => Number(CD.find((d: any) => d.channel === ch && d.location_name === loc)?.total ?? 0);
+              const getGp = (ch: string, loc: string) => Number(CD.find((d: any) => d.channel === ch && d.location_name === loc)?.gross_profit ?? 0);
               const getOrd = (ch: string, loc: string) => Number(CD.find((d: any) => d.channel === ch && d.location_name === loc)?.order_count ?? 0);
 
-              const rawMax = Math.max(...CD.map((d: any) => Number(d.total)));
+              const rawMax = Math.max(...CD.map((d: any) => Number(d.total)), 1);
+              const gpMax = Math.max(...CD.map((d: any) => Number(d.gross_profit ?? 0)), 1);
+              const yMax = Math.max(rawMax, gpMax, 1000);
               const niceMax = (v: number) => { if (v <= 0) return 1000; const m = Math.pow(10, Math.floor(Math.log10(v))); for (const x of [1,2,5,10]) { if (m*x >= v) return m*x; } return m*10; };
-              const yMax = niceMax(rawMax);
-              const yTicks = [0,1,2,3,4].map(i => Math.round((i/4) * yMax));
+              const yUpper = niceMax(yMax);
+              const yTicks = [0,1,2,3,4].map(i => Math.round((i/4) * yUpper));
 
-              const VW=700, VH=300, PL=72, PR=16, PT=20, PB=56;
+              const VW=760, VH=320, PL=76, PR=16, PT=20, PB=56;
               const plotW=VW-PL-PR, plotH=VH-PT-PB;
               const nLoc=locations.length, nCh=activeChannels.length;
               const groupW=plotW/nLoc;
-              const slotW=Math.min(44, Math.max(12, (groupW*0.78)/nCh));
-              const barW=Math.max(8, slotW-3);
-              const getLocChans=(loc:string) => activeChannels.filter(ch => getVal(ch,loc) > 0);
+              const slotW=Math.min(48, Math.max(12, (groupW*0.78)/nCh));
+              const barW=Math.max(8, slotW-4);
+              const getLocChans=(loc:string) => activeChannels.filter(ch => getSales(ch,loc) > 0 || getGp(ch,loc) > 0);
               const xBarLocal=(li:number, localCi:number, nLocalCh:number) => {
                 const offset=(groupW - slotW*nLocalCh)/2;
                 return PL + li*groupW + offset + localCi*slotW + 1.5;
               };
-              const yVal=(v:number) => PT + plotH - (v/yMax)*plotH;
-              const hVal=(v:number) => (v/yMax)*plotH;
+              const yVal=(v:number) => PT + plotH - (v/yUpper)*plotH;
+              const hVal=(v:number) => (v/yUpper)*plotH;
               const fmtY=(v:number) => v>=1000000?`$${(v/1000000).toFixed(1)}M`:v>=1000?`$${(v/1000).toFixed(0)}k`:`$${v}`;
               const trunc=(s:string,n=13) => s.length>n ? s.slice(0,n)+'…' : s;
 
               return (
                 <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px 8px' }}>
-                  <div style={{ display: 'flex', gap: 16, marginBottom: 8, justifyContent: 'flex-end' }}>
+                  <div style={{ display: 'flex', gap: 16, marginBottom: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                     {activeChannels.map(ch => (
                       <div key={ch} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--sv-text-dim)' }}>
                         <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: CH_COLOR[ch] }} />
                         {CH_LABEL[ch]}
                       </div>
                     ))}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--sv-text-dim)' }}>
+                      <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: '#34d399' }} />
+                      GP
+                    </div>
                   </div>
-                  <svg viewBox={`0 0 ${VW} ${VH}`} style={{ width: '100%', display: 'block', overflow: 'visible' }}>
-                    {yTicks.map(tick => {
-                      const y = yVal(tick);
-                      return (
-                        <g key={tick}>
-                          <line x1={PL} y1={y} x2={VW-PR} y2={y} stroke="currentColor" strokeOpacity="0.1" strokeDasharray={tick===0?undefined:'4,3'} />
-                          <text x={PL-7} y={y+4} textAnchor="end" fontSize="10" fill="currentColor" fillOpacity="0.4">{fmtY(tick)}</text>
-                        </g>
-                      );
-                    })}
-                    <line x1={PL} y1={PT+plotH} x2={VW-PR} y2={PT+plotH} stroke="currentColor" strokeOpacity="0.15" />
-                    {locations.map((loc, li) => {
-                      const locChans = getLocChans(loc);
-                      return (
-                        <g key={loc}>
-                          {locChans.map((ch, localCi) => {
-                            const v = getVal(ch, loc);
-                            const x=xBarLocal(li,localCi,locChans.length), y=yVal(v), h=hVal(v);
-                            return (
-                              <g key={ch}>
-                                <rect x={x} y={y} width={barW} height={h} fill={CH_COLOR[ch]} rx="3" opacity="0.85" />
-                                {h>24 && barW>14 && (
-                                  <text x={x+barW/2} y={y-5} textAnchor="middle" fontSize="9" fill="currentColor" fillOpacity="0.55">{fmtCurrency(v)}</text>
-                                )}
-                                <title>{`${CH_LABEL[ch]} — ${loc}\n${fmtCurrency(v)} · ${getOrd(ch,loc)} orders`}</title>
-                              </g>
-                            );
-                          })}
-                          <text x={PL+li*groupW+groupW/2} y={PT+plotH+18} textAnchor="middle" fontSize="11" fill="currentColor" fillOpacity="0.5">{trunc(loc)}</text>
-                        </g>
-                      );
-                    })}
-                  </svg>
+                  <div style={{ overflowX: 'auto' }}>
+                    <svg viewBox={`0 0 ${VW} ${VH}`} style={{ minWidth: 620, width: '100%', display: 'block', overflow: 'visible' }}>
+                      {yTicks.map(tick => {
+                        const y = yVal(tick);
+                        return (
+                          <g key={tick}>
+                            <line x1={PL} y1={y} x2={VW-PR} y2={y} stroke="currentColor" strokeOpacity="0.1" strokeDasharray={tick===0?undefined:'4,3'} />
+                            <text x={PL-7} y={y+4} textAnchor="end" fontSize="10" fill="currentColor" fillOpacity="0.4">{fmtY(tick)}</text>
+                          </g>
+                        );
+                      })}
+                      <line x1={PL} y1={PT+plotH} x2={VW-PR} y2={PT+plotH} stroke="currentColor" strokeOpacity="0.15" />
+                      {locations.map((loc, li) => {
+                        const locChans = getLocChans(loc);
+                        return (
+                          <g key={loc}>
+                            {locChans.map((ch, localCi) => {
+                              const salesV = getSales(ch, loc);
+                              const gpV = getGp(ch, loc);
+                              const x=xBarLocal(li,localCi,locChans.length);
+                              const salesY=yVal(salesV), salesH=hVal(salesV);
+                              const gpY=yVal(gpV), gpH=hVal(gpV);
+                              return (
+                                <g key={ch}>
+                                  <rect x={x} y={salesY} width={barW} height={salesH} fill={CH_COLOR[ch]} rx="3" opacity="0.85" />
+                                  <rect x={x + barW + 4} y={gpY} width={barW} height={gpH} fill="#34d399" rx="3" opacity="0.9" />
+                                  {salesH>24 && barW>14 && (
+                                    <text x={x+barW/2} y={salesY-5} textAnchor="middle" fontSize="9" fill="currentColor" fillOpacity="0.55">{fmtCurrency(salesV)}</text>
+                                  )}
+                                  {gpH>24 && barW>14 && (
+                                    <text x={x+barW+4+barW/2} y={gpY-5} textAnchor="middle" fontSize="9" fill="currentColor" fillOpacity="0.55">{fmtCurrency(gpV)}</text>
+                                  )}
+                                  <title>{`${CH_LABEL[ch]} — ${loc}\nSales ${fmtCurrency(salesV)}\nGross profit ${fmtCurrency(gpV)}\n${getOrd(ch,loc)} orders`}</title>
+                                </g>
+                              );
+                            })}
+                            <text x={PL+li*groupW+groupW/2} y={PT+plotH+18} textAnchor="middle" fontSize="11" fill="currentColor" fillOpacity="0.5">{trunc(loc)}</text>
+                          </g>
+                        );
+                      })}
+                    </svg>
+                  </div>
                 </div>
               );
             })()}
           </div>
 
           {/* ── Recent tables row: POs · SOs · POS Sales ── */}
-          <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 18, alignItems: 'start' }}>
+          <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.35fr)', gap: 18, alignItems: 'start' }}>
             <RecentTable title="Recent Purchase Orders" rows={data?.recentPOs ?? []} columns={[
               { key: 'po_number',     label: 'PO #'        },
               { key: 'supplier_name', label: 'Supplier'    },
               { key: 'status',        label: 'Status', render: (v: string) => <StatusBadge status={v} /> },
               { key: 'total_amount',  label: 'Total', render: (v: number) => fmtCurrency(v) },
-            ]} />
+            ]} onRowClick={(row: any) => row?.id && onOpenPurchaseOrder?.(row.id)} />
             <RecentTable title="Recent Sales Orders" rows={data?.recentSOs ?? []} columns={[
               { key: 'so_number',     label: 'SO #'        },
               { key: 'customer_name', label: 'Customer'    },
               { key: 'status',        label: 'Status', render: (v: string) => <StatusBadge status={v} /> },
               { key: 'total_amount',  label: 'Total', render: (v: number) => fmtCurrency(v) },
-            ]} />
+            ]} onRowClick={(row: any) => row?.id && onOpenSalesOrder?.(row.id)} />
             <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
               <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--sv-etch)', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Recent POS Sales</div>
               {salesLoading ? (
@@ -1050,26 +1066,28 @@ function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void;
               ) : !(salesData?.recentPOS?.length) ? (
                 <div style={{ padding: 20, color: 'var(--sv-text-dim)', fontSize: 13 }}>No POS sales yet.</div>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr>{['Time', 'Location', 'Cashier', 'Customer', 'Type', 'Total'].map(h => (
-                      <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: .8 }}>{h}</th>
-                    ))}</tr>
-                  </thead>
-                  <tbody>
-                    {(salesData.recentPOS as any[]).map((s: any, i: number) => (
-                      <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                        <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{new Date(s.created_at).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' })}</td>
-                        <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{s.location_name}</td>
-                        <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{s.cashier_name || '—'}</td>
-                        <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{s.customer_name || '—'}</td>
-                        <td style={{ padding: '8px 12px' }}><StatusBadge status={s.sale_type} /></td>
-                        <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 600, textAlign: 'right',
-                          color: s.sale_type === 'return' ? 'var(--sv-red)' : 'var(--sv-text-main)' }}>{fmtCurrency(Number(s.total))}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
+                    <thead>
+                      <tr>{['Time', 'Location', 'Cashier', 'Customer', 'Type', 'Total'].map(h => (
+                        <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: .8 }}>{h}</th>
+                      ))}</tr>
+                    </thead>
+                    <tbody>
+                      {(salesData.recentPOS as any[]).slice(0, 10).map((s: any, i: number) => (
+                        <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)', cursor: 'pointer' }} onClick={() => s?.id && onOpenPosSale?.(s.id)}>
+                          <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{new Date(s.created_at).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                          <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{s.location_name}</td>
+                          <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{s.cashier_name || '—'}</td>
+                          <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{s.customer_name || '—'}</td>
+                          <td style={{ padding: '8px 12px' }}><StatusBadge status={s.sale_type} /></td>
+                          <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 600, textAlign: 'right',
+                            color: s.sale_type === 'return' ? 'var(--sv-red)' : 'var(--sv-text-main)' }}>{fmtCurrency(Number(s.total))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>
@@ -1079,29 +1097,31 @@ function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void;
   );
 }
 
-function RecentTable({ title, rows, columns }: { title: string; rows: any[]; columns: { key: string; label: string; render?: (v: any) => React.ReactNode }[] }) {
+function RecentTable({ title, rows, columns, onRowClick }: { title: string; rows: any[]; columns: { key: string; label: string; render?: (v: any) => React.ReactNode }[]; onRowClick?: (row: any) => void }) {
   return (
     <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
       <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--sv-etch)', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{title}</div>
       {rows.length === 0 ? (
         <div style={{ padding: 20, color: 'var(--sv-text-dim)', fontSize: 13 }}>No records yet.</div>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr>{columns.map(c => <th key={c.key} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: .8 }}>{c.label}</th>)}</tr>
-          </thead>
-          <tbody>
-            {rows.map((row, i) => (
-              <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                {columns.map(c => (
-                  <td key={c.key} style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>
-                    {c.render ? c.render(row[c.key]) : (row[c.key] ?? '—')}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 320 }}>
+            <thead>
+              <tr>{columns.map(c => <th key={c.key} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: .8 }}>{c.label}</th>)}</tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)', cursor: onRowClick ? 'pointer' : 'default' }} onClick={() => onRowClick?.(row)}>
+                  {columns.map(c => (
+                    <td key={c.key} style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>
+                      {c.render ? c.render(row[c.key]) : (row[c.key] ?? '—')}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
@@ -17574,6 +17594,18 @@ export default function ImsPage() {
   const [pendingOpenPO, setPendingOpenPO] = useState<number | null>(null);
   const [pendingOpenSO, setPendingOpenSO] = useState<number | null>(null);
   const [cnPrefill, setCnPrefill] = useState<any>(null);
+  const openDashboardPurchaseOrder = useCallback((id: number) => {
+    setView('purchase-orders');
+    setPendingOpenPO(id);
+  }, []);
+  const openDashboardSalesOrder = useCallback((id: number) => {
+    setView('sales-orders');
+    setPendingOpenSO(id);
+  }, []);
+  const openDashboardPosSale = useCallback((id: number) => {
+    setView('pos-sales');
+    void id;
+  }, []);
 
   // ── Notifications ────────────────────────────────────────────────────────
   const [notifOpen, setNotifOpen]           = useState(false);
@@ -18110,6 +18142,9 @@ export default function ImsPage() {
             setPendingOpenPO={setPendingOpenPO}
             setPendingOpenSO={setPendingOpenSO}
             setCnPrefill={setCnPrefill}
+            onOpenPurchaseOrder={openDashboardPurchaseOrder}
+            onOpenSalesOrder={openDashboardSalesOrder}
+            onOpenPosSale={openDashboardPosSale}
             DashboardView={DashboardView}
             ProductsView={ProductsView}
             StockView={StockView}
@@ -21743,7 +21778,11 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   };
   useEffect(() => {
     const v = settings['advisor_xero_mapping_enabled'];
-    setXeroAdvisorEnabled(v === 'true' || v === '1' || v === true);
+    const value = typeof v === 'string' ? v.trim().toLowerCase() : '';
+    const enabled = typeof v === 'boolean'
+      ? v
+      : value === 'true' || value === '1';
+    setXeroAdvisorEnabled(enabled);
   }, [settings]);
   const saveXeroAdvisorAccess = async (enabled: boolean) => {
     setXeroAdvisorSaving(true);
@@ -21954,7 +21993,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
           <div style={{ padding: 32, maxWidth: 980 }}>
             <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero Settings</h2>
             <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-              Configure accounting defaults here. Day-to-day sync monitoring remains in Integrations -> Xero.
+              Configure accounting defaults here. Day-to-day sync monitoring remains in Integrations → Xero.
             </p>
 
             <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
@@ -22064,7 +22103,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
           <div style={{ padding: 32, maxWidth: 820 }}>
             <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Shopify Settings</h2>
             <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-              Configure fulfillment routing here. Day-to-day imports, reconciliation, and inventory sync controls stay in Integrations -> Shopify.
+              Configure fulfillment routing here. Day-to-day imports, reconciliation, and inventory sync controls stay in Integrations → Shopify.
             </p>
 
             <div style={{ marginBottom: 8 }}>
