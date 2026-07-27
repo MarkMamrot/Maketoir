@@ -15,6 +15,7 @@ import { query } from '@/services/MySQLService';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { syncOnlineDailySalesDay } from '@/lib/xero/onlineDailySalesSync';
+import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
 
 export const runtime = 'nodejs';
 
@@ -98,6 +99,21 @@ export async function POST(req: Request) {
         } catch (e: any) {
           results.push({ businessId: business_id, date: day, success: false, error: e?.message });
         }
+    }
+
+    const failedDays = results
+      .filter(r => r.businessId === business_id && !r.success && !!r.date)
+      .map(r => r.date);
+    if (failedDays.length > 0) {
+      await notifySyncFailure({
+        businessId: business_id,
+        source: 'xero_sync',
+        title: 'Xero Sync Failed — Nightly Online Auto-Sync',
+        message: `Nightly auto-sync could not post ${failedDays.length} online batch day${failedDays.length !== 1 ? 's' : ''}: ${failedDays.join(', ')}`,
+        detail: { failed_days: failedDays },
+        dedupeKey: `xero:auto-sync-cron:${failedDays.join('|')}`,
+        dedupeMinutes: 180,
+      }).catch(() => {});
     }
   };
 

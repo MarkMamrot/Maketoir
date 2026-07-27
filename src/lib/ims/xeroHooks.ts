@@ -8,6 +8,7 @@
 
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { ImsPORepo, ImsSORepo, ImsCNRepo, ImsSupplierCNRepo } from '@/lib/ims/ImsRepository';
+import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
 import { syncPOAsDraftBill, updateXeroDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOPayment, syncSOAsInvoice, updateXeroDraftInvoice, approveInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice, syncCNAsCreditNote, markCNXeroStatus, syncSupplierCNAsCreditNote, markSupplierCNXeroStatus, voidXeroCreditNote, voidXeroSupplierCreditNote, updateXeroDraftSupplierCreditNote } from '@/services/XeroSyncService';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
@@ -24,14 +25,49 @@ async function isXeroConnected(businessId: string): Promise<boolean> {
 async function withRetry<T>(
   fn: () => Promise<T | null>,
   onQueued: () => Promise<void>,
+  onFinalFailure?: (error: unknown) => Promise<void>,
 ): Promise<T | null> {
-  const first = await fn();
-  if (first !== null) return first;
-  await new Promise(r => setTimeout(r, 2000));
-  const second = await fn();
-  if (second !== null) return second;
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      const result = await fn();
+      if (result !== null) return result;
+      if (lastError == null) {
+        lastError = new Error('Sync returned no result');
+      }
+    } catch (error) {
+      lastError = error;
+    }
+
+    if (attempt < 2) {
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+
   await onQueued();
+  if (onFinalFailure) {
+    await onFinalFailure(lastError);
+  }
   return null;
+}
+
+async function notifyXeroFinalFailure(
+  businessId: string,
+  syncTypeLabel: string,
+  reference: string,
+  error: unknown,
+): Promise<void> {
+  const message = error instanceof Error ? error.message : String(error ?? 'Xero sync failed after retry');
+  await notifySyncFailure({
+    businessId,
+    source: 'xero_sync',
+    title: `Xero Sync Failed — ${syncTypeLabel}`,
+    message: `${reference} failed after retry. ${message}`,
+    detail: { sync_type: syncTypeLabel, reference, error: message },
+    dedupeKey: `xero:${syncTypeLabel}:${reference}`,
+    dedupeMinutes: 60,
+  }).catch(() => {});
 }
 
 /**
@@ -51,6 +87,7 @@ export async function triggerPOXeroSync(businessId: string, poId: number, newSta
     await withRetry(
       () => syncPOAsDraftBill(businessId, po as any),
       () => markPoXeroStatus(poId, 'queued'),
+      (error) => notifyXeroFinalFailure(businessId, 'PO Bill', `PO ${po.po_number}`, error),
     );
   } else if (newStatus === 'complete') {
     // Prefer the stored xero_bill_id, fall back to sync_log lookup
@@ -72,6 +109,7 @@ export async function triggerPOXeroSync(businessId: string, poId: number, newSta
       const xeroId = await withRetry(
         () => syncPOAsDraftBill(businessId, po as any),
         () => markPoXeroStatus(poId, 'queued'),
+        (error) => notifyXeroFinalFailure(businessId, 'PO Bill', `PO ${po.po_number}`, error),
       );
       if (xeroId) await approveBill(businessId, xeroId, poId);
     }
@@ -120,6 +158,7 @@ export async function triggerPOPaymentXeroSync(businessId: string, poId: number,
     xeroInvoiceId = await withRetry(
       () => syncPOAsDraftBill(businessId, po as any),
       () => markPoXeroStatus(poId, 'queued'),
+      (error) => notifyXeroFinalFailure(businessId, 'PO Bill', `PO ${po.po_number}`, error),
     );
   }
 
@@ -165,6 +204,7 @@ export async function triggerSOPaymentXeroSync(businessId: string, soId: number,
     xeroInvoiceId = await withRetry(
       () => syncSOAsInvoice(businessId, so as any),
       () => markSoXeroStatus(Number(soId), 'queued'),
+      (error) => notifyXeroFinalFailure(businessId, 'Sales Invoice', `SO ${so.so_number}`, error),
     );
   }
   if (!xeroInvoiceId) return;
@@ -186,6 +226,7 @@ export async function triggerSOXeroSync(businessId: string, soId: number, newSta
     await withRetry(
       () => syncSOAsInvoice(businessId, so as any),
       () => markSoXeroStatus(Number(soId), 'queued'),
+      (error) => notifyXeroFinalFailure(businessId, 'Sales Invoice', `SO ${so.so_number}`, error),
     );
   } else if (newStatus === 'fulfilled') {
     const so = await ImsSORepo.get(soId, businessId);
@@ -198,6 +239,7 @@ export async function triggerSOXeroSync(businessId: string, soId: number, newSta
       const xeroId = await withRetry(
         () => syncSOAsInvoice(businessId, so as any),
         () => markSoXeroStatus(Number(soId), 'queued'),
+        (error) => notifyXeroFinalFailure(businessId, 'Sales Invoice', `SO ${so.so_number}`, error),
       );
       if (xeroId) await approveInvoice(businessId, xeroId, Number(soId));
     }
@@ -352,6 +394,7 @@ export async function triggerCNXeroSync(businessId: string, cnId: number): Promi
       })),
     }),
     () => markCNXeroStatus(cnId, 'queued'),
+    (error) => notifyXeroFinalFailure(businessId, 'Credit Note', `CN ${cn.cn_number}`, error),
   );
 }
 /** Triggered when a supplier credit note is completed → post ACCPAY credit note. */
@@ -383,6 +426,7 @@ export async function triggerSupplierCNXeroSync(businessId: string, scnId: numbe
       })),
     }),
     () => markSupplierCNXeroStatus(scnId, 'queued'),
+    (error) => notifyXeroFinalFailure(businessId, 'Supplier Credit Note', `SCN ${scn.scn_number}`, error),
   );
 }
 

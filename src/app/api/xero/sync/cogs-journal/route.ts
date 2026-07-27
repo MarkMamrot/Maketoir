@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
+import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
 import { getLastCompletedCogsPeriod, getMonthlyCogsPeriod } from '@/lib/xero/cogsPeriods';
 import { postCogsPeriod } from '@/services/XeroCogsService';
 
@@ -39,12 +40,36 @@ export async function POST(req: Request) {
       databaseId,
       () => postCogsPeriod({ businessId: databaseId, period, overrideReason }),
     );
+    if (result.outcome === 'failed') {
+      await runImsForBusiness(databaseId, async () => {
+        await notifySyncFailure({
+          businessId: databaseId,
+          source: 'xero_sync',
+          title: 'Xero Sync Failed — COGS Journal',
+          message: `COGS journal failed for ${month}. ${result.error ?? 'Unknown error'}`,
+          detail: { month, outcome: result.outcome, error: result.error ?? null },
+          dedupeKey: `xero:cogs:${month}:failed`,
+          dedupeMinutes: 120,
+        }).catch(() => {});
+      }).catch(() => {});
+    }
     if (result.outcome === 'blocked') return NextResponse.json(result, { status: 422 });
     if (result.outcome === 'failed') return NextResponse.json(result, { status: 502 });
     if (result.outcome === 'unknown') return NextResponse.json(result, { status: 202 });
     return NextResponse.json(result);
   } catch (err: any) {
     console.error('[xero/sync/cogs-journal]', err?.message ?? err);
+    await runImsForBusiness(databaseId, async () => {
+      await notifySyncFailure({
+        businessId: databaseId,
+        source: 'xero_sync',
+        title: 'Xero Sync Failed — COGS Journal',
+        message: `COGS journal sync crashed for ${month}. ${err?.message ?? 'Unknown error'}`,
+        detail: { month, error: err?.message ?? String(err) },
+        dedupeKey: `xero:cogs:${month}:error`,
+        dedupeMinutes: 120,
+      }).catch(() => {});
+    }).catch(() => {});
     return NextResponse.json({ error: 'COGS journal sync failed.' }, { status: 500 });
   }
 }

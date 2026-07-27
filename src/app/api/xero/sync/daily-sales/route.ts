@@ -8,6 +8,8 @@
 import { NextResponse } from 'next/server';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 import { syncOnlineDailySalesDay } from '@/lib/xero/onlineDailySalesSync';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
 
 export async function POST(req: Request) {
   const { user, response } = requireAdminSession();
@@ -50,6 +52,20 @@ export async function POST(req: Request) {
       preflightImport = { attempted: true, success: false, error: String(e?.message ?? e) };
     }
 
+    if (preflightImport.attempted && !preflightImport.success) {
+      await runImsForBusiness(databaseId, async () => {
+        await notifySyncFailure({
+          businessId: databaseId,
+          source: 'shopify_sync',
+          title: 'Shopify Sync Failed — Order Import Preflight',
+          message: `Shopify import preflight failed before Xero online batch ${date}. ${preflightImport.error ?? 'Unknown error'}`,
+          detail: { date, channel, error: preflightImport.error ?? null },
+          dedupeKey: `shopify:preflight:${date}`,
+          dedupeMinutes: 120,
+        }).catch(() => {});
+      }).catch(() => {});
+    }
+
     const result = await syncOnlineDailySalesDay(databaseId, date);
     if (result.totalSales === 0) {
       return NextResponse.json({ success: false, message: 'No sales found for this date/channel.' });
@@ -63,6 +79,17 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error('[xero/daily-sales] error:', err?.message ?? err);
+    await runImsForBusiness(databaseId, async () => {
+      await notifySyncFailure({
+        businessId: databaseId,
+        source: 'xero_sync',
+        title: 'Xero Sync Failed — Online Daily Batch',
+        message: `Online daily sales batch ${date} failed. ${err?.message ?? 'Unknown error'}`,
+        detail: { date, channel, error: err?.message ?? String(err) },
+        dedupeKey: `xero:online-batch:${date}`,
+        dedupeMinutes: 60,
+      }).catch(() => {});
+    }).catch(() => {});
     return NextResponse.json({ error: `Daily sales sync failed: ${err?.message ?? 'unknown error'}` }, { status: 500 });
   }
 }

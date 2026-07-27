@@ -3,6 +3,7 @@ import { ImsVariantsRepo } from '@/lib/ims/ImsRepository';
 import { getShopifyForBusiness, shopifyVariantPricePayload } from '@/lib/ims/shopifyInventorySync';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { isShopifyFallbackVariant } from '@/lib/shopifyFallbackVariant';
+import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   const session = await getImsSession();
@@ -50,6 +51,19 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
             );
           } catch (e) {
             console.error('[variant PUT] Shopify sync failed:', e);
+            await notifySyncFailure({
+              businessId: String(session.businessId),
+              source: 'shopify_sync',
+              title: 'Shopify Sync Failed — Variant Update',
+              message: `Variant ${params.id} failed to push to Shopify. ${e instanceof Error ? e.message : String(e)}`,
+              detail: {
+                variant_id: params.id,
+                shopify_variant_id: variant.shopify_variant_id,
+                sku: variant.sku,
+              },
+              dedupeKey: `shopify:variant:${params.id}`,
+              dedupeMinutes: 60,
+            }).catch(() => {});
           }
         })();
       }
