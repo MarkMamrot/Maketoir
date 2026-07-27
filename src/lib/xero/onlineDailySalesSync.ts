@@ -1,4 +1,5 @@
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import {
   findOnlineGatewayClearingAccount,
   findOnlineGatewayMapping,
@@ -38,6 +39,12 @@ export async function syncOnlineDailySalesDay(
   date: string,
 ): Promise<OnlineDailySalesSyncResult> {
   return runImsForBusiness(businessId, async () => {
+    const timeZone = await getBusinessTimeZone(businessId);
+    const today = new Date().toLocaleDateString('sv-SE', { timeZone });
+    if (date >= today) {
+      throw new Error(`Online daily sales can only be synced for completed business days. ${date} is still open in ${timeZone}.`);
+    }
+
     const [totals, gatewayRows, orderRows, gatewayMappings] = await Promise.all([
       imsQuery<{ total_sales: string; total_tax: string; gift_card_amount: string; order_count: string }>(
         `SELECT COALESCE(SUM(total_amount), 0) AS total_sales,

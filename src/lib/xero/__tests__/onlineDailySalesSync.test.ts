@@ -6,12 +6,14 @@ const {
   mockQuery,
   mockSyncDailySalesBatch,
   mockSyncGiftCardLiabilityReclass,
+  mockGetBusinessTimeZone,
 } = vi.hoisted(() => ({
   mockRunImsForBusiness: vi.fn(),
   mockImsQuery: vi.fn(),
   mockQuery: vi.fn(),
   mockSyncDailySalesBatch: vi.fn(),
   mockSyncGiftCardLiabilityReclass: vi.fn(),
+  mockGetBusinessTimeZone: vi.fn(),
 }));
 
 vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mockRunImsForBusiness }));
@@ -20,6 +22,10 @@ vi.mock('@/services/MySQLService', () => ({ query: mockQuery }));
 vi.mock('@/services/XeroSyncService', () => ({
   syncDailySalesBatch: mockSyncDailySalesBatch,
   syncGiftCardLiabilityReclass: mockSyncGiftCardLiabilityReclass,
+}));
+
+vi.mock('@/lib/ims/businessTimeZone', () => ({
+  getBusinessTimeZone: mockGetBusinessTimeZone,
 }));
 
 import { calculateGatewayFee, syncOnlineDailySalesDay } from '../onlineDailySalesSync';
@@ -34,7 +40,10 @@ describe('calculateGatewayFee', () => {
 describe('syncOnlineDailySalesDay', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-27T02:00:00Z'));
     mockRunImsForBusiness.mockImplementation(async (_businessId: string, callback: () => Promise<unknown>) => callback());
+    mockGetBusinessTimeZone.mockResolvedValue('Australia/Sydney');
     mockQuery.mockResolvedValue([
       { gateway_name: 'shopify_payments', clearing_account_code: '091' },
       { gateway_name: 'paypal', clearing_account_code: '092' },
@@ -51,6 +60,10 @@ describe('syncOnlineDailySalesDay', () => {
       ]);
     mockSyncDailySalesBatch.mockResolvedValue('invoice-1');
     mockSyncGiftCardLiabilityReclass.mockResolvedValue('journal-1');
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('builds one canonical invoice with clearing and payout allocations', async () => {
@@ -79,6 +92,15 @@ describe('syncOnlineDailySalesDay', () => {
       businessId: 'biz-1', amount: 20, date: '2026-07-25', channel: 'online',
     }));
     expect(result).toMatchObject({ xeroId: 'invoice-1', totalSales: 165, totalTax: 15 });
+  });
+
+  it('rejects syncing the current business day before it closes', async () => {
+    await expect(syncOnlineDailySalesDay('biz-1', '2026-07-27')).rejects.toThrow(
+      'Online daily sales can only be synced for completed business days.',
+    );
+
+    expect(mockSyncDailySalesBatch).not.toHaveBeenCalled();
+    expect(mockSyncGiftCardLiabilityReclass).not.toHaveBeenCalled();
   });
 
   it('creates a separate gross payment for each PayPal order', async () => {
