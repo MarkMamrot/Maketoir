@@ -18779,11 +18779,12 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
   const updateLine = (i: number, k: string, v: any) =>
     setLineItems(p => p.map((item, j) => j === i ? { ...item, [k]: v } : item));
 
-  // Auto-fill unit_cost from variant avg_cost when variant selected
+  // Auto-fill unit_cost from variant org-wide avg_cost when variant selected.
   const selectVariant = (i: number, variant_id: string) => {
-    const v = variants.find((v: any) => v.variant_id === variant_id);
-    setLineItems(p => p.map((item, j) => j === i
-      ? { ...item, variant_id, unit_cost: v?.cost_aud ?? 0 }
+    const v = variants.find((row: any) => row.variant_id === variant_id);
+    const unitCost = Number(v?.avg_cost ?? v?.cost_aud ?? 0);
+    setLineItems(prev => prev.map((item, j) => j === i
+      ? { ...item, variant_id, unit_cost: unitCost }
       : item));
   };
 

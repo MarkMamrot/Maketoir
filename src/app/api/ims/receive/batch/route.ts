@@ -29,25 +29,6 @@ interface StockUpdate {
   reorder_qty?: number;
 }
 
-async function refreshVariantAvgCost(conn: any, variantId: string): Promise<void> {
-  try {
-    const [rows] = await conn.execute<any[]>(
-      `SELECT SUM(qty_on_hand * avg_cost) AS total_value, SUM(qty_on_hand) AS total_qty
-       FROM ims_stock
-       WHERE variant_id = ? AND qty_on_hand > 0`,
-      [variantId],
-    );
-    const agg = (rows as any[])[0] ?? {};
-    const totalQty = Number(agg.total_qty ?? 0);
-    if (totalQty > 0) {
-      const newAvg = Math.round((Number(agg.total_value ?? 0) / totalQty) * 10000) / 10000;
-      await conn.execute(`UPDATE ims_product_variants SET avg_cost = ? WHERE variant_id = ?`, [newAvg, variantId]);
-    }
-  } catch {
-    // Never block receive flow for variant-level rollup update.
-  }
-}
-
 export async function POST(req: Request) {
   const session = await getImsSession();
   if (!session) {
@@ -193,13 +174,22 @@ export async function POST(req: Request) {
         );
         poItem.qty_received = alreadyReceived + appliedQty;
 
+        // Read location qty for movement tracking; org-level state for avg calculation
         const [[currentStock]] = await conn.execute<any[]>(
-          `SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id = ? AND location_id = ?`,
+          `SELECT qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ?`,
           [variant_id, location_id]
+        );
+        const [[orgState]] = await conn.execute<any[]>(
+          `SELECT pv.avg_cost AS variant_avg, COALESCE(SUM(s.qty_on_hand), 0) AS total_org_qty
+           FROM ims_product_variants pv
+           LEFT JOIN ims_stock s ON s.variant_id = pv.variant_id
+           WHERE pv.variant_id = ?
+           GROUP BY pv.avg_cost`,
+          [variant_id]
         );
 
         const oldQty = currentStock?.qty_on_hand ?? 0;
-        const newQty = oldQty + appliedQty;
+        const newQty = Number(oldQty) + appliedQty;
 
         const receivedUnitCostAud = computeReceivedUnitCostAud({
           unitCost: Number(poItem.unit_cost ?? 0),
@@ -208,9 +198,10 @@ export async function POST(req: Request) {
           exchangeRate: effectiveRate,
           landedCostPerUnitAud: landedPerUnit.get(String(poItem.id)) ?? 0,
         });
-        const oldAvg = Number(currentStock?.avg_cost ?? receivedUnitCostAud);
+        const oldAvg = Number(orgState?.variant_avg ?? receivedUnitCostAud);
+        const oldOrgQty = Number(orgState?.total_org_qty ?? 0);
         const newAvg = computeWeightedAverageCost({
-          oldQtyOnHand: Number(oldQty),
+          oldQtyOnHand: oldOrgQty,
           oldAvgCost: oldAvg,
           receivedQty: appliedQty,
           receivedUnitCostAud,
@@ -223,17 +214,8 @@ export async function POST(req: Request) {
            VALUES (?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE
              business_id = VALUES(business_id),
-             qty_on_hand = qty_on_hand + VALUES(qty_on_hand),
-             avg_cost = ?`,
-          [variant_id, location_id, businessId, appliedQty, newAvg]
-        );
-
-        // If the row existed already, recalc avg_cost with weighted formula.
-        await conn.execute(
-          `UPDATE ims_stock
-           SET avg_cost = ?
-           WHERE variant_id = ? AND location_id = ?`,
-          [newAvg, variant_id, location_id],
+             qty_on_hand = qty_on_hand + VALUES(qty_on_hand)`,
+          [variant_id, location_id, businessId, appliedQty]
         );
 
         // Decrement qty_incoming by the amount now received
@@ -244,7 +226,15 @@ export async function POST(req: Request) {
           [appliedQty, variant_id, location_id]
         );
 
-        await refreshVariantAvgCost(conn, variant_id);
+        // Org-wide avg: write to variant + mirror to all location stock rows
+        await conn.execute(
+          `UPDATE ims_product_variants SET avg_cost = ? WHERE variant_id = ?`,
+          [newAvg, variant_id],
+        );
+        await conn.execute(
+          `UPDATE ims_stock SET avg_cost = ? WHERE variant_id = ?`,
+          [newAvg, variant_id],
+        );
 
         // Stock movement record
         await conn.execute(

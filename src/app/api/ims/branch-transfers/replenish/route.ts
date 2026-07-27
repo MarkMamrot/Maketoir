@@ -76,7 +76,7 @@ export async function POST(req: Request) {
        (s.qty_on_hand - COALESCE(s.qty_committed,0)) AS available,
        s.min_qty,
        s.reorder_qty,
-       s.avg_cost,
+       v.avg_cost,
        v.sku,
        p.brand AS brand_name,
        p.name AS product_name,

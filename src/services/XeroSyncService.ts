@@ -250,24 +250,22 @@ export async function syncStocktakeJournal(
   const items = await imsQuery<{
     variant_id: string; sku: string | null; product_name: string;
     expected_qty: string; counted_qty: string | null;
-    location_avg_cost: string | null; variant_avg_cost: string | null; cost_aud: string | null;
+    variant_avg_cost: string | null; cost_aud: string | null;
   }>(
     `SELECT si.variant_id,
             pv.sku,
             p.name AS product_name,
             si.expected_qty,
             si.counted_qty,
-            sk.avg_cost AS location_avg_cost,
             pv.avg_cost AS variant_avg_cost,
             pv.cost_aud
        FROM ims_stocktake_items si
        JOIN ims_stocktakes st ON st.id = si.stocktake_id
        LEFT JOIN ims_product_variants pv ON pv.variant_id = si.variant_id AND pv.business_id = st.business_id
        LEFT JOIN ims_products p ON p.product_id = pv.product_id AND p.business_id = st.business_id
-       LEFT JOIN ims_stock sk ON sk.variant_id = si.variant_id AND sk.location_id = ? AND sk.business_id = st.business_id
       WHERE si.stocktake_id = ? AND st.business_id = ?
         AND si.counted_qty IS NOT NULL`,
-    [st.location_id, stocktakeId, businessId],
+    [stocktakeId, businessId],
   );
 
   const tracking = getTrackingForLocation(trackingMappings, st.location_id);
@@ -283,10 +281,9 @@ export async function syncStocktakeJournal(
     const variance = counted - expected;
     if (Math.abs(variance) < 0.00001) continue; // zero variance — skip
 
-    const locationAvg = Number(item.location_avg_cost ?? 0);
     const variantAvg  = Number(item.variant_avg_cost ?? 0);
     const fallbackAud = Number(item.cost_aud ?? 0);
-    const avgCost     = locationAvg > 0 ? locationAvg : variantAvg > 0 ? variantAvg : fallbackAud > 0 ? fallbackAud : 0;
+    const avgCost     = variantAvg > 0 ? variantAvg : fallbackAud > 0 ? fallbackAud : 0;
     const absValue    = Math.abs(variance * avgCost);
     if (absValue < 0.00001) {
       skippedZeroValue += 1;

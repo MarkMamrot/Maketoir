@@ -85,21 +85,31 @@ function buildFakeConnection(state: {
       return [{ affectedRows: row ? 1 : 0 }];
     }
 
-    if (s.startsWith('select qty_on_hand, avg_cost from ims_stock where variant_id = ? and location_id = ?')) {
+    // Phase 2: org-level state query (variant avg + total org qty)
+    if (s.includes('from ims_product_variants pv') && s.includes('left join ims_stock s') && s.includes('total_org_qty')) {
+      const [variantId] = params;
+      let totalOrgQty = 0;
+      for (const row of state.stockByVariant.values()) {
+        if (row.variant_id === variantId) totalOrgQty += Number(row.qty_on_hand ?? 0);
+      }
+      return [[{ variant_avg: state.variantAvgById.get(String(variantId)) ?? 0, total_org_qty: totalOrgQty }]];
+    }
+
+    // Location qty only (avg_cost no longer read from ims_stock directly)
+    if (s.startsWith('select qty_on_hand from ims_stock where variant_id = ? and location_id = ?')) {
       const [variantId, locationId] = params;
       const key = `${variantId}|${locationId}`;
       const row = state.stockByVariant.get(key);
-      return [[row ? { qty_on_hand: row.qty_on_hand, avg_cost: row.avg_cost } : undefined]];
+      return [[row ? { qty_on_hand: row.qty_on_hand } : undefined]];
     }
 
     if (s.startsWith('insert into ims_stock (variant_id, location_id, business_id, qty_on_hand)')) {
-      const [variantId, locationId, businessId, qtyDelta, avgCost] = params;
+      const [variantId, locationId, businessId, qtyDelta] = params;
       const key = `${variantId}|${locationId}`;
       const current = state.stockByVariant.get(key);
       if (current) {
         current.business_id = businessId;
         current.qty_on_hand = Number(current.qty_on_hand) + Number(qtyDelta);
-        current.avg_cost = Number(avgCost);
       } else {
         state.stockByVariant.set(key, {
           variant_id: variantId,
@@ -107,18 +117,10 @@ function buildFakeConnection(state: {
           business_id: businessId,
           qty_on_hand: Number(qtyDelta),
           qty_incoming: 0,
-          avg_cost: Number(avgCost),
+          avg_cost: 0,
         });
       }
       return [{ affectedRows: 1 }];
-    }
-
-    if (s.startsWith('update ims_stock set avg_cost = ? where variant_id = ? and location_id = ?')) {
-      const [avgCost, variantId, locationId] = params;
-      const key = `${variantId}|${locationId}`;
-      const row = state.stockByVariant.get(key);
-      if (row) row.avg_cost = Number(avgCost);
-      return [{ affectedRows: row ? 1 : 0 }];
     }
 
     if (s.startsWith('update ims_stock set qty_incoming = greatest(0, qty_incoming - ?) where variant_id = ? and location_id = ?')) {
@@ -129,17 +131,13 @@ function buildFakeConnection(state: {
       return [{ affectedRows: row ? 1 : 0 }];
     }
 
-    if (s.includes('select sum(qty_on_hand * avg_cost) as total_value, sum(qty_on_hand) as total_qty from ims_stock')) {
-      const [variantId] = params;
-      let totalValue = 0;
-      let totalQty = 0;
+    // Org-wide avg mirror: update ALL stock rows for this variant
+    if (s.startsWith('update ims_stock set avg_cost = ? where variant_id = ?')) {
+      const [avgCost, variantId] = params;
       for (const row of state.stockByVariant.values()) {
-        if (row.variant_id === variantId && Number(row.qty_on_hand) > 0) {
-          totalValue += Number(row.qty_on_hand) * Number(row.avg_cost || 0);
-          totalQty += Number(row.qty_on_hand);
-        }
+        if (row.variant_id === variantId) row.avg_cost = Number(avgCost);
       }
-      return [[{ total_value: totalValue, total_qty: totalQty }]];
+      return [{ affectedRows: 1 }];
     }
 
     if (s.startsWith('update ims_product_variants set avg_cost = ? where variant_id = ?')) {
@@ -232,7 +230,7 @@ describe('POST /api/ims/receive/batch', () => {
       landedRows: [{ amount: 20 }],
       paymentAgg: { tot_foreign: 100, tot_local: 150 },
       movements: [] as Row[],
-      variantAvgById: new Map<string, number>(),
+      variantAvgById: new Map<string, number>([['v-1', 8]]),
     };
 
     mockGetConnection.mockResolvedValue(buildFakeConnection(state));
@@ -296,7 +294,7 @@ describe('POST /api/ims/receive/batch', () => {
       landedRows: [{ amount: 999 }],
       paymentAgg: { tot_foreign: 100, tot_local: 150 },
       movements: [] as Row[],
-      variantAvgById: new Map<string, number>(),
+      variantAvgById: new Map<string, number>([['v-2', 0]]),
     };
 
     mockGetConnection.mockResolvedValue(buildFakeConnection(state));

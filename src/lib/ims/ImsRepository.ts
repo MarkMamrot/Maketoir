@@ -41,28 +41,21 @@ async function ensureVariantAvgCost(): Promise<void> {
 }
 
 /**
- * After updating ims_stock.avg_cost for one location, recomputes the
- * business-wide weighted average across ALL locations and writes it to
- * ims_product_variants.avg_cost. Called inside a transaction conn.
- * Never throws — must never block a receive operation.
+ * Write a new org-wide average cost: primary to ims_product_variants,
+ * then mirrors the same value to ALL ims_stock rows for that variant
+ * (no location_id filter) so every location reflects the single org avg.
+ * Must be called inside an open transaction (conn). Never throws.
  */
-async function refreshVariantAvgCost(conn: any, variantId: string): Promise<void> {
+async function setOrgAvgCost(conn: any, variantId: string, newAvg: number): Promise<void> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result: any = await conn.execute(
-      `SELECT SUM(qty_on_hand * avg_cost) AS total_value, SUM(qty_on_hand) AS total_qty
-       FROM ims_stock WHERE variant_id = ? AND qty_on_hand > 0`,
-      [variantId]
+    await conn.execute(
+      `UPDATE ims_product_variants SET avg_cost = ? WHERE variant_id = ?`,
+      [newAvg, variantId],
     );
-    const agg = result[0][0];
-    const totalQty = Number(agg?.total_qty ?? 0);
-    if (totalQty > 0) {
-      const newAvg = Math.round((Number(agg.total_value) / totalQty) * 10000) / 10000;
-      await conn.execute(
-        `UPDATE ims_product_variants SET avg_cost = ? WHERE variant_id = ?`,
-        [newAvg, variantId]
-      );
-    }
+    await conn.execute(
+      `UPDATE ims_stock SET avg_cost = ? WHERE variant_id = ?`,
+      [newAvg, variantId],
+    );
   } catch { /* non-critical — must never block a receive */ }
 }
 
@@ -1347,8 +1340,16 @@ export const ImsPORepo = {
             [item.variant_id, po.location_id, po.business_id]
           );
           const [[s]] = await conn.execute<any[]>(
-            `SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id=? AND location_id=?`,
+            `SELECT qty_on_hand FROM ims_stock WHERE variant_id=? AND location_id=?`,
             [item.variant_id, po.location_id]
+          );
+          const [[orgState]] = await conn.execute<any[]>(
+            `SELECT pv.avg_cost AS variant_avg, COALESCE(SUM(st.qty_on_hand), 0) AS total_org_qty
+             FROM ims_product_variants pv
+             LEFT JOIN ims_stock st ON st.variant_id = pv.variant_id
+             WHERE pv.variant_id = ?
+             GROUP BY pv.avg_cost`,
+            [item.variant_id]
           );
 
           const old_soh   = Number(s?.qty_on_hand ?? 0);
@@ -1360,9 +1361,10 @@ export const ImsPORepo = {
             exchangeRate: effectiveRate,
             landedCostPerUnitAud: landedPerUnit.get(String(item.id)) ?? 0,
           });
-          const old_avg   = Number(s?.avg_cost ?? true_cost_aud);
+          const old_avg     = Number(orgState?.variant_avg ?? true_cost_aud);
+          const old_org_qty = Number(orgState?.total_org_qty ?? 0);
           const new_avg   = computeWeightedAverageCost({
-            oldQtyOnHand: old_soh,
+            oldQtyOnHand: old_org_qty,
             oldAvgCost: old_avg,
             receivedQty: qty_rcvd,
             receivedUnitCostAud: true_cost_aud,
@@ -1372,12 +1374,11 @@ export const ImsPORepo = {
           await conn.execute(
             `UPDATE ims_stock
              SET qty_on_hand  = ?,
-                 qty_incoming = GREATEST(0, qty_incoming - ?),
-                 avg_cost     = ?
+                 qty_incoming = GREATEST(0, qty_incoming - ?)
              WHERE variant_id=? AND location_id=?`,
-            [new_soh, qty_rcvd, new_avg, item.variant_id, po.location_id]
+            [new_soh, qty_rcvd, item.variant_id, po.location_id]
           );
-          if (item.variant_id !== null) await refreshVariantAvgCost(conn, item.variant_id); // keep variant-level avg in sync
+          if (item.variant_id !== null) await setOrgAvgCost(conn, item.variant_id, new_avg);
           await conn.execute(
             `UPDATE ims_purchase_order_items SET qty_received = qty_ordered WHERE id = ?`,
             [item.id]
@@ -1449,8 +1450,16 @@ export const ImsPORepo = {
             [item.variant_id, po.location_id, po.business_id]
           );
           const [[s]] = await conn.execute<any[]>(
-            `SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id=? AND location_id=?`,
+            `SELECT qty_on_hand FROM ims_stock WHERE variant_id=? AND location_id=?`,
             [item.variant_id, po.location_id]
+          );
+          const [[orgState2]] = await conn.execute<any[]>(
+            `SELECT pv.avg_cost AS variant_avg, COALESCE(SUM(st.qty_on_hand), 0) AS total_org_qty
+             FROM ims_product_variants pv
+             LEFT JOIN ims_stock st ON st.variant_id = pv.variant_id
+             WHERE pv.variant_id = ?
+             GROUP BY pv.avg_cost`,
+            [item.variant_id]
           );
 
           const old_soh       = Number(s?.qty_on_hand ?? 0);
@@ -1461,9 +1470,10 @@ export const ImsPORepo = {
             exchangeRate: effectiveRate,
             landedCostPerUnitAud: landedPerUnit.get(String(item.id)) ?? 0,
           });
-          const old_avg       = Number(s?.avg_cost ?? true_cost_aud);
+          const old_avg       = Number(orgState2?.variant_avg ?? true_cost_aud);
+          const old_org_qty2  = Number(orgState2?.total_org_qty ?? 0);
           const new_avg       = computeWeightedAverageCost({
-            oldQtyOnHand: old_soh,
+            oldQtyOnHand: old_org_qty2,
             oldAvgCost: old_avg,
             receivedQty: remaining,
             receivedUnitCostAud: true_cost_aud,
@@ -1473,12 +1483,11 @@ export const ImsPORepo = {
           await conn.execute(
             `UPDATE ims_stock
              SET qty_on_hand  = ?,
-                 qty_incoming = GREATEST(0, qty_incoming - ?),
-                 avg_cost     = ?
+                 qty_incoming = GREATEST(0, qty_incoming - ?)
              WHERE variant_id=? AND location_id=?`,
-            [new_soh, remaining, new_avg, item.variant_id, po.location_id]
+            [new_soh, remaining, item.variant_id, po.location_id]
           );
-          if (item.variant_id !== null) await refreshVariantAvgCost(conn, item.variant_id); // keep variant-level avg in sync
+          if (item.variant_id !== null) await setOrgAvgCost(conn, item.variant_id, new_avg);
           await conn.execute(
             `UPDATE ims_purchase_order_items SET qty_received = qty_ordered WHERE id = ?`,
             [item.id]
@@ -2133,7 +2142,10 @@ export const ImsSORepo = {
             [item.variant_id, so.location_id, so.business_id]
           );
           const [[s]] = await conn.execute<any[]>(
-            `SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id=? AND location_id=?`,
+            `SELECT s.qty_on_hand, COALESCE(pv.avg_cost, 0) AS avg_cost
+             FROM ims_stock s
+             JOIN ims_product_variants pv ON pv.variant_id = s.variant_id
+             WHERE s.variant_id = ? AND s.location_id = ?`,
             [item.variant_id, so.location_id]
           );
           const old_soh  = Number(s?.qty_on_hand ?? 0);
@@ -2625,14 +2637,13 @@ export const ImsStocktakeRepo = {
                 NULLIF(v.option2_value,''),
                 NULLIF(v.option3_value,'')
               ) AS variant_label,
-              COALESCE(NULLIF(sk.avg_cost, 0), NULLIF(v.avg_cost, 0), NULLIF(v.cost_aud, 0), 0) AS avg_cost
+              COALESCE(NULLIF(v.avg_cost, 0), NULLIF(v.cost_aud, 0), 0) AS avg_cost
        FROM ims_stocktake_items i
        JOIN ims_product_variants v ON v.variant_id = i.variant_id AND v.business_id = ?
        JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = ?
-       LEFT JOIN ims_stock sk ON sk.variant_id = i.variant_id AND sk.location_id = ? AND sk.business_id = ?
        WHERE i.stocktake_id = ?
        ORDER BY p.name, v.sku`,
-      [businessId, businessId, st.location_id, businessId, id]
+      [businessId, businessId, id]
     );
     return st;
   },
@@ -2970,8 +2981,8 @@ async function nextBTNumber(businessId: string): Promise<string> {
  * stock movements. `qty` is SIGNED relative to the transfer direction:
  *   qty > 0 → source → destination (a receipt / top-up)
  *   qty < 0 → destination → source (reverse an over-receipt or a deletion)
- * The gaining location's avg_cost is recomputed; the losing location's is left
- * unchanged (consistent with how stock leaves on a normal transfer out).
+ * Org-wide avg_cost is UNCHANGED by a transfer — total org qty and value are
+ * conserved. The current variant avg_cost is stamped on both movement records.
  * Must be called inside an open transaction (`conn`).
  */
 async function _btMove(
@@ -2984,10 +2995,16 @@ async function _btMove(
 ): Promise<void> {
   if (!qty) return;
   const variantId = item.variant_id;
-  const unitCost  = Number(item.unit_cost);
   const loseLoc   = qty > 0 ? bt.from_location_id : bt.to_location_id;
   const gainLoc   = qty > 0 ? bt.to_location_id   : bt.from_location_id;
   const mag       = Math.abs(qty);
+
+  // Org-wide avg doesn't change on a transfer; use current variant avg for movements.
+  const [[variantRow]] = await conn.execute(
+    `SELECT COALESCE(avg_cost, 0) AS avg_cost FROM ims_product_variants WHERE variant_id = ?`,
+    [variantId],
+  );
+  const orgAvgCost = Number(variantRow?.avg_cost ?? 0);
 
   // ── Losing location (stock leaves) ──
   await conn.execute(`INSERT IGNORE INTO ims_stock (business_id, variant_id, location_id, qty_on_hand) VALUES (?, ?, ?, 0)`, [businessId, variantId, loseLoc]);
@@ -2998,22 +3015,19 @@ async function _btMove(
     `INSERT INTO ims_stock_movements
        (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
      VALUES (?,?,?,'transfer_out','branch_transfer',?,?,?,?)`,
-    [businessId, variantId, loseLoc, refId, -mag, loseNew, unitCost]
+    [businessId, variantId, loseLoc, refId, -mag, loseNew, orgAvgCost]
   );
 
   // ── Gaining location (stock arrives) ──
   await conn.execute(`INSERT IGNORE INTO ims_stock (business_id, variant_id, location_id, qty_on_hand) VALUES (?, ?, ?, 0)`, [businessId, variantId, gainLoc]);
-  const [[gain]] = await conn.execute(`SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id=? AND location_id=? AND business_id=?`, [variantId, gainLoc, businessId]);
-  const gainSoh = Number(gain?.qty_on_hand ?? 0);
-  const gainAvg = Number(gain?.avg_cost ?? unitCost);
-  const newAvg  = gainSoh <= 0 ? unitCost : (gainAvg * gainSoh + unitCost * mag) / (gainSoh + mag);
-  const gainNew = gainSoh + mag;
-  await conn.execute(`UPDATE ims_stock SET qty_on_hand = ?, avg_cost = ? WHERE variant_id=? AND location_id=? AND business_id=?`, [gainNew, newAvg, variantId, gainLoc, businessId]);
+  const [[gain]] = await conn.execute(`SELECT qty_on_hand FROM ims_stock WHERE variant_id=? AND location_id=? AND business_id=?`, [variantId, gainLoc, businessId]);
+  const gainNew = Number(gain?.qty_on_hand ?? 0) + mag;
+  await conn.execute(`UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id=? AND location_id=? AND business_id=?`, [gainNew, variantId, gainLoc, businessId]);
   await conn.execute(
     `INSERT INTO ims_stock_movements
        (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
      VALUES (?,?,?,'transfer_in','branch_transfer',?,?,?,?)`,
-    [businessId, variantId, gainLoc, refId, mag, gainNew, newAvg]
+    [businessId, variantId, gainLoc, refId, mag, gainNew, orgAvgCost]
   );
 }
 
@@ -4443,7 +4457,10 @@ async function returnStockToSupplierTx(
       [item.variant_id, locationId],
     );
     const [rows] = await conn.execute(
-      `SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id = ? AND location_id = ?`,
+      `SELECT s.qty_on_hand, COALESCE(pv.avg_cost, 0) AS avg_cost
+       FROM ims_stock s
+       JOIN ims_product_variants pv ON pv.variant_id = s.variant_id
+       WHERE s.variant_id = ? AND s.location_id = ?`,
       [item.variant_id, locationId],
     );
     const s = (rows as any[])[0];
@@ -4453,7 +4470,6 @@ async function returnStockToSupplierTx(
       `UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id = ? AND location_id = ?`,
       [newSoh, item.variant_id, locationId],
     );
-    await refreshVariantAvgCost(conn, item.variant_id);
     await conn.execute(
       `INSERT INTO ims_stock_movements
          (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)

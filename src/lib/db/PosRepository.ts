@@ -322,11 +322,14 @@ export const PosSalesRepo = {
             if (!item.variant_id) continue;
             const qtyChange = -item.qty;
             const [stockRows]: any = await stockConn.execute(
-              `SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id = ? AND location_id = ? LIMIT 1`,
+              `SELECT s.qty_on_hand, COALESCE(pv.avg_cost, 0) AS avg_cost
+               FROM ims_stock s
+               JOIN ims_product_variants pv ON pv.variant_id = s.variant_id
+               WHERE s.variant_id = ? AND s.location_id = ? LIMIT 1`,
               [item.variant_id, data.location_id],
             );
-            const currentSoh = stockRows[0] ? Number(stockRows[0].qty_on_hand) : 0;
-            const avgCostAtTime = stockRows[0] ? Number(stockRows[0].avg_cost ?? 0) : 0;
+            const currentSoh = Number(stockRows[0]?.qty_on_hand ?? 0);
+            const avgCostAtTime = Number(stockRows[0]?.avg_cost ?? 0);
             const newSoh = currentSoh + qtyChange;
 
             if (stockRows[0]) {
@@ -461,11 +464,14 @@ export const PosSalesRepo = {
         // +qty, so reversing subtracts it back out.
         const qtyChange = sale.sale_type === 'return' ? -item.qty : item.qty;
         const [stockRows]: any = await stockConn.execute(
-          `SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id = ? AND location_id = ? LIMIT 1`,
+          `SELECT s.qty_on_hand, COALESCE(pv.avg_cost, 0) AS avg_cost
+           FROM ims_stock s
+           JOIN ims_product_variants pv ON pv.variant_id = s.variant_id
+           WHERE s.variant_id = ? AND s.location_id = ? LIMIT 1`,
           [item.variant_id, sale.location_id],
         );
-        const currentSoh = stockRows[0] ? Number(stockRows[0].qty_on_hand) : 0;
-        const avgCostAtTime = stockRows[0] ? Number(stockRows[0].avg_cost ?? 0) : 0;
+        const currentSoh = Number(stockRows[0]?.qty_on_hand ?? 0);
+        const avgCostAtTime = Number(stockRows[0]?.avg_cost ?? 0);
         const newSoh = currentSoh + qtyChange;
 
         if (stockRows[0]) {
@@ -623,11 +629,14 @@ export const PosSalesRepo = {
           const delta = (newMap.get(vid) ?? 0) - (oldMap.get(vid) ?? 0);
           if (!delta) continue;
           const [stockRows]: any = await stockConn.execute(
-            `SELECT qty_on_hand, avg_cost FROM ims_stock WHERE variant_id = ? AND location_id = ? LIMIT 1`,
+            `SELECT s.qty_on_hand, COALESCE(pv.avg_cost, 0) AS avg_cost
+             FROM ims_stock s
+             JOIN ims_product_variants pv ON pv.variant_id = s.variant_id
+             WHERE s.variant_id = ? AND s.location_id = ? LIMIT 1`,
             [vid, oldSale.location_id],
           );
-          const currentSoh = stockRows[0] ? Number(stockRows[0].qty_on_hand) : 0;
-          const avgCostAtTime = stockRows[0] ? Number(stockRows[0].avg_cost ?? 0) : 0;
+          const currentSoh = Number(stockRows[0]?.qty_on_hand ?? 0);
+          const avgCostAtTime = Number(stockRows[0]?.avg_cost ?? 0);
           const newSoh = currentSoh + delta;
 
           if (stockRows[0]) {
