@@ -19,11 +19,21 @@ type CogsRow = {
   cogs: number;
 };
 
+type ChannelRow = {
+  channel: ChannelName;
+  location_name: string;
+  total: number;
+  tax: number;
+  cogs: number;
+  gross_profit: number;
+  order_count: number;
+};
+
 function keyByChannelLocation(channel: string, locationName: string): string {
   return `${channel}::${locationName}`;
 }
 
-function buildChannelRowsWithGrossProfit(revenueRows: RevenueRow[], cogsRows: CogsRow[]) {
+function buildChannelRowsWithGrossProfit(revenueRows: RevenueRow[], cogsRows: CogsRow[]): ChannelRow[] {
   const cogsByKey = new Map<string, number>();
   for (const row of cogsRows) {
     cogsByKey.set(keyByChannelLocation(row.channel, row.location_name), Number(row.cogs ?? 0));
@@ -31,20 +41,26 @@ function buildChannelRowsWithGrossProfit(revenueRows: RevenueRow[], cogsRows: Co
 
   return revenueRows.map(row => {
     const cogs = cogsByKey.get(keyByChannelLocation(row.channel, row.location_name)) ?? 0;
+    const total = Number(row.total ?? 0);
+    const revenueEx = Number(row.revenue_ex ?? 0);
     return {
       channel: row.channel,
       location_name: row.location_name,
-      total: Number(row.total ?? 0),
-      gross_profit: Number(row.revenue_ex ?? 0) - Number(cogs),
+      total,
+      tax: total - revenueEx,
+      cogs: Number(cogs),
+      gross_profit: revenueEx - Number(cogs),
       order_count: Number(row.order_count ?? 0),
     };
   });
 }
 
-export function normaliseDashboardSalesRows<T extends { total?: unknown; gross_profit?: unknown; order_count?: unknown }>(rows: T[]): Array<Omit<T, 'total' | 'gross_profit' | 'order_count'> & { total: number; gross_profit: number; order_count: number }> {
+export function normaliseDashboardSalesRows<T extends { total?: unknown; tax?: unknown; cogs?: unknown; gross_profit?: unknown; order_count?: unknown }>(rows: T[]): Array<Omit<T, 'total' | 'tax' | 'cogs' | 'gross_profit' | 'order_count'> & { total: number; tax: number; cogs: number; gross_profit: number; order_count: number }> {
   return rows.map(row => ({
     ...row,
     total: Number(row.total ?? 0),
+    tax: Number(row.tax ?? 0),
+    cogs: Number(row.cogs ?? 0),
     gross_profit: Number(row.gross_profit ?? 0),
     order_count: Number(row.order_count ?? 0),
   }));
@@ -125,13 +141,19 @@ export async function GET(req: Request) {
   ]);
 
   const revenueRows = [...posRows, ...onlineRows, ...wholesaleRows];
-  let channelRows = revenueRows.map(row => ({
-    channel: row.channel,
-    location_name: row.location_name,
-    total: Number(row.total ?? 0),
-    gross_profit: Number(row.revenue_ex ?? 0),
-    order_count: Number(row.order_count ?? 0),
-  }));
+  let channelRows: ChannelRow[] = revenueRows.map(row => {
+    const total = Number(row.total ?? 0);
+    const revenueEx = Number(row.revenue_ex ?? 0);
+    return {
+      channel: row.channel,
+      location_name: row.location_name,
+      total,
+      tax: total - revenueEx,
+      cogs: 0,
+      gross_profit: revenueEx,
+      order_count: Number(row.order_count ?? 0),
+    };
+  });
 
   // COGS by channel/location from stock movements, aligned with dashboard period filters.
   // If this query fails, keep showing revenue rows so dashboard doesn't go blank.

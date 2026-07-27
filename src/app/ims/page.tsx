@@ -959,6 +959,8 @@ function DashboardView({ onNav, onOpenSettings, onOpenPurchaseOrder, onOpenSales
               const activeChannels = (['pos','wholesale','online'] as const).filter(ch => CD.some((d: any) => d.channel === ch));
               const locations = [...new Set(CD.map((d: any) => d.location_name as string))];
               const getSales = (ch: string, loc: string) => Number(CD.find((d: any) => d.channel === ch && d.location_name === loc)?.total ?? 0);
+              const getTax = (ch: string, loc: string) => Number(CD.find((d: any) => d.channel === ch && d.location_name === loc)?.tax ?? 0);
+              const getCogs = (ch: string, loc: string) => Number(CD.find((d: any) => d.channel === ch && d.location_name === loc)?.cogs ?? 0);
               const getGp = (ch: string, loc: string) => Number(CD.find((d: any) => d.channel === ch && d.location_name === loc)?.gross_profit ?? 0);
               const getOrd = (ch: string, loc: string) => Number(CD.find((d: any) => d.channel === ch && d.location_name === loc)?.order_count ?? 0);
 
@@ -1031,7 +1033,7 @@ function DashboardView({ onNav, onOpenSettings, onOpenPurchaseOrder, onOpenSales
                                   {gpH>24 && barW>14 && (
                                     <text x={x+barW+4+barW/2} y={gpY-5} textAnchor="middle" fontSize="9" fill="currentColor" fillOpacity="0.55">{fmtCurrency(gpV)}</text>
                                   )}
-                                  <title>{`${CH_LABEL[ch]} — ${loc}\nSales ${fmtCurrency(salesV)}\nGross profit ${fmtCurrency(gpV)}\n${getOrd(ch,loc)} orders`}</title>
+                                  <title>{`${CH_LABEL[ch]} — ${loc}\nSales ${fmtCurrency(salesV)}\nGross profit ${fmtCurrency(gpV)}\nTax deducted ${fmtCurrency(getTax(ch,loc))}\nCOGs deducted ${fmtCurrency(getCogs(ch,loc))}\n${getOrd(ch,loc)} orders`}</title>
                                 </g>
                               );
                             })}
@@ -1047,20 +1049,24 @@ function DashboardView({ onNav, onOpenSettings, onOpenPurchaseOrder, onOpenSales
           </div>
 
           {/* ── Recent tables row: POs · SOs · POS Sales ── */}
-          <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.35fr)', gap: 18, alignItems: 'start' }}>
-            <RecentTable title="Recent Purchase Orders" rows={data?.recentPOs ?? []} columns={[
+          <div style={{ marginTop: 24, display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'stretch' }}>
+            <div style={{ flex: '1 1 360px', minWidth: 'min(100%, 360px)' }}>
+              <RecentTable title="Recent Purchase Orders" rows={data?.recentPOs ?? []} columns={[
               { key: 'po_number',     label: 'PO #'        },
               { key: 'supplier_name', label: 'Supplier'    },
               { key: 'status',        label: 'Status', render: (v: string) => <StatusBadge status={v} /> },
               { key: 'total_amount',  label: 'Total', render: (v: number) => fmtCurrency(v) },
             ]} onRowClick={(row: any) => row?.id && onOpenPurchaseOrder?.(row.id)} />
-            <RecentTable title="Recent Sales Orders" rows={data?.recentSOs ?? []} columns={[
+            </div>
+            <div style={{ flex: '1 1 360px', minWidth: 'min(100%, 360px)' }}>
+              <RecentTable title="Recent Sales Orders" rows={data?.recentSOs ?? []} columns={[
               { key: 'so_number',     label: 'SO #'        },
               { key: 'customer_name', label: 'Customer'    },
               { key: 'status',        label: 'Status', render: (v: string) => <StatusBadge status={v} /> },
               { key: 'total_amount',  label: 'Total', render: (v: number) => fmtCurrency(v) },
             ]} onRowClick={(row: any) => row?.id && onOpenSalesOrder?.(row.id)} />
-            <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+            </div>
+            <div style={{ flex: '1.35 1 480px', minWidth: 'min(100%, 480px)', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
               <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--sv-etch)', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Recent POS Sales</div>
               {salesLoading ? (
                 <div style={{ padding: 20, textAlign: 'center' }}><Spinner /></div>
@@ -1068,7 +1074,7 @@ function DashboardView({ onNav, onOpenSettings, onOpenPurchaseOrder, onOpenSales
                 <div style={{ padding: 20, color: 'var(--sv-text-dim)', fontSize: 13 }}>No POS sales yet.</div>
               ) : (
                 <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr>{['Time', 'Location', 'Cashier', 'Customer', 'Type', 'Total'].map(h => (
                         <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: .8 }}>{h}</th>
@@ -1077,7 +1083,7 @@ function DashboardView({ onNav, onOpenSettings, onOpenPurchaseOrder, onOpenSales
                     <tbody>
                       {(salesData.recentPOS as any[]).slice(0, 10).map((s: any, i: number) => (
                         <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)', cursor: 'pointer' }} onClick={() => s?.id && onOpenPosSale?.(s.id)}>
-                          <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{new Date(s.created_at).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                          <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{new Date(s.created_at).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' })}</td>
                           <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{s.location_name}</td>
                           <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{s.cashier_name || '—'}</td>
                           <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{s.customer_name || '—'}</td>
@@ -1106,7 +1112,7 @@ function RecentTable({ title, rows, columns, onRowClick }: { title: string; rows
         <div style={{ padding: 20, color: 'var(--sv-text-dim)', fontSize: 13 }}>No records yet.</div>
       ) : (
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 320 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>{columns.map(c => <th key={c.key} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: .8 }}>{c.label}</th>)}</tr>
             </thead>
