@@ -6343,6 +6343,7 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
 function StockView() {
   const [stock, setStock] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [stockHistoryModal, setStockHistoryModal] = useState<{ productId: string; productName: string } | null>(null);
   const [filter, setFilter] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
   const [filterSupplier, setFilterSupplier] = useState('');
@@ -6522,7 +6523,29 @@ function StockView() {
                       <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.location_name}</td>
                       {showZoneBin && <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.zone || '—'}</td>}
                       {showZoneBin && <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.bin || '—'}</td>}
-                      <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'right', color: low ? 'var(--sv-red)' : 'inherit', fontWeight: low ? 700 : 400 }}>{fmtQty(s.qty_on_hand)}</td>
+                      <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'right', color: low ? 'var(--sv-red)' : 'inherit', fontWeight: low ? 700 : 400 }}>
+                        {s.product_id ? (
+                          <button
+                            onClick={() => setStockHistoryModal({ productId: String(s.product_id), productName: s.product_name || s.sku || 'Product' })}
+                            title="View stock history"
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              padding: 0,
+                              cursor: 'pointer',
+                              color: 'inherit',
+                              fontWeight: 'inherit',
+                              fontSize: 13,
+                              textDecoration: 'underline',
+                              textDecorationStyle: 'dotted',
+                            }}
+                          >
+                            {fmtQty(s.qty_on_hand)}
+                          </button>
+                        ) : (
+                          fmtQty(s.qty_on_hand)
+                        )}
+                      </td>
                       {(() => { const av = Number(s.qty_on_hand) - Number(s.qty_committed); return (
                         <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'right', fontWeight: 600, color: av <= 0 ? 'var(--sv-red)' : 'var(--sv-mint)' }}>{fmtQty(av)}</td>
                       ); })()}
@@ -6549,6 +6572,14 @@ function StockView() {
               <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>Next ›</button>
               <button onClick={() => setPage(totalPages)} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>»</button>
             </div>
+          )}
+
+          {stockHistoryModal && (
+            <StockHistoryModal
+              productId={stockHistoryModal.productId}
+              productName={stockHistoryModal.productName}
+              onClose={() => setStockHistoryModal(null)}
+            />
           )}
         </>
       )}
