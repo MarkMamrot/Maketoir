@@ -10,7 +10,6 @@ import { summarizePosMargin } from '@/lib/ims/posSaleCosts';
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 import { MainSections } from './views/MainSections';
 import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports/SalesByBranchView';
-import { SalesSearchView as SalesSearchViewComponent } from './views/reports/SalesSearchView';
 import {
   EMPTY_MULTI,
   MultiFilter,
@@ -32,7 +31,7 @@ type ImsView =
   | 'purchase-orders' | 'sales-orders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
-  | 'reports' | 'report-sales-by-branch' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
+  | 'reports' | 'report-sales-by-branch' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
   | 'xero' | 'shopify';
 
 interface User { name: string; email: string; company: string; businessId: string; tier?: string; hasForesight?: boolean }
@@ -14195,12 +14194,6 @@ const REPORT_CATALOG = [
     icon: '📊',
   },
   {
-    id: 'report-sales-search' as ImsView,
-    title: 'Sales Search',
-    description: 'Search all sales in any date range — type words from a product name or SKU. Totals per product across POS, online and wholesale.',
-    icon: '🔍',
-  },
-  {
     id: 'report-inventory-valuation' as ImsView,
     title: 'Inventory Valuation',
     description: 'The total financial value of all stock currently on hand based on average cost.',
@@ -14324,14 +14317,6 @@ function CashBankingReportView({ onBack }: { onBack: () => void }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function SalesByBranchView({ onBack }: { onBack: () => void }) {
   return <SalesByBranchViewComponent onBack={onBack} apiFetch={apiFetch} />;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Sales Search Report — all sales in a period, partial product-name search
-// ─────────────────────────────────────────────────────────────────────────────
-
-function SalesSearchView({ onBack }: { onBack: () => void }) {
-  return <SalesSearchViewComponent onBack={onBack} apiFetch={apiFetch} today={today} fmtCurrency={fmtCurrency} />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -17838,7 +17823,7 @@ export default function ImsPage() {
     'purchase-orders','sales-orders','credit-notes','supplier-credit-notes',
     'branch-transfers','smart-device-receive','order-planner','receive-transfers',
     'pos-sales','online-sales','stocktakes',
-    'reports','report-sales-by-branch','report-sales-search',
+    'reports','report-sales-by-branch',
     'report-inventory-valuation','report-product-margin',
     'report-pos-price-changes','report-pos-registers','report-cash-banking',
     'xero','shopify',
@@ -18321,7 +18306,6 @@ export default function ImsPage() {
             StocktakesView={StocktakesView}
             ReportsView={ReportsView}
             SalesByBranchView={SalesByBranchView}
-            SalesSearchView={SalesSearchView}
             InventoryValuationView={InventoryValuationView}
             ProductMarginView={ProductMarginView}
             PosPriceChangesView={PosPriceChangesView}
