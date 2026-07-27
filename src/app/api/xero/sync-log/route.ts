@@ -315,14 +315,28 @@ export async function GET(req: Request) {
       // Standalone sync events with no still-existing source document of their own
       // (POS end-of-day reconciliations, stocktake journals, gift-card postings). These are the actual
       // Xero pushes — surface them directly so their status / amount / Xero ID show.
+      //
+      // For stocktakes, only show the LATEST sync-log row per stocktake reference_id.
+      // This prevents stale failed attempts from showing after a later successful retry.
       eventLogs = await query<any>(
         `SELECT id, reference_id, sync_type, xero_id, status, xero_state, detail, created_at AS synced_at
            FROM xero_sync_log
           WHERE business_id = ?
-            AND sync_type IN ('eod_reconciliation','stocktake_journal','gift_card_issue','gift_card_liability','gift_card_redeem','store_credit_issue','store_credit_redeem')
+            AND (
+              (
+                sync_type = 'stocktake_journal'
+                AND id IN (
+                  SELECT MAX(id)
+                    FROM xero_sync_log
+                   WHERE business_id = ? AND sync_type = 'stocktake_journal'
+                   GROUP BY reference_id
+                )
+              )
+              OR sync_type IN ('eod_reconciliation','gift_card_issue','gift_card_liability','gift_card_redeem','store_credit_issue','store_credit_redeem')
+            )
           ORDER BY created_at DESC
           LIMIT ${limit}`,
-        [databaseId],
+        [databaseId, databaseId],
       );
     } catch (logErr: any) {
       // xero_sync_log table may not yet exist — return PO/SO list with null sync status
