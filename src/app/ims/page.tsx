@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
+import { buildBarcodeLabelHtml, renderCode128Svg } from '@/lib/ims/barcodeLabelPrinter';
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 import { MainSections } from './views/MainSections';
 import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports/SalesByBranchView';
@@ -3321,53 +3322,7 @@ function OnlineStoreSection({ productId, isOnline, onChangeIsOnline, isReadOnly 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Barcode Label Dialog — CODE128 SVG generator (no external fonts)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Generates a CODE128-B barcode as an inline SVG string.
- * Self-contained — no fonts, no CDN, identical output in preview and print.
- */
-function code128Svg(text: string, widthMm: number, heightMm: number): string {
-  // CODE128 pattern table (index = symbol value, last entry = STOP which has 7 elements)
-  const T = ['212222','222122','222221','121223','121322','131222','122213','122312','132212','221213','221312','231212','112232','122132','122231','113222','123122','123221','223211','221132','221231','213212','223112','312131','311222','321122','321221','312212','322112','322211','212123','212321','232121','111323','131123','131321','112313','132113','132311','211313','231113','231311','112133','112331','132131','113123','113321','133121','313121','211331','231131','213113','213311','213131','311123','311321','331121','312113','312311','332111','314111','221411','431111','111224','111422','121124','121421','141122','141221','112214','112412','122114','122411','142112','142211','241211','221114','413111','241112','134111','111242','121142','121241','114212','124112','124211','411212','421112','421211','212141','214121','412121','111143','111341','131141','114113','114311','411113','411311','113141','114131','311141','411131','211412','211214','211232','2331112'];
-  const codes: number[] = [104]; // START B
-  let check = 104, pos = 0;
-  for (let i = 0; i < text.length; i++) {
-    const v = text.charCodeAt(i) - 32;
-    if (v < 0 || v > 94) continue; // skip non-Code128B chars
-    pos++;
-    codes.push(v);
-    check += v * pos;
-  }
-  codes.push(check % 103); // check character
-  codes.push(106);          // STOP
-
-  // Decode widths: alternating dark/light, starting dark
-  const bars: Array<{ w: number; dark: boolean }> = [];
-  let totalModules = 0;
-  for (const code of codes) {
-    let dark = true;
-    for (const ch of T[code]) {
-      const w = parseInt(ch);
-      bars.push({ w, dark });
-      totalModules += w;
-      dark = !dark;
-    }
-  }
-
-  // Quiet zones (10 modules each side per spec)
-  const qz = 10;
-  const scale = widthMm / (totalModules + qz * 2);
-  let x = qz * scale;
-  let rects = '';
-  for (const { w, dark } of bars) {
-    const bw = w * scale;
-    if (dark) rects += `<rect x="${x.toFixed(3)}" y="0" width="${bw.toFixed(3)}" height="${heightMm}" fill="#000"/>`;
-    x += bw;
-  }
-  return `<svg viewBox="0 0 ${widthMm} ${heightMm}" width="100%" height="100%" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><rect width="${widthMm}" height="${heightMm}" fill="white"/>${rects}</svg>`;
-}
+// Barcode Label Dialog — print labels with shared SVG barcode renderer
 // ─────────────────────────────────────────────────────────────────────────────
 
 const LABEL_SIZES = [
@@ -3543,97 +3498,26 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
   const variant  = variants[selectedVariantIdx] ?? variants[0];
   const size     = LABEL_SIZES[settings.sizeIdx];
 
-  const fmtPrice = (p: any) =>
-    p != null && !isNaN(Number(p)) ? `$${Number(p).toFixed(2)}` : '';
-
   const printLabels = () => {
-    const s = size;
-    const hasBarcode   = settings.showBarcode && !!variant?.barcode;
-    const showBottomRow = (settings.showBrand && !!product.brand) || (settings.showSku && !!variant?.sku);
-    const showTopRow    = (settings.showName && !!product.name) || settings.priceMode !== 'none';
+    const html = buildBarcodeLabelHtml({
+      size,
+      productName: product.name,
+      brand: product.brand,
+      variant: {
+        barcode: variant?.barcode,
+        sku: variant?.sku,
+        price_rrp: variant?.price_rrp,
+        price_rrp_sale: variant?.price_rrp_sale,
+      },
+      qty: settings.qty,
+      showName: settings.showName,
+      showBarcode: settings.showBarcode,
+      showBrand: settings.showBrand,
+      showSku: settings.showSku,
+      priceMode: settings.priceMode,
+    });
 
-    // Proportional height budget (mm)
-    const padV   = 1.0;
-    const padH   = 1.5;
-    const topH   = showTopRow    ? s.h * 0.30 : 0;
-    const botH   = showBottomRow ? s.h * 0.23 : 0;
-    const bcH    = Math.max(4, s.h - 2 * padV - topH - botH);
-
-    const namePt    = Math.max(4, Math.round(topH * 2.835 * 0.50));
-    const pricePt   = Math.max(5, Math.round(topH * 2.835 * 0.80));
-    // Fill available barcode height exactly; JS scaleX will handle width.
-    const barcodePt = Math.max(8, Math.round(bcH  * 2.835));
-    const bottomPt  = Math.max(4, Math.round(botH * 2.835 * 0.68));
-
-    const name  = settings.showName  ? (product.name  ?? '') : '';
-    const brand = settings.showBrand ? (product.brand ?? '') : '';
-    const sku   = settings.showSku   ? (variant?.sku  ?? '') : '';
-    const rrp   = fmtPrice(variant?.price_rrp);
-    const sale  = fmtPrice(variant?.price_rrp_sale);
-
-    const priceSpan = (() => {
-      if (settings.priceMode === 'none') return '';
-      if (settings.priceMode === 'rrp')  return rrp  ? `<span class="price">${rrp}</span>` : '';
-      if (settings.priceMode === 'sale') {
-        if (sale) return `${rrp ? `<span class="rrp-strike">${rrp}</span>` : ''}<span class="price">${sale}</span>`;
-        return rrp ? `<span class="price">${rrp}</span>` : '';
-      }
-      return '';
-    })();
-
-    // Barcode SVG — generated inline, no external fonts or CDN needed
-    const barcodeSvg = hasBarcode ? code128Svg(variant.barcode, s.w - 2 * padH, bcH) : '';
-
-    const singleLabel = `<div class="label">
-  ${showTopRow ? `<div class="top-row">
-    <span class="pname">${name}</span>
-    <span class="price-group">${priceSpan}</span>
-  </div>` : ''}
-  ${hasBarcode ? `<div class="bc-wrap">${barcodeSvg}</div>` : ''}
-  ${showBottomRow ? `<div class="bottom-row">
-    ${brand ? `<span class="brand">${brand}</span>` : '<span></span>'}
-    ${sku   ? `<span class="sku">${sku}</span>`     : ''}
-  </div>` : ''}
-</div>`;
-
-    const labelsHtml = Array.from({ length: settings.qty }).map(() => singleLabel).join('');
-
-    const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    @page { size: ${s.w}mm ${s.h}mm; margin: 0; }
-    body { width: ${s.w}mm; font-family: Arial, Helvetica, sans-serif; }
-    .label {
-      width: ${s.w}mm; height: ${s.h}mm;
-      display: flex; flex-direction: column;
-      padding: ${padV}mm ${padH}mm;
-      overflow: hidden; page-break-after: always;
-    }
-    .top-row {
-      display: flex; align-items: baseline;
-      justify-content: space-between; gap: 1mm;
-      flex-shrink: 0; width: 100%; height: ${topH}mm;
-    }
-    .pname  { font-size: ${namePt}pt; font-weight: 700; flex: 1 1 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.2; }
-    .price-group { display: flex; align-items: baseline; gap: 1px; flex-shrink: 0; white-space: nowrap; }
-    .price       { font-size: ${pricePt}pt; font-weight: 700; }
-    .rrp-strike  { font-size: ${Math.max(4, pricePt - 2)}pt; text-decoration: line-through; color: #888; margin-right: 0.5mm; }
-    .bc-wrap  { flex: 1 1 0; min-height: 0; display: flex; align-items: flex-start; width: 100%; overflow: hidden; }
-    .bc-wrap svg { display: block; width: 100%; height: 100%; }
-    .bottom-row { display: flex; align-items: baseline; justify-content: space-between; gap: 1mm; flex-shrink: 0; width: 100%; height: ${botH}mm; }
-    .brand { font-size: ${bottomPt}pt; color: #555; flex: 1 1 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .sku   { font-size: ${bottomPt}pt; color: #333; flex-shrink: 0; white-space: nowrap; letter-spacing: .3px; }
-  </style>
-</head>
-<body onload="window.print(); window.close();">
-  ${labelsHtml}
-</body>
-</html>`;
-
-    const win = window.open('', '_blank', `width=${s.w * 4},height=${s.h * 4 * settings.qty + 80}`);
+    const win = window.open('', '_blank', `width=${size.w * 4},height=${size.h * 4 * settings.qty + 80}`);
     if (!win) { alert('Please allow pop-ups to print labels.'); return; }
     win.document.open(); win.document.write(html); win.document.close();
   };
@@ -3670,7 +3554,6 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" />
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 14, padding: 28, width: 700, maxWidth: '95vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--sv-text-strong)', flex: 1 }}>Print Barcode Labels</h2>
@@ -3736,8 +3619,6 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
               overflow: 'hidden',
               boxShadow: '0 2px 8px rgba(0,0,0,.18)',
             }}>
-              <style>{`@import url('https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap');`}</style>
-
               {/* Top row: name (left) | price (right) */}
               {showTopRow && (
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: toScPx(1), flexShrink: 0, height: toScPx(topH), overflow: 'hidden' }}>
@@ -3756,7 +3637,7 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
               {/* Barcode: flex-grow, fills remaining space */}
               {settings.showBarcode && variant?.barcode && (
                 <div style={{ flex: '1 1 0', minHeight: 0, overflow: 'hidden', width: '100%' }}
-                  dangerouslySetInnerHTML={{ __html: code128Svg(variant.barcode, size.w - 2 * padH_mm, bcH) }}
+                  dangerouslySetInnerHTML={{ __html: renderCode128Svg(String(variant.barcode), size.w - 2 * padH_mm, bcH) }}
                 />
               )}
 
