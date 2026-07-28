@@ -56,6 +56,9 @@ describe('executeShopifyPayoutActions', () => {
     deps = dependencies();
     deps.mainQuery.mockResolvedValue([invoiceAction, feeAction]);
     deps.xeroFetch.mockImplementation(async (_businessId: string, path: string, options?: any) => {
+      if (path.startsWith('/Accounts?where=')) {
+        return { Accounts: [{ Code: '091', Type: 'BANK', EnablePaymentsToAccount: true, Name: 'Shopify Clearing' }] };
+      }
       if (path === '/Invoices/inv-1') return { Invoices: [{ InvoiceID: 'inv-1', AmountDue: 100 }] };
       if (path === '/Payments') return { Payments: [{ PaymentID: 'payment-1' }] };
       if (path === '/BankTransactions') return { BankTransactions: [{ BankTransactionID: 'bank-1' }] };
@@ -68,12 +71,13 @@ describe('executeShopifyPayoutActions', () => {
 
     expect(result).toEqual({ status: 'reconciled', completedActionIds: [1, 2] });
     expect(deps.xeroFetch.mock.calls.map(([, path]) => path)).toEqual([
+      expect.stringContaining('/Accounts?where='),
       '/Invoices/inv-1',
       '/Payments',
       '/BankTransactions',
     ]);
-    const paymentOptions = deps.xeroFetch.mock.calls[1][2];
-    const bankOptions = deps.xeroFetch.mock.calls[2][2];
+    const paymentOptions = deps.xeroFetch.mock.calls[2][2];
+    const bankOptions = deps.xeroFetch.mock.calls[3][2];
     expect(paymentOptions.idempotencyKey).toMatch(/^[a-f0-9]{64}$/);
     expect(bankOptions.idempotencyKey).toMatch(/^[a-f0-9]{64}$/);
     expect(bankOptions.body.BankTransactions[0]).toMatchObject({
@@ -84,13 +88,19 @@ describe('executeShopifyPayoutActions', () => {
   });
 
   it('blocks every post when a planned payment exceeds live AmountDue', async () => {
-    deps.xeroFetch.mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'inv-1', AmountDue: 90 }] });
+    deps.xeroFetch.mockImplementation(async (_businessId: string, path: string) => {
+      if (path.startsWith('/Accounts?where=')) {
+        return { Accounts: [{ Code: '091', Type: 'BANK', EnablePaymentsToAccount: true, Name: 'Shopify Clearing' }] };
+      }
+      if (path === '/Invoices/inv-1') return { Invoices: [{ InvoiceID: 'inv-1', AmountDue: 90 }] };
+      throw new Error(`Unexpected Xero path ${path}`);
+    });
 
     const result = await executeShopifyPayoutActions('biz-1', 'pay-1', deps);
 
     expect(result).toMatchObject({ status: 'blocked', completedActionIds: [] });
     expect(result.error).toContain('below planned payment 100.00');
-    expect(deps.xeroFetch).toHaveBeenCalledTimes(1);
+    expect(deps.xeroFetch).toHaveBeenCalledTimes(2);
     expect(deps.mainExecute.mock.calls.some(([sql]) => String(sql).includes("status = 'posting'"))).toBe(false);
   });
 
@@ -100,7 +110,10 @@ describe('executeShopifyPayoutActions', () => {
     const result = await executeShopifyPayoutActions('biz-1', 'pay-1', deps);
 
     expect(result).toEqual({ status: 'reconciled', completedActionIds: [1, 2] });
-    expect(deps.xeroFetch.mock.calls.map(([, path]) => path)).toEqual(['/BankTransactions']);
+    expect(deps.xeroFetch.mock.calls.map(([, path]) => path)).toEqual([
+      expect.stringContaining('/Accounts?where='),
+      '/BankTransactions',
+    ]);
   });
 
   it('blocks aggregate refunds that exceed one credit note remaining balance', async () => {
@@ -115,13 +128,19 @@ describe('executeShopifyPayoutActions', () => {
       { ...refundAction, id: 3, action_key: 'refund-1' },
       { ...refundAction, id: 4, action_key: 'refund-2' },
     ]);
-    deps.xeroFetch.mockResolvedValueOnce({ CreditNotes: [{ CreditNoteID: 'cn-1', RemainingCredit: 100 }] });
+    deps.xeroFetch.mockImplementation(async (_businessId: string, path: string) => {
+      if (path.startsWith('/Accounts?where=')) {
+        return { Accounts: [{ Code: '091', Type: 'BANK', EnablePaymentsToAccount: true, Name: 'Shopify Clearing' }] };
+      }
+      if (path === '/CreditNotes/cn-1') return { CreditNotes: [{ CreditNoteID: 'cn-1', RemainingCredit: 100 }] };
+      throw new Error(`Unexpected Xero path ${path}`);
+    });
 
     const result = await executeShopifyPayoutActions('biz-1', 'pay-1', deps);
 
     expect(result).toMatchObject({ status: 'blocked' });
     expect(result.error).toContain('below planned refund 120.00');
-    expect(deps.xeroFetch).toHaveBeenCalledTimes(1);
+    expect(deps.xeroFetch).toHaveBeenCalledTimes(2);
   });
 
   it('posts fee reversals as clearing receives', async () => {
@@ -129,6 +148,21 @@ describe('executeShopifyPayoutActions', () => {
 
     await executeShopifyPayoutActions('biz-1', 'pay-1', deps);
 
-    expect(deps.xeroFetch.mock.calls[0][2].body.BankTransactions[0].Type).toBe('RECEIVE');
+    expect(deps.xeroFetch.mock.calls[1][2].body.BankTransactions[0].Type).toBe('RECEIVE');
+  });
+
+  it('blocks when clearing account cannot accept payments', async () => {
+    deps.xeroFetch.mockImplementation(async (_businessId: string, path: string, _options?: any) => {
+      if (path.startsWith('/Accounts?where=')) {
+        return { Accounts: [{ Code: '091', Type: 'CURRENT', EnablePaymentsToAccount: false, Name: 'Shopify Clearing Asset' }] };
+      }
+      throw new Error(`Unexpected Xero path ${path}`);
+    });
+
+    const result = await executeShopifyPayoutActions('biz-1', 'pay-1', deps);
+
+    expect(result.status).toBe('blocked');
+    expect(result.error).toContain('cannot accept payments');
+    expect(deps.mainExecute.mock.calls.some(([sql]) => String(sql).includes("status = 'posting'"))).toBe(false);
   });
 });

@@ -15760,7 +15760,7 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
   const [methodError, setMethodError] = useState<string | null>(null);
 
   const bid = getBusinessId();
-  const bankAccounts = accounts.filter((a: any) => a.type === 'BANK' || a.class === 'ASSET');
+  const bankAccounts = accounts.filter((a: any) => a.type === 'BANK' || a.enablePaymentsToAccount === true);
   const expenseAccounts = accounts.filter((a: any) => a.class === 'EXPENSE');
   const normalizedFormGateway = newForm.gateway_name.trim().toLowerCase().replace(/[\s-]+/g, '_');
   const supportsCalculatedFees = !normalizedFormGateway.includes('shopify_payment') && !normalizedFormGateway.includes('paypal');
@@ -16130,6 +16130,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
   const [pushAll, setPushAll] = useState(false);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [filterXeroState, setFilterXeroState] = useState('');
+  const [payoutErrorText, setPayoutErrorText] = useState<string | null>(null);
 
   const loadCogsReport = async () => {
     setCogsLoading(true);
@@ -16221,6 +16222,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
   const processShopifyPayout = async (payoutId: string, action: 'plan' | 'execute', key: string, amount: number | null) => {
     if (action === 'execute' && !confirm(`Post the planned Xero actions for Shopify payout ${payoutId}${amount != null ? ` (${fmtMoney(amount)})` : ''}?`)) return;
     setRetrying(r => ({ ...r, [key]: true }));
+    setPayoutErrorText(null);
     try {
       const res = await fetch(`/api/xero/shopify-payouts/${encodeURIComponent(payoutId)}?databaseId=${encodeURIComponent(getBusinessId())}`, {
         method: 'POST',
@@ -16231,10 +16233,28 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
       if (!res.ok) throw new Error(data.error || `Payout ${action} failed`);
       await loadData();
     } catch (e: any) {
-      alert(e.message);
+      setPayoutErrorText(e?.message || `Payout ${action} failed`);
       await loadData();
     } finally {
       setRetrying(r => ({ ...r, [key]: false }));
+    }
+  };
+
+  const copyPayoutErrorText = async () => {
+    if (!payoutErrorText) return;
+    try {
+      await navigator.clipboard.writeText(payoutErrorText);
+    } catch {
+      // Fallback for older browser permission models.
+      const textArea = document.createElement('textarea');
+      textArea.value = payoutErrorText;
+      textArea.setAttribute('readonly', 'true');
+      textArea.style.position = 'absolute';
+      textArea.style.left = '-9999px';
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
     }
   };
 
@@ -16391,6 +16411,35 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
 
   return (
     <div style={{ maxWidth: 1400, display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {payoutErrorText && (
+        <div style={{ padding: '14px 16px', borderRadius: 10, border: '1px solid rgba(248,113,113,.35)', background: 'rgba(248,113,113,.08)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#f87171' }}>Shopify payout post failed</span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                type="button"
+                onClick={copyPayoutErrorText}
+                style={{ background: 'transparent', border: '1px solid rgba(248,113,113,.35)', borderRadius: 5, cursor: 'pointer', padding: '3px 10px', fontSize: 12, color: '#fda4af' }}
+              >
+                Copy
+              </button>
+              <button
+                type="button"
+                onClick={() => setPayoutErrorText(null)}
+                style={{ background: 'transparent', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: 'pointer', padding: '3px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+          <textarea
+            readOnly
+            value={payoutErrorText}
+            style={{ width: '100%', minHeight: 96, resize: 'vertical', borderRadius: 8, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', padding: 10, fontSize: 12, lineHeight: 1.5, whiteSpace: 'pre' }}
+          />
+        </div>
+      )}
 
       {/* ── Queued panel ── */}
       {queued.length > 0 && (

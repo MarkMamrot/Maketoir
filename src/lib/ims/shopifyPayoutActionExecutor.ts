@@ -71,6 +71,29 @@ async function preflightActions(
     }
   }
 
+  const clearingAccountCodes = Array.from(new Set(actions
+    .map(action => String(action.account_code ?? '').trim())
+    .filter(Boolean)));
+  for (const accountCode of clearingAccountCodes) {
+    const where = encodeURIComponent(`Code==\"${accountCode}\"`);
+    const response = await deps.xeroFetch(businessId, `/Accounts?where=${where}`);
+    const account = Array.isArray(response?.Accounts)
+      ? response.Accounts.find((candidate: any) => String(candidate?.Code ?? '').trim() === accountCode) ?? response.Accounts[0]
+      : null;
+    if (!account) {
+      throw new Error(`Xero clearing account ${accountCode} was not found`);
+    }
+    const accountType = String(account?.Type ?? '').toUpperCase();
+    const canAcceptPayments = accountType === 'BANK' || account?.EnablePaymentsToAccount === true;
+    if (!canAcceptPayments) {
+      const accountName = String(account?.Name ?? accountCode);
+      throw new Error(
+        `Xero clearing account ${accountCode} (${accountName}) cannot accept payments. `
+        + 'Choose a BANK or payments-enabled clearing account in Xero gateway mappings.',
+      );
+    }
+  }
+
   const invoiceTotals = new Map<string, number>();
   const creditNoteTotals = new Map<string, number>();
   for (const action of actions) {
