@@ -9026,6 +9026,10 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const [recordType, setRecordType] = useState<'credit_notes' | 'pos_returns'>('credit_notes');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'manual' | 'shopify'>('all');
+  const [filterCustomer, setFilterCustomer] = useState('');
+  const [filterReference, setFilterReference] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [viewModal, setViewModal] = useState<{ open: boolean; cn: any | null }>({ open: false, cn: null });
   const [customers, setCustomers] = useState<any[]>([]);
@@ -9276,10 +9280,20 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
   const filtered = cns.filter(cn => {
     if (recordType === 'credit_notes' && cn.source === 'pos') return false;
     if (recordType === 'pos_returns' && cn.source !== 'pos') return false;
+    if (recordType === 'credit_notes' && sourceFilter !== 'all' && cn.source !== sourceFilter) return false;
     if (statusFilter && cn.status !== statusFilter) return false;
+    if (filterCustomer && !String(cn.customer_name ?? '').toLowerCase().includes(filterCustomer.trim().toLowerCase())) return false;
+    if (filterReference) {
+      const needle = filterReference.trim().toLowerCase();
+      const searchable = [cn.cn_number, cn.reference, cn.original_so_number, cn.pos_sale_id].filter(Boolean).join(' ').toLowerCase();
+      if (!searchable.includes(needle)) return false;
+    }
     if (!inDateRange(cn.cn_date, dateRange)) return false;
     return true;
   });
+  const customerOptions = [...new Set(cns.map((cn: any) => cn.customer_name).filter(Boolean))].sort() as string[];
+  const dateFilterActive = dateRange.kind !== 'window' || dateRange.window !== 90;
+  const creditNoteFiltersActive = recordType !== 'credit_notes' || sourceFilter !== 'all' || statusFilter !== '' || dateFilterActive || !!filterCustomer.trim() || !!filterReference.trim();
 
   const statusBadge = (status: string) => {
     const map: Record<string, { label: string; color: string; bg: string }> = {
@@ -9313,19 +9327,80 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
           : 'Completing a manual credit note adds its value to the customer\'s read-only store-credit balance. Shopify credits are settled by Shopify. Every balance change is recorded in the customer store-credit ledger.'}
       </p>
 
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
-          <button onClick={() => setRecordType('credit_notes')} style={{ ...btnStyle(recordType === 'credit_notes' ? 'action' : 'ghost'), border: 'none', borderRadius: 0, fontSize: 12, padding: '4px 12px' }}>Credit Notes</button>
-          <button onClick={() => setRecordType('pos_returns')} style={{ ...btnStyle(recordType === 'pos_returns' ? 'action' : 'ghost'), border: 'none', borderRadius: 0, fontSize: 12, padding: '4px 12px' }}>POS Returns</button>
-        </div>
-        {(['', 'draft', 'complete'] as const).map(s => (
-          <button key={s} onClick={() => setStatusFilter(s)}
-            style={{ ...btnStyle(statusFilter === s ? 'action' : 'ghost'), fontSize: 12, padding: '4px 12px' }}>
-            {s === '' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
-          </button>
-        ))}
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+        <input
+          list="cn-customer-filter-list"
+          placeholder="Filter by customer…"
+          value={filterCustomer}
+          onChange={e => setFilterCustomer(e.target.value)}
+          style={{ ...inputStyle, minWidth: 180, flex: '1 1 180px' }}
+        />
+        <datalist id="cn-customer-filter-list">
+          {customerOptions.map(customer => <option key={customer} value={customer} />)}
+        </datalist>
+        <input
+          placeholder="Filter by CN / reference…"
+          value={filterReference}
+          onChange={e => setFilterReference(e.target.value)}
+          style={{ ...inputStyle, minWidth: 220, flex: '1 1 220px' }}
+        />
         <SBDatePicker value={dateRange} onChange={setDateRange} />
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setFiltersOpen(open => !open)}
+            style={{
+              ...btnStyle('secondary', 'sm'),
+              ...(creditNoteFiltersActive
+                ? { background: 'color-mix(in srgb, var(--sv-action) 12%, var(--sv-bg-2))', borderColor: 'var(--sv-action)', color: 'var(--sv-action)' }
+                : {}),
+            }}
+          >
+            Filters ▾{creditNoteFiltersActive ? ' ●' : ''}
+          </button>
+          {filtersOpen && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setFiltersOpen(false)} />
+              <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 100, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px', marginTop: 4, minWidth: 280, boxShadow: '0 6px 20px rgba(0,0,0,0.14)' }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 12 }}>Filters</p>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Record Type</label>
+                  <select value={recordType} onChange={e => setRecordType(e.target.value as 'credit_notes' | 'pos_returns')} style={{ ...inputStyle, width: '100%' }}>
+                    <option value="credit_notes">Customer Credit Notes</option>
+                    <option value="pos_returns">POS Returns / Exchanges</option>
+                  </select>
+                </div>
+                {recordType === 'credit_notes' && (
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Source</label>
+                    <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value as 'all' | 'manual' | 'shopify')} style={{ ...inputStyle, width: '100%' }}>
+                      <option value="all">All Sources</option>
+                      <option value="manual">Manual / IMS</option>
+                      <option value="shopify">Shopify</option>
+                    </select>
+                  </div>
+                )}
+                <div style={{ marginBottom: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Status</label>
+                  <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ ...inputStyle, width: '100%' }}>
+                    <option value="">All</option>
+                    <option value="draft">Draft</option>
+                    <option value="awaiting_product">Awaiting product</option>
+                    <option value="complete">Complete</option>
+                  </select>
+                </div>
+                <div style={{ marginTop: 10, fontSize: 11, color: 'var(--sv-text-dim)' }}>
+                  <div>Type: <strong style={{ color: 'var(--sv-text-main)' }}>{recordType === 'pos_returns' ? 'POS Returns / Exchanges' : 'Customer Credit Notes'}</strong></div>
+                  {recordType === 'credit_notes' && <div>Source: <strong style={{ color: 'var(--sv-text-main)' }}>{sourceFilter === 'all' ? 'All Sources' : sourceFilter === 'manual' ? 'Manual / IMS' : 'Shopify'}</strong></div>}
+                  <div>Status: <strong style={{ color: 'var(--sv-text-main)', textTransform: 'capitalize' }}>{statusFilter ? statusFilter.replace('_', ' ') : 'All'}</strong></div>
+                  <div>Date: <strong style={{ color: 'var(--sv-text-main)' }}>{dateRange.label}</strong></div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+        {creditNoteFiltersActive && (
+          <button onClick={() => { setRecordType('credit_notes'); setSourceFilter('all'); setStatusFilter(''); setFilterCustomer(''); setFilterReference(''); setDateRange(DEFAULT_DATE_RANGE); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
+        )}
       </div>
 
       {/* Table */}
@@ -23242,7 +23317,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
     if (active === 'sales-orders') return (
       <div style={{ padding: 32, maxWidth: 760 }}>
         <h2 style={h2}>Sales Orders</h2>
-        <p style={p}>Sales Orders track wholesale invoices issued to customers. POS and online sales are tracked separately and batched to Xero daily rather than per-transaction.</p>
+        <p style={p}>Sales Orders track wholesale invoices issued to customers. POS and online sales still appear as individual IMS records and can be opened in their detail modals, but they are batched to Xero daily rather than synced one transaction at a time.</p>
         <h3 style={h3}>Status lifecycle</h3>
         <ul style={ul}>
           <li><strong>Draft</strong> — Created, not yet finalised. No Xero action.</li>
@@ -23253,9 +23328,11 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <h3 style={h3}>Wholesale vs. POS vs. Online</h3>
         <ul style={ul}>
           <li><strong>Wholesale SOs</strong> — Individual invoices; each confirmation triggers a Xero invoice sync immediately.</li>
-          <li><strong>POS sales</strong> — In-store POS transactions; grouped by location and day, batched to Xero as a single summary invoice. Not individually synced.</li>
-          <li><strong>Online sales</strong> — Shopify/e-commerce orders; grouped by day across all locations, batched as a single Xero invoice. Not individually synced.</li>
+          <li><strong>POS sales</strong> — Each sale remains visible and opens normally in IMS. For Xero, the daily location batch syncs as one summary invoice; the individual POS sale does not sync.</li>
+          <li><strong>Online sales</strong> — Each Shopify/e-commerce order remains visible and opens normally in IMS. For Xero, the combined daily online batch syncs as one invoice; the individual online order does not sync.</li>
         </ul>
+        <h3 style={h3}>Credit notes and returns</h3>
+        <p style={p}>Manual customer credit notes created in IMS sync individually to Xero. POS returns and exchanges still create an internal credit note that you can open from IMS, but that record does not sync as a separate Xero credit note. Its financial effect is included in the POS end-of-day batch, so syncing it separately would count the return twice.</p>
         <h3 style={h3}>Payments</h3>
         <p style={p}>Payments recorded against a SO are synced to Xero as Payment records attached to the corresponding invoice, updating the balance outstanding in both systems.</p>
       </div>
@@ -23267,7 +23344,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <h2 style={h2}>Point of Sale</h2>
         <p style={p}>The IMS POS records in-store transactions per location. Sales data flows into IMS stock and is summarised into Xero daily invoices.</p>
         <h3 style={h3}>Daily Xero batch</h3>
-        <p style={p}>POS sales are not individually synced to Xero. Instead, a single <em>summary invoice</em> is created in Xero per location per day. This keeps your Xero ledger clean while maintaining full transaction detail in IMS.</p>
+        <p style={p}>Every POS sale, return, and exchange remains visible as an individual IMS record and can be opened in its modal. Those individual records do not sync to Xero. Instead, the <strong>daily POS batch</strong> is what syncs: one summary invoice per location per day, including the net effect of POS returns and exchanges.</p>
         <ul style={ul}>
           <li>Reference format: <span style={code}>POS-YYYY-MM-DD-L{'{locationId}'}</span></li>
           <li>Description: <em>"POS Sales 2026-06-16 — Store 1 (42 transactions)"</em></li>
@@ -23343,7 +23420,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           { trigger: 'SO reverted or cancelled',      object: 'Invoice (ACCREC)',     status: 'VOIDED',       notes: 'Voided automatically if no payments applied; warning shown if payments exist (manual action required)' },
           { trigger: 'Payment added to SO',           object: 'Payment',              status: 'Applied',      notes: 'Applied to the Xero invoice' },
           { trigger: 'Daily batch (manual/scheduled)',object: 'Invoice (ACCREC)',     status: 'AUTHORISED',   notes: 'One invoice per location per day for POS; one per day for online. If gateway clearing accounts are configured, one invoice per (day × gateway) with payment into clearing account.' },
-          { trigger: 'Manual customer credit note completed', object: 'Credit Note (ACCREC)', status: 'AUTHORISED', notes: 'Manual IMS credit notes sync individually. POS-sourced credit notes remain part of the POS EOD flow so the return is not reversed twice.' },
+          { trigger: 'Manual customer credit note completed', object: 'Credit Note (ACCREC)', status: 'AUTHORISED', notes: 'Manual IMS credit notes sync individually. POS returns remain visible as internal credit notes, but the POS daily batch is what syncs their financial effect to Xero.' },
           { trigger: 'Supplier credit note completed', object: 'Credit Note (ACCPAY)', status: 'DRAFT',        notes: 'Completed supplier credit notes queue immediate async sync; outcome appears in Sync History and can be retried if failed.' },
           { trigger: 'COGS (scheduled or manual)',     object: 'Manual Journal',       status: 'Posted',       notes: 'DR Cost of Goods Sold / CR Inventory Asset with reconciliation and adjustment support' },
         ]} />
@@ -23521,6 +23598,14 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
       <div style={{ padding: 32, maxWidth: 760 }}>
         <h2 style={h2}>Sync &amp; Import</h2>
         <p style={p}>IMS can import historical and ongoing data from Cin7 Core and Shopify. Syncs are initiated manually from the Settings → Sync &amp; Import panel.</p>
+        <h3 style={h3}>What syncs to Xero: individual records vs batches</h3>
+        <p style={p}><strong>For POS and online sales, the batch is the record that syncs to Xero.</strong> The individual sales orders, POS sales, credit notes, returns, and exchanges remain visible in IMS and still open in their normal detail modals, but they are not sent to Xero one by one.</p>
+        <ul style={ul}>
+          <li><strong>POS sales, returns, and exchanges</strong> — The daily batch for each location syncs to Xero as one summary invoice. An internal POS credit note records the returned items and remains viewable in IMS, but it does not sync as a separate Xero credit note.</li>
+          <li><strong>Online sales orders</strong> — The combined daily online batch syncs to Xero as one invoice. Individual online orders remain viewable in IMS but do not sync separately.</li>
+          <li><strong>Wholesale sales orders</strong> — These are not batched. Each wholesale SO syncs its own Xero invoice through the normal status workflow.</li>
+          <li><strong>Manual customer credit notes</strong> — These are not batched. A completed manual IMS credit note syncs individually to Xero.</li>
+        </ul>
         <h3 style={h3}>Cin7 Core import</h3>
         <ul style={ul}>
           <li><strong>Products</strong> — Imports full product and variant catalog from Cin7. Existing IMS products with matching SKUs are updated; new SKUs are created.</li>
