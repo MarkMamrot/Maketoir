@@ -1,6 +1,7 @@
 export type ShopifyPayoutTransactionKind =
   | 'charge'
   | 'refund'
+  | 'settlement'
   | 'adjustment';
 
 export interface ShopifyPayoutTransactionInput {
@@ -39,6 +40,7 @@ export interface ShopifyPayoutReconciliation {
 
 const CHARGE_TYPES = new Set(['charge', 'payment']);
 const REFUND_TYPES = new Set(['refund']);
+const SETTLEMENT_TYPES = new Set(['payout']);
 
 function toCents(value: number | string): number {
   const parsed = typeof value === 'number' ? value : Number(value);
@@ -54,6 +56,7 @@ export function classifyShopifyPayoutTransaction(type: string): ShopifyPayoutTra
   const normalized = type.trim().toLowerCase();
   if (CHARGE_TYPES.has(normalized)) return 'charge';
   if (REFUND_TYPES.has(normalized)) return 'refund';
+  if (SETTLEMENT_TYPES.has(normalized)) return 'settlement';
   return 'adjustment';
 }
 
@@ -88,6 +91,12 @@ export function reconcileShopifyPayout(input: {
     const transactionFeeCents = toCents(transaction.fee);
     const netCents = toCents(transaction.net);
     const kind = classifyShopifyPayoutTransaction(transaction.type);
+
+    // Shopify returns a synthetic payout settlement row that mirrors the payout amount.
+    // It is a transfer marker, not an economic transaction, so it must not affect net math.
+    if (kind === 'settlement') {
+      continue;
+    }
 
     transactionNetCents += netCents;
     feeCents += Math.abs(transactionFeeCents);
