@@ -170,19 +170,20 @@ export async function GET(req: Request) {
                     ELSE -sm.qty_change * sm.unit_cost
                   END) AS cogs
          FROM ims_stock_movements sm
+         JOIN ims_locations l
+           ON l.id = sm.location_id
+          AND l.business_id = ?
          LEFT JOIN pos_sales ps
            ON sm.movement_type = 'pos_sale'
           AND sm.reference_type = 'pos_sale'
           AND ps.id = sm.reference_id
-          AND ps.business_id = sm.business_id
+          AND ps.business_id = ?
          LEFT JOIN ims_sales_orders so
            ON sm.movement_type = 'so_fulfilled'
           AND sm.reference_type = 'sales_order'
           AND so.id = sm.reference_id
-          AND so.business_id = sm.business_id
-         LEFT JOIN ims_locations l ON l.id = sm.location_id
-        WHERE sm.business_id = ?
-          AND sm.movement_type IN ('pos_sale', 'so_fulfilled')
+          AND so.business_id = ?
+        WHERE sm.movement_type IN ('pos_sale', 'so_fulfilled')
           AND (
             (
               sm.movement_type = 'pos_sale'
@@ -207,7 +208,7 @@ export async function GET(req: Request) {
             )
           )
         GROUP BY channel, location_name`,
-      [biz, cutoff, cutoff, cutoff]
+      [biz, biz, biz, cutoff, cutoff, cutoff]
     );
 
     channelRows = buildChannelRowsWithGrossProfit(revenueRows, cogsRows);
