@@ -1092,6 +1092,17 @@ function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void;
                                         pointerEvents="none"
                                       />
                                     ))}
+                                    <text
+                                      x={x + barW / 2}
+                                      y={Math.max(y + 9, gpY - 3)}
+                                      textAnchor="middle"
+                                      fontSize="8"
+                                      fill="currentColor"
+                                      fillOpacity="0.68"
+                                      pointerEvents="none"
+                                    >
+                                      {`GP - ${fmtCurrency(grossProfit)}`}
+                                    </text>
                                   </>
                                 )}
                                 {h>24 && barW>14 && (
