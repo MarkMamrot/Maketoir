@@ -234,14 +234,14 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
                 {sortTh('brand', 'Brand')}
                 {sortTh('supplier', 'Supplier')}
                 <th onClick={() => toggleSort('sales')} style={{ ...numHCell, cursor: 'pointer', userSelect: 'none', color: 'var(--sv-action)' }}>
-                  Sales ({dateRange.label}){sortArrow('sales')}
+                  Sales ({dateRange.label})<SortArrowIcon col="sales" sortCol={sortCol} sortAsc={sortAsc} />
                 </th>
                 <th onClick={() => toggleSort('soh')} style={{ ...numHCell, cursor: 'pointer', userSelect: 'none' }}>
-                  Global SOH{sortArrow('soh')}
+                  Global SOH<SortArrowIcon col="soh" sortCol={sortCol} sortAsc={sortAsc} />
                 </th>
                 {locations.map(l => (
                   <th key={l.id} onClick={() => toggleSort(`loc_${l.id}`)} style={{ ...numHCell, maxWidth: 100, whiteSpace: 'normal', lineHeight: 1.3, cursor: 'pointer', userSelect: 'none' }}>
-                    {l.name}{sortArrow(`loc_${l.id}`)}
+                    {l.name}<SortArrowIcon col={`loc_${l.id}`} sortCol={sortCol} sortAsc={sortAsc} />
                   </th>
                 ))}
               </tr>
@@ -289,7 +289,6 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
               </tbody>
             </table>
           </div>
-        </div>
 
         {totalPages > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', paddingTop: 2 }}>
