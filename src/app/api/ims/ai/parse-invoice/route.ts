@@ -13,6 +13,17 @@ function normalize(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+function pickAllowedValue(rawValue: unknown, allowedValues: string[]): string | null {
+  if (typeof rawValue !== 'string') return null;
+  const value = rawValue.trim();
+  if (!value) return null;
+  const normalizedValue = normalize(value);
+  const exact = allowedValues.find(v => normalize(v) === normalizedValue);
+  if (exact) return exact;
+  const contains = allowedValues.find(v => normalize(v).includes(normalizedValue) || normalizedValue.includes(normalize(v)));
+  return contains ?? null;
+}
+
 function fuzzySupplierMatch(
   name: string,
   suppliers: { id: number; name: string }[],
@@ -133,6 +144,21 @@ export async function POST(req: Request) {
     [biz],
   );
 
+  const allowedProductTypes = await imsQuery<{ product_type: string }>(
+    `SELECT DISTINCT product_type
+     FROM ims_products
+     WHERE business_id = ? AND product_type IS NOT NULL AND product_type != '' AND is_active = 1
+     ORDER BY product_type`,
+    [biz],
+  );
+  const allowedBrands = await imsQuery<{ name: string }>(
+    `SELECT name
+     FROM ims_brands
+     WHERE business_id = ? AND name IS NOT NULL AND name != ''
+     ORDER BY name`,
+    [biz],
+  );
+
   const prompt = `You are an expert invoice parser. Analyse the attached supplier invoice document and extract all data precisely.
 
 CRITICAL — determine the tax treatment of the line item prices FIRST:
@@ -140,6 +166,10 @@ Look for clues: column headers like "Price (incl. GST)", "Inc GST", "Price (ex G
 Set "prices_include_tax" to exactly one of: "inc_tax" (line prices already include tax), "ex_tax" (line prices are before tax), "no_tax" (no tax applies).
 
 Also look for any order-wide discount at the invoice header or footer (for example "Discount", "Less discount", "Trade discount", or a line item subtotal reduction). If present, capture it as "discount_total".
+
+Use ONLY values from the business catalog for product_type and brand. If the invoice does not clearly indicate a known value, set those fields to null rather than inventing a new one.
+Allowed product types: ${JSON.stringify(allowedProductTypes.map(r => r.product_type).filter(Boolean))}
+Allowed brands: ${JSON.stringify(allowedBrands.map(r => r.name).filter(Boolean))}
 
 Return unit_price and line_total EXACTLY as they appear on the invoice — do NOT convert inc-tax prices to ex-tax. The system handles the tax arithmetic using prices_include_tax.
 
@@ -167,6 +197,8 @@ Return ONLY a valid JSON object — no markdown fences, no extra text:
       "rrp": 0.00,
       "discount_pct": 0,
       "line_total": 0.00,
+      "product_type": null,
+      "brand": null,
       "tax_rate": 0.1
     }
   ]
@@ -253,7 +285,11 @@ ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
 
   // Match each invoice line to IMS variant
   const lineResults = (parsedInvoice.line_items ?? []).map((line: any) => ({
-    invoice_line: line,
+    invoice_line: {
+      ...line,
+      product_type: pickAllowedValue(line?.product_type, allowedProductTypes.map(r => r.product_type).filter(Boolean)) ?? null,
+      brand: pickAllowedValue(line?.brand, allowedBrands.map(r => r.name).filter(Boolean)) ?? null,
+    },
     match: matchVariant(line.product_code ?? null, line.barcode ?? null, line.product_name ?? null, variants),
   }));
 

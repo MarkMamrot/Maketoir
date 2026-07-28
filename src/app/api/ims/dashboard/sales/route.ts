@@ -43,13 +43,14 @@ function buildChannelRowsWithGrossProfit(revenueRows: RevenueRow[], cogsRows: Co
     const cogs = cogsByKey.get(keyByChannelLocation(row.channel, row.location_name)) ?? 0;
     const total = Number(row.total ?? 0);
     const revenueEx = Number(row.revenue_ex ?? 0);
+    const tax = total - revenueEx;
     return {
       channel: row.channel,
       location_name: row.location_name,
       total,
-      tax: total - revenueEx,
+      tax,
       cogs: Number(cogs),
-      gross_profit: revenueEx - Number(cogs),
+      gross_profit: total - tax - Number(cogs),
       order_count: Number(row.order_count ?? 0),
     };
   });
@@ -155,64 +156,57 @@ export async function GET(req: Request) {
     };
   });
 
-  // COGS by channel/location from stock movements, aligned with dashboard period filters.
+  // COGS by channel/location, using the same line-item cost basis as IMS transaction cards.
   // If this query fails, keep showing revenue rows so dashboard doesn't go blank.
   try {
-    const cogsRows = await imsQuery<CogsRow>(
-      `SELECT base.channel,
-              base.location_name,
-              SUM(base.cogs) AS cogs
-         FROM (
-           SELECT CASE
-                    WHEN sm.movement_type = 'pos_sale' THEN 'pos'
-                    WHEN so.so_type = 'online' THEN 'online'
-                    ELSE 'wholesale'
-                  END AS channel,
-                  COALESCE(l.name, 'Unknown') AS location_name,
-                  CASE
-                    WHEN sm.unit_cost IS NULL OR sm.unit_cost <= 0 THEN 0
-                    ELSE -sm.qty_change * sm.unit_cost
-                  END AS cogs
-             FROM ims_stock_movements sm
-             JOIN ims_locations l
-               ON l.id = sm.location_id
-              AND l.business_id = ?
-             LEFT JOIN pos_sales ps
-               ON sm.movement_type = 'pos_sale'
-              AND sm.reference_type = 'pos_sale'
-              AND ps.id = sm.reference_id
-             LEFT JOIN ims_sales_orders so
-               ON sm.movement_type = 'so_fulfilled'
-              AND sm.reference_type = 'sales_order'
-              AND so.id = sm.reference_id
-            WHERE sm.movement_type IN ('pos_sale', 'so_fulfilled')
-              AND (
-                (
-                  sm.movement_type = 'pos_sale'
-                  AND ps.id IS NOT NULL
-                  AND ps.status = 'completed'
-                  AND ps.created_at >= ?
-                )
-                OR (
-                  sm.movement_type = 'so_fulfilled'
-                  AND so.id IS NOT NULL
-                  AND so.so_type = 'online'
-                  AND so.order_date >= ?
-                  AND (so.is_historical IS NULL OR so.is_historical = 0)
-                  AND so.status != 'cancelled'
-                )
-                OR (
-                  sm.movement_type = 'so_fulfilled'
-                  AND so.id IS NOT NULL
-                  AND so.so_type != 'online'
-                  AND so.status = 'fulfilled'
-                  AND so.order_date >= ?
-                )
-              )
-         ) base
-        GROUP BY base.channel, base.location_name`,
-      [biz, cutoff, cutoff, cutoff]
-    );
+    const [posCogsRows, onlineCogsRows, wholesaleCogsRows] = await Promise.all([
+      imsQuery<CogsRow>(
+        `SELECT 'pos' AS channel,
+                COALESCE(l.name, 'Unknown') AS location_name,
+                SUM(COALESCE(psi.qty, 0) * COALESCE(psi.unit_cost, psi.avg_cost, pv.avg_cost, pv.cost_aud, 0)) AS cogs
+         FROM pos_sales ps
+         JOIN ims_locations l ON l.id = ps.location_id AND l.business_id = ?
+         JOIN pos_sale_items psi ON psi.sale_id = ps.id
+         LEFT JOIN ims_product_variants pv ON pv.variant_id = psi.variant_id
+         WHERE ps.status = 'completed'
+           AND ps.created_at >= ?
+         GROUP BY l.id, l.name`,
+        [biz, cutoff],
+      ),
+      imsQuery<CogsRow>(
+        `SELECT 'online' AS channel,
+                COALESCE(l.name, 'Unknown') AS location_name,
+                SUM(ABS(COALESCE(soi.qty_ordered, 0)) * COALESCE(soi.unit_cost, soi.avg_cost, pv.avg_cost, pv.cost_aud, 0)) AS cogs
+         FROM ims_sales_orders so
+         LEFT JOIN ims_locations l ON l.id = so.location_id
+         JOIN ims_sales_order_items soi ON soi.so_id = so.id
+         LEFT JOIN ims_product_variants pv ON pv.variant_id = soi.variant_id
+         WHERE so.so_type = 'online'
+           AND so.order_date >= ?
+           AND (so.is_historical IS NULL OR so.is_historical = 0)
+           AND so.status != 'cancelled'
+           ${soBizClause}
+         GROUP BY l.id, l.name`,
+        biz ? [cutoff, biz] : [cutoff],
+      ),
+      imsQuery<CogsRow>(
+        `SELECT 'wholesale' AS channel,
+                COALESCE(l.name, 'Unknown') AS location_name,
+                SUM(ABS(COALESCE(soi.qty_ordered, 0)) * COALESCE(soi.unit_cost, soi.avg_cost, pv.avg_cost, pv.cost_aud, 0)) AS cogs
+         FROM ims_sales_orders so
+         LEFT JOIN ims_locations l ON l.id = so.location_id
+         JOIN ims_sales_order_items soi ON soi.so_id = so.id
+         LEFT JOIN ims_product_variants pv ON pv.variant_id = soi.variant_id
+         WHERE so.so_type != 'online'
+           AND so.status = 'fulfilled'
+           AND so.order_date >= ?
+           ${soBizClause}
+         GROUP BY l.id, l.name`,
+        biz ? [cutoff, biz] : [cutoff],
+      ),
+    ]);
+
+    const cogsRows = [...posCogsRows, ...onlineCogsRows, ...wholesaleCogsRows];
 
     channelRows = buildChannelRowsWithGrossProfit(revenueRows, cogsRows);
   } catch (error) {

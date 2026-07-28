@@ -7,13 +7,15 @@ import { imsQuery } from '@/services/IMSMySQLService';
 export async function GET() {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const businessId = session.businessId as string;
 
   try {
     const rows = await imsQuery<{ product_type: string }>(
       `SELECT DISTINCT product_type
        FROM ims_products
-       WHERE product_type IS NOT NULL AND product_type != '' AND is_active = 1
+       WHERE business_id = ? AND product_type IS NOT NULL AND product_type != '' AND is_active = 1
        ORDER BY product_type`,
+      [businessId],
     );
     return NextResponse.json({ success: true, data: rows.map(r => r.product_type) });
   } catch (e: any) {
