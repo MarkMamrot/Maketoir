@@ -175,7 +175,13 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
     if (!selectedId) return; setBusyAction(action);
     try {
       const response = await fetch(`/api/customer-service/inbox/threads/${selectedId}/mailbox-action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) });
-      const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Gmail update failed');
+      const data = await response.json();
+      if (!response.ok) {
+        if (data?.reconnectRequired) {
+          throw new Error('Gmail needs to be reconnected with mailbox permissions. Go to Setup > Connections, reconnect Gmail, then try again.');
+        }
+        throw new Error(data.error || 'Gmail update failed');
+      }
       await loadThreads(action === 'archive' ? null : selectedId); if (action !== 'archive') await loadDetail(selectedId); else setDetail(null);
     } catch (cause: any) { setError(cause.message); } finally { setBusyAction(''); }
   }

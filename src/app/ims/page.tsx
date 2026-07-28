@@ -4539,6 +4539,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
       barcode: true,
       brand: true,
       sell_price: true,
+      avg_cost: false,
       soh: true,
       variants: true,
       active: true,
@@ -4928,6 +4929,10 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const sortedFiltered = [...filtered].sort((a: any, b: any) => {
     let av = a[sortCol]; let bv = b[sortCol];
     if (sortCol === 'variants') { av = (a.variants || []).length; bv = (b.variants || []).length; }
+    if (sortCol === 'avg_cost') {
+      av = Number(a?.variants?.[0]?.avg_cost ?? 0);
+      bv = Number(b?.variants?.[0]?.avg_cost ?? 0);
+    }
     av = av ?? ''; bv = bv ?? '';
     const cmp = typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv), undefined, { sensitivity: 'base' });
     return sortDir === 'asc' ? cmp : -cmp;
@@ -5282,6 +5287,10 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               Sell Price
             </label>
             <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={showCols.avg_cost} onChange={e => setShowCols(s => ({ ...s, avg_cost: e.target.checked }))} style={{ marginRight: 8 }} />
+              Average Cost
+            </label>
+            <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
               <input type="checkbox" checked={showCols.soh} onChange={e => setShowCols(s => ({ ...s, soh: e.target.checked }))} style={{ marginRight: 8 }} />
               SOH / Avail
             </label>
@@ -5353,6 +5362,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               {showCols.supplier && <col style={{ width: 140, minWidth: 140 }} />}{/* supplier */}
               {showCols.cb_cost && <col style={{ width: 100, minWidth: 100 }} />}{/* Cost Price */}
               {showCols.sell_price && <col style={{ width: 120, minWidth: 120 }} />}{/* Sell Price */}
+              {showCols.avg_cost && <col style={{ width: 110, minWidth: 110 }} />}{/* Avg Cost */}
               {showCols.ws_price && <col style={{ width: 120, minWidth: 120 }} />}{/* WS Price */}
               {showCols.soh && <col style={{ width: 120, minWidth: 120 }} />}{/* SOH */}
               {showCols.variants && <col style={{ width: 80, minWidth: 80 }} />}{/* variants */}
@@ -5375,6 +5385,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                   ...(showCols.supplier ? [['supplier_name','Supplier']] : []),
                   ...(showCols.cb_cost ? [['cost_aud','Cost']] : []),
                   ...(showCols.sell_price ? [['price','Sell Price']] : []),
+                  ...(showCols.avg_cost ? [['avg_cost','Avg Cost']] : []),
                   ...(showCols.ws_price ? [['ws_price','WS Price']] : []),
                   ...(showCols.soh ? [['stock','SOH / Avail']] : []),
                   ...(showCols.variants ? [['variants','Variants']] : []),
@@ -5450,6 +5461,11 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                         )
                       ) : '—'}
                     </td>}
+                    {showCols.avg_cost && (
+                      <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', fontSize: 13, color: 'var(--sv-text-dim)' }}>
+                        {firstVar?.avg_cost != null ? fmtCurrency(firstVar.avg_cost) : '—'}
+                      </td>
+                    )}
                     {showCols.ws_price && (
                       <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', fontSize: 13, color: 'var(--sv-text-dim)' }}>
                         {firstVar?.price_wholesale != null ? fmtCurrency(firstVar.price_wholesale) : '—'}

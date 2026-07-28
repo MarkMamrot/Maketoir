@@ -4,6 +4,18 @@ import { decrypt } from '@/lib/encryption';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
+export class GmailApiError extends Error {
+  status: number;
+  reason: string | null;
+
+  constructor(message: string, status: number, reason?: string | null) {
+    super(message);
+    this.name = 'GmailApiError';
+    this.status = status;
+    this.reason = reason ?? null;
+  }
+}
+
 export interface GmailAttachmentMetadata {
   filename: string;
   mimeType: string;
@@ -137,8 +149,21 @@ async function gmailFetch<T>(accessToken: string, path: string, init?: RequestIn
     },
   });
   const data = await response.json();
-  if (!response.ok || data?.error) throw new Error(data?.error?.message || `Gmail request failed (${response.status})`);
+  if (!response.ok || data?.error) {
+    const message = data?.error?.message || `Gmail request failed (${response.status})`;
+    const reason = data?.error?.errors?.[0]?.reason || null;
+    throw new GmailApiError(message, response.status, reason);
+  }
   return data as T;
+}
+
+export function isGmailInsufficientScopeError(error: unknown): boolean {
+  const message = String((error as any)?.message || '').toLowerCase();
+  const reason = String((error as any)?.reason || '').toLowerCase();
+  const status = Number((error as any)?.status || 0);
+  return reason === 'insufficientscope'
+    || message.includes('insufficient authentication scopes')
+    || (status === 403 && message.includes('insufficient'));
 }
 
 export async function getGmailAccess(businessId: string): Promise<{ accessToken: string; mailboxEmail: string }> {
