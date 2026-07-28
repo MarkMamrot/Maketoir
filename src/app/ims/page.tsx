@@ -967,6 +967,7 @@ function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void;
             ) : (() => {
               const CD = salesData.channelData as any[];
               const CH_COLOR: Record<string, string> = { pos: '#5ab5bc', wholesale: '#f59e0b', online: '#818cf8' };
+              const CH_GP_LINE: Record<string, string> = { pos: '#3f8e94', wholesale: '#b87707', online: '#5f68c9' };
               const CH_LABEL: Record<string, string> = { pos: 'POS', wholesale: 'Wholesale', online: 'Online' };
               const activeChannels = (['pos','wholesale','online'] as const).filter(ch => CD.some((d: any) => d.channel === ch));
               const locations = [...new Set(CD.map((d: any) => d.location_name as string))];
@@ -1068,9 +1069,8 @@ function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void;
                                     y1={yVal(grossProfitOnScale)}
                                     x2={x + barW - 2}
                                     y2={yVal(grossProfitOnScale)}
-                                    stroke="rgba(15,23,42,.9)"
-                                    strokeWidth="2"
-                                    strokeDasharray="3,2"
+                                    stroke={CH_GP_LINE[ch] ?? 'rgba(15,23,42,.8)'}
+                                    strokeWidth="1"
                                   />
                                 )}
                                 {h>24 && barW>14 && (
