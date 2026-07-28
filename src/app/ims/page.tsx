@@ -4525,16 +4525,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
 
   // Initialize columns with saved preferences or defaults
   const [showCols, setShowCols] = useState<{ [key: string]: boolean }>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('marketoir:imsProductsColumns');
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch {}
-      }
-    }
-    // Default columns visible initially
-    return {
+    const defaultCols = {
       sku: true,
       barcode: true,
       brand: true,
@@ -4552,6 +4543,21 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
       online: false,
       shopify_synced: false,
     };
+
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('marketoir:imsProductsColumns');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed === 'object') {
+            // Merge in defaults so newly added columns always appear in Show Fields.
+            return { ...defaultCols, ...parsed };
+          }
+        } catch {}
+      }
+    }
+    // Default columns visible initially
+    return defaultCols;
   });
 
   // Save changes to localStorage
