@@ -577,6 +577,18 @@ function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void;
   const [onboardingDraft, setOnboardingDraft] = useState<Record<string, string>>({});
   const [salesData, setSalesData] = useState<any>(null);
   const [salesLoading, setSalesLoading] = useState(true);
+  const channelChartRef = useRef<HTMLDivElement | null>(null);
+  const [channelHover, setChannelHover] = useState<null | {
+    x: number;
+    y: number;
+    channel: string;
+    location: string;
+    sales: number;
+    tax: number;
+    cogs: number;
+    grossProfit: number;
+    orders: number;
+  }>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -958,8 +970,9 @@ function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void;
               const CH_LABEL: Record<string, string> = { pos: 'POS', wholesale: 'Wholesale', online: 'Online' };
               const activeChannels = (['pos','wholesale','online'] as const).filter(ch => CD.some((d: any) => d.channel === ch));
               const locations = [...new Set(CD.map((d: any) => d.location_name as string))];
-              const getVal = (ch: string, loc: string) => Number(CD.find((d: any) => d.channel === ch && d.location_name === loc)?.total ?? 0);
-              const getOrd = (ch: string, loc: string) => Number(CD.find((d: any) => d.channel === ch && d.location_name === loc)?.order_count ?? 0);
+              const getRow = (ch: string, loc: string) => CD.find((d: any) => d.channel === ch && d.location_name === loc);
+              const getVal = (ch: string, loc: string) => Number(getRow(ch, loc)?.total ?? 0);
+              const getOrd = (ch: string, loc: string) => Number(getRow(ch, loc)?.order_count ?? 0);
 
               const rawMax = Math.max(...CD.map((d: any) => Number(d.total)));
               const niceMax = (v: number) => { if (v <= 0) return 1000; const m = Math.pow(10, Math.floor(Math.log10(v))); for (const x of [1,2,5,10]) { if (m*x >= v) return m*x; } return m*10; };
@@ -979,11 +992,18 @@ function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void;
               };
               const yVal=(v:number) => PT + plotH - (v/yMax)*plotH;
               const hVal=(v:number) => (v/yMax)*plotH;
-              const fmtY=(v:number) => v>=1000000?`$${(v/1000000).toFixed(1)}M`:v>=1000?`$${(v/1000).toFixed(0)}k`:`$${v}`;
+              const fmtY=(v:number) => {
+                if (v >= 1000000) return `$${(v / 1000000).toFixed(1)}M`;
+                if (v >= 1000) {
+                  const k = v / 1000;
+                  return `$${Number.isInteger(k) ? k.toFixed(0) : k.toFixed(1)}k`;
+                }
+                return `$${Math.round(v)}`;
+              };
               const trunc=(s:string,n=13) => s.length>n ? s.slice(0,n)+'…' : s;
 
               return (
-                <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px 8px' }}>
+                <div ref={channelChartRef} style={{ position: 'relative', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px 8px' }}>
                   <div style={{ display: 'flex', gap: 16, marginBottom: 8, justifyContent: 'flex-end' }}>
                     {activeChannels.map(ch => (
                       <div key={ch} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--sv-text-dim)' }}>
@@ -1009,14 +1029,54 @@ function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void;
                         <g key={loc}>
                           {locChans.map((ch, localCi) => {
                             const v = getVal(ch, loc);
+                            const row = getRow(ch, loc);
+                            const tax = Number(row?.tax ?? 0);
+                            const cogs = Number(row?.cogs ?? 0);
+                            const grossProfit = Number(row?.gross_profit ?? 0);
+                            const grossProfitOnScale = Math.max(0, Math.min(v, grossProfit));
                             const x=xBarLocal(li,localCi,locChans.length), y=yVal(v), h=hVal(v);
                             return (
                               <g key={ch}>
-                                <rect x={x} y={y} width={barW} height={h} fill={CH_COLOR[ch]} rx="3" opacity="0.85" />
+                                <rect
+                                  x={x}
+                                  y={y}
+                                  width={barW}
+                                  height={h}
+                                  fill={CH_COLOR[ch]}
+                                  rx="3"
+                                  opacity="0.85"
+                                  onMouseMove={(e) => {
+                                    const box = channelChartRef.current?.getBoundingClientRect();
+                                    if (!box) return;
+                                    setChannelHover({
+                                      x: e.clientX - box.left,
+                                      y: e.clientY - box.top,
+                                      channel: CH_LABEL[ch],
+                                      location: loc,
+                                      sales: v,
+                                      tax,
+                                      cogs,
+                                      grossProfit,
+                                      orders: getOrd(ch, loc),
+                                    });
+                                  }}
+                                  onMouseLeave={() => setChannelHover(null)}
+                                />
+                                {grossProfitOnScale > 0 && h >= 6 && (
+                                  <line
+                                    x1={x + 2}
+                                    y1={yVal(grossProfitOnScale)}
+                                    x2={x + barW - 2}
+                                    y2={yVal(grossProfitOnScale)}
+                                    stroke="rgba(15,23,42,.9)"
+                                    strokeWidth="2"
+                                    strokeDasharray="3,2"
+                                  />
+                                )}
                                 {h>24 && barW>14 && (
                                   <text x={x+barW/2} y={y-5} textAnchor="middle" fontSize="9" fill="currentColor" fillOpacity="0.55">{fmtCurrency(v)}</text>
                                 )}
-                                <title>{`${CH_LABEL[ch]} — ${loc}\n${fmtCurrency(v)} · ${getOrd(ch,loc)} orders`}</title>
+                                <title>{`${CH_LABEL[ch]} — ${loc}\nSales: ${fmtCurrency(v)}\nTax: ${fmtCurrency(tax)}\nCOGS: ${fmtCurrency(cogs)}\nGross Profit: ${fmtCurrency(grossProfit)}\nOrders: ${getOrd(ch,loc)}\nFormula: Sales - Tax - COGS`}</title>
                               </g>
                             );
                           })}
@@ -1025,6 +1085,38 @@ function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void;
                       );
                     })}
                   </svg>
+                  {channelHover && (() => {
+                    const hostW = channelChartRef.current?.clientWidth ?? 760;
+                    const left = Math.max(130, Math.min(channelHover.x, hostW - 130));
+                    const top = Math.max(56, channelHover.y - 10);
+                    return (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left,
+                          top,
+                          transform: 'translate(-50%, -100%)',
+                          pointerEvents: 'none',
+                          background: 'rgba(15,23,42,.96)',
+                          color: '#fff',
+                          borderRadius: 8,
+                          padding: '8px 10px',
+                          minWidth: 240,
+                          boxShadow: '0 8px 24px rgba(0,0,0,.25)',
+                          fontSize: 12,
+                          lineHeight: 1.35,
+                          zIndex: 3,
+                        }}
+                      >
+                        <div style={{ fontWeight: 700, marginBottom: 4 }}>{channelHover.channel} - {channelHover.location}</div>
+                        <div>Sales: {fmtCurrency(channelHover.sales)}</div>
+                        <div>Tax: {fmtCurrency(channelHover.tax)}</div>
+                        <div>COGS: {fmtCurrency(channelHover.cogs)}</div>
+                        <div style={{ fontWeight: 700, marginTop: 2 }}>Gross Profit: {fmtCurrency(channelHover.grossProfit)}</div>
+                        <div style={{ opacity: .85, marginTop: 2 }}>GP = Sales - Tax - COGS - {channelHover.orders} orders</div>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })()}
