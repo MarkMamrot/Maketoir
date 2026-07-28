@@ -48,6 +48,11 @@ Railway (auto-deploy on push to `main`, no test gate other than CI below).
   for the pattern).
 - Run `npm test` locally after changing anything in `src/lib/**` before considering the change done.
 
+## Report/date-filter conventions
+- Any IMS report that filters by date should use the shared date-range picker from [src/app/ims/views/reports/reportFilterHelpers.tsx](src/app/ims/views/reports/reportFilterHelpers.tsx) and follow the same `SBDateRange` shape used by Sales by Branch.
+- Prefer the shared presets/custom range behavior over ad-hoc date inputs in new reports or when updating existing ones.
+- When a report needs a date filter in the API, map the shared range to the route parameters consistently (`window` for preset windows, or `from`/`to` for custom ranges).
+
 ## Codebase scale — be deliberate
 - [src/app/ims/page.tsx](../src/app/ims/page.tsx) (~20k lines) and
   [src/app/pos/page.tsx](../src/app/pos/page.tsx) (~6.8k lines) are large single-file monoliths.

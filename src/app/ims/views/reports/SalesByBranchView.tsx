@@ -220,105 +220,107 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
         <div style={{ color: 'var(--sv-red)', fontSize: 13, marginBottom: 12, padding: '8px 12px', background: 'color-mix(in srgb, var(--sv-red) 10%, transparent)', borderRadius: 6 }}>{error}</div>
       )}
 
-      <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 260px)', border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr>
-              <th style={{ ...hCell, width: 44, textAlign: 'right' }}>#</th>
-              {sortTh('product', 'Product', { position: 'sticky', left: 0, zIndex: 4, minWidth: 220 })}
-              {sortTh('sku', 'SKU')}
-              {sortTh('brand', 'Brand')}
-              {sortTh('supplier', 'Supplier')}
-              <th onClick={() => toggleSort('sales')} style={{ ...numHCell, cursor: 'pointer', userSelect: 'none', color: 'var(--sv-action)' }}>
-                Sales ({dateRange.label}){sortArrow('sales')}
-              </th>
-              <th onClick={() => toggleSort('soh')} style={{ ...numHCell, cursor: 'pointer', userSelect: 'none' }}>
-                Global SOH{sortArrow('soh')}
-              </th>
-              {locations.map(l => (
-                <th key={l.id} onClick={() => toggleSort(`loc_${l.id}`)} style={{ ...numHCell, maxWidth: 100, whiteSpace: 'normal', lineHeight: 1.3, cursor: 'pointer', userSelect: 'none' }}>
-                  {l.name}{sortArrow(`loc_${l.id}`)}
+      <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 260px)', border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)' }}>
+        <div style={{ flex: 1, overflowX: 'auto', overflowY: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr>
+                <th style={{ ...hCell, width: 44, textAlign: 'right' }}>#</th>
+                {sortTh('product', 'Product', { position: 'sticky', left: 0, zIndex: 4, minWidth: 220 })}
+                {sortTh('sku', 'SKU')}
+                {sortTh('brand', 'Brand')}
+                {sortTh('supplier', 'Supplier')}
+                <th onClick={() => toggleSort('sales')} style={{ ...numHCell, cursor: 'pointer', userSelect: 'none', color: 'var(--sv-action)' }}>
+                  Sales ({dateRange.label}){sortArrow('sales')}
                 </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr><td colSpan={7 + locations.length} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
-            )}
-            {!loading && displayRows.length === 0 && (
-              <tr><td colSpan={7 + locations.length} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>No results found.</td></tr>
-            )}
-            {!loading && displayRows.map((row, i) => {
-              const salesQty = Number(row[salesKey] ?? 0);
-              const locStockMap = new Map<number, any>(row.stock.map((s: any) => [s.location_id, s]));
-              const rowBg = i % 2 === 0 ? 'transparent' : 'color-mix(in srgb, var(--sv-etch) 35%, transparent)';
-              const rowNum = (page - 1) * pageSize + i + 1;
-              return (
-                <tr key={row.variant_id} style={{ background: rowBg }}>
-                  <td style={{ ...numCell, color: 'var(--sv-text-dim)', fontSize: 11 }}>{rowNum}</td>
-                  <td style={{ ...cellStyle, position: 'sticky', left: 0, zIndex: 1, background: rowBg, minWidth: 220 }}>
-                    <div style={{ fontWeight: 500, color: 'var(--sv-text-strong)' }}>{row.product_name}</div>
-                    {row.option_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 1 }}>{row.option_label}</div>}
-                  </td>
-                  <td style={{ ...cellStyle, color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 12 }}>{row.sku || '—'}</td>
-                  <td style={cellStyle}>{row.brand || '—'}</td>
-                  <td style={cellStyle}>{row.supplier_name || '—'}</td>
-                  <td style={{ ...numCell, color: salesQty > 0 ? 'var(--sv-mint)' : 'var(--sv-text-dim)', fontWeight: salesQty > 0 ? 600 : 400 }}>
-                    {salesQty.toLocaleString('en-AU', { maximumFractionDigits: 0 })}
-                  </td>
-                  <td style={{ ...numCell, fontWeight: row.global_soh > 0 ? 500 : 400, color: row.global_soh <= 0 ? 'var(--sv-text-dim)' : undefined }}>
-                    {Number(row.global_soh).toLocaleString('en-AU', { maximumFractionDigits: 0 })}
-                  </td>
-                  {locations.map(l => {
-                    const s = locStockMap.get(l.id);
-                    const soh = s ? Number(s.soh) : 0;
-                    return (
-                      <td key={l.id} style={{ ...numCell, color: soh > 0 ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', opacity: soh > 0 ? 1 : 0.45 }}>
-                        {soh > 0 ? soh.toLocaleString('en-AU', { maximumFractionDigits: 0 }) : '—'}
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {totalPages > 1 && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, flexWrap: 'wrap', gap: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <button
-              onClick={() => goPage(page - 1)} disabled={page <= 1 || loading}
-              style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.4 : 1, fontSize: 13, color: 'var(--sv-text-main)' }}
-            >←</button>
-            {pageRange().map((p, i) =>
-              p === '...'
-                ? <span key={`e${i}`} style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 4px' }}>…</span>
-                : <button
-                    key={p}
-                    onClick={() => goPage(p as number)}
-                    disabled={loading}
-                    style={{ height: 30, minWidth: 30, borderRadius: 6, border: '1px solid var(--sv-etch)', background: p === page ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: p === page ? '#fff' : 'var(--sv-text-main)', fontWeight: p === page ? 600 : 400, cursor: 'pointer', fontSize: 13 }}
-                  >{p}</button>
-            )}
-            <button
-              onClick={() => goPage(page + 1)} disabled={page >= totalPages || loading}
-              style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', cursor: page >= totalPages ? 'not-allowed' : 'pointer', opacity: page >= totalPages ? 0.4 : 1, fontSize: 13, color: 'var(--sv-text-main)' }}
-            >→</button>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--sv-text-dim)' }}>
-            <span>Page {page} of {totalPages} · {total.toLocaleString()} variants</span>
-            <select
-              value={pageSize} onChange={e => changePageSize(Number(e.target.value))}
-              style={{ height: 28, padding: '0 6px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12, cursor: 'pointer' }}
-            >
-              {[10, 25, 50, 100].map(n => <option key={n} value={n}>{n} / page</option>)}
-            </select>
-          </div>
+                <th onClick={() => toggleSort('soh')} style={{ ...numHCell, cursor: 'pointer', userSelect: 'none' }}>
+                  Global SOH{sortArrow('soh')}
+                </th>
+                {locations.map(l => (
+                  <th key={l.id} onClick={() => toggleSort(`loc_${l.id}`)} style={{ ...numHCell, maxWidth: 100, whiteSpace: 'normal', lineHeight: 1.3, cursor: 'pointer', userSelect: 'none' }}>
+                    {l.name}{sortArrow(`loc_${l.id}`)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {loading && (
+                <tr><td colSpan={7 + locations.length} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
+              )}
+              {!loading && displayRows.length === 0 && (
+                <tr><td colSpan={7 + locations.length} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>No results found.</td></tr>
+              )}
+              {!loading && displayRows.map((row, i) => {
+                const salesQty = Number(row[salesKey] ?? 0);
+                const locStockMap = new Map<number, any>(row.stock.map((s: any) => [s.location_id, s]));
+                const rowBg = i % 2 === 0 ? 'transparent' : 'color-mix(in srgb, var(--sv-etch) 35%, transparent)';
+                const rowNum = (page - 1) * pageSize + i + 1;
+                return (
+                  <tr key={row.variant_id} style={{ background: rowBg }}>
+                    <td style={{ ...numCell, color: 'var(--sv-text-dim)', fontSize: 11 }}>{rowNum}</td>
+                    <td style={{ ...cellStyle, position: 'sticky', left: 0, zIndex: 1, background: rowBg, minWidth: 220 }}>
+                      <div style={{ fontWeight: 500, color: 'var(--sv-text-strong)' }}>{row.product_name}</div>
+                      {row.option_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 1 }}>{row.option_label}</div>}
+                    </td>
+                    <td style={{ ...cellStyle, color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 12 }}>{row.sku || '—'}</td>
+                    <td style={cellStyle}>{row.brand || '—'}</td>
+                    <td style={cellStyle}>{row.supplier_name || '—'}</td>
+                    <td style={{ ...numCell, color: salesQty > 0 ? 'var(--sv-mint)' : 'var(--sv-text-dim)', fontWeight: salesQty > 0 ? 600 : 400 }}>
+                      {salesQty.toLocaleString('en-AU', { maximumFractionDigits: 0 })}
+                    </td>
+                    <td style={{ ...numCell, fontWeight: row.global_soh > 0 ? 500 : 400, color: row.global_soh <= 0 ? 'var(--sv-text-dim)' : undefined }}>
+                      {Number(row.global_soh).toLocaleString('en-AU', { maximumFractionDigits: 0 })}
+                    </td>
+                    {locations.map(l => {
+                      const s = locStockMap.get(l.id);
+                      const soh = s ? Number(s.soh) : 0;
+                      return (
+                        <td key={l.id} style={{ ...numCell, color: soh > 0 ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', opacity: soh > 0 ? 1 : 0.45 }}>
+                          {soh > 0 ? soh.toLocaleString('en-AU', { maximumFractionDigits: 0 }) : '—'}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-      )}
+
+        {totalPages > 1 && (
+          <div style={{ position: 'sticky', bottom: 0, zIndex: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button
+                onClick={() => goPage(page - 1)} disabled={page <= 1 || loading}
+                style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.4 : 1, fontSize: 13, color: 'var(--sv-text-main)' }}
+              >←</button>
+              {pageRange().map((p, i) =>
+                p === '...'
+                  ? <span key={`e${i}`} style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 4px' }}>…</span>
+                  : <button
+                      key={p}
+                      onClick={() => goPage(p as number)}
+                      disabled={loading}
+                      style={{ height: 30, minWidth: 30, borderRadius: 6, border: '1px solid var(--sv-etch)', background: p === page ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: p === page ? '#fff' : 'var(--sv-text-main)', fontWeight: p === page ? 600 : 400, cursor: 'pointer', fontSize: 13 }}
+                    >{p}</button>
+              )}
+              <button
+                onClick={() => goPage(page + 1)} disabled={page >= totalPages || loading}
+                style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', cursor: page >= totalPages ? 'not-allowed' : 'pointer', opacity: page >= totalPages ? 0.4 : 1, fontSize: 13, color: 'var(--sv-text-main)' }}
+              >→</button>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--sv-text-dim)' }}>
+              <span>Page {page} of {totalPages} · {total.toLocaleString()} variants</span>
+              <select
+                value={pageSize} onChange={e => changePageSize(Number(e.target.value))}
+                style={{ height: 28, padding: '0 6px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12, cursor: 'pointer' }}
+              >
+                {[10, 25, 50, 100].map(n => <option key={n} value={n}>{n} / page</option>)}
+              </select>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

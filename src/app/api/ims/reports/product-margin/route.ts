@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { buildProductMarginSalesQuery } from './query';
 
 export async function GET(req: Request) {
   if (!await getImsSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -11,16 +12,14 @@ export async function GET(req: Request) {
   const productType = searchParams.get('productType') ?? '';
   const productId   = searchParams.get('productId')   ?? '';
   const win         = parseInt(searchParams.get('window') ?? '365', 10);
+  const fromDate    = searchParams.get('from') ?? '';
+  const toDate      = searchParams.get('to') ?? '';
   const page        = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10));
   const pageSize    = Math.min(200, Math.max(10, parseInt(searchParams.get('pageSize') ?? '100', 10)));
   const offset      = (page - 1) * pageSize;
 
-  const salesCol =
-    win <=   7 ? 'sc.sales_qty_7d'   :
-    win <=  90 ? 'sc.sales_qty_90d'  :
-    win <= 180 ? 'sc.sales_qty_180d' : 'sc.sales_qty_12m';
-
-  const conds: string[] = ['v.is_active = 1', 'p.is_active = 1', `${salesCol} > 0`];
+  const salesQuery = buildProductMarginSalesQuery({ window: win, fromDate, toDate });
+  const conds: string[] = ['v.is_active = 1', 'p.is_active = 1', salesQuery.salesCondition];
   const filterParams: any[] = [];
   if (productId)   { conds.push('v.variant_id = ?');           filterParams.push(productId); }
   if (brand)       { conds.push('p.brand = ?');                filterParams.push(brand); }
@@ -29,17 +28,15 @@ export async function GET(req: Request) {
   const where = 'WHERE ' + conds.join(' AND ');
 
   try {
-    // 1. Total count for pagination
     const countRows = await imsQuery<{ total: number }>(`
       SELECT COUNT(*) AS total
       FROM ims_product_variants v
       JOIN ims_products p ON p.product_id = v.product_id
-      JOIN ims_sales_cache sc ON sc.variant_id = v.variant_id
+      ${salesQuery.salesJoin}
       ${where}
-    `, filterParams);
+    `, [...filterParams, ...salesQuery.queryParams]);
     const total = Number(countRows[0]?.total ?? 0);
 
-    // 2. Paginated rows sorted by profit desc
     const rows = await imsQuery<{
       sku: string;
       name: string;
@@ -54,14 +51,14 @@ export async function GET(req: Request) {
         p.brand,
         v.cost_aud AS cost,
         v.price_rrp AS price,
-        ${salesCol} AS sales_qty
+        ${salesQuery.salesQtyExpr} AS sales_qty
       FROM ims_product_variants v
       JOIN ims_products p ON p.product_id = v.product_id
-      JOIN ims_sales_cache sc ON sc.variant_id = v.variant_id
+      ${salesQuery.salesJoin}
       ${where}
-      ORDER BY (${salesCol} * (v.price_rrp - v.cost_aud)) DESC
+      ORDER BY (${salesQuery.salesQtyExpr} * (v.price_rrp - v.cost_aud)) DESC
       LIMIT ${pageSize} OFFSET ${offset}
-    `, [...filterParams]);
+    `, [...filterParams, ...salesQuery.queryParams]);
 
     const data = rows.map(r => {
       const q     = Number(r.sales_qty ?? 0);

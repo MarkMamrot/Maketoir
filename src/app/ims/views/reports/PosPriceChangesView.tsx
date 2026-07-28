@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { SBDatePicker, SBDateRange } from './reportFilterHelpers';
 
 interface PosPriceChangesViewProps {
   onBack: () => void;
@@ -9,12 +10,13 @@ export function PosPriceChangesView({ onBack, btnStyle }: PosPriceChangesViewPro
   const [rows, setRows]       = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
-  const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().slice(0, 10);
-  });
-  const [dateTo, setDateTo]   = useState(() => new Date().toISOString().slice(0, 10));
+  const [dateRange, setDateRange] = useState<SBDateRange>({ kind: 'window', window: 90, label: '90 Days' });
 
-  const load = async (from: string, to: string) => {
+  const load = async (range: SBDateRange) => {
+     const from = range.kind === 'range' ? (range.from <= range.to ? range.from : range.to) : (() => {
+       const d = new Date(); d.setDate(d.getDate() - Math.max(0, Number(range.window || 0) - 1)); return d.toLocaleDateString('sv-SE', { timeZone: 'Australia/Sydney' });
+     })();
+     const to = range.kind === 'range' ? (range.from <= range.to ? range.to : range.from) : new Date().toLocaleDateString('sv-SE', { timeZone: 'Australia/Sydney' });
     setLoading(true); setError('');
     try {
       const res = await fetch(`/api/ims/reports/pos-price-changes?from=${from}&to=${to}`);
@@ -24,7 +26,7 @@ export function PosPriceChangesView({ onBack, btnStyle }: PosPriceChangesViewPro
     } catch (e: any) { setError(e.message); } finally { setLoading(false); }
   };
 
-  useEffect(() => { load(dateFrom, dateTo); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(dateRange); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fmtMoney = (n: any) => `$${Number(n).toFixed(2)}`;
   const cellStyle: React.CSSProperties = { padding: '9px 12px', borderBottom: '1px solid var(--sv-etch)', fontSize: 13 };
@@ -51,7 +53,7 @@ export function PosPriceChangesView({ onBack, btnStyle }: PosPriceChangesViewPro
     }
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `pos-price-changes-${dateFrom}-${dateTo}.csv`; a.click();
+    const a = document.createElement('a'); a.href = url; a.download = `pos-price-changes-${dateRange.kind === 'range' ? `${dateRange.from}-${dateRange.to}` : `${dateRange.window}-${dateRange.label}`}.csv`; a.click();
   };
 
   return (
@@ -65,11 +67,7 @@ export function PosPriceChangesView({ onBack, btnStyle }: PosPriceChangesViewPro
         <button onClick={downloadCsv} disabled={rows.length === 0} style={btnStyle('ghost', 'sm')}>⬇ Export CSV</button>
       </div>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 12, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
-        <label style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>From</label>
-        <input type='date' value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'inherit', fontSize: 13 }} />
-        <label style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>To</label>
-        <input type='date' value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'inherit', fontSize: 13 }} />
-        <button onClick={() => load(dateFrom, dateTo)} style={btnStyle('action', 'sm')}>Search</button>
+        <SBDatePicker value={dateRange} onChange={(next) => { setDateRange(next); load(next); }} />
         <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginLeft: 'auto' }}>{rows.length} result{rows.length !== 1 ? 's' : ''}</span>
       </div>
       {loading && <div style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</div>}

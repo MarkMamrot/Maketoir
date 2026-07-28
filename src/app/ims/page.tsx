@@ -14263,8 +14263,7 @@ function ReportsView({ onNav }: { onNav: (v: ImsView) => void }) {
 }
 
 function CashBankingReportView({ onBack }: { onBack: () => void }) {
-  const [from, setFrom] = useState(daysAgoSydney(89));
-  const [to, setTo] = useState(today());
+  const [dateRange, setDateRange] = useState<SBDateRange>({ kind: 'window', window: 90, label: '90 Days' });
   const [status, setStatus] = useState('');
   const [rows, setRows] = useState<any[]>([]);
   const [canRecordCorrection, setCanRecordCorrection] = useState(false);
@@ -14272,13 +14271,15 @@ function CashBankingReportView({ onBack }: { onBack: () => void }) {
   const [error, setError] = useState('');
   const load = useCallback(() => {
     setLoading(true); setError('');
+    const from = dateRange.kind === 'range' ? (dateRange.from <= dateRange.to ? dateRange.from : dateRange.to) : daysAgoSydney(Math.max(0, Number(dateRange.window || 0) - 1));
+    const to = dateRange.kind === 'range' ? (dateRange.from <= dateRange.to ? dateRange.to : dateRange.from) : today();
     const params = new URLSearchParams({ from, to });
     if (status) params.set('status', status);
     fetch(`/api/ims/reports/cash-banking?${params}`)
       .then(async response => ({ ok: response.ok, body: await response.json() }))
       .then(({ ok, body }) => { if (!ok) throw new Error(body.error || 'Could not load report'); setRows(body.deposits ?? []); setCanRecordCorrection(Boolean(body.canRecordCorrection)); })
       .catch(reason => setError(reason.message)).finally(() => setLoading(false));
-  }, [from, to, status]);
+  }, [dateRange, status]);
   useEffect(() => { load(); }, [load]);
   const recordCorrection = async (row: any) => {
     const note = window.prompt('Describe the correction made manually in Xero:', row.external_correction_note ?? '');
@@ -14296,13 +14297,13 @@ function CashBankingReportView({ onBack }: { onBack: () => void }) {
     const values = rows.map(row => [row.id, String(row.lodgement_date).slice(0, 10), row.location_name, row.destination_account_name, row.bank_reference ?? '', row.expected_total, row.counted_total, row.variance_total, row.status, row.prepared_by_name, row.posted_by_name ?? '', row.posted_at ?? '', row.xero_bank_transfer_id ?? '']);
     const escape = (value: any) => `"${String(value ?? '').replace(/"/g, '""')}"`;
     const blob = new Blob([[columns, ...values].map(line => line.map(escape).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
-    const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `cash-banking-${from}-${to}.csv`; link.click(); URL.revokeObjectURL(link.href);
+    const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `cash-banking-${dateRange.kind === 'range' ? `${dateRange.from}-${dateRange.to}` : `${dateRange.window}-${dateRange.label}`}.csv`; link.click(); URL.revokeObjectURL(link.href);
   };
   const control: React.CSSProperties = { padding: '6px 9px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'inherit', fontSize: 12 };
   return <div>
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
       <button onClick={onBack} style={control}>Back</button><h1 style={{ margin: 0, flex: 1, fontSize: 22, color: 'var(--sv-text-strong)' }}>Cash Banking Report</h1>
-      <input type="date" value={from} onChange={event => setFrom(event.target.value)} style={control} /><span style={{ color: 'var(--sv-text-dim)' }}>to</span><input type="date" value={to} onChange={event => setTo(event.target.value)} style={control} />
+      <SBDatePicker value={dateRange} onChange={setDateRange} />
       <select value={status} onChange={event => setStatus(event.target.value)} style={control}><option value="">All statuses</option><option value="draft">Draft</option><option value="partial">Partial</option><option value="posted">Posted</option></select>
       <button onClick={exportCsv} disabled={!rows.length} style={control}>Export CSV</button>
     </div>
@@ -14441,28 +14442,30 @@ function ProductMarginView({ onBack }: { onBack: () => void }) {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
   const [filters, setFilters] = useState<MultiFilter>(EMPTY_MULTI);
-  const [window_, setWindow_] = useState(365);
+  const [dateRange, setDateRange] = useState<SBDateRange>({ kind: 'window', window: 365, label: '12 Months' });
   const [page, setPage]       = useState(1);
   const PAGE_SIZE = 100;
 
   const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
 
-  const load = useCallback(async (f: MultiFilter, win: number, pg: number) => {
+  const load = useCallback(async (f: MultiFilter, dr: SBDateRange, pg: number) => {
     setLoading(true); setError('');
     try {
-      const params = new URLSearchParams({ window: String(win), page: String(pg), pageSize: String(PAGE_SIZE), ...multiFilterParams(f) });
+      const params = new URLSearchParams({ page: String(pg), pageSize: String(PAGE_SIZE), ...multiFilterParams(f) });
+      if (dr.kind === 'window') params.set('window', String(dr.window));
+      else { params.set('from', dr.from); params.set('to', dr.to); }
       const res = await fetch(`/api/ims/reports/product-margin?${params}`);
       const d = await res.json();
       if (d.success) { setRows(d.data); setTotal(d.total ?? 0); } else setError(d.error);
     } catch (e: any) { setError(e.message); } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { load(EMPTY_MULTI, 365, 1); }, [load]);
-  const handleFilterChange = (f: MultiFilter) => { setFilters(f); setPage(1); load(f, window_, 1); };
-  const changeWindow = (win: number) => { setWindow_(win); setPage(1); load(filters, win, 1); };
-  const goPage = (pg: number) => { setPage(pg); load(filters, window_, pg); };
+  useEffect(() => { load(EMPTY_MULTI, dateRange, 1); }, [load, dateRange]);
+  const handleFilterChange = (f: MultiFilter) => { setFilters(f); setPage(1); load(f, dateRange, 1); };
+  const changeRange = (dr: SBDateRange) => { setDateRange(dr); setPage(1); load(filters, dr, 1); };
+  const goPage = (pg: number) => { setPage(pg); load(filters, dateRange, pg); };
 
-  const winLabel = WINDOW_OPTS.find(o => o.value === window_)?.label ?? '12 Months';
+  const winLabel = dateRange.kind === 'range' ? `${dateRange.from} → ${dateRange.to}` : (WINDOW_OPTS.find(o => o.value === dateRange.window)?.label ?? '12 Months');
 
   const downloadCsv = () => {
     const headers = ['SKU', 'Product Name', 'Brand', 'Unit Cost', 'Unit Price', `Qty Sold (${winLabel})`, 'Gross Rev', 'COGS', 'Gross Profit', 'Margin %'];
@@ -14519,14 +14522,7 @@ function ProductMarginView({ onBack }: { onBack: () => void }) {
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 12, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
         <ReportMultiFilter filters={filters} onChange={handleFilterChange} />
         <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-          {WINDOW_OPTS.map(o => (
-            <button key={o.value} onClick={() => changeWindow(o.value)} style={{
-              height: 36, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)',
-              background: window_ === o.value ? 'var(--sv-action)' : 'var(--sv-bg-0)',
-              color: window_ === o.value ? '#fff' : 'var(--sv-text-main)',
-              fontSize: 12, fontWeight: window_ === o.value ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap',
-            }}>{o.label}</button>
-          ))}
+          <SBDatePicker value={dateRange} onChange={changeRange} />
         </div>
         {loading && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Loading…</span>}
         {!loading && total > 0 && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{total.toLocaleString()} results</span>}

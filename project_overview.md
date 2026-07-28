@@ -8,6 +8,7 @@ Always consult this file to understand the core mission, business logic, overall
 ## 🎯 Project Mission & Aims
 Marketoir is a business management platform for small-to-medium Australian retail businesses. It provides:
 - A **POS (Point of Sale)** system for in-store sales, cash management, and EOD reconciliation
+- IMS/Reporting views should use the shared date-range picker from [src/app/ims/views/reports/reportFilterHelpers.tsx](src/app/ims/views/reports/reportFilterHelpers.tsx) for any report that filters by date; prefer the same presets and custom range behavior across reports instead of introducing ad-hoc date inputs.
 - An **IMS (Inventory Management System)** integrated with Cin7 for stock control, purchase orders, and sales reporting
 - A **Dashboard** with AI-assisted insights (Google Ads, Meta Ads, Google Analytics, Shopify)
 - **Xero integration** for accounting — EOD sales synced as ACCREC invoices
