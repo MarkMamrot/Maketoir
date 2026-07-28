@@ -14643,7 +14643,7 @@ function SettingsView() {
 function XeroView({ businessId, isAdvisor = false, advisorMappingEnabled = false }: { businessId: string; isAdvisor?: boolean; advisorMappingEnabled?: boolean }) {
   const [status, setStatus] = useState<{ connected: boolean; tenantName?: string; tokenExpiry?: number; envConfigured?: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'overview' | 'mapping' | 'sync'>(isAdvisor ? 'mapping' : 'overview');
+  const [tab, setTab] = useState<'overview' | 'mapping' | 'cogs' | 'payouts' | 'sync'>(isAdvisor ? 'mapping' : 'overview');
 
   useEffect(() => {
     if (!businessId) { setLoading(false); return; }
@@ -14739,12 +14739,16 @@ function XeroView({ businessId, isAdvisor = false, advisorMappingEnabled = false
           {/* Tab bar */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
             <button style={tabBtnStyle(tab === 'overview')} onClick={() => setTab('overview')}>Overview</button>
-            <button style={tabBtnStyle(tab === 'sync')} onClick={() => setTab('sync')}>Sync History</button>
             <button style={tabBtnStyle(tab === 'mapping')} onClick={() => setTab('mapping')} title="Also available in Settings -> Xero">Ledger Mapping</button>
+            <button style={tabBtnStyle(tab === 'cogs')} onClick={() => setTab('cogs')}>COGS Reconciliation</button>
+            <button style={tabBtnStyle(tab === 'payouts')} onClick={() => setTab('payouts')}>Shopify Payouts</button>
+            <button style={tabBtnStyle(tab === 'sync')} onClick={() => setTab('sync')}>Sync History</button>
           </div>
 
           {tab === 'overview' && <XeroOverviewTab status={status} getBusinessId={getBusinessId} />}
           {tab === 'mapping' && <XeroMappingTab getBusinessId={getBusinessId} />}
+          {tab === 'cogs' && <CogsReconciliationTab getBusinessId={getBusinessId} />}
+          {tab === 'payouts' && <ShopifyPayoutsTab getBusinessId={getBusinessId} />}
           {tab === 'sync' && <XeroSyncTab getBusinessId={getBusinessId} />}
         </>
       )}
@@ -16102,9 +16106,194 @@ function XeroStateBadge({ state }: { state: string | null }) {
   return <span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(156,163,175,.15)', color: '#9ca3af' }}>{state}</span>;
 }
 
-function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
+function ShopifyPayoutsTab({ getBusinessId }: { getBusinessId: () => string }) {
   const [entries, setEntries] = useState<XeroSyncEntry[]>([]);
-  const [queued, setQueued] = useState<{ id: number; reference: string; type: 'po' | 'so' | 'cn' | 'scn'; status: string; total_amount: number; xero_synced_at: string | null; contact_name: string | null }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [retrying, setRetrying] = useState<Record<string, boolean>>({});
+  const [payoutErrorText, setPayoutErrorText] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 200;
+
+  function fmtDate(d: string) {
+    try { return new Date(d).toLocaleString('en-AU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return d; }
+  }
+
+  function fmtDay(d: string | null | undefined) {
+    if (!d) return '—';
+    try {
+      const s = String(d);
+      return new Date(s.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' });
+    } catch {
+      return String(d).slice(0, 10);
+    }
+  }
+
+  function fmtMoney(v: number | null) {
+    return v != null ? `$${Number(v).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
+  }
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/xero/sync-log?databaseId=${encodeURIComponent(getBusinessId())}&limit=2000`);
+      if (res.ok) {
+        const data = await res.json();
+        setEntries(Array.isArray(data.entries) ? data.entries : []);
+      }
+    } catch {}
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const payoutEntries = entries.filter(entry => entry.sync_type === 'shopify_payout');
+  const totalPages = Math.max(1, Math.ceil(payoutEntries.length / pageSize));
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  const pageEntries = payoutEntries.slice((page - 1) * pageSize, page * pageSize);
+
+  const processShopifyPayout = async (payoutId: string, action: 'plan' | 'execute', key: string, amount: number | null) => {
+    if (action === 'execute' && !confirm(`Post the planned Xero actions for Shopify payout ${payoutId}${amount != null ? ` (${fmtMoney(amount)})` : ''}?`)) return;
+    setRetrying(r => ({ ...r, [key]: true }));
+    setPayoutErrorText(null);
+    try {
+      const res = await fetch(`/api/xero/shopify-payouts/${encodeURIComponent(payoutId)}?databaseId=${encodeURIComponent(getBusinessId())}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Payout ${action} failed`);
+      await loadData();
+    } catch (e: any) {
+      setPayoutErrorText(e?.message || `Payout ${action} failed`);
+      await loadData();
+    } finally {
+      setRetrying(r => ({ ...r, [key]: false }));
+    }
+  };
+
+  const copyPayoutErrorText = async () => {
+    if (!payoutErrorText) return;
+    try {
+      await navigator.clipboard.writeText(payoutErrorText);
+    } catch {
+      const textArea = document.createElement('textarea');
+      textArea.value = payoutErrorText;
+      textArea.setAttribute('readonly', 'true');
+      textArea.style.position = 'absolute';
+      textArea.style.left = '-9999px';
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+    }
+  };
+
+  const th: React.CSSProperties = { padding: '8px 10px', color: 'var(--sv-text-dim)', fontWeight: 600, fontSize: 11, textAlign: 'left', whiteSpace: 'nowrap' };
+  const td: React.CSSProperties = { padding: '9px 10px', fontSize: 13, color: 'var(--sv-text-main)', verticalAlign: 'middle' };
+
+  return (
+    <div style={{ maxWidth: 1400, display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {payoutErrorText && (
+        <div style={{ padding: '14px 16px', borderRadius: 10, border: '1px solid rgba(248,113,113,.35)', background: 'rgba(248,113,113,.08)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#f87171' }}>Shopify payout post failed</span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button type="button" onClick={copyPayoutErrorText} style={{ background: 'transparent', border: '1px solid rgba(248,113,113,.35)', borderRadius: 5, cursor: 'pointer', padding: '3px 10px', fontSize: 12, color: '#fda4af' }}>Copy</button>
+              <button type="button" onClick={() => setPayoutErrorText(null)} style={{ background: 'transparent', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: 'pointer', padding: '3px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Dismiss</button>
+            </div>
+          </div>
+          <textarea readOnly value={payoutErrorText} style={{ width: '100%', minHeight: 96, resize: 'vertical', borderRadius: 8, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', padding: 10, fontSize: 12, lineHeight: 1.5, whiteSpace: 'pre' }} />
+        </div>
+      )}
+
+      <div style={{ background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Shopify Payouts</span>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button onClick={loadData} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: 'pointer', padding: '4px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>↻ Refresh</button>
+          </div>
+        </div>
+
+        {loading ? (
+          <div style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>Loading…</div>
+        ) : payoutEntries.length === 0 ? (
+          <div style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No Shopify payouts recorded yet.</div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 20px', borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', fontSize: 12, color: 'var(--sv-text-dim)' }}>
+              <div>Showing {Math.min((page - 1) * pageSize + 1, payoutEntries.length)}-{Math.min(page * pageSize, payoutEntries.length)} of {payoutEntries.length}</div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button disabled={page <= 1} onClick={() => setPage(previous => Math.max(1, previous - 1))} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: page <= 1 ? 'not-allowed' : 'pointer', padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)', opacity: page <= 1 ? 0.5 : 1 }}>Prev</button>
+                <span>Page {page} / {totalPages}</span>
+                <button disabled={page >= totalPages} onClick={() => setPage(previous => Math.min(totalPages, previous + 1))} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: page >= totalPages ? 'not-allowed' : 'pointer', padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)', opacity: page >= totalPages ? 0.5 : 1 }}>Next</button>
+              </div>
+            </div>
+
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: 'var(--sv-bg-1)', borderBottom: '1px solid var(--sv-etch)' }}>
+                  <th style={th}>Payout Date</th>
+                  <th style={th}>Reference</th>
+                  <th style={th}>Progress / Detail</th>
+                  <th style={{ ...th, textAlign: 'right' }}>Amount</th>
+                  <th style={th}>Updated</th>
+                  <th style={th}>Status</th>
+                  <th style={th}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {pageEntries.map((entry, ei) => {
+                  const retryKey = `payout-${entry.payout_id ?? `${page}-${ei}`}`;
+                  const payoutStatus = entry.payout_status ?? '';
+                  const statusColor = payoutStatus === 'reconciled' ? '#34d399' : payoutStatus === 'blocked' ? '#f87171' : payoutStatus === 'partial' ? '#fb923c' : payoutStatus === 'planned' ? '#38bdf8' : payoutStatus === 'ready_to_allocate' ? '#fbbf24' : 'var(--sv-text-dim)';
+                  const statusBg = payoutStatus === 'reconciled' ? 'rgba(16,185,129,.13)' : payoutStatus === 'blocked' ? 'rgba(248,113,113,.13)' : payoutStatus === 'partial' ? 'rgba(251,146,60,.13)' : payoutStatus === 'planned' ? 'rgba(56,189,248,.13)' : payoutStatus === 'ready_to_allocate' ? 'rgba(251,191,36,.13)' : 'rgba(156,163,175,.13)';
+                  return (
+                    <tr key={entry.payout_id ?? `${page}-${ei}`} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                      <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{fmtDay(entry.item_date)}</td>
+                      <td style={{ ...td, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{entry.reference}</td>
+                      <td title={entry.last_sync_detail ?? undefined} style={{ ...td, color: 'var(--sv-text-dim)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.contact_name ?? '—'}</td>
+                      <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtMoney(entry.amount)}</td>
+                      <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{entry.last_sync_at ? fmtDate(entry.last_sync_at) : '—'}</td>
+                      <td style={td}><span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: statusBg, color: statusColor }}>{payoutStatus || 'pending'}</span></td>
+                      <td style={{ ...td, textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                          {entry.payout_id && ['blocked', 'ready_to_allocate'].includes(payoutStatus) && (
+                            <button title="Rebuild the payout plan after fixing a missing invoice, credit note, mapping, or other blocker. This does not post to Xero." onClick={() => processShopifyPayout(entry.payout_id!, 'plan', retryKey, entry.amount)} disabled={retrying[retryKey]} style={{ background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 6, cursor: 'pointer', padding: '5px 14px', fontSize: 12, color: '#f87171', fontWeight: 600 }}>{retrying[retryKey] ? '…' : '↻ Replan'}</button>
+                          )}
+                          {entry.payout_id && ['planned', 'partial'].includes(payoutStatus) && (
+                            <button title={payoutStatus === 'partial' ? 'Retry only unfinished payout actions. Completed Xero actions are not repeated.' : 'Preflight every planned invoice and credit note, then post the payout actions to Xero after confirmation.'} onClick={() => processShopifyPayout(entry.payout_id!, 'execute', retryKey, entry.amount)} disabled={retrying[retryKey]} style={{ background: 'rgba(20,184,166,.12)', border: '1px solid rgba(20,184,166,.3)', borderRadius: 6, cursor: 'pointer', padding: '5px 14px', fontSize: 12, color: '#14b8a6', fontWeight: 600 }}>{retrying[retryKey] ? '…' : payoutStatus === 'partial' ? '↻ Retry' : 'Post Payout'}</button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 20px', borderTop: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', fontSize: 12, color: 'var(--sv-text-dim)' }}>
+              <div>Showing {Math.min((page - 1) * pageSize + 1, payoutEntries.length)}-{Math.min(page * pageSize, payoutEntries.length)} of {payoutEntries.length}</div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button disabled={page <= 1} onClick={() => setPage(previous => Math.max(1, previous - 1))} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: page <= 1 ? 'not-allowed' : 'pointer', padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)', opacity: page <= 1 ? 0.5 : 1 }}>Prev</button>
+                <span>Page {page} / {totalPages}</span>
+                <button disabled={page >= totalPages} onClick={() => setPage(previous => Math.min(totalPages, previous + 1))} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: page >= totalPages ? 'not-allowed' : 'pointer', padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)', opacity: page >= totalPages ? 0.5 : 1 }}>Next</button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CogsReconciliationTab({ getBusinessId }: { getBusinessId: () => string }) {
   const [cogsReport, setCogsReport] = useState<CogsReportData | null>(null);
   const [cogsFilters, setCogsFilters] = useState<{
     frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly';
@@ -16125,21 +16314,15 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
   const [cogsError, setCogsError] = useState('');
   const [cogsActionBusy, setCogsActionBusy] = useState<'preview' | 'post' | null>(null);
   const [cogsActionMsg, setCogsActionMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [retrying, setRetrying] = useState<Record<string, boolean>>({});
-  const [pushAll, setPushAll] = useState(false);
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
-  const [filterXeroState, setFilterXeroState] = useState('');
-  const [payoutErrorText, setPayoutErrorText] = useState<string | null>(null);
+
+  const fmtDate = (d: string) => { try { return new Date(d).toLocaleString('en-AU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return d; } };
+  const fmtMoney = (v: number | null) => v != null ? `$${Number(v).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
 
   const loadCogsReport = async () => {
     setCogsLoading(true);
     setCogsError('');
     try {
-      const params = new URLSearchParams({
-        databaseId: getBusinessId(),
-        frequency: cogsFilters.frequency,
-      });
+      const params = new URLSearchParams({ databaseId: getBusinessId(), frequency: cogsFilters.frequency });
       if (cogsFilters.startDate) params.set('startDate', cogsFilters.startDate);
       if (cogsFilters.endDateExclusive) params.set('endDateExclusive', cogsFilters.endDateExclusive);
       if (cogsFilters.locationId) params.set('locationId', cogsFilters.locationId);
@@ -16156,6 +16339,176 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
     }
   };
 
+  useEffect(() => { loadCogsReport(); }, []);
+
+  const previewCogsFromReport = async () => {
+    setCogsActionBusy('preview');
+    setCogsActionMsg(null);
+    try {
+      const res = await fetch('/api/xero/cogs/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId: getBusinessId(), frequency: cogsFilters.frequency }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unable to preview COGS.');
+      setCogsActionMsg({ ok: true, text: `Preview loaded for ${data.period?.label}: ${fmtMoney(Number(data.calculation?.totalCOGS ?? 0))}.` });
+      await loadCogsReport();
+    } catch (e: any) {
+      setCogsActionMsg({ ok: false, text: e.message || 'Unable to preview COGS.' });
+    } finally {
+      setCogsActionBusy(null);
+    }
+  };
+
+  const postCogsFromReport = async () => {
+    setCogsActionBusy('post');
+    setCogsActionMsg(null);
+    try {
+      let overrideReason: string | undefined;
+      if (cogsReport?.reconciliation?.blocked) {
+        const reason = window.prompt('This period contains missing/zero-cost movements. Enter an override reason to post the understated amount, or Cancel to fix costs first.');
+        if (!reason?.trim()) {
+          setCogsActionBusy(null);
+          return;
+        }
+        overrideReason = reason.trim();
+      } else if (!confirm(`Post COGS for ${cogsReport?.period?.label ?? 'the selected period'}?`)) {
+        setCogsActionBusy(null);
+        return;
+      }
+
+      const res = await fetch('/api/xero/cogs/post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId: getBusinessId(), frequency: cogsFilters.frequency, overrideReason }),
+      });
+      const data = await res.json();
+      if (!res.ok && res.status !== 202) throw new Error(data.error || data.reason || 'Unable to post COGS.');
+      const text = data.outcome === 'posted'
+        ? `${data.runKind === 'adjustment' ? 'COGS adjustment' : 'COGS journal'} posted.`
+        : data.outcome === 'current'
+          ? 'COGS already current for this period.'
+          : data.outcome === 'blocked'
+            ? 'Posting blocked by missing/zero-cost movements.'
+            : data.outcome === 'unknown'
+              ? 'Xero did not confirm the result. Check Xero before retrying.'
+              : `COGS post status: ${data.outcome}.`;
+      setCogsActionMsg({ ok: data.outcome !== 'unknown' && data.outcome !== 'failed', text });
+      await loadCogsReport();
+    } catch (e: any) {
+      setCogsActionMsg({ ok: false, text: e.message || 'Unable to post COGS.' });
+    } finally {
+      setCogsActionBusy(null);
+    }
+  };
+
+  const exportCogsCsv = () => {
+    if (!cogsReport) return;
+    const escapeCsv = (value: unknown) => {
+      const text = String(value ?? '');
+      return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+
+    const rows: string[][] = [];
+    rows.push(['Metric', 'Value']);
+    rows.push(['Period', cogsReport.period.label]);
+    rows.push(['Calculated COGS', String(cogsReport.reconciliation.calculatedTotal)]);
+    rows.push(['Posted Total', String(cogsReport.reconciliation.postedTotal)]);
+    rows.push(['Variance', String(cogsReport.reconciliation.variance)]);
+    rows.push(['State', cogsReport.reconciliation.state]);
+    rows.push(['Included Movements', String(cogsReport.quality.includedMovementCount)]);
+    rows.push(['Missing Cost Quantity', String(cogsReport.quality.missingCostQuantity)]);
+    rows.push(['Zero Cost Quantity', String(cogsReport.quality.zeroCostQuantity)]);
+    rows.push(['Excluded Historical Quantity', String(cogsReport.quality.excludedHistoricalQuantity)]);
+    rows.push(['Orphaned Quantity', String(cogsReport.quality.orphanedQuantity)]);
+    rows.push([]);
+    rows.push(['Location ID', 'Location', 'Channel', 'COGS', 'Movements', 'Quantity']);
+    for (const row of cogsReport.breakdown) rows.push([String(row.locationId), row.locationName, row.channel, String(row.totalCOGS), String(row.movementCount), String(row.quantity)]);
+
+    const csv = rows.map(line => line.map(escapeCsv).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `cogs-reconciliation-${(cogsReport.period.startDate || 'period')}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+  };
+
+  const th: React.CSSProperties = { padding: '8px 10px', color: 'var(--sv-text-dim)', fontWeight: 600, fontSize: 11, textAlign: 'left', whiteSpace: 'nowrap' };
+  const td: React.CSSProperties = { padding: '9px 10px', fontSize: 13, color: 'var(--sv-text-main)', verticalAlign: 'middle' };
+
+  return (
+    <div style={{ maxWidth: 1400, display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>COGS Reconciliation</span>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button onClick={loadCogsReport} disabled={cogsLoading} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: cogsLoading ? 'not-allowed' : 'pointer', padding: '4px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{cogsLoading ? 'Loading…' : 'Refresh'}</button>
+            <button onClick={exportCogsCsv} disabled={!cogsReport} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: !cogsReport ? 'not-allowed' : 'pointer', padding: '4px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Export CSV</button>
+          </div>
+        </div>
+        <div style={{ padding: 16, display: 'grid', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+            <label style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Frequency<select value={cogsFilters.frequency} onChange={e => setCogsFilters(s => ({ ...s, frequency: e.target.value as any }))} style={{ width: '100%', marginTop: 4, padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option></select></label>
+            <label style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Period Start (optional)<input type="date" value={cogsFilters.startDate} onChange={e => setCogsFilters(s => ({ ...s, startDate: e.target.value }))} style={{ width: '100%', marginTop: 4, padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }} /></label>
+            <label style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Period End Exclusive (optional)<input type="date" value={cogsFilters.endDateExclusive} onChange={e => setCogsFilters(s => ({ ...s, endDateExclusive: e.target.value }))} style={{ width: '100%', marginTop: 4, padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }} /></label>
+            <label style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Location<select value={cogsFilters.locationId} onChange={e => setCogsFilters(s => ({ ...s, locationId: e.target.value }))} style={{ width: '100%', marginTop: 4, padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}><option value="">All locations</option>{(cogsReport?.locations ?? []).map(loc => <option key={loc.id} value={String(loc.id)}>{loc.name}</option>)}</select></label>
+            <label style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Channel<select value={cogsFilters.channel} onChange={e => setCogsFilters(s => ({ ...s, channel: e.target.value }))} style={{ width: '100%', marginTop: 4, padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}><option value="">All channels</option>{(cogsReport?.channels ?? ['pos', 'online', 'wholesale']).map(ch => <option key={ch} value={ch}>{ch}</option>)}</select></label>
+            <label style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Reconciliation State<select value={cogsFilters.reconciliationState} onChange={e => setCogsFilters(s => ({ ...s, reconciliationState: e.target.value as any }))} style={{ width: '100%', marginTop: 4, padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}><option value="">All states</option><option value="current">Current</option><option value="adjustment_required">Adjustment Required</option><option value="blocked">Blocked</option></select></label>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button onClick={loadCogsReport} disabled={cogsLoading} style={{ padding: '7px 12px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: cogsLoading ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>{cogsLoading ? 'Loading…' : 'Apply Filters'}</button>
+            <button onClick={previewCogsFromReport} disabled={cogsActionBusy !== null} style={{ padding: '7px 12px', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: cogsActionBusy ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>{cogsActionBusy === 'preview' ? 'Previewing…' : 'Preview'}</button>
+            <button onClick={postCogsFromReport} disabled={cogsActionBusy !== null || !cogsReport} style={{ padding: '7px 12px', background: 'rgba(16,185,129,.15)', color: '#34d399', border: '1px solid rgba(16,185,129,.35)', borderRadius: 6, cursor: cogsActionBusy || !cogsReport ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>{cogsActionBusy === 'post' ? 'Posting…' : (cogsReport?.reconciliation.adjustmentRequired ? 'Post Adjustment' : 'Post COGS')}</button>
+          </div>
+          {cogsError && <div style={{ fontSize: 12, color: '#f87171' }}>{cogsError}</div>}
+          {cogsActionMsg && <div style={{ fontSize: 12, color: cogsActionMsg.ok ? '#34d399' : '#f87171' }}>{cogsActionMsg.text}</div>}
+          {cogsReport && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
+                <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}><div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Period</div><div style={{ fontSize: 13, color: 'var(--sv-text-strong)', fontWeight: 600 }}>{cogsReport.period.label}</div></div>
+                <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}><div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Calculated COGS</div><div style={{ fontSize: 13, color: 'var(--sv-text-strong)', fontWeight: 600 }}>{fmtMoney(cogsReport.reconciliation.calculatedTotal)}</div></div>
+                <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}><div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Posted Total</div><div style={{ fontSize: 13, color: 'var(--sv-text-strong)', fontWeight: 600 }}>{fmtMoney(cogsReport.reconciliation.postedTotal)}</div></div>
+                <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}><div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Variance</div><div style={{ fontSize: 13, color: cogsReport.reconciliation.variance === 0 ? '#34d399' : '#fbbf24', fontWeight: 700 }}>{fmtMoney(cogsReport.reconciliation.variance)}</div></div>
+                <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}><div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>State</div><div style={{ fontSize: 13, color: cogsReport.reconciliation.state === 'current' ? '#34d399' : cogsReport.reconciliation.state === 'blocked' ? '#f87171' : '#fbbf24', fontWeight: 700, textTransform: 'capitalize' }}>{cogsReport.reconciliation.state.replace('_', ' ')}</div></div>
+                <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}><div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Last Post</div><div style={{ fontSize: 13, color: 'var(--sv-text-main)', fontWeight: 600 }}>{cogsReport.lastPost ? fmtDate(cogsReport.lastPost.syncedAt || '') : 'No successful post'}</div>{cogsReport.lastPost?.xeroId && (<a href={xeroLink('cogs_journal', cogsReport.lastPost.xeroId)} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#38bdf8', textDecoration: 'none' }}>Open in Xero</a>)}</div>
+              </div>
+              {cogsReport.coverage.warning && (<div style={{ padding: '8px 10px', border: '1px solid rgba(251,191,36,.35)', borderRadius: 6, background: 'rgba(251,191,36,.08)', color: '#fbbf24', fontSize: 12 }}>{cogsReport.coverage.warningText}</div>)}
+              {!cogsReport.reconciliation.stateMatchesFilter && (<div style={{ padding: '8px 10px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-dim)', fontSize: 12 }}>The selected reconciliation state filter does not match this period.</div>)}
+              <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden' }}>
+                <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--sv-text-dim)', borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>Location and channel breakdown • {cogsReport.filteredTotals.movementCount} movements • Qty {Number(cogsReport.filteredTotals.quantity).toLocaleString('en-AU')} • {fmtMoney(cogsReport.filteredTotals.totalCOGS)}</div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead><tr style={{ borderBottom: '1px solid var(--sv-etch)' }}><th style={th}>Location</th><th style={th}>Channel</th><th style={{ ...th, textAlign: 'right' }}>Movements</th><th style={{ ...th, textAlign: 'right' }}>Quantity</th><th style={{ ...th, textAlign: 'right' }}>COGS</th></tr></thead>
+                  <tbody>{cogsReport.breakdown.length === 0 ? (<tr><td colSpan={5} style={{ ...td, textAlign: 'center', color: 'var(--sv-text-dim)' }}>No breakdown rows for selected filters.</td></tr>) : cogsReport.breakdown.map((row, index) => (<tr key={`${row.locationId}-${row.channel}-${index}`} style={{ borderBottom: '1px solid var(--sv-etch)' }}><td style={td}>{row.locationName}</td><td style={{ ...td, textTransform: 'capitalize' }}>{row.channel}</td><td style={{ ...td, textAlign: 'right' }}>{Number(row.movementCount).toLocaleString('en-AU')}</td><td style={{ ...td, textAlign: 'right' }}>{Number(row.quantity).toLocaleString('en-AU')}</td><td style={{ ...td, textAlign: 'right' }}>{fmtMoney(row.totalCOGS)}</td></tr>))}</tbody>
+                </table>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, fontSize: 12, color: 'var(--sv-text-dim)' }}>
+                <div>Included: {cogsReport.quality.includedMovementCount} movements / {Number(cogsReport.quality.includedQuantity).toLocaleString('en-AU')} qty</div>
+                <div>Missing cost: {cogsReport.quality.missingCostMovementCount} / {Number(cogsReport.quality.missingCostQuantity).toLocaleString('en-AU')} qty</div>
+                <div>Zero cost: {cogsReport.quality.zeroCostMovementCount} / {Number(cogsReport.quality.zeroCostQuantity).toLocaleString('en-AU')} qty</div>
+                <div>Excluded historical: {cogsReport.quality.excludedHistoricalMovementCount} / {Number(cogsReport.quality.excludedHistoricalQuantity).toLocaleString('en-AU')} qty</div>
+                <div>Orphaned: {cogsReport.quality.orphanedMovementCount} / {Number(cogsReport.quality.orphanedQuantity).toLocaleString('en-AU')} qty</div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
+  const [entries, setEntries] = useState<XeroSyncEntry[]>([]);
+  const [queued, setQueued] = useState<{ id: number; reference: string; type: 'po' | 'so' | 'cn' | 'scn'; status: string; total_amount: number; xero_synced_at: string | null; contact_name: string | null }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [retrying, setRetrying] = useState<Record<string, boolean>>({});
+  const [pushAll, setPushAll] = useState(false);
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [filterXeroState, setFilterXeroState] = useState('');
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -16171,7 +16524,6 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
 
   useEffect(() => {
     loadData();
-    loadCogsReport();
   }, []);
 
   const retry = async (
@@ -16219,45 +16571,6 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
     setRetrying(r => ({ ...r, [key]: false }));
   };
 
-  const processShopifyPayout = async (payoutId: string, action: 'plan' | 'execute', key: string, amount: number | null) => {
-    if (action === 'execute' && !confirm(`Post the planned Xero actions for Shopify payout ${payoutId}${amount != null ? ` (${fmtMoney(amount)})` : ''}?`)) return;
-    setRetrying(r => ({ ...r, [key]: true }));
-    setPayoutErrorText(null);
-    try {
-      const res = await fetch(`/api/xero/shopify-payouts/${encodeURIComponent(payoutId)}?databaseId=${encodeURIComponent(getBusinessId())}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `Payout ${action} failed`);
-      await loadData();
-    } catch (e: any) {
-      setPayoutErrorText(e?.message || `Payout ${action} failed`);
-      await loadData();
-    } finally {
-      setRetrying(r => ({ ...r, [key]: false }));
-    }
-  };
-
-  const copyPayoutErrorText = async () => {
-    if (!payoutErrorText) return;
-    try {
-      await navigator.clipboard.writeText(payoutErrorText);
-    } catch {
-      // Fallback for older browser permission models.
-      const textArea = document.createElement('textarea');
-      textArea.value = payoutErrorText;
-      textArea.setAttribute('readonly', 'true');
-      textArea.style.position = 'absolute';
-      textArea.style.left = '-9999px';
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textArea);
-    }
-  };
-
   const toggleExpand = (id: number) => setExpanded(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const typeLabel = (t: string) => ({ po_bill: 'Purchase Order', so_invoice: 'Wholesale SO', cn_credit_note: 'Customer Credit Note', cn_credit_note_void: 'Customer Credit Note Void', scn_credit_note: 'Supplier Credit Note', scn_credit_note_void: 'Supplier Credit Note Void', pos_batch: 'POS Sales (Batch)', online_batch: 'Online Sales (Batch)', shopify_payout: 'Shopify Payout', cogs_journal: 'COGS Journal', eod_reconciliation: 'POS End-of-Day', stocktake_journal: 'Stocktake Journal', gift_card_issue: 'Gift Card Issue', gift_card_liability: 'Gift Card Liability', gift_card_redeem: 'Gift Card Redemption', store_credit_issue: 'Store Credit Issue', store_credit_redeem: 'Store Credit Redemption' }[t] ?? t);
@@ -16279,123 +16592,9 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
   const fmtDay   = (d: string | null | undefined) => { if (!d) return '—'; try { const s = String(d); return new Date(s.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }); } catch { return String(d).slice(0, 10); } };
   const fmtMoney = (v: number | null) => v != null ? `$${Number(v).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
 
-  const previewCogsFromReport = async () => {
-    setCogsActionBusy('preview');
-    setCogsActionMsg(null);
-    try {
-      const res = await fetch('/api/xero/cogs/preview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          databaseId: getBusinessId(),
-          frequency: cogsFilters.frequency,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Unable to preview COGS.');
-      setCogsActionMsg({ ok: true, text: `Preview loaded for ${data.period?.label}: ${fmtMoney(Number(data.calculation?.totalCOGS ?? 0))}.` });
-      await loadCogsReport();
-    } catch (e: any) {
-      setCogsActionMsg({ ok: false, text: e.message || 'Unable to preview COGS.' });
-    } finally {
-      setCogsActionBusy(null);
-    }
-  };
-
-  const postCogsFromReport = async () => {
-    setCogsActionBusy('post');
-    setCogsActionMsg(null);
-    try {
-      let overrideReason: string | undefined;
-      if (cogsReport?.reconciliation?.blocked) {
-        const reason = window.prompt('This period contains missing/zero-cost movements. Enter an override reason to post the understated amount, or Cancel to fix costs first.');
-        if (!reason?.trim()) {
-          setCogsActionBusy(null);
-          return;
-        }
-        overrideReason = reason.trim();
-      } else if (!confirm(`Post COGS for ${cogsReport?.period?.label ?? 'the selected period'}?`)) {
-        setCogsActionBusy(null);
-        return;
-      }
-
-      const res = await fetch('/api/xero/cogs/post', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          databaseId: getBusinessId(),
-          frequency: cogsFilters.frequency,
-          overrideReason,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok && res.status !== 202) throw new Error(data.error || data.reason || 'Unable to post COGS.');
-      const text = data.outcome === 'posted'
-        ? `${data.runKind === 'adjustment' ? 'COGS adjustment' : 'COGS journal'} posted.`
-        : data.outcome === 'current'
-          ? 'COGS already current for this period.'
-          : data.outcome === 'blocked'
-            ? 'Posting blocked by missing/zero-cost movements.'
-            : data.outcome === 'unknown'
-              ? 'Xero did not confirm the result. Check Xero before retrying.'
-              : `COGS post status: ${data.outcome}.`;
-      setCogsActionMsg({ ok: data.outcome !== 'unknown' && data.outcome !== 'failed', text });
-      await Promise.all([loadData(), loadCogsReport()]);
-    } catch (e: any) {
-      setCogsActionMsg({ ok: false, text: e.message || 'Unable to post COGS.' });
-    } finally {
-      setCogsActionBusy(null);
-    }
-  };
-
-  const exportCogsCsv = () => {
-    if (!cogsReport) return;
-    const escapeCsv = (value: unknown) => {
-      const text = String(value ?? '');
-      return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-    };
-
-    const rows: string[][] = [];
-    rows.push(['Metric', 'Value']);
-    rows.push(['Period', cogsReport.period.label]);
-    rows.push(['Calculated COGS', String(cogsReport.reconciliation.calculatedTotal)]);
-    rows.push(['Posted Total', String(cogsReport.reconciliation.postedTotal)]);
-    rows.push(['Variance', String(cogsReport.reconciliation.variance)]);
-    rows.push(['State', cogsReport.reconciliation.state]);
-    rows.push(['Included Movements', String(cogsReport.quality.includedMovementCount)]);
-    rows.push(['Missing Cost Quantity', String(cogsReport.quality.missingCostQuantity)]);
-    rows.push(['Zero Cost Quantity', String(cogsReport.quality.zeroCostQuantity)]);
-    rows.push(['Excluded Historical Quantity', String(cogsReport.quality.excludedHistoricalQuantity)]);
-    rows.push(['Orphaned Quantity', String(cogsReport.quality.orphanedQuantity)]);
-    rows.push([]);
-    rows.push(['Location ID', 'Location', 'Channel', 'COGS', 'Movements', 'Quantity']);
-    for (const row of cogsReport.breakdown) {
-      rows.push([
-        String(row.locationId),
-        row.locationName,
-        row.channel,
-        String(row.totalCOGS),
-        String(row.movementCount),
-        String(row.quantity),
-      ]);
-    }
-
-    const csv = rows.map((line) => line.map(escapeCsv).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `cogs-reconciliation-${(cogsReport.period.startDate || 'period')}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(link.href);
-  };
-
   const th: React.CSSProperties = { padding: '8px 10px', color: 'var(--sv-text-dim)', fontWeight: 600, fontSize: 11, textAlign: 'left', whiteSpace: 'nowrap' };
   const td: React.CSSProperties = { padding: '9px 10px', fontSize: 13, color: 'var(--sv-text-main)', verticalAlign: 'middle' };
 
-  // Separate shopify_payout entries — rendered in their own dedicated section
-  const payoutEntries = entries.filter(e => e.sync_type === 'shopify_payout');
   const nonPayoutEntries = entries.filter(e => e.sync_type !== 'shopify_payout');
 
   // Derive unique xero states from loaded entries for the filter dropdown (exclude payouts — they have their own section)
@@ -16411,35 +16610,6 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
 
   return (
     <div style={{ maxWidth: 1400, display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-      {payoutErrorText && (
-        <div style={{ padding: '14px 16px', borderRadius: 10, border: '1px solid rgba(248,113,113,.35)', background: 'rgba(248,113,113,.08)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#f87171' }}>Shopify payout post failed</span>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button
-                type="button"
-                onClick={copyPayoutErrorText}
-                style={{ background: 'transparent', border: '1px solid rgba(248,113,113,.35)', borderRadius: 5, cursor: 'pointer', padding: '3px 10px', fontSize: 12, color: '#fda4af' }}
-              >
-                Copy
-              </button>
-              <button
-                type="button"
-                onClick={() => setPayoutErrorText(null)}
-                style={{ background: 'transparent', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: 'pointer', padding: '3px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}
-              >
-                Dismiss
-              </button>
-            </div>
-          </div>
-          <textarea
-            readOnly
-            value={payoutErrorText}
-            style={{ width: '100%', minHeight: 96, resize: 'vertical', borderRadius: 8, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', padding: 10, fontSize: 12, lineHeight: 1.5, whiteSpace: 'pre' }}
-          />
-        </div>
-      )}
 
       {/* ── Queued panel ── */}
       {queued.length > 0 && (
@@ -16489,234 +16659,9 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
         </div>
       )}
 
-      {/* ── COGS reconciliation ── */}
-      <div style={{ background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>COGS Reconciliation</span>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button onClick={loadCogsReport} disabled={cogsLoading} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: cogsLoading ? 'not-allowed' : 'pointer', padding: '4px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{cogsLoading ? 'Loading…' : 'Refresh'}</button>
-            <button onClick={exportCogsCsv} disabled={!cogsReport} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: !cogsReport ? 'not-allowed' : 'pointer', padding: '4px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Export CSV</button>
-          </div>
-        </div>
-
-        <div style={{ padding: 16, display: 'grid', gap: 12 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
-            <label style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>
-              Frequency
-              <select value={cogsFilters.frequency} onChange={e => setCogsFilters(s => ({ ...s, frequency: e.target.value as any }))} style={{ width: '100%', marginTop: 4, padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}>
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
-                <option value="quarterly">Quarterly</option>
-              </select>
-            </label>
-            <label style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>
-              Period Start (optional)
-              <input type="date" value={cogsFilters.startDate} onChange={e => setCogsFilters(s => ({ ...s, startDate: e.target.value }))} style={{ width: '100%', marginTop: 4, padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }} />
-            </label>
-            <label style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>
-              Period End Exclusive (optional)
-              <input type="date" value={cogsFilters.endDateExclusive} onChange={e => setCogsFilters(s => ({ ...s, endDateExclusive: e.target.value }))} style={{ width: '100%', marginTop: 4, padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }} />
-            </label>
-            <label style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>
-              Location
-              <select value={cogsFilters.locationId} onChange={e => setCogsFilters(s => ({ ...s, locationId: e.target.value }))} style={{ width: '100%', marginTop: 4, padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}>
-                <option value="">All locations</option>
-                {(cogsReport?.locations ?? []).map(loc => <option key={loc.id} value={String(loc.id)}>{loc.name}</option>)}
-              </select>
-            </label>
-            <label style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>
-              Channel
-              <select value={cogsFilters.channel} onChange={e => setCogsFilters(s => ({ ...s, channel: e.target.value }))} style={{ width: '100%', marginTop: 4, padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}>
-                <option value="">All channels</option>
-                {(cogsReport?.channels ?? ['pos', 'online', 'wholesale']).map(ch => <option key={ch} value={ch}>{ch}</option>)}
-              </select>
-            </label>
-            <label style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>
-              Reconciliation State
-              <select value={cogsFilters.reconciliationState} onChange={e => setCogsFilters(s => ({ ...s, reconciliationState: e.target.value as any }))} style={{ width: '100%', marginTop: 4, padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}>
-                <option value="">All states</option>
-                <option value="current">Current</option>
-                <option value="adjustment_required">Adjustment Required</option>
-                <option value="blocked">Blocked</option>
-              </select>
-            </label>
-          </div>
-
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button onClick={loadCogsReport} disabled={cogsLoading} style={{ padding: '7px 12px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: cogsLoading ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>
-              {cogsLoading ? 'Loading…' : 'Apply Filters'}
-            </button>
-            <button onClick={previewCogsFromReport} disabled={cogsActionBusy !== null} style={{ padding: '7px 12px', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: cogsActionBusy ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>
-              {cogsActionBusy === 'preview' ? 'Previewing…' : 'Preview'}
-            </button>
-            <button onClick={postCogsFromReport} disabled={cogsActionBusy !== null || !cogsReport} style={{ padding: '7px 12px', background: 'rgba(16,185,129,.15)', color: '#34d399', border: '1px solid rgba(16,185,129,.35)', borderRadius: 6, cursor: cogsActionBusy || !cogsReport ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>
-              {cogsActionBusy === 'post' ? 'Posting…' : (cogsReport?.reconciliation.adjustmentRequired ? 'Post Adjustment' : 'Post COGS')}
-            </button>
-          </div>
-
-          {cogsError && <div style={{ fontSize: 12, color: '#f87171' }}>{cogsError}</div>}
-          {cogsActionMsg && <div style={{ fontSize: 12, color: cogsActionMsg.ok ? '#34d399' : '#f87171' }}>{cogsActionMsg.text}</div>}
-
-          {cogsReport && (
-            <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
-                <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}>
-                  <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Period</div>
-                  <div style={{ fontSize: 13, color: 'var(--sv-text-strong)', fontWeight: 600 }}>{cogsReport.period.label}</div>
-                </div>
-                <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}>
-                  <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Calculated COGS</div>
-                  <div style={{ fontSize: 13, color: 'var(--sv-text-strong)', fontWeight: 600 }}>{fmtMoney(cogsReport.reconciliation.calculatedTotal)}</div>
-                </div>
-                <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}>
-                  <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Posted Total</div>
-                  <div style={{ fontSize: 13, color: 'var(--sv-text-strong)', fontWeight: 600 }}>{fmtMoney(cogsReport.reconciliation.postedTotal)}</div>
-                </div>
-                <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}>
-                  <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Variance</div>
-                  <div style={{ fontSize: 13, color: cogsReport.reconciliation.variance === 0 ? '#34d399' : '#fbbf24', fontWeight: 700 }}>{fmtMoney(cogsReport.reconciliation.variance)}</div>
-                </div>
-                <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}>
-                  <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>State</div>
-                  <div style={{ fontSize: 13, color: cogsReport.reconciliation.state === 'current' ? '#34d399' : cogsReport.reconciliation.state === 'blocked' ? '#f87171' : '#fbbf24', fontWeight: 700, textTransform: 'capitalize' }}>{cogsReport.reconciliation.state.replace('_', ' ')}</div>
-                </div>
-                <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}>
-                  <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Last Post</div>
-                  <div style={{ fontSize: 13, color: 'var(--sv-text-main)', fontWeight: 600 }}>
-                    {cogsReport.lastPost ? fmtDate(cogsReport.lastPost.syncedAt || '') : 'No successful post'}
-                  </div>
-                  {cogsReport.lastPost?.xeroId && (
-                    <a href={xeroLink('cogs_journal', cogsReport.lastPost.xeroId)} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#38bdf8', textDecoration: 'none' }}>
-                      Open in Xero
-                    </a>
-                  )}
-                </div>
-              </div>
-
-              {cogsReport.coverage.warning && (
-                <div style={{ padding: '8px 10px', border: '1px solid rgba(251,191,36,.35)', borderRadius: 6, background: 'rgba(251,191,36,.08)', color: '#fbbf24', fontSize: 12 }}>
-                  {cogsReport.coverage.warningText}
-                </div>
-              )}
-
-              {!cogsReport.reconciliation.stateMatchesFilter && (
-                <div style={{ padding: '8px 10px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-dim)', fontSize: 12 }}>
-                  The selected reconciliation state filter does not match this period.
-                </div>
-              )}
-
-              <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden' }}>
-                <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--sv-text-dim)', borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
-                  Location and channel breakdown • {cogsReport.filteredTotals.movementCount} movements • Qty {Number(cogsReport.filteredTotals.quantity).toLocaleString('en-AU')} • {fmtMoney(cogsReport.filteredTotals.totalCOGS)}
-                </div>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-                      <th style={th}>Location</th>
-                      <th style={th}>Channel</th>
-                      <th style={{ ...th, textAlign: 'right' }}>Movements</th>
-                      <th style={{ ...th, textAlign: 'right' }}>Quantity</th>
-                      <th style={{ ...th, textAlign: 'right' }}>COGS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cogsReport.breakdown.length === 0 ? (
-                      <tr><td colSpan={5} style={{ ...td, textAlign: 'center', color: 'var(--sv-text-dim)' }}>No breakdown rows for selected filters.</td></tr>
-                    ) : cogsReport.breakdown.map((row, index) => (
-                      <tr key={`${row.locationId}-${row.channel}-${index}`} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-                        <td style={td}>{row.locationName}</td>
-                        <td style={{ ...td, textTransform: 'capitalize' }}>{row.channel}</td>
-                        <td style={{ ...td, textAlign: 'right' }}>{Number(row.movementCount).toLocaleString('en-AU')}</td>
-                        <td style={{ ...td, textAlign: 'right' }}>{Number(row.quantity).toLocaleString('en-AU')}</td>
-                        <td style={{ ...td, textAlign: 'right' }}>{fmtMoney(row.totalCOGS)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, fontSize: 12, color: 'var(--sv-text-dim)' }}>
-                <div>Included: {cogsReport.quality.includedMovementCount} movements / {Number(cogsReport.quality.includedQuantity).toLocaleString('en-AU')} qty</div>
-                <div>Missing cost: {cogsReport.quality.missingCostMovementCount} / {Number(cogsReport.quality.missingCostQuantity).toLocaleString('en-AU')} qty</div>
-                <div>Zero cost: {cogsReport.quality.zeroCostMovementCount} / {Number(cogsReport.quality.zeroCostQuantity).toLocaleString('en-AU')} qty</div>
-                <div>Excluded historical: {cogsReport.quality.excludedHistoricalMovementCount} / {Number(cogsReport.quality.excludedHistoricalQuantity).toLocaleString('en-AU')} qty</div>
-                <div>Orphaned: {cogsReport.quality.orphanedMovementCount} / {Number(cogsReport.quality.orphanedQuantity).toLocaleString('en-AU')} qty</div>
-              </div>
-            </>
-          )}
-        </div>
+      <div style={{ padding: 16, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)' }}>
+        COGS Reconciliation has moved to its own tab.
       </div>
-
-      {/* ── Shopify Payouts ── */}
-      {payoutEntries.length > 0 && (
-        <div style={{ background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', overflow: 'hidden' }}>
-          <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Shopify Payouts</span>
-          </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ background: 'var(--sv-bg-1)', borderBottom: '1px solid var(--sv-etch)' }}>
-                <th style={th}>Payout Date</th>
-                <th style={th}>Reference</th>
-                <th style={th}>Progress / Detail</th>
-                <th style={{ ...th, textAlign: 'right' }}>Amount</th>
-                <th style={th}>Updated</th>
-                <th style={th}>Status</th>
-                <th style={th}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {payoutEntries.map((entry, ei) => {
-                const retryKey = `payout-${entry.payout_id ?? ei}`;
-                const payoutStatus = entry.payout_status ?? '';
-                const statusColor = payoutStatus === 'reconciled' ? '#34d399' : payoutStatus === 'blocked' ? '#f87171' : payoutStatus === 'partial' ? '#fb923c' : payoutStatus === 'planned' ? '#38bdf8' : payoutStatus === 'ready_to_allocate' ? '#fbbf24' : 'var(--sv-text-dim)';
-                const statusBg = payoutStatus === 'reconciled' ? 'rgba(16,185,129,.13)' : payoutStatus === 'blocked' ? 'rgba(248,113,113,.13)' : payoutStatus === 'partial' ? 'rgba(251,146,60,.13)' : payoutStatus === 'planned' ? 'rgba(56,189,248,.13)' : payoutStatus === 'ready_to_allocate' ? 'rgba(251,191,36,.13)' : 'rgba(156,163,175,.13)';
-                return (
-                  <tr key={entry.payout_id ?? ei} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-                    <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{fmtDay(entry.item_date)}</td>
-                    <td style={{ ...td, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{entry.reference}</td>
-                    <td title={entry.last_sync_detail ?? undefined} style={{ ...td, color: 'var(--sv-text-dim)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {entry.contact_name ?? '—'}
-                    </td>
-                    <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtMoney(entry.amount)}</td>
-                    <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{entry.last_sync_at ? fmtDate(entry.last_sync_at) : '—'}</td>
-                    <td style={td}>
-                      <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: statusBg, color: statusColor }}>
-                        {payoutStatus || 'pending'}
-                      </span>
-                    </td>
-                    <td style={{ ...td, textAlign: 'right' }}>
-                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                        {entry.payout_id && ['blocked', 'ready_to_allocate'].includes(payoutStatus) && (
-                          <button
-                            title="Rebuild the payout plan after fixing a missing invoice, credit note, mapping, or other blocker. This does not post to Xero."
-                            onClick={() => processShopifyPayout(entry.payout_id!, 'plan', retryKey, entry.amount)}
-                            disabled={retrying[retryKey]}
-                            style={{ background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 6, cursor: 'pointer', padding: '5px 14px', fontSize: 12, color: '#f87171', fontWeight: 600 }}
-                          >
-                            {retrying[retryKey] ? '…' : '↻ Replan'}
-                          </button>
-                        )}
-                        {entry.payout_id && ['planned', 'partial'].includes(payoutStatus) && (
-                          <button
-                            title={payoutStatus === 'partial' ? 'Retry only unfinished payout actions. Completed Xero actions are not repeated.' : 'Preflight every planned invoice and credit note, then post the payout actions to Xero after confirmation.'}
-                            onClick={() => processShopifyPayout(entry.payout_id!, 'execute', retryKey, entry.amount)}
-                            disabled={retrying[retryKey]}
-                            style={{ background: 'rgba(20,184,166,.12)', border: '1px solid rgba(20,184,166,.3)', borderRadius: 6, cursor: 'pointer', padding: '5px 14px', fontSize: 12, color: '#14b8a6', fontWeight: 600 }}
-                          >
-                            {retrying[retryKey] ? '…' : payoutStatus === 'partial' ? '↻ Retry' : 'Post Payout'}
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
 
       {/* ── Sync history ── */}
       <div style={{ background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', overflow: 'hidden' }}>
@@ -16847,26 +16792,6 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                             style={{ background: 'rgba(56,189,248,.12)', border: '1px solid rgba(56,189,248,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: '#38bdf8', fontWeight: 600 }}
                           >
                             {retrying[retryKey] ? '…' : '↑ Sync Now'}
-                          </button>
-                        )}
-                        {isShopifyPayout && entry.payout_id && ['blocked', 'ready_to_allocate'].includes(entry.payout_status ?? '') && (
-                          <button
-                            title="Rebuild the payout plan after fixing a missing invoice, credit note, mapping, or other blocker. This does not post to Xero."
-                            onClick={() => processShopifyPayout(entry.payout_id!, 'plan', retryKey, entry.amount)}
-                            disabled={retrying[retryKey]}
-                            style={{ background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: '#f87171', fontWeight: 600 }}
-                          >
-                            {retrying[retryKey] ? '…' : '↻ Replan'}
-                          </button>
-                        )}
-                        {isShopifyPayout && entry.payout_id && ['planned', 'partial'].includes(entry.payout_status ?? '') && (
-                          <button
-                            title={entry.payout_status === 'partial' ? 'Retry only unfinished payout actions. Completed Xero actions are not repeated.' : 'Preflight every planned invoice and credit note, then post the payout actions to Xero after confirmation.'}
-                            onClick={() => processShopifyPayout(entry.payout_id!, 'execute', retryKey, entry.amount)}
-                            disabled={retrying[retryKey]}
-                            style={{ background: 'rgba(20,184,166,.12)', border: '1px solid rgba(20,184,166,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: '#14b8a6', fontWeight: 600 }}
-                          >
-                            {retrying[retryKey] ? '…' : entry.payout_status === 'partial' ? '↻ Retry' : 'Post Payout'}
                           </button>
                         )}
                       </td>
@@ -23443,7 +23368,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         </ul>
 
         <h3 style={h3}>5 — The Xero sync log</h3>
-        <p style={p}>Daily invoices and Shopify payouts appear in <strong>IMS → Xero → Sync History</strong>. A payout shows its planned/completed Xero action count and blocker detail. <strong>Replan</strong> rebuilds actions without posting; <strong>Post Payout</strong> preflights Xero balances and asks for confirmation; a partial retry resumes only unfinished idempotent actions.</p>
+        <p style={p}>Daily invoices appear in <strong>IMS → Xero → Sync History</strong>. Shopify payouts now have their own <strong>Shopify Payouts</strong> tab, and COGS has its own <strong>COGS Reconciliation</strong> tab; both are paginated and separate from Sync History. A payout shows its planned/completed Xero action count and blocker detail. <strong>Replan</strong> rebuilds actions without posting; <strong>Post Payout</strong> preflights Xero balances and asks for confirmation; a partial retry resumes only unfinished idempotent actions.</p>
         <p style={p}>The same log also shows gift card lifecycle events and store-credit redemption or legacy standalone issue events. CN-backed store-credit issuance is traced through the customer credit note and store-credit ledger instead, avoiding a duplicate revenue event.</p>
 
         <h3 style={h3}>Common issues</h3>

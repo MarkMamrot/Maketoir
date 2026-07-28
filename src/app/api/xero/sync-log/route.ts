@@ -121,8 +121,8 @@ export async function GET(req: Request) {
 
   // NOTE: limit is inlined into SQL below (not a placeholder) because mysql2
   // prepared statements (pool.execute) reject `LIMIT ?`. It is clamped to a
-  // safe integer 1..200 so inlining is injection-safe.
-  const limit = Math.max(1, Math.min(Math.floor(Number(searchParams.get('limit')) || 100), 100));
+  // safe integer 1..2000 so inlining is injection-safe.
+  const limit = Math.max(1, Math.min(Math.floor(Number(searchParams.get('limit')) || 100), 2000));
   // Ensure xero_state column exists (added Jun 2026 — no-op once column is present)
   await ensureXeroStateColumn();
   try {
