@@ -6566,10 +6566,10 @@ function StockView() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 type InvoiceParseResult = {
-  invoice: { supplier_name: string | null; invoice_number: string | null; invoice_date: string | null; currency: string; prices_include_tax: 'inc_tax' | 'ex_tax' | 'no_tax'; subtotal: number | null; tax_total: number | null; total_amount: number | null; payment_terms: string | null };
+  invoice: { supplier_name: string | null; invoice_number: string | null; invoice_date: string | null; currency: string; prices_include_tax: 'inc_tax' | 'ex_tax' | 'no_tax'; subtotal: number | null; tax_total: number | null; total_amount: number | null; payment_terms: string | null; discount_total?: number | null };
   matched_supplier: { id: number; name: string } | null;
   line_results: Array<{
-    invoice_line: { product_code: string | null; product_name: string; qty: number; unit_price: number; discount_pct: number; line_total: number; tax_rate: number };
+    invoice_line: { product_code: string | null; barcode?: string | null; product_name: string; qty: number; unit_price: number; rrp?: number | null; discount_pct: number; line_total?: number | null; tax_rate: number };
     match: { variant_id: string; sku?: string | null; product_name?: string | null; variant_label?: string | null; cost_aud?: number | null; confidence: string; method: string } | null;
   }>;
   po_comparison: Array<{
@@ -6581,7 +6581,7 @@ type InvoiceParseResult = {
 
 function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, variants, poId, pendingFile }: {
   onClose: () => void;
-  onImport?: (data: { supplier_id: number | ''; invoice_number: string; invoice_date: string; currency: string; payment_terms: string; tax_treatment: 'inc_tax' | 'ex_tax' | 'no_tax'; line_items: Array<{ variant_id: string; qty_ordered: number; unit_cost: number; discount_pct: number; tax_rate: number }> }) => void;
+  onImport?: (data: { supplier_id: number | ''; invoice_number: string; invoice_date: string; currency: string; payment_terms: string; tax_treatment: 'inc_tax' | 'ex_tax' | 'no_tax'; discount_total?: number | null; line_items: Array<{ variant_id: string; qty_ordered: number; unit_cost: number; discount_pct: number; tax_rate: number; barcode?: string | null; rrp?: number | null }> }) => void;
   onPreFillReceive?: (qtys: Record<string, number>) => void;
   suppliers: any[]; variants: any[]; poId?: number | null; pendingFile?: File | null;
 }) {
@@ -6648,9 +6648,9 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
     if (!result || !onImport) return;
     const line_items = result.line_results
       .filter((_, i) => !skipped.has(i))
-      .map((lr, i) => { const vid = getVid(i, lr); return vid ? { variant_id: vid, qty_ordered: Number(lr.invoice_line.qty) || 1, unit_cost: Number(lr.invoice_line.unit_price) || 0, discount_pct: Number(lr.invoice_line.discount_pct) || 0, tax_rate: Number(lr.invoice_line.tax_rate) || 0.1 } : null; })
+      .map((lr, i) => { const vid = getVid(i, lr); return vid ? { variant_id: vid, qty_ordered: Number(lr.invoice_line.qty) || 1, unit_cost: Number(lr.invoice_line.unit_price) || 0, discount_pct: Number(lr.invoice_line.discount_pct) || 0, tax_rate: Number(lr.invoice_line.tax_rate) || 0.1, barcode: lr.invoice_line.barcode ?? null, rrp: lr.invoice_line.rrp ?? null } : null; })
       .filter((x): x is NonNullable<typeof x> => x !== null);
-    onImport({ supplier_id: supplierId, invoice_number: invoiceNum, invoice_date: invoiceDate, currency, payment_terms: payTerms, tax_treatment: taxTreatment, line_items });
+    onImport({ supplier_id: supplierId, invoice_number: invoiceNum, invoice_date: invoiceDate, currency, payment_terms: payTerms, tax_treatment: taxTreatment, discount_total: result.invoice.discount_total ?? null, line_items });
     onClose();
   }
 
@@ -6834,6 +6834,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
         {fuzzyN > 0 && <span style={{ color: '#f59e0b', fontWeight: 600 }}>~ {fuzzyN} fuzzy</span>}
         {aiN   > 0 && <span style={{ color: '#818cf8', fontWeight: 600 }}>🤖 {aiN} AI</span>}
         {noneN  > 0 && <span style={{ color: 'var(--sv-red)', fontWeight: 600 }}>✗ {noneN} unmatched</span>}
+        {result.invoice.discount_total != null && <span style={{ color: '#f59e0b', fontWeight: 600 }}>Discount: {fmt$(result.invoice.discount_total)}</span>}
         <span style={{ marginLeft: 'auto', color: 'var(--sv-text-muted)' }}>Invoice total: {fmt$(result.invoice.total_amount)}</span>
       </div>
 
@@ -6868,6 +6869,8 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
               <th style={thSt}>Invoice Description</th>
               <th style={{ ...thSt, textAlign: 'right' }}>Qty</th>
               <th style={{ ...thSt, textAlign: 'right' }}>Unit Price</th>
+              <th style={thSt}>Barcode</th>
+              <th style={{ ...thSt, textAlign: 'right' }}>RRP</th>
               <th style={thSt}>IMS Match</th>
               <th style={thSt}>Confidence</th>
             </tr>
@@ -6890,6 +6893,8 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
                   <td style={{ ...tdSt, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={lr.invoice_line.product_name}>{lr.invoice_line.product_name}</td>
                   <td style={{ ...tdSt, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{lr.invoice_line.qty}</td>
                   <td style={{ ...tdSt, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt$(lr.invoice_line.unit_price)}</td>
+                  <td style={{ ...tdSt, color: 'var(--sv-text-muted)', fontFamily: 'monospace', fontSize: 11 }}>{lr.invoice_line.barcode ?? '—'}</td>
+                  <td style={{ ...tdSt, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{lr.invoice_line.rrp != null ? fmt$(lr.invoice_line.rrp) : '—'}</td>
                   <td style={{ ...tdSt, minWidth: 200 }}>
                     {conf === 'none' || hasOverride
                       ? <VariantSearch value={effectiveVid ?? ''} variants={variants} onChange={vid => setOverrides(p => ({ ...p, [i]: vid }))} style={{ minWidth: 180 }} />
@@ -8365,6 +8370,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
               payment_terms: data.payment_terms || p.payment_terms,
               // Apply AI-detected tax treatment so prices are stored exactly as on the invoice
               tax_treatment: data.tax_treatment ?? p.tax_treatment,
+              discount: data.discount_total ?? p.discount ?? '',
             }));
             if (data.supplier_id) selectSupplier(String(data.supplier_id));
             if (data.line_items.length > 0) setLineItems(data.line_items);

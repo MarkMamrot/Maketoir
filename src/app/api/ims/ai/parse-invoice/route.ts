@@ -3,6 +3,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { GoogleGenAI } from '@google/genai';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { normalizeParsedInvoice } from '@/lib/ims/invoiceImportParser';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -138,6 +139,8 @@ CRITICAL — determine the tax treatment of the line item prices FIRST:
 Look for clues: column headers like "Price (incl. GST)", "Inc GST", "Price (ex GST)", "Ex Tax", footnotes like "All prices include GST", or cross-check: if the sum of line_total values equals the invoice subtotal (ex-tax figure) then prices are ex_tax; if it equals the total_amount (inc-tax figure) then prices are inc_tax.
 Set "prices_include_tax" to exactly one of: "inc_tax" (line prices already include tax), "ex_tax" (line prices are before tax), "no_tax" (no tax applies).
 
+Also look for any order-wide discount at the invoice header or footer (for example "Discount", "Less discount", "Trade discount", or a line item subtotal reduction). If present, capture it as "discount_total".
+
 Return unit_price and line_total EXACTLY as they appear on the invoice — do NOT convert inc-tax prices to ex-tax. The system handles the tax arithmetic using prices_include_tax.
 
 Return ONLY a valid JSON object — no markdown fences, no extra text:
@@ -151,6 +154,7 @@ Return ONLY a valid JSON object — no markdown fences, no extra text:
   "subtotal": 0.00,
   "tax_total": 0.00,
   "total_amount": 0.00,
+  "discount_total": 0.00,
   "payment_terms": "payment terms text or null",
   "matched_supplier_id": null,
   "line_items": [
@@ -160,6 +164,7 @@ Return ONLY a valid JSON object — no markdown fences, no extra text:
       "product_name": "product name or description from invoice",
       "qty": 0,
       "unit_price": 0.00,
+      "rrp": 0.00,
       "discount_pct": 0,
       "line_total": 0.00,
       "tax_rate": 0.1
@@ -171,6 +176,7 @@ Notes:
 - product_code = the supplier's code for the item (often labelled "Item Code", "Part No", "SKU", "Code", "Style" etc.)
 - Extract ALL line items even if there are many
 - unit_price and line_total = values AS PRINTED on the invoice, never convert
+- rrp = recommended retail price if shown on the invoice; use null if not shown
 - tax_rate: 0.1 for Australian GST, 0 for GST-free items (applies even when prices_include_tax is inc_tax)
 
 IMS Supplier list — set matched_supplier_id to the numeric id of the best match, or null:
@@ -205,6 +211,8 @@ ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
       : `AI error: ${detail.slice(0, 200)}`;
     return NextResponse.json({ error: msg }, { status: 500 });
   }
+
+  const normalizedInvoice = normalizeParsedInvoice(parsedInvoice);
 
   // Resolve supplier
   let matchedSupplier: { id: number; name: string } | null = null;
@@ -297,16 +305,17 @@ ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
   return NextResponse.json({
     success: true,
     invoice: {
-      supplier_name:      parsedInvoice.supplier_name      ?? null,
-      invoice_number:     parsedInvoice.invoice_number     ?? null,
-      invoice_date:       parsedInvoice.invoice_date       ?? null,
-      due_date:           parsedInvoice.due_date           ?? null,
-      currency:           parsedInvoice.currency           ?? 'AUD',
-      prices_include_tax: (['inc_tax','ex_tax','no_tax'].includes(parsedInvoice.prices_include_tax) ? parsedInvoice.prices_include_tax : 'ex_tax') as 'inc_tax' | 'ex_tax' | 'no_tax',
-      subtotal:           parsedInvoice.subtotal           ?? null,
-      tax_total:          parsedInvoice.tax_total          ?? null,
-      total_amount:       parsedInvoice.total_amount       ?? null,
-      payment_terms:      parsedInvoice.payment_terms      ?? null,
+      supplier_name:      normalizedInvoice.supplier_name      ?? null,
+      invoice_number:     normalizedInvoice.invoice_number     ?? null,
+      invoice_date:       normalizedInvoice.invoice_date       ?? null,
+      due_date:           normalizedInvoice.due_date           ?? null,
+      currency:           normalizedInvoice.currency           ?? 'AUD',
+      prices_include_tax: (['inc_tax','ex_tax','no_tax'].includes(normalizedInvoice.prices_include_tax) ? normalizedInvoice.prices_include_tax : 'ex_tax') as 'inc_tax' | 'ex_tax' | 'no_tax',
+      subtotal:           normalizedInvoice.subtotal           ?? null,
+      tax_total:          normalizedInvoice.tax_total          ?? null,
+      total_amount:       normalizedInvoice.total_amount       ?? null,
+      payment_terms:      normalizedInvoice.payment_terms      ?? null,
+      discount_total:     normalizedInvoice.discount_total     ?? null,
     },
     matched_supplier: matchedSupplier,
     line_results:     lineResults,
