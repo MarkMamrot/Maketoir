@@ -32,4 +32,17 @@ describe('customer-service inbox repository', () => {
     expect(sql).toContain('LIMIT 30 OFFSET 0');
     expect(result).toMatchObject({ page: 1, pageSize: 30 });
   });
+
+  it('excludes archived threads unless status is explicitly requested', async () => {
+    await listCustomerServiceThreads('biz-1', {});
+    const [defaultSql] = mockImsQuery.mock.calls[1];
+    expect(defaultSql).toContain("COALESCE(t.workflow_status, 'open') <> 'archived'");
+
+    mockImsQuery.mockReset();
+    mockImsQuery.mockResolvedValueOnce([{ total: 0 }]).mockResolvedValueOnce([]);
+    await listCustomerServiceThreads('biz-1', { status: 'archived' });
+    const [archivedSql, archivedParams] = mockImsQuery.mock.calls[1];
+    expect(archivedSql).toContain('t.workflow_status = ?');
+    expect(archivedParams).toEqual(['biz-1', 'archived']);
+  });
 });

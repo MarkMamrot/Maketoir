@@ -45,6 +45,8 @@ export function buildBarcodeSvgMarkup(text: string, widthMm: number, heightMm: n
     check += v * pos;
   }
 
+  if (pos === 0) return '';
+
   codes.push(check % 103);
   codes.push(106);
 

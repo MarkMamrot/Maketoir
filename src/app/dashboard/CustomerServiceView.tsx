@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 
 type ViewTab = 'inbox' | 'settings' | 'learnings';
@@ -37,6 +38,51 @@ const TOOL_LABELS: Record<string, string> = {
 };
 
 function parseJson<T>(value: string, fallback: T): T { try { return JSON.parse(value) as T; } catch { return fallback; } }
+function isHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+function shortUrlLabel(value: string): string {
+  try {
+    const parsed = new URL(value);
+    const path = parsed.pathname === '/' ? '' : parsed.pathname;
+    return `${parsed.hostname}${path}`;
+  } catch {
+    return value;
+  }
+}
+function renderEmailBodyWithHyperlinks(value: string): ReactNode {
+  const lines = String(value || '').split(/\r?\n/);
+  return lines.map((line, lineIndex) => {
+    const quotedLink = line.match(/^\s*"([^"]+)"\s*<([^>\s]+)>\s*$/);
+    if (quotedLink && isHttpUrl(quotedLink[2])) {
+      return <span key={`line-${lineIndex}`}><a href={quotedLink[2]} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline break-all">{quotedLink[1]}</a>{lineIndex < lines.length - 1 ? '\n' : ''}</span>;
+    }
+    const labeledLink = line.match(/^\s*([^<>]{1,140}?)\s*<([^>\s]+)>\s*$/);
+    if (labeledLink && isHttpUrl(labeledLink[2])) {
+      return <span key={`line-${lineIndex}`}><a href={labeledLink[2]} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline break-all">{labeledLink[1].trim()}</a>{lineIndex < lines.length - 1 ? '\n' : ''}</span>;
+    }
+    const parts: ReactNode[] = [];
+    const regex = /<(https?:\/\/[^>\s]+)>|(https?:\/\/[^\s<>"]+)/g;
+    let cursor = 0;
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(line)) !== null) {
+      const index = match.index;
+      const url = (match[1] || match[2] || '').trim();
+      if (index > cursor) parts.push(<span key={`text-${lineIndex}-${cursor}`}>{line.slice(cursor, index)}</span>);
+      parts.push(<a key={`link-${lineIndex}-${index}`} href={url} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline break-all">{shortUrlLabel(url)}</a>);
+      cursor = index + match[0].length;
+    }
+    if (cursor < line.length) parts.push(<span key={`tail-${lineIndex}-${cursor}`}>{line.slice(cursor)}</span>);
+    if (!parts.length) parts.push(<span key={`plain-${lineIndex}`}>{line}</span>);
+    if (lineIndex < lines.length - 1) parts.push('\n');
+    return <span key={`line-${lineIndex}`}>{parts}</span>;
+  });
+}
 function categoryStyle(value: string | null): string {
   if (value === 'customer_enquiry') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
   if (value === 'junk') return 'bg-rose-50 text-rose-700 border-rose-200';
@@ -70,8 +116,16 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
       const response = await fetch(`/api/customer-service/inbox/threads?${params}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to load inbox');
-      setThreads(data.rows || []); setTotal(data.total || 0);
-      setSelectedId(preferredId ?? selectedId ?? data.rows?.[0]?.id ?? null);
+      const rows: ThreadSummary[] = data.rows || [];
+      setThreads(rows); setTotal(data.total || 0);
+      setSelectedId(current => {
+        if (preferredId !== undefined) {
+          if (preferredId === null) return rows[0]?.id ?? null;
+          return rows.some(thread => thread.id === preferredId) ? preferredId : (rows[0]?.id ?? null);
+        }
+        if (current && rows.some(thread => thread.id === current)) return current;
+        return rows[0]?.id ?? null;
+      });
     } catch (cause: any) { setError(cause.message); } finally { setLoading(false); }
   }
   async function loadDetail(threadId: number) {
@@ -198,7 +252,7 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
         </button>)}</aside>
         <main className="min-w-0 overflow-y-auto bg-gray-50">{!detail && <div className="h-full grid place-items-center text-sm text-gray-400">Select a conversation</div>}{detail && <div className="max-w-4xl mx-auto">
           <div className="sticky top-0 z-10 px-5 py-3 bg-white border-b border-gray-200 flex flex-wrap items-center gap-2"><div className="mr-auto min-w-0"><h2 className="font-bold text-gray-900 truncate">{detail.thread.subject}</h2><p className="text-xs text-gray-500">{detail.thread.customer_email}</p></div><select value={detail.thread.category || ''} onChange={e => patchThread({ category: e.target.value })} className="border border-gray-300 rounded px-2 py-1.5 text-xs"><option value="">Unclassified</option><option value="customer_enquiry">Customer enquiry</option><option value="junk">Junk</option><option value="other">Other</option></select><button onClick={() => mailboxAction(detail.thread.unread_count ? 'read' : 'unread')} disabled={!!busyAction} className="px-2 py-1.5 border border-gray-300 rounded text-xs">{detail.thread.unread_count ? 'Mark read' : 'Mark unread'}</button><button onClick={() => mailboxAction('archive')} disabled={!!busyAction} className="px-2 py-1.5 border border-gray-300 rounded text-xs">Archive</button></div>
-          <div className="p-5 space-y-3">{detail.messages.map(message => <article key={message.id} className={`border rounded-md p-4 ${message.direction === 'inbound' ? 'bg-white border-gray-200' : 'bg-blue-50 border-blue-200 ml-4'}`}><div className="flex justify-between gap-3 text-xs text-gray-500 mb-3"><span className="truncate">{message.from_address}</span><time className="shrink-0">{new Date(message.message_at).toLocaleString()}</time></div><pre className="whitespace-pre-wrap font-sans text-sm leading-6 text-gray-800">{message.body_plain}</pre>{parseJson<any[]>(message.attachment_metadata_json, []).length > 0 && <p className="mt-3 text-xs text-gray-500">{parseJson<any[]>(message.attachment_metadata_json, []).length} attachment(s), content not processed by AI</p>}</article>)}
+          <div className="p-5 space-y-3">{detail.messages.map(message => <article key={message.id} className={`border rounded-md p-4 ${message.direction === 'inbound' ? 'bg-white border-gray-200' : 'bg-blue-50 border-blue-200 ml-4'}`}><div className="flex justify-between gap-3 text-xs text-gray-500 mb-3"><span className="truncate">{message.from_address}</span><time className="shrink-0">{new Date(message.message_at).toLocaleString()}</time></div><div className="whitespace-pre-wrap font-sans text-sm leading-6 text-gray-800 break-words">{renderEmailBodyWithHyperlinks(message.body_plain)}</div>{parseJson<any[]>(message.attachment_metadata_json, []).length > 0 && <p className="mt-3 text-xs text-gray-500">{parseJson<any[]>(message.attachment_metadata_json, []).length} attachment(s), content not processed by AI</p>}</article>)}
           {activeDraft && <section className="border border-blue-300 bg-white rounded-md overflow-hidden"><div className="px-4 py-3 bg-blue-50 border-b border-blue-200 flex items-center gap-2"><h3 className="font-bold text-sm text-blue-900">AI reply draft</h3><span className="text-xs text-blue-700">{activeDraft.confidence !== null ? `${Math.round(Number(activeDraft.confidence) * 100)}% confidence` : ''}</span><span className="ml-auto text-xs text-blue-700">{activeDraft.status}</span></div>{(activeDraft.needs_information || activeDraft.escalation_reason) && <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-800">{activeDraft.escalation_reason || 'The AI needs more information before this can be answered reliably.'}</div>}<textarea value={activeDraft.current_body} onChange={e => updateDraftBody(e.target.value)} rows={12} className="w-full p-4 text-sm leading-6 resize-y outline-none" />{parseJson<any[]>(activeDraft.tool_provenance_json, []).length > 0 && <details className="px-4 py-2 border-t border-gray-100 text-xs text-gray-600"><summary className="cursor-pointer font-semibold">Business data used</summary><pre className="mt-2 whitespace-pre-wrap overflow-auto max-h-48">{JSON.stringify(parseJson(activeDraft.tool_provenance_json, []), null, 2)}</pre></details>}{activeDraft.last_error && <p className="px-4 py-2 text-xs text-red-700 bg-red-50">{activeDraft.last_error}</p>}<div className="px-4 py-3 border-t border-gray-200 flex flex-wrap justify-end gap-2"><button onClick={() => saveDraft()} disabled={!!busyAction} className="px-3 py-2 border border-gray-300 rounded text-sm font-semibold">Save edit</button><button onClick={() => replyAction('gmail-draft')} disabled={!!busyAction} className="px-3 py-2 bg-gray-700 text-white rounded text-sm font-semibold">Save to Gmail Drafts</button><button onClick={() => replyAction('send')} disabled={!!busyAction || activeDraft.status === 'sent'} className="px-3 py-2 bg-emerald-600 text-white rounded text-sm font-semibold">Send reply</button></div></section>}
           {!activeDraft && detail.thread.category === 'customer_enquiry' && <p className="p-4 border border-amber-200 bg-amber-50 text-sm text-amber-800 rounded-md">No draft is available yet. Get Emails runs AI processing for unprocessed enquiries.</p>}</div>
         </div>}</main>

@@ -217,6 +217,8 @@ export async function listCustomerServiceThreads(businessId: string, input: {
   if (['open', 'needs_review', 'drafted', 'sent', 'archived', 'failed'].includes(input.status || '')) {
     conditions.push('t.workflow_status = ?');
     params.push(input.status);
+  } else {
+    conditions.push("COALESCE(t.workflow_status, 'open') <> 'archived'");
   }
   if (input.unread) conditions.push('t.unread_count > 0');
 
