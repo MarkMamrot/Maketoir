@@ -138,13 +138,41 @@ export async function planShopifyPayoutActions(
     : [];
   const batchesByDate = new Map(batchRows.map(row => [toDateString(row.batch_date), row]));
 
+  // For invoice dates that have no payout-managed batch row, check whether they were
+  // synced by the old flow (before payout tracking was set up).  Those invoices are
+  // already paid in Xero so we must NOT create duplicate invoice_payment actions —
+  // instead we mark the transactions as pre-settled so reconciliation can balance.
+  const missingDates = invoiceDates.filter(d => {
+    const batch = batchesByDate.get(d);
+    return !batch || Number(batch.payout_managed) !== 1;
+  });
+  const preSettledByDate = new Map<string, string>(); // date → xero_invoice_id
+  if (missingDates.length > 0) {
+    const syncLogKeys = missingDates.map(d => `online batch ${d}`);
+    const preSettledRows = await deps.mainQuery(
+      `SELECT detail, xero_id
+         FROM xero_sync_log
+        WHERE business_id = ? AND sync_type = 'online_batch' AND status = 'success'
+          AND xero_id IS NOT NULL
+          AND detail IN (${placeholders(syncLogKeys)})`,
+      [businessId, ...syncLogKeys],
+    );
+    for (const row of preSettledRows) {
+      const m = String(row.detail ?? '').match(/online batch (\d{4}-\d{2}-\d{2})/);
+      if (m && row.xero_id) preSettledByDate.set(m[1], String(row.xero_id));
+    }
+  }
+
   const reconciliationTransactions: ShopifyPayoutTransactionInput[] = transactionRows.map(row => {
     const transactionId = String(row.shopify_transaction_id);
+    const kind = classifyShopifyPayoutTransaction(String(row.transaction_type));
     const invoiceDate = transactionDates.get(transactionId) ?? null;
     const batch = invoiceDate ? batchesByDate.get(invoiceDate) : null;
     const eligibleInvoiceId = batch && Number(batch.payout_managed) === 1
       ? String(batch.xero_invoice_id ?? '').trim() || null
       : null;
+    const isPreSettled = kind === 'charge' && invoiceDate != null
+      && eligibleInvoiceId == null && preSettledByDate.has(invoiceDate);
     return {
       id: transactionId,
       type: String(row.transaction_type),
@@ -154,6 +182,7 @@ export async function planShopifyPayoutActions(
       currency: String(row.currency),
       invoiceId: eligibleInvoiceId,
       invoiceDate,
+      preSettled: isPreSettled || undefined,
     };
   });
 

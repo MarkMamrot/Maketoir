@@ -31,126 +31,46 @@ function fmtPrice(value: number | string | null | undefined): string {
   return `$${num.toFixed(2)}`;
 }
 
-const CODE128_PATTERNS = ['212222','222122','222221','121223','121322','131222','122213','122312','132212','221213','221312','231212','112232','122132','122231','113222','123122','123221','223211','221132','221231','213212','223112','312131','311222','321122','321221','312212','322112','322211','212123','212321','232121','111323','131123','131321','112313','132113','132311','211313','231113','231311','112133','112331','132131','113123','113321','133121','313121','211331','231131','213113','213311','213131','311123','311321','331121','312113','312311','332111','314111','221411','431111','111224','111422','121124','121421','141122','141221','112214','112412','122114','122411','142112','142211','241211','221114','413111','241112','134111','111242','121142','121241','114212','124112','124211','411212','421112','421211','212141','214121','412121','111143','111341','131141','114113','114311','411113','411311','113141','114131','311141','411131','211412','211214','211232','2331112'];
+export function buildBarcodeSvgMarkup(text: string, widthMm: number, heightMm: number): string {
+  const T = ['212222','222122','222221','121223','121322','131222','122213','122312','132212','221213','221312','231212','112232','122132','122231','113222','123122','123221','223211','221132','221231','213212','223112','312131','311222','321122','321221','312212','322112','322211','212123','212321','232121','111323','131123','131321','112313','132113','132311','211313','231113','231311','112133','112331','132131','113123','113321','133121','313121','211331','231131','213113','213311','213131','311123','311321','331121','312113','312311','332111','314111','221411','431111','111224','111422','121124','121421','141122','141221','112214','112412','122114','122411','142112','142211','241211','221114','413111','241112','134111','111242','121142','121241','114212','124112','124211','411212','421112','421211','212141','214121','412121','111143','111341','131141','114113','114311','411113','411311','113141','114131','311141','411131','211412','211214','211232','2331112'];
+  const codes: number[] = [104];
+  let check = 104;
+  let pos = 0;
 
-function isDigit(ch: string): boolean {
-  const cc = ch.charCodeAt(0);
-  return cc >= 48 && cc <= 57;
-}
-
-function digitRunLength(value: string, from: number): number {
-  let i = from;
-  while (i < value.length && isDigit(value[i])) i += 1;
-  return i - from;
-}
-
-function toCodeB(ch: string): number {
-  return ch.charCodeAt(0) - 32;
-}
-
-function encodeCode128Values(rawText: string): number[] {
-  const text = String(rawText)
-    .split('')
-    .filter((ch) => {
-      const cc = ch.charCodeAt(0);
-      return cc >= 32 && cc <= 126;
-    })
-    .join('');
-  if (!text) return [];
-
-  const shouldStartC = (() => {
-    const run = digitRunLength(text, 0);
-    return run >= 4;
-  })();
-
-  const values: number[] = [shouldStartC ? 105 : 104];
-  let mode: 'B' | 'C' = shouldStartC ? 'C' : 'B';
-  let i = 0;
-
-  while (i < text.length) {
-    if (mode === 'C') {
-      const run = digitRunLength(text, i);
-      if (run >= 2) {
-        if ((run % 2) === 1) {
-          values.push(100); // Shift to Code B for one char to keep pairs aligned
-          mode = 'B';
-          continue;
-        }
-        while (i + 1 < text.length && isDigit(text[i]) && isDigit(text[i + 1])) {
-          values.push(Number(text.slice(i, i + 2)));
-          i += 2;
-        }
-        continue;
-      }
-
-      values.push(100); // Switch to Code B when no digit pair remains
-      mode = 'B';
-      continue;
-    }
-
-    const run = digitRunLength(text, i);
-    if (run >= 4) {
-      if ((run % 2) === 1) {
-        values.push(toCodeB(text[i]));
-        i += 1;
-      }
-      values.push(99); // Switch to Code C for a dense numeric run
-      mode = 'C';
-      continue;
-    }
-
-    values.push(toCodeB(text[i]));
-    i += 1;
+  for (let i = 0; i < text.length; i++) {
+    const v = text.charCodeAt(i) - 32;
+    if (v < 0 || v > 94) continue;
+    pos++;
+    codes.push(v);
+    check += v * pos;
   }
 
-  return values;
-}
-
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-export function renderCode128Svg(text: string, widthMm: number, heightMm: number): string {
-  const values = encodeCode128Values(text);
-  if (values.length === 0) return '';
-
-  let check = values[0];
-  for (let i = 1; i < values.length; i++) check += values[i] * i;
-  const codes = [...values, check % 103, 106];
+  codes.push(check % 103);
+  codes.push(106);
 
   const bars: Array<{ w: number; dark: boolean }> = [];
   let totalModules = 0;
   for (const code of codes) {
-    const pattern = CODE128_PATTERNS[code];
     let dark = true;
-    for (let i = 0; i < pattern.length; i++) {
-      const w = Number(pattern[i]);
+    for (const ch of T[code]) {
+      const w = parseInt(ch);
       bars.push({ w, dark });
       totalModules += w;
       dark = !dark;
     }
   }
 
-  const quietZoneMm = 2.5;
-  const drawableMm = Math.max(1, widthMm - quietZoneMm * 2);
-  const moduleMm = drawableMm / totalModules;
-  const quietModules = Math.max(10, Math.ceil(quietZoneMm / moduleMm));
-  const viewWidth = totalModules + quietModules * 2;
-  const viewHeight = 100;
-
-  let x = quietModules;
+  const qz = 10;
+  const scale = widthMm / (totalModules + qz * 2);
+  let x = qz * scale;
   let rects = '';
   for (const { w, dark } of bars) {
-    if (dark) rects += `<rect x="${x}" y="0" width="${w}" height="${viewHeight}" fill="#000"/>`;
-    x += w;
+    const bw = w * scale;
+    if (dark) rects += `<rect x="${x.toFixed(3)}" y="0" width="${bw.toFixed(3)}" height="${heightMm}" fill="#000"/>`;
+    x += bw;
   }
 
-  const safeLabel = escapeXml(String(text));
-  return `<svg viewBox="0 0 ${viewWidth} ${viewHeight}" width="100%" height="100%" preserveAspectRatio="none" shape-rendering="crispEdges" role="img" aria-label="Barcode ${safeLabel}" xmlns="http://www.w3.org/2000/svg"><rect width="${viewWidth}" height="${viewHeight}" fill="#fff"/>${rects}</svg>`;
+  return `<svg viewBox="0 0 ${widthMm} ${heightMm}" width="100%" height="100%" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><rect width="${widthMm}" height="${heightMm}" fill="white"/>${rects}</svg>`;
 }
 
 export function buildBarcodeLabelHtml(options: BarcodeLabelRenderOptions): string {
@@ -180,7 +100,7 @@ export function buildBarcodeLabelHtml(options: BarcodeLabelRenderOptions): strin
     return rrp ? `<span class="price">${rrp}</span>` : '';
   })();
 
-  const barcodeSvg = showBarcode && variant?.barcode ? renderCode128Svg(String(variant.barcode), size.w - 2 * padH, bcH) : '';
+  const barcodeSvg = showBarcode && variant?.barcode ? buildBarcodeSvgMarkup(String(variant.barcode), size.w - 2 * padH, bcH) : '';
   const singleLabel = `<div class="label">
   ${showTopRow ? `<div class="top-row">
     <span class="pname">${name}</span>

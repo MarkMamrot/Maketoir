@@ -12,6 +12,10 @@ export interface ShopifyPayoutTransactionInput {
   currency: string;
   invoiceId?: string | null;
   invoiceDate?: string | null;
+  /** True when the invoice for this charge was already paid in Xero by an earlier (pre-payout-tracking) sync.
+   * Such charges count toward grossCharges/transactionNet but do NOT create invoice_payment actions
+   * and do NOT block reconciliation as unresolved. */
+  preSettled?: boolean;
 }
 
 export interface ShopifyInvoiceAllocation {
@@ -90,6 +94,10 @@ export function reconcileShopifyPayout(input: {
 
     if (kind === 'charge') {
       grossChargeCents += amountCents;
+      if (transaction.preSettled) {
+        // Invoice already paid in Xero by the old sync flow — count toward net but skip allocation.
+        continue;
+      }
       if (!transaction.invoiceId || !transaction.invoiceDate) {
         unresolvedChargeIds.push(transaction.id);
         continue;

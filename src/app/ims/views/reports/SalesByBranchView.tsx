@@ -1,6 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { SBDatePicker, SBDateRange } from './reportFilterHelpers';
 
+function SortArrowIcon({ col, sortCol, sortAsc }: { col: string; sortCol: string; sortAsc: boolean }) {
+  return (
+    <span style={{ marginLeft: 3, fontSize: 9, opacity: sortCol === col ? 1 : 0.3 }}>
+      {sortCol === col ? (sortAsc ? '\u25B2' : '\u25BC') : '\u2195'}
+    </span>
+  );
+}
+
 interface SalesByBranchViewProps {
   onBack: () => void;
   apiFetch: (url: string, opts?: RequestInit) => Promise<any>;
@@ -9,7 +17,7 @@ interface SalesByBranchViewProps {
 export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) {
   const [rows, setRows]             = useState<any[]>([]);
   const [total, setTotal]           = useState(0);
-  const [locations, setLocations]   = useState<Array<{ id: number; name: string }>>([]);
+  const [locations, setLocations]   = useState<{ id: number; name: string }[]>([]);
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState('');
 
@@ -135,17 +143,12 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
 
   const cellStyle: React.CSSProperties = { padding: '9px 12px', borderBottom: '1px solid var(--sv-etch)', fontSize: 13, whiteSpace: 'nowrap' };
   const hCell: React.CSSProperties    = { ...cellStyle, fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, background: 'var(--sv-bg-2)', verticalAlign: 'top', position: 'sticky', top: 0, zIndex: 2 };
-  const numCell: React.CSSProperties  = { ...cellStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' as any };
+  const numCell: React.CSSProperties  = { ...cellStyle, textAlign: 'right' };
   const numHCell: React.CSSProperties = { ...hCell, textAlign: 'right' };
 
-  const sortArrow = (col: string) => (
-    <span style={{ marginLeft: 3, fontSize: 9, opacity: sortCol === col ? 1 : 0.3 }}>
-      {sortCol === col ? (sortAsc ? '▲' : '▼') : '↕'}
-    </span>
-  );
   const sortTh = (col: string, label: string, extra?: React.CSSProperties) => (
     <th onClick={() => toggleSort(col)} style={{ ...hCell, cursor: 'pointer', userSelect: 'none', ...extra }}>
-      {label}{sortArrow(col)}
+      {label}<SortArrowIcon col={col} sortCol={sortCol} sortAsc={sortAsc} />
     </th>
   );
 
@@ -221,7 +224,7 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)', overflowX: 'auto' }}>
+        <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)' }}>
           <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ position: 'sticky', top: 0, zIndex: 3, background: 'var(--sv-bg-1)', boxShadow: '0 1px 0 0 var(--sv-etch)' }}>

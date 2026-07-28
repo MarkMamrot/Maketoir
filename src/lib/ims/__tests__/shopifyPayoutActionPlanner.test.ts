@@ -73,7 +73,7 @@ describe('planShopifyPayoutActions', () => {
     expect(deps.mainExecute.mock.calls.at(-1)?.[0]).toContain("reconciliation_status = 'planned'");
   });
 
-  it('blocks a charge whose daily invoice is legacy rather than payout-managed', async () => {
+  it('blocks a charge whose daily invoice is legacy and has no sync-log record', async () => {
     deps.mainQuery.mockImplementation(async (sql: string) => {
       if (sql.includes('FROM shopify_payment_payouts')) {
         return [{ shopify_payout_id: 'pay-1', payout_date: '2026-07-27', shopify_status: 'paid', currency: 'AUD', payout_amount: 98 }];
@@ -84,6 +84,9 @@ describe('planShopifyPayoutActions', () => {
       if (sql.includes('FROM xero_online_batches')) {
         return [{ batch_date: '2026-07-25', xero_invoice_id: 'legacy-inv', payout_managed: 0 }];
       }
+      if (sql.includes('FROM xero_sync_log')) {
+        return []; // No successful sync-log record → charge is genuinely unresolved
+      }
       throw new Error(`Unhandled main query: ${sql}`);
     });
 
@@ -91,6 +94,36 @@ describe('planShopifyPayoutActions', () => {
 
     expect(result).toMatchObject({ status: 'blocked', error: 'Unresolved payout charges: sat' });
     expect(deps.mainExecute.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO shopify_payment_xero_actions'))).toBe(false);
+  });
+
+  it('treats a charge as pre-settled when its date has a successful sync-log record but no payout-managed batch', async () => {
+    deps.mainQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM shopify_payment_payouts')) {
+        return [{ shopify_payout_id: 'pay-1', payout_date: '2026-07-27', shopify_status: 'paid', currency: 'AUD', payout_amount: 98 }];
+      }
+      if (sql.includes('FROM shopify_payment_payout_transactions')) {
+        return [{ shopify_transaction_id: 'sat', transaction_type: 'charge', amount: 100, fee: -2, net: 98, currency: 'AUD', source_order_id: 'order-sat' }];
+      }
+      if (sql.includes('FROM xero_online_batches')) {
+        // Legacy batch row — payout_managed=0, meaning it was synced before payout tracking
+        return [{ batch_date: '2026-07-25', xero_invoice_id: 'legacy-inv', payout_managed: 0 }];
+      }
+      if (sql.includes('FROM xero_sync_log')) {
+        // The old flow wrote a successful sync-log entry for this date → pre-settled
+        return [{ detail: 'online batch 2026-07-25', xero_id: 'legacy-inv' }];
+      }
+      if (sql.includes('FROM xero_gateway_mappings')) {
+        return [{ gateway_name: 'shopify_payments', clearing_account_code: '091', fee_account_code: '404', fee_tax_type: 'INPUT' }];
+      }
+      throw new Error(`Unhandled main query: ${sql}`);
+    });
+
+    const result = await planShopifyPayoutActions('biz-1', 'pay-1', deps);
+
+    // Pre-settled charge is not unresolved → balanced → planned with just fee_spend (no invoice_payment)
+    expect(result.status).toBe('planned');
+    expect(result.actions.some(a => a.actionType === 'invoice_payment')).toBe(false);
+    expect(result.actions.some(a => a.actionType === 'fee_spend')).toBe(true);
   });
 
   it('blocks refunds without one completed Xero credit note', async () => {

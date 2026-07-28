@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
-import { buildBarcodeLabelHtml, renderCode128Svg } from '@/lib/ims/barcodeLabelPrinter';
-import { summarizePosMargin } from '@/lib/ims/posSaleCosts';
+import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 import { MainSections } from './views/MainSections';
 import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports/SalesByBranchView';
+import { SalesSearchView as SalesSearchViewComponent } from './views/reports/SalesSearchView';
 import {
   EMPTY_MULTI,
   MultiFilter,
@@ -31,7 +31,7 @@ type ImsView =
   | 'purchase-orders' | 'sales-orders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
-  | 'reports' | 'report-sales-by-branch' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
+  | 'reports' | 'report-sales-by-branch' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
   | 'xero' | 'shopify';
 
 interface User { name: string; email: string; company: string; businessId: string; tier?: string; hasForesight?: boolean }
@@ -566,7 +566,7 @@ const IMS_ONBOARDING_ACTIONS: Record<string, ImsOnboardingAction> = {
   pos_ready:        { type: 'settings', section: 'pos',              label: 'Review POS Setup' },
 };
 
-function DashboardView({ onNav, onOpenSettings, onOpenPurchaseOrder, onOpenSalesOrder, onOpenPosSale }: { onNav: (v: ImsView) => void; onOpenSettings?: (section: string) => void; onOpenPurchaseOrder?: (id: number) => void; onOpenSalesOrder?: (id: number) => void; onOpenPosSale?: (id: number) => void }) {
+function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void; onOpenSettings?: (section: string) => void }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(1);
@@ -932,9 +932,9 @@ function DashboardView({ onNav, onOpenSettings, onOpenPurchaseOrder, onOpenSales
 
           {/* ── Sales by Channel ── */}
           <div style={{ marginTop: 24 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales & Gross Profit by Channel</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales by Channel</div>
+              <div style={{ display: 'flex', gap: 6 }}>
                 {([1, 30, 120, 365] as const).map(d => (
                   <button key={d} onClick={() => setDays(d)}
                     style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, borderRadius: 6,
@@ -957,143 +957,119 @@ function DashboardView({ onNav, onOpenSettings, onOpenPurchaseOrder, onOpenSales
               const CH_LABEL: Record<string, string> = { pos: 'POS', wholesale: 'Wholesale', online: 'Online' };
               const activeChannels = (['pos','wholesale','online'] as const).filter(ch => CD.some((d: any) => d.channel === ch));
               const locations = [...new Set(CD.map((d: any) => d.location_name as string))];
-              const getSales = (ch: string, loc: string) => Number(CD.find((d: any) => d.channel === ch && d.location_name === loc)?.total ?? 0);
-              const getTax = (ch: string, loc: string) => Number(CD.find((d: any) => d.channel === ch && d.location_name === loc)?.tax ?? 0);
-              const getCogs = (ch: string, loc: string) => Number(CD.find((d: any) => d.channel === ch && d.location_name === loc)?.cogs ?? 0);
-              const getGp = (ch: string, loc: string) => Number(CD.find((d: any) => d.channel === ch && d.location_name === loc)?.gross_profit ?? 0);
+              const getVal = (ch: string, loc: string) => Number(CD.find((d: any) => d.channel === ch && d.location_name === loc)?.total ?? 0);
               const getOrd = (ch: string, loc: string) => Number(CD.find((d: any) => d.channel === ch && d.location_name === loc)?.order_count ?? 0);
 
-              const rawMax = Math.max(...CD.map((d: any) => Number(d.total)), 1);
-              const gpMax = Math.max(...CD.map((d: any) => Number(d.gross_profit ?? 0)), 1);
-              const yMax = Math.max(rawMax, gpMax, 1000);
+              const rawMax = Math.max(...CD.map((d: any) => Number(d.total)));
               const niceMax = (v: number) => { if (v <= 0) return 1000; const m = Math.pow(10, Math.floor(Math.log10(v))); for (const x of [1,2,5,10]) { if (m*x >= v) return m*x; } return m*10; };
-              const yUpper = niceMax(yMax);
-              const yTicks = [0,1,2,3,4].map(i => Math.round((i/4) * yUpper));
+              const yMax = niceMax(rawMax);
+              const yTicks = [0,1,2,3,4].map(i => Math.round((i/4) * yMax));
 
-              const VW=760, VH=320, PL=76, PR=16, PT=20, PB=56;
+              const VW=700, VH=300, PL=72, PR=16, PT=20, PB=56;
               const plotW=VW-PL-PR, plotH=VH-PT-PB;
               const nLoc=locations.length, nCh=activeChannels.length;
               const groupW=plotW/nLoc;
-              const slotW=Math.min(48, Math.max(12, (groupW*0.78)/nCh));
-              const barW=Math.max(8, slotW-4);
-              const getLocChans=(loc:string) => activeChannels.filter(ch => getSales(ch,loc) > 0 || getGp(ch,loc) > 0);
+              const slotW=Math.min(44, Math.max(12, (groupW*0.78)/nCh));
+              const barW=Math.max(8, slotW-3);
+              const getLocChans=(loc:string) => activeChannels.filter(ch => getVal(ch,loc) > 0);
               const xBarLocal=(li:number, localCi:number, nLocalCh:number) => {
                 const offset=(groupW - slotW*nLocalCh)/2;
                 return PL + li*groupW + offset + localCi*slotW + 1.5;
               };
-              const yVal=(v:number) => PT + plotH - (v/yUpper)*plotH;
-              const hVal=(v:number) => (v/yUpper)*plotH;
+              const yVal=(v:number) => PT + plotH - (v/yMax)*plotH;
+              const hVal=(v:number) => (v/yMax)*plotH;
               const fmtY=(v:number) => v>=1000000?`$${(v/1000000).toFixed(1)}M`:v>=1000?`$${(v/1000).toFixed(0)}k`:`$${v}`;
               const trunc=(s:string,n=13) => s.length>n ? s.slice(0,n)+'…' : s;
 
               return (
                 <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px 8px' }}>
-                  <div style={{ display: 'flex', gap: 16, marginBottom: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 16, marginBottom: 8, justifyContent: 'flex-end' }}>
                     {activeChannels.map(ch => (
                       <div key={ch} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--sv-text-dim)' }}>
                         <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: CH_COLOR[ch] }} />
                         {CH_LABEL[ch]}
                       </div>
                     ))}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--sv-text-dim)' }}>
-                      <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: '#34d399' }} />
-                      GP
-                    </div>
                   </div>
-                  <div style={{ overflowX: 'auto' }}>
-                    <svg viewBox={`0 0 ${VW} ${VH}`} style={{ minWidth: 620, width: '100%', display: 'block', overflow: 'visible' }}>
-                      {yTicks.map(tick => {
-                        const y = yVal(tick);
-                        return (
-                          <g key={tick}>
-                            <line x1={PL} y1={y} x2={VW-PR} y2={y} stroke="currentColor" strokeOpacity="0.1" strokeDasharray={tick===0?undefined:'4,3'} />
-                            <text x={PL-7} y={y+4} textAnchor="end" fontSize="10" fill="currentColor" fillOpacity="0.4">{fmtY(tick)}</text>
-                          </g>
-                        );
-                      })}
-                      <line x1={PL} y1={PT+plotH} x2={VW-PR} y2={PT+plotH} stroke="currentColor" strokeOpacity="0.15" />
-                      {locations.map((loc, li) => {
-                        const locChans = getLocChans(loc);
-                        return (
-                          <g key={loc}>
-                            {locChans.map((ch, localCi) => {
-                              const salesV = getSales(ch, loc);
-                              const gpV = getGp(ch, loc);
-                              const x=xBarLocal(li,localCi,locChans.length);
-                              const salesY=yVal(salesV), salesH=hVal(salesV);
-                              const gpY=yVal(gpV), gpH=hVal(gpV);
-                              return (
-                                <g key={ch}>
-                                  <rect x={x} y={salesY} width={barW} height={salesH} fill={CH_COLOR[ch]} rx="3" opacity="0.85" />
-                                  <rect x={x + barW + 4} y={gpY} width={barW} height={gpH} fill="#34d399" rx="3" opacity="0.9" />
-                                  {salesH>24 && barW>14 && (
-                                    <text x={x+barW/2} y={salesY-5} textAnchor="middle" fontSize="9" fill="currentColor" fillOpacity="0.55">{fmtCurrency(salesV)}</text>
-                                  )}
-                                  {gpH>24 && barW>14 && (
-                                    <text x={x+barW+4+barW/2} y={gpY-5} textAnchor="middle" fontSize="9" fill="currentColor" fillOpacity="0.55">{fmtCurrency(gpV)}</text>
-                                  )}
-                                  <title>{`${CH_LABEL[ch]} — ${loc}\nSales ${fmtCurrency(salesV)}\nGross profit ${fmtCurrency(gpV)}\nTax deducted ${fmtCurrency(getTax(ch,loc))}\nCOGs deducted ${fmtCurrency(getCogs(ch,loc))}\n${getOrd(ch,loc)} orders`}</title>
-                                </g>
-                              );
-                            })}
-                            <text x={PL+li*groupW+groupW/2} y={PT+plotH+18} textAnchor="middle" fontSize="11" fill="currentColor" fillOpacity="0.5">{trunc(loc)}</text>
-                          </g>
-                        );
-                      })}
-                    </svg>
-                  </div>
+                  <svg viewBox={`0 0 ${VW} ${VH}`} style={{ width: '100%', display: 'block', overflow: 'visible' }}>
+                    {yTicks.map(tick => {
+                      const y = yVal(tick);
+                      return (
+                        <g key={tick}>
+                          <line x1={PL} y1={y} x2={VW-PR} y2={y} stroke="currentColor" strokeOpacity="0.1" strokeDasharray={tick===0?undefined:'4,3'} />
+                          <text x={PL-7} y={y+4} textAnchor="end" fontSize="10" fill="currentColor" fillOpacity="0.4">{fmtY(tick)}</text>
+                        </g>
+                      );
+                    })}
+                    <line x1={PL} y1={PT+plotH} x2={VW-PR} y2={PT+plotH} stroke="currentColor" strokeOpacity="0.15" />
+                    {locations.map((loc, li) => {
+                      const locChans = getLocChans(loc);
+                      return (
+                        <g key={loc}>
+                          {locChans.map((ch, localCi) => {
+                            const v = getVal(ch, loc);
+                            const x=xBarLocal(li,localCi,locChans.length), y=yVal(v), h=hVal(v);
+                            return (
+                              <g key={ch}>
+                                <rect x={x} y={y} width={barW} height={h} fill={CH_COLOR[ch]} rx="3" opacity="0.85" />
+                                {h>24 && barW>14 && (
+                                  <text x={x+barW/2} y={y-5} textAnchor="middle" fontSize="9" fill="currentColor" fillOpacity="0.55">{fmtCurrency(v)}</text>
+                                )}
+                                <title>{`${CH_LABEL[ch]} — ${loc}\n${fmtCurrency(v)} · ${getOrd(ch,loc)} orders`}</title>
+                              </g>
+                            );
+                          })}
+                          <text x={PL+li*groupW+groupW/2} y={PT+plotH+18} textAnchor="middle" fontSize="11" fill="currentColor" fillOpacity="0.5">{trunc(loc)}</text>
+                        </g>
+                      );
+                    })}
+                  </svg>
                 </div>
               );
             })()}
           </div>
 
           {/* ── Recent tables row: POs · SOs · POS Sales ── */}
-          <div style={{ marginTop: 24, display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'stretch' }}>
-            <div style={{ flex: '1 1 360px', minWidth: 'min(100%, 360px)' }}>
-              <RecentTable title="Recent Purchase Orders" rows={data?.recentPOs ?? []} columns={[
+          <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 18, alignItems: 'start' }}>
+            <RecentTable title="Recent Purchase Orders" rows={data?.recentPOs ?? []} columns={[
               { key: 'po_number',     label: 'PO #'        },
               { key: 'supplier_name', label: 'Supplier'    },
               { key: 'status',        label: 'Status', render: (v: string) => <StatusBadge status={v} /> },
               { key: 'total_amount',  label: 'Total', render: (v: number) => fmtCurrency(v) },
-            ]} onRowClick={(row: any) => row?.id && onOpenPurchaseOrder?.(row.id)} />
-            </div>
-            <div style={{ flex: '1 1 360px', minWidth: 'min(100%, 360px)' }}>
-              <RecentTable title="Recent Sales Orders" rows={data?.recentSOs ?? []} columns={[
+            ]} />
+            <RecentTable title="Recent Sales Orders" rows={data?.recentSOs ?? []} columns={[
               { key: 'so_number',     label: 'SO #'        },
               { key: 'customer_name', label: 'Customer'    },
               { key: 'status',        label: 'Status', render: (v: string) => <StatusBadge status={v} /> },
               { key: 'total_amount',  label: 'Total', render: (v: number) => fmtCurrency(v) },
-            ]} onRowClick={(row: any) => row?.id && onOpenSalesOrder?.(row.id)} />
-            </div>
-            <div style={{ flex: '1.35 1 480px', minWidth: 'min(100%, 480px)', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+            ]} />
+            <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
               <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--sv-etch)', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Recent POS Sales</div>
               {salesLoading ? (
                 <div style={{ padding: 20, textAlign: 'center' }}><Spinner /></div>
               ) : !(salesData?.recentPOS?.length) ? (
                 <div style={{ padding: 20, color: 'var(--sv-text-dim)', fontSize: 13 }}>No POS sales yet.</div>
               ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr>{['Time', 'Location', 'Cashier', 'Customer', 'Type', 'Total'].map(h => (
-                        <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: .8 }}>{h}</th>
-                      ))}</tr>
-                    </thead>
-                    <tbody>
-                      {(salesData.recentPOS as any[]).slice(0, 10).map((s: any, i: number) => (
-                        <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)', cursor: 'pointer' }} onClick={() => s?.id && onOpenPosSale?.(s.id)}>
-                          <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{new Date(s.created_at).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' })}</td>
-                          <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{s.location_name}</td>
-                          <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{s.cashier_name || '—'}</td>
-                          <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{s.customer_name || '—'}</td>
-                          <td style={{ padding: '8px 12px' }}><StatusBadge status={s.sale_type} /></td>
-                          <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 600, textAlign: 'right',
-                            color: s.sale_type === 'return' ? 'var(--sv-red)' : 'var(--sv-text-main)' }}>{fmtCurrency(Number(s.total))}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>{['Time', 'Location', 'Cashier', 'Customer', 'Type', 'Total'].map(h => (
+                      <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: .8 }}>{h}</th>
+                    ))}</tr>
+                  </thead>
+                  <tbody>
+                    {(salesData.recentPOS as any[]).map((s: any, i: number) => (
+                      <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                        <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{new Date(s.created_at).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                        <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{s.location_name}</td>
+                        <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{s.cashier_name || '—'}</td>
+                        <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{s.customer_name || '—'}</td>
+                        <td style={{ padding: '8px 12px' }}><StatusBadge status={s.sale_type} /></td>
+                        <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 600, textAlign: 'right',
+                          color: s.sale_type === 'return' ? 'var(--sv-red)' : 'var(--sv-text-main)' }}>{fmtCurrency(Number(s.total))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
             </div>
           </div>
@@ -1103,31 +1079,29 @@ function DashboardView({ onNav, onOpenSettings, onOpenPurchaseOrder, onOpenSales
   );
 }
 
-function RecentTable({ title, rows, columns, onRowClick }: { title: string; rows: any[]; columns: { key: string; label: string; render?: (v: any) => React.ReactNode }[]; onRowClick?: (row: any) => void }) {
+function RecentTable({ title, rows, columns }: { title: string; rows: any[]; columns: { key: string; label: string; render?: (v: any) => React.ReactNode }[] }) {
   return (
     <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
       <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--sv-etch)', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{title}</div>
       {rows.length === 0 ? (
         <div style={{ padding: 20, color: 'var(--sv-text-dim)', fontSize: 13 }}>No records yet.</div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>{columns.map(c => <th key={c.key} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: .8 }}>{c.label}</th>)}</tr>
-            </thead>
-            <tbody>
-              {rows.map((row, i) => (
-                <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)', cursor: onRowClick ? 'pointer' : 'default' }} onClick={() => onRowClick?.(row)}>
-                  {columns.map(c => (
-                    <td key={c.key} style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>
-                      {c.render ? c.render(row[c.key]) : (row[c.key] ?? '—')}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>{columns.map(c => <th key={c.key} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: .8 }}>{c.label}</th>)}</tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                {columns.map(c => (
+                  <td key={c.key} style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>
+                    {c.render ? c.render(row[c.key]) : (row[c.key] ?? '—')}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );
@@ -3348,7 +3322,13 @@ function OnlineStoreSection({ productId, isOnline, onChangeIsOnline, isReadOnly 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Barcode Label Dialog — print labels with shared SVG barcode renderer
+// Barcode Label Dialog — CODE128 SVG generator (no external fonts)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Generates a CODE128-B barcode as an inline SVG string.
+ * Self-contained — no fonts, no CDN, identical output in preview and print.
+ */
 // ─────────────────────────────────────────────────────────────────────────────
 
 const LABEL_SIZES = [
@@ -3580,6 +3560,7 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" />
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 14, padding: 28, width: 700, maxWidth: '95vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--sv-text-strong)', flex: 1 }}>Print Barcode Labels</h2>
@@ -3645,6 +3626,8 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
               overflow: 'hidden',
               boxShadow: '0 2px 8px rgba(0,0,0,.18)',
             }}>
+              <style>{`@import url('https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap');`}</style>
+
               {/* Top row: name (left) | price (right) */}
               {showTopRow && (
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: toScPx(1), flexShrink: 0, height: toScPx(topH), overflow: 'hidden' }}>
@@ -3663,7 +3646,7 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
               {/* Barcode: flex-grow, fills remaining space */}
               {settings.showBarcode && variant?.barcode && (
                 <div style={{ flex: '1 1 0', minHeight: 0, overflow: 'hidden', width: '100%' }}
-                  dangerouslySetInnerHTML={{ __html: renderCode128Svg(String(variant.barcode), size.w - 2 * padH_mm, bcH) }}
+                  dangerouslySetInnerHTML={{ __html: buildBarcodeSvgMarkup(variant.barcode, size.w - 2 * padH_mm, bcH) }}
                 />
               )}
 
@@ -5938,7 +5921,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
 
       {barcodeLabelOpen && modal.edit && (
         <BarcodeLabelDialog
-          product={modal.edit}
+          product={{ ...modal.edit, ...form, name: form.name ?? modal.edit?.name, brand: form.brand ?? modal.edit?.brand }}
           variants={variantRows.filter(r => !r._delete)}
           onClose={() => setBarcodeLabelOpen(false)}
         />
@@ -6348,18 +6331,10 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
 function StockView() {
   const [stock, setStock] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [stockHistoryModal, setStockHistoryModal] = useState<{ productId: string; productName: string } | null>(null);
   const [filter, setFilter] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
   const [filterSupplier, setFilterSupplier] = useState('');
   const [showLowOnly, setShowLowOnly] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [filterSohOp, setFilterSohOp] = useState<'>=' | '<=' | '='>('>=');
-  const [filterSohVal, setFilterSohVal] = useState('');
-  const [filterAvailOp, setFilterAvailOp] = useState<'>=' | '<=' | '='>('>=');
-  const [filterAvailVal, setFilterAvailVal] = useState('');
-  const [filterCostOp, setFilterCostOp] = useState<'>=' | '<=' | '='>('>=');
-  const [filterCostVal, setFilterCostVal] = useState('');
   const [sortCol, setSortCol] = useState<string>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
@@ -6386,38 +6361,6 @@ function StockView() {
     // Show items where available qty has hit the min_qty trigger.
     // min_qty = 0 is valid — it means "replenish when out of stock" (SOH ≤ 0).
     if (showLowOnly && !(Number(s.qty_on_hand) <= Number(s.min_qty))) return false;
-
-    const soh = Number(s.qty_on_hand || 0);
-    const available = Number(s.qty_on_hand || 0) - Number(s.qty_committed || 0);
-    const avgCost = Number(s.avg_cost || 0);
-
-    if (filterSohVal !== '') {
-      const val = Number(filterSohVal);
-      if (!Number.isNaN(val)) {
-        if (filterSohOp === '>=' && soh < val) return false;
-        if (filterSohOp === '<=' && soh > val) return false;
-        if (filterSohOp === '=' && soh !== val) return false;
-      }
-    }
-
-    if (filterAvailVal !== '') {
-      const val = Number(filterAvailVal);
-      if (!Number.isNaN(val)) {
-        if (filterAvailOp === '>=' && available < val) return false;
-        if (filterAvailOp === '<=' && available > val) return false;
-        if (filterAvailOp === '=' && available !== val) return false;
-      }
-    }
-
-    if (filterCostVal !== '') {
-      const val = Number(filterCostVal);
-      if (!Number.isNaN(val)) {
-        if (filterCostOp === '>=' && avgCost < val) return false;
-        if (filterCostOp === '<=' && avgCost > val) return false;
-        if (filterCostOp === '=' && avgCost !== val) return false;
-      }
-    }
-
     if (filter) {
       const q = filter.toLowerCase();
       if (!(s.sku || '').toLowerCase().includes(q) &&
@@ -6464,7 +6407,7 @@ function StockView() {
     letterSpacing: .8, whiteSpace: 'nowrap',
   };
 
-  const anyFilter = filter || filterBrand || filterSupplier || showLowOnly || filterSohVal !== '' || filterAvailVal !== '' || filterCostVal !== '';
+  const anyFilter = filter || filterBrand || filterSupplier || showLowOnly;
 
   return (
     <div>
@@ -6503,68 +6446,8 @@ function StockView() {
           <input type="checkbox" checked={showLowOnly} onChange={e => { setShowLowOnly(e.target.checked); setPage(1); }} />
           Low stock only
         </label>
-        <div style={{ position: 'relative' }}>
-          <button
-            onClick={() => setFiltersOpen(p => !p)}
-            style={{
-              ...btnStyle('secondary', 'sm'),
-              ...(filterSohVal !== '' || filterAvailVal !== '' || filterCostVal !== ''
-                ? { background: 'color-mix(in srgb, var(--sv-action) 12%, var(--sv-bg-2))', borderColor: 'var(--sv-action)', color: 'var(--sv-action)' }
-                : {}),
-            }}
-          >
-            Filters ▾{(filterSohVal !== '' || filterAvailVal !== '' || filterCostVal !== '') ? ' ●' : ''}
-          </button>
-          {filtersOpen && (
-            <>
-              <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setFiltersOpen(false)} />
-              <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 100, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px', marginTop: 4, minWidth: 320, boxShadow: '0 6px 20px rgba(0,0,0,0.14)' }}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 12 }}>Filters</p>
-
-                <div style={{ marginBottom: 10 }}>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>SOH</label>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <select value={filterSohOp} onChange={e => { setFilterSohOp(e.target.value as any); setPage(1); }} style={{ ...inputStyle, width: 64 }}>
-                      <option value=">=">≥</option>
-                      <option value="<=">≤</option>
-                      <option value="=">=</option>
-                    </select>
-                    <input type="number" value={filterSohVal} onChange={e => { setFilterSohVal(e.target.value); setPage(1); }} placeholder="qty" style={{ ...inputStyle, width: 110 }} />
-                    {filterSohVal !== '' && <button onClick={() => { setFilterSohVal(''); setPage(1); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 16 }}>×</button>}
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: 10 }}>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Stock Available</label>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <select value={filterAvailOp} onChange={e => { setFilterAvailOp(e.target.value as any); setPage(1); }} style={{ ...inputStyle, width: 64 }}>
-                      <option value=">=">≥</option>
-                      <option value="<=">≤</option>
-                      <option value="=">=</option>
-                    </select>
-                    <input type="number" value={filterAvailVal} onChange={e => { setFilterAvailVal(e.target.value); setPage(1); }} placeholder="qty" style={{ ...inputStyle, width: 110 }} />
-                    {filterAvailVal !== '' && <button onClick={() => { setFilterAvailVal(''); setPage(1); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 16 }}>×</button>}
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Average Cost (Location)</label>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <select value={filterCostOp} onChange={e => { setFilterCostOp(e.target.value as any); setPage(1); }} style={{ ...inputStyle, width: 64 }}>
-                      <option value=">=">≥</option>
-                      <option value="<=">≤</option>
-                      <option value="=">=</option>
-                    </select>
-                    <input type="number" step="0.0001" value={filterCostVal} onChange={e => { setFilterCostVal(e.target.value); setPage(1); }} placeholder="cost" style={{ ...inputStyle, width: 110 }} />
-                    {filterCostVal !== '' && <button onClick={() => { setFilterCostVal(''); setPage(1); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 16 }}>×</button>}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
         {anyFilter && (
-          <button onClick={() => { setFilter(''); setFilterBrand(''); setFilterSupplier(''); setShowLowOnly(false); setFilterSohVal(''); setFilterAvailVal(''); setFilterCostVal(''); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
+          <button onClick={() => { setFilter(''); setFilterBrand(''); setFilterSupplier(''); setShowLowOnly(false); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
         )}
       </div>
 
@@ -6627,29 +6510,7 @@ function StockView() {
                       <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.location_name}</td>
                       {showZoneBin && <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.zone || '—'}</td>}
                       {showZoneBin && <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{s.bin || '—'}</td>}
-                      <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'right', color: low ? 'var(--sv-red)' : 'inherit', fontWeight: low ? 700 : 400 }}>
-                        {s.product_id ? (
-                          <button
-                            onClick={() => setStockHistoryModal({ productId: String(s.product_id), productName: s.product_name || s.sku || 'Product' })}
-                            title="View stock history"
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              padding: 0,
-                              cursor: 'pointer',
-                              color: 'inherit',
-                              fontWeight: 'inherit',
-                              fontSize: 13,
-                              textDecoration: 'underline',
-                              textDecorationStyle: 'dotted',
-                            }}
-                          >
-                            {fmtQty(s.qty_on_hand)}
-                          </button>
-                        ) : (
-                          fmtQty(s.qty_on_hand)
-                        )}
-                      </td>
+                      <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'right', color: low ? 'var(--sv-red)' : 'inherit', fontWeight: low ? 700 : 400 }}>{fmtQty(s.qty_on_hand)}</td>
                       {(() => { const av = Number(s.qty_on_hand) - Number(s.qty_committed); return (
                         <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'right', fontWeight: 600, color: av <= 0 ? 'var(--sv-red)' : 'var(--sv-mint)' }}>{fmtQty(av)}</td>
                       ); })()}
@@ -6676,14 +6537,6 @@ function StockView() {
               <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>Next ›</button>
               <button onClick={() => setPage(totalPages)} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>»</button>
             </div>
-          )}
-
-          {stockHistoryModal && (
-            <StockHistoryModal
-              productId={stockHistoryModal.productId}
-              productName={stockHistoryModal.productName}
-              onClose={() => setStockHistoryModal(null)}
-            />
           )}
         </>
       )}
@@ -11231,7 +11084,6 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const posSale = posViewModal.sale;
   const posItems = posViewModal.items || [];
   const posPayments = posViewModal.payments || [];
-  const posMargin = summarizePosMargin(posItems);
   const posIsReturn = posSale?.sale_type === 'return';
   const posSaleStatus = String(posSale?.status || '');
   const canVoidPosSale = !isAdvisor && (posSaleStatus === 'completed' || posSaleStatus === 'layby_complete');
@@ -11844,42 +11696,6 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                     </tr>
                   </tfoot>
                 </table>
-
-                <div style={{ marginTop: 12 }}>
-                  <CostSummaryPills items={[
-                    { label: 'Revenue (ex tax)', value: fmtCurrency(posMargin.revenueEx) },
-                    { label: 'COGS', value: posMargin.totalCogs != null ? fmtCurrency(posMargin.totalCogs) : '—', tone: posMargin.totalCogs != null ? 'default' : 'warn' },
-                    { label: 'Gross Margin', value: posMargin.marginPct != null ? `${posMargin.marginPct.toFixed(1)}%` : '—', tone: posMargin.marginPct != null ? (posMargin.marginPct >= 0 ? 'good' : 'bad') : 'warn' },
-                  ]} />
-                  <details style={{ border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '6px 10px', background: 'var(--sv-bg-1)' }}>
-                    <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--sv-text-dim)' }}>Cost and COGS line breakdown</summary>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8, fontSize: 11 }}>
-                      <thead>
-                        <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-                          <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>SKU</th>
-                          <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>Qty</th>
-                          <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>Avg Cost</th>
-                          <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>COGS</th>
-                          <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--sv-text-dim)' }}>Revenue (ex)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {posMargin.rows.map((row, idx) => (
-                          <tr key={idx} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                            <td style={{ padding: '4px 6px' }}>{(row.item as any).code || '—'}</td>
-                            <td style={{ padding: '4px 6px', textAlign: 'right' }}>{row.qty}</td>
-                            <td style={{ padding: '4px 6px', textAlign: 'right' }}>{row.unitCost != null ? fmtCurrency(row.unitCost) : '—'}</td>
-                            <td style={{ padding: '4px 6px', textAlign: 'right' }}>{row.cogs != null ? fmtCurrency(row.cogs) : '—'}</td>
-                            <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtCurrency(row.lineEx)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 6 }}>
-                      Cost uses the weighted average variant cost, falling back to the standard cost when an avg cost is not available.
-                    </div>
-                  </details>
-                </div>
 
                 <div style={{ marginTop: 20 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 8 }}>Payments</div>
@@ -13145,13 +12961,30 @@ function PosSalesLedgerView() {
                         </tfoot>
                       </table>
                       {(() => {
-                        const margin = summarizePosMargin(sale.items ?? []);
+                        const costRows = sale.items.map((item: any) => {
+                          const qty = Math.abs(Number(item.qty ?? 0));
+                          const avgCost = item.unit_cost != null
+                            ? Number(item.unit_cost)
+                            : item.avg_cost != null
+                              ? Number(item.avg_cost)
+                              : null;
+                          const cogs = avgCost != null ? qty * avgCost : null;
+                          const lineInc = Number(item.line_total || 0);
+                          const taxRatePct = Number(item.tax_rate ?? 10);
+                          const lineEx = taxRatePct > 0 ? lineInc / (1 + taxRatePct / 100) : lineInc;
+                          return { item, qty, avgCost, cogs, lineEx };
+                        });
+                        const hasCosts = costRows.some((r: any) => r.avgCost != null);
+                        const revenueEx = costRows.reduce((s: number, r: any) => s + r.lineEx, 0);
+                        const totalCogs = hasCosts ? costRows.reduce((s: number, r: any) => s + (r.cogs ?? 0), 0) : null;
+                        const grossProfit = totalCogs != null ? revenueEx - totalCogs : null;
+                        const marginPct = grossProfit != null && revenueEx > 0 ? (grossProfit / revenueEx) * 100 : null;
                         return (
                           <div style={{ marginTop: 10 }}>
                             <CostSummaryPills items={[
-                              { label: 'Revenue (ex tax)', value: fmtMoney(margin.revenueEx) },
-                              { label: 'COGS', value: margin.totalCogs != null ? fmtMoney(margin.totalCogs) : '—', tone: margin.totalCogs != null ? 'default' : 'warn' },
-                              { label: 'Gross Margin', value: margin.marginPct != null ? `${margin.marginPct.toFixed(1)}%` : '—', tone: margin.marginPct != null ? (margin.marginPct >= 0 ? 'good' : 'bad') : 'warn' },
+                              { label: 'Revenue (ex tax)', value: fmtMoney(revenueEx) },
+                              { label: 'COGS', value: totalCogs != null ? fmtMoney(totalCogs) : '—', tone: totalCogs != null ? 'default' : 'warn' },
+                              { label: 'Gross Margin', value: marginPct != null ? `${marginPct.toFixed(1)}%` : '—', tone: marginPct != null ? (marginPct >= 0 ? 'good' : 'bad') : 'warn' },
                             ]} />
                             <details style={{ border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '6px 10px', background: 'var(--sv-bg-1)' }}>
                               <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--sv-text-dim)' }}>Cost and COGS line breakdown</summary>
@@ -13166,11 +12999,11 @@ function PosSalesLedgerView() {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {margin.rows.map((r: any, idx: number) => (
+                                  {costRows.map((r: any, idx: number) => (
                                     <tr key={idx} style={{ borderTop: '1px solid var(--sv-etch)' }}>
                                       <td style={{ padding: '4px 6px' }}>{r.item.code || '—'}</td>
                                       <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.qty}</td>
-                                      <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.unitCost != null ? fmtMoney(r.unitCost) : '—'}</td>
+                                      <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.avgCost != null ? fmtMoney(r.avgCost) : '—'}</td>
                                       <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.cogs != null ? fmtMoney(r.cogs) : '—'}</td>
                                       <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(r.lineEx)}</td>
                                     </tr>
@@ -14194,6 +14027,12 @@ const REPORT_CATALOG = [
     icon: '📊',
   },
   {
+    id: 'report-sales-search' as ImsView,
+    title: 'Sales Search',
+    description: 'Search all sales in any date range — type words from a product name or SKU. Totals per product across POS, online and wholesale.',
+    icon: '🔍',
+  },
+  {
     id: 'report-inventory-valuation' as ImsView,
     title: 'Inventory Valuation',
     description: 'The total financial value of all stock currently on hand based on average cost.',
@@ -14263,7 +14102,8 @@ function ReportsView({ onNav }: { onNav: (v: ImsView) => void }) {
 }
 
 function CashBankingReportView({ onBack }: { onBack: () => void }) {
-  const [dateRange, setDateRange] = useState<SBDateRange>({ kind: 'window', window: 90, label: '90 Days' });
+  const [from, setFrom] = useState(daysAgoSydney(89));
+  const [to, setTo] = useState(today());
   const [status, setStatus] = useState('');
   const [rows, setRows] = useState<any[]>([]);
   const [canRecordCorrection, setCanRecordCorrection] = useState(false);
@@ -14271,15 +14111,13 @@ function CashBankingReportView({ onBack }: { onBack: () => void }) {
   const [error, setError] = useState('');
   const load = useCallback(() => {
     setLoading(true); setError('');
-    const from = dateRange.kind === 'range' ? (dateRange.from <= dateRange.to ? dateRange.from : dateRange.to) : daysAgoSydney(Math.max(0, Number(dateRange.window || 0) - 1));
-    const to = dateRange.kind === 'range' ? (dateRange.from <= dateRange.to ? dateRange.to : dateRange.from) : today();
     const params = new URLSearchParams({ from, to });
     if (status) params.set('status', status);
     fetch(`/api/ims/reports/cash-banking?${params}`)
       .then(async response => ({ ok: response.ok, body: await response.json() }))
       .then(({ ok, body }) => { if (!ok) throw new Error(body.error || 'Could not load report'); setRows(body.deposits ?? []); setCanRecordCorrection(Boolean(body.canRecordCorrection)); })
       .catch(reason => setError(reason.message)).finally(() => setLoading(false));
-  }, [dateRange, status]);
+  }, [from, to, status]);
   useEffect(() => { load(); }, [load]);
   const recordCorrection = async (row: any) => {
     const note = window.prompt('Describe the correction made manually in Xero:', row.external_correction_note ?? '');
@@ -14297,13 +14135,13 @@ function CashBankingReportView({ onBack }: { onBack: () => void }) {
     const values = rows.map(row => [row.id, String(row.lodgement_date).slice(0, 10), row.location_name, row.destination_account_name, row.bank_reference ?? '', row.expected_total, row.counted_total, row.variance_total, row.status, row.prepared_by_name, row.posted_by_name ?? '', row.posted_at ?? '', row.xero_bank_transfer_id ?? '']);
     const escape = (value: any) => `"${String(value ?? '').replace(/"/g, '""')}"`;
     const blob = new Blob([[columns, ...values].map(line => line.map(escape).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
-    const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `cash-banking-${dateRange.kind === 'range' ? `${dateRange.from}-${dateRange.to}` : `${dateRange.window}-${dateRange.label}`}.csv`; link.click(); URL.revokeObjectURL(link.href);
+    const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `cash-banking-${from}-${to}.csv`; link.click(); URL.revokeObjectURL(link.href);
   };
   const control: React.CSSProperties = { padding: '6px 9px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'inherit', fontSize: 12 };
   return <div>
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
       <button onClick={onBack} style={control}>Back</button><h1 style={{ margin: 0, flex: 1, fontSize: 22, color: 'var(--sv-text-strong)' }}>Cash Banking Report</h1>
-      <SBDatePicker value={dateRange} onChange={setDateRange} />
+      <input type="date" value={from} onChange={event => setFrom(event.target.value)} style={control} /><span style={{ color: 'var(--sv-text-dim)' }}>to</span><input type="date" value={to} onChange={event => setTo(event.target.value)} style={control} />
       <select value={status} onChange={event => setStatus(event.target.value)} style={control}><option value="">All statuses</option><option value="draft">Draft</option><option value="partial">Partial</option><option value="posted">Posted</option></select>
       <button onClick={exportCsv} disabled={!rows.length} style={control}>Export CSV</button>
     </div>
@@ -14318,6 +14156,14 @@ function CashBankingReportView({ onBack }: { onBack: () => void }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function SalesByBranchView({ onBack }: { onBack: () => void }) {
   return <SalesByBranchViewComponent onBack={onBack} apiFetch={apiFetch} />;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sales Search Report — all sales in a period, partial product-name search
+// ─────────────────────────────────────────────────────────────────────────────
+
+function SalesSearchView({ onBack }: { onBack: () => void }) {
+  return <SalesSearchViewComponent onBack={onBack} apiFetch={apiFetch} today={today} fmtCurrency={fmtCurrency} />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -14442,30 +14288,28 @@ function ProductMarginView({ onBack }: { onBack: () => void }) {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
   const [filters, setFilters] = useState<MultiFilter>(EMPTY_MULTI);
-  const [dateRange, setDateRange] = useState<SBDateRange>({ kind: 'window', window: 365, label: '12 Months' });
+  const [window_, setWindow_] = useState(365);
   const [page, setPage]       = useState(1);
   const PAGE_SIZE = 100;
 
   const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
 
-  const load = useCallback(async (f: MultiFilter, dr: SBDateRange, pg: number) => {
+  const load = useCallback(async (f: MultiFilter, win: number, pg: number) => {
     setLoading(true); setError('');
     try {
-      const params = new URLSearchParams({ page: String(pg), pageSize: String(PAGE_SIZE), ...multiFilterParams(f) });
-      if (dr.kind === 'window') params.set('window', String(dr.window));
-      else { params.set('from', dr.from); params.set('to', dr.to); }
+      const params = new URLSearchParams({ window: String(win), page: String(pg), pageSize: String(PAGE_SIZE), ...multiFilterParams(f) });
       const res = await fetch(`/api/ims/reports/product-margin?${params}`);
       const d = await res.json();
       if (d.success) { setRows(d.data); setTotal(d.total ?? 0); } else setError(d.error);
     } catch (e: any) { setError(e.message); } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { load(EMPTY_MULTI, dateRange, 1); }, [load, dateRange]);
-  const handleFilterChange = (f: MultiFilter) => { setFilters(f); setPage(1); load(f, dateRange, 1); };
-  const changeRange = (dr: SBDateRange) => { setDateRange(dr); setPage(1); load(filters, dr, 1); };
-  const goPage = (pg: number) => { setPage(pg); load(filters, dateRange, pg); };
+  useEffect(() => { load(EMPTY_MULTI, 365, 1); }, [load]);
+  const handleFilterChange = (f: MultiFilter) => { setFilters(f); setPage(1); load(f, window_, 1); };
+  const changeWindow = (win: number) => { setWindow_(win); setPage(1); load(filters, win, 1); };
+  const goPage = (pg: number) => { setPage(pg); load(filters, window_, pg); };
 
-  const winLabel = dateRange.kind === 'range' ? `${dateRange.from} → ${dateRange.to}` : (WINDOW_OPTS.find(o => o.value === dateRange.window)?.label ?? '12 Months');
+  const winLabel = WINDOW_OPTS.find(o => o.value === window_)?.label ?? '12 Months';
 
   const downloadCsv = () => {
     const headers = ['SKU', 'Product Name', 'Brand', 'Unit Cost', 'Unit Price', `Qty Sold (${winLabel})`, 'Gross Rev', 'COGS', 'Gross Profit', 'Margin %'];
@@ -14522,7 +14366,14 @@ function ProductMarginView({ onBack }: { onBack: () => void }) {
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 12, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
         <ReportMultiFilter filters={filters} onChange={handleFilterChange} />
         <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-          <SBDatePicker value={dateRange} onChange={changeRange} />
+          {WINDOW_OPTS.map(o => (
+            <button key={o.value} onClick={() => changeWindow(o.value)} style={{
+              height: 36, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)',
+              background: window_ === o.value ? 'var(--sv-action)' : 'var(--sv-bg-0)',
+              color: window_ === o.value ? '#fff' : 'var(--sv-text-main)',
+              fontSize: 12, fontWeight: window_ === o.value ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap',
+            }}>{o.label}</button>
+          ))}
         </div>
         {loading && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Loading…</span>}
         {!loading && total > 0 && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{total.toLocaleString()} results</span>}
@@ -16184,10 +16035,6 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
 type XeroSyncEntry = {
   sync_type: string; reference_id: number | null; reference: string;
   payout_id?: string; payout_status?: string;
-  payout_invoice_id?: string | null;
-  payout_managed?: number;
-  payout_settlement_status?: 'success' | 'non_success' | 'not_found' | 'waiting_batch_sync' | 'not_applicable';
-  payout_settlement_detail?: string | null;
   contact_name: string | null; amount: number | null; item_date: string | null;
   is_historical: number; xero_sync_status: string | null;
   log_id: number | null; xero_id: string | null;
@@ -16283,7 +16130,6 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
   const [pushAll, setPushAll] = useState(false);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [filterXeroState, setFilterXeroState] = useState('');
-  const [showOnlyPayoutFailures, setShowOnlyPayoutFailures] = useState(false);
 
   const loadCogsReport = async () => {
     setCogsLoading(true);
@@ -16370,27 +16216,6 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
       await loadData();
     } catch {}
     setRetrying(r => ({ ...r, [key]: false }));
-  };
-
-  const runOnlineBatchPayoutAction = async (date: string, action: 'sync' | 'process', key: string, amount: number | null) => {
-    if (action === 'process' && !confirm(`Find and process Shopify payout for online batch ${date}${amount != null ? ` (${fmtMoney(amount)})` : ''}?`)) return;
-    setRetrying(r => ({ ...r, [key]: true }));
-    try {
-      const res = await fetch(`/api/xero/online-batch/${encodeURIComponent(date)}/shopify-payout?databaseId=${encodeURIComponent(getBusinessId())}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || data.message || `Unable to ${action} Shopify payout for ${date}.`);
-      if (typeof data.message === 'string' && data.message) alert(data.message);
-      await loadData();
-    } catch (e: any) {
-      alert(e.message || `Unable to ${action} Shopify payout for ${date}.`);
-      await loadData();
-    } finally {
-      setRetrying(r => ({ ...r, [key]: false }));
-    }
   };
 
   const processShopifyPayout = async (payoutId: string, action: 'plan' | 'execute', key: string, amount: number | null) => {
@@ -16549,31 +16374,23 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
   const th: React.CSSProperties = { padding: '8px 10px', color: 'var(--sv-text-dim)', fontWeight: 600, fontSize: 11, textAlign: 'left', whiteSpace: 'nowrap' };
   const td: React.CSSProperties = { padding: '9px 10px', fontSize: 13, color: 'var(--sv-text-main)', verticalAlign: 'middle' };
 
-  // Derive unique xero states from loaded entries for the filter dropdown
+  // Separate shopify_payout entries — rendered in their own dedicated section
+  const payoutEntries = entries.filter(e => e.sync_type === 'shopify_payout');
+  const nonPayoutEntries = entries.filter(e => e.sync_type !== 'shopify_payout');
+
+  // Derive unique xero states from loaded entries for the filter dropdown (exclude payouts — they have their own section)
   const xeroStateOptions = Array.from(
-    new Set(entries.map(e => e.last_xero_state).filter(Boolean) as string[])
+    new Set(nonPayoutEntries.map(e => e.last_xero_state).filter(Boolean) as string[])
   ).sort();
 
-  const visibleEntries = entries.filter((entry) => {
-    if (filterXeroState === '__none') {
-      if (entry.last_xero_state) return false;
-    } else if (filterXeroState && (entry.last_xero_state ?? '') !== filterXeroState) {
-      return false;
-    }
-
-    if (showOnlyPayoutFailures) {
-      const payoutStatus = String(entry.payout_status ?? '').toLowerCase();
-      const isFailedPayout = entry.sync_type === 'shopify_payout' && (payoutStatus === 'blocked' || payoutStatus === 'partial');
-      if (!isFailedPayout) return false;
-    }
-
-    return true;
-  });
+  const visibleEntries = filterXeroState
+    ? nonPayoutEntries.filter(e => (e.last_xero_state ?? '') === filterXeroState)
+    : nonPayoutEntries;
 
   if (loading) return <div style={{ padding: 20, color: 'var(--sv-text-dim)' }}>Loading…</div>;
 
   return (
-    <div style={{ maxWidth: 960, display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ maxWidth: 1400, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
       {/* ── Queued panel ── */}
       {queued.length > 0 && (
@@ -16782,20 +16599,81 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
         </div>
       </div>
 
+      {/* ── Shopify Payouts ── */}
+      {payoutEntries.length > 0 && (
+        <div style={{ background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Shopify Payouts</span>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'var(--sv-bg-1)', borderBottom: '1px solid var(--sv-etch)' }}>
+                <th style={th}>Payout Date</th>
+                <th style={th}>Reference</th>
+                <th style={th}>Progress / Detail</th>
+                <th style={{ ...th, textAlign: 'right' }}>Amount</th>
+                <th style={th}>Updated</th>
+                <th style={th}>Status</th>
+                <th style={th}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {payoutEntries.map((entry, ei) => {
+                const retryKey = `payout-${entry.payout_id ?? ei}`;
+                const payoutStatus = entry.payout_status ?? '';
+                const statusColor = payoutStatus === 'reconciled' ? '#34d399' : payoutStatus === 'blocked' ? '#f87171' : payoutStatus === 'partial' ? '#fb923c' : payoutStatus === 'planned' ? '#38bdf8' : payoutStatus === 'ready_to_allocate' ? '#fbbf24' : 'var(--sv-text-dim)';
+                const statusBg = payoutStatus === 'reconciled' ? 'rgba(16,185,129,.13)' : payoutStatus === 'blocked' ? 'rgba(248,113,113,.13)' : payoutStatus === 'partial' ? 'rgba(251,146,60,.13)' : payoutStatus === 'planned' ? 'rgba(56,189,248,.13)' : payoutStatus === 'ready_to_allocate' ? 'rgba(251,191,36,.13)' : 'rgba(156,163,175,.13)';
+                return (
+                  <tr key={entry.payout_id ?? ei} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                    <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{fmtDay(entry.item_date)}</td>
+                    <td style={{ ...td, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{entry.reference}</td>
+                    <td title={entry.last_sync_detail ?? undefined} style={{ ...td, color: 'var(--sv-text-dim)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {entry.contact_name ?? '—'}
+                    </td>
+                    <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtMoney(entry.amount)}</td>
+                    <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{entry.last_sync_at ? fmtDate(entry.last_sync_at) : '—'}</td>
+                    <td style={td}>
+                      <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: statusBg, color: statusColor }}>
+                        {payoutStatus || 'pending'}
+                      </span>
+                    </td>
+                    <td style={{ ...td, textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                        {entry.payout_id && ['blocked', 'ready_to_allocate'].includes(payoutStatus) && (
+                          <button
+                            title="Rebuild the payout plan after fixing a missing invoice, credit note, mapping, or other blocker. This does not post to Xero."
+                            onClick={() => processShopifyPayout(entry.payout_id!, 'plan', retryKey, entry.amount)}
+                            disabled={retrying[retryKey]}
+                            style={{ background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 6, cursor: 'pointer', padding: '5px 14px', fontSize: 12, color: '#f87171', fontWeight: 600 }}
+                          >
+                            {retrying[retryKey] ? '…' : '↻ Replan'}
+                          </button>
+                        )}
+                        {entry.payout_id && ['planned', 'partial'].includes(payoutStatus) && (
+                          <button
+                            title={payoutStatus === 'partial' ? 'Retry only unfinished payout actions. Completed Xero actions are not repeated.' : 'Preflight every planned invoice and credit note, then post the payout actions to Xero after confirmation.'}
+                            onClick={() => processShopifyPayout(entry.payout_id!, 'execute', retryKey, entry.amount)}
+                            disabled={retrying[retryKey]}
+                            style={{ background: 'rgba(20,184,166,.12)', border: '1px solid rgba(20,184,166,.3)', borderRadius: 6, cursor: 'pointer', padding: '5px 14px', fontSize: 12, color: '#14b8a6', fontWeight: 600 }}
+                          >
+                            {retrying[retryKey] ? '…' : payoutStatus === 'partial' ? '↻ Retry' : 'Post Payout'}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* ── Sync history ── */}
       <div style={{ background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Sync History (last 200)</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--sv-text-dim)', userSelect: 'none' }}>
-              <input
-                type="checkbox"
-                checked={showOnlyPayoutFailures}
-                onChange={(e) => setShowOnlyPayoutFailures(e.target.checked)}
-                style={{ cursor: 'pointer' }}
-              />
-              Shopify payout failures only
-            </label>
             {xeroStateOptions.length > 0 && (
               <select
                 value={filterXeroState}
@@ -16814,7 +16692,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
         {entries.length === 0 ? (
           <div style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No sync events recorded yet.</div>
         ) : visibleEntries.length === 0 ? (
-          <div style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No entries match the selected filters.</div>
+          <div style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No entries match the selected Xero state filter.</div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
@@ -16845,29 +16723,9 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                 const isGiftCardRedeem = entry.sync_type === 'gift_card_redeem';
                 const isStoreCreditIssue = entry.sync_type === 'store_credit_issue';
                 const isStoreCreditRedeem = entry.sync_type === 'store_credit_redeem';
-                const isOnlineBatch = entry.sync_type === 'online_batch';
                 const isShopifyPayout = entry.sync_type === 'shopify_payout';
                 const isHistorical = entry.is_historical === 1;
                 const canRetryLifecycle = !!entry.reference_id && (isGiftCardIssue || isGiftCardRedeem || isStoreCreditIssue || isStoreCreditRedeem);
-                const payoutSettlement = String(entry.payout_settlement_status ?? '');
-                const payoutSettleLabel = payoutSettlement === 'success'
-                  ? 'Success'
-                  : payoutSettlement === 'non_success'
-                    ? 'Needs Processing'
-                    : payoutSettlement === 'not_found'
-                      ? 'Not Found Yet'
-                      : payoutSettlement === 'waiting_batch_sync'
-                        ? 'Batch Not Synced'
-                        : payoutSettlement === 'not_applicable'
-                          ? 'Not Managed'
-                          : 'Unknown';
-                const payoutSettleColor = payoutSettlement === 'success'
-                  ? '#34d399'
-                  : payoutSettlement === 'not_applicable'
-                    ? '#9ca3af'
-                    : payoutSettlement === 'waiting_batch_sync'
-                      ? '#fbbf24'
-                      : '#f87171';
 
                 return (
                   <React.Fragment key={entryKey}>
@@ -16889,18 +16747,6 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                       <td style={{ ...td, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{entry.reference}</td>
                       <td title={entry.last_sync_detail ?? undefined} style={{ ...td, color: 'var(--sv-text-dim)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {entry.contact_name ?? '—'}
-                        {isOnlineBatch && (
-                          <>
-                            <div style={{ marginTop: 2, fontSize: 11, color: payoutSettleColor, whiteSpace: 'normal', overflow: 'visible', textOverflow: 'clip' }}>
-                              Shopify settlement: <strong>{payoutSettleLabel}</strong>{entry.payout_id ? ` · ${entry.payout_id}` : ''}
-                            </div>
-                            {entry.payout_settlement_detail && (
-                              <div style={{ marginTop: 2, fontSize: 11, color: 'var(--sv-text-dim)', whiteSpace: 'normal', overflow: 'visible', textOverflow: 'clip' }}>
-                                {entry.payout_settlement_detail}
-                              </div>
-                            )}
-                          </>
-                        )}
                         {entry.xero_id && (
                           <a
                             href={xeroLink(entry.sync_type, entry.xero_id)}
@@ -16952,26 +16798,6 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                             style={{ background: 'rgba(56,189,248,.12)', border: '1px solid rgba(56,189,248,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: '#38bdf8', fontWeight: 600 }}
                           >
                             {retrying[retryKey] ? '…' : '↑ Sync Now'}
-                          </button>
-                        )}
-                        {isOnlineBatch && entry.item_date && Number(entry.payout_managed ?? 0) === 1 && payoutSettlement !== 'success' && (
-                          <button
-                            onClick={() => runOnlineBatchPayoutAction(String(entry.item_date).slice(0, 10), 'sync', `${retryKey}-payout-sync`, entry.amount)}
-                            disabled={retrying[`${retryKey}-payout-sync`]}
-                            style={{ marginLeft: 6, background: 'rgba(56,189,248,.12)', border: '1px solid rgba(56,189,248,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: '#38bdf8', fontWeight: 600 }}
-                            title="Search Shopify paid payouts, ingest if needed, and link payout actions to this invoice."
-                          >
-                            {retrying[`${retryKey}-payout-sync`] ? '…' : 'Sync Payout'}
-                          </button>
-                        )}
-                        {isOnlineBatch && entry.item_date && Number(entry.payout_managed ?? 0) === 1 && !['success', 'waiting_batch_sync', 'not_applicable'].includes(payoutSettlement) && (
-                          <button
-                            onClick={() => runOnlineBatchPayoutAction(String(entry.item_date).slice(0, 10), 'process', `${retryKey}-payout-process`, entry.amount)}
-                            disabled={retrying[`${retryKey}-payout-process`]}
-                            style={{ marginLeft: 6, background: 'rgba(20,184,166,.12)', border: '1px solid rgba(20,184,166,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: '#14b8a6', fontWeight: 600 }}
-                            title="Find payout and process Shopify settlement actions to Xero immediately for this invoice."
-                          >
-                            {retrying[`${retryKey}-payout-process`] ? '…' : 'Process Payout'}
                           </button>
                         )}
                         {isShopifyPayout && entry.payout_id && ['blocked', 'ready_to_allocate'].includes(entry.payout_status ?? '') && (
@@ -17831,18 +17657,6 @@ export default function ImsPage() {
   const [pendingOpenPO, setPendingOpenPO] = useState<number | null>(null);
   const [pendingOpenSO, setPendingOpenSO] = useState<number | null>(null);
   const [cnPrefill, setCnPrefill] = useState<any>(null);
-  const openDashboardPurchaseOrder = useCallback((id: number) => {
-    setView('purchase-orders');
-    setPendingOpenPO(id);
-  }, []);
-  const openDashboardSalesOrder = useCallback((id: number) => {
-    setView('sales-orders');
-    setPendingOpenSO(id);
-  }, []);
-  const openDashboardPosSale = useCallback((id: number) => {
-    setView('pos-sales');
-    void id;
-  }, []);
 
   // ── Notifications ────────────────────────────────────────────────────────
   const [notifOpen, setNotifOpen]           = useState(false);
@@ -17918,7 +17732,7 @@ export default function ImsPage() {
     'purchase-orders','sales-orders','credit-notes','supplier-credit-notes',
     'branch-transfers','smart-device-receive','order-planner','receive-transfers',
     'pos-sales','online-sales','stocktakes',
-    'reports','report-sales-by-branch',
+    'reports','report-sales-by-branch','report-sales-search',
     'report-inventory-valuation','report-product-margin',
     'report-pos-price-changes','report-pos-registers','report-cash-banking',
     'xero','shopify',
@@ -18379,9 +18193,6 @@ export default function ImsPage() {
             setPendingOpenPO={setPendingOpenPO}
             setPendingOpenSO={setPendingOpenSO}
             setCnPrefill={setCnPrefill}
-            onOpenPurchaseOrder={openDashboardPurchaseOrder}
-            onOpenSalesOrder={openDashboardSalesOrder}
-            onOpenPosSale={openDashboardPosSale}
             DashboardView={DashboardView}
             ProductsView={ProductsView}
             StockView={StockView}
@@ -18401,6 +18212,7 @@ export default function ImsPage() {
             StocktakesView={StocktakesView}
             ReportsView={ReportsView}
             SalesByBranchView={SalesByBranchView}
+            SalesSearchView={SalesSearchView}
             InventoryValuationView={InventoryValuationView}
             ProductMarginView={ProductMarginView}
             PosPriceChangesView={PosPriceChangesView}
@@ -18864,12 +18676,11 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
   const updateLine = (i: number, k: string, v: any) =>
     setLineItems(p => p.map((item, j) => j === i ? { ...item, [k]: v } : item));
 
-  // Auto-fill unit_cost from variant org-wide avg_cost when variant selected.
+  // Auto-fill unit_cost from variant avg_cost when variant selected
   const selectVariant = (i: number, variant_id: string) => {
-    const v = variants.find((row: any) => row.variant_id === variant_id);
-    const unitCost = Number(v?.avg_cost ?? v?.cost_aud ?? 0);
-    setLineItems(prev => prev.map((item, j) => j === i
-      ? { ...item, variant_id, unit_cost: unitCost }
+    const v = variants.find((v: any) => v.variant_id === variant_id);
+    setLineItems(p => p.map((item, j) => j === i
+      ? { ...item, variant_id, unit_cost: v?.cost_aud ?? 0 }
       : item));
   };
 
@@ -20273,23 +20084,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
   const [applying, setApplying]         = useState(false);
   const [savingDraft, setSavingDraft]   = useState(false);
   const [xeroSyncing, setXeroSyncing]   = useState(false);
-  const [xeroErrorModal, setXeroErrorModal] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
   // (add-item search state is now handled inside StocktakeVariantSearch)
-
-  const formatXeroErrorForDisplay = useCallback((raw: unknown) => {
-    const msg = String(raw ?? 'Sync failed');
-    const marker = msg.indexOf('{');
-    if (marker < 0) return msg;
-
-    const prefix = msg.slice(0, marker).trim();
-    const jsonPart = msg.slice(marker).trim();
-    try {
-      const parsed = JSON.parse(jsonPart);
-      return `${prefix}\n\n${JSON.stringify(parsed, null, 2)}`.trim();
-    } catch {
-      return msg;
-    }
-  }, []);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -21017,12 +20812,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                           const fresh = (d2.items || []).find((fi: any) => fi.id === it.id);
                           return fresh ? { ...it, avg_cost: fresh.avg_cost } : it;
                         }));
-                      } catch (e: any) {
-                        setXeroErrorModal({
-                          open: true,
-                          message: formatXeroErrorForDisplay(e?.message ?? 'Xero sync failed.'),
-                        });
-                      }
+                      } catch (e: any) { alert(e.message); }
                       finally { setXeroSyncing(false); }
                     }} style={btnStyle('action', 'sm')}>
                       {xeroSyncing ? '…' : ss === 'error' ? 'Retry Xero Sync' : 'Sync to Xero'}
@@ -21078,35 +20868,6 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
               </div>
             );
           })()}
-        </Modal>
-      )}
-
-      {xeroErrorModal.open && (
-        <Modal title="Xero Sync Error" onClose={() => setXeroErrorModal({ open: false, message: '' })} width={780}>
-          <div style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 8 }}>
-            The full response is selectable. Copy it and send it to support if needed.
-          </div>
-          <textarea
-            readOnly
-            value={xeroErrorModal.message}
-            style={{ ...inputStyle, minHeight: 320, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', whiteSpace: 'pre', resize: 'vertical' }}
-          />
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 10 }}>
-            <button
-              type="button"
-              onClick={() => navigator.clipboard.writeText(xeroErrorModal.message).catch(() => {})}
-              style={btnStyle('secondary', 'sm')}
-            >
-              Copy Error
-            </button>
-            <button
-              type="button"
-              onClick={() => setXeroErrorModal({ open: false, message: '' })}
-              style={btnStyle('action', 'sm')}
-            >
-              Close
-            </button>
-          </div>
         </Modal>
       )}
     </div>
@@ -22015,11 +21776,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   };
   useEffect(() => {
     const v = settings['advisor_xero_mapping_enabled'];
-    const value = typeof v === 'string' ? v.trim().toLowerCase() : '';
-    const enabled = typeof v === 'boolean'
-      ? v
-      : value === 'true' || value === '1';
-    setXeroAdvisorEnabled(enabled);
+    setXeroAdvisorEnabled(v === 'true' || v === '1' || v === true);
   }, [settings]);
   const saveXeroAdvisorAccess = async (enabled: boolean) => {
     setXeroAdvisorSaving(true);
@@ -22230,7 +21987,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
           <div style={{ padding: 32, maxWidth: 980 }}>
             <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero Settings</h2>
             <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-              Configure accounting defaults here. Day-to-day sync monitoring remains in Integrations → Xero.
+              Configure accounting defaults here. Day-to-day sync monitoring remains in Integrations -> Xero.
             </p>
 
             <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
@@ -22340,7 +22097,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
           <div style={{ padding: 32, maxWidth: 820 }}>
             <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Shopify Settings</h2>
             <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-              Configure fulfillment routing here. Day-to-day imports, reconciliation, and inventory sync controls stay in Integrations → Shopify.
+              Configure fulfillment routing here. Day-to-day imports, reconciliation, and inventory sync controls stay in Integrations -> Shopify.
             </p>
 
             <div style={{ marginBottom: 8 }}>
