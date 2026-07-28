@@ -210,6 +210,7 @@ export async function GET(req: Request) {
     const soIds = sos.map((s: any) => s.id as number);
     const cnIds = cns.map((cn: any) => cn.id as number);
     const scnIds = scns.map((scn: any) => scn.id as number);
+    const onlineBatchDates = onlineBatches.map((b: any) => batchDateStr(b.batch_date));
     // Keys must match xero_sync_log.detail format: 'online batch YYYY-MM-DD'
     const onlineBatchKeys = onlineBatches.map((b: any) => `online batch ${batchDateStr(b.batch_date)}`);
 
@@ -221,6 +222,8 @@ export async function GET(req: Request) {
     let cnLogs: any[] = [];
     let scnLogs: any[] = [];
     let batchLogs: any[] = [];
+    let onlineBatchRows: any[] = [];
+    let onlineBatchPayoutLinks: any[] = [];
     let eventLogs: any[] = [];
     let cogsRuns: any[] = [];
     let shopifyPayouts: any[] = [];
@@ -311,6 +314,45 @@ export async function GET(req: Request) {
               )`,
           [databaseId, ...onlineBatchKeys, databaseId],
         );
+
+        onlineBatchRows = await query<any>(
+          `SELECT batch_date, xero_invoice_id, payout_managed
+             FROM xero_online_batches
+            WHERE business_id = ?
+              AND batch_date IN (${onlineBatchDates.map(() => '?').join(',')})`,
+          [databaseId, ...onlineBatchDates],
+        );
+
+        const payoutManagedInvoiceIds = Array.from(new Set(
+          onlineBatchRows
+            .filter((row: any) => Number(row.payout_managed) === 1)
+            .map((row: any) => String(row.xero_invoice_id ?? '').trim())
+            .filter(Boolean),
+        ));
+        if (payoutManagedInvoiceIds.length > 0) {
+          onlineBatchPayoutLinks = await query<any>(
+            `SELECT a.target_xero_document_id AS xero_invoice_id,
+                    p.shopify_payout_id,
+                    p.reconciliation_status,
+                    p.error_detail,
+                    p.updated_at,
+                    p.reconciled_at
+               FROM shopify_payment_xero_actions a
+               JOIN shopify_payment_payouts p
+                 ON p.business_id = a.business_id
+                AND p.shopify_payout_id = a.shopify_payout_id
+              WHERE a.business_id = ?
+                AND a.action_type = 'invoice_payment'
+                AND a.target_xero_document_id IN (${payoutManagedInvoiceIds.map(() => '?').join(',')})
+              GROUP BY a.target_xero_document_id,
+                       p.shopify_payout_id,
+                       p.reconciliation_status,
+                       p.error_detail,
+                       p.updated_at,
+                       p.reconciled_at`,
+            [databaseId, ...payoutManagedInvoiceIds],
+          );
+        }
       }
       // Standalone sync events with no still-existing source document of their own
       // (POS end-of-day reconciliations, stocktake journals, gift-card postings). These are the actual
@@ -394,8 +436,40 @@ export async function GET(req: Request) {
     const scnLogByRef = new Map(scnLogs.map((r: any) => [r.reference_id, r]));
     // batchLogByKey is keyed by 'online batch YYYY-MM-DD'; look up by the same format
     const batchLogByKey = new Map(batchLogs.map((r: any) => [r.batch_key, r]));
+    const onlineBatchByDate = new Map(onlineBatchRows.map((row: any) => [batchDateStr(row.batch_date), row]));
+    const payoutLinksByInvoice = new Map<string, any[]>();
+    for (const row of onlineBatchPayoutLinks) {
+      const invoiceId = String(row.xero_invoice_id ?? '').trim();
+      if (!invoiceId) continue;
+      const rows = payoutLinksByInvoice.get(invoiceId) ?? [];
+      rows.push(row);
+      payoutLinksByInvoice.set(invoiceId, rows);
+    }
     // Helper to get log for a batch date
     const getBatchLog = (dateStr: string) => batchLogByKey.get(`online batch ${dateStr}`);
+
+    const payoutStatusPriority: Record<string, number> = {
+      reconciled: 0,
+      partial: 1,
+      planned: 2,
+      ready_to_allocate: 3,
+      ingesting: 4,
+      waiting_for_paid: 5,
+      blocked: 6,
+    };
+    const pickBatchPayout = (rows: any[]): any | null => {
+      if (!rows.length) return null;
+      return [...rows].sort((a, b) => {
+        const sa = String(a.reconciliation_status ?? '').toLowerCase();
+        const sb = String(b.reconciliation_status ?? '').toLowerCase();
+        const pa = payoutStatusPriority[sa] ?? 99;
+        const pb = payoutStatusPriority[sb] ?? 99;
+        if (pa !== pb) return pa - pb;
+        const ta = new Date(a.reconciled_at ?? a.updated_at ?? 0).getTime();
+        const tb = new Date(b.reconciled_at ?? b.updated_at ?? 0).getTime();
+        return tb - ta;
+      })[0];
+    };
     const paysByPo = new Map<number, any[]>();
     for (const p of paymentLogs) {
       const arr = paysByPo.get(p.po_id) ?? [];
@@ -514,6 +588,29 @@ export async function GET(req: Request) {
     const onlineBatchEntries = onlineBatches.map((b: any) => {
       const dateStr = batchDateStr(b.batch_date);
       const log = getBatchLog(dateStr);
+      const batch = onlineBatchByDate.get(dateStr);
+      const payoutManaged = Number(batch?.payout_managed ?? 0) === 1;
+      const invoiceId = String(batch?.xero_invoice_id ?? '').trim() || null;
+      const payoutMatch = invoiceId ? pickBatchPayout(payoutLinksByInvoice.get(invoiceId) ?? []) : null;
+      const payoutStatus = String(payoutMatch?.reconciliation_status ?? '').toLowerCase();
+      const payoutSettlementStatus = !payoutManaged
+        ? 'not_applicable'
+        : !invoiceId
+          ? 'waiting_batch_sync'
+          : !payoutMatch
+            ? 'not_found'
+            : payoutStatus === 'reconciled'
+              ? 'success'
+              : 'non_success';
+      const payoutSettlementDetail = !payoutManaged
+        ? 'Shopify payout settlement is not enabled for this day.'
+        : !invoiceId
+          ? 'Online batch invoice has not been posted to Xero yet.'
+          : !payoutMatch
+            ? 'No payout linked to this invoice yet.'
+            : payoutMatch.error_detail
+              ? String(payoutMatch.error_detail)
+              : `Payout ${String(payoutMatch.shopify_payout_id)} status: ${payoutStatus || 'unknown'}`;
       return {
         sync_type: 'online_batch',
         reference_id: null,
@@ -525,6 +622,12 @@ export async function GET(req: Request) {
         xero_sync_status: null,
         log_id: null,
         xero_id: log?.xero_id ?? null,
+        payout_id: payoutMatch ? String(payoutMatch.shopify_payout_id) : null,
+        payout_status: payoutStatus || null,
+        payout_invoice_id: invoiceId,
+        payout_managed: payoutManaged ? 1 : 0,
+        payout_settlement_status: payoutSettlementStatus,
+        payout_settlement_detail: payoutSettlementDetail,
         last_sync_status: log?.status ?? null,
         last_xero_state: resolveXeroState('online_batch', log?.status, log?.detail, log?.xero_state),
         last_sync_detail: dateStr,

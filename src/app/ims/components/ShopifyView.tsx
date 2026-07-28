@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { Fragment, useEffect, useState, useCallback } from 'react';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 function tabBtnStyle(active: boolean): React.CSSProperties {
@@ -547,7 +547,7 @@ function ShopifyLogTab() {
             })() : null;
             const isExpanded = expandedId === row.id;
             return (
-              <React.Fragment key={row.id}>
+              <Fragment key={row.id}>
                 <tr style={{ borderBottom: '1px solid var(--sv-etch)', cursor: 'pointer' }} onClick={() => setExpandedId(isExpanded ? null : row.id)}>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
                     {new Date(row.created_at).toLocaleString()}
@@ -570,7 +570,7 @@ function ShopifyLogTab() {
                     </td>
                   </tr>
                 )}
-              </React.Fragment>
+              </Fragment>
             );
           })}
         </tbody>
@@ -672,7 +672,7 @@ function ShopifyOrdersTab({ businessId }: { businessId: string }) {
           </div>
         </div>
       </div>
-      <div style={card}>
+      <form onSubmit={(e) => { e.preventDefault(); saveSettings(); }} style={card}>
         <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Order Sync Configuration</h3>
         <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -722,10 +722,10 @@ function ShopifyOrdersTab({ businessId }: { businessId: string }) {
           <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 4 }}>Found in Shopify Admin → Settings → Notifications → Webhooks → your webhook → Signing secret.</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button onClick={saveSettings} disabled={saving} style={btn(true)}>{saving ? 'Saving…' : 'Save Settings'}</button>
+          <button type="submit" disabled={saving} style={btn(true)}>{saving ? 'Saving…' : 'Save Settings'}</button>
           {saveMsg && <span style={{ fontSize: 13, color: saveMsg.startsWith('Error') ? 'var(--sv-red)' : 'var(--sv-mint)' }}>{saveMsg}</span>}
         </div>
-      </div>
+      </form>
 
       {/* Webhook URL */}
       <div style={card}>

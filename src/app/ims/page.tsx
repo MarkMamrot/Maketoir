@@ -16184,6 +16184,10 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
 type XeroSyncEntry = {
   sync_type: string; reference_id: number | null; reference: string;
   payout_id?: string; payout_status?: string;
+  payout_invoice_id?: string | null;
+  payout_managed?: number;
+  payout_settlement_status?: 'success' | 'non_success' | 'not_found' | 'waiting_batch_sync' | 'not_applicable';
+  payout_settlement_detail?: string | null;
   contact_name: string | null; amount: number | null; item_date: string | null;
   is_historical: number; xero_sync_status: string | null;
   log_id: number | null; xero_id: string | null;
@@ -16279,6 +16283,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
   const [pushAll, setPushAll] = useState(false);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [filterXeroState, setFilterXeroState] = useState('');
+  const [showOnlyPayoutFailures, setShowOnlyPayoutFailures] = useState(false);
 
   const loadCogsReport = async () => {
     setCogsLoading(true);
@@ -16365,6 +16370,27 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
       await loadData();
     } catch {}
     setRetrying(r => ({ ...r, [key]: false }));
+  };
+
+  const runOnlineBatchPayoutAction = async (date: string, action: 'sync' | 'process', key: string, amount: number | null) => {
+    if (action === 'process' && !confirm(`Find and process Shopify payout for online batch ${date}${amount != null ? ` (${fmtMoney(amount)})` : ''}?`)) return;
+    setRetrying(r => ({ ...r, [key]: true }));
+    try {
+      const res = await fetch(`/api/xero/online-batch/${encodeURIComponent(date)}/shopify-payout?databaseId=${encodeURIComponent(getBusinessId())}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || data.message || `Unable to ${action} Shopify payout for ${date}.`);
+      if (typeof data.message === 'string' && data.message) alert(data.message);
+      await loadData();
+    } catch (e: any) {
+      alert(e.message || `Unable to ${action} Shopify payout for ${date}.`);
+      await loadData();
+    } finally {
+      setRetrying(r => ({ ...r, [key]: false }));
+    }
   };
 
   const processShopifyPayout = async (payoutId: string, action: 'plan' | 'execute', key: string, amount: number | null) => {
@@ -16528,9 +16554,21 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
     new Set(entries.map(e => e.last_xero_state).filter(Boolean) as string[])
   ).sort();
 
-  const visibleEntries = filterXeroState
-    ? entries.filter(e => (e.last_xero_state ?? '') === filterXeroState)
-    : entries;
+  const visibleEntries = entries.filter((entry) => {
+    if (filterXeroState === '__none') {
+      if (entry.last_xero_state) return false;
+    } else if (filterXeroState && (entry.last_xero_state ?? '') !== filterXeroState) {
+      return false;
+    }
+
+    if (showOnlyPayoutFailures) {
+      const payoutStatus = String(entry.payout_status ?? '').toLowerCase();
+      const isFailedPayout = entry.sync_type === 'shopify_payout' && (payoutStatus === 'blocked' || payoutStatus === 'partial');
+      if (!isFailedPayout) return false;
+    }
+
+    return true;
+  });
 
   if (loading) return <div style={{ padding: 20, color: 'var(--sv-text-dim)' }}>Loading…</div>;
 
@@ -16749,6 +16787,15 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Sync History (last 200)</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--sv-text-dim)', userSelect: 'none' }}>
+              <input
+                type="checkbox"
+                checked={showOnlyPayoutFailures}
+                onChange={(e) => setShowOnlyPayoutFailures(e.target.checked)}
+                style={{ cursor: 'pointer' }}
+              />
+              Shopify payout failures only
+            </label>
             {xeroStateOptions.length > 0 && (
               <select
                 value={filterXeroState}
@@ -16767,7 +16814,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
         {entries.length === 0 ? (
           <div style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No sync events recorded yet.</div>
         ) : visibleEntries.length === 0 ? (
-          <div style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No entries match the selected Xero state filter.</div>
+          <div style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No entries match the selected filters.</div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
@@ -16798,9 +16845,29 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                 const isGiftCardRedeem = entry.sync_type === 'gift_card_redeem';
                 const isStoreCreditIssue = entry.sync_type === 'store_credit_issue';
                 const isStoreCreditRedeem = entry.sync_type === 'store_credit_redeem';
+                const isOnlineBatch = entry.sync_type === 'online_batch';
                 const isShopifyPayout = entry.sync_type === 'shopify_payout';
                 const isHistorical = entry.is_historical === 1;
                 const canRetryLifecycle = !!entry.reference_id && (isGiftCardIssue || isGiftCardRedeem || isStoreCreditIssue || isStoreCreditRedeem);
+                const payoutSettlement = String(entry.payout_settlement_status ?? '');
+                const payoutSettleLabel = payoutSettlement === 'success'
+                  ? 'Success'
+                  : payoutSettlement === 'non_success'
+                    ? 'Needs Processing'
+                    : payoutSettlement === 'not_found'
+                      ? 'Not Found Yet'
+                      : payoutSettlement === 'waiting_batch_sync'
+                        ? 'Batch Not Synced'
+                        : payoutSettlement === 'not_applicable'
+                          ? 'Not Managed'
+                          : 'Unknown';
+                const payoutSettleColor = payoutSettlement === 'success'
+                  ? '#34d399'
+                  : payoutSettlement === 'not_applicable'
+                    ? '#9ca3af'
+                    : payoutSettlement === 'waiting_batch_sync'
+                      ? '#fbbf24'
+                      : '#f87171';
 
                 return (
                   <React.Fragment key={entryKey}>
@@ -16820,8 +16887,30 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                       </td>
                       <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{fmtDay(entry.item_date)}</td>
                       <td style={{ ...td, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{entry.reference}</td>
-                      <td title={entry.last_sync_detail ?? undefined} style={{ ...td, color: 'var(--sv-text-dim)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <td
+                        title={entry.last_sync_detail ?? undefined}
+                        style={{
+                          ...td,
+                          color: 'var(--sv-text-dim)',
+                          maxWidth: isOnlineBatch ? undefined : 220,
+                          overflow: isOnlineBatch ? 'visible' : 'hidden',
+                          textOverflow: isOnlineBatch ? 'clip' : 'ellipsis',
+                          whiteSpace: isOnlineBatch ? 'normal' : 'nowrap',
+                        }}
+                      >
                         {entry.contact_name ?? '—'}
+                        {isOnlineBatch && (
+                          <>
+                            <div style={{ marginTop: 2, fontSize: 11, color: payoutSettleColor, whiteSpace: 'normal', overflow: 'visible', textOverflow: 'clip' }}>
+                              Shopify settlement: <strong>{payoutSettleLabel}</strong>{entry.payout_id ? ` · ${entry.payout_id}` : ''}
+                            </div>
+                            {entry.payout_settlement_detail && (
+                              <div style={{ marginTop: 2, fontSize: 11, color: 'var(--sv-text-dim)', whiteSpace: 'normal', overflow: 'visible', textOverflow: 'clip' }}>
+                                {entry.payout_settlement_detail}
+                              </div>
+                            )}
+                          </>
+                        )}
                         {entry.xero_id && (
                           <a
                             href={xeroLink(entry.sync_type, entry.xero_id)}
@@ -16873,6 +16962,26 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                             style={{ background: 'rgba(56,189,248,.12)', border: '1px solid rgba(56,189,248,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: '#38bdf8', fontWeight: 600 }}
                           >
                             {retrying[retryKey] ? '…' : '↑ Sync Now'}
+                          </button>
+                        )}
+                        {isOnlineBatch && entry.item_date && Number(entry.payout_managed ?? 0) === 1 && payoutSettlement !== 'success' && (
+                          <button
+                            onClick={() => runOnlineBatchPayoutAction(String(entry.item_date).slice(0, 10), 'sync', `${retryKey}-payout-sync`, entry.amount)}
+                            disabled={retrying[`${retryKey}-payout-sync`]}
+                            style={{ marginLeft: 6, background: 'rgba(56,189,248,.12)', border: '1px solid rgba(56,189,248,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: '#38bdf8', fontWeight: 600 }}
+                            title="Search Shopify paid payouts, ingest if needed, and link payout actions to this invoice."
+                          >
+                            {retrying[`${retryKey}-payout-sync`] ? '…' : 'Sync Payout'}
+                          </button>
+                        )}
+                        {isOnlineBatch && entry.item_date && Number(entry.payout_managed ?? 0) === 1 && !['success', 'waiting_batch_sync', 'not_applicable'].includes(payoutSettlement) && (
+                          <button
+                            onClick={() => runOnlineBatchPayoutAction(String(entry.item_date).slice(0, 10), 'process', `${retryKey}-payout-process`, entry.amount)}
+                            disabled={retrying[`${retryKey}-payout-process`]}
+                            style={{ marginLeft: 6, background: 'rgba(20,184,166,.12)', border: '1px solid rgba(20,184,166,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: '#14b8a6', fontWeight: 600 }}
+                            title="Find payout and process Shopify settlement actions to Xero immediately for this invoice."
+                          >
+                            {retrying[`${retryKey}-payout-process`] ? '…' : 'Process Payout'}
                           </button>
                         )}
                         {isShopifyPayout && entry.payout_id && ['blocked', 'ready_to_allocate'].includes(entry.payout_status ?? '') && (

@@ -220,8 +220,8 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
         <div style={{ color: 'var(--sv-red)', fontSize: 13, marginBottom: 12, padding: '8px 12px', background: 'color-mix(in srgb, var(--sv-red) 10%, transparent)', borderRadius: 6 }}>{error}</div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 260px)', border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)' }}>
-        <div style={{ flex: 1, overflowX: 'auto', overflowY: 'auto' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, gap: 8 }}>
+        <div style={{ flex: 1, minHeight: 0, overflowX: 'auto', overflowY: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr>
@@ -288,7 +288,7 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
         </div>
 
         {totalPages > 1 && (
-          <div style={{ position: 'sticky', bottom: 0, zIndex: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', paddingTop: 2 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <button
                 onClick={() => goPage(page - 1)} disabled={page <= 1 || loading}
