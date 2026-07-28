@@ -6,6 +6,7 @@ import { createNotification } from '@/lib/ims/createNotification';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsCNRepo } from '@/lib/ims/ImsRepository';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
+import { buildPosReturnCreditNoteItems, isPosExchange } from '@/lib/ims/posReturnCreditNote';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -35,29 +36,18 @@ async function ensurePosReturnCreditNote(body: any, saleId: number, businessId: 
     throw new Error('Select a customer before issuing store credit for a return');
   }
 
-  const items = (body.items ?? []).map((item: any) => {
-    const qty = Math.abs(Number(item.qty ?? 0));
-    const grossLine = Math.abs(Number(item.line_total ?? 0));
-    return {
-      variant_id: item.variant_id ?? null,
-      code: item.code ?? null,
-      name: item.name ?? 'POS return',
-      qty,
-      unit_price: qty > 0 ? grossLine / qty : Math.abs(Number(item.unit_price ?? 0)),
-      price_basis: 'custom' as const,
-      restock: true,
-      tax_rate: Math.abs(Number(item.tax_rate ?? 0)),
-    };
-  }).filter((item: any) => item.qty > 0);
+  const items = buildPosReturnCreditNoteItems(body.items ?? []);
   if (!items.length) throw new Error('POS return must contain at least one item');
+
+  const exchange = isPosExchange(body.items ?? []);
 
   const creditNoteId = await ImsCNRepo.create({
     location_id: locationId,
     cn_date: body.trading_date ?? await localDate(businessId),
-    reference: `POS Return #${saleId}`,
+    reference: `${exchange ? 'POS Exchange' : 'POS Return'} #${saleId}`,
     tax_treatment: 'inc_tax',
     tax_code: null,
-    notes: body.notes ?? null,
+    notes: body.notes ?? (exchange ? 'Return portion of a mixed POS exchange' : null),
     customer_id: body.customer_id ?? null,
     source: 'pos',
     pos_sale_id: saleId,

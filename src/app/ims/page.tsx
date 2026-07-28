@@ -6,6 +6,7 @@ import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
 import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
+import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 import { MainSections } from './views/MainSections';
 import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports/SalesByBranchView';
@@ -9024,6 +9025,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
   const [cns, setCns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
+  const [recordType, setRecordType] = useState<'credit_notes' | 'pos_returns'>('credit_notes');
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [viewModal, setViewModal] = useState<{ open: boolean; cn: any | null }>({ open: false, cn: null });
   const [customers, setCustomers] = useState<any[]>([]);
@@ -9272,6 +9274,8 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
   };
 
   const filtered = cns.filter(cn => {
+    if (recordType === 'credit_notes' && cn.source === 'pos') return false;
+    if (recordType === 'pos_returns' && cn.source !== 'pos') return false;
     if (statusFilter && cn.status !== statusFilter) return false;
     if (!inDateRange(cn.cn_date, dateRange)) return false;
     return true;
@@ -9300,15 +9304,21 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
     <div style={{ maxWidth: 1100, margin: '0 auto' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Credit Notes / Returns</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>{recordType === 'pos_returns' ? 'POS Returns / Exchanges' : 'Customer Credit Notes'}</h1>
         {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New Credit Note</button>}
       </div>
       <p style={{ margin: '-10px 0 16px', color: 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.5 }}>
-        Completing a manual credit note adds its value to the customer&apos;s read-only store-credit balance. POS returns create POS credit notes automatically; cash/card refunds do not add store credit. Shopify credits are settled by Shopify. Every balance change is recorded in the customer store-credit ledger.
+        {recordType === 'pos_returns'
+          ? 'These internal return records are created by POS Sales to own returned stock and store-credit issuance. They remain in the POS end-of-day accounting flow and are not posted to Xero as separate credit notes.'
+          : 'Completing a manual credit note adds its value to the customer\'s read-only store-credit balance. Shopify credits are settled by Shopify. Every balance change is recorded in the customer store-credit ledger.'}
       </p>
 
       {/* Filters */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
+          <button onClick={() => setRecordType('credit_notes')} style={{ ...btnStyle(recordType === 'credit_notes' ? 'action' : 'ghost'), border: 'none', borderRadius: 0, fontSize: 12, padding: '4px 12px' }}>Credit Notes</button>
+          <button onClick={() => setRecordType('pos_returns')} style={{ ...btnStyle(recordType === 'pos_returns' ? 'action' : 'ghost'), border: 'none', borderRadius: 0, fontSize: 12, padding: '4px 12px' }}>POS Returns</button>
+        </div>
         {(['', 'draft', 'complete'] as const).map(s => (
           <button key={s} onClick={() => setStatusFilter(s)}
             style={{ ...btnStyle(statusFilter === s ? 'action' : 'ghost'), fontSize: 12, padding: '4px 12px' }}>
@@ -12923,12 +12933,15 @@ function PosSalesLedgerView({ pendingOpenDay, onPendingHandled }: { pendingOpenD
             {!isLoading && sales.map((sale: any) => {
               const saleOpen = expandedSales.has(sale.id);
               const isReturn = sale.sale_type === 'return';
+              const isExchange = isReturn
+                && sale.items.some((item: any) => Number(item.qty) < 0)
+                && sale.items.some((item: any) => Number(item.qty) > 0);
               return (
                 <div key={sale.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
                   <div onClick={() => toggleSale(sale.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 20px', cursor: 'pointer', background: saleOpen ? 'rgba(255,255,255,.02)' : 'transparent' }}>
                     <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', minWidth: 50, fontFamily: 'monospace', opacity: .7 }}>#{sale.id}</span>
                     <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 68 }}>{fmtTime(sale.completed_at)}</span>
-                    <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, fontWeight: 600, background: isReturn ? 'rgba(239,68,68,.12)' : 'rgba(16,185,129,.1)', color: isReturn ? 'var(--sv-red)' : 'var(--sv-mint)' }}>{isReturn ? 'Return' : 'Sale'}</span>
+                    <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, fontWeight: 600, background: isReturn ? 'rgba(239,68,68,.12)' : 'rgba(16,185,129,.1)', color: isReturn ? 'var(--sv-red)' : 'var(--sv-mint)' }}>{isExchange ? 'Exchange' : isReturn ? 'Return' : 'Sale'}</span>
                     {sale.location_name && !locationId && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', padding: '1px 7px', borderRadius: 99, border: '1px solid var(--sv-etch)' }}>{sale.location_name}</span>}
                     {sale.register_name && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', padding: '1px 7px', borderRadius: 99, border: '1px solid var(--sv-etch)', fontFamily: 'inherit' }}>🖥 {sale.register_name}</span>}
                     {sale.cashier_name && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{sale.cashier_name}</span>}
@@ -12994,23 +13007,25 @@ function PosSalesLedgerView({ pendingOpenDay, onPendingHandled }: { pendingOpenD
                       </table>
                       {(() => {
                         const costRows = sale.items.map((item: any) => {
-                          const qty = Math.abs(Number(item.qty ?? 0));
+                          const qty = Number(item.qty ?? 0);
                           const avgCost = item.unit_cost != null
                             ? Number(item.unit_cost)
                             : item.avg_cost != null
                               ? Number(item.avg_cost)
                               : null;
-                          const cogs = avgCost != null ? qty * avgCost : null;
-                          const lineInc = Number(item.line_total || 0);
+                          const direction = Math.sign(qty);
+                          const lineInc = direction * Math.abs(Number(item.line_total || 0));
                           const taxRatePct = Number(item.tax_rate ?? 10);
                           const lineEx = taxRatePct > 0 ? lineInc / (1 + taxRatePct / 100) : lineInc;
-                          return { item, qty, avgCost, cogs, lineEx };
+                          const cogs = avgCost != null ? qty * avgCost : null;
+                          return { item, qty, avgCost, cogs, lineInc, lineEx };
                         });
-                        const hasCosts = costRows.some((r: any) => r.avgCost != null);
-                        const revenueEx = costRows.reduce((s: number, r: any) => s + r.lineEx, 0);
-                        const totalCogs = hasCosts ? costRows.reduce((s: number, r: any) => s + (r.cogs ?? 0), 0) : null;
-                        const grossProfit = totalCogs != null ? revenueEx - totalCogs : null;
-                        const marginPct = grossProfit != null && revenueEx > 0 ? (grossProfit / revenueEx) * 100 : null;
+                        const { revenueEx, totalCogs, marginPct } = calculatePosProfitability(costRows.map((row: any) => ({
+                          qty: row.qty,
+                          lineTotal: row.lineInc,
+                          taxRate: Number(row.item.tax_rate ?? 10),
+                          unitCost: row.avgCost,
+                        })));
                         return (
                           <div style={{ marginTop: 10 }}>
                             <CostSummaryPills items={[

@@ -1,4 +1,5 @@
 import { imsQuery, imsExecute, getIMSPool } from '@/services/IMSMySQLService';
+import { getPosStockQtyChange } from '@/lib/ims/posReturnCreditNote';
 
 /** Current datetime formatted as MySQL DATETIME in the business's local timezone. */
 function localNow(): string {
@@ -313,14 +314,15 @@ export const PosSalesRepo = {
       //    Returns stockError string if deduction failed — API returns success
       //    anyway so the client clears the queue, but logs the issue.
       let stockError: string | undefined;
-      if ((data.status === 'completed' || data.status === 'layby_complete') && data.sale_type !== 'return') {
+      if (data.status === 'completed' || data.status === 'layby_complete') {
         const pool = getIMSPool();
         const stockConn = await pool.getConnection();
         try {
           await stockConn.beginTransaction();
           for (const item of data.items) {
             if (!item.variant_id) continue;
-            const qtyChange = -item.qty;
+            const qtyChange = getPosStockQtyChange(Number(item.qty), data.sale_type);
+            if (qtyChange === null) continue;
             const [stockRows]: any = await stockConn.execute(
               `SELECT s.qty_on_hand, COALESCE(pv.avg_cost, 0) AS avg_cost
                FROM ims_stock s
