@@ -26,6 +26,7 @@ function setupPaidPayout(deps: ReturnType<typeof createDependencies>) {
       return [
         { shopify_transaction_id: 'sat', transaction_type: 'charge', amount: 100, fee: -2, net: 98, currency: 'AUD', source_order_id: 'order-sat' },
         { shopify_transaction_id: 'sun', transaction_type: 'charge', amount: 50, fee: -1, net: 49, currency: 'AUD', source_order_id: 'order-sun' },
+        { shopify_transaction_id: 'payout-marker', transaction_type: 'payout', amount: -147, fee: 0, net: -147, currency: 'AUD', source_order_id: null },
       ];
     }
     if (sql.includes('FROM xero_online_batches')) {
@@ -147,7 +148,7 @@ describe('planShopifyPayoutActions', () => {
 
     const result = await planShopifyPayoutActions('biz-1', 'pay-2', deps);
 
-    expect(result).toMatchObject({ status: 'blocked', error: 'Refund refund-1 does not have one completed Xero credit note' });
+    expect(result).toMatchObject({ status: 'blocked', error: 'Refund refund-1 for Shopify order order-sat does not have one completed Xero credit note' });
   });
 
   it('plans a fee reversal as a clearing receive', async () => {

@@ -177,6 +177,49 @@ export async function POST(req: Request) {
   let skippedPreTransition = 0;
   const errors: string[] = [];
 
+  const backfillOrderRefunds = async (order: any, soId: number) => {
+    if (!Array.isArray(order.refunds) || order.refunds.length === 0) return;
+
+    const orderGateway = Array.isArray(order.payment_gateway_names) ? order.payment_gateway_names.join(', ') : null;
+    for (const refund of order.refunds) {
+      try {
+        const norm = parseShopifyRefund(refund, orderGateway);
+        if (!norm.shopifyRefundId) continue;
+
+        await ImsSORepo.processShopifyRefund(businessId, {
+          soId,
+          shopifyRefundId: norm.shopifyRefundId,
+          gateway: norm.gateway,
+          amount: norm.amount,
+          taxAmount: norm.taxAmount,
+          note: 'Shopify refund (import backfill)',
+          restockLines: norm.restockLines,
+        });
+        const cnRows = await imsQuery<{ id: number; xero_credit_note_id: string | null }>(
+          `SELECT id, xero_credit_note_id FROM ims_credit_notes
+           WHERE business_id = ? AND shopify_refund_id = ?
+           LIMIT 1`,
+          [businessId, norm.shopifyRefundId],
+        );
+        const cnId = Number(cnRows[0]?.id ?? 0);
+        if (cnId > 0 && !cnRows[0]?.xero_credit_note_id) {
+          await triggerCNXeroSync(businessId, cnId);
+        }
+      } catch (e: any) {
+        errors.push(`Order ${order.name} refund: ${e.message}`);
+      }
+    }
+
+    await imsExecute(
+      `UPDATE ims_sales_orders SET financial_status = CASE
+          WHEN refunded_amount >= total_amount THEN 'refunded'
+          WHEN refunded_amount > 0 THEN 'partially_refunded'
+          ELSE financial_status END
+        WHERE id = ?`,
+      [soId],
+    );
+  };
+
   for (const order of shopifyOrders) {
     const orderIdStr = String(order.id);
 
@@ -206,6 +249,7 @@ export async function POST(req: Request) {
       } else {
         skippedExisting++;
       }
+      await backfillOrderRefunds(order, existing.id);
       continue;
     }
 
@@ -293,44 +337,7 @@ export async function POST(req: Request) {
       }
 
       // Process any refunds already recorded on the order (restock + record $).
-      if (Array.isArray(order.refunds) && order.refunds.length > 0) {
-        const orderGateway = Array.isArray(order.payment_gateway_names) ? order.payment_gateway_names.join(', ') : null;
-        for (const refund of order.refunds) {
-          try {
-            const norm = parseShopifyRefund(refund, orderGateway);
-            if (norm.shopifyRefundId) {
-              await ImsSORepo.processShopifyRefund(businessId, {
-                soId,
-                shopifyRefundId: norm.shopifyRefundId,
-                gateway: norm.gateway,
-                amount: norm.amount,
-                taxAmount: norm.taxAmount,
-                note: 'Shopify refund (import backfill)',
-                restockLines: norm.restockLines,
-              });
-              const cnRows = await imsQuery<{ id: number }>(
-                `SELECT id FROM ims_credit_notes
-                 WHERE business_id = ? AND shopify_refund_id = ?
-                 LIMIT 1`,
-                [businessId, norm.shopifyRefundId],
-              );
-              const cnId = Number(cnRows[0]?.id ?? 0);
-              if (cnId > 0) {
-                await triggerCNXeroSync(businessId, cnId);
-              }
-            }
-          } catch (e: any) { errors.push(`Order ${order.name} refund: ${e.message}`); }
-        }
-        // Reflect financial status once all refunds applied.
-        await imsExecute(
-          `UPDATE ims_sales_orders SET financial_status = CASE
-              WHEN refunded_amount >= total_amount THEN 'refunded'
-              WHEN refunded_amount > 0 THEN 'partially_refunded'
-              ELSE financial_status END
-            WHERE id = ?`,
-          [soId],
-        );
-      }
+      await backfillOrderRefunds(order, soId);
 
       imported++;
     } catch (e: any) {

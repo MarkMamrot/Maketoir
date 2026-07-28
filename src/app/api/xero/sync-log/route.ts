@@ -411,6 +411,16 @@ export async function GET(req: Request) {
         `SELECT p.id, p.shopify_payout_id, p.payout_date, p.currency, p.payout_amount,
                 p.transaction_net_total, p.reconciliation_status, p.error_detail,
                 p.reconciled_at, p.updated_at,
+                (SELECT MIN(t.business_date)
+                   FROM shopify_payment_payout_transactions t
+                  WHERE t.business_id = p.business_id
+                    AND t.shopify_payout_id = p.shopify_payout_id
+                    AND LOWER(t.transaction_type) != 'payout') AS transaction_date_from,
+                (SELECT MAX(t.business_date)
+                   FROM shopify_payment_payout_transactions t
+                  WHERE t.business_id = p.business_id
+                    AND t.shopify_payout_id = p.shopify_payout_id
+                    AND LOWER(t.transaction_type) != 'payout') AS transaction_date_to,
                 COUNT(a.id) AS action_count,
                 SUM(CASE WHEN a.status = 'completed' THEN 1 ELSE 0 END) AS completed_action_count
            FROM shopify_payment_payouts p
@@ -723,9 +733,11 @@ export async function GET(req: Request) {
         sync_type: 'shopify_payout',
         payout_id: String(payout.shopify_payout_id),
         payout_status: status,
+        payout_transaction_date_from: batchDateStr(payout.transaction_date_from),
+        payout_transaction_date_to: batchDateStr(payout.transaction_date_to),
         reference_id: null,
         reference: `Shopify Payout ${payout.shopify_payout_id}`,
-        contact_name: `${completedCount}/${actionCount} Xero actions complete`,
+        contact_name: `${completedCount}/${actionCount} Xero actions complete${payout.transaction_date_from ? ` · Transactions ${batchDateStr(payout.transaction_date_from)}${batchDateStr(payout.transaction_date_to) !== batchDateStr(payout.transaction_date_from) ? ` to ${batchDateStr(payout.transaction_date_to)}` : ''}` : ''}`,
         amount: Number(payout.payout_amount),
         item_date: batchDateStr(payout.payout_date),
         is_historical: 0,

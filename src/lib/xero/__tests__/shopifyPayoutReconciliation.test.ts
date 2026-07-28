@@ -32,6 +32,28 @@ describe('reconcileShopifyPayout', () => {
     ]);
   });
 
+  it('ignores the negative payout settlement marker returned by Shopify', () => {
+    const result = reconcileShopifyPayout({
+      payoutAmount: 855.09,
+      payoutCurrency: 'AUD',
+      transactions: [
+        { id: 'charge-1', type: 'charge', amount: 886.81, fee: -18.77, net: 868.04, currency: 'AUD', invoiceId: 'inv-23', invoiceDate: '2026-07-23' },
+        { id: 'refund-1', type: 'refund', amount: -12.95, fee: 0, net: -12.95, currency: 'AUD' },
+        { id: 'payout-1', type: 'payout', amount: -855.09, fee: 0, net: -855.09, currency: 'AUD' },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      balanced: true,
+      transactionNet: 855.09,
+      difference: 0,
+      grossCharges: 886.81,
+      refunds: 12.95,
+      fees: 18.77,
+      adjustments: 0,
+    });
+  });
+
   it('aggregates multiple charges for the same daily invoice', () => {
     const result = reconcileShopifyPayout({
       payoutAmount: 68.5,
@@ -92,6 +114,7 @@ describe('classifyShopifyPayoutTransaction', () => {
   it('treats non-charge and non-refund types as signed adjustments', () => {
     expect(classifyShopifyPayoutTransaction('charge')).toBe('charge');
     expect(classifyShopifyPayoutTransaction('refund')).toBe('refund');
+    expect(classifyShopifyPayoutTransaction('payout')).toBe('settlement');
     expect(classifyShopifyPayoutTransaction('reserve')).toBe('adjustment');
     expect(classifyShopifyPayoutTransaction('dispute')).toBe('adjustment');
   });

@@ -46,6 +46,24 @@ describe('ingestShopifyPayout', () => {
     expect(deps.mainExecute.mock.calls.some((call: any[]) => String(call[0]).includes("reconciliation_status = 'ready_to_allocate'"))).toBe(true);
   });
 
+  it('excludes Shopify payout settlement markers from transaction net validation', async () => {
+    const deps = dependencies({
+      fetchTransactions: vi.fn().mockResolvedValue([
+        { id: 'charge-1', type: 'charge', amount: '100.00', fee: '-3.00', net: '97.00', currency: 'AUD' },
+        { id: 'payout-1', type: 'payout', amount: '-97.00', fee: '0.00', net: '-97.00', currency: 'AUD' },
+      ]),
+    });
+
+    const result = await ingestShopifyPayout('biz-1', paidPayout, creds, deps);
+
+    expect(result.status).toBe('planned');
+    expect(deps.planActions).toHaveBeenCalledWith('biz-1', 'payout-1');
+    expect(deps.mainExecute.mock.calls.some((call: any[]) => (
+      String(call[0]).includes("reconciliation_status = 'ready_to_allocate'")
+      && call[1][0] === 97
+    ))).toBe(true);
+  });
+
   it('blocks a payout whose transaction net does not equal its amount', async () => {
     const deps = dependencies({
       fetchTransactions: vi.fn().mockResolvedValue([

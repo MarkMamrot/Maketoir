@@ -2,6 +2,7 @@ import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
 import { planShopifyPayoutActions } from '@/lib/ims/shopifyPayoutActionPlanner';
 import { toBusinessDate } from '@/lib/shopifyDate';
+import { classifyShopifyPayoutTransaction } from '@/lib/xero/shopifyPayoutReconciliation';
 import { execute, query } from '@/services/MySQLService';
 
 export type ShopifyApiCreds = { shopName: string; token: string; base: string };
@@ -160,7 +161,11 @@ export async function ingestShopifyPayout(
       );
     }
 
-    const transactionNet = Math.round(transactions.reduce((sum, transaction) => sum + Number(transaction?.net ?? 0), 0) * 100) / 100;
+    const transactionNet = Math.round(transactions.reduce((sum, transaction) => (
+      classifyShopifyPayoutTransaction(String(transaction?.type ?? '')) === 'settlement'
+        ? sum
+        : sum + Number(transaction?.net ?? 0)
+    ), 0) * 100) / 100;
     const difference = Math.round((transactionNet - payoutAmount) * 100) / 100;
     if (difference !== 0) {
       const error = `Balance transaction net ${transactionNet.toFixed(2)} does not equal payout ${payoutAmount.toFixed(2)}`;
