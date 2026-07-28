@@ -134,6 +134,8 @@ CREATE TABLE IF NOT EXISTS ims_cs_threads (
   urgency              ENUM('low','normal','high','urgent') NOT NULL DEFAULT 'normal',
   sentiment            ENUM('negative','neutral','positive') NOT NULL DEFAULT 'neutral',
   workflow_status      ENUM('open','needs_review','drafted','sent','archived','failed') NOT NULL DEFAULT 'open',
+  is_starred           TINYINT(1) NOT NULL DEFAULT 0,
+  starred_at           DATETIME NULL,
   assigned_user_id     INT NULL,
   classifier_model_id  VARCHAR(150) NULL,
   classifier_version   VARCHAR(50) NULL,
@@ -145,6 +147,7 @@ CREATE TABLE IF NOT EXISTS ims_cs_threads (
   UNIQUE KEY uq_cs_thread_gmail (business_id, gmail_thread_id),
   INDEX idx_cs_thread_list (business_id, last_message_at),
   INDEX idx_cs_thread_category (business_id, category, workflow_status),
+  INDEX idx_cs_thread_starred (business_id, is_starred, last_message_at),
   INDEX idx_cs_thread_customer (business_id, customer_email),
   INDEX idx_cs_thread_unread (business_id, unread_count)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

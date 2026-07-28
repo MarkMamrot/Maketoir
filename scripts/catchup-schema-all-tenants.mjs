@@ -65,6 +65,8 @@ const TABLE_DDLS = [
     urgency ENUM('low','normal','high','urgent') NOT NULL DEFAULT 'normal',
     sentiment ENUM('negative','neutral','positive') NOT NULL DEFAULT 'neutral',
     workflow_status ENUM('open','needs_review','drafted','sent','archived','failed') NOT NULL DEFAULT 'open',
+    is_starred TINYINT(1) NOT NULL DEFAULT 0,
+    starred_at DATETIME NULL,
     assigned_user_id INT NULL,
     classifier_model_id VARCHAR(150) NULL,
     classifier_version VARCHAR(50) NULL,
@@ -361,6 +363,8 @@ const TABLE_DDLS = [
 // Column definitions: [table, column, definition]
 const COLUMNS = [
   ['ims_cs_learning_evidence', 'processed_at', 'DATETIME NULL'],
+  ['ims_cs_threads', 'is_starred', 'TINYINT(1) NOT NULL DEFAULT 0'],
+  ['ims_cs_threads', 'starred_at', 'DATETIME NULL'],
   // ── ims_product_images ───────────────────────────────────────────────────
   // Additive column for tenants where the table already existed (created by
   // the older add-product-images.mjs / _create-product-images-table.mjs
@@ -470,6 +474,7 @@ const COLUMNS = [
 ];
 
 const INDEXES = [
+  ['ims_cs_threads', 'idx_cs_thread_starred', 'INDEX `idx_cs_thread_starred` (`business_id`, `is_starred`, `last_message_at`)'],
   ['ims_contacts', 'idx_shopify_customer_id', 'UNIQUE INDEX `idx_shopify_customer_id` (`business_id`, `shopify_customer_id`)'],
   ['ims_credit_notes', 'idx_shopify_return', 'INDEX `idx_shopify_return` (`business_id`, `shopify_return_id`)'],
   ['ims_credit_notes', 'uq_cn_pos_sale', 'UNIQUE INDEX `uq_cn_pos_sale` (`business_id`, `pos_sale_id`)'],

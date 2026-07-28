@@ -24,6 +24,9 @@ export async function updateCustomerServiceMailboxState(input: {
     await imsExecute('UPDATE ims_cs_messages SET is_read = 0 WHERE business_id = ? AND thread_id = ?', [input.businessId, input.threadId]);
     await imsExecute('UPDATE ims_cs_threads SET unread_count = message_count WHERE business_id = ? AND id = ?', [input.businessId, input.threadId]);
   } else {
-    await imsExecute("UPDATE ims_cs_threads SET workflow_status = 'archived' WHERE business_id = ? AND id = ?", [input.businessId, input.threadId]);
+    await imsExecute(
+      "UPDATE ims_cs_threads SET workflow_status = 'archived', is_starred = 0, starred_at = NULL WHERE business_id = ? AND id = ?",
+      [input.businessId, input.threadId],
+    );
   }
 }

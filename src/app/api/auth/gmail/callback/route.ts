@@ -76,7 +76,7 @@ export async function GET(req: Request) {
        VALUES (?, ?, ?)
        ON DUPLICATE KEY UPDATE gmail_email = VALUES(gmail_email), gmail_refresh_token = VALUES(gmail_refresh_token), updated_at = NOW()`,
       [businessId, email, encrypt(refreshToken)],
-    ).catch(() => {});
+    );
 
     const redirect = NextResponse.redirect(
       `${returnUrl}?gmailSuccess=1&gmailEmail=${encodeURIComponent(email)}&businessId=${encodeURIComponent(businessId)}`,

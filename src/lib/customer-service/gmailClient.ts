@@ -184,6 +184,10 @@ export async function getGmailAccess(businessId: string): Promise<{ accessToken:
   });
   const data = await response.json();
   if (!response.ok || data.error) throw new Error(data.error_description || data.error || 'Gmail token refresh failed');
+  const grantedScopes = String(data.scope || '').trim();
+  if (grantedScopes && !grantedScopes.split(/\s+/).includes('https://www.googleapis.com/auth/gmail.modify')) {
+    throw new Error('Gmail connection is missing mailbox modify permission. Reconnect Gmail and approve all requested permissions.');
+  }
   const profile = await gmailFetch<{ emailAddress: string }>(data.access_token, '/profile');
   return { accessToken: data.access_token, mailboxEmail: String(profile.emailAddress || '').toLowerCase() };
 }

@@ -227,7 +227,8 @@ export async function listCustomerServiceThreads(businessId: string, input: {
   const rows = await imsQuery<any>(
     `SELECT t.id, t.gmail_thread_id, t.customer_id, t.customer_email, t.subject, t.snippet,
             t.message_count, t.unread_count, t.category, t.enquiry_subtype,
-            t.classification_confidence, t.urgency, t.sentiment, t.workflow_status,
+          t.classification_confidence, t.urgency, t.sentiment, t.workflow_status,
+          t.is_starred, t.starred_at,
             t.last_message_at, t.updated_at,
             d.id AS draft_id, d.status AS draft_status, d.version AS draft_version
        FROM ims_cs_threads t
@@ -237,7 +238,7 @@ export async function listCustomerServiceThreads(businessId: string, input: {
           ORDER BY d2.id DESC LIMIT 1
        )
       WHERE ${where}
-      ORDER BY t.last_message_at DESC
+      ORDER BY t.is_starred DESC, COALESCE(t.starred_at, t.last_message_at) DESC, t.last_message_at DESC
       LIMIT ${pageSize} OFFSET ${offset}`,
     params,
   );
@@ -274,6 +275,7 @@ export async function getCustomerServiceThread(businessId: string, threadId: num
 export async function updateCustomerServiceThread(businessId: string, threadId: number, input: {
   category?: string;
   status?: string;
+  starred?: boolean | string;
   userId: number;
 }): Promise<boolean> {
   const updates: string[] = [];
@@ -284,6 +286,11 @@ export async function updateCustomerServiceThread(businessId: string, threadId: 
   if (['open', 'needs_review', 'drafted', 'sent', 'archived', 'failed'].includes(input.status || '')) {
     updates.push('workflow_status = ?'); params.push(input.status);
   }
+  if (typeof input.starred === 'boolean' || input.starred === 'true' || input.starred === 'false') {
+    const starred = input.starred === true || input.starred === 'true';
+    updates.push('is_starred = ?'); params.push(starred ? 1 : 0);
+    updates.push('starred_at = ?'); params.push(starred ? new Date().toISOString().slice(0, 19).replace('T', ' ') : null);
+  }
   if (!updates.length) return false;
   params.push(businessId, threadId);
   const result = await imsExecute(`UPDATE ims_cs_threads SET ${updates.join(', ')} WHERE business_id = ? AND id = ?`, params);
@@ -291,7 +298,7 @@ export async function updateCustomerServiceThread(businessId: string, threadId: 
   await imsExecute(
     `INSERT INTO ims_cs_events (business_id, thread_id, event_type, actor_type, actor_id, details_json)
      VALUES (?, ?, 'thread_updated', 'user', ?, ?)`,
-    [businessId, threadId, String(input.userId), JSON.stringify({ category: input.category, status: input.status })],
+    [businessId, threadId, String(input.userId), JSON.stringify({ category: input.category, status: input.status, starred: input.starred })],
   );
   return true;
 }
