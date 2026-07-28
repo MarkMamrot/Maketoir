@@ -24,7 +24,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const [descRows, stockRows] = await Promise.all([
+    const [descRows, stockRows, imageRows] = await Promise.all([
       imsQuery<{ description: string | null }>(
         `SELECT p.description FROM ims_product_variants v
          JOIN ims_products p ON p.product_id = v.product_id
@@ -39,10 +39,22 @@ export async function GET(req: Request) {
          ORDER BY l.name`,
         [variantId, session.businessId],
       ),
+      // Full-resolution primary image, fetched on-demand for this one product
+      // only — the bulk product cache only ever carries a small thumbnail.
+      imsQuery<{ url: string }>(
+        `SELECT i.url
+         FROM ims_product_variants v
+         JOIN ims_product_images i ON i.product_id = v.product_id
+         WHERE v.variant_id = ?
+         ORDER BY i.is_primary DESC, i.sort_order ASC
+         LIMIT 1`,
+        [variantId],
+      ),
     ]);
 
     const description = descRows[0]?.description ?? null;
-    return NextResponse.json({ success: true, data: stockRows, description });
+    const image_url = imageRows[0]?.url ?? null;
+    return NextResponse.json({ success: true, data: stockRows, description, image_url });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

@@ -126,10 +126,35 @@ const TABLE_DDLS = [
     uploaded_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_scn (scn_id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  // Bootstrap safety: some tenants only got this table via the older one-off
+  // scripts/add-product-images.mjs / _create-product-images-table.mjs, which
+  // never made it into this catch-up script or the base ims-schema.sql —
+  // create it here (with updated_at from the start) for any tenant missing it.
+  `CREATE TABLE IF NOT EXISTS ims_product_images (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    product_id    VARCHAR(36) NOT NULL,
+    url           TEXT NOT NULL,
+    source        ENUM('shopify','google_drive','external') NOT NULL DEFAULT 'external',
+    drive_file_id VARCHAR(200) NULL,
+    is_primary    TINYINT(1) NOT NULL DEFAULT 0,
+    sort_order    INT NOT NULL DEFAULT 0,
+    alt_text      VARCHAR(255) NULL,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (product_id) REFERENCES ims_products(product_id) ON DELETE CASCADE,
+    INDEX idx_pi_product (product_id),
+    INDEX idx_pi_primary (product_id, is_primary)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 ];
 
 // Column definitions: [table, column, definition]
 const COLUMNS = [
+  // ── ims_product_images ───────────────────────────────────────────────────
+  // Additive column for tenants where the table already existed (created by
+  // the older add-product-images.mjs / _create-product-images-table.mjs
+  // scripts) but predates this updated_at addition — enables incremental
+  // "since" image sync from the POS product cache.
+  ['ims_product_images', 'updated_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'],
   // ── ims_purchase_orders ──────────────────────────────────────────────────
   ['ims_purchase_orders', 'xero_bill_id',            'VARCHAR(100) NULL'],
   ['ims_purchase_orders', 'xero_synced_at',           'DATETIME NULL'],

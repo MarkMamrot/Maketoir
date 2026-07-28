@@ -5,8 +5,9 @@ import { createReceiptPrintGate } from './_receiptPrintGuard';
 import * as Zeller from '@/lib/zeller';
 import {
   loadDeviceConfig, saveDeviceConfig, clearDeviceConfig,
-  loadProductsCache, saveProductsCache,
-  loadImageCache, saveImageCache, isImageCacheStale, mergeProductImages,
+  loadProductsCache, saveProductsCache, mergeProductsDelta,
+  markProductsSynced, getProductsSyncWatermark, needsFullProductsResync,
+  loadImageCache, saveImageCache, mergeImageDelta, getImageSyncWatermark, mergeProductImages,
   loadCurrentCart, saveCurrentCart,
   loadParkedSales, saveParkedSales,
   addToOfflineQueue, drainOfflineQueue, loadOfflineQueue, removeFromOfflineQueue,
@@ -293,7 +294,7 @@ function RegisterGate({ session, deviceConfig, staleSession, onContinue, onGoToE
 
 function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
   deviceConfig:  DeviceConfig;
-  onLogin:       (session: PosSession, products: CachedProduct[], methods: string[]) => void;
+  onLogin:       (session: PosSession, products: CachedProduct[], methods: string[], defaultView?: string) => void;
   onDeviceSetup: () => void;
 }) {
   const [username,     setUsername]     = useState('');
@@ -332,18 +333,23 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function finishLogin(session: PosSession) {
-    const [prodRes, methodRes] = await Promise.all([
+    const [prodRes, methodRes, viewRes] = await Promise.all([
       fetch(`/api/pos/products?location_id=${deviceConfig.location_id}`),
       fetch('/api/pos/settings/payment-methods'),
+      fetch('/api/pos/settings/products'),
     ]);
-    const prodData   = await prodRes.json().catch(() => ({ products: [] }));
+    const prodData   = await prodRes.json().catch(() => ({ products: [], server_time: Date.now() }));
     const methodData = await methodRes.json().catch(() => ({ methods: ['Cash', 'Card', 'EFT'] }));
+    const viewData   = await viewRes.json().catch(() => ({ defaultView: 'all' }));
     let products = prodData.products ?? [];
     const imgCache = loadImageCache();
     if (imgCache && products.length) products = mergeProductImages(products, imgCache);
     saveProductsCache(products);
+    // Login always does a full fetch — record it as the full-sync watermark
+    // too, so the 12h safety-net timer doesn't also fire right afterwards.
+    markProductsSynced(prodData.server_time ?? Date.now(), true);
     saveLocalSession(session);
-    onLogin(session, products, methodData.methods ?? ['Cash', 'Card', 'EFT']);
+    onLogin(session, products, methodData.methods ?? ['Cash', 'Card', 'EFT'], viewData.defaultView || 'all');
   }
 
   async function handlePinLogin() {
@@ -1229,7 +1235,7 @@ function MainPos({
   onEodMounted?:             () => void;
   onLogout:                  () => void;
   onReceipt:                 (sale: CompletedSale) => void;
-  onSync:                    () => Promise<void>;
+  onSync:                    (forceFull?: boolean) => Promise<void>;
   lastSale:                  CompletedSale | null;
   onSaleCompleted:           (sale: CompletedSale) => void;
   onChangeDue:               (amount: number) => void;
@@ -1406,7 +1412,9 @@ function MainPos({
     try {
       await drainOfflineQueue();
       refreshQueueCount();
-      await onSync();
+      // Manual "Sync" is user-initiated and infrequent — always do a full
+      // fetch so staff can trust it as a "make sure everything's right" action.
+      await onSync(true);
       setSyncMsg('✓ Synced');
     } catch {
       setSyncMsg('Sync failed');
@@ -3110,10 +3118,28 @@ function PosChatWindow(_props: { myLocationId: number; myAvatar: string; userNam
 // ─── Recent product helpers ───────────────────────────────────────────────────
 
 function loadRecentIds(): string[] {
-  try { return JSON.parse(localStorage.getItem('pos_recent_vids') ?? '[]'); } catch { return []; }
+  try {
+    const raw = localStorage.getItem('pos_recent_vids');
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+
+    // Legacy format: plain array (migrate by resetting so stale previous-day order does not persist).
+    if (Array.isArray(parsed)) return [];
+
+    const today = new Date().toLocaleDateString('sv-SE');
+    if (parsed && typeof parsed === 'object' && parsed.day === today && Array.isArray(parsed.ids)) {
+      return parsed.ids.filter((id: unknown): id is string => typeof id === 'string' && id.length > 0);
+    }
+    return [];
+  } catch {
+    return [];
+  }
 }
 function saveRecentIds(ids: string[]): void {
-  try { localStorage.setItem('pos_recent_vids', JSON.stringify(ids)); } catch {}
+  try {
+    const payload = { day: new Date().toLocaleDateString('sv-SE'), ids };
+    localStorage.setItem('pos_recent_vids', JSON.stringify(payload));
+  } catch {}
 }
 
 // ─── POS Stock Modal ──────────────────────────────────────────────────────────
@@ -3121,6 +3147,7 @@ function saveRecentIds(ids: string[]): void {
 function PosStockModal({ variantId, productName, imageUrl, barcode, sku, onClose }: { variantId: string; productName: string; imageUrl?: string; barcode?: string | null; sku?: string | null; onClose: () => void }) {
   const [rows, setRows]           = useState<{ location_name: string; qty_on_hand: number }[]>([]);
   const [description, setDescription] = useState<string | null>(null);
+  const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState('');
   const [showRawHtml, setShowRawHtml] = useState(false);
@@ -3136,6 +3163,7 @@ function PosStockModal({ variantId, productName, imageUrl, barcode, sku, onClose
         if (d.success) {
           setRows((d.data ?? []).map((r: any) => ({ location_name: r.location_name ?? `Loc ${r.location_id}`, qty_on_hand: Number(r.qty_on_hand ?? 0) })));
           setDescription(d.description ?? null);
+          setFullImageUrl(d.image_url ?? null);
         } else setError(d.error ?? 'Failed to load stock.');
       })
       .catch(e => setError(e.message))
@@ -3143,6 +3171,10 @@ function PosStockModal({ variantId, productName, imageUrl, barcode, sku, onClose
   }, [variantId]);
 
   const total = rows.reduce((s, r) => s + r.qty_on_hand, 0);
+  // Show the thumbnail immediately (no layout flash), swap to the full-res
+  // image once it's fetched — the bulk product cache only carries a thumbnail.
+  const displayImageUrl = fullImageUrl ?? imageUrl;
+
 
   return (
     <div
@@ -3221,10 +3253,10 @@ function PosStockModal({ variantId, productName, imageUrl, barcode, sku, onClose
         </div>{/* end info panel */}
 
         {/* ── Large image panel ── */}
-        {imageUrl && (
+        {displayImageUrl && (
           <div style={{ flexShrink: 0, width: 'min(420px, 42vw)', display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'center' }}>
             <img
-              src={imageUrl}
+              src={displayImageUrl}
               alt={productName}
               style={{ width: '100%', maxHeight: '80vh', objectFit: 'contain', borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,.4)', background: '#fff' }}
             />
@@ -7079,28 +7111,15 @@ export default function PosPage() {
           const cached = loadProductsCache();
           if (cached.length) setProducts(cached);
           checkRegisterGate(sess, cfg, () => setScreen('pos'));
-          // Always refresh products + payment methods in background
-          Promise.all([
-            fetch(`/api/pos/products?location_id=${cfg.location_id}`),
-            fetch('/api/pos/settings/payment-methods'),
-            fetch('/api/pos/settings/products'),
-          ]).then(async ([prodRes, methodRes, viewRes]) => {
-            const prodData   = await prodRes.json().catch(() => ({ products: [] }));
-            const methodData = await methodRes.json().catch(() => ({ methods: [] }));
-            const viewData   = await viewRes.json().catch(() => ({ defaultView: 'all' }));
-            let freshProducts = prodData.products ?? [];
-            if (freshProducts.length) {
-              const imgCache = loadImageCache();
-              if (imgCache) freshProducts = mergeProductImages(freshProducts, imgCache);
-              saveProductsCache(freshProducts);
-              setProducts(freshProducts);
-            }
-            if (Array.isArray(methodData.methods) && methodData.methods.length) {
-              setMethods(methodData.methods);
-            }
+          // Refresh products + payment methods in background — via the shared
+          // handleSync (incremental `since=` unless a full resync is due), so
+          // reopening the app each morning doesn't force a full reload when
+          // nothing actually changed overnight.
+          handleSync(false, cfg).catch(() => {/* offline — keep cached */});
+          fetch('/api/pos/settings/products').then(r => r.json()).then(viewData => {
             if (viewData.defaultView) setDefaultView(viewData.defaultView);
             else setDefaultView(prev => prev ?? 'all');
-          }).catch(() => {/* offline — keep cached */});
+          }).catch(() => {});
         } else {
           clearLocalSession();
           setScreen('login');
@@ -7140,10 +7159,11 @@ export default function PosPage() {
     return (
       <LoginScreen
         deviceConfig={deviceConfig}
-        onLogin={(sess, prods, mets) => {
+        onLogin={(sess, prods, mets, view) => {
           setSession(sess);
           setProducts(prods);
           setMethods(mets);
+          setDefaultView(view || 'all');
           checkRegisterGate(sess, deviceConfig, () => setScreen('pos'));
         }}
         onDeviceSetup={() => { clearDeviceConfig(); setDeviceConfig(null); setScreen('setup'); }}
@@ -7174,32 +7194,52 @@ export default function PosPage() {
     );
   }
 
-  async function handleSync() {
-    if (!deviceConfig) return;
+  // Central sync function — used by the 5-min background interval, the 15-min
+  // freshness check, the post-session-restore mount refresh, and the manual
+  // "Sync" button (forceFull=true). Uses incremental `since=` fetches driven
+  // by a server-time watermark, falling back to a full fetch when there's no
+  // watermark yet or it's been >12h since the last full resync (single shared
+  // watermark — see needsFullProductsResync — so login/mount and the 12h
+  // safety-net timer can never both trigger a full fetch back-to-back).
+  async function handleSync(forceFull: boolean = false, cfgOverride?: DeviceConfig) {
+    const cfg = cfgOverride ?? deviceConfig;
+    if (!cfg) return;
+    const doFull = forceFull || needsFullProductsResync();
+    const since  = doFull ? null : getProductsSyncWatermark();
+    const productsUrl = `/api/pos/products?location_id=${cfg.location_id}` + (since ? `&since=${since}` : '');
+
     const [prodRes, methodRes] = await Promise.all([
-      fetch(`/api/pos/products?location_id=${deviceConfig.location_id}`),
+      fetch(productsUrl),
       fetch('/api/pos/settings/payment-methods'),
     ]);
-    const prodData   = await prodRes.json().catch(() => ({ products: [] }));
+    const prodData   = await prodRes.json().catch(() => ({ products: [], removed: [], server_time: Date.now() }));
     const methodData = await methodRes.json().catch(() => ({ methods: [] }));
-    let freshProducts = prodData.products ?? [];
-    if (freshProducts.length) {
-      const imgCache = loadImageCache();
-      if (imgCache) freshProducts = mergeProductImages(freshProducts, imgCache);
-      saveProductsCache(freshProducts);
-      setProducts(freshProducts);
-    }
+    const deltaProducts: CachedProduct[] = prodData.products ?? [];
+    const removedIds: string[]           = prodData.removed ?? [];
+    const serverTime: number             = prodData.server_time ?? Date.now();
+
+    const imgCache = loadImageCache() ?? {};
+    const withImages = mergeProductImages(deltaProducts, imgCache);
+    const merged = doFull ? withImages : mergeProductsDelta(loadProductsCache(), withImages, removedIds);
+    saveProductsCache(merged);
+    setProducts(merged);
+    markProductsSynced(serverTime, doFull);
+
     if (Array.isArray(methodData.methods) && methodData.methods.length) setMethods(methodData.methods);
     setOfflineMode(false);
-    // Refresh image cache in background if stale (once daily)
-    if (isImageCacheStale() && typeof navigator !== 'undefined' && navigator.onLine) {
-      fetch(`/api/pos/products/images`)
+
+    // Image sync rides the same full/incremental decision as products.
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      const imgSince = doFull ? null : getImageSyncWatermark();
+      const imagesUrl = `/api/pos/products/images` + (imgSince ? `?since=${imgSince}` : '');
+      fetch(imagesUrl)
         .then(r => r.json())
-        .then(({ images: imgs }: { images: Record<string, string> }) => {
-          if (!imgs || typeof imgs !== 'object') return;
-          saveImageCache(imgs);
+        .then((d: { images: Record<string, string>; removed?: string[]; server_time?: number }) => {
+          if (!d.images || typeof d.images !== 'object') return;
+          const mergedImages = imgSince ? mergeImageDelta(loadImageCache() ?? {}, d.images, d.removed ?? []) : d.images;
+          saveImageCache(mergedImages, d.server_time ?? Date.now());
           setProducts(prev => {
-            const updated = mergeProductImages(prev, imgs);
+            const updated = mergeProductImages(prev, mergedImages);
             saveProductsCache(updated);
             return updated;
           });

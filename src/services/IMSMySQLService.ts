@@ -155,9 +155,7 @@ export function getIMSPool(dbName?: string): mysql.Pool {
   }
   lastUsed.set(name, Date.now());
   if (!pools.has(name)) {
-    pools.set(
-      name,
-      mysql.createPool({
+    const pool = mysql.createPool({
         host:               process.env.IMS_MYSQL_HOST ?? process.env.MYSQL_HOST ?? '127.0.0.1',
         port:               parseInt(process.env.MYSQL_PORT ?? '3306', 10),
         database:           name,
@@ -172,8 +170,23 @@ export function getIMSPool(dbName?: string): mysql.Pool {
         timezone:           'Z',
         charset:            'utf8mb4',
         dateStrings:        true,  // Return DATETIME as strings (not Date objects) — preserves local time stored by localNow()
-      })
-    );
+    });
+    // `timezone: 'Z'` above only controls how mysql2 serialises outgoing JS
+    // Date params — it does NOT change the MySQL session's own `time_zone`,
+    // which is what CURRENT_TIMESTAMP()/NOW()/ON UPDATE CURRENT_TIMESTAMP use
+    // to populate columns like `updated_at`. Pin every pooled connection's
+    // session tz to UTC explicitly so those DB-computed timestamps always
+    // agree with the UTC-based values we send/compare from Node, regardless
+    // of the underlying MySQL host's system timezone. (Historically this
+    // schema's default SYSTEM tz has measured as UTC, but that's an
+    // assumption we don't want future infra changes to silently violate —
+    // see the "since=" incremental sync in /api/pos/products*.)
+    pool.on('connection', (conn) => {
+      conn.query("SET time_zone = '+00:00'", (err) => {
+        if (err) console.error(`Failed to set session time_zone on IMS pool (${name}):`, err.message);
+      });
+    });
+    pools.set(name, pool);
   }
   return pools.get(name)!;
 }

@@ -19,6 +19,16 @@ export function getPool(): mysql.Pool {
       timezone:           'Z',        // store/retrieve all datetimes as UTC
       charset:            'utf8mb4',
     });
+    // `timezone: 'Z'` only controls mysql2's own JS Date <-> string
+    // serialisation — it doesn't change the MySQL session's `time_zone`,
+    // which is what NOW()/CURRENT_TIMESTAMP() use server-side. Pin every
+    // pooled connection's session tz to UTC explicitly so DB-computed
+    // timestamps can't silently drift from the UTC basis the app assumes.
+    globalThis.__mysqlPool.on('connection', (conn) => {
+      conn.query("SET time_zone = '+00:00'", (err) => {
+        if (err) console.error('Failed to set session time_zone on main pool:', err.message);
+      });
+    });
   }
   return globalThis.__mysqlPool;
 }

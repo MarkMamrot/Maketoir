@@ -53,9 +53,18 @@ export function clearLocalSession(): void {
 // when offline. 6 hours comfortably covers a normal trading day.
 export const PRODUCTS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
+// Safety-net cadence for a FULL (non-incremental) product+stock resync, on
+// top of the frequent incremental `since=` syncs. Login always does a full
+// fetch too — this single shared watermark (last_full_sync_at) is checked
+// both at login and by the periodic background timer, so the two can never
+// both fire back-to-back (whichever runs first resets the other's clock).
+export const FULL_RESYNC_INTERVAL_MS = 12 * 60 * 60 * 1000;
+
 interface ProductsCacheEnvelope {
-  cached_at: number;
-  products:  CachedProduct[];
+  cached_at:          number;
+  last_synced_at?:    number; // server_time watermark from the last sync (full OR incremental) — used as the next `since=` param
+  last_full_sync_at?: number; // server_time watermark from the last FULL sync — drives the 12h safety-net check
+  products:           CachedProduct[];
 }
 
 function readProductsEnvelope(): ProductsCacheEnvelope | null {
@@ -74,9 +83,52 @@ export function loadProductsCache(): CachedProduct[] {
   return readProductsEnvelope()?.products ?? [];
 }
 
+/** Replace the cached product list, preserving any existing sync watermarks. */
 export function saveProductsCache(products: CachedProduct[]): void {
-  const envelope: ProductsCacheEnvelope = { cached_at: Date.now(), products };
+  const existing = readProductsEnvelope();
+  const envelope: ProductsCacheEnvelope = {
+    cached_at:          Date.now(),
+    last_synced_at:     existing?.last_synced_at,
+    last_full_sync_at:  existing?.last_full_sync_at,
+    products,
+  };
   localStorage.setItem(KEYS.products, JSON.stringify(envelope));
+}
+
+/** Merge an incremental delta into an existing product list (upsert by variant_id, drop `removed`). */
+export function mergeProductsDelta(
+  existing: CachedProduct[],
+  delta: CachedProduct[],
+  removed: string[],
+): CachedProduct[] {
+  const removedSet = new Set(removed);
+  const byId = new Map(existing.filter(p => !removedSet.has(p.variant_id)).map(p => [p.variant_id, p]));
+  for (const p of delta) byId.set(p.variant_id, p);
+  return Array.from(byId.values());
+}
+
+/** Record that a sync just completed at the server's clock time (avoids client clock skew). */
+export function markProductsSynced(serverTime: number, isFullSync: boolean): void {
+  const existing = readProductsEnvelope();
+  const envelope: ProductsCacheEnvelope = {
+    cached_at:          Date.now(),
+    last_synced_at:     serverTime,
+    last_full_sync_at:  isFullSync ? serverTime : existing?.last_full_sync_at,
+    products:           existing?.products ?? [],
+  };
+  localStorage.setItem(KEYS.products, JSON.stringify(envelope));
+}
+
+/** The `since` watermark to pass to the next incremental products fetch, or null if a full fetch is needed. */
+export function getProductsSyncWatermark(): number | null {
+  return readProductsEnvelope()?.last_synced_at ?? null;
+}
+
+/** True when it's been more than FULL_RESYNC_INTERVAL_MS since the last full resync (or there's never been one). */
+export function needsFullProductsResync(): boolean {
+  const lastFull = readProductsEnvelope()?.last_full_sync_at;
+  if (!lastFull) return true;
+  return Date.now() - lastFull > FULL_RESYNC_INTERVAL_MS;
 }
 
 /** Milliseconds since the product cache was last written, or null if no cache. */
@@ -100,32 +152,55 @@ export function isProductsCacheStale(): boolean {
 export const IMAGE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 interface ImageCacheEnvelope {
-  cached_at: number;
-  images: Record<string, string>; // product_id → primary image URL
+  cached_at:       number;
+  last_synced_at?: number; // server_time watermark — used as the next `since=` param
+  images:          Record<string, string>; // product_id → primary image URL (thumbnail)
 }
 
-export function loadImageCache(): Record<string, string> | null {
+function readImageEnvelope(): ImageCacheEnvelope | null {
   try {
     const raw = localStorage.getItem(KEYS.productImages);
     if (!raw) return null;
-    const data: ImageCacheEnvelope = JSON.parse(raw);
-    return data?.images ?? null;
+    return JSON.parse(raw) as ImageCacheEnvelope;
   } catch { return null; }
 }
 
-export function saveImageCache(images: Record<string, string>): void {
+export function loadImageCache(): Record<string, string> | null {
+  return readImageEnvelope()?.images ?? null;
+}
+
+/** Replace the cached image map, recording the server's sync watermark. */
+export function saveImageCache(images: Record<string, string>, serverTime?: number): void {
   try {
-    localStorage.setItem(KEYS.productImages, JSON.stringify({ cached_at: Date.now(), images }));
+    const existing = readImageEnvelope();
+    localStorage.setItem(KEYS.productImages, JSON.stringify({
+      cached_at:      Date.now(),
+      last_synced_at: serverTime ?? existing?.last_synced_at,
+      images,
+    }));
   } catch {}
 }
 
+/** Merge an incremental image delta into the existing map (upsert by product_id, drop `removed`). */
+export function mergeImageDelta(
+  existing: Record<string, string>,
+  delta: Record<string, string>,
+  removed: string[],
+): Record<string, string> {
+  const merged = { ...existing };
+  for (const id of removed) delete merged[id];
+  for (const [id, url] of Object.entries(delta)) merged[id] = url;
+  return merged;
+}
+
+/** The `since` watermark to pass to the next incremental images fetch, or null if a full fetch is needed. */
+export function getImageSyncWatermark(): number | null {
+  return readImageEnvelope()?.last_synced_at ?? null;
+}
+
 export function isImageCacheStale(): boolean {
-  try {
-    const raw = localStorage.getItem(KEYS.productImages);
-    if (!raw) return true;
-    const data: ImageCacheEnvelope = JSON.parse(raw);
-    return !data?.cached_at || Date.now() - data.cached_at > IMAGE_CACHE_TTL_MS;
-  } catch { return true; }
+  const env = readImageEnvelope();
+  return !env?.cached_at || Date.now() - env.cached_at > IMAGE_CACHE_TTL_MS;
 }
 
 /** Merge a products array with cached image URLs (keyed by product_id). */
