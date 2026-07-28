@@ -220,14 +220,13 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
         <div style={{ color: 'var(--sv-red)', fontSize: 13, marginBottom: 12, padding: '8px 12px', background: 'color-mix(in srgb, var(--sv-red) 10%, transparent)', borderRadius: 6 }}>{error}</div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, gap: 8 }}>
-        <div style={{ flex: 1, minHeight: 0, border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)', overflow: 'hidden' }}>
-          <div style={{ height: '100%', overflowX: 'auto', overflowY: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead style={{ position: 'sticky', top: 0, zIndex: 3, background: 'var(--sv-bg-1)' }}>
-                <tr>
-                  <th style={{ ...hCell, width: 44, textAlign: 'right' }}>#</th>
-                  {sortTh('product', 'Product', { position: 'sticky', left: 0, zIndex: 4, minWidth: 220 })}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)', overflowX: 'auto' }}>
+          <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ position: 'sticky', top: 0, zIndex: 3, background: 'var(--sv-bg-1)', boxShadow: '0 1px 0 0 var(--sv-etch)' }}>
+                <th style={{ ...hCell, width: 44, textAlign: 'right' }}>#</th>
+                {sortTh('product', 'Product', { position: 'sticky', left: 0, zIndex: 4, minWidth: 220 })}
                 {sortTh('sku', 'SKU')}
                 {sortTh('brand', 'Brand')}
                 {sortTh('supplier', 'Supplier')}

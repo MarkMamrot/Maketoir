@@ -159,56 +159,59 @@ export async function GET(req: Request) {
   // If this query fails, keep showing revenue rows so dashboard doesn't go blank.
   try {
     const cogsRows = await imsQuery<CogsRow>(
-      `SELECT CASE
-                WHEN sm.movement_type = 'pos_sale' THEN 'pos'
-                WHEN so.so_type = 'online' THEN 'online'
-                ELSE 'wholesale'
-              END AS channel,
-              COALESCE(l.name, 'Unknown') AS location_name,
-              SUM(CASE
+      `SELECT base.channel,
+              base.location_name,
+              SUM(base.cogs) AS cogs
+         FROM (
+           SELECT CASE
+                    WHEN sm.movement_type = 'pos_sale' THEN 'pos'
+                    WHEN so.so_type = 'online' THEN 'online'
+                    ELSE 'wholesale'
+                  END AS channel,
+                  COALESCE(l.name, 'Unknown') AS location_name,
+                  CASE
                     WHEN sm.unit_cost IS NULL OR sm.unit_cost <= 0 THEN 0
                     ELSE -sm.qty_change * sm.unit_cost
-                  END) AS cogs
-         FROM ims_stock_movements sm
-         JOIN ims_locations l
-           ON l.id = sm.location_id
-          AND l.business_id = ?
-         LEFT JOIN pos_sales ps
-           ON sm.movement_type = 'pos_sale'
-          AND sm.reference_type = 'pos_sale'
-          AND ps.id = sm.reference_id
-          AND ps.business_id = ?
-         LEFT JOIN ims_sales_orders so
-           ON sm.movement_type = 'so_fulfilled'
-          AND sm.reference_type = 'sales_order'
-          AND so.id = sm.reference_id
-          AND so.business_id = ?
-        WHERE sm.movement_type IN ('pos_sale', 'so_fulfilled')
-          AND (
-            (
-              sm.movement_type = 'pos_sale'
-              AND ps.id IS NOT NULL
-              AND ps.status = 'completed'
-              AND ps.created_at >= ?
-            )
-            OR (
-              sm.movement_type = 'so_fulfilled'
-              AND so.id IS NOT NULL
-              AND so.so_type = 'online'
-              AND so.order_date >= ?
-              AND (so.is_historical IS NULL OR so.is_historical = 0)
-              AND so.status != 'cancelled'
-            )
-            OR (
-              sm.movement_type = 'so_fulfilled'
-              AND so.id IS NOT NULL
-              AND so.so_type != 'online'
-              AND so.status = 'fulfilled'
-              AND so.order_date >= ?
-            )
-          )
-        GROUP BY channel, location_name`,
-      [biz, biz, biz, cutoff, cutoff, cutoff]
+                  END AS cogs
+             FROM ims_stock_movements sm
+             JOIN ims_locations l
+               ON l.id = sm.location_id
+              AND l.business_id = ?
+             LEFT JOIN pos_sales ps
+               ON sm.movement_type = 'pos_sale'
+              AND sm.reference_type = 'pos_sale'
+              AND ps.id = sm.reference_id
+             LEFT JOIN ims_sales_orders so
+               ON sm.movement_type = 'so_fulfilled'
+              AND sm.reference_type = 'sales_order'
+              AND so.id = sm.reference_id
+            WHERE sm.movement_type IN ('pos_sale', 'so_fulfilled')
+              AND (
+                (
+                  sm.movement_type = 'pos_sale'
+                  AND ps.id IS NOT NULL
+                  AND ps.status = 'completed'
+                  AND ps.created_at >= ?
+                )
+                OR (
+                  sm.movement_type = 'so_fulfilled'
+                  AND so.id IS NOT NULL
+                  AND so.so_type = 'online'
+                  AND so.order_date >= ?
+                  AND (so.is_historical IS NULL OR so.is_historical = 0)
+                  AND so.status != 'cancelled'
+                )
+                OR (
+                  sm.movement_type = 'so_fulfilled'
+                  AND so.id IS NOT NULL
+                  AND so.so_type != 'online'
+                  AND so.status = 'fulfilled'
+                  AND so.order_date >= ?
+                )
+              )
+         ) base
+        GROUP BY base.channel, base.location_name`,
+      [biz, cutoff, cutoff, cutoff]
     );
 
     channelRows = buildChannelRowsWithGrossProfit(revenueRows, cogsRows);
