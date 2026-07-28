@@ -41,8 +41,9 @@ describe('customer-service business data tools', () => {
     expect(mockImsQuery).toHaveBeenCalledOnce();
     const [sql, params] = mockImsQuery.mock.calls[0];
     expect(sql).toContain('p.business_id = ?');
+    expect(sql).toContain('LIMIT 25');
     expect(params[0]).toBe('biz-1');
-    expect(params.at(-1)).toBe(25);
+    expect(params).not.toContain(25);
     expect(sql).not.toContain('cost_aud');
   });
 

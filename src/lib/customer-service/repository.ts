@@ -196,8 +196,13 @@ export async function listCustomerServiceThreads(businessId: string, input: {
   status?: string;
   unread?: boolean;
 }): Promise<{ rows: any[]; total: number; page: number; pageSize: number }> {
-  const page = Math.max(1, Number(input.page || 1));
-  const pageSize = Math.max(10, Math.min(100, Number(input.pageSize || 30)));
+  const requestedPage = Number(input.page);
+  const requestedPageSize = Number(input.pageSize);
+  const page = Number.isFinite(requestedPage) ? Math.max(1, Math.trunc(requestedPage)) : 1;
+  const pageSize = Number.isFinite(requestedPageSize)
+    ? Math.max(10, Math.min(100, Math.trunc(requestedPageSize)))
+    : 30;
+  const offset = (page - 1) * pageSize;
   const conditions = ['t.business_id = ?'];
   const params: any[] = [businessId];
   if (input.query?.trim()) {
@@ -231,8 +236,8 @@ export async function listCustomerServiceThreads(businessId: string, input: {
        )
       WHERE ${where}
       ORDER BY t.last_message_at DESC
-      LIMIT ? OFFSET ?`,
-    [...params, pageSize, (page - 1) * pageSize],
+      LIMIT ${pageSize} OFFSET ${offset}`,
+    params,
   );
   return { rows, total: Number(countRows[0]?.total ?? 0), page, pageSize };
 }

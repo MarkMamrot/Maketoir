@@ -64,8 +64,8 @@ async function classifyPendingThreads(
        JOIN ims_cs_messages m ON m.business_id = t.business_id AND m.gmail_message_id = t.latest_message_id
       WHERE t.business_id = ? AND m.direction = 'inbound'
         AND (t.classifier_version IS NULL OR t.classifier_version <> ?)
-      ORDER BY t.last_message_at DESC LIMIT ?`,
-    [businessId, CLASSIFIER_VERSION, MAX_THREADS_PER_RUN],
+      ORDER BY t.last_message_at DESC LIMIT ${MAX_THREADS_PER_RUN}`,
+    [businessId, CLASSIFIER_VERSION],
   );
   if (!pending.length) return { customerThreads: [], classified: 0 };
 

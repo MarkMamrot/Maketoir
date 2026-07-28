@@ -74,8 +74,8 @@ async function getCustomerRecentOrders(businessId: string, args: JsonObject): Pr
        LEFT JOIN ims_locations l ON l.id = so.location_id
       WHERE so.business_id = ? AND LOWER(c.email) = ?
       ORDER BY so.order_date DESC, so.id DESC
-      LIMIT ?`,
-    [businessId, email, limit],
+      LIMIT ${limit}`,
+    [businessId, email],
   );
   return { tool: 'get_customer_recent_orders', data: rows, source: 'IMS > Sales Orders' };
 }
@@ -133,8 +133,8 @@ async function searchProducts(businessId: string, args: JsonObject): Promise<CsT
       WHERE p.business_id = ? AND p.is_active = 1 AND v.is_active = 1
         AND ${conditions.join(' AND ')}
       ORDER BY p.name, v.sku
-      LIMIT ?`,
-    [businessId, ...params, limit],
+      LIMIT ${limit}`,
+    [businessId, ...params],
   );
   return { tool: 'search_products', data: rows, source: 'IMS > Products > All Products' };
 }
@@ -185,8 +185,8 @@ async function findSimilarProducts(businessId: string, args: JsonObject): Promis
       WHERE source_v.business_id = ? AND LOWER(source_v.sku) = LOWER(?) AND p2.is_active = 1
       GROUP BY p2.product_id, v2.variant_id
       ORDER BY similarity_score DESC, available DESC, p2.name
-      LIMIT ?`,
-    [businessId, sku, limit],
+      LIMIT ${limit}`,
+    [businessId, sku],
   );
   return { tool: 'find_similar_products', data: rows, source: 'IMS > Products and The Stock Levels' };
 }
