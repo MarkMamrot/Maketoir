@@ -221,12 +221,13 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, gap: 8 }}>
-        <div style={{ flex: 1, minHeight: 0, overflowX: 'auto', overflowY: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr>
-                <th style={{ ...hCell, width: 44, textAlign: 'right' }}>#</th>
-                {sortTh('product', 'Product', { position: 'sticky', left: 0, zIndex: 4, minWidth: 220 })}
+        <div style={{ flex: 1, minHeight: 0, border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)', overflow: 'hidden' }}>
+          <div style={{ height: '100%', overflowX: 'auto', overflowY: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 3, background: 'var(--sv-bg-1)' }}>
+                <tr>
+                  <th style={{ ...hCell, width: 44, textAlign: 'right' }}>#</th>
+                  {sortTh('product', 'Product', { position: 'sticky', left: 0, zIndex: 4, minWidth: 220 })}
                 {sortTh('sku', 'SKU')}
                 {sortTh('brand', 'Brand')}
                 {sortTh('supplier', 'Supplier')}
@@ -242,49 +243,50 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
                   </th>
                 ))}
               </tr>
-            </thead>
-            <tbody>
-              {loading && (
-                <tr><td colSpan={7 + locations.length} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
-              )}
-              {!loading && displayRows.length === 0 && (
-                <tr><td colSpan={7 + locations.length} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>No results found.</td></tr>
-              )}
-              {!loading && displayRows.map((row, i) => {
-                const salesQty = Number(row[salesKey] ?? 0);
-                const locStockMap = new Map<number, any>(row.stock.map((s: any) => [s.location_id, s]));
-                const rowBg = i % 2 === 0 ? 'transparent' : 'color-mix(in srgb, var(--sv-etch) 35%, transparent)';
-                const rowNum = (page - 1) * pageSize + i + 1;
-                return (
-                  <tr key={row.variant_id} style={{ background: rowBg }}>
-                    <td style={{ ...numCell, color: 'var(--sv-text-dim)', fontSize: 11 }}>{rowNum}</td>
-                    <td style={{ ...cellStyle, position: 'sticky', left: 0, zIndex: 1, background: rowBg, minWidth: 220 }}>
-                      <div style={{ fontWeight: 500, color: 'var(--sv-text-strong)' }}>{row.product_name}</div>
-                      {row.option_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 1 }}>{row.option_label}</div>}
-                    </td>
-                    <td style={{ ...cellStyle, color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 12 }}>{row.sku || '—'}</td>
-                    <td style={cellStyle}>{row.brand || '—'}</td>
-                    <td style={cellStyle}>{row.supplier_name || '—'}</td>
-                    <td style={{ ...numCell, color: salesQty > 0 ? 'var(--sv-mint)' : 'var(--sv-text-dim)', fontWeight: salesQty > 0 ? 600 : 400 }}>
-                      {salesQty.toLocaleString('en-AU', { maximumFractionDigits: 0 })}
-                    </td>
-                    <td style={{ ...numCell, fontWeight: row.global_soh > 0 ? 500 : 400, color: row.global_soh <= 0 ? 'var(--sv-text-dim)' : undefined }}>
-                      {Number(row.global_soh).toLocaleString('en-AU', { maximumFractionDigits: 0 })}
-                    </td>
-                    {locations.map(l => {
-                      const s = locStockMap.get(l.id);
-                      const soh = s ? Number(s.soh) : 0;
-                      return (
-                        <td key={l.id} style={{ ...numCell, color: soh > 0 ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', opacity: soh > 0 ? 1 : 0.45 }}>
-                          {soh > 0 ? soh.toLocaleString('en-AU', { maximumFractionDigits: 0 }) : '—'}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {loading && (
+                  <tr><td colSpan={7 + locations.length} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
+                )}
+                {!loading && displayRows.length === 0 && (
+                  <tr><td colSpan={7 + locations.length} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>No results found.</td></tr>
+                )}
+                {!loading && displayRows.map((row, i) => {
+                  const salesQty = Number(row[salesKey] ?? 0);
+                  const locStockMap = new Map<number, any>(row.stock.map((s: any) => [s.location_id, s]));
+                  const rowBg = i % 2 === 0 ? 'transparent' : 'color-mix(in srgb, var(--sv-etch) 35%, transparent)';
+                  const rowNum = (page - 1) * pageSize + i + 1;
+                  return (
+                    <tr key={row.variant_id} style={{ background: rowBg }}>
+                      <td style={{ ...numCell, color: 'var(--sv-text-dim)', fontSize: 11 }}>{rowNum}</td>
+                      <td style={{ ...cellStyle, position: 'sticky', left: 0, zIndex: 1, background: rowBg, minWidth: 220 }}>
+                        <div style={{ fontWeight: 500, color: 'var(--sv-text-strong)' }}>{row.product_name}</div>
+                        {row.option_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 1 }}>{row.option_label}</div>}
+                      </td>
+                      <td style={{ ...cellStyle, color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 12 }}>{row.sku || '—'}</td>
+                      <td style={cellStyle}>{row.brand || '—'}</td>
+                      <td style={cellStyle}>{row.supplier_name || '—'}</td>
+                      <td style={{ ...numCell, color: salesQty > 0 ? 'var(--sv-mint)' : 'var(--sv-text-dim)', fontWeight: salesQty > 0 ? 600 : 400 }}>
+                        {salesQty.toLocaleString('en-AU', { maximumFractionDigits: 0 })}
+                      </td>
+                      <td style={{ ...numCell, fontWeight: row.global_soh > 0 ? 500 : 400, color: row.global_soh <= 0 ? 'var(--sv-text-dim)' : undefined }}>
+                        {Number(row.global_soh).toLocaleString('en-AU', { maximumFractionDigits: 0 })}
+                      </td>
+                      {locations.map(l => {
+                        const s = locStockMap.get(l.id);
+                        const soh = s ? Number(s.soh) : 0;
+                        return (
+                          <td key={l.id} style={{ ...numCell, color: soh > 0 ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', opacity: soh > 0 ? 1 : 0.45 }}>
+                            {soh > 0 ? soh.toLocaleString('en-AU', { maximumFractionDigits: 0 }) : '—'}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {totalPages > 1 && (

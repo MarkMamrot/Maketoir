@@ -16887,17 +16887,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                       </td>
                       <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{fmtDay(entry.item_date)}</td>
                       <td style={{ ...td, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{entry.reference}</td>
-                      <td
-                        title={entry.last_sync_detail ?? undefined}
-                        style={{
-                          ...td,
-                          color: 'var(--sv-text-dim)',
-                          maxWidth: isOnlineBatch ? undefined : 220,
-                          overflow: isOnlineBatch ? 'visible' : 'hidden',
-                          textOverflow: isOnlineBatch ? 'clip' : 'ellipsis',
-                          whiteSpace: isOnlineBatch ? 'normal' : 'nowrap',
-                        }}
-                      >
+                      <td title={entry.last_sync_detail ?? undefined} style={{ ...td, color: 'var(--sv-text-dim)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {entry.contact_name ?? '—'}
                         {isOnlineBatch && (
                           <>
