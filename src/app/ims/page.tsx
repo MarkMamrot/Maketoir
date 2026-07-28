@@ -1036,6 +1036,12 @@ function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void;
                             const grossProfit = Number(row?.gross_profit ?? 0);
                             const grossProfitOnScale = Math.max(0, Math.min(v, grossProfit));
                             const x=xBarLocal(li,localCi,locChans.length), y=yVal(v), h=hVal(v);
+                            const gpY = yVal(grossProfitOnScale);
+                            const shadeStartY = Math.ceil(gpY + 1);
+                            const shadeEndY = Math.floor(y + h - 1);
+                            const shadeLines = shadeStartY <= shadeEndY
+                              ? Array.from({ length: Math.floor((shadeEndY - shadeStartY) / 2) + 1 }, (_, idx) => shadeStartY + idx * 2)
+                              : [];
                             return (
                               <g key={ch}>
                                 <rect
@@ -1064,14 +1070,29 @@ function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void;
                                   onMouseLeave={() => setChannelHover(null)}
                                 />
                                 {grossProfitOnScale > 0 && h >= 6 && (
-                                  <line
-                                    x1={x + 2}
-                                    y1={yVal(grossProfitOnScale)}
-                                    x2={x + barW - 2}
-                                    y2={yVal(grossProfitOnScale)}
-                                    stroke={CH_GP_LINE[ch] ?? 'rgba(15,23,42,.8)'}
-                                    strokeWidth="1"
-                                  />
+                                  <>
+                                    <line
+                                      x1={x + 2}
+                                      y1={gpY}
+                                      x2={x + barW - 2}
+                                      y2={gpY}
+                                      stroke={CH_GP_LINE[ch] ?? 'rgba(15,23,42,.8)'}
+                                      strokeWidth="1"
+                                      pointerEvents="none"
+                                    />
+                                    {shadeLines.map((lineY) => (
+                                      <line
+                                        key={`${ch}-${loc}-${lineY}`}
+                                        x1={x + 2}
+                                        y1={lineY}
+                                        x2={x + barW - 2}
+                                        y2={lineY}
+                                        stroke={CH_GP_LINE[ch] ?? 'rgba(15,23,42,.8)'}
+                                        strokeWidth="1"
+                                        pointerEvents="none"
+                                      />
+                                    ))}
+                                  </>
                                 )}
                                 {h>24 && barW>14 && (
                                   <text x={x+barW/2} y={y-5} textAnchor="middle" fontSize="9" fill="currentColor" fillOpacity="0.55">{fmtCurrency(v)}</text>
