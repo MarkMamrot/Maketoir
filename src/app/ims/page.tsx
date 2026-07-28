@@ -946,7 +946,7 @@ function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void;
           {/* ── Sales by Channel ── */}
           <div style={{ marginTop: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales by Channel</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales and Gross Profit by Channel</div>
               <div style={{ display: 'flex', gap: 6 }}>
                 {([1, 30, 120, 365] as const).map(d => (
                   <button key={d} onClick={() => setDays(d)}
@@ -1098,10 +1098,10 @@ function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void;
                                       textAnchor="middle"
                                       fontSize="8"
                                       fill={CH_GP_LINE[ch] ?? 'rgba(15,23,42,.8)'}
-                                      fillOpacity="0.9"
+                                      fillOpacity="1"
                                       pointerEvents="none"
                                     >
-                                      {`GP - ${fmtCurrency(grossProfit)}`}
+                                      {fmtCurrency(grossProfit)}
                                     </text>
                                   </>
                                 )}
