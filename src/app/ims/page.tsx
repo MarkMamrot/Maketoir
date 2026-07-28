@@ -16035,7 +16035,6 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
 type XeroSyncEntry = {
   sync_type: string; reference_id: number | null; reference: string;
   payout_id?: string; payout_status?: string;
-  payout_transaction_date_from?: string | null; payout_transaction_date_to?: string | null;
   contact_name: string | null; amount: number | null; item_date: string | null;
   is_historical: number; xero_sync_status: string | null;
   log_id: number | null; xero_id: string | null;

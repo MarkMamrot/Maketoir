@@ -284,13 +284,7 @@ export async function planShopifyPayoutActions(
     const orderId = String(transactionRow?.source_order_id ?? '');
     const creditNotes = creditNotesByOrder.get(orderId) ?? [];
     if (creditNotes.length !== 1 || !creditNotes[0]?.xero_credit_note_id) {
-      const transactionDate = toDateString(transactionRow?.business_date);
-      return blockPayout(
-        deps,
-        businessId,
-        payoutId,
-        `Refund ${transaction.id}${orderId ? ` for Shopify order ${orderId}` : ''}${transactionDate ? ` on ${transactionDate}` : ''} does not have one completed Xero credit note`,
-      );
+      return blockPayout(deps, businessId, payoutId, `Refund ${transaction.id} does not have one completed Xero credit note`);
     }
     actions.push({
       actionKey: `payout:${payoutId}:refund:${transaction.id}`,
@@ -354,9 +348,9 @@ export async function planShopifyPayoutActions(
   }
   await deps.mainExecute(
     `UPDATE shopify_payment_payouts
-        SET transaction_net_total = ?, reconciliation_status = 'planned', error_detail = NULL
+        SET reconciliation_status = 'planned', error_detail = NULL
       WHERE business_id = ? AND shopify_payout_id = ?`,
-    [reconciliation.transactionNet, businessId, payoutId],
+    [businessId, payoutId],
   );
 
   return { status: 'planned', actions };
