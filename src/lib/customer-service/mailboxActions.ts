@@ -1,6 +1,11 @@
 import { getGmailAccess, modifyGmailMessageLabels } from './gmailClient';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 
+function isMissingStarColumnError(error: unknown): boolean {
+  const message = String((error as any)?.message || '').toLowerCase();
+  return message.includes('unknown column') && (message.includes('is_starred') || message.includes('starred_at'));
+}
+
 export async function updateCustomerServiceMailboxState(input: {
   businessId: string;
   threadId: number;
@@ -24,9 +29,14 @@ export async function updateCustomerServiceMailboxState(input: {
     await imsExecute('UPDATE ims_cs_messages SET is_read = 0 WHERE business_id = ? AND thread_id = ?', [input.businessId, input.threadId]);
     await imsExecute('UPDATE ims_cs_threads SET unread_count = message_count WHERE business_id = ? AND id = ?', [input.businessId, input.threadId]);
   } else {
-    await imsExecute(
-      "UPDATE ims_cs_threads SET workflow_status = 'archived', is_starred = 0, starred_at = NULL WHERE business_id = ? AND id = ?",
-      [input.businessId, input.threadId],
-    );
+    try {
+      await imsExecute(
+        "UPDATE ims_cs_threads SET workflow_status = 'archived', is_starred = 0, starred_at = NULL WHERE business_id = ? AND id = ?",
+        [input.businessId, input.threadId],
+      );
+    } catch (error) {
+      if (!isMissingStarColumnError(error)) throw error;
+      await imsExecute("UPDATE ims_cs_threads SET workflow_status = 'archived' WHERE business_id = ? AND id = ?", [input.businessId, input.threadId]);
+    }
   }
 }

@@ -18,11 +18,16 @@ export async function recordDraftEditLearning(input: {
   originalBody: string;
   finalBody: string;
 }): Promise<void> {
-  if (input.originalBody.trim() === input.finalBody.trim()) return;
+  const original = input.originalBody.trim();
+  const final = input.finalBody.trim();
+  if (!final) return;
+  const sameAsDraft = original === final;
   const sanitized = redactCustomerServiceLearningText(
-    `ORIGINAL AI DRAFT:\n${input.originalBody}\n\nFINAL SENT RESPONSE:\n${input.finalBody}`,
+    sameAsDraft
+      ? `SENT RESPONSE STYLE EXAMPLE:\n${final}`
+      : `ORIGINAL AI DRAFT:\n${original}\n\nFINAL SENT RESPONSE:\n${final}`,
   );
-  const hash = createHash('sha256').update(`${input.businessId}:${sanitized}`).digest('hex');
+  const hash = createHash('sha256').update(`${input.businessId}:${sameAsDraft ? 'sent' : 'edited'}:${sanitized}`).digest('hex');
   await imsExecute(
     `INSERT IGNORE INTO ims_cs_learning_evidence
       (business_id, draft_id, evidence_type, sanitized_summary, evidence_hash, is_factual, expires_at)

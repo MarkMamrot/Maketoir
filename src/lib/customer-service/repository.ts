@@ -4,6 +4,11 @@ import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { CS_BUSINESS_TOOL_NAMES } from './businessDataTools';
 import { CsSettings, isCsAutomationMode, normalizeRunTimes } from './types';
 
+function isMissingStarColumnError(error: unknown): boolean {
+  const message = String((error as any)?.message || '').toLowerCase();
+  return message.includes('unknown column') && (message.includes('is_starred') || message.includes('starred_at'));
+}
+
 interface CsSettingsRow {
   enabled: number;
   timezone_override: string | null;
@@ -224,11 +229,9 @@ export async function listCustomerServiceThreads(businessId: string, input: {
 
   const where = conditions.join(' AND ');
   const countRows = await imsQuery<{ total: number }>(`SELECT COUNT(*) AS total FROM ims_cs_threads t WHERE ${where}`, params);
-  const rows = await imsQuery<any>(
-    `SELECT t.id, t.gmail_thread_id, t.customer_id, t.customer_email, t.subject, t.snippet,
+  const baseSelect = `SELECT t.id, t.gmail_thread_id, t.customer_id, t.customer_email, t.subject, t.snippet,
             t.message_count, t.unread_count, t.category, t.enquiry_subtype,
-          t.classification_confidence, t.urgency, t.sentiment, t.workflow_status,
-          t.is_starred, t.starred_at,
+            t.classification_confidence, t.urgency, t.sentiment, t.workflow_status,
             t.last_message_at, t.updated_at,
             d.id AS draft_id, d.status AS draft_status, d.version AS draft_version
        FROM ims_cs_threads t
@@ -237,11 +240,38 @@ export async function listCustomerServiceThreads(businessId: string, input: {
           WHERE d2.business_id = t.business_id AND d2.thread_id = t.id AND d2.status <> 'superseded'
           ORDER BY d2.id DESC LIMIT 1
        )
-      WHERE ${where}
-      ORDER BY t.is_starred DESC, COALESCE(t.starred_at, t.last_message_at) DESC, t.last_message_at DESC
-      LIMIT ${pageSize} OFFSET ${offset}`,
-    params,
-  );
+      WHERE ${where}`;
+
+  let rows: any[] = [];
+  try {
+    rows = await imsQuery<any>(
+      `SELECT t.id, t.gmail_thread_id, t.customer_id, t.customer_email, t.subject, t.snippet,
+              t.message_count, t.unread_count, t.category, t.enquiry_subtype,
+              t.classification_confidence, t.urgency, t.sentiment, t.workflow_status,
+              t.is_starred, t.starred_at,
+              t.last_message_at, t.updated_at,
+              d.id AS draft_id, d.status AS draft_status, d.version AS draft_version
+         FROM ims_cs_threads t
+         LEFT JOIN ims_cs_drafts d ON d.id = (
+           SELECT d2.id FROM ims_cs_drafts d2
+            WHERE d2.business_id = t.business_id AND d2.thread_id = t.id AND d2.status <> 'superseded'
+            ORDER BY d2.id DESC LIMIT 1
+         )
+        WHERE ${where}
+        ORDER BY t.is_starred DESC, COALESCE(t.starred_at, t.last_message_at) DESC, t.last_message_at DESC
+        LIMIT ${pageSize} OFFSET ${offset}`,
+      params,
+    );
+  } catch (error) {
+    if (!isMissingStarColumnError(error)) throw error;
+    rows = await imsQuery<any>(
+      `${baseSelect}
+       ORDER BY t.last_message_at DESC
+       LIMIT ${pageSize} OFFSET ${offset}`,
+      params,
+    );
+    rows = rows.map(row => ({ ...row, is_starred: 0, starred_at: null }));
+  }
   return { rows, total: Number(countRows[0]?.total ?? 0), page, pageSize };
 }
 
@@ -293,7 +323,15 @@ export async function updateCustomerServiceThread(businessId: string, threadId: 
   }
   if (!updates.length) return false;
   params.push(businessId, threadId);
-  const result = await imsExecute(`UPDATE ims_cs_threads SET ${updates.join(', ')} WHERE business_id = ? AND id = ?`, params);
+  let result;
+  try {
+    result = await imsExecute(`UPDATE ims_cs_threads SET ${updates.join(', ')} WHERE business_id = ? AND id = ?`, params);
+  } catch (error) {
+    if (isMissingStarColumnError(error) && (typeof input.starred === 'boolean' || input.starred === 'true' || input.starred === 'false')) {
+      throw new Error('Star follow-up requires the latest customer-service schema migration.');
+    }
+    throw error;
+  }
   if (!result.affectedRows) return false;
   await imsExecute(
     `INSERT INTO ims_cs_events (business_id, thread_id, event_type, actor_type, actor_id, details_json)
