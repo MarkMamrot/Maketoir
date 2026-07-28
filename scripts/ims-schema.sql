@@ -88,6 +88,229 @@ CREATE TABLE IF NOT EXISTS ims_settings (
   INDEX idx_business_id (business_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Customer Service Inbox settings and durable Gmail cache
+CREATE TABLE IF NOT EXISTS ims_cs_settings (
+  business_id          VARCHAR(100) NOT NULL PRIMARY KEY,
+  enabled              TINYINT(1) NOT NULL DEFAULT 0,
+  timezone_override    VARCHAR(100) NULL,
+  run_times_json       TEXT NOT NULL,
+  automation_mode      ENUM('draft','send') NOT NULL DEFAULT 'draft',
+  lookback_days        INT NOT NULL DEFAULT 7,
+  retention_days       INT NOT NULL DEFAULT 90,
+  light_model_id       VARCHAR(150) NOT NULL DEFAULT 'gemini-2.5-flash',
+  capable_model_id     VARCHAR(150) NOT NULL DEFAULT 'gemini-2.5-pro',
+  enabled_tools_json   TEXT NOT NULL,
+  guidelines           MEDIUMTEXT NULL,
+  helper_emails_json   TEXT NOT NULL,
+  learning_enabled     TINYINT(1) NOT NULL DEFAULT 1,
+  gmail_history_id     VARCHAR(100) NULL,
+  last_run_at          DATETIME NULL,
+  next_run_at          DATETIME NULL,
+  last_error           TEXT NULL,
+  lock_owner           VARCHAR(150) NULL,
+  lock_claimed_at      DATETIME NULL,
+  legacy_imported_at   DATETIME NULL,
+  created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_cs_threads (
+  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id          VARCHAR(100) NOT NULL,
+  gmail_thread_id      VARCHAR(255) NOT NULL,
+  latest_message_id    VARCHAR(255) NULL,
+  customer_id          INT NULL,
+  customer_email       VARCHAR(255) NULL,
+  subject              VARCHAR(500) NOT NULL DEFAULT '',
+  snippet              VARCHAR(1000) NULL,
+  participants_json    TEXT NOT NULL,
+  gmail_labels_json    TEXT NOT NULL,
+  message_count        INT NOT NULL DEFAULT 0,
+  unread_count         INT NOT NULL DEFAULT 0,
+  category             ENUM('customer_enquiry','junk','other') NULL,
+  enquiry_subtype      VARCHAR(50) NULL,
+  classification_confidence DECIMAL(5,4) NULL,
+  classification_reason VARCHAR(1000) NULL,
+  urgency              ENUM('low','normal','high','urgent') NOT NULL DEFAULT 'normal',
+  sentiment            ENUM('negative','neutral','positive') NOT NULL DEFAULT 'neutral',
+  workflow_status      ENUM('open','needs_review','drafted','sent','archived','failed') NOT NULL DEFAULT 'open',
+  assigned_user_id     INT NULL,
+  classifier_model_id  VARCHAR(150) NULL,
+  classifier_version   VARCHAR(50) NULL,
+  classified_at        DATETIME NULL,
+  last_message_at      DATETIME NOT NULL,
+  last_gmail_sync_at   DATETIME NOT NULL,
+  created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_cs_thread_gmail (business_id, gmail_thread_id),
+  INDEX idx_cs_thread_list (business_id, last_message_at),
+  INDEX idx_cs_thread_category (business_id, category, workflow_status),
+  INDEX idx_cs_thread_customer (business_id, customer_email),
+  INDEX idx_cs_thread_unread (business_id, unread_count)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_cs_messages (
+  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id          VARCHAR(100) NOT NULL,
+  thread_id            BIGINT NOT NULL,
+  gmail_message_id     VARCHAR(255) NOT NULL,
+  gmail_thread_id      VARCHAR(255) NOT NULL,
+  direction            ENUM('inbound','outbound','draft') NOT NULL,
+  from_address         VARCHAR(500) NOT NULL DEFAULT '',
+  to_json              TEXT NOT NULL,
+  cc_json              TEXT NOT NULL,
+  subject              VARCHAR(500) NOT NULL DEFAULT '',
+  message_id_header    VARCHAR(1000) NULL,
+  references_header    TEXT NULL,
+  body_plain           MEDIUMTEXT NULL,
+  body_html            MEDIUMTEXT NULL,
+  attachment_metadata_json MEDIUMTEXT NOT NULL,
+  gmail_labels_json    TEXT NOT NULL,
+  is_read              TINYINT(1) NOT NULL DEFAULT 1,
+  is_draft             TINYINT(1) NOT NULL DEFAULT 0,
+  is_sent              TINYINT(1) NOT NULL DEFAULT 0,
+  message_at           DATETIME NOT NULL,
+  created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_cs_message_gmail (business_id, gmail_message_id),
+  INDEX idx_cs_message_thread (business_id, thread_id, message_at),
+  INDEX idx_cs_message_date (business_id, message_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_cs_drafts (
+  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id          VARCHAR(100) NOT NULL,
+  thread_id            BIGINT NOT NULL,
+  target_message_id    BIGINT NOT NULL,
+  operation_key        VARCHAR(191) NOT NULL,
+  version              INT NOT NULL DEFAULT 1,
+  status               ENUM('generated','editing','gmail_draft','sending','sent','failed','superseded') NOT NULL DEFAULT 'generated',
+  subject              VARCHAR(500) NOT NULL DEFAULT '',
+  ai_generated_body    MEDIUMTEXT NOT NULL,
+  current_body         MEDIUMTEXT NOT NULL,
+  gmail_draft_id       VARCHAR(255) NULL,
+  gmail_sent_message_id VARCHAR(255) NULL,
+  model_id             VARCHAR(150) NOT NULL,
+  prompt_version       VARCHAR(50) NOT NULL,
+  confidence           DECIMAL(5,4) NULL,
+  needs_information    TINYINT(1) NOT NULL DEFAULT 0,
+  escalation_reason    VARCHAR(1000) NULL,
+  tool_provenance_json MEDIUMTEXT NOT NULL,
+  editor_user_id       INT NULL,
+  edited_at            DATETIME NULL,
+  sent_at              DATETIME NULL,
+  last_error           TEXT NULL,
+  created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_cs_draft_operation (business_id, operation_key),
+  INDEX idx_cs_draft_thread (business_id, thread_id, status),
+  INDEX idx_cs_draft_target (business_id, target_message_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_cs_draft_revisions (
+  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id          VARCHAR(100) NOT NULL,
+  draft_id             BIGINT NOT NULL,
+  version              INT NOT NULL,
+  body                 MEDIUMTEXT NOT NULL,
+  change_source        ENUM('ai','user','send') NOT NULL,
+  user_id              INT NULL,
+  created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_cs_draft_revision (business_id, draft_id, version),
+  INDEX idx_cs_revision_draft (business_id, draft_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_cs_processing_runs (
+  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id          VARCHAR(100) NOT NULL,
+  run_type             ENUM('sync','classify','generate','send','cleanup','learn') NOT NULL,
+  trigger_type         ENUM('manual','schedule','system') NOT NULL,
+  status               ENUM('running','success','partial','error') NOT NULL,
+  counts_json          TEXT NOT NULL,
+  error_message        TEXT NULL,
+  started_at           DATETIME NOT NULL,
+  completed_at         DATETIME NULL,
+  duration_ms          INT NULL,
+  INDEX idx_cs_run_business (business_id, started_at),
+  INDEX idx_cs_run_status (business_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_cs_events (
+  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id          VARCHAR(100) NOT NULL,
+  thread_id            BIGINT NULL,
+  draft_id             BIGINT NULL,
+  event_type           VARCHAR(80) NOT NULL,
+  actor_type           ENUM('user','ai','gmail','system') NOT NULL,
+  actor_id             VARCHAR(150) NULL,
+  details_json         MEDIUMTEXT NOT NULL,
+  created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_cs_event_thread (business_id, thread_id, created_at),
+  INDEX idx_cs_event_type (business_id, event_type, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_cs_learning_evidence (
+  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id          VARCHAR(100) NOT NULL,
+  draft_id             BIGINT NULL,
+  evidence_type        ENUM('draft_edit','rating','classification_correction','manual_finding','rejection') NOT NULL,
+  sanitized_summary    TEXT NOT NULL,
+  evidence_hash        CHAR(64) NOT NULL,
+  is_factual           TINYINT(1) NOT NULL DEFAULT 0,
+  expires_at           DATETIME NULL,
+  processed_at         DATETIME NULL,
+  created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_cs_evidence_hash (business_id, evidence_hash),
+  INDEX idx_cs_evidence_type (business_id, evidence_type, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_cs_learning_candidates (
+  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id          VARCHAR(100) NOT NULL,
+  rule_key             VARCHAR(191) NOT NULL,
+  rule_type            ENUM('style','fact','policy') NOT NULL,
+  title                VARCHAR(255) NOT NULL,
+  proposed_markdown    TEXT NOT NULL,
+  status               ENUM('pending','active','rejected','superseded') NOT NULL DEFAULT 'pending',
+  evidence_count       INT NOT NULL DEFAULT 1,
+  confidence           DECIMAL(5,4) NOT NULL DEFAULT 0,
+  auto_activated       TINYINT(1) NOT NULL DEFAULT 0,
+  reviewed_by          INT NULL,
+  reviewed_at          DATETIME NULL,
+  created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_cs_learning_rule (business_id, rule_key),
+  INDEX idx_cs_learning_status (business_id, status, rule_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_cs_knowledge_documents (
+  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id          VARCHAR(100) NOT NULL,
+  document_key         ENUM('style','knowledge') NOT NULL,
+  filename             VARCHAR(100) NOT NULL,
+  markdown_content     MEDIUMTEXT NOT NULL,
+  version              INT NOT NULL DEFAULT 1,
+  content_hash         CHAR(64) NOT NULL,
+  updated_by           INT NULL,
+  created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_cs_document (business_id, document_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_cs_knowledge_versions (
+  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id          VARCHAR(100) NOT NULL,
+  document_key         ENUM('style','knowledge') NOT NULL,
+  version              INT NOT NULL,
+  markdown_content     MEDIUMTEXT NOT NULL,
+  content_hash         CHAR(64) NOT NULL,
+  change_reason        VARCHAR(500) NULL,
+  created_by           INT NULL,
+  created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_cs_document_version (business_id, document_key, version),
+  INDEX idx_cs_document_history (business_id, document_key, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ── Products ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_products (
   id                    INT AUTO_INCREMENT PRIMARY KEY,

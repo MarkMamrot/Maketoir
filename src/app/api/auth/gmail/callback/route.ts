@@ -4,9 +4,12 @@
  * the auth code for a refresh token, then saves everything and redirects back.
  */
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { query } from '@/services/MySQLService';
 import { encrypt, decrypt } from '@/lib/encryption';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { getAdminSession } from '@/lib/sessionUtils';
+import { verifyGmailOAuthState } from '@/lib/customer-service/gmailOAuthState';
 
 const raw = process.env.APP_URL ?? 'solvantis.com.au';
 const APP_URL = /^https?:\/\//i.test(raw) ? raw.replace(/\/$/, '') : `https://${raw.replace(/\/$/, '')}`;
@@ -14,10 +17,19 @@ const APP_URL = /^https?:\/\//i.test(raw) ? raw.replace(/\/$/, '') : `https://${
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const code       = searchParams.get('code');
-  const state      = searchParams.get('state') ?? '';
+  const stateValue = searchParams.get('state') ?? '';
   const error      = searchParams.get('error');
-  const businessId = decodeURIComponent(state);
   const returnUrl  = `${APP_URL}/setup`;
+
+  const session = getAdminSession();
+  const state = verifyGmailOAuthState(stateValue);
+  const nonce = cookies().get('gmail_oauth_nonce')?.value;
+  if (!session || !state || state.userId !== session.userId || state.businessId !== session.businessId || state.nonce !== nonce) {
+    const redirect = NextResponse.redirect(`${returnUrl}?gmailError=${encodeURIComponent('Gmail authorisation session expired or was invalid. Try connecting again.')}`);
+    redirect.cookies.delete('gmail_oauth_nonce');
+    return redirect;
+  }
+  const businessId = state.businessId;
 
   if (error) {
     const msg = error === 'access_denied' ? 'Gmail access was denied.' : `Google returned: ${error}`;
@@ -66,9 +78,11 @@ export async function GET(req: Request) {
       [businessId, email, encrypt(refreshToken)],
     ).catch(() => {});
 
-    return NextResponse.redirect(
-      `${returnUrl}?gmailSuccess=1&gmailEmail=${encodeURIComponent(email)}&gmailToken=${encodeURIComponent(refreshToken)}&businessId=${encodeURIComponent(businessId)}`,
+    const redirect = NextResponse.redirect(
+      `${returnUrl}?gmailSuccess=1&gmailEmail=${encodeURIComponent(email)}&businessId=${encodeURIComponent(businessId)}`,
     );
+    redirect.cookies.delete('gmail_oauth_nonce');
+    return redirect;
   } catch (e: any) {
     return NextResponse.redirect(`${returnUrl}?gmailError=${encodeURIComponent(e.message ?? 'OAuth exchange failed')}`);
   }

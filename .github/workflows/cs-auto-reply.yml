@@ -1,4 +1,4 @@
-name: Customer Service Auto-Reply
+name: Customer Service Inbox Sync
 
 on:
   schedule:
@@ -9,7 +9,7 @@ jobs:
   auto-reply:
     runs-on: ubuntu-latest
     steps:
-      - name: Run CS auto-reply for all enabled businesses
+      - name: Run due customer service inbox schedules
         run: |
           # No business ID needed — the route iterates all businesses automatically.
           # Each business's config (CSAutoReplyEnabled, CSAutoReplyIntervalMins) is
@@ -19,7 +19,7 @@ jobs:
             -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \
             -d '{}' \
-            "${{ secrets.APP_URL }}/api/customer-service/auto-reply")
+            "${{ secrets.APP_URL }}/api/customer-service/sync-cron")
           RESPONSE=$(echo "$BODY" | tail -1 | sed 's/__STATUS__//')
           RESPONSE_BODY=$(echo "$BODY" | head -n -1)
           echo "HTTP status: $RESPONSE"
