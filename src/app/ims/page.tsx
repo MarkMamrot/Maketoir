@@ -9020,7 +9020,7 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
 // Credit Notes View
 // ─────────────────────────────────────────────────────────────────────────────
 
-function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed }: { isAdvisor?: boolean; prefill?: any; onPrefillConsumed?: () => void } = {}) {
+function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed, pendingOpenId, onPendingHandled }: { isAdvisor?: boolean; prefill?: any; onPrefillConsumed?: () => void; pendingOpenId?: number | null; onPendingHandled?: () => void } = {}) {
   const [cns, setCns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -9079,6 +9079,13 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed 
     onPrefillConsumed?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefill]);
+
+  useEffect(() => {
+    if (!pendingOpenId) return;
+    openView({ id: pendingOpenId });
+    onPendingHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingOpenId]);
 
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((p: any) => ({ ...p, [k]: e.target.value }));
@@ -10627,7 +10634,7 @@ function ImportSOsModal({ locations, onClose, onDone }: {
   );
 }
 
-function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, onReturnOrder }: { pendingOpenId?: number | null; onPendingHandled?: () => void; isAdvisor?: boolean; onReturnOrder?: (prefill: any) => void } = {}) {
+function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, onReturnOrder, pendingOpenPosSaleId, onPendingPosSaleHandled }: { pendingOpenId?: number | null; onPendingHandled?: () => void; isAdvisor?: boolean; onReturnOrder?: (prefill: any) => void; pendingOpenPosSaleId?: number | null; onPendingPosSaleHandled?: () => void } = {}) {
   const SO_CHANNEL_FILTER_KEY = 'marketoir:imsSalesOrdersChannel';
   const [sos, setSos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -10812,6 +10819,13 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (pendingOpenId) { openView({ id: pendingOpenId }); onPendingHandled?.(); } }, [pendingOpenId]);
+
+  useEffect(() => {
+    if (!pendingOpenPosSaleId) return;
+    openPosView({ pos_sale_id: pendingOpenPosSaleId });
+    onPendingPosSaleHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingOpenPosSaleId]);
 
   const openEdit = async (so: any) => {
     const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);
@@ -12564,7 +12578,7 @@ function GiftCardsView() {
 // POS Sales View — grouped by register→day when a location is selected, by day otherwise
 // ─────────────────────────────────────────────────────────────────────────────
 
-function PosSalesView() {
+function PosSalesView({ pendingOpenDay, onPendingHandled }: { pendingOpenDay?: string | null; onPendingHandled?: () => void } = {}) {
   const [tab, setTab] = useState<'sales' | 'banking'>('sales');
   return (
     <div>
@@ -12575,7 +12589,7 @@ function PosSalesView() {
           </button>
         ))}
       </div>
-      {tab === 'sales' ? <PosSalesLedgerView /> : <CashBankingView />}
+      {tab === 'sales' ? <PosSalesLedgerView pendingOpenDay={pendingOpenDay} onPendingHandled={onPendingHandled} /> : <CashBankingView />}
     </div>
   );
 }
@@ -12731,7 +12745,7 @@ function CashBankingView() {
   );
 }
 
-function PosSalesLedgerView() {
+function PosSalesLedgerView({ pendingOpenDay, onPendingHandled }: { pendingOpenDay?: string | null; onPendingHandled?: () => void } = {}) {
   const [locationId, setLocationId] = useState<number | ''>('');
   const [locations, setLocations]   = useState<{ id: number; name: string }[]>([]);
   const [dateRange, setDateRange] = useState<SBDateRange>(DEFAULT_DATE_RANGE);
@@ -12750,6 +12764,7 @@ function PosSalesLedgerView() {
   const [dayData,       setDayData]       = useState<Record<string, any[]>>({});
   const [dayLoading,    setDayLoading]    = useState<Set<string>>(new Set());
   const [expandedSales, setExpandedSales] = useState<Set<number>>(new Set());
+  const [pendingOpenTarget, setPendingOpenTarget] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/ims/locations').then(r => r.json()).then(d => {
@@ -12781,6 +12796,23 @@ function PosSalesLedgerView() {
   }, [locationId]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!pendingOpenDay) return;
+    setLocationId('');
+    setDateRange({ kind: 'range', from: pendingOpenDay, to: pendingOpenDay } as SBDateRange);
+    setPendingOpenTarget(pendingOpenDay);
+    onPendingHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingOpenDay]);
+
+  useEffect(() => {
+    if (!pendingOpenTarget) return;
+    const found = days.find((day: any) => String(day.day).slice(0, 10) === pendingOpenTarget);
+    if (!found) return;
+    setExpandedDays(prev => new Set(prev).add(String(found.day)));
+    setPendingOpenTarget(null);
+  }, [days, pendingOpenTarget]);
 
   const toggleReg = (rid: number) => {
     setExpandedRegs(prev => {
@@ -14640,7 +14672,25 @@ function SettingsView() {
   );
 }
 
-function XeroView({ businessId, isAdvisor = false, advisorMappingEnabled = false }: { businessId: string; isAdvisor?: boolean; advisorMappingEnabled?: boolean }) {
+function XeroView({
+  businessId,
+  isAdvisor = false,
+  advisorMappingEnabled = false,
+  onOpenPurchaseOrder,
+  onOpenSalesOrder,
+  onOpenCreditNote,
+  onOpenPosSale,
+  onOpenPosSalesDay,
+}: {
+  businessId: string;
+  isAdvisor?: boolean;
+  advisorMappingEnabled?: boolean;
+  onOpenPurchaseOrder?: (id: number) => void;
+  onOpenSalesOrder?: (id: number) => void;
+  onOpenCreditNote?: (id: number) => void;
+  onOpenPosSale?: (id: number) => void;
+  onOpenPosSalesDay?: (date: string) => void;
+}) {
   const [status, setStatus] = useState<{ connected: boolean; tenantName?: string; tokenExpiry?: number; envConfigured?: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'overview' | 'mapping' | 'cogs' | 'payouts' | 'sync'>(isAdvisor ? 'mapping' : 'overview');
@@ -14749,7 +14799,16 @@ function XeroView({ businessId, isAdvisor = false, advisorMappingEnabled = false
           {tab === 'mapping' && <XeroMappingTab getBusinessId={getBusinessId} />}
           {tab === 'cogs' && <CogsReconciliationTab getBusinessId={getBusinessId} />}
           {tab === 'payouts' && <ShopifyPayoutsTab getBusinessId={getBusinessId} />}
-          {tab === 'sync' && <XeroSyncTab getBusinessId={getBusinessId} />}
+          {tab === 'sync' && (
+            <XeroSyncTab
+              getBusinessId={getBusinessId}
+              onOpenPurchaseOrder={onOpenPurchaseOrder}
+              onOpenSalesOrder={onOpenSalesOrder}
+              onOpenCreditNote={onOpenCreditNote}
+              onOpenPosSale={onOpenPosSale}
+              onOpenPosSalesDay={onOpenPosSalesDay}
+            />
+          )}
         </>
       )}
     </div>
@@ -16041,6 +16100,7 @@ type XeroSyncEntry = {
   payout_id?: string; payout_status?: string;
   contact_name: string | null; amount: number | null; item_date: string | null;
   is_historical: number; xero_sync_status: string | null;
+  source?: string | null; pos_sale_id?: number | null;
   log_id: number | null; xero_id: string | null;
   last_sync_status: string | null; last_xero_state: string | null; last_sync_detail: string | null; last_sync_at: string | null;
   payments: { id: number; po_id: number; xero_id: string | null; status: string; xero_state?: string | null; detail: string | null; synced_at: string; payment_date: string | null; amount: number | null; currency_code: string | null; notes: string | null }[];
@@ -16474,7 +16534,7 @@ function CogsReconciliationTab({ getBusinessId }: { getBusinessId: () => string 
                 <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}><div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Posted Total</div><div style={{ fontSize: 13, color: 'var(--sv-text-strong)', fontWeight: 600 }}>{fmtMoney(cogsReport.reconciliation.postedTotal)}</div></div>
                 <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}><div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Variance</div><div style={{ fontSize: 13, color: cogsReport.reconciliation.variance === 0 ? '#34d399' : '#fbbf24', fontWeight: 700 }}>{fmtMoney(cogsReport.reconciliation.variance)}</div></div>
                 <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}><div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>State</div><div style={{ fontSize: 13, color: cogsReport.reconciliation.state === 'current' ? '#34d399' : cogsReport.reconciliation.state === 'blocked' ? '#f87171' : '#fbbf24', fontWeight: 700, textTransform: 'capitalize' }}>{cogsReport.reconciliation.state.replace('_', ' ')}</div></div>
-                <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}><div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Last Post</div><div style={{ fontSize: 13, color: 'var(--sv-text-main)', fontWeight: 600 }}>{cogsReport.lastPost ? fmtDate(cogsReport.lastPost.syncedAt || '') : 'No successful post'}</div>{cogsReport.lastPost?.xeroId && (<a href={xeroLink('cogs_journal', cogsReport.lastPost.xeroId)} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#38bdf8', textDecoration: 'none' }}>Open in Xero</a>)}</div>
+                <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}><div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Last Post</div><div style={{ fontSize: 13, color: 'var(--sv-text-main)', fontWeight: 600 }}>{cogsReport.lastPost ? fmtDate(cogsReport.lastPost.syncedAt || '') : 'No successful post'}</div>{cogsReport.lastPost?.xeroId && (<a href={`https://go.xero.com/ManualJournals/View.aspx?manualJournalID=${cogsReport.lastPost.xeroId}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#38bdf8', textDecoration: 'none' }}>Open in Xero</a>)}</div>
               </div>
               {cogsReport.coverage.warning && (<div style={{ padding: '8px 10px', border: '1px solid rgba(251,191,36,.35)', borderRadius: 6, background: 'rgba(251,191,36,.08)', color: '#fbbf24', fontSize: 12 }}>{cogsReport.coverage.warningText}</div>)}
               {!cogsReport.reconciliation.stateMatchesFilter && (<div style={{ padding: '8px 10px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-dim)', fontSize: 12 }}>The selected reconciliation state filter does not match this period.</div>)}
@@ -16500,7 +16560,21 @@ function CogsReconciliationTab({ getBusinessId }: { getBusinessId: () => string 
   );
 }
 
-function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
+function XeroSyncTab({
+  getBusinessId,
+  onOpenPurchaseOrder,
+  onOpenSalesOrder,
+  onOpenCreditNote,
+  onOpenPosSale,
+  onOpenPosSalesDay,
+}: {
+  getBusinessId: () => string;
+  onOpenPurchaseOrder?: (id: number) => void;
+  onOpenSalesOrder?: (id: number) => void;
+  onOpenCreditNote?: (id: number) => void;
+  onOpenPosSale?: (id: number) => void;
+  onOpenPosSalesDay?: (date: string) => void;
+}) {
   const [entries, setEntries] = useState<XeroSyncEntry[]>([]);
   const [queued, setQueued] = useState<{ id: number; reference: string; type: 'po' | 'so' | 'cn' | 'scn'; status: string; total_amount: number; xero_synced_at: string | null; contact_name: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -16586,6 +16660,18 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
     if (syncType === 'stocktake_journal' || syncType === 'cogs_journal' || syncType === 'gift_card_liability' || syncType === 'gift_card_redeem' || syncType === 'store_credit_issue' || syncType === 'store_credit_redeem')
       return `https://go.xero.com/ManualJournals/View.aspx?manualJournalID=${id}`;
     return `https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${id}`;
+  };
+
+  const openEntry = (entry: any) => {
+    if (entry.sync_type === 'po_bill' && entry.reference_id && onOpenPurchaseOrder) return onOpenPurchaseOrder(Number(entry.reference_id));
+    if (entry.sync_type === 'so_invoice' && entry.reference_id && onOpenSalesOrder) return onOpenSalesOrder(Number(entry.reference_id));
+    if (entry.sync_type === 'cn_credit_note' && entry.reference_id) {
+      if (entry.source === 'pos' && entry.pos_sale_id && onOpenPosSale) return onOpenPosSale(Number(entry.pos_sale_id));
+      if (onOpenCreditNote) return onOpenCreditNote(Number(entry.reference_id));
+    }
+    if (entry.sync_type === 'eod_reconciliation' && entry.item_date && onOpenPosSalesDay) return onOpenPosSalesDay(String(entry.item_date).slice(0, 10));
+    if (entry.sync_type === 'online_batch' && entry.item_date && onOpenPosSalesDay) return onOpenPosSalesDay(String(entry.item_date).slice(0, 10));
+    if (entry.sync_type === 'scn_credit_note' && entry.reference_id && onOpenCreditNote) return onOpenCreditNote(Number(entry.reference_id));
   };
 
   const fmtDate  = (d: string) => { try { return new Date(d).toLocaleString('en-AU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return d; } };
@@ -16719,6 +16805,14 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                 const isStoreCreditRedeem = entry.sync_type === 'store_credit_redeem';
                 const isShopifyPayout = entry.sync_type === 'shopify_payout';
                 const isHistorical = entry.is_historical === 1;
+                const isPosCn = entry.sync_type === 'cn_credit_note' && String(entry.source ?? '') === 'pos';
+                const canOpenEntry =
+                  (entry.sync_type === 'po_bill' && !!entry.reference_id && !!onOpenPurchaseOrder) ||
+                  (entry.sync_type === 'so_invoice' && !!entry.reference_id && !!onOpenSalesOrder) ||
+                  (entry.sync_type === 'cn_credit_note' && !!entry.reference_id && (!!onOpenCreditNote || (entry.source === 'pos' && !!entry.pos_sale_id && !!onOpenPosSale))) ||
+                  (entry.sync_type === 'eod_reconciliation' && !!entry.item_date && !!onOpenPosSalesDay) ||
+                  (entry.sync_type === 'online_batch' && !!entry.item_date && !!onOpenPosSalesDay) ||
+                  (entry.sync_type === 'scn_credit_note' && !!entry.reference_id && !!onOpenCreditNote);
                 const canRetryLifecycle = !!entry.reference_id && (isGiftCardIssue || isGiftCardRedeem || isStoreCreditIssue || isStoreCreditRedeem);
 
                 return (
@@ -16738,7 +16832,21 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                         </span>
                       </td>
                       <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{fmtDay(entry.item_date)}</td>
-                      <td style={{ ...td, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{entry.reference}</td>
+                      <td style={{ ...td, fontWeight: 600, color: 'var(--sv-text-strong)' }}>
+                        {canOpenEntry ? (
+                          <button
+                            type="button"
+                            onClick={() => openEntry(entry)}
+                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--sv-action)', font: 'inherit', fontWeight: 600, textAlign: 'left' }}
+                            title="Open linked record"
+                          >
+                            {entry.reference}
+                          </button>
+                        ) : (
+                          entry.reference
+                        )}
+                        {isPosCn && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 500 }}>POS / EOD</div>}
+                      </td>
                       <td title={entry.last_sync_detail ?? undefined} style={{ ...td, color: 'var(--sv-text-dim)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {entry.contact_name ?? '—'}
                         {entry.xero_id && (
@@ -16755,7 +16863,7 @@ function XeroSyncTab({ getBusinessId }: { getBusinessId: () => string }) {
                       </td>
                       <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtMoney(entry.amount)}</td>
                       <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{entry.last_sync_at ? fmtDate(entry.last_sync_at) : '—'}</td>
-                      <td style={td}><XeroStatusBadge status={entry.last_sync_status} isHistorical={isHistorical} /></td>
+                      <td style={td}>{isPosCn ? <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>POS / EOD</span> : <XeroStatusBadge status={entry.last_sync_status} isHistorical={isHistorical} />}</td>
                       <td style={td}><XeroStateBadge state={entry.last_xero_state ?? null} /></td>
                       <td style={{ ...td, textAlign: 'right' }}>
                         {entry.last_sync_status === 'error' && !isHistorical && (isPo || isSo || isCn || isScn || canRetryLifecycle) && (
@@ -17630,6 +17738,9 @@ export default function ImsPage() {
   const [xeroQueuedCount, setXeroQueuedCount] = useState(0);
   const [pendingOpenPO, setPendingOpenPO] = useState<number | null>(null);
   const [pendingOpenSO, setPendingOpenSO] = useState<number | null>(null);
+  const [pendingOpenCN, setPendingOpenCN] = useState<number | null>(null);
+  const [pendingOpenPosSale, setPendingOpenPosSale] = useState<number | null>(null);
+  const [pendingOpenPosDay, setPendingOpenPosDay] = useState<string | null>(null);
   const [cnPrefill, setCnPrefill] = useState<any>(null);
 
   // ── Notifications ────────────────────────────────────────────────────────
@@ -18160,12 +18271,18 @@ export default function ImsPage() {
             hasForesight={user?.hasForesight ?? false}
             pendingOpenPO={pendingOpenPO}
             pendingOpenSO={pendingOpenSO}
+            pendingOpenCN={pendingOpenCN}
+            pendingOpenPosSale={pendingOpenPosSale}
+            pendingOpenPosDay={pendingOpenPosDay}
             cnPrefill={cnPrefill}
             setView={setView}
             setSettingsSection={setSettingsSection}
             setSettingsOpen={setSettingsOpen}
             setPendingOpenPO={setPendingOpenPO}
             setPendingOpenSO={setPendingOpenSO}
+            setPendingOpenCN={setPendingOpenCN}
+            setPendingOpenPosSale={setPendingOpenPosSale}
+            setPendingOpenPosDay={setPendingOpenPosDay}
             setCnPrefill={setCnPrefill}
             DashboardView={DashboardView}
             ProductsView={ProductsView}

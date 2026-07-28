@@ -20,12 +20,18 @@ interface MainSectionsProps {
   hasForesight: boolean;
   pendingOpenPO: number | null;
   pendingOpenSO: number | null;
+  pendingOpenCN: number | null;
+  pendingOpenPosSale: number | null;
+  pendingOpenPosDay: string | null;
   cnPrefill: any;
   setView: (v: ImsView) => void;
   setSettingsSection: (section: any) => void;
   setSettingsOpen: (open: boolean) => void;
   setPendingOpenPO: (id: number | null) => void;
   setPendingOpenSO: (id: number | null) => void;
+  setPendingOpenCN: (id: number | null) => void;
+  setPendingOpenPosSale: (id: number | null) => void;
+  setPendingOpenPosDay: (date: string | null) => void;
   setCnPrefill: (v: any) => void;
   onOpenPurchaseOrder?: (id: number) => void;
   onOpenSalesOrder?: (id: number) => void;
@@ -77,12 +83,18 @@ export function MainSections(props: MainSectionsProps) {
     hasForesight,
     pendingOpenPO,
     pendingOpenSO,
+    pendingOpenCN,
+    pendingOpenPosSale,
+    pendingOpenPosDay,
     cnPrefill,
     setView,
     setSettingsSection,
     setSettingsOpen,
     setPendingOpenPO,
     setPendingOpenSO,
+    setPendingOpenCN,
+    setPendingOpenPosSale,
+    setPendingOpenPosDay,
     setCnPrefill,
     onOpenPurchaseOrder,
     onOpenSalesOrder,
@@ -156,10 +168,16 @@ export function MainSections(props: MainSectionsProps) {
         businessId={businessId}
         pendingOpenPO={pendingOpenPO}
         pendingOpenSO={pendingOpenSO}
+        pendingOpenCN={pendingOpenCN}
+        pendingOpenPosSale={pendingOpenPosSale}
+        pendingOpenPosDay={pendingOpenPosDay}
         cnPrefill={cnPrefill}
         setView={setView}
         setPendingOpenPO={setPendingOpenPO}
         setPendingOpenSO={setPendingOpenSO}
+        setPendingOpenCN={setPendingOpenCN}
+        setPendingOpenPosSale={setPendingOpenPosSale}
+        setPendingOpenPosDay={setPendingOpenPosDay}
         setCnPrefill={setCnPrefill}
         PurchaseOrdersView={PurchaseOrdersView}
         SalesOrdersView={SalesOrdersView}
@@ -187,7 +205,18 @@ export function MainSections(props: MainSectionsProps) {
       />
 
       {/* Integrations */}
-      {view === 'xero' && <XeroView businessId={businessId} isAdvisor={isAdvisor} advisorMappingEnabled={advisorMappingEnabled} />}
+      {view === 'xero' && (
+        <XeroView
+          businessId={businessId}
+          isAdvisor={isAdvisor}
+          advisorMappingEnabled={advisorMappingEnabled}
+          onOpenPurchaseOrder={onOpenPurchaseOrder}
+          onOpenSalesOrder={onOpenSalesOrder}
+          onOpenCreditNote={(id: number) => { setView('credit-notes'); setPendingOpenCN(id); }}
+          onOpenPosSale={(id: number) => { setView('sales-orders'); setPendingOpenPosSale(id); }}
+          onOpenPosSalesDay={(date: string) => { setView('pos-sales'); setPendingOpenPosDay(date); }}
+        />
+      )}
       {view === 'shopify' && <ShopifyView businessId={businessId} />}
     </>
   );

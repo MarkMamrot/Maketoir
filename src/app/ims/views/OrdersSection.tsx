@@ -15,10 +15,16 @@ interface OrdersSectionProps {
   businessId: string;
   pendingOpenPO: number | null;
   pendingOpenSO: number | null;
+  pendingOpenCN: number | null;
+  pendingOpenPosSale: number | null;
+  pendingOpenPosDay: string | null;
   cnPrefill: any;
   setView: (v: ImsView) => void;
   setPendingOpenPO: (id: number | null) => void;
   setPendingOpenSO: (id: number | null) => void;
+  setPendingOpenCN: (id: number | null) => void;
+  setPendingOpenPosSale: (id: number | null) => void;
+  setPendingOpenPosDay: (date: string | null) => void;
   setCnPrefill: (v: any) => void;
   PurchaseOrdersView: any;
   SalesOrdersView: any;
@@ -37,10 +43,16 @@ export function OrdersSection({
   businessId,
   pendingOpenPO,
   pendingOpenSO,
+  pendingOpenCN,
+  pendingOpenPosSale,
+  pendingOpenPosDay,
   cnPrefill,
   setView,
   setPendingOpenPO,
   setPendingOpenSO,
+  setPendingOpenCN,
+  setPendingOpenPosSale,
+  setPendingOpenPosDay,
   setCnPrefill,
   PurchaseOrdersView,
   SalesOrdersView,
@@ -66,6 +78,8 @@ export function OrdersSection({
           isAdvisor={isAdvisor}
           pendingOpenId={pendingOpenSO}
           onPendingHandled={() => setPendingOpenSO(null)}
+          pendingOpenPosSaleId={pendingOpenPosSale}
+          onPendingPosSaleHandled={() => setPendingOpenPosSale(null)}
           onReturnOrder={(p: any) => { setCnPrefill(p); setView('credit-notes'); }}
         />
       )}
@@ -74,12 +88,14 @@ export function OrdersSection({
           isAdvisor={isAdvisor}
           prefill={cnPrefill}
           onPrefillConsumed={() => setCnPrefill(null)}
+          pendingOpenId={pendingOpenCN}
+          onPendingHandled={() => setPendingOpenCN(null)}
         />
       )}
       {view === 'supplier-credit-notes' && <SupplierCreditNotesView isAdvisor={isAdvisor} />}
       {view === 'branch-transfers' && <BranchTransfersView />}
       {view === 'receive-transfers' && <ReceiveTransfersView />}
-      {view === 'pos-sales' && <PosSalesView />}
+      {view === 'pos-sales' && <PosSalesView pendingOpenDay={pendingOpenPosDay} onPendingHandled={() => setPendingOpenPosDay(null)} />}
       {view === 'online-sales' && (
         <OnlineSalesView
           businessId={businessId}

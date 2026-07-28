@@ -158,7 +158,8 @@ export async function GET(req: Request) {
     );
 
     const cns = await imsQuery<any>(
-      `SELECT cn.id, cn.cn_number, cn.total_amount, cn.cn_date,
+          `SELECT cn.id, cn.cn_number, cn.total_amount, cn.cn_date,
+            cn.source, cn.pos_sale_id,
               cn.xero_sync_status, cn.xero_synced_at,
               COALESCE(c.name, '') AS contact_name
          FROM ims_credit_notes cn
@@ -563,6 +564,8 @@ export async function GET(req: Request) {
         amount: cn.total_amount,
         item_date: cn.cn_date,
         is_historical: 0,
+        source: cn.source ?? null,
+        pos_sale_id: cn.pos_sale_id ?? null,
         xero_sync_status: cn.xero_sync_status || null,
         log_id: null,
         xero_id: log?.xero_id ?? null,
