@@ -148,9 +148,14 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
 
   const sortTh = (col: string, label: string, extra?: React.CSSProperties) => (
     <th onClick={() => toggleSort(col)} style={{ ...hCell, cursor: 'pointer', userSelect: 'none', ...extra }}>
-      {label}<SortArrowIcon col={col} sortCol={sortCol} sortAsc={sortAsc} />
+      {label}
+      <SortArrowIcon col={col} sortCol={sortCol} sortAsc={sortAsc} />
     </th>
   );
+
+  function sortArrow(col: string) {
+    return <SortArrowIcon col={col} sortCol={sortCol} sortAsc={sortAsc} />;
+  }
 
   return (
     <div>
@@ -289,7 +294,6 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
               </tbody>
             </table>
           </div>
-        </div>
 
         {totalPages > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', paddingTop: 2 }}>

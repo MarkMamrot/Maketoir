@@ -9,7 +9,7 @@ type ImsView =
   | 'purchase-orders' | 'sales-orders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
-  | 'reports' | 'report-sales-by-branch' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
+  | 'reports' | 'report-sales-by-branch' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
   | 'xero' | 'shopify';
 
 interface MainSectionsProps {
@@ -50,6 +50,7 @@ interface MainSectionsProps {
   StocktakesView: any;
   ReportsView: any;
   SalesByBranchView: any;
+  SalesSearchView: any;
   InventoryValuationView: any;
   ProductMarginView: any;
   PosPriceChangesView: any;
@@ -105,6 +106,7 @@ export function MainSections(props: MainSectionsProps) {
     StocktakesView,
     ReportsView,
     SalesByBranchView,
+    SalesSearchView,
     InventoryValuationView,
     ProductMarginView,
     PosPriceChangesView,
@@ -176,6 +178,7 @@ export function MainSections(props: MainSectionsProps) {
         setView={setView}
         ReportsView={ReportsView}
         SalesByBranchView={SalesByBranchView}
+        SalesSearchView={SalesSearchView}
         InventoryValuationView={InventoryValuationView}
         ProductMarginView={ProductMarginView}
         PosPriceChangesView={PosPriceChangesView}

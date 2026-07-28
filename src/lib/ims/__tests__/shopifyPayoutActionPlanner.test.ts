@@ -6,14 +6,18 @@ import {
 } from '../shopifyPayoutActionPlanner';
 
 function createDependencies(): ShopifyPayoutPlannerDependencies & {
-  mainQuery: ReturnType<typeof vi.fn>;
-  mainExecute: ReturnType<typeof vi.fn>;
-  tenantQuery: ReturnType<typeof vi.fn>;
+  mainQuery: ShopifyPayoutPlannerDependencies['mainQuery'] & ReturnType<typeof vi.fn>;
+  mainExecute: ShopifyPayoutPlannerDependencies['mainExecute'] & ReturnType<typeof vi.fn>;
+  tenantQuery: ShopifyPayoutPlannerDependencies['tenantQuery'] & ReturnType<typeof vi.fn>;
 } {
+  const mainQuery = vi.fn(async (_sql: string, _params?: unknown[]) => [] as any[]);
+  const mainExecute = vi.fn(async (_sql: string, _params?: unknown[]) => ({ affectedRows: 1 }));
+  const tenantQuery = vi.fn(async (_sql: string, _params?: unknown[]) => [] as any[]);
+
   return {
-    mainQuery: vi.fn(),
-    mainExecute: vi.fn().mockResolvedValue({ affectedRows: 1 }),
-    tenantQuery: vi.fn(),
+    mainQuery: mainQuery as ShopifyPayoutPlannerDependencies['mainQuery'] & ReturnType<typeof vi.fn>,
+    mainExecute: mainExecute as ShopifyPayoutPlannerDependencies['mainExecute'] & ReturnType<typeof vi.fn>,
+    tenantQuery: tenantQuery as ShopifyPayoutPlannerDependencies['tenantQuery'] & ReturnType<typeof vi.fn>,
   };
 }
 

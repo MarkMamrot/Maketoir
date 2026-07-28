@@ -21776,7 +21776,8 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   };
   useEffect(() => {
     const v = settings['advisor_xero_mapping_enabled'];
-    setXeroAdvisorEnabled(v === 'true' || v === '1' || v === true);
+    const parsed = String(v ?? '').toLowerCase();
+    setXeroAdvisorEnabled(parsed === 'true' || parsed === '1');
   }, [settings]);
   const saveXeroAdvisorAccess = async (enabled: boolean) => {
     setXeroAdvisorSaving(true);
@@ -21987,7 +21988,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
           <div style={{ padding: 32, maxWidth: 980 }}>
             <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero Settings</h2>
             <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-              Configure accounting defaults here. Day-to-day sync monitoring remains in Integrations -> Xero.
+              Configure accounting defaults here. Day-to-day sync monitoring remains in Integrations -&gt; Xero.
             </p>
 
             <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
@@ -22097,7 +22098,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
           <div style={{ padding: 32, maxWidth: 820 }}>
             <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Shopify Settings</h2>
             <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-              Configure fulfillment routing here. Day-to-day imports, reconciliation, and inventory sync controls stay in Integrations -> Shopify.
+              Configure fulfillment routing here. Day-to-day imports, reconciliation, and inventory sync controls stay in Integrations -&gt; Shopify.
             </p>
 
             <div style={{ marginBottom: 8 }}>
