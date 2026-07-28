@@ -53,8 +53,14 @@ function actionDate(value: string | Date): string {
   return value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
 }
 
-function idempotencyKey(businessId: string, actionKey: string): string {
-  return createHash('sha256').update(`${businessId}|${actionKey}`).digest('hex');
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(item => stableStringify(item)).join(',')}]`;
+  return `{${Object.keys(value as Record<string, unknown>).sort().map(key => `${JSON.stringify(key)}:${stableStringify((value as Record<string, unknown>)[key])}`).join(',')}}`;
+}
+
+function idempotencyKey(businessId: string, actionKey: string, path: string, body: unknown): string {
+  return createHash('sha256').update(`${businessId}|${actionKey}|${path}|${stableStringify(body)}`).digest('hex');
 }
 
 async function preflightActions(
@@ -84,12 +90,11 @@ async function preflightActions(
       throw new Error(`Xero clearing account ${accountCode} was not found`);
     }
     const accountType = String(account?.Type ?? '').toUpperCase();
-    const canAcceptPayments = accountType === 'BANK' || account?.EnablePaymentsToAccount === true;
-    if (!canAcceptPayments) {
+    if (accountType !== 'BANK') {
       const accountName = String(account?.Name ?? accountCode);
       throw new Error(
-        `Xero clearing account ${accountCode} (${accountName}) cannot accept payments. `
-        + 'Choose a BANK or payments-enabled clearing account in Xero gateway mappings.',
+        `Xero clearing account ${accountCode} (${accountName}) is type ${accountType || 'UNKNOWN'} and cannot be used for POST /Payments. `
+        + 'Choose a BANK account for the Shopify gateway mapping.',
       );
     }
   }
@@ -135,46 +140,47 @@ async function postAction(
   deps: ShopifyPayoutExecutorDependencies,
 ): Promise<string> {
   const amount = roundCurrency(Number(action.amount));
-  const key = idempotencyKey(businessId, action.action_key);
 
   if (action.action_type === 'invoice_payment' || action.action_type === 'credit_note_refund') {
     const document = action.action_type === 'invoice_payment'
       ? { Invoice: { InvoiceID: action.target_xero_document_id } }
       : { CreditNote: { CreditNoteID: action.target_xero_document_id } };
+    const body = { Payments: [{
+      ...document,
+      Account: { Code: action.account_code },
+      Date: actionDate(action.action_date),
+      Amount: amount,
+      Reference: action.reference,
+    }] };
     const response = await deps.xeroFetch(businessId, '/Payments', {
       method: 'POST',
-      idempotencyKey: key,
-      body: { Payments: [{
-        ...document,
-        Account: { Code: action.account_code },
-        Date: actionDate(action.action_date),
-        Amount: amount,
-        Reference: action.reference,
-      }] },
+      idempotencyKey: idempotencyKey(businessId, action.action_key, '/Payments', body),
+      body,
     });
     const paymentId = response?.Payments?.[0]?.PaymentID;
     if (!paymentId) throw new Error(`Xero did not return a PaymentID for ${action.action_key}`);
     return String(paymentId);
   }
 
+  const body = { BankTransactions: [{
+    Type: ['fee_receive', 'adjustment_receive'].includes(action.action_type) ? 'RECEIVE' : 'SPEND',
+    Contact: { Name: 'Shopify Payments' },
+    Date: actionDate(action.action_date),
+    LineAmountTypes: action.tax_type === 'INPUT' ? 'Inclusive' : 'NoTax',
+    BankAccount: { Code: action.account_code },
+    Reference: action.reference,
+    LineItems: [{
+      Description: action.reference,
+      Quantity: 1,
+      UnitAmount: amount,
+      AccountCode: action.offset_account_code,
+      TaxType: action.tax_type ?? 'NONE',
+    }],
+  }] };
   const response = await deps.xeroFetch(businessId, '/BankTransactions', {
     method: 'POST',
-    idempotencyKey: key,
-    body: { BankTransactions: [{
-      Type: ['fee_receive', 'adjustment_receive'].includes(action.action_type) ? 'RECEIVE' : 'SPEND',
-      Contact: { Name: 'Shopify Payments' },
-      Date: actionDate(action.action_date),
-      LineAmountTypes: action.tax_type === 'INPUT' ? 'Inclusive' : 'NoTax',
-      BankAccount: { Code: action.account_code },
-      Reference: action.reference,
-      LineItems: [{
-        Description: action.reference,
-        Quantity: 1,
-        UnitAmount: amount,
-        AccountCode: action.offset_account_code,
-        TaxType: action.tax_type ?? 'NONE',
-      }],
-    }] },
+    idempotencyKey: idempotencyKey(businessId, action.action_key, '/BankTransactions', body),
+    body,
   });
   const bankTransactionId = response?.BankTransactions?.[0]?.BankTransactionID;
   if (!bankTransactionId) throw new Error(`Xero did not return a BankTransactionID for ${action.action_key}`);

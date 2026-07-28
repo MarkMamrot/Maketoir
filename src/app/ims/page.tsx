@@ -15760,7 +15760,7 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
   const [methodError, setMethodError] = useState<string | null>(null);
 
   const bid = getBusinessId();
-  const bankAccounts = accounts.filter((a: any) => a.type === 'BANK' || a.enablePaymentsToAccount === true);
+  const bankAccounts = accounts.filter((a: any) => a.type === 'BANK');
   const expenseAccounts = accounts.filter((a: any) => a.class === 'EXPENSE');
   const normalizedFormGateway = newForm.gateway_name.trim().toLowerCase().replace(/[\s-]+/g, '_');
   const supportsCalculatedFees = !normalizedFormGateway.includes('shopify_payment') && !normalizedFormGateway.includes('paypal');

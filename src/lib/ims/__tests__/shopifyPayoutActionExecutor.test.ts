@@ -151,6 +151,38 @@ describe('executeShopifyPayoutActions', () => {
     expect(deps.xeroFetch.mock.calls[1][2].body.BankTransactions[0].Type).toBe('RECEIVE');
   });
 
+  it('changes the idempotency key when the posted request body changes', async () => {
+    deps.xeroFetch.mockImplementation(async (_businessId: string, path: string, options?: any) => {
+      if (path.startsWith('/Accounts?where=')) {
+        return { Accounts: [{ Code: '091', Type: 'BANK', EnablePaymentsToAccount: true, Name: 'Shopify Clearing' }] };
+      }
+      if (path === '/Invoices/inv-1') return { Invoices: [{ InvoiceID: 'inv-1', AmountDue: 100 }] };
+      if (path === '/Payments') return { Payments: [{ PaymentID: 'payment-1' }] };
+      throw new Error(`Unexpected Xero path ${path} ${JSON.stringify(options)}`);
+    });
+
+    await executeShopifyPayoutActions('biz-1', 'pay-1', deps);
+    const firstKey = deps.xeroFetch.mock.calls.find(([, path]) => path === '/Payments')?.[2]?.idempotencyKey;
+
+    deps.xeroFetch.mockClear();
+    deps.mainQuery.mockResolvedValue([{ ...invoiceAction, account_code: '092', reference: 'Shopify payout pay-1 updated' }, feeAction]);
+    deps.xeroFetch.mockImplementation(async (_businessId: string, path: string, options?: any) => {
+      if (path.startsWith('/Accounts?where=')) {
+        return { Accounts: [{ Code: '092', Type: 'BANK', EnablePaymentsToAccount: true, Name: 'Shopify Clearing 2' }] };
+      }
+      if (path === '/Invoices/inv-1') return { Invoices: [{ InvoiceID: 'inv-1', AmountDue: 100 }] };
+      if (path === '/Payments') return { Payments: [{ PaymentID: 'payment-2' }] };
+      throw new Error(`Unexpected Xero path ${path} ${JSON.stringify(options)}`);
+    });
+
+    await executeShopifyPayoutActions('biz-1', 'pay-1', deps);
+    const secondKey = deps.xeroFetch.mock.calls.find(([, path]) => path === '/Payments')?.[2]?.idempotencyKey;
+
+    expect(firstKey).toMatch(/^[a-f0-9]{64}$/);
+    expect(secondKey).toMatch(/^[a-f0-9]{64}$/);
+    expect(secondKey).not.toBe(firstKey);
+  });
+
   it('blocks when clearing account cannot accept payments', async () => {
     deps.xeroFetch.mockImplementation(async (_businessId: string, path: string, _options?: any) => {
       if (path.startsWith('/Accounts?where=')) {
@@ -162,7 +194,7 @@ describe('executeShopifyPayoutActions', () => {
     const result = await executeShopifyPayoutActions('biz-1', 'pay-1', deps);
 
     expect(result.status).toBe('blocked');
-    expect(result.error).toContain('cannot accept payments');
+    expect(result.error).toContain('cannot be used for POST /Payments');
     expect(deps.mainExecute.mock.calls.some(([sql]) => String(sql).includes("status = 'posting'"))).toBe(false);
   });
 });
