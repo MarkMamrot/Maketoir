@@ -163,7 +163,7 @@ export async function GET(req: Request) {
       imsQuery<CogsRow>(
         `SELECT 'pos' AS channel,
                 COALESCE(l.name, 'Unknown') AS location_name,
-                SUM(COALESCE(psi.qty, 0) * COALESCE(psi.unit_cost, psi.avg_cost, pv.avg_cost, pv.cost_aud, 0)) AS cogs
+                SUM(COALESCE(psi.qty, 0) * COALESCE(pv.avg_cost, pv.cost_aud, 0)) AS cogs
          FROM pos_sales ps
          JOIN ims_locations l ON l.id = ps.location_id AND l.business_id = ?
          JOIN pos_sale_items psi ON psi.sale_id = ps.id
@@ -176,7 +176,7 @@ export async function GET(req: Request) {
       imsQuery<CogsRow>(
         `SELECT 'online' AS channel,
                 COALESCE(l.name, 'Unknown') AS location_name,
-                SUM(ABS(COALESCE(soi.qty_ordered, 0)) * COALESCE(soi.unit_cost, soi.avg_cost, pv.avg_cost, pv.cost_aud, 0)) AS cogs
+                SUM(ABS(COALESCE(soi.qty_ordered, 0)) * COALESCE(soi.unit_cost, pv.avg_cost, pv.cost_aud, 0)) AS cogs
          FROM ims_sales_orders so
          LEFT JOIN ims_locations l ON l.id = so.location_id
          JOIN ims_sales_order_items soi ON soi.so_id = so.id
@@ -192,7 +192,7 @@ export async function GET(req: Request) {
       imsQuery<CogsRow>(
         `SELECT 'wholesale' AS channel,
                 COALESCE(l.name, 'Unknown') AS location_name,
-                SUM(ABS(COALESCE(soi.qty_ordered, 0)) * COALESCE(soi.unit_cost, soi.avg_cost, pv.avg_cost, pv.cost_aud, 0)) AS cogs
+                SUM(ABS(COALESCE(soi.qty_ordered, 0)) * COALESCE(soi.unit_cost, pv.avg_cost, pv.cost_aud, 0)) AS cogs
          FROM ims_sales_orders so
          LEFT JOIN ims_locations l ON l.id = so.location_id
          JOIN ims_sales_order_items soi ON soi.so_id = so.id
