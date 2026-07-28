@@ -1097,8 +1097,8 @@ function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void;
                                       y={Math.max(y + 9, gpY - 3)}
                                       textAnchor="middle"
                                       fontSize="8"
-                                      fill="currentColor"
-                                      fillOpacity="0.68"
+                                      fill={CH_GP_LINE[ch] ?? 'rgba(15,23,42,.8)'}
+                                      fillOpacity="0.9"
                                       pointerEvents="none"
                                     >
                                       {`GP - ${fmtCurrency(grossProfit)}`}
