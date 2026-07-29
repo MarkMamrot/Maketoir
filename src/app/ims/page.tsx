@@ -567,12 +567,15 @@ const IMS_ONBOARDING_ACTIONS: Record<string, ImsOnboardingAction> = {
   pos_ready:        { type: 'settings', section: 'pos',              label: 'Review POS Setup' },
 };
 
-function DashboardView({ businessId, onNav, onOpenSettings }: { businessId: string; onNav: (v: ImsView) => void; onOpenSettings?: (section: string) => void }) {
+function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: { businessId: string; onNav: (v: ImsView) => void; onOpenSettings?: (section: string) => void; onOpenSalesOrder?: (id: number) => void }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(1);
   const [brandChartData, setBrandChartData] = useState<{ name: string; sales90: number }[]>([]);
   const [brandChartLoading, setBrandChartLoading] = useState(false);
+  const [openOnlineSales, setOpenOnlineSales] = useState<any[]>([]);
+  const [openOnlineSalesLoading, setOpenOnlineSalesLoading] = useState(false);
+  const [openOnlineSalesModalOpen, setOpenOnlineSalesModalOpen] = useState(false);
   const [onboarding, setOnboarding] = useState<any>(null);
   const [onboardingLoading, setOnboardingLoading] = useState(false);
   const [onboardingSaving, setOnboardingSaving] = useState(false);
@@ -624,6 +627,17 @@ function DashboardView({ businessId, onNav, onOpenSettings }: { businessId: stri
       .finally(() => setBrandChartLoading(false));
   }, [businessId]);
 
+  useEffect(() => {
+    setOpenOnlineSalesLoading(true);
+    fetch('/api/ims/online-sales/open')
+      .then(r => r.json())
+      .then(d => {
+        if (d.success && Array.isArray(d.orders)) setOpenOnlineSales(d.orders);
+      })
+      .catch(() => {})
+      .finally(() => setOpenOnlineSalesLoading(false));
+  }, []);
+
   const loadOnboarding = useCallback(() => {
     setOnboardingLoading(true);
     fetch('/api/onboarding')
@@ -662,15 +676,13 @@ function DashboardView({ businessId, onNav, onOpenSettings }: { businessId: stri
   const setOnboardingField = (key: string, value: string) => setOnboardingDraft(p => ({ ...p, [key]: value }));
 
   const fmtCompact = (n: number) => n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `$${(n / 1_000).toFixed(1)}K` : fmtCurrency(n);
-  const stats: { label: string; value?: number; display?: React.ReactNode; color: string; nav: ImsView }[] = [
+  const stats: { label: string; value?: number; display?: React.ReactNode; color: string; nav?: ImsView; onClick?: () => void }[] = [
     { label: 'Products',    value: data?.products  ?? 0,                          color: 'var(--sv-action)', nav: 'products' as ImsView },
-    { label: 'Variants',    value: data?.variants  ?? 0,                          color: 'var(--sv-action)', nav: 'products' as ImsView },
-    { label: 'Locations',   value: data?.locations ?? 0,                          color: 'var(--sv-mint)',   nav: 'locations' as ImsView },
+    { label: 'Open Online Sales', value: openOnlineSales.length,                  color: '#818cf8',          onClick: () => setOpenOnlineSalesModalOpen(true) },
     { label: 'Open POs',    value: data?.openPOs   ?? 0,                          color: 'var(--sv-amber)',  nav: 'purchase-orders' as ImsView },
     { label: 'Open SOs',    value: data?.openSOs   ?? 0,                          color: '#818cf8',          nav: 'sales-orders' as ImsView },
     { label: 'Low Stock',   value: data?.lowStock  ?? 0,                          color: 'var(--sv-red)',    nav: 'stock' as ImsView },
     { label: 'SOH Value',   display: fmtCompact(data?.stockValue ?? 0),           color: 'var(--sv-mint)',   nav: 'stock' as ImsView },
-    { label: 'Stocked SKUs',value: data?.stockItemCount ?? 0,                     color: 'var(--sv-mint)',   nav: 'stock' as ImsView },
   ];
   const brandMax = brandChartData.reduce((m, b) => Math.max(m, b.sales90), 0);
   const barColor = (i: number, total: number) => {
@@ -679,6 +691,79 @@ function DashboardView({ businessId, onNav, onOpenSettings }: { businessId: stri
     const g = Math.round(56  + t * (231 - 56));
     const b = Math.round(202 + t * (255 - 202));
     return `rgb(${r},${g},${b})`;
+  };
+  const printOpenOnlineSales = () => {
+    const escapeHtml = (value: string) => value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+    const fmtOrderDate = (v: string) => {
+      const s = String(v || '').replace('T', ' ').slice(0, 19);
+      if (!s) return '—';
+      const d = new Date(s.replace(' ', 'T'));
+      if (Number.isNaN(d.getTime())) return s;
+      return d.toLocaleString('en-AU', { dateStyle: 'medium', timeStyle: 'short' });
+    };
+    const rows = openOnlineSales.map((order: any) => {
+      const itemLines = (order.items || []).map((item: any) => {
+        const sku = item.sku || item.code || '—';
+        const name = item.product_name || item.name || 'Unnamed item';
+        const qty = Number(item.qty_ordered || 0);
+        return `<li><strong>${escapeHtml(String(sku))}</strong> - ${escapeHtml(String(name))} x ${qty}</li>`;
+      }).join('');
+      return `
+        <tr>
+          <td>${escapeHtml(String(order.so_number || '—'))}</td>
+          <td>${escapeHtml(fmtOrderDate(order.order_date || ''))}</td>
+          <td>${escapeHtml(String(order.status || '—'))}</td>
+          <td>${escapeHtml(String(order.customer_name || '—'))}</td>
+          <td style="text-align:right; white-space:nowrap;">$${Number(order.total_amount || 0).toFixed(2)}</td>
+          <td><ul>${itemLines || '<li>—</li>'}</ul></td>
+        </tr>`;
+    }).join('');
+    const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Open Online Sales</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; color: #0f172a; }
+    h1 { font-size: 20px; margin: 0 0 6px; }
+    p { margin: 0 0 16px; color: #475569; font-size: 12px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #cbd5e1; padding: 8px; vertical-align: top; font-size: 12px; }
+    th { background: #f1f5f9; text-align: left; }
+    ul { margin: 0; padding-left: 18px; }
+    @media print { body { margin: 10mm; } }
+  </style>
+</head>
+<body>
+  <h1>Open Online Sales (Draft + Confirmed)</h1>
+  <p>Generated ${new Date().toLocaleString('en-AU')} · ${openOnlineSales.length} order(s)</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Order</th>
+        <th>Date</th>
+        <th>Status</th>
+        <th>Customer</th>
+        <th>Total</th>
+        <th>Line items</th>
+      </tr>
+    </thead>
+    <tbody>${rows || '<tr><td colspan="6">No open online orders.</td></tr>'}</tbody>
+  </table>
+</body>
+</html>`;
+    const w = window.open('', '_blank', 'noopener,noreferrer,width=1200,height=900');
+    if (!w) return;
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    w.print();
   };
 
   return (
@@ -887,7 +972,7 @@ function DashboardView({ businessId, onNav, onOpenSettings }: { businessId: stri
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 14, marginBottom: 32 }}>
             {stats.map(s => (
-              <button key={s.label} onClick={() => onNav(s.nav)}
+              <button key={s.label} onClick={() => { if (s.onClick) s.onClick(); else if (s.nav) onNav(s.nav); }}
                 style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '18px 16px', textAlign: 'left', cursor: 'pointer', transition: 'border-color .15s' }}
                 onMouseEnter={e => (e.currentTarget.style.borderColor = s.color)}
                 onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--sv-etch)')}>
@@ -895,49 +980,6 @@ function DashboardView({ businessId, onNav, onOpenSettings }: { businessId: stri
                 <div style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginTop: 4 }}>{s.label}</div>
               </button>
             ))}
-          </div>
-
-          {/* Top 10 Brands */}
-          <div style={{ marginTop: 24, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(129,140,248,.16)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>🏷️</div>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Top 10 Brands</div>
-                <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Last 90 days sales</div>
-              </div>
-            </div>
-            {brandChartLoading && <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', margin: 0, padding: '10px 0', textAlign: 'center' }}>Loading…</p>}
-            {!brandChartLoading && brandChartData.length === 0 && (
-              <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', margin: 0, padding: '10px 0', textAlign: 'center' }}>No brand data yet. Sync your products first.</p>
-            )}
-            {!brandChartLoading && brandChartData.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                {brandChartData.map((b, i) => {
-                  const pct = brandMax > 0 ? (b.sales90 / brandMax) * 100 : 0;
-                  return (
-                    <div key={b.name}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-main)', maxWidth: '62%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.name}</span>
-                        <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
-                          ${b.sales90.toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                        </span>
-                      </div>
-                      <div style={{ height: 12, borderRadius: 999, background: 'var(--sv-bg-1)', overflow: 'hidden', border: '1px solid var(--sv-etch)' }}>
-                        <div
-                          style={{
-                            height: '100%',
-                            width: `${pct}%`,
-                            borderRadius: 999,
-                            backgroundColor: barColor(i, brandChartData.length),
-                            transition: 'width .5s ease',
-                          }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </div>
 
           {/* POS Registers */}
@@ -1014,22 +1056,23 @@ function DashboardView({ businessId, onNav, onOpenSettings }: { businessId: stri
             )}
           </div>
 
-          {/* ── Sales by Channel ── */}
-          <div style={{ marginTop: 24 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales and Gross Profit by Channel</div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                {([1, 30, 120, 365] as const).map(d => (
-                  <button key={d} onClick={() => setDays(d)}
-                    style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, borderRadius: 6,
-                      border: `1px solid ${days === d ? 'var(--sv-action)' : 'var(--sv-etch)'}`,
-                      background: days === d ? 'var(--sv-action)' : 'transparent',
-                      color: days === d ? '#fff' : 'var(--sv-text-dim)', cursor: 'pointer', transition: 'all .15s' }}>
-                    {d === 1 ? 'Today' : d === 30 ? '30d' : d === 120 ? '120d' : '1yr'}
-                  </button>
-                ))}
+          <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: 'minmax(420px, 1fr) minmax(300px, 1fr)', gap: 18, alignItems: 'start' }}>
+            {/* ── Sales by Channel ── */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales and Gross Profit by Channel</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {([1, 30, 120, 365] as const).map(d => (
+                    <button key={d} onClick={() => setDays(d)}
+                      style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, borderRadius: 6,
+                        border: `1px solid ${days === d ? 'var(--sv-action)' : 'var(--sv-etch)'}`,
+                        background: days === d ? 'var(--sv-action)' : 'transparent',
+                        color: days === d ? '#fff' : 'var(--sv-text-dim)', cursor: 'pointer', transition: 'all .15s' }}>
+                      {d === 1 ? 'Today' : d === 30 ? '30d' : d === 120 ? '120d' : '1yr'}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
             {salesLoading ? (
               <div style={{ padding: 32, textAlign: 'center' }}><Spinner /></div>
             ) : !(salesData?.channelData?.length) ? (
@@ -1223,53 +1266,123 @@ function DashboardView({ businessId, onNav, onOpenSettings }: { businessId: stri
                 </div>
               );
             })()}
-          </div>
 
-          {/* ── Recent tables row: POs · SOs · POS Sales ── */}
-          <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 18, alignItems: 'start' }}>
-            <RecentTable title="Recent Purchase Orders" rows={data?.recentPOs ?? []} columns={[
-              { key: 'po_number',     label: 'PO #'        },
-              { key: 'supplier_name', label: 'Supplier'    },
-              { key: 'status',        label: 'Status', render: (v: string) => <StatusBadge status={v} /> },
-              { key: 'total_amount',  label: 'Total', render: (v: number) => fmtCurrency(v) },
-            ]} />
-            <RecentTable title="Recent Sales Orders" rows={data?.recentSOs ?? []} columns={[
-              { key: 'so_number',     label: 'SO #'        },
-              { key: 'customer_name', label: 'Customer'    },
-              { key: 'status',        label: 'Status', render: (v: string) => <StatusBadge status={v} /> },
-              { key: 'total_amount',  label: 'Total', render: (v: number) => fmtCurrency(v) },
-            ]} />
-            <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
-              <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--sv-etch)', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Recent POS Sales</div>
-              {salesLoading ? (
-                <div style={{ padding: 20, textAlign: 'center' }}><Spinner /></div>
-              ) : !(salesData?.recentPOS?.length) ? (
-                <div style={{ padding: 20, color: 'var(--sv-text-dim)', fontSize: 13 }}>No POS sales yet.</div>
-              ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr>{['Time', 'Location', 'Cashier', 'Customer', 'Type', 'Total'].map(h => (
-                      <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: .8 }}>{h}</th>
-                    ))}</tr>
-                  </thead>
-                  <tbody>
-                    {(salesData.recentPOS as any[]).map((s: any, i: number) => (
-                      <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                        <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{new Date(s.created_at).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' })}</td>
-                        <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{s.location_name}</td>
-                        <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-main)' }}>{s.cashier_name || '—'}</td>
-                        <td style={{ padding: '8px 12px', fontSize: 13, color: 'var(--sv-text-dim)' }}>{s.customer_name || '—'}</td>
-                        <td style={{ padding: '8px 12px' }}><StatusBadge status={s.sale_type} /></td>
-                        <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 600, textAlign: 'right',
-                          color: s.sale_type === 'return' ? 'var(--sv-red)' : 'var(--sv-text-main)' }}>{fmtCurrency(Number(s.total))}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            </div>
+
+            {/* Top 10 Brands */}
+            <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(129,140,248,.16)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>🏷️</div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Top 10 Brands</div>
+                  <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Last 90 days sales</div>
+                </div>
+              </div>
+              {brandChartLoading && <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', margin: 0, padding: '10px 0', textAlign: 'center' }}>Loading…</p>}
+              {!brandChartLoading && brandChartData.length === 0 && (
+                <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', margin: 0, padding: '10px 0', textAlign: 'center' }}>No brand data yet. Sync your products first.</p>
+              )}
+              {!brandChartLoading && brandChartData.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                  {brandChartData.map((b, i) => {
+                    const pct = brandMax > 0 ? (b.sales90 / brandMax) * 100 : 0;
+                    return (
+                      <div key={b.name}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-main)', maxWidth: '62%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.name}</span>
+                          <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+                            ${b.sales90.toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          </span>
+                        </div>
+                        <div style={{ height: 12, borderRadius: 999, background: 'var(--sv-bg-1)', overflow: 'hidden', border: '1px solid var(--sv-etch)' }}>
+                          <div
+                            style={{
+                              height: '100%',
+                              width: `${pct}%`,
+                              borderRadius: 999,
+                              backgroundColor: barColor(i, brandChartData.length),
+                              transition: 'width .5s ease',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
           </div>
         </>
+      )}
+
+      {openOnlineSalesModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 18 }}>
+          <div style={{ width: 'min(1200px, 96vw)', maxHeight: '92vh', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 12, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: '1px solid var(--sv-etch)' }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Open Online Sales</div>
+              <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Draft + Confirmed</div>
+              <span style={{ flex: 1 }} />
+              <button onClick={printOpenOnlineSales} style={{ fontSize: 12, fontWeight: 600, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-main)', cursor: 'pointer' }}>Print list</button>
+              <button onClick={() => setOpenOnlineSalesModalOpen(false)} style={{ fontSize: 12, fontWeight: 600, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-main)', cursor: 'pointer' }}>Close</button>
+            </div>
+            <div style={{ padding: 14, overflow: 'auto' }}>
+              {openOnlineSalesLoading ? (
+                <div style={{ padding: 20, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading open online sales…</div>
+              ) : openOnlineSales.length === 0 ? (
+                <div style={{ padding: 20, textAlign: 'center', color: 'var(--sv-text-dim)' }}>No open online sales.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {openOnlineSales.map((order: any) => (
+                    <div key={order.id} style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)', overflow: 'hidden' }}>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: '10px 12px', borderBottom: '1px solid var(--sv-etch)' }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{order.so_number}</span>
+                        <span style={{ fontSize: 11, color: order.status === 'draft' ? '#9ca3af' : '#f59e0b', border: '1px solid var(--sv-etch)', borderRadius: 99, padding: '1px 8px' }}>{String(order.status || '').toUpperCase()}</span>
+                        <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{new Date(String(order.order_date || '').replace(' ', 'T')).toLocaleString('en-AU', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                        <span style={{ fontSize: 12, color: 'var(--sv-text-main)' }}>{order.customer_name || '—'}</span>
+                        <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{order.location_name || '—'}</span>
+                        <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{fmtCurrency(Number(order.total_amount || 0))}</span>
+                        <button
+                          onClick={() => {
+                            setOpenOnlineSalesModalOpen(false);
+                            if (onOpenSalesOrder) onOpenSalesOrder(Number(order.id));
+                            else onNav('sales-orders');
+                          }}
+                          style={{ fontSize: 12, fontWeight: 600, padding: '5px 9px', borderRadius: 6, border: '1px solid var(--sv-action)', color: 'var(--sv-action)', background: 'transparent', cursor: 'pointer' }}
+                        >
+                          View Order
+                        </button>
+                      </div>
+                      <div style={{ padding: '8px 12px' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr>
+                              <th style={{ textAlign: 'left', padding: '5px 4px', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600 }}>SKU</th>
+                              <th style={{ textAlign: 'left', padding: '5px 4px', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600 }}>Product</th>
+                              <th style={{ textAlign: 'right', padding: '5px 4px', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600 }}>Qty</th>
+                              <th style={{ textAlign: 'right', padding: '5px 4px', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600 }}>Unit</th>
+                              <th style={{ textAlign: 'right', padding: '5px 4px', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600 }}>Line total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(order.items || []).map((item: any) => (
+                              <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                                <td style={{ padding: '6px 4px', fontSize: 12, color: 'var(--sv-text-dim)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{item.sku || item.code || '—'}</td>
+                                <td style={{ padding: '6px 4px', fontSize: 12, color: 'var(--sv-text-main)' }}>{item.product_name || item.name || '—'}</td>
+                                <td style={{ padding: '6px 4px', fontSize: 12, color: 'var(--sv-text-main)', textAlign: 'right' }}>{Number(item.qty_ordered || 0)}</td>
+                                <td style={{ padding: '6px 4px', fontSize: 12, color: 'var(--sv-text-main)', textAlign: 'right' }}>{fmtCurrency(Number(item.unit_price || 0))}</td>
+                                <td style={{ padding: '6px 4px', fontSize: 12, color: 'var(--sv-text-main)', textAlign: 'right' }}>{fmtCurrency(Number(item.line_total || 0))}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
