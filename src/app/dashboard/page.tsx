@@ -7801,9 +7801,13 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
     setChatMsgs([]);
     setChatInput('');
     setChatError('');
+    setGeneratedImages({});
+    setImageErrors({});
+    setGeneratingImageIdx(null);
     setSavingIdx(null);
     setSaveName('');
     setSavedIdx(null);
+    setCopiedIdx(null);
     setShowContextPreview(false);
     setContextPreviewText('');
     setContextSystemPrompt('');
@@ -7912,6 +7916,11 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
   const generateImage = async (msgIdx: number, promptOverride?: string) => {
     const prompt = promptOverride ?? chatMsgs[msgIdx].text;
     setGeneratingImageIdx(msgIdx);
+    setGeneratedImages(prev => {
+      const next = { ...prev };
+      delete next[msgIdx];
+      return next;
+    });
     setImageErrors(prev => { const n = { ...prev }; delete n[msgIdx]; return n; });
     try {
       const res = await fetch('/api/ai/brand-asset-generate-image', {
