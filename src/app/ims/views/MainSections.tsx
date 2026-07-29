@@ -134,6 +134,7 @@ export function MainSections(props: MainSectionsProps) {
       {/* Core */}
       {view === 'dashboard' && (
         <DashboardView
+          businessId={businessId}
           onNav={setView}
           onOpenSettings={(s: any) => { setSettingsSection(s); setSettingsOpen(true); }}
           onOpenPurchaseOrder={onOpenPurchaseOrder}

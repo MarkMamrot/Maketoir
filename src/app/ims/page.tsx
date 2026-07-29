@@ -567,10 +567,12 @@ const IMS_ONBOARDING_ACTIONS: Record<string, ImsOnboardingAction> = {
   pos_ready:        { type: 'settings', section: 'pos',              label: 'Review POS Setup' },
 };
 
-function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void; onOpenSettings?: (section: string) => void }) {
+function DashboardView({ businessId, onNav, onOpenSettings }: { businessId: string; onNav: (v: ImsView) => void; onOpenSettings?: (section: string) => void }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(1);
+  const [brandChartData, setBrandChartData] = useState<{ name: string; sales90: number }[]>([]);
+  const [brandChartLoading, setBrandChartLoading] = useState(false);
   const [onboarding, setOnboarding] = useState<any>(null);
   const [onboardingLoading, setOnboardingLoading] = useState(false);
   const [onboardingSaving, setOnboardingSaving] = useState(false);
@@ -603,6 +605,24 @@ function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void;
       if (d.success) setSalesData(d);
     }).finally(() => setSalesLoading(false));
   }, [days]);
+
+  useEffect(() => {
+    if (!businessId) return;
+    setBrandChartLoading(true);
+    fetch(`/api/calculated/brand-summary?databaseId=${encodeURIComponent(businessId)}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.success && Array.isArray(d.brands)) {
+          const top10 = [...d.brands]
+            .sort((a: any, b: any) => b.sales90 - a.sales90)
+            .slice(0, 10)
+            .map((b: any) => ({ name: b.name, sales90: b.sales90 }));
+          setBrandChartData(top10);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setBrandChartLoading(false));
+  }, [businessId]);
 
   const loadOnboarding = useCallback(() => {
     setOnboardingLoading(true);
@@ -652,6 +672,14 @@ function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void;
     { label: 'SOH Value',   display: fmtCompact(data?.stockValue ?? 0),           color: 'var(--sv-mint)',   nav: 'stock' as ImsView },
     { label: 'Stocked SKUs',value: data?.stockItemCount ?? 0,                     color: 'var(--sv-mint)',   nav: 'stock' as ImsView },
   ];
+  const brandMax = brandChartData.reduce((m, b) => Math.max(m, b.sales90), 0);
+  const barColor = (i: number, total: number) => {
+    const t = total <= 1 ? 0 : i / (total - 1);
+    const r = Math.round(67  + t * (224 - 67));
+    const g = Math.round(56  + t * (231 - 56));
+    const b = Math.round(202 + t * (255 - 202));
+    return `rgb(${r},${g},${b})`;
+  };
 
   return (
     <div>
@@ -867,6 +895,49 @@ function DashboardView({ onNav, onOpenSettings }: { onNav: (v: ImsView) => void;
                 <div style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginTop: 4 }}>{s.label}</div>
               </button>
             ))}
+          </div>
+
+          {/* Top 10 Brands */}
+          <div style={{ marginTop: 24, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(129,140,248,.16)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>🏷️</div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Top 10 Brands</div>
+                <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Last 90 days sales</div>
+              </div>
+            </div>
+            {brandChartLoading && <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', margin: 0, padding: '10px 0', textAlign: 'center' }}>Loading…</p>}
+            {!brandChartLoading && brandChartData.length === 0 && (
+              <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', margin: 0, padding: '10px 0', textAlign: 'center' }}>No brand data yet. Sync your products first.</p>
+            )}
+            {!brandChartLoading && brandChartData.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                {brandChartData.map((b, i) => {
+                  const pct = brandMax > 0 ? (b.sales90 / brandMax) * 100 : 0;
+                  return (
+                    <div key={b.name}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-main)', maxWidth: '62%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.name}</span>
+                        <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+                          ${b.sales90.toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        </span>
+                      </div>
+                      <div style={{ height: 12, borderRadius: 999, background: 'var(--sv-bg-1)', overflow: 'hidden', border: '1px solid var(--sv-etch)' }}>
+                        <div
+                          style={{
+                            height: '100%',
+                            width: `${pct}%`,
+                            borderRadius: 999,
+                            backgroundColor: barColor(i, brandChartData.length),
+                            transition: 'width .5s ease',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* POS Registers */}

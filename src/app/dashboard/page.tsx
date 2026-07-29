@@ -3226,28 +3226,6 @@ const ShopifyProductsView = forwardRef<WebsiteSyncHandle, {
 
 // ── Home overview ────────────────────────────────────────────────────────────
 function HomeView({ databaseId }: { databaseId: string }) {
-  // ── Top 10 brands (90d sales bar chart) ───────────────────────────────────
-  const [brandChartData, setBrandChartData] = useState<{ name: string; sales90: number }[]>([]);
-  const [brandChartLoading, setBrandChartLoading] = useState(false);
-
-  useEffect(() => {
-    if (!databaseId) return;
-    setBrandChartLoading(true);
-    fetch(`/api/calculated/brand-summary?databaseId=${encodeURIComponent(databaseId)}`)
-      .then(r => r.json())
-      .then(d => {
-        if (d.success && Array.isArray(d.brands)) {
-          const top10 = [...d.brands]
-            .sort((a: any, b: any) => b.sales90 - a.sales90)
-            .slice(0, 10)
-            .map((b: any) => ({ name: b.name, sales90: b.sales90 }));
-          setBrandChartData(top10);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setBrandChartLoading(false));
-  }, [databaseId]);
-
   // ── Top 10 sellers this week ───────────────────────────────────────────────
   const [topSellers, setTopSellers] = useState<{ name: string; code: string; brand: string; rev: number }[]>([]);
   const [topSellersLoading, setTopSellersLoading] = useState(false);
@@ -3268,59 +3246,9 @@ function HomeView({ databaseId }: { databaseId: string }) {
       .finally(() => setTopSellersLoading(false));
   }, [databaseId]);
 
-  // Bar chart max for scaling
-  const brandMax = brandChartData.reduce((m, b) => Math.max(m, b.sales90), 0);
-
-  // Interpolate indigo from dark (#4338ca) to light (#e0e7ff) across all bars
-  const barColor = (i: number, total: number) => {
-    const t = total <= 1 ? 0 : i / (total - 1);
-    const r = Math.round(67  + t * (224 - 67));
-    const g = Math.round(56  + t * (231 - 56));
-    const b = Math.round(202 + t * (255 - 202));
-    return `rgb(${r},${g},${b})`;
-  };
-
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-
-        {/* Top 10 Brands – 90d Sales Bar Chart */}
-        <div className="bg-white shadow-sm rounded-xl p-6 border border-gray-200">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-lg">🏆</div>
-            <div>
-              <h3 className="font-bold text-gray-800 text-sm leading-tight">Top 10 Brands</h3>
-              <p className="text-xs text-gray-400">Last 90 days sales</p>
-            </div>
-          </div>
-          {brandChartLoading && <p className="text-sm text-gray-400 py-8 text-center">Loading…</p>}
-          {!brandChartLoading && brandChartData.length === 0 && (
-            <p className="text-sm text-gray-400 py-8 text-center">No brand data yet. Sync your products first.</p>
-          )}
-          {!brandChartLoading && brandChartData.length > 0 && (
-            <div className="space-y-3">
-              {brandChartData.map((b, i) => {
-                const pct = brandMax > 0 ? (b.sales90 / brandMax) * 100 : 0;
-                return (
-                  <div key={b.name}>
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-xs font-medium text-gray-700 truncate max-w-[60%]">{b.name}</span>
-                      <span className="text-xs text-gray-500 font-mono">
-                        ${b.sales90.toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                      </span>
-                    </div>
-                    <div className="h-5 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{ width: `${pct}%`, backgroundColor: barColor(i, brandChartData.length) }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+      <div className="grid grid-cols-1 gap-5">
 
         {/* Top 10 Sellers This Week */}
         <div className="bg-white shadow-sm rounded-xl p-6 border border-gray-200">
