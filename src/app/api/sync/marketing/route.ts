@@ -271,7 +271,10 @@ export async function POST(req: Request) {
             });
             emit({ source: 'google-ads', status: 'error', error: 'Google Ads Customer ID not configured in Connections tab.' });
           } else {
-            const svc = new GoogleAdsService(customerId);
+            const refreshToken = conn?.google_ads_refresh_token
+              ? decrypt(conn.google_ads_refresh_token)
+              : '';
+            const svc = new GoogleAdsService(customerId, refreshToken);
             for (const tab of GADS_TABS) {
               emit({ tab: tab.key, label: tab.label, source: 'google-ads', status: 'start' });
               try {

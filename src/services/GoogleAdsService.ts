@@ -75,6 +75,25 @@ export class GoogleAdsService {
     `)
   }
 
+  async getCampaignSettings(campaignIds: string[]) {
+    const ids = [...new Set(campaignIds)]
+      .map((id) => String(id).trim())
+      .filter((id) => /^\d+$/.test(id));
+    if (ids.length === 0) return [];
+    return this.getCustomer().query(`
+      SELECT
+        customer.id, customer.currency_code,
+        campaign.id, campaign.name, campaign.status,
+        campaign_budget.id, campaign_budget.name,
+        campaign_budget.amount_micros,
+        campaign_budget.explicitly_shared,
+        campaign_budget.reference_count
+      FROM campaign
+      WHERE campaign.id IN (${ids.join(',')})
+        AND campaign.status != 'REMOVED'
+    `);
+  }
+
   // -- Ad Groups -------------------------------------------------------------------
   async getAdGroups(startDate: string, endDate: string) {
     return this.getCustomer().query(`

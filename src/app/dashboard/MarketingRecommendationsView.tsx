@@ -27,6 +27,7 @@ import {
   buildRecommendationImplementationPreview,
   type RecommendationImplementationPreview,
 } from '@/lib/foresight/implementationPreview';
+import type { ExecutionPreflightResult } from '@/lib/foresight/executionPreflight';
 import type { KlaviyoFlowCoverageEvidence, PaidMediaContributorEvidence } from '@/lib/foresight/types';
 import { MarketingStrategyPanel } from './MarketingStrategyPanel';
 
@@ -140,6 +141,10 @@ function money(value: number): string {
   return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(value);
 }
 
+function budgetMoney(amountMicros: number, currencyCode: string): string {
+  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: currencyCode || 'AUD' }).format(amountMicros / 1_000_000);
+}
+
 function metricValue(key: string, value: number | null): string {
   if (value == null) return 'Unavailable';
   if (key === 'spend' || key === 'onlineRevenueExTax' || key === 'contributionBeforeAds' || key === 'net_online_revenue_ex_tax') return money(value);
@@ -187,6 +192,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const [businessToday, setBusinessToday] = useState(() => new Date().toLocaleDateString('sv-SE'));
   const [implementationDate, setImplementationDate] = useState(() => new Date().toLocaleDateString('sv-SE'));
   const [implementationNote, setImplementationNote] = useState('');
+  const [preflight, setPreflight] = useState<ExecutionPreflightResult | null>(null);
   const [message, setMessage] = useState<{ kind: 'error' | 'success'; text: string } | null>(null);
   const isAdmin = userTier === 'Admin' || userTier === 'SuperAdmin';
 
@@ -226,6 +232,8 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const selectedPreview = selected
     ? buildRecommendationImplementationPreview(selected.channel as Parameters<typeof buildRecommendationImplementationPreview>[0], selected.proposed_action_json)
     : null;
+
+  useEffect(() => { setPreflight(null); }, [selectedId]);
 
   const evaluate = async () => {
     setWorking('evaluate');
@@ -292,6 +300,26 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
       await load();
     } catch (error) {
       setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to record implementation.' });
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  const runPreflight = async () => {
+    if (!selected?.proposal_hash) return;
+    setWorking('preflight');
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/foresight/marketing/recommendations/${selected.id}/preflight`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proposalHash: selected.proposal_hash }),
+      });
+      const body = await responseJson(response) as { preflight?: ExecutionPreflightResult; error?: string };
+      if (!response.ok || !body.preflight) throw new Error(body.error || 'Unable to run live preflight.');
+      setPreflight(body.preflight);
+    } catch (error) {
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to run live preflight.' });
     } finally {
       setWorking(null);
     }
@@ -517,6 +545,58 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                       {selectedPreview.guardrails.map((guardrail) => <li key={guardrail}>• {guardrail}</li>)}
                     </ul>
                   </div>
+                </div>
+              )}
+
+              {isAdmin && selected.state === 'approved' && selected.proposed_action_json?.type === 'review_budget_reduction' && (
+                <div className="border border-blue-200 bg-blue-50/40 px-4 py-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-900"><ShieldCheck size={15} /> Live execution preflight</h3>
+                      <p className="mt-2 text-sm leading-6 text-gray-700">Reads current Google campaign status and budget, then prepares an exact guarded change. It cannot submit platform changes.</p>
+                    </div>
+                    <button
+                      onClick={() => void runPreflight()}
+                      disabled={working != null || !selected.proposal_hash}
+                      className="inline-flex h-9 items-center gap-2 border border-blue-300 bg-white px-3 text-sm font-semibold text-blue-800 hover:bg-blue-50 disabled:opacity-50"
+                    >
+                      {working === 'preflight' ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                      Check live readiness
+                    </button>
+                  </div>
+                  {preflight && (
+                    <div className="mt-4 border-t border-blue-200 pt-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className={`text-sm font-semibold ${preflight.ready ? 'text-emerald-700' : 'text-amber-800'}`}>
+                          {preflight.ready ? 'Ready for operator review' : 'Blocked from execution'}
+                        </span>
+                        <span className="text-xs text-gray-500">Checked {dateTime(preflight.checkedAt)} · Preview only</span>
+                      </div>
+                      {preflight.changes.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          {preflight.changes.map((change) => (
+                            <div key={`${change.campaignId}:${change.budgetId}`} className="border border-blue-200 bg-white px-3 py-3">
+                              <div className="text-sm font-semibold text-gray-900">{change.campaignName}</div>
+                              <div className="mt-1 text-sm text-gray-700">
+                                {budgetMoney(change.currentAmountMicros, change.currencyCode)} → <strong>{budgetMoney(change.proposedAmountMicros, change.currencyCode)}</strong>
+                                <span className="ml-2 text-xs text-gray-500">-{change.reductionPercent}% · budget {change.budgetId}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {preflight.blockers.length > 0 && (
+                        <ul className="mt-3 space-y-2">
+                          {preflight.blockers.map((blocker, index) => (
+                            <li key={`${blocker.code}:${blocker.entityId ?? index}`} className="flex gap-2 text-sm leading-5 text-amber-900">
+                              <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                              <span>{blocker.message}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

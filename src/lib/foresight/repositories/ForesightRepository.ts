@@ -244,6 +244,18 @@ export const ForesightRepository = {
     return result.insertId;
   },
 
+  async getRecommendation(
+    businessId: string,
+    recommendationId: number,
+  ): Promise<RecommendationRow | null> {
+    const rows = await query<RecommendationRow>(
+      `SELECT * FROM foresight_recommendations
+       WHERE business_id = ? AND id = ? LIMIT 1`,
+      [businessId, recommendationId],
+    );
+    return rows[0] ? normalizeRecommendation(rows[0]) : null;
+  },
+
   async listRecommendations(
     businessId: string,
     states: RecommendationState[] = ['shadow', 'pending_approval', 'approved'],
