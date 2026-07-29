@@ -34,6 +34,24 @@ describe('ForesightIngestionRepository', () => {
     );
   });
 
+  it('loads the latest tenant-scoped tab outcome for snapshot quality gating', async () => {
+    mockQuery.mockResolvedValue([{
+      run_id: 72,
+      state: 'succeeded',
+      row_count: 8,
+      error_text: null,
+      completed_at: '2026-07-29 08:00:00',
+    }]);
+
+    await expect(ForesightIngestionRepository.getLatestSyncTabOutcome(
+      'business-1', 'klaviyo', 'Klaviyo_Flows',
+    )).resolves.toMatchObject({ run_id: 72, state: 'succeeded', row_count: 8 });
+    expect(mockQuery).toHaveBeenCalledWith(
+      expect.stringContaining('ORDER BY run_id DESC'),
+      ['business-1', 'klaviyo', 'Klaviyo_Flows'],
+    );
+  });
+
   it('stores daily observations with business and run ownership', async () => {
     await ForesightIngestionRepository.appendPaidMediaObservations(71, 'business-1', [{
       metricDate: '2026-07-28',

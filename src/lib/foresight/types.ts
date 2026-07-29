@@ -40,6 +40,19 @@ export interface RecommendationEvidence {
   quality: DataQualityResult;
   observedValues?: Record<string, number | null>;
   contributors?: PaidMediaContributorEvidence[];
+  lifecycleFlowCoverage?: KlaviyoFlowCoverageEvidence[];
+}
+
+export interface KlaviyoFlowCoverageEvidence {
+  category: 'welcome' | 'abandoned_cart' | 'browse_abandonment' | 'post_purchase' | 'win_back' | 'vip_loyalty';
+  label: string;
+  state: 'active' | 'inactive' | 'missing';
+  matchedFlows: Array<{
+    id: string;
+    name: string;
+    status: string;
+    archived: boolean;
+  }>;
 }
 
 export interface PaidMediaContributorEvidence {

@@ -37,6 +37,14 @@ export interface ForesightSyncRunRow {
   completed_at: string | null;
 }
 
+export interface ForesightSyncTabOutcomeRow {
+  run_id: number;
+  state: 'succeeded' | 'failed';
+  row_count: number;
+  error_text: string | null;
+  completed_at: string;
+}
+
 interface PaidMediaObservationRow {
   metric_date: string;
   source: PaidMediaSource;
@@ -74,6 +82,22 @@ interface CommerceObservationRow {
 }
 
 export const ForesightIngestionRepository = {
+  async getLatestSyncTabOutcome(
+    businessId: string,
+    source: ForesightSyncSource,
+    tabKey: string,
+  ): Promise<ForesightSyncTabOutcomeRow | null> {
+    const rows = await query<ForesightSyncTabOutcomeRow>(
+      `SELECT run_id, state, row_count, error_text, completed_at
+       FROM foresight_sync_tabs
+       WHERE business_id = ? AND source = ? AND tab_key = ?
+       ORDER BY run_id DESC
+       LIMIT 1`,
+      [businessId, source, tabKey],
+    );
+    return rows[0] ?? null;
+  },
+
   async listRecentSyncRuns(businessId: string, limit = 20): Promise<ForesightSyncRunRow[]> {
     const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
     const rows = await query<Omit<ForesightSyncRunRow, 'requested_sources'> & { requested_sources: string }>(

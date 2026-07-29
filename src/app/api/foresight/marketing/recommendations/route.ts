@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdminSession, requireAdminTier } from '@/lib/sessionUtils';
 import { ForesightRecommendationService } from '@/lib/foresight/ForesightRecommendationService';
+import { KlaviyoRecommendationService } from '@/lib/foresight/KlaviyoRecommendationService';
 import { ForesightRepository } from '@/lib/foresight/repositories/ForesightRepository';
 
 function isIsoDate(value: unknown): value is string {
@@ -41,6 +42,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'through must be a valid YYYY-MM-DD date.' }, { status: 400 });
   }
 
-  const result = await ForesightRecommendationService.evaluatePaidMedia(user.businessId, through);
-  return NextResponse.json({ success: true, ...result });
+  const [paidMedia, klaviyo] = await Promise.all([
+    ForesightRecommendationService.evaluatePaidMedia(user.businessId, through),
+    KlaviyoRecommendationService.evaluateLifecycle(user.businessId, through),
+  ]);
+  return NextResponse.json({
+    success: true,
+    recommendationCount: paidMedia.recommendationCount + klaviyo.recommendationCount,
+    expiredCount: paidMedia.expiredCount + klaviyo.expiredCount,
+    paidMedia,
+    klaviyo,
+  });
 }

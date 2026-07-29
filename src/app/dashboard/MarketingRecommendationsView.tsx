@@ -19,7 +19,7 @@ import {
   recommendationReasonLabel,
   type RecommendationTransitionAction,
 } from '@/lib/foresight/recommendationReasons';
-import type { PaidMediaContributorEvidence } from '@/lib/foresight/types';
+import type { KlaviyoFlowCoverageEvidence, PaidMediaContributorEvidence } from '@/lib/foresight/types';
 import { MarketingStrategyPanel } from './MarketingStrategyPanel';
 
 type RecommendationState = 'shadow' | 'pending_approval' | 'approved';
@@ -36,6 +36,7 @@ type Recommendation = {
     quality: { grade: string; issues: Array<{ code: string; severity: string; message: string }> };
     observedValues?: Record<string, number | null>;
     contributors?: PaidMediaContributorEvidence[];
+    lifecycleFlowCoverage?: KlaviyoFlowCoverageEvidence[];
   };
   proposed_action_json: Record<string, unknown> | null;
   proposal_hash: string | null;
@@ -63,11 +64,13 @@ const RULE_LABELS: Record<string, string> = {
   spend_without_online_revenue: 'Spend without online revenue',
   contribution_poas_below_one: 'Contribution POAS below configured floor',
   mer_deterioration: 'MER deterioration',
+  klaviyo_lifecycle_coverage_gap: 'Klaviyo lifecycle coverage gap',
 };
 const ACTION_LABELS: Record<string, string> = {
   investigate_measurement_and_spend: 'Investigate measurement and spend',
   review_budget_reduction: 'Review a capped budget reduction',
   review_channel_and_campaign_mix: 'Review channel and campaign mix',
+  review_klaviyo_lifecycle_flows: 'Review lifecycle flow coverage',
 };
 const METRIC_LABELS: Record<string, string> = {
   spend: 'Paid-media spend',
@@ -77,6 +80,11 @@ const METRIC_LABELS: Record<string, string> = {
   currentMer: 'Current MER',
   previousMer: 'Previous MER',
   deteriorationPercent: 'Deterioration',
+  flowCount: 'Klaviyo flows',
+  activeFlowCount: 'Active flows',
+  activeCriticalFlowCount: 'Critical flows active',
+  missingCriticalFlowCount: 'Critical flows missing',
+  inactiveCriticalFlowCount: 'Critical flows inactive',
 };
 const SIGNAL_LABELS: Record<PaidMediaContributorEvidence['signals'][number], string> = {
   new_spend: 'New spend',
@@ -354,11 +362,45 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                 </div>
               )}
 
+              {(selected.evidence_json.lifecycleFlowCoverage?.length ?? 0) > 0 && (
+                <div>
+                  <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-500">Lifecycle flow coverage</h3>
+                  <div className="divide-y divide-gray-200 border-y border-gray-200">
+                    {selected.evidence_json.lifecycleFlowCoverage?.map((coverage) => (
+                      <div key={coverage.category} className="flex items-start gap-3 py-3">
+                        <span className={`mt-0.5 shrink-0 ${coverage.state === 'active' ? 'text-emerald-600' : coverage.state === 'inactive' ? 'text-amber-600' : 'text-red-600'}`}>
+                          {coverage.state === 'active' ? <CheckCircle2 size={16} /> : coverage.state === 'inactive' ? <Clock3 size={16} /> : <AlertTriangle size={16} />}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-sm font-semibold text-gray-900">{coverage.label}</span>
+                            <span className={`text-xs font-semibold uppercase ${coverage.state === 'active' ? 'text-emerald-700' : coverage.state === 'inactive' ? 'text-amber-700' : 'text-red-700'}`}>
+                              {coverage.state}
+                            </span>
+                          </div>
+                          {coverage.matchedFlows.length > 0 && (
+                            <div className="mt-1 text-xs text-gray-500">
+                              {coverage.matchedFlows.map((flow) => `${flow.name} (${flow.archived ? 'archived' : flow.status || 'unknown'})`).join(', ')}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="border-y border-gray-200 py-4">
                 <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-500">Proposed response</h3>
                 <p className="text-sm font-semibold text-gray-900">{ACTION_LABELS[String(selected.proposed_action_json?.type ?? '')] ?? String(selected.proposed_action_json?.type ?? 'Review required')}</p>
                 {selected.proposed_action_json?.reason && <p className="mt-1 text-sm leading-6 text-gray-600">{String(selected.proposed_action_json.reason)}</p>}
                 {selected.proposed_action_json?.maximumReductionPercent != null && <p className="mt-2 text-sm text-gray-700">Maximum reduction for review: <strong>{String(selected.proposed_action_json.maximumReductionPercent)}%</strong></p>}
+                {Array.isArray(selected.proposed_action_json?.missingCategories) && selected.proposed_action_json.missingCategories.length > 0 && (
+                  <p className="mt-2 text-sm text-gray-700">Missing: <strong>{selected.proposed_action_json.missingCategories.map(String).join(', ')}</strong></p>
+                )}
+                {Array.isArray(selected.proposed_action_json?.inactiveCategories) && selected.proposed_action_json.inactiveCategories.length > 0 && (
+                  <p className="mt-2 text-sm text-gray-700">Inactive: <strong>{selected.proposed_action_json.inactiveCategories.map(String).join(', ')}</strong></p>
+                )}
                 <div className="mt-3 break-all font-mono text-[11px] text-gray-400">Proposal {selected.proposal_hash ?? 'No action payload'}</div>
               </div>
 

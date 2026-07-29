@@ -26,6 +26,7 @@ import {
 } from '@/lib/foresight/metrics/marketingObservations';
 import { ImsCommerceRepository } from '@/lib/foresight/repositories/ImsCommerceRepository';
 import { ForesightRecommendationService } from '@/lib/foresight/ForesightRecommendationService';
+import { KlaviyoRecommendationService } from '@/lib/foresight/KlaviyoRecommendationService';
 
 /** Extract a readable message from any error shape (Google Ads API returns e.errors[0].message). */
 function errorMessage(e: any): string {
@@ -691,7 +692,7 @@ export async function POST(req: Request) {
               databaseId,
               addDays(endDate, -1),
             );
-            recommendationCount = evaluation.recommendationCount;
+            recommendationCount = (recommendationCount ?? 0) + evaluation.recommendationCount;
             emit({
               source: 'foresight',
               status: 'done',
@@ -701,6 +702,29 @@ export async function POST(req: Request) {
           } catch (evaluationError) {
             emit({
               source: 'foresight',
+              status: 'error',
+              error: errorMessage(evaluationError),
+            });
+          }
+        }
+        if (sources.includes('klaviyo')) {
+          try {
+            const evaluation = await KlaviyoRecommendationService.evaluateLifecycle(
+              databaseId,
+              addDays(endDate, -1),
+            );
+            recommendationCount = (recommendationCount ?? 0) + evaluation.recommendationCount;
+            emit({
+              source: 'foresight-klaviyo',
+              status: 'done',
+              recommendations: evaluation.recommendationCount,
+              expiredRecommendations: evaluation.expiredCount,
+              skipped: evaluation.skipped,
+              skipReason: 'skipReason' in evaluation ? evaluation.skipReason : null,
+            });
+          } catch (evaluationError) {
+            emit({
+              source: 'foresight-klaviyo',
               status: 'error',
               error: errorMessage(evaluationError),
             });

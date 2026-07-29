@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockRequireAdminSession, mockRequireAdminTier, mockEvaluate, mockList, mockListEvents } = vi.hoisted(() => ({
+const { mockRequireAdminSession, mockRequireAdminTier, mockEvaluate, mockEvaluateKlaviyo, mockList, mockListEvents } = vi.hoisted(() => ({
   mockRequireAdminSession: vi.fn(),
   mockRequireAdminTier: vi.fn(),
   mockEvaluate: vi.fn(),
+  mockEvaluateKlaviyo: vi.fn(),
   mockList: vi.fn(),
   mockListEvents: vi.fn(),
 }));
@@ -14,6 +15,9 @@ vi.mock('@/lib/sessionUtils', () => ({
 }));
 vi.mock('@/lib/foresight/ForesightRecommendationService', () => ({
   ForesightRecommendationService: { evaluatePaidMedia: mockEvaluate },
+}));
+vi.mock('@/lib/foresight/KlaviyoRecommendationService', () => ({
+  KlaviyoRecommendationService: { evaluateLifecycle: mockEvaluateKlaviyo },
 }));
 vi.mock('@/lib/foresight/repositories/ForesightRepository', () => ({
   ForesightRepository: { listRecommendations: mockList, listRecommendationEvents: mockListEvents },
@@ -27,6 +31,7 @@ describe('/api/foresight/marketing/recommendations', () => {
     mockRequireAdminSession.mockReturnValue({ user: { businessId: 'business-1' } });
     mockRequireAdminTier.mockReturnValue({ user: { businessId: 'business-1' } });
     mockEvaluate.mockResolvedValue({ recommendationCount: 0, recommendations: [] });
+    mockEvaluateKlaviyo.mockResolvedValue({ recommendationCount: 0, expiredCount: 0, recommendations: [], skipped: true });
     mockList.mockResolvedValue([]);
     mockListEvents.mockResolvedValue([]);
   });
@@ -39,6 +44,7 @@ describe('/api/foresight/marketing/recommendations', () => {
 
     expect(response.status).toBe(200);
     expect(mockEvaluate).toHaveBeenCalledWith('business-1', '2026-07-28');
+    expect(mockEvaluateKlaviyo).toHaveBeenCalledWith('business-1', '2026-07-28');
   });
 
   it('rejects invalid evaluation dates', async () => {
