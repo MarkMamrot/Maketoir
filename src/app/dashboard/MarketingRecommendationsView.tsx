@@ -28,6 +28,7 @@ import {
   type RecommendationImplementationPreview,
 } from '@/lib/foresight/implementationPreview';
 import type { ExecutionPreflightResult } from '@/lib/foresight/executionPreflight';
+import type { MetaExecutionPreflightResult } from '@/lib/foresight/metaExecutionPreflight';
 import type { RollbackPreflightResult } from '@/lib/foresight/rollbackPreflight';
 import type { KlaviyoFlowCoverageEvidence, PaidMediaContributorEvidence } from '@/lib/foresight/types';
 import { MarketingStrategyPanel } from './MarketingStrategyPanel';
@@ -168,6 +169,12 @@ function budgetMoney(amountMicros: number, currencyCode: string): string {
   return new Intl.NumberFormat('en-AU', { style: 'currency', currency: currencyCode || 'AUD' }).format(amountMicros / 1_000_000);
 }
 
+function minorUnitMoney(amountMinor: number, currencyCode: string): string {
+  const formatter = new Intl.NumberFormat('en-AU', { style: 'currency', currency: currencyCode || 'AUD' });
+  const fractionDigits = formatter.resolvedOptions().maximumFractionDigits;
+  return formatter.format(amountMinor / (10 ** fractionDigits));
+}
+
 function metricValue(key: string, value: number | null): string {
   if (value == null) return 'Unavailable';
   if (key === 'spend' || key === 'onlineRevenueExTax' || key === 'contributionBeforeAds' || key === 'net_online_revenue_ex_tax') return money(value);
@@ -222,6 +229,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const [implementationDate, setImplementationDate] = useState(() => new Date().toLocaleDateString('sv-SE'));
   const [implementationNote, setImplementationNote] = useState('');
   const [preflight, setPreflight] = useState<ExecutionPreflightResult | null>(null);
+  const [metaPreflight, setMetaPreflight] = useState<MetaExecutionPreflightResult | null>(null);
   const [executionConfirmed, setExecutionConfirmed] = useState(false);
   const [rollbackPreflight, setRollbackPreflight] = useState<RollbackPreflightResult | null>(null);
   const [rollbackConfirmed, setRollbackConfirmed] = useState(false);
@@ -271,6 +279,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
 
   useEffect(() => {
     setPreflight(null);
+    setMetaPreflight(null);
     setExecutionConfirmed(false);
     setRollbackPreflight(null);
     setRollbackConfirmed(false);
@@ -362,6 +371,26 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
       setPreflight(body.preflight);
     } catch (error) {
       setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to run live preflight.' });
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  const runMetaPreflight = async () => {
+    if (!selected?.proposal_hash) return;
+    setWorking('meta_preflight');
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/foresight/marketing/recommendations/${selected.id}/meta/preflight`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proposalHash: selected.proposal_hash }),
+      });
+      const body = await responseJson(response) as { preflight?: MetaExecutionPreflightResult; error?: string };
+      if (!response.ok || !body.preflight) throw new Error(body.error || 'Unable to run Meta readiness check.');
+      setMetaPreflight(body.preflight);
+    } catch (error) {
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to run Meta readiness check.' });
     } finally {
       setWorking(null);
     }
@@ -765,6 +794,65 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                             </button>
                           </div>
                         </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {isAdmin && selected.state === 'approved' && selected.proposed_action_json?.type === 'review_budget_reduction'
+                && selected.evidence_json.contributors?.some((item) => item.source === 'meta_ads') && (
+                <div className="border border-sky-200 bg-sky-50/40 px-4 py-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-sky-900"><ShieldCheck size={15} /> Meta budget ownership check</h3>
+                      <p className="mt-2 text-sm leading-6 text-gray-700">Reads the live Meta account, campaign, and ad-set settings to identify which entity controls each daily budget. This check cannot submit changes.</p>
+                    </div>
+                    <button
+                      onClick={() => void runMetaPreflight()}
+                      disabled={working != null || !selected.proposal_hash}
+                      className="inline-flex h-9 items-center gap-2 border border-sky-300 bg-white px-3 text-sm font-semibold text-sky-800 hover:bg-sky-50 disabled:opacity-50"
+                    >
+                      {working === 'meta_preflight' ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                      Check Meta readiness
+                    </button>
+                  </div>
+                  {metaPreflight && (
+                    <div className="mt-4 border-t border-sky-200 pt-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className={`text-sm font-semibold ${metaPreflight.ready ? 'text-emerald-700' : 'text-amber-800'}`}>
+                          {metaPreflight.ready ? 'Exact read-only proposal available' : 'Budget ownership blocked'}
+                        </span>
+                        <span className="text-xs text-gray-500">Checked {dateTime(metaPreflight.checkedAt)} · Diagnostics only</span>
+                      </div>
+                      {metaPreflight.changes.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          {metaPreflight.changes.map((change) => (
+                            <div key={`${change.entityType}:${change.entityId}`} className="border border-sky-200 bg-white px-3 py-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className="text-sm font-semibold text-gray-900">{change.entityName}</span>
+                                <span className="text-xs font-semibold uppercase text-sky-800">{change.entityType}</span>
+                              </div>
+                              <div className="mt-1 text-sm text-gray-700">
+                                {minorUnitMoney(change.currentDailyBudgetMinor, change.currencyCode)} → <strong>{minorUnitMoney(change.proposedDailyBudgetMinor, change.currencyCode)}</strong>
+                                <span className="ml-2 text-xs text-gray-500">-{change.reductionPercent}% daily budget · no write enabled</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {metaPreflight.blockers.length > 0 && (
+                        <ul className="mt-3 space-y-2">
+                          {metaPreflight.blockers.map((blocker, index) => (
+                            <li key={`${blocker.code}:${blocker.entityId ?? index}`} className="flex gap-2 text-sm leading-5 text-amber-900">
+                              <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                              <span>{blocker.message}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {metaPreflight.ready && (
+                        <p className="mt-4 border-t border-sky-200 pt-3 text-xs leading-5 text-gray-600">Meta execution remains disabled. Apply any reviewed change directly in Meta Ads Manager and record it as an external implementation.</p>
                       )}
                     </div>
                   )}
