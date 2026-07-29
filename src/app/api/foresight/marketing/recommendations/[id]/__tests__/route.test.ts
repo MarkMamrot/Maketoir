@@ -1,16 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockRequireAdminTier, mockRequestApproval, mockDecide } = vi.hoisted(() => ({
+const { mockRequireAdminTier, mockRequestApproval, mockDecide, mockAttest } = vi.hoisted(() => ({
   mockRequireAdminTier: vi.fn(),
   mockRequestApproval: vi.fn(),
   mockDecide: vi.fn(),
+  mockAttest: vi.fn(),
 }));
 
 vi.mock('@/lib/sessionUtils', () => ({ requireAdminTier: mockRequireAdminTier }));
+vi.mock('@/lib/db/BusinessRegistry', () => ({
+  runImsForBusiness: vi.fn(async (_businessId, callback) => callback()),
+}));
+vi.mock('@/lib/ims/businessTimeZone', () => ({
+  DEFAULT_BUSINESS_TIME_ZONE: 'Australia/Sydney',
+  getBusinessTimeZone: vi.fn().mockResolvedValue('Australia/Sydney'),
+}));
 vi.mock('@/lib/foresight/repositories/ForesightRepository', () => ({
   ForesightRepository: {
     requestRecommendationApproval: mockRequestApproval,
     decideRecommendation: mockDecide,
+    attestRecommendationImplementation: mockAttest,
   },
 }));
 
@@ -69,6 +78,42 @@ describe('PATCH /api/foresight/marketing/recommendations/[id]', () => {
     }), { params: { id: '42' } });
 
     expect(response.status).toBe(409);
+  });
+
+  it('records external implementation with tenant, actor, hash, date, and required detail', async () => {
+    const response = await PATCH(request({
+      action: 'attest_implemented',
+      proposalHash: 'hash-1',
+      implementedOn: '2026-07-29',
+      note: 'Reduced Meta Prospecting daily budget from $100 to $92.',
+    }), { params: { id: '42' } });
+
+    expect(response.status).toBe(200);
+    expect(mockAttest).toHaveBeenCalledWith(
+      'business-1',
+      42,
+      7,
+      'hash-1',
+      '2026-07-29',
+      'Reduced Meta Prospecting daily budget from $100 to $92.',
+    );
+  });
+
+  it('rejects future or undocumented implementation attestations', async () => {
+    const future = await PATCH(request({
+      action: 'attest_implemented', proposalHash: 'hash-1', implementedOn: '2099-01-01', note: 'Changed.',
+    }), { params: { id: '42' } });
+    const empty = await PATCH(request({
+      action: 'attest_implemented', proposalHash: 'hash-1', implementedOn: '2026-07-29', note: '',
+    }), { params: { id: '42' } });
+    const impossible = await PATCH(request({
+      action: 'attest_implemented', proposalHash: 'hash-1', implementedOn: '2026-02-30', note: 'Changed.',
+    }), { params: { id: '42' } });
+
+    expect(future.status).toBe(400);
+    expect(empty.status).toBe(400);
+    expect(impossible.status).toBe(400);
+    expect(mockAttest).not.toHaveBeenCalled();
   });
 
   it('requires an action-specific structured reason', async () => {

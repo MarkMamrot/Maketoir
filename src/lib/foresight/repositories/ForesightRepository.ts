@@ -3,6 +3,10 @@ import { execute, getPool, query } from '@/services/MySQLService';
 import { assertRecommendationTransition } from '../recommendationState';
 import type { ForesightChannel, RecommendationEvidence, RecommendationState } from '../types';
 import type { RecommendationOutcomeAssessment } from '../recommendationOutcomes';
+import {
+  buildRecommendationImplementationPreview,
+  type RecommendationImplementationPreview,
+} from '../implementationPreview';
 
 export interface StrategyVersionRow {
   id: number;
@@ -50,6 +54,21 @@ export interface RecommendationEventRow {
 export interface RecommendationOutcomeCandidateRow extends RecommendationRow {
   decision: 'approved' | 'rejected';
   decided_at: string;
+  reference_at: string;
+}
+
+export interface RecommendationImplementationRow {
+  id: number;
+  business_id: string;
+  recommendation_id: number;
+  approval_id: number;
+  proposal_hash: string;
+  method: 'manual_external';
+  implemented_on: string;
+  implemented_by: number;
+  note: string;
+  preview_json: RecommendationImplementationPreview;
+  created_at: string;
 }
 
 export interface RecommendationOutcomeRow {
@@ -269,6 +288,21 @@ export const ForesightRepository = {
     return rows.map((row) => ({ ...row, assessment_json: parseJson(row.assessment_json) }));
   },
 
+  async listRecommendationImplementations(
+    businessId: string,
+    recommendationIds: number[],
+  ): Promise<RecommendationImplementationRow[]> {
+    if (recommendationIds.length === 0) return [];
+    const placeholders = recommendationIds.map(() => '?').join(',');
+    const rows = await query<RecommendationImplementationRow>(
+      `SELECT * FROM foresight_recommendation_implementations
+       WHERE business_id = ? AND recommendation_id IN (${placeholders})
+       ORDER BY implemented_on ASC, id ASC`,
+      [businessId, ...recommendationIds],
+    );
+    return rows.map((row) => ({ ...row, preview_json: parseJson(row.preview_json) }));
+  },
+
   async listRecommendationOutcomeCandidates(
     businessId: string,
     throughDate: string,
@@ -276,10 +310,13 @@ export const ForesightRepository = {
   ): Promise<RecommendationOutcomeCandidateRow[]> {
     const safeHorizonDays = Math.max(1, Math.trunc(horizonDays));
     const rows = await query<RecommendationOutcomeCandidateRow>(
-      `SELECT r.*, a.decision, a.created_at AS decided_at
+      `SELECT r.*, a.decision, a.created_at AS decided_at,
+              CASE WHEN a.decision = 'approved' THEN i.implemented_on ELSE DATE(a.created_at) END AS reference_at
        FROM foresight_recommendations r
        INNER JOIN foresight_approvals a
          ON a.business_id = r.business_id AND a.recommendation_id = r.id
+       LEFT JOIN foresight_recommendation_implementations i
+         ON i.business_id = r.business_id AND i.recommendation_id = r.id
        LEFT JOIN foresight_recommendation_outcomes o
          ON o.business_id = r.business_id
         AND o.recommendation_id = r.id
@@ -287,12 +324,97 @@ export const ForesightRepository = {
        WHERE r.business_id = ?
          AND r.channel = 'paid_media'
          AND a.decision IN ('approved', 'rejected')
-         AND DATE_ADD(DATE(a.created_at), INTERVAL ${safeHorizonDays} DAY) <= ?
+         AND (a.decision = 'rejected' OR i.id IS NOT NULL)
+         AND DATE_ADD(
+           CASE WHEN a.decision = 'approved' THEN i.implemented_on ELSE DATE(a.created_at) END,
+           INTERVAL ${safeHorizonDays} DAY
+         ) <= ?
          AND o.id IS NULL
        ORDER BY a.created_at ASC, r.id ASC`,
       [safeHorizonDays, businessId, throughDate],
     );
-    return rows.map((row) => ({ ...normalizeRecommendation(row), decision: row.decision, decided_at: row.decided_at }));
+    return rows.map((row) => ({
+      ...normalizeRecommendation(row),
+      decision: row.decision,
+      decided_at: row.decided_at,
+      reference_at: row.reference_at,
+    }));
+  },
+
+  async attestRecommendationImplementation(
+    businessId: string,
+    recommendationId: number,
+    implementedBy: number,
+    proposalHash: string,
+    implementedOn: string,
+    note: string,
+  ): Promise<number> {
+    const pool = getPool();
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [recommendationRows] = await connection.execute(
+        `SELECT state, proposal_hash, channel, proposed_action_json FROM foresight_recommendations
+         WHERE business_id = ? AND id = ? FOR UPDATE`,
+        [businessId, recommendationId],
+      );
+      const recommendation = (recommendationRows as Array<{
+        state: RecommendationState;
+        proposal_hash: string | null;
+        channel: ForesightChannel;
+        proposed_action_json: Record<string, unknown> | string | null;
+      }>)[0];
+      if (!recommendation) throw new Error('Foresight recommendation not found.');
+      if (recommendation.state !== 'approved') {
+        throw new Error('Only approved Foresight recommendations can be recorded as implemented.');
+      }
+      if (!recommendation.proposal_hash || recommendation.proposal_hash !== proposalHash) {
+        throw new Error('Foresight proposal changed; refresh before recording implementation.');
+      }
+
+      const [approvalRows] = await connection.execute(
+        `SELECT id, DATE_FORMAT(created_at, '%Y-%m-%d') AS approved_on FROM foresight_approvals
+         WHERE business_id = ? AND recommendation_id = ? AND decision = 'approved'
+         ORDER BY created_at DESC, id DESC LIMIT 1 FOR UPDATE`,
+        [businessId, recommendationId],
+      );
+      const approval = (approvalRows as Array<{ id: number; approved_on: string }>)[0];
+      if (!approval) throw new Error('Approved Foresight decision not found.');
+      if (implementedOn < approval.approved_on) {
+        throw new Error('Implementation date cannot be before approval.');
+      }
+      const proposedAction = recommendation.proposed_action_json == null
+        ? null
+        : parseJson(recommendation.proposed_action_json);
+      const preview = buildRecommendationImplementationPreview(
+        recommendation.channel,
+        proposedAction,
+      );
+
+      const [result] = await connection.execute(
+        `INSERT INTO foresight_recommendation_implementations
+           (business_id, recommendation_id, approval_id, proposal_hash, method,
+            implemented_on, implemented_by, note, preview_json)
+         VALUES (?, ?, ?, ?, 'manual_external', ?, ?, ?, ?)`,
+        [
+          businessId,
+          recommendationId,
+          approval.id,
+          proposalHash,
+          implementedOn,
+          implementedBy,
+          note,
+          JSON.stringify(preview),
+        ],
+      );
+      await connection.commit();
+      return (result as { insertId: number }).insertId;
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   },
 
   async createRecommendationOutcome(

@@ -24,9 +24,9 @@ export const ForesightOutcomeService = {
     let deferredCount = 0;
 
     for (const candidate of candidates) {
-      const decisionDate = candidate.decided_at.slice(0, 10);
-      const followupStart = addDays(decisionDate, 1);
-      const followupEnd = addDays(decisionDate, PAID_MEDIA_OUTCOME_HORIZON_DAYS);
+      const referenceDate = candidate.reference_at.slice(0, 10);
+      const followupStart = addDays(referenceDate, 1);
+      const followupEnd = addDays(referenceDate, PAID_MEDIA_OUTCOME_HORIZON_DAYS);
       const metrics = await ForesightMetricsService.getDailyMarketingMetrics(
         businessId,
         followupStart,

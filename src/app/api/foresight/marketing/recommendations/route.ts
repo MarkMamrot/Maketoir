@@ -4,6 +4,8 @@ import { ForesightRecommendationService } from '@/lib/foresight/ForesightRecomme
 import { KlaviyoRecommendationService } from '@/lib/foresight/KlaviyoRecommendationService';
 import { ForesightOutcomeService } from '@/lib/foresight/ForesightOutcomeService';
 import { ForesightRepository } from '@/lib/foresight/repositories/ForesightRepository';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { DEFAULT_BUSINESS_TIME_ZONE, getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 
 function isIsoDate(value: unknown): value is string {
   return typeof value === 'string'
@@ -28,11 +30,17 @@ export async function GET() {
     'rejected',
   ]);
   const recommendationIds = recommendations.map((recommendation) => recommendation.id);
-  const [events, outcomes] = await Promise.all([
+  const timeZone = await runImsForBusiness(
+    user.businessId,
+    () => getBusinessTimeZone(user.businessId),
+  ).catch(() => DEFAULT_BUSINESS_TIME_ZONE);
+  const businessToday = new Date().toLocaleDateString('sv-SE', { timeZone });
+  const [events, outcomes, implementations] = await Promise.all([
     ForesightRepository.listRecommendationEvents(user.businessId, recommendationIds),
     ForesightRepository.listRecommendationOutcomes(user.businessId, recommendationIds),
+    ForesightRepository.listRecommendationImplementations(user.businessId, recommendationIds),
   ]);
-  return NextResponse.json({ success: true, recommendations, events, outcomes });
+  return NextResponse.json({ success: true, recommendations, events, outcomes, implementations, businessToday });
 }
 
 export async function POST(request: Request) {

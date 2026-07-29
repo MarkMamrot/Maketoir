@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockRequireAdminSession, mockRequireAdminTier, mockEvaluate, mockEvaluateKlaviyo, mockEvaluateOutcomes, mockList, mockListEvents, mockListOutcomes } = vi.hoisted(() => ({
+const { mockRequireAdminSession, mockRequireAdminTier, mockEvaluate, mockEvaluateKlaviyo, mockEvaluateOutcomes, mockList, mockListEvents, mockListOutcomes, mockListImplementations } = vi.hoisted(() => ({
   mockRequireAdminSession: vi.fn(),
   mockRequireAdminTier: vi.fn(),
   mockEvaluate: vi.fn(),
@@ -9,11 +9,19 @@ const { mockRequireAdminSession, mockRequireAdminTier, mockEvaluate, mockEvaluat
   mockList: vi.fn(),
   mockListEvents: vi.fn(),
   mockListOutcomes: vi.fn(),
+  mockListImplementations: vi.fn(),
 }));
 
 vi.mock('@/lib/sessionUtils', () => ({
   requireAdminSession: mockRequireAdminSession,
   requireAdminTier: mockRequireAdminTier,
+}));
+vi.mock('@/lib/db/BusinessRegistry', () => ({
+  runImsForBusiness: vi.fn(async (_businessId, callback) => callback()),
+}));
+vi.mock('@/lib/ims/businessTimeZone', () => ({
+  DEFAULT_BUSINESS_TIME_ZONE: 'Australia/Sydney',
+  getBusinessTimeZone: vi.fn().mockResolvedValue('Australia/Sydney'),
 }));
 vi.mock('@/lib/foresight/ForesightRecommendationService', () => ({
   ForesightRecommendationService: { evaluatePaidMedia: mockEvaluate },
@@ -29,6 +37,7 @@ vi.mock('@/lib/foresight/repositories/ForesightRepository', () => ({
     listRecommendations: mockList,
     listRecommendationEvents: mockListEvents,
     listRecommendationOutcomes: mockListOutcomes,
+    listRecommendationImplementations: mockListImplementations,
   },
 }));
 
@@ -44,6 +53,7 @@ describe('/api/foresight/marketing/recommendations', () => {
     mockList.mockResolvedValue([]);
     mockListEvents.mockResolvedValue([]);
     mockListOutcomes.mockResolvedValue([]);
+    mockListImplementations.mockResolvedValue([]);
     mockEvaluateOutcomes.mockResolvedValue({ measuredCount: 0, deferredCount: 0, outcomes: [] });
   });
 
@@ -76,5 +86,6 @@ describe('/api/foresight/marketing/recommendations', () => {
     expect(mockList).toHaveBeenCalledWith('business-1', ['shadow', 'pending_approval', 'approved', 'rejected']);
     expect(mockListEvents).toHaveBeenCalledWith('business-1', []);
     expect(mockListOutcomes).toHaveBeenCalledWith('business-1', []);
+    expect(mockListImplementations).toHaveBeenCalledWith('business-1', []);
   });
 });

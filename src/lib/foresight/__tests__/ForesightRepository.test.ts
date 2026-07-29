@@ -118,6 +118,49 @@ describe('ForesightRepository', () => {
     );
   });
 
+  it('records external implementation transactionally from the stored approved proposal', async () => {
+    mockConnection.execute
+      .mockResolvedValueOnce([[{
+        state: 'approved',
+        proposal_hash: 'hash-1',
+        channel: 'paid_media',
+        proposed_action_json: JSON.stringify({ type: 'review_budget_reduction', maximumReductionPercent: 8 }),
+      }]])
+      .mockResolvedValueOnce([[{ id: 12, approved_on: '2026-07-28' }]])
+      .mockResolvedValueOnce([{ insertId: 91 }]);
+
+    await expect(ForesightRepository.attestRecommendationImplementation(
+      'business-1', 42, 7, 'hash-1', '2026-07-29', 'Reduced Meta campaign budget to $92.',
+    )).resolves.toBe(91);
+
+    expect(mockConnection.execute).toHaveBeenLastCalledWith(
+      expect.stringContaining('INSERT INTO foresight_recommendation_implementations'),
+      expect.arrayContaining([
+        'business-1', 42, 12, 'hash-1', '2026-07-29', 7,
+        'Reduced Meta campaign budget to $92.',
+      ]),
+    );
+    const insertArguments = mockConnection.execute.mock.calls.at(-1)?.[1] as unknown[];
+    expect(JSON.parse(String(insertArguments.at(-1)))).toMatchObject({
+      mode: 'manual_external',
+      executable: false,
+    });
+    expect(mockConnection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('rejects implementation before the approval date', async () => {
+    mockConnection.execute
+      .mockResolvedValueOnce([[{
+        state: 'approved', proposal_hash: 'hash-1', channel: 'paid_media', proposed_action_json: null,
+      }]])
+      .mockResolvedValueOnce([[{ id: 12, approved_on: '2026-07-29' }]]);
+
+    await expect(ForesightRepository.attestRecommendationImplementation(
+      'business-1', 42, 7, 'hash-1', '2026-07-28', 'Changed externally.',
+    )).rejects.toThrow('before approval');
+    expect(mockConnection.rollback).toHaveBeenCalledOnce();
+  });
+
   it('requests approval transactionally only when the proposal hash still matches', async () => {
     mockConnection.execute
       .mockResolvedValueOnce([[{ state: 'shadow', proposal_hash: 'hash-1' }]])

@@ -35,6 +35,7 @@ const candidate = {
   rule_id: 'mer_deterioration',
   decision: 'approved',
   decided_at: '2026-07-10 14:30:00',
+  reference_at: '2026-07-10',
   evidence_json: {
     windowStart: '2026-07-01',
     windowEnd: '2026-07-07',
@@ -77,6 +78,21 @@ describe('ForesightOutcomeService', () => {
       followupEnd: '2026-07-17',
     }));
     expect(result).toMatchObject({ candidateCount: 1, measuredCount: 1, deferredCount: 0 });
+  });
+
+  it('anchors approved follow-up to implementation rather than approval', async () => {
+    mockCandidates.mockResolvedValue([{ ...candidate, reference_at: '2026-07-15' }]);
+    mockGetMetrics.mockResolvedValue({
+      reconciliation: Array.from({ length: 7 }, (_, index) => ({ metricDate: `2026-07-${String(index + 16).padStart(2, '0')}` })),
+    });
+
+    await ForesightOutcomeService.evaluateDuePaidMedia('business-1', '2026-07-29');
+
+    expect(mockGetMetrics).toHaveBeenCalledWith('business-1', '2026-07-16', '2026-07-22');
+    expect(mockCreateOutcome).toHaveBeenCalledWith('business-1', expect.objectContaining({
+      followupStart: '2026-07-16',
+      followupEnd: '2026-07-22',
+    }));
   });
 
   it('defers incomplete windows so a later ingestion can retry them', async () => {

@@ -418,6 +418,22 @@ CREATE TABLE IF NOT EXISTS foresight_recommendation_events (
   INDEX idx_foresight_recommendation_event (business_id, recommendation_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS foresight_recommendation_implementations (
+  id                 BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id        VARCHAR(100) NOT NULL,
+  recommendation_id  BIGINT NOT NULL,
+  approval_id        BIGINT NOT NULL,
+  proposal_hash      VARCHAR(64) NOT NULL,
+  method             VARCHAR(32) NOT NULL DEFAULT 'manual_external',
+  implemented_on     DATE NOT NULL,
+  implemented_by     INT NOT NULL,
+  note               VARCHAR(1000) NOT NULL,
+  preview_json       JSON NOT NULL,
+  created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_foresight_recommendation_implementation (business_id, recommendation_id),
+  INDEX idx_foresight_implementation_activity (business_id, implemented_on, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS foresight_recommendation_outcomes (
   id                 BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id        VARCHAR(100) NOT NULL,
