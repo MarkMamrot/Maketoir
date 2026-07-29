@@ -1056,9 +1056,9 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
             )}
           </div>
 
-          <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: 'minmax(420px, 1fr) minmax(300px, 1fr)', gap: 18, alignItems: 'start' }}>
+          <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 18, alignItems: 'flex-start' }}>
             {/* ── Sales by Channel ── */}
-            <div>
+            <div style={{ width: 'min(100%, 75%)', minWidth: 420 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales and Gross Profit by Channel</div>
                 <div style={{ display: 'flex', gap: 6 }}>
@@ -1270,7 +1270,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
             </div>
 
             {/* Top 10 Brands */}
-            <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px' }}>
+            <div style={{ width: 'min(100%, 50%)', minWidth: 300, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                 <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(129,140,248,.16)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>🏷️</div>
                 <div>
