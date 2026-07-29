@@ -1,0 +1,56 @@
+/**
+ * Creates the shared main-database Foresight control-plane tables.
+ * Dry-run by default. Pass --apply to execute.
+ */
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import mysql from 'mysql2/promise';
+import 'dotenv/config';
+
+const apply = process.argv.includes('--apply');
+const schemaPath = path.join(process.cwd(), 'scripts', 'marketoir-schema.sql');
+const schema = await fs.readFile(schemaPath, 'utf8');
+const tableNames = [
+  'foresight_strategy_versions',
+  'foresight_recommendations',
+  'foresight_approvals',
+  'foresight_recommendation_events',
+  'foresight_executions',
+  'foresight_sync_runs',
+  'foresight_sync_tabs',
+  'foresight_marketing_observations',
+  'foresight_commerce_observations',
+];
+
+const statements = tableNames.map((tableName) => {
+  const marker = `CREATE TABLE IF NOT EXISTS ${tableName}`;
+  const start = schema.indexOf(marker);
+  if (start < 0) throw new Error(`Missing ${marker} in scripts/marketoir-schema.sql`);
+  const end = schema.indexOf(';', start);
+  if (end < 0) throw new Error(`Unterminated CREATE TABLE for ${tableName}`);
+  return schema.slice(start, end + 1);
+});
+
+if (!apply) {
+  console.log(`Dry run: would create or verify ${statements.length} Foresight tables in ${process.env.MYSQL_DATABASE || '(unset database)'}.`);
+  console.log('Re-run with --apply to execute.');
+  process.exit(0);
+}
+
+const connection = await mysql.createConnection({
+  host: process.env.MYSQL_HOST,
+  port: Number(process.env.MYSQL_PORT) || 3306,
+  user: process.env.MYSQL_USER,
+  password: process.env.MYSQL_PASSWORD,
+  database: process.env.MYSQL_DATABASE,
+  multipleStatements: false,
+});
+
+try {
+  for (const statement of statements) {
+    await connection.execute(statement);
+  }
+  console.log(`Created or verified ${statements.length} Foresight tables.`);
+} finally {
+  await connection.end();
+}

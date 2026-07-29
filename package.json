@@ -22,6 +22,7 @@
     "facebook-nodejs-business-sdk": "^18.0.2",
     "google-ads-api": "^23.0.0",
     "googleapis": "^134.0.0",
+    "lucide-react": "^1.27.0",
     "mysql2": "^3.22.3",
     "next": "14.2.35",
     "pdf-lib": "^1.17.1",

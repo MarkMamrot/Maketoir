@@ -44,6 +44,18 @@ export class GoogleAdsService {
     `);
   }
 
+  async getDailyPerformance(startDate: string, endDate: string) {
+    return this.getCustomer().query(`
+      SELECT
+        segments.date, customer.currency_code,
+        metrics.impressions, metrics.clicks, metrics.cost_micros,
+        metrics.conversions, metrics.conversions_value
+      FROM campaign
+      WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
+        AND campaign.status != 'REMOVED'
+    `);
+  }
+
   // â”€â”€ Campaigns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async getCampaigns(startDate: string, endDate: string) {
     // Note: search impression share metrics are only valid for Search/Shopping;

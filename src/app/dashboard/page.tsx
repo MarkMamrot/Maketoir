@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { SpaceAnalysisView } from './SpaceAnalysisView';
 import { StockTurnoverView } from './StockTurnoverView';
 import { CustomerServiceView } from './CustomerServiceView';
+import { MarketingRecommendationsView } from './MarketingRecommendationsView';
 import { AppearanceTab, BusinessInfoTab, BrandProfileTab, ConnectionsTab, DataSourceTab } from '../setup/page';
 import { AI_DATA_SOURCES } from '@/lib/aiDataSources';
 
@@ -50,6 +51,7 @@ const NAV: NavItem[] = [
     id: 'marketing', label: 'Marketing Activities', icon: 'marketing',
     children: [
       { id: 'marketing-assistant', label: 'Marketing Assistant' },
+      { id: 'marketing-recommendations', label: 'Recommendation Inbox' },
       { id: 'campaign-audit',      label: 'Campaign Audit'      },
     ],
   },
@@ -115,6 +117,10 @@ function Sidebar({
     inventory: false, marketing: false, website: false, 'ai-helper': false, 'business-intelligence': false, 'brand-assets': false, settings: false,
   });
   const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (window.innerWidth < 768) setCollapsed(true);
+  }, []);
 
   const toggle = (id: string) => setExpanded(p => {
     const isOpening = !p[id];
@@ -8497,6 +8503,7 @@ toggles: ${JSON.stringify(contextPreviewDebug.toggles)}`}
 
 export default function DashboardPage() {
   const [activeView, setActiveView] = useState('home');
+  const [hashReady, setHashReady] = useState(false);
   const [databaseId, setDatabaseId] = useState('');
   const [userName, setUserName] = useState('');
   const [userTier, setUserTier]   = useState('');
@@ -8508,6 +8515,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const fromHash = parseDashboardViewFromHash(window.location.hash);
     if (fromHash) setActiveView(fromHash);
+    setHashReady(true);
 
     const onHashChange = () => {
       const next = parseDashboardViewFromHash(window.location.hash) ?? 'home';
@@ -8519,12 +8527,13 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    if (!hashReady) return;
     if (!DASHBOARD_VIEW_IDS.has(activeView)) return;
     const nextHash = `#${encodeURIComponent(activeView)}`;
     if (window.location.hash !== nextHash) {
       window.history.replaceState(null, '', nextHash);
     }
-  }, [activeView]);
+  }, [activeView, hashReady]);
 
   // Load first business and current user on mount; redirect to /login if session expired
   useEffect(() => {
@@ -8556,6 +8565,7 @@ export default function DashboardPage() {
     'inactive-candidates': 'Inactive Candidates',
     'lost-candidates': 'Possible Losses',
     'marketing-assistant': 'Marketing Assistant',
+    'marketing-recommendations': 'Recommendation Inbox',
     'campaign-audit':       'Campaign Architecture Audit',
     'product-description-template': 'Web Field Templates',
     'bulk-edit-listings':           'Bulk Edit Website Listings',
@@ -8694,6 +8704,7 @@ export default function DashboardPage() {
           {activeView === 'inactive-candidates' && <InactiveCandidatesView databaseId={databaseId} />}
           {activeView === 'lost-candidates' && <LostCandidatesView databaseId={databaseId} />}
           {activeView === 'marketing-assistant' && <MarketingAssistantView databaseId={databaseId} />}
+          {activeView === 'marketing-recommendations' && <MarketingRecommendationsView userTier={userTier} />}
           {activeView === 'campaign-audit' && <CampaignAuditView databaseId={databaseId} />}
           {activeView === 'product-description-template' && <WebContentTemplatesView databaseId={databaseId} />}
           {activeView === 'bulk-edit-listings' && <BulkEditListingsView databaseId={databaseId} />}

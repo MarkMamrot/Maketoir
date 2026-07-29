@@ -1290,6 +1290,18 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
           setter({ success: false, error: 'Network error' });
         }
       };
+      const pingKlaviyo = async (apiKey: string) => {
+        try {
+          const response = await fetch('/api/sync/klaviyo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ apiKey }),
+          });
+          setKlaviyoResult(await response.json());
+        } catch {
+          setKlaviyoResult({ success: false, error: 'Network error' });
+        }
+      };
 
       ping(`/api/sync/analytics?propertyId=${encodeURIComponent(gaId)}`, setGaResult);
       ping(`/api/sync/google-ads?customerId=${encodeURIComponent(gads)}`, setAdsResult);
@@ -1299,7 +1311,7 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
         ping(`/api/sync/gmail?refreshToken=${encodeURIComponent(gmTok)}`, setGmailResult);
       }
       if (klKey) {
-        ping(`/api/sync/klaviyo?apiKey=${encodeURIComponent(klKey)}`, setKlaviyoResult);
+        pingKlaviyo(klKey);
       }
       if (sid && sat) {
         ping(`/api/sync/catalog?shopId=${encodeURIComponent(sid)}&accessToken=${encodeURIComponent(sat)}`, setSyncResult);
@@ -1439,7 +1451,11 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
   const testKlaviyoSync = async () => {
     setKlaviyoLoading(true); setKlaviyoResult(null);
     try {
-      const res = await fetch(`/api/sync/klaviyo?apiKey=${encodeURIComponent(klaviyoApiKey)}`);
+      const res = await fetch('/api/sync/klaviyo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: klaviyoApiKey }),
+      });
       setKlaviyoResult(await res.json());
     } catch (err: any) { setKlaviyoResult({ success: false, error: err.message }); }
     setKlaviyoLoading(false);

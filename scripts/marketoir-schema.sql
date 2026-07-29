@@ -350,6 +350,171 @@ CREATE TABLE IF NOT EXISTS marketing_data (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------------------------------------------------
+-- Foresight strategy and recommendation control plane
+-- ---------------------------------------------------------
+CREATE TABLE IF NOT EXISTS foresight_strategy_versions (
+  id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id     VARCHAR(100) NOT NULL,
+  version         INT NOT NULL,
+  parent_id       BIGINT,
+  strategy_json   JSON NOT NULL,
+  markdown_text   LONGTEXT NOT NULL,
+  authored_by     INT,
+  change_reason   VARCHAR(500),
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_foresight_strategy_version (business_id, version),
+  INDEX idx_foresight_strategy_latest (business_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS foresight_recommendations (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(100) NOT NULL,
+  fingerprint           VARCHAR(128) NOT NULL,
+  state                 VARCHAR(32) NOT NULL DEFAULT 'shadow',
+  channel               VARCHAR(32) NOT NULL,
+  subject_type          VARCHAR(64) NOT NULL,
+  subject_id            VARCHAR(255) NOT NULL,
+  rule_id               VARCHAR(100) NOT NULL,
+  policy_version        INT,
+  formula_version       VARCHAR(100),
+  evidence_json         JSON NOT NULL,
+  proposed_action_json  JSON,
+  proposal_hash         VARCHAR(64),
+  confidence            DECIMAL(6,5),
+  expected_impact_low   DECIMAL(16,4),
+  expected_impact_high  DECIMAL(16,4),
+  expires_at            DATETIME,
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_foresight_recommendation (business_id, fingerprint),
+  INDEX idx_foresight_recommendation_inbox (business_id, state, expires_at),
+  INDEX idx_foresight_recommendation_subject (business_id, channel, subject_type, subject_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS foresight_approvals (
+  id                 BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id        VARCHAR(100) NOT NULL,
+  recommendation_id  BIGINT NOT NULL,
+  decision           VARCHAR(32) NOT NULL,
+  proposal_hash      VARCHAR(64),
+  decided_by         INT NOT NULL,
+  note               VARCHAR(1000),
+  created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_foresight_approval_recommendation (business_id, recommendation_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS foresight_recommendation_events (
+  id                 BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id        VARCHAR(100) NOT NULL,
+  recommendation_id  BIGINT NOT NULL,
+  from_state         VARCHAR(32) NOT NULL,
+  to_state           VARCHAR(32) NOT NULL,
+  proposal_hash      VARCHAR(64),
+  actor_id           INT NOT NULL,
+  note               VARCHAR(1000),
+  created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_foresight_recommendation_event (business_id, recommendation_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS foresight_executions (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(100) NOT NULL,
+  recommendation_id     BIGINT NOT NULL,
+  approval_id           BIGINT NOT NULL,
+  idempotency_key       VARCHAR(128) NOT NULL,
+  state                 VARCHAR(32) NOT NULL,
+  before_json           JSON,
+  request_json          JSON NOT NULL,
+  response_json         JSON,
+  after_json            JSON,
+  error_text            TEXT,
+  compensates_execution_id BIGINT,
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  completed_at          DATETIME,
+  UNIQUE KEY uq_foresight_execution (business_id, idempotency_key),
+  INDEX idx_foresight_execution_activity (business_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS foresight_sync_runs (
+  id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id       VARCHAR(100) NOT NULL,
+  requested_sources JSON NOT NULL,
+  state             VARCHAR(32) NOT NULL DEFAULT 'running',
+  window_start      DATE NOT NULL,
+  window_end        DATE NOT NULL,
+  started_by        INT,
+  successful_tabs   INT NOT NULL DEFAULT 0,
+  failed_tabs       INT NOT NULL DEFAULT 0,
+  error_text        TEXT,
+  started_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  completed_at      DATETIME,
+  INDEX idx_foresight_sync_runs_business (business_id, started_at),
+  INDEX idx_foresight_sync_runs_state (business_id, state, started_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS foresight_sync_tabs (
+  id           BIGINT AUTO_INCREMENT PRIMARY KEY,
+  run_id       BIGINT NOT NULL,
+  business_id  VARCHAR(100) NOT NULL,
+  source       VARCHAR(32) NOT NULL,
+  account_id   VARCHAR(255) NOT NULL DEFAULT '',
+  tab_key      VARCHAR(100) NOT NULL,
+  label        VARCHAR(255) NOT NULL,
+  state        VARCHAR(32) NOT NULL,
+  window_start DATE,
+  window_end   DATE,
+  row_count    INT NOT NULL DEFAULT 0,
+  metadata_json JSON,
+  error_text   TEXT,
+  completed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_foresight_sync_tab (run_id, source, tab_key),
+  INDEX idx_foresight_sync_tabs_business (business_id, completed_at),
+  INDEX idx_foresight_sync_tabs_run (run_id, state)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS foresight_marketing_observations (
+  id                 BIGINT AUTO_INCREMENT PRIMARY KEY,
+  run_id             BIGINT NOT NULL,
+  business_id        VARCHAR(100) NOT NULL,
+  source             VARCHAR(32) NOT NULL,
+  account_id         VARCHAR(255) NOT NULL,
+  metric_date        DATE NOT NULL,
+  spend              DECIMAL(16,4) NOT NULL DEFAULT 0,
+  impressions        BIGINT NOT NULL DEFAULT 0,
+  clicks             BIGINT NOT NULL DEFAULT 0,
+  conversions        DECIMAL(16,4) NOT NULL DEFAULT 0,
+  attributed_revenue DECIMAL(16,4) NOT NULL DEFAULT 0,
+  currency_code      VARCHAR(8),
+  created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_foresight_marketing_observation (run_id, source, account_id, metric_date),
+  INDEX idx_foresight_marketing_observation_trend (business_id, source, metric_date),
+  INDEX idx_foresight_marketing_observation_run (run_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS foresight_commerce_observations (
+  id                      BIGINT AUTO_INCREMENT PRIMARY KEY,
+  run_id                  BIGINT NOT NULL,
+  business_id             VARCHAR(100) NOT NULL,
+  metric_date             DATE NOT NULL,
+  channel                 VARCHAR(32) NOT NULL,
+  sales_inc_tax           DECIMAL(16,4) NOT NULL DEFAULT 0,
+  sales_tax               DECIMAL(16,4) NOT NULL DEFAULT 0,
+  returns_inc_tax         DECIMAL(16,4) NOT NULL DEFAULT 0,
+  returns_tax             DECIMAL(16,4) NOT NULL DEFAULT 0,
+  sales_cogs              DECIMAL(16,4) NOT NULL DEFAULT 0,
+  returned_cogs           DECIMAL(16,4) NOT NULL DEFAULT 0,
+  order_count             INT NOT NULL DEFAULT 0,
+  return_count            INT NOT NULL DEFAULT 0,
+  cost_line_count         INT NOT NULL DEFAULT 0,
+  missing_cost_line_count INT NOT NULL DEFAULT 0,
+  cost_basis              VARCHAR(32) NOT NULL,
+  created_at              DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_foresight_commerce_observation (run_id, channel, metric_date),
+  INDEX idx_foresight_commerce_observation_trend (business_id, channel, metric_date),
+  INDEX idx_foresight_commerce_observation_run (run_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------
 -- bulk_edit_history  (replaces History tab)
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS bulk_edit_history (

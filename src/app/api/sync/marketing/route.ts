@@ -9,9 +9,21 @@
 import { cookies } from 'next/headers';
 import { GoogleAdsService } from '@/services/GoogleAdsService';
 import { GoogleAnalyticsService } from '@/services/GoogleAnalyticsService';
+import { KlaviyoService } from '@/services/KlaviyoService';
 import { decrypt } from '@/lib/encryption';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { MarketingDataRepository } from '@/lib/db/MarketingDataRepository';
+import {
+  ForesightIngestionRepository,
+  type ForesightSyncSource,
+  type RecordSyncTabInput,
+} from '@/lib/foresight/repositories/ForesightIngestionRepository';
+import {
+  aggregateGoogleAdsDaily,
+  aggregateMetaAdsDaily,
+} from '@/lib/foresight/metrics/marketingObservations';
+import { ImsCommerceRepository } from '@/lib/foresight/repositories/ImsCommerceRepository';
+import { ForesightRecommendationService } from '@/lib/foresight/ForesightRecommendationService';
 
 /** Extract a readable message from any error shape (Google Ads API returns e.errors[0].message). */
 function errorMessage(e: any): string {
@@ -28,6 +40,12 @@ function getDateRange(daysBack = 90, offsetDays = 0) {
   start.setDate(anchor.getDate() - daysBack);
   const fmt = (d: Date) => d.toISOString().split('T')[0];
   return { startDate: fmt(start), endDate: fmt(anchor) };
+}
+
+function addDays(date: string, days: number): string {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
 }
 
 // ── Row flattener — turn an array of Google Ads API objects into 2D array ─────
@@ -121,6 +139,36 @@ async function fetchMetaInsights(
   return allData;
 }
 
+async function fetchMetaDailyInsights(
+  accountId: string,
+  accessToken: string,
+  startDate: string,
+  endDate: string,
+): Promise<any[]> {
+  const id = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
+  const url = new URL(`https://graph.facebook.com/v19.0/${id}/insights`);
+  url.searchParams.set('level', 'campaign');
+  url.searchParams.set(
+    'fields',
+    'spend,impressions,clicks,actions,action_values,account_currency,date_start,date_stop',
+  );
+  url.searchParams.set('time_range', JSON.stringify({ since: startDate, until: endDate }));
+  url.searchParams.set('time_increment', '1');
+  url.searchParams.set('limit', '500');
+  url.searchParams.set('access_token', accessToken);
+
+  const allData: any[] = [];
+  let nextUrl: string | null = url.toString();
+  while (nextUrl) {
+    const response: Response = await fetch(nextUrl);
+    const json: any = await response.json();
+    if (json.error) throw new Error(json.error.message);
+    allData.push(...(json.data ?? []));
+    nextUrl = json.paging?.next ?? null;
+  }
+  return allData;
+}
+
 function metaToRows(data: any[], fields: string[]): string[][] {
   if (!data.length) return [];
   const headers = [...fields];
@@ -133,6 +181,19 @@ function metaToRows(data: any[], fields: string[]): string[][] {
   }
   return rows;
 }
+
+function recordsToRows(records: Array<Record<string, unknown>>): string[][] {
+  if (records.length === 0) return [];
+  const headers = Object.keys(records[0]);
+  return [headers, ...records.map((record) => headers.map((header) => String(record[header] ?? '')))];
+}
+
+const SYNC_SOURCE_MAP: Record<string, ForesightSyncSource> = {
+  'google-ads': 'google_ads',
+  meta: 'meta_ads',
+  ga4: 'ga4',
+  klaviyo: 'klaviyo',
+};
 
 // ── GA4 helpers ───────────────────────────────────────────────────────────────
 async function fetchGA4Report(
@@ -168,14 +229,39 @@ export async function POST(req: Request) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
       };
 
+      let runId: number | null = null;
+      let successfulTabs = 0;
+      let failedTabs = 0;
+      const recordTab = async (input: RecordSyncTabInput) => {
+        if (runId == null) throw new Error('Foresight sync run has not started.');
+        await ForesightIngestionRepository.recordSyncTab(runId, databaseId, input);
+        if (input.state === 'succeeded') successfulTabs += 1;
+        else failedTabs += 1;
+      };
+
       try {
         const conn = await ConnectionsRepository.get(databaseId);
         const { startDate, endDate } = getDateRange(90);
+        const requestedSources = [...new Set(
+          sources.map((source) => SYNC_SOURCE_MAP[source]).filter(Boolean),
+        )];
+        runId = await ForesightIngestionRepository.startSyncRun(
+          databaseId,
+          requestedSources,
+          startDate,
+          endDate,
+          Number(_u.userId) || null,
+        );
 
         // ── Google Ads ───────────────────────────────────────────────────────
         if (sources.includes('google-ads')) {
           const customerId = conn?.google_ads_customer_id ?? '';
           if (!customerId) {
+            await recordTab({
+              source: 'google_ads', accountId: '', tabKey: 'configuration', label: 'Configuration',
+              state: 'failed', windowStart: startDate, windowEnd: endDate,
+              error: 'Google Ads Customer ID not configured in Connections tab.',
+            });
             emit({ source: 'google-ads', status: 'error', error: 'Google Ads Customer ID not configured in Connections tab.' });
           } else {
             const svc = new GoogleAdsService(customerId);
@@ -185,9 +271,19 @@ export async function POST(req: Request) {
                 const raw = await tab.fn(svc, startDate, endDate);
                 const rows = flattenRows(Array.isArray(raw) ? raw : []);
                 await MarketingDataRepository.replaceTab(databaseId, 'google_ads', customerId, tab.key, rows);
+                await recordTab({
+                  source: 'google_ads', accountId: customerId, tabKey: tab.key, label: tab.label,
+                  state: 'succeeded', windowStart: startDate, windowEnd: endDate,
+                  rowCount: Math.max(0, rows.length - 1),
+                });
                 emit({ tab: tab.key, label: tab.label, source: 'google-ads', status: 'done', rows: Math.max(0, rows.length - 1) });
               } catch (e: any) {
-                emit({ tab: tab.key, label: tab.label, source: 'google-ads', status: 'error', error: errorMessage(e) });
+                const message = errorMessage(e);
+                await recordTab({
+                  source: 'google_ads', accountId: customerId, tabKey: tab.key, label: tab.label,
+                  state: 'failed', windowStart: startDate, windowEnd: endDate, error: message,
+                });
+                emit({ tab: tab.key, label: tab.label, source: 'google-ads', status: 'error', error: message });
               }
             }
 
@@ -198,9 +294,50 @@ export async function POST(req: Request) {
               const yoyRaw = await svc.getCampaigns(yoyStart, yoyEnd);
               const yoyRows = flattenRows(Array.isArray(yoyRaw) ? yoyRaw : []);
               await MarketingDataRepository.replaceTab(databaseId, 'google_ads', customerId, 'GAds_YoY', yoyRows);
+              await recordTab({
+                source: 'google_ads', accountId: customerId, tabKey: 'GAds_YoY', label: 'Year-on-Year',
+                state: 'succeeded', windowStart: yoyStart, windowEnd: yoyEnd,
+                rowCount: Math.max(0, yoyRows.length - 1),
+              });
               emit({ tab: 'GAds_YoY', label: 'Year-on-Year', source: 'google-ads', status: 'done', rows: Math.max(0, yoyRows.length - 1) });
             } catch (e: any) {
-              emit({ tab: 'GAds_YoY', label: 'Year-on-Year', source: 'google-ads', status: 'error', error: errorMessage(e) });
+              const message = errorMessage(e);
+              await recordTab({
+                source: 'google_ads', accountId: customerId, tabKey: 'GAds_YoY', label: 'Year-on-Year',
+                state: 'failed', windowStart: yoyStart, windowEnd: yoyEnd, error: message,
+              });
+              emit({ tab: 'GAds_YoY', label: 'Year-on-Year', source: 'google-ads', status: 'error', error: message });
+            }
+
+            emit({ tab: 'GAds_DailyPerformance', label: 'Daily Performance', source: 'google-ads', status: 'start' });
+            try {
+              const dailyRows = await svc.getDailyPerformance(startDate, endDate);
+              const observations = aggregateGoogleAdsDaily(
+                Array.isArray(dailyRows) ? dailyRows : [],
+                customerId,
+              );
+              await ForesightIngestionRepository.appendPaidMediaObservations(runId, databaseId, observations);
+              await recordTab({
+                source: 'google_ads', accountId: customerId,
+                tabKey: 'GAds_DailyPerformance', label: 'Daily Performance',
+                state: 'succeeded', windowStart: startDate, windowEnd: endDate,
+                rowCount: observations.length, metadata: { grain: 'account_day' },
+              });
+              emit({
+                tab: 'GAds_DailyPerformance', label: 'Daily Performance', source: 'google-ads',
+                status: 'done', rows: observations.length,
+              });
+            } catch (e: any) {
+              const message = errorMessage(e);
+              await recordTab({
+                source: 'google_ads', accountId: customerId,
+                tabKey: 'GAds_DailyPerformance', label: 'Daily Performance',
+                state: 'failed', windowStart: startDate, windowEnd: endDate, error: message,
+              });
+              emit({
+                tab: 'GAds_DailyPerformance', label: 'Daily Performance', source: 'google-ads',
+                status: 'error', error: message,
+              });
             }
           }
         }
@@ -210,6 +347,11 @@ export async function POST(req: Request) {
           const adAccountId = conn?.meta_ad_account_id ?? '';
           const accessToken = conn?.meta_access_token ? decrypt(conn.meta_access_token) : '';
           if (!adAccountId || !accessToken) {
+            await recordTab({
+              source: 'meta_ads', accountId: adAccountId, tabKey: 'configuration', label: 'Configuration',
+              state: 'failed', windowStart: startDate, windowEnd: endDate,
+              error: 'Meta credentials not configured in Connections tab.',
+            });
             emit({ source: 'meta', status: 'error', error: 'Meta credentials not configured in Connections tab.' });
           } else {
             // Only use fields that are valid in the Meta Insights API.
@@ -248,10 +390,49 @@ export async function POST(req: Request) {
                 const tabBreakdowns: string[] = (tab as any).breakdowns ?? [];
                 const rows = metaToRows(data, [...tabBreakdowns, ...tab.fields]);
                 await MarketingDataRepository.replaceTab(databaseId, 'meta', adAccountId, tab.key, rows);
+                await recordTab({
+                  source: 'meta_ads', accountId: adAccountId, tabKey: tab.key, label: tab.label,
+                  state: 'succeeded', windowStart: startDate, windowEnd: endDate,
+                  rowCount: Math.max(0, rows.length - 1),
+                });
                 emit({ tab: tab.key, label: tab.label, source: 'meta', status: 'done', rows: Math.max(0, rows.length - 1) });
               } catch (e: any) {
-                emit({ tab: tab.key, label: tab.label, source: 'meta', status: 'error', error: errorMessage(e) });
+                const message = errorMessage(e);
+                await recordTab({
+                  source: 'meta_ads', accountId: adAccountId, tabKey: tab.key, label: tab.label,
+                  state: 'failed', windowStart: startDate, windowEnd: endDate, error: message,
+                });
+                emit({ tab: tab.key, label: tab.label, source: 'meta', status: 'error', error: message });
               }
+            }
+
+            emit({ tab: 'Meta_DailyPerformance', label: 'Daily Performance', source: 'meta', status: 'start' });
+            try {
+              const dailyRows = await fetchMetaDailyInsights(adAccountId, accessToken, startDate, endDate);
+              const currencyCode = String(dailyRows[0]?.account_currency ?? '').trim() || null;
+              const observations = aggregateMetaAdsDaily(dailyRows, adAccountId, currencyCode);
+              await ForesightIngestionRepository.appendPaidMediaObservations(runId, databaseId, observations);
+              await recordTab({
+                source: 'meta_ads', accountId: adAccountId,
+                tabKey: 'Meta_DailyPerformance', label: 'Daily Performance',
+                state: 'succeeded', windowStart: startDate, windowEnd: endDate,
+                rowCount: observations.length, metadata: { grain: 'account_day' },
+              });
+              emit({
+                tab: 'Meta_DailyPerformance', label: 'Daily Performance', source: 'meta',
+                status: 'done', rows: observations.length,
+              });
+            } catch (e: any) {
+              const message = errorMessage(e);
+              await recordTab({
+                source: 'meta_ads', accountId: adAccountId,
+                tabKey: 'Meta_DailyPerformance', label: 'Daily Performance',
+                state: 'failed', windowStart: startDate, windowEnd: endDate, error: message,
+              });
+              emit({
+                tab: 'Meta_DailyPerformance', label: 'Daily Performance', source: 'meta',
+                status: 'error', error: message,
+              });
             }
           }
         }
@@ -260,6 +441,11 @@ export async function POST(req: Request) {
         if (sources.includes('ga4')) {
           const propertyId = conn?.ga4_property_id ?? '';
           if (!propertyId) {
+            await recordTab({
+              source: 'ga4', accountId: '', tabKey: 'configuration', label: 'Configuration',
+              state: 'failed', windowStart: startDate, windowEnd: endDate,
+              error: 'GA4 Property ID not configured in Connections tab.',
+            });
             emit({ source: 'ga4', status: 'error', error: 'GA4 Property ID not configured in Connections tab.' });
           } else {
             const ga = new GoogleAnalyticsService(propertyId);
@@ -309,9 +495,19 @@ export async function POST(req: Request) {
                 const tabEnd   = (tab as any).dateOverride?.endDate   ?? endDate;
                 const rows = await fetchGA4Report(ga, tab.dims, tab.mets, tabStart, tabEnd);
                 await MarketingDataRepository.replaceTab(databaseId, 'ga4', propertyId, tab.key, rows);
+                await recordTab({
+                  source: 'ga4', accountId: propertyId, tabKey: tab.key, label: tab.label,
+                  state: 'succeeded', windowStart: tabStart, windowEnd: tabEnd,
+                  rowCount: Math.max(0, rows.length - 1),
+                });
                 emit({ tab: tab.key, label: tab.label, source: 'ga4', status: 'done', rows: Math.max(0, rows.length - 1) });
               } catch (e: any) {
-                emit({ tab: tab.key, label: tab.label, source: 'ga4', status: 'error', error: errorMessage(e) });
+                const message = errorMessage(e);
+                await recordTab({
+                  source: 'ga4', accountId: propertyId, tabKey: tab.key, label: tab.label,
+                  state: 'failed', windowStart: startDate, windowEnd: endDate, error: message,
+                });
+                emit({ tab: tab.key, label: tab.label, source: 'ga4', status: 'error', error: message });
               }
             }
           }
@@ -321,82 +517,142 @@ export async function POST(req: Request) {
         if (sources.includes('klaviyo')) {
           const klaviyoKey = conn?.klaviyo_api_key ? decrypt(conn.klaviyo_api_key) : '';
           if (!klaviyoKey) {
+            await recordTab({
+              source: 'klaviyo', accountId: 'klaviyo', tabKey: 'configuration', label: 'Configuration',
+              state: 'failed', error: 'Klaviyo API key not configured in Connections tab.',
+            });
             emit({ source: 'klaviyo', status: 'error', error: 'Klaviyo API key not configured in Connections tab.' });
           } else {
-            const KLAVIYO_BASE = 'https://a.klaviyo.com/api';
-            const REVISION = '2024-10-15';
-            const kh = { Authorization: `Klaviyo-API-Key ${klaviyoKey}`, revision: REVISION };
-
-            const klaviyoTabs: Array<{ key: string; label: string; url: string; extract: (item: any) => any }> = [
+            const klaviyo = new KlaviyoService(klaviyoKey);
+            const klaviyoTabs: Array<{
+              key: string;
+              label: string;
+              load: () => Promise<Array<Record<string, unknown>>>;
+            }> = [
               {
                 key: 'Klaviyo_Campaigns', label: 'Email Campaigns',
-                url: `${KLAVIYO_BASE}/campaigns/?filter=equals(messages.channel,'email')&page[size]=100&sort=-created_at`,
-                extract: (item: any) => {
-                  const a = item.attributes ?? {};
-                  return {
-                    id: item.id ?? '',
-                    name: a.name ?? '',
-                    status: a.status ?? '',
-                    archived: String(a.archived ?? false),
-                    send_time: a.send_time ?? '',
-                    scheduled_at: a.scheduled_at ?? '',
-                    created_at: a.created_at ?? '',
-                    updated_at: a.updated_at ?? '',
-                  };
-                },
+                load: () => klaviyo.getCampaigns(),
               },
               {
                 key: 'Klaviyo_Flows', label: 'Automation Flows',
-                url: `${KLAVIYO_BASE}/flows/?page[size]=100&sort=-created`,
-                extract: (item: any) => {
-                  const a = item.attributes ?? {};
-                  return {
-                    id: item.id ?? '',
-                    name: a.name ?? '',
-                    status: a.status ?? '',
-                    archived: String(a.archived ?? false),
-                    trigger_type: a.trigger_type ?? '',
-                    created: a.created ?? '',
-                    updated: a.updated ?? '',
-                  };
-                },
+                load: () => klaviyo.getFlows(),
               },
               {
                 key: 'Klaviyo_Lists', label: 'Lists & Segments',
-                url: `${KLAVIYO_BASE}/lists/?page[size]=100`,
-                extract: (item: any) => {
-                  const a = item.attributes ?? {};
-                  return { id: item.id ?? '', name: a.name ?? '', created: a.created ?? '', updated: a.updated ?? '' };
-                },
+                load: () => klaviyo.getLists(),
               },
             ];
 
             for (const tab of klaviyoTabs) {
               emit({ tab: tab.key, label: tab.label, source: 'klaviyo', status: 'start' });
               try {
-                const res = await fetch(tab.url, { headers: kh });
-                if (!res.ok) throw new Error(`Klaviyo ${tab.label}: HTTP ${res.status}`);
-                const json = await res.json();
-                const items: any[] = json.data ?? [];
-                if (items.length > 0) {
-                  const extracted = items.map(tab.extract);
-                  const headers = Object.keys(extracted[0]);
-                  const dataRows: string[][] = [headers, ...extracted.map(r => headers.map(h => String((r as any)[h] ?? '')))];
-                  await MarketingDataRepository.replaceTab(databaseId, 'klaviyo', 'klaviyo', tab.key, dataRows);
-                } else {
-                  await MarketingDataRepository.replaceTab(databaseId, 'klaviyo', 'klaviyo', tab.key, []);
-                }
-                emit({ tab: tab.key, label: tab.label, source: 'klaviyo', status: 'done', rows: items.length });
+                const records = await tab.load();
+                await MarketingDataRepository.replaceTab(
+                  databaseId,
+                  'klaviyo',
+                  'klaviyo',
+                  tab.key,
+                  recordsToRows(records),
+                );
+                await recordTab({
+                  source: 'klaviyo', accountId: 'klaviyo', tabKey: tab.key, label: tab.label,
+                  state: 'succeeded', rowCount: records.length,
+                  metadata: { revision: klaviyo.revision, snapshot: true },
+                });
+                emit({
+                  tab: tab.key,
+                  label: tab.label,
+                  source: 'klaviyo',
+                  status: 'done',
+                  rows: records.length,
+                  revision: klaviyo.revision,
+                });
               } catch (e: any) {
-                emit({ tab: tab.key, label: tab.label, source: 'klaviyo', status: 'error', error: errorMessage(e) });
+                const message = errorMessage(e);
+                await recordTab({
+                  source: 'klaviyo', accountId: 'klaviyo', tabKey: tab.key, label: tab.label,
+                  state: 'failed', error: message, metadata: { revision: klaviyo.revision, snapshot: true },
+                });
+                emit({ tab: tab.key, label: tab.label, source: 'klaviyo', status: 'error', error: message });
               }
             }
           }
         }
 
-        emit({ status: 'complete' });
+        emit({ tab: 'Commerce_Daily', label: 'Retail Commerce', source: 'commerce', status: 'start' });
+        try {
+          const commerce = await ImsCommerceRepository.getDailyCommerce(databaseId, startDate, endDate);
+          await ForesightIngestionRepository.appendCommerceObservations(runId, databaseId, commerce);
+          await recordTab({
+            source: 'commerce', accountId: 'ims', tabKey: 'Commerce_Daily', label: 'Retail Commerce',
+            state: 'succeeded', windowStart: startDate, windowEnd: endDate,
+            rowCount: commerce.length,
+            metadata: { grain: 'channel_day', revenueAuthority: 'ims' },
+          });
+          emit({
+            tab: 'Commerce_Daily', label: 'Retail Commerce', source: 'commerce',
+            status: 'done', rows: commerce.length,
+          });
+        } catch (e: any) {
+          const message = errorMessage(e);
+          await recordTab({
+            source: 'commerce', accountId: 'ims', tabKey: 'Commerce_Daily', label: 'Retail Commerce',
+            state: 'failed', windowStart: startDate, windowEnd: endDate, error: message,
+          });
+          emit({
+            tab: 'Commerce_Daily', label: 'Retail Commerce', source: 'commerce',
+            status: 'error', error: message,
+          });
+        }
+
+        const state = failedTabs === 0 ? 'succeeded' : successfulTabs > 0 ? 'partial' : 'failed';
+        await ForesightIngestionRepository.completeSyncRun(
+          runId,
+          databaseId,
+          state,
+          successfulTabs,
+          failedTabs,
+        );
+        let recommendationCount: number | null = null;
+        if (sources.includes('google-ads') || sources.includes('meta')) {
+          try {
+            const evaluation = await ForesightRecommendationService.evaluatePaidMedia(
+              databaseId,
+              addDays(endDate, -1),
+            );
+            recommendationCount = evaluation.recommendationCount;
+            emit({
+              source: 'foresight',
+              status: 'done',
+              recommendations: evaluation.recommendationCount,
+              expiredRecommendations: evaluation.expiredCount,
+            });
+          } catch (evaluationError) {
+            emit({
+              source: 'foresight',
+              status: 'error',
+              error: errorMessage(evaluationError),
+            });
+          }
+        }
+        emit({ status: 'complete', runId, state, successfulTabs, failedTabs, recommendationCount });
       } catch (e: any) {
-        emit({ status: 'error', error: e.message });
+        const message = errorMessage(e);
+        if (runId != null) {
+          try {
+            await ForesightIngestionRepository.completeSyncRun(
+              runId,
+              databaseId,
+              'failed',
+              successfulTabs,
+              failedTabs + 1,
+              message,
+            );
+          } catch (completionError) {
+            console.error('Failed to finalize Foresight sync run:', completionError);
+          }
+        }
+        emit({ status: 'error', runId, error: message });
       } finally {
         controller.close();
       }
