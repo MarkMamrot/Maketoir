@@ -1,4 +1,8 @@
 import { ForesightMetricsService } from './ForesightMetricsService';
+import {
+  DEFAULT_FORESIGHT_MARKETING_STRATEGY,
+  parseMarketingStrategy,
+} from './marketingStrategy';
 import { ForesightRepository } from './repositories/ForesightRepository';
 import {
   evaluatePaidMediaPortfolioRules,
@@ -20,13 +24,26 @@ function addDays(date: string, days: number): string {
 
 export const ForesightRecommendationService = {
   async evaluatePaidMedia(businessId: string, throughDate: string) {
-    const startDate = addDays(throughDate, -13);
+    const storedStrategy = await ForesightRepository.latestStrategy(businessId);
+    const strategy = storedStrategy
+      ? parseMarketingStrategy(storedStrategy.strategy_json)
+      : DEFAULT_FORESIGHT_MARKETING_STRATEGY;
+    const policy = {
+      strategyVersion: storedStrategy?.version ?? 0,
+      minimumCurrentDays: strategy.paidMedia.evaluationWindowDays,
+      minimumSpend: strategy.paidMedia.minimumSpend,
+      zeroRevenueSpend: strategy.paidMedia.zeroRevenueSpend,
+      merDeteriorationPercent: strategy.paidMedia.merDeteriorationPercent,
+      minimumContributionPoas: strategy.paidMedia.minimumContributionPoas,
+      maximumBudgetReductionPercent: strategy.paidMedia.maximumBudgetReductionPercent,
+    };
+    const startDate = addDays(throughDate, -(policy.minimumCurrentDays * 2 - 1));
     const metrics = await ForesightMetricsService.getDailyMarketingMetrics(
       businessId,
       startDate,
       throughDate,
     );
-    const recommendations = evaluatePaidMediaPortfolioRules(metrics.reconciliation);
+    const recommendations = evaluatePaidMediaPortfolioRules(metrics.reconciliation, policy);
     const expiresAt = `${addDays(throughDate, 7)} 23:59:59`;
     const persisted = [];
 
@@ -58,6 +75,7 @@ export const ForesightRecommendationService = {
     return {
       evaluatedFrom: startDate,
       evaluatedThrough: throughDate,
+      strategyVersion: policy.strategyVersion,
       recommendationCount: persisted.length,
       expiredCount,
       recommendations: persisted,

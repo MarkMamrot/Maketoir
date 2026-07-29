@@ -398,6 +398,7 @@ CREATE TABLE IF NOT EXISTS foresight_approvals (
   decision           VARCHAR(32) NOT NULL,
   proposal_hash      VARCHAR(64),
   decided_by         INT NOT NULL,
+  reason_code        VARCHAR(64),
   note               VARCHAR(1000),
   created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_foresight_approval_recommendation (business_id, recommendation_id, created_at)
@@ -411,6 +412,7 @@ CREATE TABLE IF NOT EXISTS foresight_recommendation_events (
   to_state           VARCHAR(32) NOT NULL,
   proposal_hash      VARCHAR(64),
   actor_id           INT NOT NULL,
+  reason_code        VARCHAR(64),
   note               VARCHAR(1000),
   created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_foresight_recommendation_event (business_id, recommendation_id, created_at)

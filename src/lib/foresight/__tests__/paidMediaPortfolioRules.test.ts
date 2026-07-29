@@ -73,6 +73,25 @@ describe('paid media portfolio rules', () => {
     expect(recommendation?.proposedAction.maximumReductionPercent).toBe(10);
   });
 
+  it('uses configured contribution and reduction guardrails in the proposal identity', () => {
+    const recommendations = evaluatePaidMediaPortfolioRules(
+      dates(7).map((date) => day(date, 20, 40, 25)),
+      {
+        strategyVersion: 3,
+        minimumCurrentDays: 7,
+        minimumSpend: 100,
+        zeroRevenueSpend: 100,
+        merDeteriorationPercent: 25,
+        minimumContributionPoas: 1.5,
+        maximumBudgetReductionPercent: 6,
+      },
+    );
+    const recommendation = recommendations.find((item) => item.ruleId === 'contribution_poas_below_one');
+
+    expect(recommendation?.fingerprint).toContain(':s3');
+    expect(recommendation?.proposedAction.maximumReductionPercent).toBe(6);
+  });
+
   it('compares current MER with the immediately preceding equal window', () => {
     const rows = dates(14).map((date, index) =>
       index < 7 ? day(date, 20, 100, 60) : day(date, 20, 50, 30));

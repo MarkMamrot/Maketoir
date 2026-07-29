@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAdminTier } from '@/lib/sessionUtils';
+import { isRecommendationReason } from '@/lib/foresight/recommendationReasons';
 import { ForesightRepository } from '@/lib/foresight/repositories/ForesightRepository';
 
 type TransitionAction = 'request_approval' | 'approve' | 'reject';
@@ -18,6 +19,7 @@ export async function PATCH(
   const body = await request.json().catch(() => ({})) as {
     action?: TransitionAction;
     proposalHash?: string | null;
+    reasonCode?: string;
     note?: string;
   };
   if (!['request_approval', 'approve', 'reject'].includes(body.action ?? '')) {
@@ -25,6 +27,9 @@ export async function PATCH(
   }
   if (body.proposalHash !== null && typeof body.proposalHash !== 'string') {
     return NextResponse.json({ error: 'proposalHash must be a string or null.' }, { status: 400 });
+  }
+  if (!body.action || !isRecommendationReason(body.action, body.reasonCode)) {
+    return NextResponse.json({ error: 'A valid reasonCode is required for this action.' }, { status: 400 });
   }
   const note = typeof body.note === 'string' ? body.note.trim() : '';
   if (note.length > 1000) {
@@ -38,6 +43,7 @@ export async function PATCH(
         recommendationId,
         user.userId,
         body.proposalHash ?? null,
+        body.reasonCode,
         note || null,
       );
     } else {
@@ -47,6 +53,7 @@ export async function PATCH(
         body.action === 'approve' ? 'approved' : 'rejected',
         user.userId,
         body.proposalHash ?? null,
+        body.reasonCode,
         note || null,
       );
     }

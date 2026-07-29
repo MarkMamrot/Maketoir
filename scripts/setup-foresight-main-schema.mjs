@@ -30,9 +30,13 @@ const statements = tableNames.map((tableName) => {
   if (end < 0) throw new Error(`Unterminated CREATE TABLE for ${tableName}`);
   return schema.slice(start, end + 1);
 });
+const additiveColumns = [
+  { table: 'foresight_approvals', column: 'reason_code', definition: 'VARCHAR(64) NULL AFTER decided_by' },
+  { table: 'foresight_recommendation_events', column: 'reason_code', definition: 'VARCHAR(64) NULL AFTER actor_id' },
+];
 
 if (!apply) {
-  console.log(`Dry run: would create or verify ${statements.length} Foresight tables in ${process.env.MYSQL_DATABASE || '(unset database)'}.`);
+  console.log(`Dry run: would create or verify ${statements.length} Foresight tables and ${additiveColumns.length} additive columns in ${process.env.MYSQL_DATABASE || '(unset database)'}.`);
   console.log('Re-run with --apply to execute.');
   process.exit(0);
 }
@@ -50,7 +54,19 @@ try {
   for (const statement of statements) {
     await connection.execute(statement);
   }
-  console.log(`Created or verified ${statements.length} Foresight tables.`);
+  for (const migration of additiveColumns) {
+    const [rows] = await connection.execute(
+      `SELECT 1 FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+      [migration.table, migration.column],
+    );
+    if (rows.length === 0) {
+      await connection.execute(
+        `ALTER TABLE \`${migration.table}\` ADD COLUMN \`${migration.column}\` ${migration.definition}`,
+      );
+    }
+  }
+  console.log(`Created or verified ${statements.length} Foresight tables and ${additiveColumns.length} additive columns.`);
 } finally {
   await connection.end();
 }

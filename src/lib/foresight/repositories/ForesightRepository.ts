@@ -41,6 +41,7 @@ export interface RecommendationEventRow {
   to_state: RecommendationState;
   proposal_hash: string | null;
   actor_id: number;
+  reason_code: string | null;
   note: string | null;
   created_at: string;
 }
@@ -233,6 +234,7 @@ export const ForesightRepository = {
     recommendationId: number,
     requestedBy: number,
     proposalHash: string | null,
+    reasonCode: string,
     note?: string | null,
   ): Promise<void> {
     const pool = getPool();
@@ -257,9 +259,9 @@ export const ForesightRepository = {
       );
       await connection.execute(
         `INSERT INTO foresight_recommendation_events
-           (business_id, recommendation_id, from_state, to_state, proposal_hash, actor_id, note)
-         VALUES (?, ?, 'shadow', 'pending_approval', ?, ?, ?)`,
-        [businessId, recommendationId, proposalHash, requestedBy, note ?? null],
+           (business_id, recommendation_id, from_state, to_state, proposal_hash, actor_id, reason_code, note)
+         VALUES (?, ?, 'shadow', 'pending_approval', ?, ?, ?, ?)`,
+        [businessId, recommendationId, proposalHash, requestedBy, reasonCode, note ?? null],
       );
       await connection.commit();
     } catch (error) {
@@ -276,6 +278,7 @@ export const ForesightRepository = {
     decision: 'approved' | 'rejected',
     decidedBy: number,
     proposalHash: string | null,
+    reasonCode: string,
     note?: string | null,
   ): Promise<void> {
     const pool = getPool();
@@ -303,15 +306,15 @@ export const ForesightRepository = {
       );
       await connection.execute(
         `INSERT INTO foresight_approvals
-           (business_id, recommendation_id, decision, proposal_hash, decided_by, note)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [businessId, recommendationId, decision, proposalHash, decidedBy, note ?? null],
+           (business_id, recommendation_id, decision, proposal_hash, decided_by, reason_code, note)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [businessId, recommendationId, decision, proposalHash, decidedBy, reasonCode, note ?? null],
       );
       await connection.execute(
         `INSERT INTO foresight_recommendation_events
-           (business_id, recommendation_id, from_state, to_state, proposal_hash, actor_id, note)
-         VALUES (?, ?, 'pending_approval', ?, ?, ?, ?)`,
-        [businessId, recommendationId, decision, proposalHash, decidedBy, note ?? null],
+           (business_id, recommendation_id, from_state, to_state, proposal_hash, actor_id, reason_code, note)
+         VALUES (?, ?, 'pending_approval', ?, ?, ?, ?, ?)`,
+        [businessId, recommendationId, decision, proposalHash, decidedBy, reasonCode, note ?? null],
       );
       await connection.commit();
     } catch (error) {

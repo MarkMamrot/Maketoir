@@ -82,7 +82,7 @@ describe('ForesightRepository', () => {
       .mockResolvedValueOnce([{}]);
 
     await ForesightRepository.requestRecommendationApproval(
-      'business-1', 42, 7, 'hash-1', 'Review this proposal.',
+      'business-1', 42, 7, 'hash-1', 'ready_for_review', 'Review this proposal.',
     );
 
     expect(mockConnection.execute).toHaveBeenCalledWith(
@@ -91,7 +91,7 @@ describe('ForesightRepository', () => {
     );
     expect(mockConnection.execute).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO foresight_recommendation_events'),
-      ['business-1', 42, 'hash-1', 7, 'Review this proposal.'],
+      ['business-1', 42, 'hash-1', 7, 'ready_for_review', 'Review this proposal.'],
     );
     expect(mockConnection.commit).toHaveBeenCalledOnce();
   });
@@ -100,7 +100,7 @@ describe('ForesightRepository', () => {
     mockConnection.execute.mockResolvedValueOnce([[{ state: 'shadow', proposal_hash: 'current-hash' }]]);
 
     await expect(ForesightRepository.requestRecommendationApproval(
-      'business-1', 42, 7, 'stale-hash',
+      'business-1', 42, 7, 'stale-hash', 'ready_for_review',
     )).rejects.toThrow('proposal changed');
 
     expect(mockConnection.rollback).toHaveBeenCalledOnce();

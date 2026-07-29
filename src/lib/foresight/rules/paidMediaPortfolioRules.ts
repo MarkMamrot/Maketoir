@@ -5,17 +5,23 @@ export const PAID_MEDIA_POLICY_VERSION = 1;
 export const PAID_MEDIA_RULE_FORMULA_VERSION = 'foresight-paid-media-rules-v1';
 
 export interface PaidMediaRulePolicy {
+  strategyVersion: number;
   minimumCurrentDays: number;
   minimumSpend: number;
   zeroRevenueSpend: number;
   merDeteriorationPercent: number;
+  minimumContributionPoas: number;
+  maximumBudgetReductionPercent: number;
 }
 
 export const DEFAULT_PAID_MEDIA_RULE_POLICY: PaidMediaRulePolicy = {
+  strategyVersion: 0,
   minimumCurrentDays: 7,
   minimumSpend: 100,
   zeroRevenueSpend: 100,
   merDeteriorationPercent: 25,
+  minimumContributionPoas: 1,
+  maximumBudgetReductionPercent: 10,
 };
 
 export interface PaidMediaRuleRecommendation {
@@ -95,8 +101,8 @@ function evidence(
   };
 }
 
-function fingerprint(ruleId: string, current: WindowTotals): string {
-  return `${ruleId}:google_meta_blended:${current.start}:${current.end}:p${PAID_MEDIA_POLICY_VERSION}`;
+function fingerprint(ruleId: string, current: WindowTotals, policy: PaidMediaRulePolicy): string {
+  return `${ruleId}:google_meta_blended:${current.start}:${current.end}:p${PAID_MEDIA_POLICY_VERSION}:s${policy.strategyVersion}`;
 }
 
 export function evaluatePaidMediaPortfolioRules(
@@ -115,7 +121,7 @@ export function evaluatePaidMediaPortfolioRules(
   const recommendations: PaidMediaRuleRecommendation[] = [];
   if (current.spend >= policy.zeroRevenueSpend && current.revenue <= 0) {
     recommendations.push({
-      fingerprint: fingerprint('spend_without_online_revenue', current),
+      fingerprint: fingerprint('spend_without_online_revenue', current, policy),
       channel: 'paid_media',
       subjectType: 'portfolio',
       subjectId: 'google_meta_blended',
@@ -134,10 +140,14 @@ export function evaluatePaidMediaPortfolioRules(
     });
   }
 
-  if (current.spend >= policy.minimumSpend && current.contributionPoas != null && current.contributionPoas < 1) {
+  if (
+    current.spend >= policy.minimumSpend
+    && current.contributionPoas != null
+    && current.contributionPoas < policy.minimumContributionPoas
+  ) {
     const lossAfterAds = current.spend - current.contributionBeforeAds;
     recommendations.push({
-      fingerprint: fingerprint('contribution_poas_below_one', current),
+      fingerprint: fingerprint('contribution_poas_below_one', current, policy),
       channel: 'paid_media',
       subjectType: 'portfolio',
       subjectId: 'google_meta_blended',
@@ -149,8 +159,8 @@ export function evaluatePaidMediaPortfolioRules(
       }),
       proposedAction: {
         type: 'review_budget_reduction',
-        maximumReductionPercent: 10,
-        reason: 'Paid-media spend exceeded online contribution profit before ads.',
+        maximumReductionPercent: policy.maximumBudgetReductionPercent,
+        reason: `Contribution POAS fell below the configured ${policy.minimumContributionPoas} floor.`,
       },
       confidence: 0.85,
       expectedImpactLow: 0,
@@ -170,7 +180,7 @@ export function evaluatePaidMediaPortfolioRules(
     const deteriorationPercent = ((previous.mer - current.mer) / previous.mer) * 100;
     if (deteriorationPercent >= policy.merDeteriorationPercent) {
       recommendations.push({
-        fingerprint: fingerprint('mer_deterioration', current),
+        fingerprint: fingerprint('mer_deterioration', current, policy),
         channel: 'paid_media',
         subjectType: 'portfolio',
         subjectId: 'google_meta_blended',

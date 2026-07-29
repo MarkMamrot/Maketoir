@@ -14,6 +14,12 @@ import {
   ShieldCheck,
   X,
 } from 'lucide-react';
+import {
+  RECOMMENDATION_REASON_OPTIONS,
+  recommendationReasonLabel,
+  type RecommendationTransitionAction,
+} from '@/lib/foresight/recommendationReasons';
+import { MarketingStrategyPanel } from './MarketingStrategyPanel';
 
 type RecommendationState = 'shadow' | 'pending_approval' | 'approved';
 type Recommendation = {
@@ -44,6 +50,7 @@ type RecommendationEvent = {
   from_state: string;
   to_state: string;
   actor_id: number;
+  reason_code: string | null;
   note: string | null;
   created_at: string;
 };
@@ -52,7 +59,7 @@ type Filter = 'all' | RecommendationState;
 
 const RULE_LABELS: Record<string, string> = {
   spend_without_online_revenue: 'Spend without online revenue',
-  contribution_poas_below_one: 'Contribution POAS below 1',
+  contribution_poas_below_one: 'Contribution POAS below configured floor',
   mer_deterioration: 'MER deterioration',
 };
 const ACTION_LABELS: Record<string, string> = {
@@ -111,6 +118,8 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const [filter, setFilter] = useState<Filter>('all');
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState<string | null>(null);
+  const [reviewAction, setReviewAction] = useState<RecommendationTransitionAction>('approve');
+  const [reasonCode, setReasonCode] = useState('');
   const [note, setNote] = useState('');
   const [message, setMessage] = useState<{ kind: 'error' | 'success'; text: string } | null>(null);
   const isAdmin = userTier === 'Admin' || userTier === 'SuperAdmin';
@@ -161,19 +170,20 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
     }
   };
 
-  const transition = async (action: 'request_approval' | 'approve' | 'reject') => {
-    if (!selected) return;
+  const transition = async (action: RecommendationTransitionAction) => {
+    if (!selected || !reasonCode) return;
     setWorking(action);
     setMessage(null);
     try {
       const response = await fetch(`/api/foresight/marketing/recommendations/${selected.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, proposalHash: selected.proposal_hash, note }),
+        body: JSON.stringify({ action, proposalHash: selected.proposal_hash, reasonCode, note }),
       });
       const body = await responseJson(response);
       if (!response.ok) throw new Error(body.error || 'State change failed.');
       setNote('');
+      setReasonCode('');
       setMessage({ kind: 'success', text: action === 'request_approval' ? 'Sent for approval.' : action === 'approve' ? 'Recommendation approved.' : 'Recommendation rejected.' });
       await load();
     } catch (error) {
@@ -192,6 +202,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
 
   return (
     <div className="space-y-4">
+      <MarketingStrategyPanel userTier={userTier} />
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4">
         <div className="flex items-center gap-1" role="tablist" aria-label="Recommendation states">
           {(['all', 'shadow', 'pending_approval', 'approved'] as Filter[]).map((state) => (
@@ -237,7 +248,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
             return (
               <button
                 key={item.id}
-                onClick={() => { setSelectedId(item.id); setNote(''); setMessage(null); }}
+                onClick={() => { setSelectedId(item.id); setReviewAction('approve'); setReasonCode(''); setNote(''); setMessage(null); }}
                 className={`flex w-full items-start gap-3 border-b border-gray-100 px-4 py-4 text-left transition-colors ${isSelected ? 'bg-cyan-50/70' : 'hover:bg-gray-50'}`}
               >
                 <span className={`mt-0.5 ${item.state === 'approved' ? 'text-emerald-600' : item.state === 'pending_approval' ? 'text-amber-600' : 'text-gray-400'}`}>{stateIcon(item.state)}</span>
@@ -314,6 +325,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                       <div key={event.id} className="text-sm">
                         <div className="font-medium text-gray-800">{stateLabel(event.from_state as RecommendationState)} to {event.to_state === 'rejected' ? 'Rejected' : stateLabel(event.to_state as RecommendationState)}</div>
                         <div className="text-xs text-gray-500">{dateTime(event.created_at)} · User {event.actor_id}</div>
+                        {event.reason_code && <div className="mt-1 text-xs font-semibold text-gray-700">{recommendationReasonLabel(event.reason_code)}</div>}
                         {event.note && <p className="mt-1 text-gray-600">{event.note}</p>}
                       </div>
                     ))}
@@ -323,6 +335,40 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
 
               {isAdmin && selected.state !== 'approved' && (
                 <div className="border-t border-gray-200 pt-5">
+                  {selected.state === 'pending_approval' && (
+                    <div className="mb-4">
+                      <div className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-500">Decision</div>
+                      <div className="inline-flex border border-gray-300" role="group" aria-label="Review decision">
+                        <button
+                          type="button"
+                          onClick={() => { setReviewAction('approve'); setReasonCode(''); }}
+                          className={`inline-flex h-9 items-center gap-2 px-3 text-sm font-semibold ${reviewAction === 'approve' ? 'bg-emerald-700 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                        >
+                          <Check size={16} /> Approve
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setReviewAction('reject'); setReasonCode(''); }}
+                          className={`inline-flex h-9 items-center gap-2 border-l border-gray-300 px-3 text-sm font-semibold ${reviewAction === 'reject' ? 'bg-red-700 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                        >
+                          <X size={16} /> Reject
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <label className="mb-4 block">
+                    <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-500">Reason</span>
+                    <select
+                      value={reasonCode}
+                      onChange={(event) => setReasonCode(event.target.value)}
+                      className="h-10 w-full border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600"
+                    >
+                      <option value="">Select a reason</option>
+                      {RECOMMENDATION_REASON_OPTIONS[selected.state === 'shadow' ? 'request_approval' : reviewAction].map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </label>
                   <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-500" htmlFor="recommendation-note">Review note</label>
                   <textarea
                     id="recommendation-note"
@@ -333,20 +379,19 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                     placeholder="Optional decision context"
                   />
                   <div className="mt-3 flex flex-wrap justify-end gap-2">
-                    {selected.state === 'shadow' && (
-                      <button onClick={() => void transition('request_approval')} disabled={working != null} className="inline-flex h-9 items-center gap-2 bg-cyan-700 px-3 text-sm font-semibold text-white hover:bg-cyan-800 disabled:opacity-50">
+                    {selected.state === 'shadow' ? (
+                      <button onClick={() => void transition('request_approval')} disabled={working != null || !reasonCode} className="inline-flex h-9 items-center gap-2 bg-cyan-700 px-3 text-sm font-semibold text-white hover:bg-cyan-800 disabled:opacity-50">
                         {working === 'request_approval' ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Send for approval
                       </button>
-                    )}
-                    {selected.state === 'pending_approval' && (
-                      <>
-                        <button onClick={() => void transition('reject')} disabled={working != null} className="inline-flex h-9 items-center gap-2 border border-red-300 bg-white px-3 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">
-                          {working === 'reject' ? <Loader2 size={16} className="animate-spin" /> : <X size={16} />} Reject
-                        </button>
-                        <button onClick={() => void transition('approve')} disabled={working != null} className="inline-flex h-9 items-center gap-2 bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">
-                          {working === 'approve' ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} Approve
-                        </button>
-                      </>
+                    ) : (
+                      <button
+                        onClick={() => void transition(reviewAction)}
+                        disabled={working != null || !reasonCode}
+                        className={`inline-flex h-9 items-center gap-2 px-3 text-sm font-semibold text-white disabled:opacity-50 ${reviewAction === 'approve' ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-red-700 hover:bg-red-800'}`}
+                      >
+                        {working === reviewAction ? <Loader2 size={16} className="animate-spin" /> : reviewAction === 'approve' ? <Check size={16} /> : <X size={16} />}
+                        {reviewAction === 'approve' ? 'Record approval' : 'Record rejection'}
+                      </button>
                     )}
                   </div>
                 </div>
