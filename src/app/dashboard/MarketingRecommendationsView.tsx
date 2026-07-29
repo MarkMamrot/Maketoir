@@ -28,10 +28,11 @@ import {
   type RecommendationImplementationPreview,
 } from '@/lib/foresight/implementationPreview';
 import type { ExecutionPreflightResult } from '@/lib/foresight/executionPreflight';
+import type { RollbackPreflightResult } from '@/lib/foresight/rollbackPreflight';
 import type { KlaviyoFlowCoverageEvidence, PaidMediaContributorEvidence } from '@/lib/foresight/types';
 import { MarketingStrategyPanel } from './MarketingStrategyPanel';
 
-type RecommendationState = 'shadow' | 'pending_approval' | 'approved' | 'executing' | 'succeeded' | 'failed' | 'rejected';
+type RecommendationState = 'shadow' | 'pending_approval' | 'approved' | 'executing' | 'succeeded' | 'failed' | 'compensated' | 'rejected';
 type Recommendation = {
   id: number;
   state: RecommendationState;
@@ -108,6 +109,7 @@ type RecommendationExecution = {
   response_json: Record<string, unknown> | null;
   after_json: Record<string, unknown> | null;
   error_text: string | null;
+  compensates_execution_id: number | null;
   created_at: string;
   completed_at: string | null;
 };
@@ -184,12 +186,13 @@ function stateLabel(state: RecommendationState): string {
   if (state === 'executing') return 'Executing';
   if (state === 'succeeded') return 'Executed';
   if (state === 'failed') return 'Execution failed';
+  if (state === 'compensated') return 'Reversed';
   if (state === 'rejected') return 'Rejected';
   return 'Shadow';
 }
 
 function stateIcon(state: RecommendationState) {
-  if (state === 'approved' || state === 'succeeded') return <CheckCircle2 size={15} />;
+  if (state === 'approved' || state === 'succeeded' || state === 'compensated') return <CheckCircle2 size={15} />;
   if (state === 'pending_approval' || state === 'executing') return <Clock3 size={15} />;
   if (state === 'failed') return <AlertTriangle size={15} />;
   if (state === 'rejected') return <X size={15} />;
@@ -220,6 +223,8 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const [implementationNote, setImplementationNote] = useState('');
   const [preflight, setPreflight] = useState<ExecutionPreflightResult | null>(null);
   const [executionConfirmed, setExecutionConfirmed] = useState(false);
+  const [rollbackPreflight, setRollbackPreflight] = useState<RollbackPreflightResult | null>(null);
+  const [rollbackConfirmed, setRollbackConfirmed] = useState(false);
   const [message, setMessage] = useState<{ kind: 'error' | 'success'; text: string } | null>(null);
   const isAdmin = userTier === 'Admin' || userTier === 'SuperAdmin';
 
@@ -257,7 +262,9 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const selectedEvents = events.filter((event) => event.recommendation_id === selectedId);
   const selectedOutcome = outcomes.find((outcome) => outcome.recommendation_id === selectedId) ?? null;
   const selectedImplementation = implementations.find((item) => item.recommendation_id === selectedId) ?? null;
-  const selectedExecution = executions.find((item) => item.recommendation_id === selectedId) ?? null;
+  const selectedExecutions = executions.filter((item) => item.recommendation_id === selectedId);
+  const selectedExecution = selectedExecutions.find((item) => item.compensates_execution_id == null) ?? null;
+  const selectedCompensation = selectedExecutions.find((item) => item.compensates_execution_id != null) ?? null;
   const selectedPreview = selected
     ? buildRecommendationImplementationPreview(selected.channel as Parameters<typeof buildRecommendationImplementationPreview>[0], selected.proposed_action_json)
     : null;
@@ -265,6 +272,8 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   useEffect(() => {
     setPreflight(null);
     setExecutionConfirmed(false);
+    setRollbackPreflight(null);
+    setRollbackConfirmed(false);
   }, [selectedId]);
 
   const evaluate = async () => {
@@ -394,6 +403,69 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
     }
   };
 
+  const runRollbackPreflight = async () => {
+    if (!selected?.proposal_hash || !selectedExecution) return;
+    setWorking('rollback_preflight');
+    setRollbackConfirmed(false);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/foresight/marketing/recommendations/${selected.id}/rollback/preflight`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ executionId: selectedExecution.id, proposalHash: selected.proposal_hash }),
+      });
+      const body = await responseJson(response) as { preflight?: RollbackPreflightResult; error?: string };
+      if (!response.ok || !body.preflight) throw new Error(body.error || 'Unable to check rollback readiness.');
+      setRollbackPreflight(body.preflight);
+    } catch (error) {
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to check rollback readiness.' });
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  const executeRollback = async () => {
+    if (
+      !selected?.proposal_hash
+      || !selectedExecution
+      || !rollbackPreflight?.confirmationFingerprint
+      || !rollbackConfirmed
+    ) return;
+    setWorking('rollback');
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/foresight/marketing/recommendations/${selected.id}/rollback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          executionId: selectedExecution.id,
+          proposalHash: selected.proposal_hash,
+          confirmationFingerprint: rollbackPreflight.confirmationFingerprint,
+          confirmationPhrase: 'REVERSE GOOGLE BUDGET CHANGES',
+        }),
+      });
+      const body = await responseJson(response) as {
+        execution?: RecommendationExecution;
+        idempotentReplay?: boolean;
+        error?: string;
+      };
+      if (!response.ok || !body.execution) throw new Error(body.error || 'Unable to reverse Google Ads changes.');
+      setMessage({
+        kind: body.execution.state === 'succeeded' ? 'success' : 'error',
+        text: body.execution.state === 'succeeded'
+          ? body.idempotentReplay ? 'Existing verified rollback receipt loaded.' : 'Original Google Ads budgets restored and verified by live read-back.'
+          : body.execution.error_text || 'Rollback did not verify successfully. Review the compensation receipt.',
+      });
+      setRollbackConfirmed(false);
+      await load();
+    } catch (error) {
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to reverse Google Ads changes.' });
+      setRollbackConfirmed(false);
+    } finally {
+      setWorking(null);
+    }
+  };
+
   const counts = {
     all: recommendations.length,
     shadow: recommendations.filter((item) => item.state === 'shadow').length,
@@ -402,6 +474,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
     executing: recommendations.filter((item) => item.state === 'executing').length,
     succeeded: recommendations.filter((item) => item.state === 'succeeded').length,
     failed: recommendations.filter((item) => item.state === 'failed').length,
+    compensated: recommendations.filter((item) => item.state === 'compensated').length,
     rejected: recommendations.filter((item) => item.state === 'rejected').length,
   };
 
@@ -410,7 +483,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
       <MarketingStrategyPanel userTier={userTier} />
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4">
         <div className="flex flex-wrap items-center gap-1" role="tablist" aria-label="Recommendation states">
-          {(['all', 'shadow', 'pending_approval', 'approved', 'succeeded', 'failed', 'rejected'] as Filter[]).map((state) => (
+          {(['all', 'shadow', 'pending_approval', 'approved', 'succeeded', 'failed', 'compensated', 'rejected'] as Filter[]).map((state) => (
             <button
               key={state}
               onClick={() => setFilter(state)}
@@ -456,7 +529,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                 onClick={() => { setSelectedId(item.id); setReviewAction('approve'); setReasonCode(''); setNote(''); setMessage(null); }}
                 className={`flex w-full items-start gap-3 border-b border-gray-100 px-4 py-4 text-left transition-colors ${isSelected ? 'bg-cyan-50/70' : 'hover:bg-gray-50'}`}
               >
-                <span className={`mt-0.5 ${item.state === 'approved' || item.state === 'succeeded' ? 'text-emerald-600' : item.state === 'pending_approval' || item.state === 'executing' ? 'text-amber-600' : item.state === 'failed' || item.state === 'rejected' ? 'text-red-500' : 'text-gray-400'}`}>{stateIcon(item.state)}</span>
+                <span className={`mt-0.5 ${item.state === 'approved' || item.state === 'succeeded' || item.state === 'compensated' ? 'text-emerald-600' : item.state === 'pending_approval' || item.state === 'executing' ? 'text-amber-600' : item.state === 'failed' || item.state === 'rejected' ? 'text-red-500' : 'text-gray-400'}`}>{stateIcon(item.state)}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold text-gray-900">{RULE_LABELS[item.rule_id] ?? item.rule_id}</span>
                   <span className="mt-1 block text-xs text-gray-500">{item.evidence_json.windowStart} to {item.evidence_json.windowEnd}</span>
@@ -479,7 +552,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-500">
-                    <span className={selected.state === 'approved' || selected.state === 'succeeded' ? 'text-emerald-600' : selected.state === 'pending_approval' || selected.state === 'executing' ? 'text-amber-600' : selected.state === 'failed' ? 'text-red-600' : 'text-gray-500'}>{stateIcon(selected.state)}</span>
+                    <span className={selected.state === 'approved' || selected.state === 'succeeded' || selected.state === 'compensated' ? 'text-emerald-600' : selected.state === 'pending_approval' || selected.state === 'executing' ? 'text-amber-600' : selected.state === 'failed' ? 'text-red-600' : 'text-gray-500'}>{stateIcon(selected.state)}</span>
                     {stateLabel(selected.state)}
                   </div>
                   <h2 className="text-lg font-bold text-gray-950">{RULE_LABELS[selected.rule_id] ?? selected.rule_id}</h2>
@@ -728,7 +801,117 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                     </div>
                   )}
                   {selectedExecution.error_text && <p className="mt-3 text-sm leading-6 text-red-800">{selectedExecution.error_text}</p>}
-                  <p className="mt-3 text-xs text-gray-600">The original live values are retained in the audit ledger for a future compensating rollback. No automatic rollback is attempted.</p>
+                  <p className="mt-3 text-xs text-gray-600">The original live values are retained in the audit ledger. Any rollback requires a fresh live-state check and separate confirmation.</p>
+                </div>
+              )}
+
+              {isAdmin && selected.state === 'succeeded' && selectedExecution?.state === 'succeeded' && !selectedCompensation && (
+                <div className="border border-amber-200 bg-amber-50/50 px-4 py-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-900"><History size={15} /> Audited rollback</h3>
+                      <p className="mt-2 text-sm leading-6 text-gray-700">Checks that live budgets still match the verified execution receipt, then prepares an exact restoration to the stored original values.</p>
+                    </div>
+                    <button
+                      onClick={() => void runRollbackPreflight()}
+                      disabled={working != null}
+                      className="inline-flex h-9 items-center gap-2 border border-amber-300 bg-white px-3 text-sm font-semibold text-amber-900 hover:bg-amber-50 disabled:opacity-50"
+                    >
+                      {working === 'rollback_preflight' ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                      Check rollback readiness
+                    </button>
+                  </div>
+                  {rollbackPreflight && (
+                    <div className="mt-4 border-t border-amber-200 pt-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className={`text-sm font-semibold ${rollbackPreflight.ready ? 'text-emerald-700' : 'text-amber-900'}`}>
+                          {rollbackPreflight.ready ? 'Ready for restoration review' : 'Rollback blocked'}
+                        </span>
+                        <span className="text-xs text-gray-500">Checked {dateTime(rollbackPreflight.checkedAt)} · No write yet</span>
+                      </div>
+                      {rollbackPreflight.changes.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          {rollbackPreflight.changes.map((change) => (
+                            <div key={`${change.campaignId}:${change.budgetId}`} className="border border-amber-200 bg-white px-3 py-3">
+                              <div className="text-sm font-semibold text-gray-900">{change.campaignName}</div>
+                              <div className="mt-1 text-sm text-gray-700">
+                                {budgetMoney(change.currentAmountMicros, change.currencyCode)} → <strong>{budgetMoney(change.proposedAmountMicros, change.currencyCode)}</strong>
+                                <span className="ml-2 text-xs text-gray-500">restore budget {change.budgetId}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {rollbackPreflight.blockers.length > 0 && (
+                        <ul className="mt-3 space-y-2">
+                          {rollbackPreflight.blockers.map((blocker, index) => (
+                            <li key={`${blocker.code}:${blocker.entityId ?? index}`} className="flex gap-2 text-sm leading-5 text-amber-900">
+                              <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                              <span>{blocker.message}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {rollbackPreflight.ready && rollbackPreflight.confirmationFingerprint && (
+                        <div className="mt-4 border-t border-amber-200 pt-4">
+                          <label className="flex items-start gap-3 text-sm leading-5 text-gray-700">
+                            <input
+                              type="checkbox"
+                              checked={rollbackConfirmed}
+                              onChange={(event) => setRollbackConfirmed(event.target.checked)}
+                              className="mt-0.5 h-4 w-4 border-gray-300 text-amber-700 focus:ring-amber-600"
+                            />
+                            <span>I confirm these exact live and original budgets. Rollback will recheck them, restore once, and verify by live read-back.</span>
+                          </label>
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                            <span className="text-xs text-gray-500">One audited compensation attempt · no blind retry · original receipt retained</span>
+                            <button
+                              onClick={() => void executeRollback()}
+                              disabled={working != null || !rollbackConfirmed}
+                              className="inline-flex h-9 items-center gap-2 bg-amber-700 px-3 text-sm font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
+                            >
+                              {working === 'rollback' ? <Loader2 size={16} className="animate-spin" /> : <History size={16} />}
+                              Restore original Google budgets
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {selectedCompensation && (
+                <div className={`border px-4 py-4 ${selectedCompensation.state === 'succeeded' ? 'border-emerald-200 bg-emerald-50' : selectedCompensation.state === 'failed' ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}`}>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      {selectedCompensation.state === 'succeeded'
+                        ? <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-emerald-700" />
+                        : selectedCompensation.state === 'failed'
+                          ? <AlertTriangle size={18} className="mt-0.5 shrink-0 text-red-700" />
+                          : <Loader2 size={18} className="mt-0.5 shrink-0 animate-spin text-amber-700" />}
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900">
+                          {selectedCompensation.state === 'succeeded' ? 'Google Ads rollback verified' : selectedCompensation.state === 'failed' ? 'Google Ads rollback requires review' : 'Google Ads rollback awaiting reconciliation'}
+                        </h3>
+                        <p className="mt-1 text-xs text-gray-600">Compensation {selectedCompensation.id} for execution {selectedCompensation.compensates_execution_id} · {dateTime(selectedCompensation.completed_at ?? selectedCompensation.created_at)}</p>
+                      </div>
+                    </div>
+                    <span className="border border-current px-2 py-1 text-[11px] font-semibold uppercase text-gray-600">Immutable receipt</span>
+                  </div>
+                  {Array.isArray(selectedCompensation.request_json.changes) && selectedCompensation.request_json.changes.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {selectedCompensation.request_json.changes.map((change) => (
+                        <div key={`${change.campaignId}:${change.budgetId}`} className="border border-black/10 bg-white/70 px-3 py-2 text-sm text-gray-700">
+                          <span className="font-semibold text-gray-900">{change.campaignName}</span>
+                          <span className="ml-2">{budgetMoney(change.currentAmountMicros, change.currencyCode)} → {budgetMoney(change.proposedAmountMicros, change.currencyCode)}</span>
+                          <span className="ml-2 text-xs text-gray-500">restored budget {change.budgetId}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {selectedCompensation.error_text && <p className="mt-3 text-sm leading-6 text-red-800">{selectedCompensation.error_text}</p>}
+                  <p className="mt-3 text-xs text-gray-600">This receipt is permanently linked to the original execution. Failed or uncertain rollback attempts are never replayed automatically.</p>
                 </div>
               )}
 

@@ -31,6 +31,7 @@ export async function GET() {
     'executing',
     'succeeded',
     'failed',
+    'compensated',
     'rejected',
   ]);
   const recommendationIds = recommendations.map((recommendation) => recommendation.id);

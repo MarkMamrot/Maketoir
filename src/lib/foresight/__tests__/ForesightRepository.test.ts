@@ -81,7 +81,7 @@ describe('ForesightRepository', () => {
     await ForesightRepository.listRecommendationOutcomeCandidates('business-1', '2026-07-29', 7);
 
     expect(mockQuery).toHaveBeenCalledWith(
-      expect.stringMatching(/r\.business_id = \?[\s\S]*r\.channel = 'paid_media'[\s\S]*o\.id IS NULL/),
+      expect.stringMatching(/r\.business_id = \?[\s\S]*r\.channel = 'paid_media'[\s\S]*r\.state <> 'compensated'[\s\S]*o\.id IS NULL/),
       [7, 'business-1', '2026-07-29'],
     );
   });

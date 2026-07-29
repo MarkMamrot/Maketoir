@@ -110,4 +110,89 @@ describe('ForesightExecutionRepository', () => {
     expect(mockConnection.rollback).toHaveBeenCalledOnce();
     expect(mockConnection.commit).not.toHaveBeenCalled();
   });
+
+  it('claims one linked compensation without changing succeeded recommendation state', async () => {
+    const original = { ...execution, state: 'succeeded' as const, completed_at: '2026-07-29T10:01:00.000Z' };
+    const compensation = {
+      ...execution, id: 10, idempotency_key: 'rollback-key',
+      compensates_execution_id: 9,
+    };
+    mockConnection.execute
+      .mockResolvedValueOnce([[original]])
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[{ state: 'succeeded', proposal_hash: 'proposal' }]])
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([{ insertId: 10 }])
+      .mockResolvedValueOnce([{ insertId: 24 }])
+      .mockResolvedValueOnce([[compensation]]);
+
+    const result = await ForesightExecutionRepository.claimCompensation({
+      businessId: 'business-1', recommendationId: 12, originalExecutionId: 9,
+      actorId: 7, proposalHash: 'proposal', idempotencyKey: 'rollback-key',
+      before: { campaigns: [] }, request: { changes: [] },
+    });
+
+    expect(result.created).toBe(true);
+    expect(result.execution.compensates_execution_id).toBe(9);
+    expect(mockConnection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('compensates_execution_id'),
+      ['business-1', 12, 4, 'rollback-key', JSON.stringify({ campaigns: [] }), JSON.stringify({ changes: [] }), 9],
+    );
+    expect(mockConnection.execute).not.toHaveBeenCalledWith(
+      expect.stringContaining("SET state = 'compensating'"),
+      expect.anything(),
+    );
+  });
+
+  it('marks the recommendation compensated only after verified restoration', async () => {
+    const compensation = { ...execution, id: 10, compensates_execution_id: 9 };
+    const completed = { ...compensation, state: 'succeeded', completed_at: '2026-07-29T10:05:00.000Z' };
+    mockConnection.execute
+      .mockResolvedValueOnce([[compensation]])
+      .mockResolvedValueOnce([[{ state: 'succeeded', proposal_hash: 'proposal' }]])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      .mockResolvedValueOnce([{ insertId: 25 }])
+      .mockResolvedValueOnce([[completed]]);
+
+    const result = await ForesightExecutionRepository.completeCompensation({
+      businessId: 'business-1', executionId: 10, actorId: 7, state: 'succeeded',
+      response: { operationCount: 1 }, after: { matchesRestored: true }, errorText: null,
+    });
+
+    expect(result.state).toBe('succeeded');
+    expect(mockConnection.execute).toHaveBeenCalledWith(
+      expect.stringContaining("SET state = 'compensated'"),
+      ['business-1', 12],
+    );
+    expect(mockConnection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO foresight_recommendation_events'),
+      ['business-1', 12, 'compensated', 'proposal', 7, 'google_ads_rollback_succeeded', 'Compensation 10 for execution 9'],
+    );
+  });
+
+  it('records failed compensation without mislabeling the original recommendation', async () => {
+    const compensation = { ...execution, id: 10, compensates_execution_id: 9 };
+    const failed = { ...compensation, state: 'failed', error_text: 'Live read-back diverged.' };
+    mockConnection.execute
+      .mockResolvedValueOnce([[compensation]])
+      .mockResolvedValueOnce([[{ state: 'succeeded', proposal_hash: 'proposal' }]])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      .mockResolvedValueOnce([{ insertId: 26 }])
+      .mockResolvedValueOnce([[failed]]);
+
+    await ForesightExecutionRepository.completeCompensation({
+      businessId: 'business-1', executionId: 10, actorId: 7, state: 'failed',
+      response: null, after: null, errorText: 'Live read-back diverged.',
+    });
+
+    expect(mockConnection.execute).not.toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE foresight_recommendations SET state'),
+      expect.anything(),
+    );
+    expect(mockConnection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO foresight_recommendation_events'),
+      ['business-1', 12, 'succeeded', 'proposal', 7, 'google_ads_rollback_failed', 'Live read-back diverged.'],
+    );
+  });
 });

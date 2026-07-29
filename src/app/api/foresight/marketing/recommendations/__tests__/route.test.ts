@@ -89,7 +89,7 @@ describe('/api/foresight/marketing/recommendations', () => {
 
     expect(response.status).toBe(200);
     expect(mockList).toHaveBeenCalledWith('business-1', [
-      'shadow', 'pending_approval', 'approved', 'executing', 'succeeded', 'failed', 'rejected',
+      'shadow', 'pending_approval', 'approved', 'executing', 'succeeded', 'failed', 'compensated', 'rejected',
     ]);
     expect(mockListEvents).toHaveBeenCalledWith('business-1', []);
     expect(mockListOutcomes).toHaveBeenCalledWith('business-1', []);

@@ -342,6 +342,7 @@ export const ForesightRepository = {
         AND o.horizon_days = ?
        WHERE r.business_id = ?
          AND r.channel = 'paid_media'
+         AND r.state <> 'compensated'
          AND a.decision IN ('approved', 'rejected')
          AND (a.decision = 'rejected' OR i.id IS NOT NULL OR x.id IS NOT NULL)
          AND DATE_ADD(
