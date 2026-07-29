@@ -3226,6 +3226,28 @@ const ShopifyProductsView = forwardRef<WebsiteSyncHandle, {
 
 // ── Home overview ────────────────────────────────────────────────────────────
 function HomeView({ databaseId }: { databaseId: string }) {
+  // ── Top 10 brands (90d sales bar chart) ───────────────────────────────────
+  const [brandChartData, setBrandChartData] = useState<{ name: string; sales90: number }[]>([]);
+  const [brandChartLoading, setBrandChartLoading] = useState(false);
+
+  useEffect(() => {
+    if (!databaseId) return;
+    setBrandChartLoading(true);
+    fetch(`/api/calculated/brand-summary?databaseId=${encodeURIComponent(databaseId)}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.success && Array.isArray(d.brands)) {
+          const top10 = [...d.brands]
+            .sort((a: any, b: any) => b.sales90 - a.sales90)
+            .slice(0, 10)
+            .map((b: any) => ({ name: b.name, sales90: b.sales90 }));
+          setBrandChartData(top10);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setBrandChartLoading(false));
+  }, [databaseId]);
+
   // ── Top 10 sellers this week ───────────────────────────────────────────────
   const [topSellers, setTopSellers] = useState<{ name: string; code: string; brand: string; rev: number }[]>([]);
   const [topSellersLoading, setTopSellersLoading] = useState(false);
@@ -3246,9 +3268,59 @@ function HomeView({ databaseId }: { databaseId: string }) {
       .finally(() => setTopSellersLoading(false));
   }, [databaseId]);
 
+  // Bar chart max for scaling
+  const brandMax = brandChartData.reduce((m, b) => Math.max(m, b.sales90), 0);
+
+  // Interpolate indigo from dark (#4338ca) to light (#e0e7ff) across all bars
+  const barColor = (i: number, total: number) => {
+    const t = total <= 1 ? 0 : i / (total - 1);
+    const r = Math.round(67  + t * (224 - 67));
+    const g = Math.round(56  + t * (231 - 56));
+    const b = Math.round(202 + t * (255 - 202));
+    return `rgb(${r},${g},${b})`;
+  };
+
   return (
     <>
-      <div className="grid grid-cols-1 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+        {/* Top 10 Brands – 90d Sales Bar Chart */}
+        <div className="bg-white shadow-sm rounded-xl p-6 border border-gray-200">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-lg">🏆</div>
+            <div>
+              <h3 className="font-bold text-gray-800 text-sm leading-tight">Top 10 Brands</h3>
+              <p className="text-xs text-gray-400">Last 90 days sales</p>
+            </div>
+          </div>
+          {brandChartLoading && <p className="text-sm text-gray-400 py-8 text-center">Loading…</p>}
+          {!brandChartLoading && brandChartData.length === 0 && (
+            <p className="text-sm text-gray-400 py-8 text-center">No brand data yet. Sync your products first.</p>
+          )}
+          {!brandChartLoading && brandChartData.length > 0 && (
+            <div className="space-y-3">
+              {brandChartData.map((b, i) => {
+                const pct = brandMax > 0 ? (b.sales90 / brandMax) * 100 : 0;
+                return (
+                  <div key={b.name}>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs font-medium text-gray-700 truncate max-w-[60%]">{b.name}</span>
+                      <span className="text-xs text-gray-500 font-mono">
+                        ${b.sales90.toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </span>
+                    </div>
+                    <div className="h-5 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{ width: `${pct}%`, backgroundColor: barColor(i, brandChartData.length) }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         {/* Top 10 Sellers This Week */}
         <div className="bg-white shadow-sm rounded-xl p-6 border border-gray-200">
@@ -7664,11 +7736,18 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
   const [imageModel, setImageModel] = useState('gemini-3.1-flash-image');
   const [availableImageModels, setAvailableImageModels] = useState<{ id: string; displayName: string }[]>([]);
 
+  // Creative Intelligence Brief
+  const [useCreativeHistory, setUseCreativeHistory] = useState(false);
+  const [creativeSummary, setCreativeSummary] = useState('');
+  const [pendingWords, setPendingWords] = useState(0);
   const [showContextPreview, setShowContextPreview] = useState(false);
   const [contextPreviewText, setContextPreviewText] = useState('');
   const [contextSystemPrompt, setContextSystemPrompt] = useState('');
   const [contextPreviewDebug, setContextPreviewDebug] = useState<any>(null);
   const [contextPreviewLoading, setContextPreviewLoading] = useState(false);
+  const [editingSummary, setEditingSummary] = useState(false);
+  const [editSummaryText, setEditSummaryText] = useState('');
+  const [savingSummary, setSavingSummary] = useState(false);
 
   // Save flow
   const [savingIdx, setSavingIdx] = useState<number | null>(null);
@@ -7729,19 +7808,27 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
     setChatMsgs([]);
     setChatInput('');
     setChatError('');
-    setGeneratedImages({});
-    setImageErrors({});
-    setGeneratingImageIdx(null);
     setSavingIdx(null);
     setSaveName('');
     setSavedIdx(null);
-    setCopiedIdx(null);
     setShowContextPreview(false);
     setContextPreviewText('');
     setContextSystemPrompt('');
     setContextPreviewDebug(null);
+    setEditingSummary(false);
     setModelRefImage(null);
     setAiOpen(true);
+    // Fetch creative brief in background
+    if (databaseId) {
+      fetch(`/api/dashboard/creative-summary?databaseId=${encodeURIComponent(databaseId)}`)
+        .then(r => r.json())
+        .then(d => {
+          setCreativeSummary(d.summary ?? '');
+          setPendingWords(d.pendingWords ?? 0);
+          setUseCreativeHistory(!!(d.summary?.trim()));
+        })
+        .catch(() => {});
+    }
     // Fetch available image models (live from Google API)
     if (availableImageModels.length === 0) {
       fetch('/api/ai/image-models')
@@ -7766,6 +7853,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
           includeBrandProfile: useBrandProfile,
           includeBusinessInfo: useBusinessInfo,
           includeExistingAssets: useExisting,
+          includeCreativeHistory: useCreativeHistory,
           previewOnly: true,
           history: [],
         }),
@@ -7776,6 +7864,20 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
       if (data.debug)          setContextPreviewDebug(data.debug);
     } catch {}
     setContextPreviewLoading(false);
+  };
+
+  const saveBriefEdit = async () => {
+    setSavingSummary(true);
+    try {
+      await fetch('/api/dashboard/creative-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId, summary: editSummaryText }),
+      });
+      setCreativeSummary(editSummaryText);
+      setEditingSummary(false);
+    } catch {}
+    setSavingSummary(false);
   };
 
   const sendChat = async () => {
@@ -7798,6 +7900,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
           includeBrandProfile: useBrandProfile,
           includeBusinessInfo: useBusinessInfo,
           includeExistingAssets: useExisting,
+          includeCreativeHistory: useCreativeHistory,
           history: nextMsgs.slice(0, -1).map(m => ({ role: m.role, content: m.text })),
         }),
       });
@@ -7844,11 +7947,6 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
   const generateImage = async (msgIdx: number, promptOverride?: string) => {
     const prompt = promptOverride ?? chatMsgs[msgIdx].text;
     setGeneratingImageIdx(msgIdx);
-    setGeneratedImages(prev => {
-      const next = { ...prev };
-      delete next[msgIdx];
-      return next;
-    });
     setImageErrors(prev => { const n = { ...prev }; delete n[msgIdx]; return n; });
     try {
       const res = await fetch('/api/ai/brand-asset-generate-image', {
@@ -7857,7 +7955,6 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
         body: JSON.stringify({
           prompt,
           imageModel,
-          category: aiCategory,
           ...(aiCategory === 'models' && {
             forceWhiteBackground: true,
             ...(modelRefImage && {
@@ -8033,7 +8130,17 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
               <p style={{ fontSize: 11, margin: 0, color: '#9ca3af' }}>Describe your vision — AI creates &amp; renders automatically</p>
             </div>
             <button
-              onClick={() => setAiOpen(false)}
+              onClick={() => {
+                setAiOpen(false);
+                // Fire-and-forget: append conversation to pending buffer
+                if (chatMsgs.length >= 2 && databaseId) {
+                  fetch('/api/ai/brand-asset-update-summary', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ databaseId, conversation: chatMsgs.map(m => ({ role: m.role, text: m.text })) }),
+                  }).catch(() => {});
+                }
+              }}
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 18, lineHeight: 1, padding: '2px 6px' }}
             >×</button>
           </div>
@@ -8050,12 +8157,46 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
                   { label: 'Brand Profile', value: useBrandProfile, toggle: () => setUseBrandProfile(p => !p), color: '#8b5cf6' },
                   { label: 'Business Info', value: useBusinessInfo, toggle: () => setUseBusinessInfo(p => !p), color: '#0ea5e9' },
                   { label: `Existing ${catInfo.label}`, value: useExisting, toggle: () => setUseExisting(p => !p), color: catInfo.accentColor },
+                  { label: 'Creative History', value: useCreativeHistory, toggle: () => setUseCreativeHistory(p => !p), color: '#10b981' },
                 ].map(item => (
                   <button key={item.label} onClick={item.toggle} style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 20, border: `1px solid ${item.value ? item.color : '#d1d5db'}`, background: item.value ? item.color + '15' : 'transparent', color: item.value ? item.color : '#6b7280', cursor: 'pointer', transition: 'all .15s' }}>
                     {item.value ? '✓ ' : ''}{item.label}
                   </button>
                 ))}
               </div>
+              {/* Pending words indicator */}
+              {pendingWords > 0 && (
+                <p style={{ fontSize: 10, color: '#f59e0b', margin: '5px 0 0' }}>⏳ {pendingWords} words queued — brief updates at 500</p>
+              )}
+              {useCreativeHistory && creativeSummary && (
+                <div style={{ marginTop: 8 }}>
+                  {editingSummary ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <textarea
+                        value={editSummaryText}
+                        onChange={e => setEditSummaryText(e.target.value)}
+                        rows={6}
+                        style={{ fontSize: 11, padding: '8px 10px', borderRadius: 7, border: '1px solid #86efac', background: 'var(--sv-bg-1,#f9fafb)', color: 'var(--sv-text-strong,#111827)', resize: 'vertical', outline: 'none', lineHeight: 1.5 }}
+                      />
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={saveBriefEdit} disabled={savingSummary} style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6, background: '#10b981', color: '#fff', border: 'none', cursor: 'pointer', opacity: savingSummary ? 0.6 : 1 }}>{savingSummary ? 'Saving…' : 'Save Brief'}</button>
+                        <button onClick={() => setEditingSummary(false)} style={{ fontSize: 11, padding: '4px 8px', borderRadius: 6, background: 'none', border: '1px solid #e5e7eb', cursor: 'pointer', color: '#6b7280' }}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 7, padding: '8px 10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: '#16a34a' }}>📚 Creative Brief</span>
+                        <button onClick={() => { setEditSummaryText(creativeSummary); setEditingSummary(true); }} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, background: 'none', border: '1px solid #86efac', cursor: 'pointer', color: '#16a34a' }}>✎ Edit</button>
+                      </div>
+                      <p style={{ fontSize: 11, color: '#166534', margin: 0, lineHeight: 1.5, maxHeight: 80, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical' } as any}>{creativeSummary}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+              {useCreativeHistory && !creativeSummary && (
+                <p style={{ fontSize: 10, color: '#9ca3af', marginTop: 5 }}>No brief yet — will be generated after ~500 words of creative conversations.</p>
+              )}
             </div>
             {/* View Context expandable */}
             <div>
@@ -8069,7 +8210,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
                       const res = await fetch('/api/ai/brand-asset-chat', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ databaseId, prompt: '(preview)', category: aiCategory, imageModel, includeBrandProfile: useBrandProfile, includeBusinessInfo: useBusinessInfo, includeExistingAssets: useExisting, previewOnly: true, history: [] }),
+                        body: JSON.stringify({ databaseId, prompt: '(preview)', category: aiCategory, imageModel, includeBrandProfile: useBrandProfile, includeBusinessInfo: useBusinessInfo, includeExistingAssets: useExisting, includeCreativeHistory: useCreativeHistory, previewOnly: true, history: [] }),
                       });
                       const d = await res.json();
                       if (d.contextBlock)  setContextPreviewText(d.contextBlock);
