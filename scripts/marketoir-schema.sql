@@ -493,6 +493,32 @@ CREATE TABLE IF NOT EXISTS foresight_marketing_observations (
   INDEX idx_foresight_marketing_observation_run (run_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS foresight_marketing_entity_observations (
+  id                 BIGINT AUTO_INCREMENT PRIMARY KEY,
+  run_id             BIGINT NOT NULL,
+  business_id        VARCHAR(100) NOT NULL,
+  source             VARCHAR(32) NOT NULL,
+  account_id         VARCHAR(255) NOT NULL,
+  metric_date        DATE NOT NULL,
+  entity_type        VARCHAR(32) NOT NULL,
+  entity_id          VARCHAR(255) NOT NULL,
+  entity_name        VARCHAR(500) NOT NULL,
+  parent_entity_id   VARCHAR(255),
+  parent_entity_name VARCHAR(500),
+  spend              DECIMAL(16,4) NOT NULL DEFAULT 0,
+  impressions        BIGINT NOT NULL DEFAULT 0,
+  clicks             BIGINT NOT NULL DEFAULT 0,
+  conversions        DECIMAL(16,4) NOT NULL DEFAULT 0,
+  attributed_revenue DECIMAL(16,4) NOT NULL DEFAULT 0,
+  currency_code      VARCHAR(8),
+  created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_foresight_marketing_entity_observation
+    (run_id, source, account_id, metric_date, entity_type, entity_id),
+  INDEX idx_foresight_marketing_entity_trend
+    (business_id, source, entity_type, metric_date),
+  INDEX idx_foresight_marketing_entity_run (run_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS foresight_commerce_observations (
   id                      BIGINT AUTO_INCREMENT PRIMARY KEY,
   run_id                  BIGINT NOT NULL,

@@ -19,6 +19,7 @@ import {
   recommendationReasonLabel,
   type RecommendationTransitionAction,
 } from '@/lib/foresight/recommendationReasons';
+import type { PaidMediaContributorEvidence } from '@/lib/foresight/types';
 import { MarketingStrategyPanel } from './MarketingStrategyPanel';
 
 type RecommendationState = 'shadow' | 'pending_approval' | 'approved';
@@ -34,6 +35,7 @@ type Recommendation = {
     windowEnd: string;
     quality: { grade: string; issues: Array<{ code: string; severity: string; message: string }> };
     observedValues?: Record<string, number | null>;
+    contributors?: PaidMediaContributorEvidence[];
   };
   proposed_action_json: Record<string, unknown> | null;
   proposal_hash: string | null;
@@ -75,6 +77,12 @@ const METRIC_LABELS: Record<string, string> = {
   currentMer: 'Current MER',
   previousMer: 'Previous MER',
   deteriorationPercent: 'Deterioration',
+};
+const SIGNAL_LABELS: Record<PaidMediaContributorEvidence['signals'][number], string> = {
+  new_spend: 'New spend',
+  spend_increase: 'Spend increased',
+  platform_roas_decline: 'Platform ROAS declined',
+  spend_without_platform_revenue: 'No platform-attributed revenue',
 };
 
 function money(value: number): string {
@@ -306,6 +314,45 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                   </div>
                 )}
               </div>
+
+              {(selected.evidence_json.contributors?.length ?? 0) > 0 && (
+                <div>
+                  <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Likely contributors</h3>
+                    <span className="text-[11px] text-gray-400">Platform attribution is diagnostic only</span>
+                  </div>
+                  <div className="divide-y divide-gray-200 border-y border-gray-200">
+                    {selected.evidence_json.contributors?.map((contributor) => (
+                      <div key={`${contributor.source}:${contributor.entityType}:${contributor.entityId}`} className="py-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-semibold text-gray-900">{contributor.entityName}</span>
+                              <span className="border border-gray-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gray-500">
+                                {contributor.source === 'google_ads' ? 'Google' : 'Meta'} {contributor.entityType === 'adset' ? 'Ad set' : 'Campaign'}
+                              </span>
+                            </div>
+                            {contributor.parentEntityName && <div className="mt-1 text-xs text-gray-500">Campaign: {contributor.parentEntityName}</div>}
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-semibold tabular-nums text-gray-900">{money(contributor.currentSpend)}</div>
+                            <div className={`text-xs tabular-nums ${contributor.spendChange > 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                              {contributor.spendChange >= 0 ? '+' : ''}{money(contributor.spendChange)} vs prior
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-600">
+                          <span>Platform ROAS <strong className="tabular-nums text-gray-800">{contributor.currentPlatformRoas?.toFixed(2) ?? 'N/A'}</strong></span>
+                          <span>Prior <strong className="tabular-nums text-gray-800">{contributor.previousPlatformRoas?.toFixed(2) ?? 'N/A'}</strong></span>
+                          {contributor.signals.map((signal) => (
+                            <span key={signal} className="bg-amber-50 px-1.5 py-1 font-medium text-amber-800">{SIGNAL_LABELS[signal]}</span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="border-y border-gray-200 py-4">
                 <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-500">Proposed response</h3>

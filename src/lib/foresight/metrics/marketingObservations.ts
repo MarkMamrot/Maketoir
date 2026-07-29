@@ -1,4 +1,5 @@
 export type PaidMediaSource = 'google_ads' | 'meta_ads';
+export type PaidMediaEntityType = 'campaign' | 'adset';
 
 export interface DailyPaidMediaObservation {
   metricDate: string;
@@ -121,4 +122,120 @@ export function aggregateMetaAdsDaily(
   }
 
   return sorted(observations);
+}
+
+export interface DailyPaidMediaEntityObservation extends DailyPaidMediaObservation {
+  entityType: PaidMediaEntityType;
+  entityId: string;
+  entityName: string;
+  parentEntityId: string | null;
+  parentEntityName: string | null;
+}
+
+function entityObservation(
+  source: PaidMediaSource,
+  accountId: string,
+  metricDate: string,
+  currencyCode: string | null,
+  entityType: PaidMediaEntityType,
+  entityId: string,
+  entityName: string,
+  parentEntityId: string | null = null,
+  parentEntityName: string | null = null,
+): DailyPaidMediaEntityObservation {
+  return {
+    ...observation(source, accountId, metricDate, currencyCode),
+    entityType,
+    entityId,
+    entityName,
+    parentEntityId,
+    parentEntityName,
+  };
+}
+
+function sortedEntities(
+  observations: Map<string, DailyPaidMediaEntityObservation>,
+): DailyPaidMediaEntityObservation[] {
+  return [...observations.values()].sort((left, right) =>
+    left.metricDate.localeCompare(right.metricDate)
+    || left.source.localeCompare(right.source)
+    || left.entityType.localeCompare(right.entityType)
+    || left.entityName.localeCompare(right.entityName));
+}
+
+export function aggregateGoogleAdsEntities(
+  rows: unknown[],
+  accountId: string,
+): DailyPaidMediaEntityObservation[] {
+  const observations = new Map<string, DailyPaidMediaEntityObservation>();
+
+  for (const row of rows) {
+    const record = asRecord(row);
+    const campaign = asRecord(record.campaign);
+    const segments = asRecord(record.segments);
+    const metrics = asRecord(record.metrics);
+    const customer = asRecord(record.customer);
+    const metricDate = dateKey(segments.date);
+    const entityId = String(campaign.id ?? '').trim();
+    if (!metricDate || !entityId) continue;
+
+    const key = `${metricDate}:campaign:${entityId}`;
+    const currencyCode = String(customer.currency_code ?? '').trim() || null;
+    const current = observations.get(key) ?? entityObservation(
+      'google_ads',
+      accountId,
+      metricDate,
+      currencyCode,
+      'campaign',
+      entityId,
+      String(campaign.name ?? entityId),
+    );
+    current.spend += asNumber(metrics.cost_micros) / 1_000_000;
+    current.impressions += asNumber(metrics.impressions);
+    current.clicks += asNumber(metrics.clicks);
+    current.conversions += asNumber(metrics.conversions);
+    current.attributedRevenue += asNumber(metrics.conversions_value);
+    observations.set(key, current);
+  }
+
+  return sortedEntities(observations);
+}
+
+export function aggregateMetaAdsEntities(
+  rows: unknown[],
+  accountId: string,
+  entityType: PaidMediaEntityType,
+  currencyCode: string | null = null,
+): DailyPaidMediaEntityObservation[] {
+  const observations = new Map<string, DailyPaidMediaEntityObservation>();
+
+  for (const row of rows) {
+    const record = asRecord(row);
+    const metricDate = dateKey(record.date_start);
+    const idKey = entityType === 'campaign' ? 'campaign_id' : 'adset_id';
+    const nameKey = entityType === 'campaign' ? 'campaign_name' : 'adset_name';
+    const entityId = String(record[idKey] ?? '').trim();
+    if (!metricDate || !entityId) continue;
+
+    const key = `${metricDate}:${entityType}:${entityId}`;
+    const current = observations.get(key) ?? entityObservation(
+      'meta_ads',
+      accountId,
+      metricDate,
+      currencyCode,
+      entityType,
+      entityId,
+      String(record[nameKey] ?? entityId),
+      entityType === 'adset' ? String(record.campaign_id ?? '').trim() || null : null,
+      entityType === 'adset' ? String(record.campaign_name ?? '').trim() || null : null,
+    );
+    current.spend += asNumber(record.spend);
+    current.impressions += asNumber(record.impressions);
+    current.clicks += asNumber(record.clicks);
+    current.conversions += metaActionValue(record.actions);
+    current.attributedRevenue += metaActionValue(record.action_values);
+    observations.set(key, current);
+  }
+
+  return sortedEntities(observations);
 }

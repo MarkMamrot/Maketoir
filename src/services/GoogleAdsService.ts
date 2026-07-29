@@ -47,6 +47,7 @@ export class GoogleAdsService {
   async getDailyPerformance(startDate: string, endDate: string) {
     return this.getCustomer().query(`
       SELECT
+        campaign.id, campaign.name,
         segments.date, customer.currency_code,
         metrics.impressions, metrics.clicks, metrics.cost_micros,
         metrics.conversions, metrics.conversions_value

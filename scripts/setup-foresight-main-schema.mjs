@@ -19,6 +19,7 @@ const tableNames = [
   'foresight_sync_runs',
   'foresight_sync_tabs',
   'foresight_marketing_observations',
+  'foresight_marketing_entity_observations',
   'foresight_commerce_observations',
 ];
 

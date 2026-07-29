@@ -58,6 +58,31 @@ describe('ForesightIngestionRepository', () => {
     expect(mockPoolQuery).not.toHaveBeenCalled();
   });
 
+  it('stores entity observations at campaign-day grain with parent context', async () => {
+    await ForesightIngestionRepository.appendPaidMediaEntityObservations(71, 'business-1', [{
+      metricDate: '2026-07-28',
+      source: 'meta_ads',
+      accountId: 'meta-1',
+      entityType: 'adset',
+      entityId: 'adset-1',
+      entityName: 'Broad',
+      parentEntityId: 'campaign-1',
+      parentEntityName: 'Prospecting',
+      spend: 25,
+      impressions: 1000,
+      clicks: 40,
+      conversions: 2,
+      attributedRevenue: 120,
+      currencyCode: 'AUD',
+    }]);
+
+    expect(mockPoolQuery).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO foresight_marketing_entity_observations'),
+      [71, 'business-1', 'meta_ads', 'meta-1', '2026-07-28', 'adset', 'adset-1', 'Broad',
+        'campaign-1', 'Prospecting', 25, 1000, 40, 2, 120, 'AUD'],
+    );
+  });
+
   it('stores exact-tax commerce observations with cost coverage', async () => {
     await ForesightIngestionRepository.appendCommerceObservations(71, 'business-1', [{
       metricDate: '2026-07-28',
@@ -112,6 +137,36 @@ describe('ForesightIngestionRepository', () => {
 
     expect(mockQuery).toHaveBeenCalledWith(
       expect.stringContaining('MAX(run_id)'),
+      ['business-1', '2026-07-01', '2026-07-29', 'business-1'],
+    );
+  });
+
+  it('returns latest-run entity observations with numeric values and identity', async () => {
+    mockQuery.mockResolvedValue([{
+      metric_date: '2026-07-28T00:00:00.000Z',
+      source: 'google_ads',
+      account_id: 'google-1',
+      entity_type: 'campaign',
+      entity_id: '101',
+      entity_name: 'Brand Search',
+      parent_entity_id: null,
+      parent_entity_name: null,
+      spend: '25.0000',
+      impressions: '1000',
+      clicks: '40',
+      conversions: '2.0000',
+      attributed_revenue: '120.0000',
+      currency_code: 'AUD',
+    }]);
+
+    await expect(ForesightIngestionRepository.getLatestPaidMediaEntityTrend(
+      'business-1', '2026-07-01', '2026-07-29',
+    )).resolves.toEqual([expect.objectContaining({
+      source: 'google_ads', entityType: 'campaign', entityId: '101', spend: 25,
+    })]);
+
+    expect(mockQuery).toHaveBeenCalledWith(
+      expect.stringMatching(/GROUP BY source, account_id, entity_type, entity_id, metric_date/),
       ['business-1', '2026-07-01', '2026-07-29', 'business-1'],
     );
   });

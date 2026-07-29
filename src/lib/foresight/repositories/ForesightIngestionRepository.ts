@@ -1,5 +1,10 @@
 import { execute, getPool, query } from '@/services/MySQLService';
-import type { DailyPaidMediaObservation, PaidMediaSource } from '../metrics/marketingObservations';
+import type {
+  DailyPaidMediaEntityObservation,
+  DailyPaidMediaObservation,
+  PaidMediaEntityType,
+  PaidMediaSource,
+} from '../metrics/marketingObservations';
 import type { DailyCommerceObservation } from '../metrics/commerceReconciliation';
 
 export type ForesightSyncSource = PaidMediaSource | 'ga4' | 'klaviyo' | 'commerce';
@@ -42,6 +47,14 @@ interface PaidMediaObservationRow {
   conversions: number | string;
   attributed_revenue: number | string;
   currency_code: string | null;
+}
+
+interface PaidMediaEntityObservationRow extends PaidMediaObservationRow {
+  entity_type: PaidMediaEntityType;
+  entity_id: string;
+  entity_name: string;
+  parent_entity_id: string | null;
+  parent_entity_name: string | null;
 }
 
 interface CommerceObservationRow {
@@ -108,6 +121,53 @@ export const ForesightIngestionRepository = {
       metricDate: String(row.metric_date).slice(0, 10),
       source: row.source,
       accountId: row.account_id,
+      spend: Number(row.spend),
+      impressions: Number(row.impressions),
+      clicks: Number(row.clicks),
+      conversions: Number(row.conversions),
+      attributedRevenue: Number(row.attributed_revenue),
+      currencyCode: row.currency_code,
+    }));
+  },
+
+  async getLatestPaidMediaEntityTrend(
+    businessId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<DailyPaidMediaEntityObservation[]> {
+    const rows = await query<PaidMediaEntityObservationRow>(
+      `SELECT observation.metric_date, observation.source, observation.account_id,
+              observation.entity_type, observation.entity_id, observation.entity_name,
+              observation.parent_entity_id, observation.parent_entity_name,
+              observation.spend, observation.impressions, observation.clicks,
+              observation.conversions, observation.attributed_revenue, observation.currency_code
+       FROM foresight_marketing_entity_observations observation
+       INNER JOIN (
+         SELECT source, account_id, entity_type, entity_id, metric_date, MAX(run_id) AS run_id
+         FROM foresight_marketing_entity_observations
+         WHERE business_id = ? AND metric_date BETWEEN ? AND ?
+         GROUP BY source, account_id, entity_type, entity_id, metric_date
+       ) latest
+         ON latest.source = observation.source
+        AND latest.account_id = observation.account_id
+        AND latest.entity_type = observation.entity_type
+        AND latest.entity_id = observation.entity_id
+        AND latest.metric_date = observation.metric_date
+        AND latest.run_id = observation.run_id
+       WHERE observation.business_id = ?
+       ORDER BY observation.metric_date, observation.source, observation.entity_type,
+                observation.entity_name, observation.entity_id`,
+      [businessId, startDate, endDate, businessId],
+    );
+    return rows.map((row) => ({
+      metricDate: String(row.metric_date).slice(0, 10),
+      source: row.source,
+      accountId: row.account_id,
+      entityType: row.entity_type,
+      entityId: row.entity_id,
+      entityName: row.entity_name,
+      parentEntityId: row.parent_entity_id,
+      parentEntityName: row.parent_entity_name,
       spend: Number(row.spend),
       impressions: Number(row.impressions),
       clicks: Number(row.clicks),
@@ -240,6 +300,53 @@ export const ForesightIngestionRepository = {
          VALUES ${placeholders}
          ON DUPLICATE KEY UPDATE
            spend = VALUES(spend), impressions = VALUES(impressions), clicks = VALUES(clicks),
+           conversions = VALUES(conversions), attributed_revenue = VALUES(attributed_revenue),
+           currency_code = VALUES(currency_code)`,
+        values,
+      );
+    }
+  },
+
+  async appendPaidMediaEntityObservations(
+    runId: number,
+    businessId: string,
+    observations: DailyPaidMediaEntityObservation[],
+  ): Promise<void> {
+    if (observations.length === 0) return;
+    const pool = getPool();
+    const chunkSize = 200;
+
+    for (let index = 0; index < observations.length; index += chunkSize) {
+      const chunk = observations.slice(index, index + chunkSize);
+      const placeholders = chunk.map(() => '(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').join(',');
+      const values = chunk.flatMap((item) => [
+        runId,
+        businessId,
+        item.source,
+        item.accountId,
+        item.metricDate,
+        item.entityType,
+        item.entityId,
+        item.entityName,
+        item.parentEntityId,
+        item.parentEntityName,
+        item.spend,
+        item.impressions,
+        item.clicks,
+        item.conversions,
+        item.attributedRevenue,
+        item.currencyCode,
+      ]);
+      await pool.query(
+        `INSERT INTO foresight_marketing_entity_observations
+           (run_id, business_id, source, account_id, metric_date, entity_type,
+            entity_id, entity_name, parent_entity_id, parent_entity_name, spend,
+            impressions, clicks, conversions, attributed_revenue, currency_code)
+         VALUES ${placeholders}
+         ON DUPLICATE KEY UPDATE
+           entity_name = VALUES(entity_name), parent_entity_id = VALUES(parent_entity_id),
+           parent_entity_name = VALUES(parent_entity_name), spend = VALUES(spend),
+           impressions = VALUES(impressions), clicks = VALUES(clicks),
            conversions = VALUES(conversions), attributed_revenue = VALUES(attributed_revenue),
            currency_code = VALUES(currency_code)`,
         values,

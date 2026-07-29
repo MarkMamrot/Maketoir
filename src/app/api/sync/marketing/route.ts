@@ -20,7 +20,9 @@ import {
 } from '@/lib/foresight/repositories/ForesightIngestionRepository';
 import {
   aggregateGoogleAdsDaily,
+  aggregateGoogleAdsEntities,
   aggregateMetaAdsDaily,
+  aggregateMetaAdsEntities,
 } from '@/lib/foresight/metrics/marketingObservations';
 import { ImsCommerceRepository } from '@/lib/foresight/repositories/ImsCommerceRepository';
 import { ForesightRecommendationService } from '@/lib/foresight/ForesightRecommendationService';
@@ -144,13 +146,16 @@ async function fetchMetaDailyInsights(
   accessToken: string,
   startDate: string,
   endDate: string,
+  level: 'campaign' | 'adset' = 'campaign',
 ): Promise<any[]> {
   const id = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
   const url = new URL(`https://graph.facebook.com/v19.0/${id}/insights`);
-  url.searchParams.set('level', 'campaign');
+  url.searchParams.set('level', level);
   url.searchParams.set(
     'fields',
-    'spend,impressions,clicks,actions,action_values,account_currency,date_start,date_stop',
+    level === 'campaign'
+      ? 'campaign_id,campaign_name,spend,impressions,clicks,actions,action_values,account_currency,date_start,date_stop'
+      : 'campaign_id,campaign_name,adset_id,adset_name,spend,impressions,clicks,actions,action_values,account_currency,date_start,date_stop',
   );
   url.searchParams.set('time_range', JSON.stringify({ since: startDate, until: endDate }));
   url.searchParams.set('time_increment', '1');
@@ -316,12 +321,22 @@ export async function POST(req: Request) {
                 Array.isArray(dailyRows) ? dailyRows : [],
                 customerId,
               );
+              const entityObservations = aggregateGoogleAdsEntities(
+                Array.isArray(dailyRows) ? dailyRows : [],
+                customerId,
+              );
               await ForesightIngestionRepository.appendPaidMediaObservations(runId, databaseId, observations);
+              await ForesightIngestionRepository.appendPaidMediaEntityObservations(
+                runId,
+                databaseId,
+                entityObservations,
+              );
               await recordTab({
                 source: 'google_ads', accountId: customerId,
                 tabKey: 'GAds_DailyPerformance', label: 'Daily Performance',
                 state: 'succeeded', windowStart: startDate, windowEnd: endDate,
-                rowCount: observations.length, metadata: { grain: 'account_day' },
+                rowCount: observations.length,
+                metadata: { grain: 'account_day', entityGrain: 'campaign_day', entityRows: entityObservations.length },
               });
               emit({
                 tab: 'GAds_DailyPerformance', label: 'Daily Performance', source: 'google-ads',
@@ -411,12 +426,24 @@ export async function POST(req: Request) {
               const dailyRows = await fetchMetaDailyInsights(adAccountId, accessToken, startDate, endDate);
               const currencyCode = String(dailyRows[0]?.account_currency ?? '').trim() || null;
               const observations = aggregateMetaAdsDaily(dailyRows, adAccountId, currencyCode);
+              const entityObservations = aggregateMetaAdsEntities(
+                dailyRows,
+                adAccountId,
+                'campaign',
+                currencyCode,
+              );
               await ForesightIngestionRepository.appendPaidMediaObservations(runId, databaseId, observations);
+              await ForesightIngestionRepository.appendPaidMediaEntityObservations(
+                runId,
+                databaseId,
+                entityObservations,
+              );
               await recordTab({
                 source: 'meta_ads', accountId: adAccountId,
                 tabKey: 'Meta_DailyPerformance', label: 'Daily Performance',
                 state: 'succeeded', windowStart: startDate, windowEnd: endDate,
-                rowCount: observations.length, metadata: { grain: 'account_day' },
+                rowCount: observations.length,
+                metadata: { grain: 'account_day', entityGrain: 'campaign_day', entityRows: entityObservations.length },
               });
               emit({
                 tab: 'Meta_DailyPerformance', label: 'Daily Performance', source: 'meta',
@@ -431,6 +458,50 @@ export async function POST(req: Request) {
               });
               emit({
                 tab: 'Meta_DailyPerformance', label: 'Daily Performance', source: 'meta',
+                status: 'error', error: message,
+              });
+            }
+
+            emit({ tab: 'Meta_AdSetDailyPerformance', label: 'Ad Set Daily Performance', source: 'meta', status: 'start' });
+            try {
+              const dailyRows = await fetchMetaDailyInsights(
+                adAccountId,
+                accessToken,
+                startDate,
+                endDate,
+                'adset',
+              );
+              const currencyCode = String(dailyRows[0]?.account_currency ?? '').trim() || null;
+              const entityObservations = aggregateMetaAdsEntities(
+                dailyRows,
+                adAccountId,
+                'adset',
+                currencyCode,
+              );
+              await ForesightIngestionRepository.appendPaidMediaEntityObservations(
+                runId,
+                databaseId,
+                entityObservations,
+              );
+              await recordTab({
+                source: 'meta_ads', accountId: adAccountId,
+                tabKey: 'Meta_AdSetDailyPerformance', label: 'Ad Set Daily Performance',
+                state: 'succeeded', windowStart: startDate, windowEnd: endDate,
+                rowCount: entityObservations.length, metadata: { grain: 'adset_day' },
+              });
+              emit({
+                tab: 'Meta_AdSetDailyPerformance', label: 'Ad Set Daily Performance', source: 'meta',
+                status: 'done', rows: entityObservations.length,
+              });
+            } catch (e: any) {
+              const message = errorMessage(e);
+              await recordTab({
+                source: 'meta_ads', accountId: adAccountId,
+                tabKey: 'Meta_AdSetDailyPerformance', label: 'Ad Set Daily Performance',
+                state: 'failed', windowStart: startDate, windowEnd: endDate, error: message,
+              });
+              emit({
+                tab: 'Meta_AdSetDailyPerformance', label: 'Ad Set Daily Performance', source: 'meta',
                 status: 'error', error: message,
               });
             }

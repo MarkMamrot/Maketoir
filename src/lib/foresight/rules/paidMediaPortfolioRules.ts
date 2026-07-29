@@ -1,5 +1,10 @@
 import type { DailyCommerceReconciliation } from '../metrics/commerceReconciliation';
-import type { DataQualityIssue, DataQualityResult, RecommendationEvidence } from '../types';
+import type {
+  DataQualityIssue,
+  DataQualityResult,
+  PaidMediaContributorEvidence,
+  RecommendationEvidence,
+} from '../types';
 
 export const PAID_MEDIA_POLICY_VERSION = 1;
 export const PAID_MEDIA_RULE_FORMULA_VERSION = 'foresight-paid-media-rules-v1';
@@ -90,6 +95,7 @@ function evidence(
   current: WindowTotals,
   metricKeys: string[],
   observedValues: Record<string, number | null>,
+  contributors: PaidMediaContributorEvidence[],
 ): RecommendationEvidence {
   return {
     metricKeys,
@@ -98,6 +104,7 @@ function evidence(
     windowEnd: current.end,
     quality: quality(current.issues),
     observedValues,
+    ...(contributors.length > 0 ? { contributors } : {}),
   };
 }
 
@@ -108,6 +115,7 @@ function fingerprint(ruleId: string, current: WindowTotals, policy: PaidMediaRul
 export function evaluatePaidMediaPortfolioRules(
   rows: DailyCommerceReconciliation[],
   policy: PaidMediaRulePolicy = DEFAULT_PAID_MEDIA_RULE_POLICY,
+  contributors: PaidMediaContributorEvidence[] = [],
 ): PaidMediaRuleRecommendation[] {
   const ordered = [...rows].sort((left, right) => left.metricDate.localeCompare(right.metricDate));
   if (ordered.length < policy.minimumCurrentDays) return [];
@@ -129,7 +137,7 @@ export function evaluatePaidMediaPortfolioRules(
       evidence: evidence(current, ['paid_media_spend', 'net_online_revenue_ex_tax'], {
         spend: current.spend,
         onlineRevenueExTax: current.revenue,
-      }),
+      }, contributors),
       proposedAction: {
         type: 'investigate_measurement_and_spend',
         reason: 'Paid media recorded spend without authoritative online revenue in the evaluation window.',
@@ -156,7 +164,7 @@ export function evaluatePaidMediaPortfolioRules(
         contributionPoas: current.contributionPoas,
         spend: current.spend,
         contributionBeforeAds: current.contributionBeforeAds,
-      }),
+      }, contributors),
       proposedAction: {
         type: 'review_budget_reduction',
         maximumReductionPercent: policy.maximumBudgetReductionPercent,
@@ -190,7 +198,7 @@ export function evaluatePaidMediaPortfolioRules(
           previousMer: previous.mer,
           deteriorationPercent,
           spend: current.spend,
-        }),
+        }, contributors),
         proposedAction: {
           type: 'review_channel_and_campaign_mix',
           reason: 'Blended online MER deteriorated against the immediately preceding equal window.',

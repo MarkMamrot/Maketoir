@@ -39,4 +39,24 @@ export interface RecommendationEvidence {
   windowEnd: string;
   quality: DataQualityResult;
   observedValues?: Record<string, number | null>;
+  contributors?: PaidMediaContributorEvidence[];
+}
+
+export interface PaidMediaContributorEvidence {
+  source: 'google_ads' | 'meta_ads';
+  entityType: 'campaign' | 'adset';
+  entityId: string;
+  entityName: string;
+  parentEntityId: string | null;
+  parentEntityName: string | null;
+  currentSpend: number;
+  previousSpend: number;
+  spendChange: number;
+  currentAttributedRevenue: number;
+  previousAttributedRevenue: number;
+  currentPlatformRoas: number | null;
+  previousPlatformRoas: number | null;
+  platformRoasChangePercent: number | null;
+  diagnosticScore: number;
+  signals: Array<'new_spend' | 'spend_increase' | 'platform_roas_decline' | 'spend_without_platform_revenue'>;
 }

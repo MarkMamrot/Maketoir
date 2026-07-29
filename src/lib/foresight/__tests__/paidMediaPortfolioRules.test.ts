@@ -108,4 +108,33 @@ describe('paid media portfolio rules', () => {
       dates(7).map((date) => day(date, 20, 100, 40, true)),
     )).toEqual([]);
   });
+
+  it('attaches ranked entity evidence without changing portfolio calculations', () => {
+    const contributor = {
+      source: 'meta_ads' as const,
+      entityType: 'campaign' as const,
+      entityId: 'campaign-1',
+      entityName: 'Prospecting',
+      parentEntityId: null,
+      parentEntityName: null,
+      currentSpend: 140,
+      previousSpend: 100,
+      spendChange: 40,
+      currentAttributedRevenue: 100,
+      previousAttributedRevenue: 300,
+      currentPlatformRoas: 0.71,
+      previousPlatformRoas: 3,
+      platformRoasChangePercent: -76.33,
+      diagnosticScore: 146.87,
+      signals: ['spend_increase', 'platform_roas_decline'] as const,
+    };
+    const recommendations = evaluatePaidMediaPortfolioRules(
+      dates(7).map((date) => day(date, 20, 0, 0)),
+      undefined,
+      [contributor],
+    );
+
+    expect(recommendations[0].evidence.contributors).toEqual([contributor]);
+    expect(recommendations[0].evidence.observedValues?.spend).toBe(140);
+  });
 });

@@ -1,4 +1,5 @@
 import { ForesightMetricsService } from './ForesightMetricsService';
+import { diagnosePaidMediaContributors } from './metrics/campaignDiagnosis';
 import {
   DEFAULT_FORESIGHT_MARKETING_STRATEGY,
   parseMarketingStrategy,
@@ -43,7 +44,17 @@ export const ForesightRecommendationService = {
       startDate,
       throughDate,
     );
-    const recommendations = evaluatePaidMediaPortfolioRules(metrics.reconciliation, policy);
+    const currentStart = addDays(throughDate, -(policy.minimumCurrentDays - 1));
+    const contributors = diagnosePaidMediaContributors(
+      metrics.paidMediaEntities,
+      currentStart,
+      throughDate,
+    );
+    const recommendations = evaluatePaidMediaPortfolioRules(
+      metrics.reconciliation,
+      policy,
+      contributors,
+    );
     const expiresAt = `${addDays(throughDate, 7)} 23:59:59`;
     const persisted = [];
 
@@ -76,6 +87,7 @@ export const ForesightRecommendationService = {
       evaluatedFrom: startDate,
       evaluatedThrough: throughDate,
       strategyVersion: policy.strategyVersion,
+      contributorCount: contributors.length,
       recommendationCount: persisted.length,
       expiredCount,
       recommendations: persisted,

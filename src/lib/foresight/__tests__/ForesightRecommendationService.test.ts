@@ -45,7 +45,7 @@ import { ForesightRecommendationService } from '../ForesightRecommendationServic
 describe('ForesightRecommendationService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetMetrics.mockResolvedValue({ reconciliation: [] });
+    mockGetMetrics.mockResolvedValue({ reconciliation: [], paidMediaEntities: [] });
     mockLatestStrategy.mockResolvedValue(null);
     mockCreateRecommendation.mockResolvedValue(42);
     mockExpire.mockResolvedValue(2);
@@ -59,7 +59,7 @@ describe('ForesightRecommendationService', () => {
       strategyVersion: 0,
       minimumCurrentDays: 7,
       minimumContributionPoas: 1,
-    }));
+    }), []);
     expect(mockCreateRecommendation).toHaveBeenCalledWith('business-1', expect.objectContaining({
       fingerprint: 'rule:fingerprint',
       channel: 'paid_media',
@@ -104,7 +104,7 @@ describe('ForesightRecommendationService', () => {
       merDeteriorationPercent: 15,
       minimumContributionPoas: 1.25,
       maximumBudgetReductionPercent: 8,
-    });
+    }, []);
     expect(result.strategyVersion).toBe(4);
   });
 });
