@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { PaidMediaContributorEvidence } from '../types';
-import { planGoogleBudgetReductionPreflight, type GoogleCampaignSetting } from '../executionPreflight';
+import {
+  executionPreflightFingerprint,
+  planGoogleBudgetReductionPreflight,
+  type GoogleCampaignSetting,
+} from '../executionPreflight';
 
 const contributor: PaidMediaContributorEvidence = {
   source: 'google_ads', entityType: 'campaign', entityId: '123', entityName: 'Search AU',
@@ -47,5 +51,20 @@ describe('Google budget reduction preflight', () => {
     });
     expect(result.ready).toBe(false);
     expect(result.blockers[0].code).toBe('no_supported_google_campaign_candidates');
+  });
+
+  it('binds confirmation to exact live before and proposed values, not check time', () => {
+    const first = planGoogleBudgetReductionPreflight({
+      contributors: [contributor], liveCampaigns: [live], maximumReductionPercent: 8,
+      expectedCustomerId: '1112223333', checkedAt: '2026-07-29T10:00:00.000Z',
+    });
+    const later = { ...first, checkedAt: '2026-07-29T10:01:00.000Z' };
+    const changed = {
+      ...later,
+      changes: later.changes.map((change) => ({ ...change, currentAmountMicros: 110_000_000 })),
+    };
+
+    expect(executionPreflightFingerprint(later)).toBe(executionPreflightFingerprint(first));
+    expect(executionPreflightFingerprint(changed)).not.toBe(executionPreflightFingerprint(first));
   });
 });

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockRequireAdminSession, mockRequireAdminTier, mockEvaluate, mockEvaluateKlaviyo, mockEvaluateOutcomes, mockList, mockListEvents, mockListOutcomes, mockListImplementations } = vi.hoisted(() => ({
+const { mockRequireAdminSession, mockRequireAdminTier, mockEvaluate, mockEvaluateKlaviyo, mockEvaluateOutcomes, mockList, mockListEvents, mockListOutcomes, mockListImplementations, mockListExecutions } = vi.hoisted(() => ({
   mockRequireAdminSession: vi.fn(),
   mockRequireAdminTier: vi.fn(),
   mockEvaluate: vi.fn(),
@@ -10,6 +10,7 @@ const { mockRequireAdminSession, mockRequireAdminTier, mockEvaluate, mockEvaluat
   mockListEvents: vi.fn(),
   mockListOutcomes: vi.fn(),
   mockListImplementations: vi.fn(),
+  mockListExecutions: vi.fn(),
 }));
 
 vi.mock('@/lib/sessionUtils', () => ({
@@ -40,6 +41,9 @@ vi.mock('@/lib/foresight/repositories/ForesightRepository', () => ({
     listRecommendationImplementations: mockListImplementations,
   },
 }));
+vi.mock('@/lib/foresight/repositories/ForesightExecutionRepository', () => ({
+  ForesightExecutionRepository: { listForRecommendations: mockListExecutions },
+}));
 
 import { GET, POST } from '../route';
 
@@ -54,6 +58,7 @@ describe('/api/foresight/marketing/recommendations', () => {
     mockListEvents.mockResolvedValue([]);
     mockListOutcomes.mockResolvedValue([]);
     mockListImplementations.mockResolvedValue([]);
+    mockListExecutions.mockResolvedValue([]);
     mockEvaluateOutcomes.mockResolvedValue({ measuredCount: 0, deferredCount: 0, outcomes: [] });
   });
 
@@ -83,9 +88,12 @@ describe('/api/foresight/marketing/recommendations', () => {
     const response = await GET();
 
     expect(response.status).toBe(200);
-    expect(mockList).toHaveBeenCalledWith('business-1', ['shadow', 'pending_approval', 'approved', 'rejected']);
+    expect(mockList).toHaveBeenCalledWith('business-1', [
+      'shadow', 'pending_approval', 'approved', 'executing', 'succeeded', 'failed', 'rejected',
+    ]);
     expect(mockListEvents).toHaveBeenCalledWith('business-1', []);
     expect(mockListOutcomes).toHaveBeenCalledWith('business-1', []);
     expect(mockListImplementations).toHaveBeenCalledWith('business-1', []);
+    expect(mockListExecutions).toHaveBeenCalledWith('business-1', []);
   });
 });

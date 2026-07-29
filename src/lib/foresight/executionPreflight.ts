@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import type { PaidMediaContributorEvidence } from './types';
 
 export interface GoogleCampaignSetting {
@@ -38,9 +39,34 @@ export interface ExecutionPreflightResult {
   executable: false;
   ready: boolean;
   checkedAt: string;
+  confirmationFingerprint: string | null;
   account: { source: 'google_ads'; customerId: string } | null;
   changes: BudgetChangePreview[];
   blockers: ExecutionPreflightBlocker[];
+}
+
+export function executionPreflightFingerprint(result: ExecutionPreflightResult): string {
+  const confirmation = {
+    mode: result.mode,
+    executable: result.executable,
+    ready: result.ready,
+    account: result.account,
+    changes: [...result.changes]
+      .sort((left, right) => left.budgetId.localeCompare(right.budgetId))
+      .map((change) => ({
+        source: change.source,
+        entityType: change.entityType,
+        campaignId: change.campaignId,
+        budgetId: change.budgetId,
+        currencyCode: change.currencyCode,
+        currentAmountMicros: change.currentAmountMicros,
+        proposedAmountMicros: change.proposedAmountMicros,
+        reductionPercent: change.reductionPercent,
+        operation: change.operation,
+      })),
+    blockers: result.blockers.map((blocker) => ({ code: blocker.code, entityId: blocker.entityId ?? null })),
+  };
+  return createHash('sha256').update(JSON.stringify(confirmation)).digest('hex');
 }
 
 function micros(value: number): number {
@@ -122,6 +148,7 @@ export function planGoogleBudgetReductionPreflight(input: {
     executable: false,
     ready: changes.length > 0 && blockers.length === 0,
     checkedAt: input.checkedAt,
+    confirmationFingerprint: null,
     account: { source: 'google_ads', customerId: input.expectedCustomerId },
     changes,
     blockers,

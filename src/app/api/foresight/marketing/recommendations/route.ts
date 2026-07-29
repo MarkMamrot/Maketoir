@@ -4,6 +4,7 @@ import { ForesightRecommendationService } from '@/lib/foresight/ForesightRecomme
 import { KlaviyoRecommendationService } from '@/lib/foresight/KlaviyoRecommendationService';
 import { ForesightOutcomeService } from '@/lib/foresight/ForesightOutcomeService';
 import { ForesightRepository } from '@/lib/foresight/repositories/ForesightRepository';
+import { ForesightExecutionRepository } from '@/lib/foresight/repositories/ForesightExecutionRepository';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { DEFAULT_BUSINESS_TIME_ZONE, getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 
@@ -27,6 +28,9 @@ export async function GET() {
     'shadow',
     'pending_approval',
     'approved',
+    'executing',
+    'succeeded',
+    'failed',
     'rejected',
   ]);
   const recommendationIds = recommendations.map((recommendation) => recommendation.id);
@@ -35,12 +39,21 @@ export async function GET() {
     () => getBusinessTimeZone(user.businessId),
   ).catch(() => DEFAULT_BUSINESS_TIME_ZONE);
   const businessToday = new Date().toLocaleDateString('sv-SE', { timeZone });
-  const [events, outcomes, implementations] = await Promise.all([
+  const [events, outcomes, implementations, executions] = await Promise.all([
     ForesightRepository.listRecommendationEvents(user.businessId, recommendationIds),
     ForesightRepository.listRecommendationOutcomes(user.businessId, recommendationIds),
     ForesightRepository.listRecommendationImplementations(user.businessId, recommendationIds),
+    ForesightExecutionRepository.listForRecommendations(user.businessId, recommendationIds),
   ]);
-  return NextResponse.json({ success: true, recommendations, events, outcomes, implementations, businessToday });
+  return NextResponse.json({
+    success: true,
+    recommendations,
+    events,
+    outcomes,
+    implementations,
+    executions,
+    businessToday,
+  });
 }
 
 export async function POST(request: Request) {

@@ -2,6 +2,7 @@ import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
 import { GoogleAdsService } from '@/services/GoogleAdsService';
 import {
+  executionPreflightFingerprint,
   planGoogleBudgetReductionPreflight,
   type ExecutionPreflightResult,
   type GoogleCampaignSetting,
@@ -14,6 +15,7 @@ function blocked(code: string, message: string): ExecutionPreflightResult {
     executable: false,
     ready: false,
     checkedAt: new Date().toISOString(),
+    confirmationFingerprint: null,
     account: null,
     changes: [],
     blockers: [{ code, message }],
@@ -29,7 +31,7 @@ function numberValue(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function normalizeCampaignSetting(row: any): GoogleCampaignSetting {
+export function normalizeCampaignSetting(row: any): GoogleCampaignSetting {
   return {
     customerId: stringValue(row?.customer?.id),
     currencyCode: stringValue(row?.customer?.currency_code),
@@ -80,12 +82,15 @@ export const ForesightExecutionPreflightService = {
     const refreshToken = decrypt(storedRefreshToken);
     const service = new GoogleAdsService(customerId, refreshToken);
     const rows = await service.getCampaignSettings(googleCampaignIds);
-    return planGoogleBudgetReductionPreflight({
+    const result = planGoogleBudgetReductionPreflight({
       contributors,
       liveCampaigns: (Array.isArray(rows) ? rows : []).map(normalizeCampaignSetting),
       maximumReductionPercent: numberValue(recommendation.proposed_action_json.maximumReductionPercent),
       expectedCustomerId: customerId,
       checkedAt: new Date().toISOString(),
     });
+    return result.ready
+      ? { ...result, confirmationFingerprint: executionPreflightFingerprint(result) }
+      : result;
   },
 };

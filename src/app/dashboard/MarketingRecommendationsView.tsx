@@ -31,7 +31,7 @@ import type { ExecutionPreflightResult } from '@/lib/foresight/executionPrefligh
 import type { KlaviyoFlowCoverageEvidence, PaidMediaContributorEvidence } from '@/lib/foresight/types';
 import { MarketingStrategyPanel } from './MarketingStrategyPanel';
 
-type RecommendationState = 'shadow' | 'pending_approval' | 'approved' | 'rejected';
+type RecommendationState = 'shadow' | 'pending_approval' | 'approved' | 'executing' | 'succeeded' | 'failed' | 'rejected';
 type Recommendation = {
   id: number;
   state: RecommendationState;
@@ -91,12 +91,33 @@ type RecommendationImplementation = {
   preview_json: RecommendationImplementationPreview;
   created_at: string;
 };
+type RecommendationExecution = {
+  id: number;
+  recommendation_id: number;
+  state: 'in_progress' | 'succeeded' | 'failed';
+  before_json: Record<string, unknown>;
+  request_json: { changes?: Array<{
+    campaignId: string;
+    campaignName: string;
+    budgetId: string;
+    currencyCode: string;
+    currentAmountMicros: number;
+    proposedAmountMicros: number;
+    reductionPercent: number;
+  }> };
+  response_json: Record<string, unknown> | null;
+  after_json: Record<string, unknown> | null;
+  error_text: string | null;
+  created_at: string;
+  completed_at: string | null;
+};
 type InboxResponse = {
   success?: boolean;
   recommendations?: Recommendation[];
   events?: RecommendationEvent[];
   outcomes?: RecommendationOutcome[];
   implementations?: RecommendationImplementation[];
+  executions?: RecommendationExecution[];
   businessToday?: string;
   error?: string;
 };
@@ -160,13 +181,17 @@ function dateTime(value: string | null): string {
 function stateLabel(state: RecommendationState): string {
   if (state === 'pending_approval') return 'Pending approval';
   if (state === 'approved') return 'Approved';
+  if (state === 'executing') return 'Executing';
+  if (state === 'succeeded') return 'Executed';
+  if (state === 'failed') return 'Execution failed';
   if (state === 'rejected') return 'Rejected';
   return 'Shadow';
 }
 
 function stateIcon(state: RecommendationState) {
-  if (state === 'approved') return <CheckCircle2 size={15} />;
-  if (state === 'pending_approval') return <Clock3 size={15} />;
+  if (state === 'approved' || state === 'succeeded') return <CheckCircle2 size={15} />;
+  if (state === 'pending_approval' || state === 'executing') return <Clock3 size={15} />;
+  if (state === 'failed') return <AlertTriangle size={15} />;
   if (state === 'rejected') return <X size={15} />;
   return <ShieldCheck size={15} />;
 }
@@ -182,6 +207,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const [events, setEvents] = useState<RecommendationEvent[]>([]);
   const [outcomes, setOutcomes] = useState<RecommendationOutcome[]>([]);
   const [implementations, setImplementations] = useState<RecommendationImplementation[]>([]);
+  const [executions, setExecutions] = useState<RecommendationExecution[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [loading, setLoading] = useState(true);
@@ -193,6 +219,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const [implementationDate, setImplementationDate] = useState(() => new Date().toLocaleDateString('sv-SE'));
   const [implementationNote, setImplementationNote] = useState('');
   const [preflight, setPreflight] = useState<ExecutionPreflightResult | null>(null);
+  const [executionConfirmed, setExecutionConfirmed] = useState(false);
   const [message, setMessage] = useState<{ kind: 'error' | 'success'; text: string } | null>(null);
   const isAdmin = userTier === 'Admin' || userTier === 'SuperAdmin';
 
@@ -207,6 +234,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
       setEvents(body.events ?? []);
       setOutcomes(body.outcomes ?? []);
       setImplementations(body.implementations ?? []);
+      setExecutions(body.executions ?? []);
       if (body.businessToday) {
         setBusinessToday(body.businessToday);
         setImplementationDate(body.businessToday);
@@ -229,11 +257,15 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const selectedEvents = events.filter((event) => event.recommendation_id === selectedId);
   const selectedOutcome = outcomes.find((outcome) => outcome.recommendation_id === selectedId) ?? null;
   const selectedImplementation = implementations.find((item) => item.recommendation_id === selectedId) ?? null;
+  const selectedExecution = executions.find((item) => item.recommendation_id === selectedId) ?? null;
   const selectedPreview = selected
     ? buildRecommendationImplementationPreview(selected.channel as Parameters<typeof buildRecommendationImplementationPreview>[0], selected.proposed_action_json)
     : null;
 
-  useEffect(() => { setPreflight(null); }, [selectedId]);
+  useEffect(() => {
+    setPreflight(null);
+    setExecutionConfirmed(false);
+  }, [selectedId]);
 
   const evaluate = async () => {
     setWorking('evaluate');
@@ -308,6 +340,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const runPreflight = async () => {
     if (!selected?.proposal_hash) return;
     setWorking('preflight');
+    setExecutionConfirmed(false);
     setMessage(null);
     try {
       const response = await fetch(`/api/foresight/marketing/recommendations/${selected.id}/preflight`, {
@@ -325,11 +358,50 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
     }
   };
 
+  const executeApprovedChange = async () => {
+    if (!selected?.proposal_hash || !preflight?.confirmationFingerprint || !executionConfirmed) return;
+    setWorking('execute');
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/foresight/marketing/recommendations/${selected.id}/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          proposalHash: selected.proposal_hash,
+          confirmationFingerprint: preflight.confirmationFingerprint,
+          confirmationPhrase: 'APPLY GOOGLE BUDGET CHANGES',
+        }),
+      });
+      const body = await responseJson(response) as {
+        execution?: RecommendationExecution;
+        idempotentReplay?: boolean;
+        error?: string;
+      };
+      if (!response.ok || !body.execution) throw new Error(body.error || 'Unable to execute Google Ads changes.');
+      setMessage({
+        kind: body.execution.state === 'succeeded' ? 'success' : 'error',
+        text: body.execution.state === 'succeeded'
+          ? body.idempotentReplay ? 'Existing verified execution receipt loaded.' : 'Google Ads budgets updated and verified by live read-back.'
+          : body.execution.error_text || 'Execution did not verify successfully. Review the audit receipt.',
+      });
+      setExecutionConfirmed(false);
+      await load();
+    } catch (error) {
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to execute Google Ads changes.' });
+      setExecutionConfirmed(false);
+    } finally {
+      setWorking(null);
+    }
+  };
+
   const counts = {
     all: recommendations.length,
     shadow: recommendations.filter((item) => item.state === 'shadow').length,
     pending_approval: recommendations.filter((item) => item.state === 'pending_approval').length,
     approved: recommendations.filter((item) => item.state === 'approved').length,
+    executing: recommendations.filter((item) => item.state === 'executing').length,
+    succeeded: recommendations.filter((item) => item.state === 'succeeded').length,
+    failed: recommendations.filter((item) => item.state === 'failed').length,
     rejected: recommendations.filter((item) => item.state === 'rejected').length,
   };
 
@@ -337,8 +409,8 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
     <div className="space-y-4">
       <MarketingStrategyPanel userTier={userTier} />
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4">
-        <div className="flex items-center gap-1" role="tablist" aria-label="Recommendation states">
-          {(['all', 'shadow', 'pending_approval', 'approved', 'rejected'] as Filter[]).map((state) => (
+        <div className="flex flex-wrap items-center gap-1" role="tablist" aria-label="Recommendation states">
+          {(['all', 'shadow', 'pending_approval', 'approved', 'succeeded', 'failed', 'rejected'] as Filter[]).map((state) => (
             <button
               key={state}
               onClick={() => setFilter(state)}
@@ -384,7 +456,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                 onClick={() => { setSelectedId(item.id); setReviewAction('approve'); setReasonCode(''); setNote(''); setMessage(null); }}
                 className={`flex w-full items-start gap-3 border-b border-gray-100 px-4 py-4 text-left transition-colors ${isSelected ? 'bg-cyan-50/70' : 'hover:bg-gray-50'}`}
               >
-                <span className={`mt-0.5 ${item.state === 'approved' ? 'text-emerald-600' : item.state === 'pending_approval' ? 'text-amber-600' : item.state === 'rejected' ? 'text-red-500' : 'text-gray-400'}`}>{stateIcon(item.state)}</span>
+                <span className={`mt-0.5 ${item.state === 'approved' || item.state === 'succeeded' ? 'text-emerald-600' : item.state === 'pending_approval' || item.state === 'executing' ? 'text-amber-600' : item.state === 'failed' || item.state === 'rejected' ? 'text-red-500' : 'text-gray-400'}`}>{stateIcon(item.state)}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold text-gray-900">{RULE_LABELS[item.rule_id] ?? item.rule_id}</span>
                   <span className="mt-1 block text-xs text-gray-500">{item.evidence_json.windowStart} to {item.evidence_json.windowEnd}</span>
@@ -407,7 +479,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-500">
-                    <span className={selected.state === 'approved' ? 'text-emerald-600' : selected.state === 'pending_approval' ? 'text-amber-600' : 'text-gray-500'}>{stateIcon(selected.state)}</span>
+                    <span className={selected.state === 'approved' || selected.state === 'succeeded' ? 'text-emerald-600' : selected.state === 'pending_approval' || selected.state === 'executing' ? 'text-amber-600' : selected.state === 'failed' ? 'text-red-600' : 'text-gray-500'}>{stateIcon(selected.state)}</span>
                     {stateLabel(selected.state)}
                   </div>
                   <h2 className="text-lg font-bold text-gray-950">{RULE_LABELS[selected.rule_id] ?? selected.rule_id}</h2>
@@ -510,7 +582,9 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
               <div className="border-y border-gray-200 py-4">
                 <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-500">Proposed response</h3>
                 <p className="text-sm font-semibold text-gray-900">{ACTION_LABELS[String(selected.proposed_action_json?.type ?? '')] ?? String(selected.proposed_action_json?.type ?? 'Review required')}</p>
-                {selected.proposed_action_json?.reason && <p className="mt-1 text-sm leading-6 text-gray-600">{String(selected.proposed_action_json.reason)}</p>}
+                {typeof selected.proposed_action_json?.reason === 'string' && selected.proposed_action_json.reason.length > 0 && (
+                  <p className="mt-1 text-sm leading-6 text-gray-600">{selected.proposed_action_json.reason}</p>
+                )}
                 {selected.proposed_action_json?.maximumReductionPercent != null && <p className="mt-2 text-sm text-gray-700">Maximum reduction for review: <strong>{String(selected.proposed_action_json.maximumReductionPercent)}%</strong></p>}
                 {Array.isArray(selected.proposed_action_json?.missingCategories) && selected.proposed_action_json.missingCategories.length > 0 && (
                   <p className="mt-2 text-sm text-gray-700">Missing: <strong>{selected.proposed_action_json.missingCategories.map(String).join(', ')}</strong></p>
@@ -595,8 +669,66 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                           ))}
                         </ul>
                       )}
+                      {preflight.ready && preflight.confirmationFingerprint && (
+                        <div className="mt-4 border-t border-blue-200 pt-4">
+                          <label className="flex items-start gap-3 text-sm leading-5 text-gray-700">
+                            <input
+                              type="checkbox"
+                              checked={executionConfirmed}
+                              onChange={(event) => setExecutionConfirmed(event.target.checked)}
+                              className="mt-0.5 h-4 w-4 border-gray-300 text-blue-700 focus:ring-blue-600"
+                            />
+                            <span>I confirm these exact live before/after budgets. Execution will recheck them and stop if anything changed.</span>
+                          </label>
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                            <span className="text-xs text-gray-500">Atomic Google Ads update · verified by read-back · rollback values retained</span>
+                            <button
+                              onClick={() => void executeApprovedChange()}
+                              disabled={working != null || !executionConfirmed}
+                              className="inline-flex h-9 items-center gap-2 bg-blue-700 px-3 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-50"
+                            >
+                              {working === 'execute' ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                              Apply exact Google budgets
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
+                </div>
+              )}
+
+              {selectedExecution && (
+                <div className={`border px-4 py-4 ${selectedExecution.state === 'succeeded' ? 'border-emerald-200 bg-emerald-50' : selectedExecution.state === 'failed' ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}`}>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      {selectedExecution.state === 'succeeded'
+                        ? <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-emerald-700" />
+                        : selectedExecution.state === 'failed'
+                          ? <AlertTriangle size={18} className="mt-0.5 shrink-0 text-red-700" />
+                          : <Loader2 size={18} className="mt-0.5 shrink-0 animate-spin text-amber-700" />}
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900">
+                          {selectedExecution.state === 'succeeded' ? 'Google Ads execution verified' : selectedExecution.state === 'failed' ? 'Google Ads execution requires review' : 'Google Ads execution in progress'}
+                        </h3>
+                        <p className="mt-1 text-xs text-gray-600">Execution {selectedExecution.id} · {dateTime(selectedExecution.completed_at ?? selectedExecution.created_at)}</p>
+                      </div>
+                    </div>
+                    <span className="border border-current px-2 py-1 text-[11px] font-semibold uppercase text-gray-600">Immutable receipt</span>
+                  </div>
+                  {Array.isArray(selectedExecution.request_json.changes) && selectedExecution.request_json.changes.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {selectedExecution.request_json.changes.map((change) => (
+                        <div key={`${change.campaignId}:${change.budgetId}`} className="border border-black/10 bg-white/70 px-3 py-2 text-sm text-gray-700">
+                          <span className="font-semibold text-gray-900">{change.campaignName}</span>
+                          <span className="ml-2">{budgetMoney(change.currentAmountMicros, change.currencyCode)} → {budgetMoney(change.proposedAmountMicros, change.currencyCode)}</span>
+                          <span className="ml-2 text-xs text-gray-500">budget {change.budgetId}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {selectedExecution.error_text && <p className="mt-3 text-sm leading-6 text-red-800">{selectedExecution.error_text}</p>}
+                  <p className="mt-3 text-xs text-gray-600">The original live values are retained in the audit ledger for a future compensating rollback. No automatic rollback is attempted.</p>
                 </div>
               )}
 
@@ -764,7 +896,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
               {selected.state === 'approved' && (
                 <div className="flex items-start gap-3 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
                   <ShieldCheck size={18} className="mt-0.5 shrink-0" />
-                  <div><strong>Approved for planning.</strong><br />{selectedImplementation ? 'Implementation was recorded as completed externally; Solvantis did not execute the platform change.' : 'No external implementation has been recorded and Solvantis has not executed a platform change.'}</div>
+                  <div><strong>Approved for planning.</strong><br />{selectedImplementation ? 'Implementation was recorded as completed externally; Solvantis did not execute the platform change.' : 'No implementation has been recorded. Eligible Google budget changes require a fresh live preflight and explicit confirmation above.'}</div>
                 </div>
               )}
             </div>

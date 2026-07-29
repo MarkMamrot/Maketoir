@@ -322,13 +322,20 @@ export const ForesightRepository = {
   ): Promise<RecommendationOutcomeCandidateRow[]> {
     const safeHorizonDays = Math.max(1, Math.trunc(horizonDays));
     const rows = await query<RecommendationOutcomeCandidateRow>(
-      `SELECT r.*, a.decision, a.created_at AS decided_at,
-              CASE WHEN a.decision = 'approved' THEN i.implemented_on ELSE DATE(a.created_at) END AS reference_at
+            `SELECT r.*, a.decision, a.created_at AS decided_at,
+              CASE WHEN a.decision = 'approved'
+             THEN COALESCE(i.implemented_on, DATE(x.completed_at))
+             ELSE DATE(a.created_at)
+              END AS reference_at
        FROM foresight_recommendations r
        INNER JOIN foresight_approvals a
          ON a.business_id = r.business_id AND a.recommendation_id = r.id
        LEFT JOIN foresight_recommendation_implementations i
          ON i.business_id = r.business_id AND i.recommendation_id = r.id
+       LEFT JOIN foresight_executions x
+         ON x.business_id = r.business_id
+        AND x.recommendation_id = r.id
+        AND x.state = 'succeeded'
        LEFT JOIN foresight_recommendation_outcomes o
          ON o.business_id = r.business_id
         AND o.recommendation_id = r.id
@@ -336,9 +343,12 @@ export const ForesightRepository = {
        WHERE r.business_id = ?
          AND r.channel = 'paid_media'
          AND a.decision IN ('approved', 'rejected')
-         AND (a.decision = 'rejected' OR i.id IS NOT NULL)
+         AND (a.decision = 'rejected' OR i.id IS NOT NULL OR x.id IS NOT NULL)
          AND DATE_ADD(
-           CASE WHEN a.decision = 'approved' THEN i.implemented_on ELSE DATE(a.created_at) END,
+           CASE WHEN a.decision = 'approved'
+                THEN COALESCE(i.implemented_on, DATE(x.completed_at))
+                ELSE DATE(a.created_at)
+           END,
            INTERVAL ${safeHorizonDays} DAY
          ) <= ?
          AND o.id IS NULL

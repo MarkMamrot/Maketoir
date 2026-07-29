@@ -1,5 +1,5 @@
 // src/services/GoogleAdsService.ts
-import { GoogleAdsApi } from 'google-ads-api';
+import { GoogleAdsApi, type MutateOperation, type resources } from 'google-ads-api';
 import { StandardizedCreative } from '../types/StandardizedData';
 
 export class GoogleAdsService {
@@ -92,6 +92,32 @@ export class GoogleAdsService {
       WHERE campaign.id IN (${ids.join(',')})
         AND campaign.status != 'REMOVED'
     `);
+  }
+
+  async updateCampaignBudgets(
+    changes: Array<{ budgetId: string; amountMicros: number }>,
+  ): Promise<unknown> {
+    if (changes.length === 0) throw new Error('At least one campaign budget change is required.');
+    const seenBudgetIds = new Set<string>();
+    const operations: MutateOperation<resources.ICampaignBudget>[] = changes.map((change) => {
+      const budgetId = String(change.budgetId).trim();
+      const amountMicros = Math.round(change.amountMicros);
+      if (!/^\d+$/.test(budgetId)) throw new Error('Google campaign budget ID must be numeric.');
+      if (!Number.isSafeInteger(amountMicros) || amountMicros <= 0) {
+        throw new Error('Google campaign budget amount must be a positive integer in micros.');
+      }
+      if (seenBudgetIds.has(budgetId)) throw new Error(`Duplicate Google campaign budget ${budgetId}.`);
+      seenBudgetIds.add(budgetId);
+      return {
+        entity: 'campaign_budget',
+        operation: 'update',
+        resource: {
+          resource_name: `customers/${this.customerId}/campaignBudgets/${budgetId}`,
+          amount_micros: amountMicros,
+        },
+      };
+    });
+    return this.getCustomer().mutateResources(operations, { partial_failure: false });
   }
 
   // -- Ad Groups -------------------------------------------------------------------
