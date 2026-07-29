@@ -15,6 +15,7 @@ const tableNames = [
   'foresight_recommendations',
   'foresight_approvals',
   'foresight_recommendation_events',
+  'foresight_recommendation_outcomes',
   'foresight_executions',
   'foresight_sync_runs',
   'foresight_sync_tabs',

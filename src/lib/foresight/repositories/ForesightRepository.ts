@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { execute, getPool, query } from '@/services/MySQLService';
 import { assertRecommendationTransition } from '../recommendationState';
 import type { ForesightChannel, RecommendationEvidence, RecommendationState } from '../types';
+import type { RecommendationOutcomeAssessment } from '../recommendationOutcomes';
 
 export interface StrategyVersionRow {
   id: number;
@@ -43,6 +44,30 @@ export interface RecommendationEventRow {
   actor_id: number;
   reason_code: string | null;
   note: string | null;
+  created_at: string;
+}
+
+export interface RecommendationOutcomeCandidateRow extends RecommendationRow {
+  decision: 'approved' | 'rejected';
+  decided_at: string;
+}
+
+export interface RecommendationOutcomeRow {
+  id: number;
+  business_id: string;
+  recommendation_id: number;
+  decision: 'approved' | 'rejected';
+  horizon_days: number;
+  baseline_start: string;
+  baseline_end: string;
+  followup_start: string;
+  followup_end: string;
+  direction: RecommendationOutcomeAssessment['direction'];
+  condition_state: RecommendationOutcomeAssessment['conditionState'];
+  primary_metric: string | null;
+  baseline_value: number | null;
+  followup_value: number | null;
+  assessment_json: RecommendationOutcomeAssessment;
   created_at: string;
 }
 
@@ -227,6 +252,87 @@ export const ForesightRepository = {
        ORDER BY created_at ASC, id ASC`,
       [businessId, ...recommendationIds],
     );
+  },
+
+  async listRecommendationOutcomes(
+    businessId: string,
+    recommendationIds: number[],
+  ): Promise<RecommendationOutcomeRow[]> {
+    if (recommendationIds.length === 0) return [];
+    const placeholders = recommendationIds.map(() => '?').join(',');
+    const rows = await query<RecommendationOutcomeRow>(
+      `SELECT * FROM foresight_recommendation_outcomes
+       WHERE business_id = ? AND recommendation_id IN (${placeholders})
+       ORDER BY horizon_days ASC, created_at ASC`,
+      [businessId, ...recommendationIds],
+    );
+    return rows.map((row) => ({ ...row, assessment_json: parseJson(row.assessment_json) }));
+  },
+
+  async listRecommendationOutcomeCandidates(
+    businessId: string,
+    throughDate: string,
+    horizonDays: number,
+  ): Promise<RecommendationOutcomeCandidateRow[]> {
+    const safeHorizonDays = Math.max(1, Math.trunc(horizonDays));
+    const rows = await query<RecommendationOutcomeCandidateRow>(
+      `SELECT r.*, a.decision, a.created_at AS decided_at
+       FROM foresight_recommendations r
+       INNER JOIN foresight_approvals a
+         ON a.business_id = r.business_id AND a.recommendation_id = r.id
+       LEFT JOIN foresight_recommendation_outcomes o
+         ON o.business_id = r.business_id
+        AND o.recommendation_id = r.id
+        AND o.horizon_days = ?
+       WHERE r.business_id = ?
+         AND r.channel = 'paid_media'
+         AND a.decision IN ('approved', 'rejected')
+         AND DATE_ADD(DATE(a.created_at), INTERVAL ${safeHorizonDays} DAY) <= ?
+         AND o.id IS NULL
+       ORDER BY a.created_at ASC, r.id ASC`,
+      [safeHorizonDays, businessId, throughDate],
+    );
+    return rows.map((row) => ({ ...normalizeRecommendation(row), decision: row.decision, decided_at: row.decided_at }));
+  },
+
+  async createRecommendationOutcome(
+    businessId: string,
+    input: {
+      recommendationId: number;
+      decision: 'approved' | 'rejected';
+      horizonDays: number;
+      baselineStart: string;
+      baselineEnd: string;
+      followupStart: string;
+      followupEnd: string;
+      assessment: RecommendationOutcomeAssessment;
+    },
+  ): Promise<number> {
+    const result = await execute(
+      `INSERT INTO foresight_recommendation_outcomes
+         (business_id, recommendation_id, decision, horizon_days,
+          baseline_start, baseline_end, followup_start, followup_end,
+          direction, condition_state, primary_metric, baseline_value, followup_value, assessment_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)`,
+      [
+        businessId,
+        input.recommendationId,
+        input.decision,
+        input.horizonDays,
+        input.baselineStart,
+        input.baselineEnd,
+        input.followupStart,
+        input.followupEnd,
+        input.assessment.direction,
+        input.assessment.conditionState,
+        input.assessment.primaryMetric,
+        input.assessment.baselineValue,
+        input.assessment.followupValue,
+        JSON.stringify(input.assessment),
+      ],
+    );
+    return result.insertId;
   },
 
   async requestRecommendationApproval(

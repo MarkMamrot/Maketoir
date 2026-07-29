@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminSession, requireAdminTier } from '@/lib/sessionUtils';
 import { ForesightRecommendationService } from '@/lib/foresight/ForesightRecommendationService';
 import { KlaviyoRecommendationService } from '@/lib/foresight/KlaviyoRecommendationService';
+import { ForesightOutcomeService } from '@/lib/foresight/ForesightOutcomeService';
 import { ForesightRepository } from '@/lib/foresight/repositories/ForesightRepository';
 
 function isIsoDate(value: unknown): value is string {
@@ -24,12 +25,14 @@ export async function GET() {
     'shadow',
     'pending_approval',
     'approved',
+    'rejected',
   ]);
-  const events = await ForesightRepository.listRecommendationEvents(
-    user.businessId,
-    recommendations.map((recommendation) => recommendation.id),
-  );
-  return NextResponse.json({ success: true, recommendations, events });
+  const recommendationIds = recommendations.map((recommendation) => recommendation.id);
+  const [events, outcomes] = await Promise.all([
+    ForesightRepository.listRecommendationEvents(user.businessId, recommendationIds),
+    ForesightRepository.listRecommendationOutcomes(user.businessId, recommendationIds),
+  ]);
+  return NextResponse.json({ success: true, recommendations, events, outcomes });
 }
 
 export async function POST(request: Request) {
@@ -46,11 +49,13 @@ export async function POST(request: Request) {
     ForesightRecommendationService.evaluatePaidMedia(user.businessId, through),
     KlaviyoRecommendationService.evaluateLifecycle(user.businessId, through),
   ]);
+  const outcomes = await ForesightOutcomeService.evaluateDuePaidMedia(user.businessId, through);
   return NextResponse.json({
     success: true,
     recommendationCount: paidMedia.recommendationCount + klaviyo.recommendationCount,
     expiredCount: paidMedia.expiredCount + klaviyo.expiredCount,
     paidMedia,
     klaviyo,
+    outcomes,
   });
 }

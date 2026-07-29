@@ -3,12 +3,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  ArrowDownRight,
+  ArrowUpRight,
   Check,
   CheckCircle2,
   ChevronRight,
   Clock3,
   History,
   Loader2,
+  Minus,
   RefreshCw,
   Send,
   ShieldCheck,
@@ -22,7 +25,7 @@ import {
 import type { KlaviyoFlowCoverageEvidence, PaidMediaContributorEvidence } from '@/lib/foresight/types';
 import { MarketingStrategyPanel } from './MarketingStrategyPanel';
 
-type RecommendationState = 'shadow' | 'pending_approval' | 'approved';
+type RecommendationState = 'shadow' | 'pending_approval' | 'approved' | 'rejected';
 type Recommendation = {
   id: number;
   state: RecommendationState;
@@ -57,7 +60,21 @@ type RecommendationEvent = {
   note: string | null;
   created_at: string;
 };
-type InboxResponse = { success?: boolean; recommendations?: Recommendation[]; events?: RecommendationEvent[]; error?: string };
+type RecommendationOutcome = {
+  id: number;
+  recommendation_id: number;
+  decision: 'approved' | 'rejected';
+  horizon_days: number;
+  followup_start: string;
+  followup_end: string;
+  direction: 'improved' | 'unchanged' | 'worsened';
+  condition_state: 'resolved' | 'persisted';
+  primary_metric: string | null;
+  baseline_value: number | string | null;
+  followup_value: number | string | null;
+  assessment_json: { explanation: string };
+};
+type InboxResponse = { success?: boolean; recommendations?: Recommendation[]; events?: RecommendationEvent[]; outcomes?: RecommendationOutcome[]; error?: string };
 type Filter = 'all' | RecommendationState;
 
 const RULE_LABELS: Record<string, string> = {
@@ -76,10 +93,12 @@ const METRIC_LABELS: Record<string, string> = {
   spend: 'Paid-media spend',
   onlineRevenueExTax: 'Online revenue ex GST',
   contributionPoas: 'Contribution POAS',
+  minimumContributionPoas: 'Configured POAS floor',
   contributionBeforeAds: 'Contribution before ads',
   currentMer: 'Current MER',
   previousMer: 'Previous MER',
   deteriorationPercent: 'Deterioration',
+  merDeteriorationPercent: 'Configured deterioration boundary',
   flowCount: 'Klaviyo flows',
   activeFlowCount: 'Active flows',
   activeCriticalFlowCount: 'Critical flows active',
@@ -99,8 +118,8 @@ function money(value: number): string {
 
 function metricValue(key: string, value: number | null): string {
   if (value == null) return 'Unavailable';
-  if (key === 'spend' || key === 'onlineRevenueExTax' || key === 'contributionBeforeAds') return money(value);
-  if (key === 'deteriorationPercent') return `${value.toFixed(1)}%`;
+  if (key === 'spend' || key === 'onlineRevenueExTax' || key === 'contributionBeforeAds' || key === 'net_online_revenue_ex_tax') return money(value);
+  if (key === 'deteriorationPercent' || key === 'merDeteriorationPercent') return `${value.toFixed(1)}%`;
   return value.toFixed(2);
 }
 
@@ -112,12 +131,14 @@ function dateTime(value: string | null): string {
 function stateLabel(state: RecommendationState): string {
   if (state === 'pending_approval') return 'Pending approval';
   if (state === 'approved') return 'Approved';
+  if (state === 'rejected') return 'Rejected';
   return 'Shadow';
 }
 
 function stateIcon(state: RecommendationState) {
   if (state === 'approved') return <CheckCircle2 size={15} />;
   if (state === 'pending_approval') return <Clock3 size={15} />;
+  if (state === 'rejected') return <X size={15} />;
   return <ShieldCheck size={15} />;
 }
 
@@ -130,6 +151,7 @@ async function responseJson(response: Response): Promise<any> {
 export function MarketingRecommendationsView({ userTier }: { userTier: string }) {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [events, setEvents] = useState<RecommendationEvent[]>([]);
+  const [outcomes, setOutcomes] = useState<RecommendationOutcome[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [loading, setLoading] = useState(true);
@@ -149,6 +171,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
       const next = body.recommendations ?? [];
       setRecommendations(next);
       setEvents(body.events ?? []);
+      setOutcomes(body.outcomes ?? []);
       setSelectedId((current) => current && next.some((item) => item.id === current) ? current : next[0]?.id ?? null);
     } catch (error) {
       setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to load recommendations.' });
@@ -165,6 +188,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   );
   const selected = recommendations.find((item) => item.id === selectedId) ?? null;
   const selectedEvents = events.filter((event) => event.recommendation_id === selectedId);
+  const selectedOutcome = outcomes.find((outcome) => outcome.recommendation_id === selectedId) ?? null;
 
   const evaluate = async () => {
     setWorking('evaluate');
@@ -214,6 +238,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
     shadow: recommendations.filter((item) => item.state === 'shadow').length,
     pending_approval: recommendations.filter((item) => item.state === 'pending_approval').length,
     approved: recommendations.filter((item) => item.state === 'approved').length,
+    rejected: recommendations.filter((item) => item.state === 'rejected').length,
   };
 
   return (
@@ -221,7 +246,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
       <MarketingStrategyPanel userTier={userTier} />
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4">
         <div className="flex items-center gap-1" role="tablist" aria-label="Recommendation states">
-          {(['all', 'shadow', 'pending_approval', 'approved'] as Filter[]).map((state) => (
+          {(['all', 'shadow', 'pending_approval', 'approved', 'rejected'] as Filter[]).map((state) => (
             <button
               key={state}
               onClick={() => setFilter(state)}
@@ -267,7 +292,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                 onClick={() => { setSelectedId(item.id); setReviewAction('approve'); setReasonCode(''); setNote(''); setMessage(null); }}
                 className={`flex w-full items-start gap-3 border-b border-gray-100 px-4 py-4 text-left transition-colors ${isSelected ? 'bg-cyan-50/70' : 'hover:bg-gray-50'}`}
               >
-                <span className={`mt-0.5 ${item.state === 'approved' ? 'text-emerald-600' : item.state === 'pending_approval' ? 'text-amber-600' : 'text-gray-400'}`}>{stateIcon(item.state)}</span>
+                <span className={`mt-0.5 ${item.state === 'approved' ? 'text-emerald-600' : item.state === 'pending_approval' ? 'text-amber-600' : item.state === 'rejected' ? 'text-red-500' : 'text-gray-400'}`}>{stateIcon(item.state)}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold text-gray-900">{RULE_LABELS[item.rule_id] ?? item.rule_id}</span>
                   <span className="mt-1 block text-xs text-gray-500">{item.evidence_json.windowStart} to {item.evidence_json.windowEnd}</span>
@@ -404,6 +429,33 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                 <div className="mt-3 break-all font-mono text-[11px] text-gray-400">Proposal {selected.proposal_hash ?? 'No action payload'}</div>
               </div>
 
+              {selectedOutcome && (
+                <div className="border border-gray-200 bg-gray-50 px-4 py-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">{selectedOutcome.horizon_days}-day follow-up</h3>
+                      <p className="mt-1 text-xs text-gray-500">{selectedOutcome.followup_start} to {selectedOutcome.followup_end}</p>
+                    </div>
+                    <span className={`inline-flex items-center gap-1 text-sm font-semibold ${selectedOutcome.direction === 'improved' ? 'text-emerald-700' : selectedOutcome.direction === 'worsened' ? 'text-red-700' : 'text-gray-700'}`}>
+                      {selectedOutcome.direction === 'improved' ? <ArrowUpRight size={16} /> : selectedOutcome.direction === 'worsened' ? <ArrowDownRight size={16} /> : <Minus size={16} />}
+                      {selectedOutcome.direction.charAt(0).toUpperCase() + selectedOutcome.direction.slice(1)}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-px bg-gray-200 border border-gray-200">
+                    <div className="bg-white px-3 py-3">
+                      <div className="text-xs text-gray-500">Baseline</div>
+                      <div className="mt-1 font-semibold tabular-nums text-gray-900">{metricValue(selectedOutcome.primary_metric ?? '', selectedOutcome.baseline_value == null ? null : Number(selectedOutcome.baseline_value))}</div>
+                    </div>
+                    <div className="bg-white px-3 py-3">
+                      <div className="text-xs text-gray-500">Follow-up</div>
+                      <div className="mt-1 font-semibold tabular-nums text-gray-900">{metricValue(selectedOutcome.primary_metric ?? '', selectedOutcome.followup_value == null ? null : Number(selectedOutcome.followup_value))}</div>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm text-gray-700">{selectedOutcome.assessment_json.explanation}</p>
+                  <p className="mt-2 text-xs text-gray-500">Observed after the {selectedOutcome.decision} decision. This does not prove the proposed action caused the result.</p>
+                </div>
+              )}
+
               <div>
                 <h3 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-500"><History size={14} /> Review history</h3>
                 {selectedEvents.length === 0 ? (
@@ -422,7 +474,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                 )}
               </div>
 
-              {isAdmin && selected.state !== 'approved' && (
+              {isAdmin && (selected.state === 'shadow' || selected.state === 'pending_approval') && (
                 <div className="border-t border-gray-200 pt-5">
                   {selected.state === 'pending_approval' && (
                     <div className="mb-4">

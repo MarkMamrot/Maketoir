@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockRequireAdminSession, mockRequireAdminTier, mockEvaluate, mockEvaluateKlaviyo, mockList, mockListEvents } = vi.hoisted(() => ({
+const { mockRequireAdminSession, mockRequireAdminTier, mockEvaluate, mockEvaluateKlaviyo, mockEvaluateOutcomes, mockList, mockListEvents, mockListOutcomes } = vi.hoisted(() => ({
   mockRequireAdminSession: vi.fn(),
   mockRequireAdminTier: vi.fn(),
   mockEvaluate: vi.fn(),
   mockEvaluateKlaviyo: vi.fn(),
+  mockEvaluateOutcomes: vi.fn(),
   mockList: vi.fn(),
   mockListEvents: vi.fn(),
+  mockListOutcomes: vi.fn(),
 }));
 
 vi.mock('@/lib/sessionUtils', () => ({
@@ -19,8 +21,15 @@ vi.mock('@/lib/foresight/ForesightRecommendationService', () => ({
 vi.mock('@/lib/foresight/KlaviyoRecommendationService', () => ({
   KlaviyoRecommendationService: { evaluateLifecycle: mockEvaluateKlaviyo },
 }));
+vi.mock('@/lib/foresight/ForesightOutcomeService', () => ({
+  ForesightOutcomeService: { evaluateDuePaidMedia: mockEvaluateOutcomes },
+}));
 vi.mock('@/lib/foresight/repositories/ForesightRepository', () => ({
-  ForesightRepository: { listRecommendations: mockList, listRecommendationEvents: mockListEvents },
+  ForesightRepository: {
+    listRecommendations: mockList,
+    listRecommendationEvents: mockListEvents,
+    listRecommendationOutcomes: mockListOutcomes,
+  },
 }));
 
 import { GET, POST } from '../route';
@@ -30,10 +39,12 @@ describe('/api/foresight/marketing/recommendations', () => {
     vi.clearAllMocks();
     mockRequireAdminSession.mockReturnValue({ user: { businessId: 'business-1' } });
     mockRequireAdminTier.mockReturnValue({ user: { businessId: 'business-1' } });
-    mockEvaluate.mockResolvedValue({ recommendationCount: 0, recommendations: [] });
+    mockEvaluate.mockResolvedValue({ recommendationCount: 0, expiredCount: 0, recommendations: [] });
     mockEvaluateKlaviyo.mockResolvedValue({ recommendationCount: 0, expiredCount: 0, recommendations: [], skipped: true });
     mockList.mockResolvedValue([]);
     mockListEvents.mockResolvedValue([]);
+    mockListOutcomes.mockResolvedValue([]);
+    mockEvaluateOutcomes.mockResolvedValue({ measuredCount: 0, deferredCount: 0, outcomes: [] });
   });
 
   it('evaluates only for the authenticated business', async () => {
@@ -45,6 +56,7 @@ describe('/api/foresight/marketing/recommendations', () => {
     expect(response.status).toBe(200);
     expect(mockEvaluate).toHaveBeenCalledWith('business-1', '2026-07-28');
     expect(mockEvaluateKlaviyo).toHaveBeenCalledWith('business-1', '2026-07-28');
+    expect(mockEvaluateOutcomes).toHaveBeenCalledWith('business-1', '2026-07-28');
   });
 
   it('rejects invalid evaluation dates', async () => {
@@ -61,7 +73,8 @@ describe('/api/foresight/marketing/recommendations', () => {
     const response = await GET();
 
     expect(response.status).toBe(200);
-    expect(mockList).toHaveBeenCalledWith('business-1', ['shadow', 'pending_approval', 'approved']);
+    expect(mockList).toHaveBeenCalledWith('business-1', ['shadow', 'pending_approval', 'approved', 'rejected']);
     expect(mockListEvents).toHaveBeenCalledWith('business-1', []);
+    expect(mockListOutcomes).toHaveBeenCalledWith('business-1', []);
   });
 });

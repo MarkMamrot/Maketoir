@@ -27,6 +27,7 @@ import {
 import { ImsCommerceRepository } from '@/lib/foresight/repositories/ImsCommerceRepository';
 import { ForesightRecommendationService } from '@/lib/foresight/ForesightRecommendationService';
 import { KlaviyoRecommendationService } from '@/lib/foresight/KlaviyoRecommendationService';
+import { ForesightOutcomeService } from '@/lib/foresight/ForesightOutcomeService';
 
 /** Extract a readable message from any error shape (Google Ads API returns e.errors[0].message). */
 function errorMessage(e: any): string {
@@ -727,6 +728,26 @@ export async function POST(req: Request) {
               source: 'foresight-klaviyo',
               status: 'error',
               error: errorMessage(evaluationError),
+            });
+          }
+        }
+        if (sources.includes('google-ads') || sources.includes('meta')) {
+          try {
+            const outcomes = await ForesightOutcomeService.evaluateDuePaidMedia(
+              databaseId,
+              addDays(endDate, -1),
+            );
+            emit({
+              source: 'foresight-outcomes',
+              status: 'done',
+              measuredOutcomes: outcomes.measuredCount,
+              deferredOutcomes: outcomes.deferredCount,
+            });
+          } catch (outcomeError) {
+            emit({
+              source: 'foresight-outcomes',
+              status: 'error',
+              error: errorMessage(outcomeError),
             });
           }
         }

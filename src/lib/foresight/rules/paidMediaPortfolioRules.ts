@@ -162,6 +162,7 @@ export function evaluatePaidMediaPortfolioRules(
       ruleId: 'contribution_poas_below_one',
       evidence: evidence(current, ['contribution_poas', 'paid_media_spend'], {
         contributionPoas: current.contributionPoas,
+        minimumContributionPoas: policy.minimumContributionPoas,
         spend: current.spend,
         contributionBeforeAds: current.contributionBeforeAds,
       }, contributors),
@@ -197,6 +198,7 @@ export function evaluatePaidMediaPortfolioRules(
           currentMer: current.mer,
           previousMer: previous.mer,
           deteriorationPercent,
+          merDeteriorationPercent: policy.merDeteriorationPercent,
           spend: current.spend,
         }, contributors),
         proposedAction: {

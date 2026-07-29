@@ -75,6 +75,49 @@ describe('ForesightRepository', () => {
     );
   });
 
+  it('loads only due tenant-scoped paid-media outcome candidates', async () => {
+    mockQuery.mockResolvedValue([]);
+
+    await ForesightRepository.listRecommendationOutcomeCandidates('business-1', '2026-07-29', 7);
+
+    expect(mockQuery).toHaveBeenCalledWith(
+      expect.stringMatching(/r\.business_id = \?[\s\S]*r\.channel = 'paid_media'[\s\S]*o\.id IS NULL/),
+      [7, 'business-1', '2026-07-29'],
+    );
+  });
+
+  it('persists recommendation outcomes idempotently', async () => {
+    mockExecute.mockResolvedValue({ insertId: 81 });
+    const assessment = {
+      direction: 'improved' as const,
+      conditionState: 'resolved' as const,
+      primaryMetric: 'paid_media_ecommerce_mer',
+      baselineValue: 1.5,
+      followupValue: 2.5,
+      followup: {
+        windowStart: '2026-07-11', windowEnd: '2026-07-17', spend: 700,
+        onlineRevenueExTax: 1750, contributionPoas: 1.2, mer: 2.5, qualityIssues: [],
+      },
+      explanation: 'Recovered.',
+    };
+
+    await expect(ForesightRepository.createRecommendationOutcome('business-1', {
+      recommendationId: 42,
+      decision: 'approved',
+      horizonDays: 7,
+      baselineStart: '2026-07-01',
+      baselineEnd: '2026-07-07',
+      followupStart: '2026-07-11',
+      followupEnd: '2026-07-17',
+      assessment,
+    })).resolves.toBe(81);
+
+    expect(mockExecute).toHaveBeenCalledWith(
+      expect.stringContaining('ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)'),
+      expect.arrayContaining(['business-1', 42, 'approved', 7, 'improved', 'resolved']),
+    );
+  });
+
   it('requests approval transactionally only when the proposal hash still matches', async () => {
     mockConnection.execute
       .mockResolvedValueOnce([[{ state: 'shadow', proposal_hash: 'hash-1' }]])
