@@ -12,46 +12,37 @@ import { BrandProfileRepository } from '@/lib/db/BrandProfileRepository';
 import { BusinessInfoRepository } from '@/lib/db/BusinessInfoRepository';
 import { query as dbQuery } from '@/services/MySQLService';
 
-const SYSTEM_PROMPT = `You are a specialist creative director and AI prompt engineer working exclusively for THIS brand.
+const SYSTEM_PROMPT = `You create clean, reusable base assets for a retail brand's future product photography and advertising compositions.
 
-Each message you receive begins with a BRAND CONTEXT block containing real data about this specific business — including their brand profile (mission, tone, target demographics, colour palette, visual aesthetic), business identity, existing creative assets, and a creative intelligence brief from past sessions. You MUST read and apply ALL sections of the BRAND CONTEXT to every response. Do not produce generic or off-brand content.
+The BRAND CONTEXT is guidance, not a list of objects to render. Use it only to infer the brand-appropriate audience, casting, grooming, expression, mood, realism, photographic finish, and general environment style. Never reproduce example products or scenes from the context.
 
-Your role is to create precise, on-brand creative templates — model prompts, backdrop descriptions, and visual style guides — that will be used with AI image generators to produce consistent branded imagery.
+Core rules for every category:
+- Create a neutral base asset that can later be combined with changing products, garments, campaign copy, and layouts.
+- Do not add products, merchandise, product graphics, logos, brand names, readable text, packaging, campaign messaging, decorative motifs, or brand-colour treatments.
+- Do not add props unless the user explicitly requests one and it is essential to the asset itself.
+- Do not invent a campaign concept or a narrative scene.
+- Follow the user's explicit subject and modifier choices. Infer only missing details from the brand context.
+- Keep the composition visually uncluttered and the subject clearly isolated or separable.
 
-When generating prompts or templates:
-- Ground EVERY output in the brand's actual visual identity, tone, colour palette, and target demographics from the BRAND CONTEXT
-- Reference specific brand colours, aesthetics, and demographics by name where provided
-- For MODEL prompts: describe pose, expression, styling, lighting, camera angle in vivid detail — aligned with the brand's demographics and aesthetic
-- For BACKDROP prompts: describe environment, lighting, texture, mood, colour palette — consistent with the brand's visual style
-- For TEMPLATES: provide a reusable structure with [PRODUCT], [COLOUR], [STYLE] style variables
-- If a Creative Intelligence Brief is provided, use it to maintain consistency with past creative decisions
-- Always stay on-brand and avoid generic clichés
-- Format your output clearly, with the ready-to-use prompt in a code block for easy copying
-- After the main prompt, suggest 2-3 variations that stay within the brand's visual world
+Category rules:
+- MODELS: Define casting, age range, appearance, hair, grooming, makeup level, expression, body framing, and photographic finish. Use plain, unbranded, solid neutral clothing unless the user explicitly asks for on-brand clothing; even then, describe only its general fashion sensibility, with no logos, graphics, products, or signature brand colours. Use a simple natural stance and a clean pure-white background. Do not build a lifestyle setting around the model.
+- POSES: Create a clear pose reference using a generic model in plain fitted neutral clothing on a pure-white background. Focus on body position, weight distribution, limbs, hand placement, head angle, gaze, and expression. Do not add scenery or props.
+- BACKDROPS: Create an empty, product-ready background with appropriate light, surface, depth, and restrained atmosphere. No people, products, furniture used as a focal prop, signs, logos, text, or narrative activity. Leave useful negative space.
+- SCENES: Create a clean, plausible environment plate suitable for adding products or models later. No people, products, logos, readable text, or campaign-specific props. Keep visual hierarchy simple and preserve practical placement space.
+- TEMPLATES: Create a reusable composition specification with neutral placeholders rather than a finished campaign concept.
 
-Be concise in explanations but thorough and specific in the prompts themselves.`;
+Return exactly one ready-to-use image-generation prompt as plain text. Do not use markdown, headings, code fences, explanations, alternatives, or follow-up suggestions.`;
 
 const IMAGE_MODEL_NOTES: Record<string, string> = {
   // ── Nano Banana family (current / recommended) ──────────────────────────────
   'gemini-3.1-flash-image':
-    'Target: Nano Banana 2 (Gemini 3.1 Flash Image). Best all-round model. ' +
-    'Supports 4K output, reliable text rendering, up to 10 high-fidelity object references and 4 character references, Google Image Search grounding, and video-to-image. ' +
-    'Use rich, detailed prompts in natural language (100–350 words). Describe subject, setting, lighting, camera angle, mood, and colour palette. ' +
-    'For model/person prompts include pose, expression, wardrobe detail, and photographic style. ' +
-    'Separate key concepts with commas and use photographic/cinematic language.',
+    'Target: Nano Banana 2 (Gemini 3.1 Flash Image). Use direct natural language and include only details needed to define the reusable asset.',
 
   'gemini-3-pro-image':
-    'Target: Nano Banana Pro (Gemini 3 Pro Image). Premium model for professional asset production. ' +
-    'Features a built-in Thinking process, up to 4K resolution, up to 14 reference images (5 high-fidelity), and the highest world-knowledge accuracy. ' +
-    'Write highly detailed, professional-grade prompts (150–500 words). ' +
-    'Include brand references, precise colour hex codes, typography notes, stylistic references, and step-by-step composition instructions. ' +
-    'Use "Thinking-aware" language: break complex scenes into numbered steps for the model to reason through.',
+    'Target: Nano Banana Pro (Gemini 3 Pro Image). Use precise natural language and include only details needed to define the reusable asset.',
 
   'gemini-3.1-flash-lite-image':
-    'Target: Nano Banana 2 Lite (Gemini 3.1 Flash Lite Image). Fastest and cheapest model — optimised for speed and scale. ' +
-    'Supports 1K resolution only. Not optimised for multiple reference images or multi-turn sequential editing. ' +
-    'Keep prompts concise and focused (40–80 words). Prioritise the single most important visual elements. ' +
-    'Avoid complex multi-element compositions.',
+    'Target: Nano Banana 2 Lite (Gemini 3.1 Flash Lite Image). Keep the prompt concise and avoid complex multi-element compositions.',
 
   'gemini-2.5-flash-image':
     'Target: Nano Banana (Gemini 2.5 Flash Image) — legacy model. ' +
@@ -87,7 +78,6 @@ export async function POST(req: Request) {
     includeBrandProfile    = true,
     includeBusinessInfo    = true,
     includeExistingAssets  = false,
-    includeCreativeHistory = false,
     previewOnly            = false,
     history = [],
   } = await req.json();
@@ -124,15 +114,9 @@ export async function POST(req: Request) {
       if (bp) {
         const lines = [
           '=== BRAND PROFILE ===',
-          bp.mission             ? `Mission: ${bp.mission}` : 'Mission: (not set)',
           bp.uvp                 ? `Unique Value Proposition: ${bp.uvp}` : '',
           bp.tone                ? `Brand Tone & Voice: ${bp.tone}` : 'Brand Tone: (not set)',
           bp.demographics        ? `Target Demographics: ${bp.demographics}` : 'Target Demographics: (not set)',
-          bp.brand_colours       ? `Brand Colours: ${bp.brand_colours}` : '',
-          bp.price_positioning   ? `Price Positioning: ${bp.price_positioning}` : '',
-          bp.praises             ? `What customers love: ${bp.praises}` : '',
-          bp.hero_products       ? `Hero products: ${bp.hero_products}` : '',
-          bp.geo                 ? `Key markets: ${bp.geo}` : '',
           bp.brand_history       ? `Brand history: ${bp.brand_history}` : '',
           bp.detailed_brand_aesthetic ? `Detailed Brand Aesthetic: ${bp.detailed_brand_aesthetic}` : '',
         ].filter(Boolean);
@@ -158,17 +142,6 @@ export async function POST(req: Request) {
     } catch {}
   }
 
-  if (includeCreativeHistory) {
-    try {
-      const rows = await dbQuery<{ summary: string | null }>(
-        'SELECT summary FROM creative_summaries WHERE business_id = ?',
-        [databaseId],
-      );
-      const brief = rows[0]?.summary?.trim();
-      if (brief) sections.push(`=== CREATIVE INTELLIGENCE BRIEF ===\n${brief}`);
-    } catch {}
-  }
-
   // Build prompt with context
   const modelNote = IMAGE_MODEL_NOTES[imageModel] ?? 'Target: a general-purpose AI image generator. Write clear, detailed prompts in natural language.';
   const contextBlock = [
@@ -176,7 +149,7 @@ export async function POST(req: Request) {
     ...sections,
   ].map(s => s.trim()).filter(Boolean).join('\n\n');
 
-  const fullPrompt = `--- BRAND CONTEXT ---\n${contextBlock}\n--- END CONTEXT ---\n\nUser request:\n${(prompt ?? '').trim()}`;
+  const fullPrompt = `Asset category: ${String(category ?? '').toUpperCase()}\n\n--- BRAND CONTEXT ---\n${contextBlock}\n--- END CONTEXT ---\n\nUser request:\n${(prompt ?? '').trim()}`;
 
   // previewOnly: return assembled context without calling Gemini
   if (previewOnly) {
@@ -188,7 +161,7 @@ export async function POST(req: Request) {
         databaseId,
         sessionBusinessId: session.businessId ?? session.databaseId ?? '(not in session)',
         sectionsFound: sections.length,
-        toggles: { includeBusinessInfo, includeBrandProfile, includeExistingAssets, includeCreativeHistory },
+        toggles: { includeBusinessInfo, includeBrandProfile, includeExistingAssets },
       },
     });
   }

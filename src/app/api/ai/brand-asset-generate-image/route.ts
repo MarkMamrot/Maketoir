@@ -18,6 +18,14 @@ const IMAGE_MODELS = new Set([
   'imagen-4.0-fast-generate-001',
 ]);
 
+const CATEGORY_RENDER_RULES: Record<string, string> = {
+  models: 'Render a reusable model reference on a clean solid pure-white background. Use plain unbranded solid neutral clothing unless the prompt explicitly requests a general on-brand clothing style. No products, graphics, logos, readable text, props, scenery, or brand-colour treatment.',
+  poses: 'Render a reusable pose reference with a generic model in plain fitted neutral clothing on a clean solid pure-white background. Prioritise readable body position. No products, graphics, logos, text, props, or scenery.',
+  backdrops: 'Render an empty product-ready backdrop with useful negative space. No people, products, logos, readable text, campaign messaging, or narrative props.',
+  scenes: 'Render a clean environment plate with practical space for products or models to be added later. No people, products, logos, readable text, campaign messaging, or campaign-specific props.',
+  templates: 'Render only the requested reusable composition structure. Do not invent products, logos, readable text, or a campaign narrative.',
+};
+
 export async function POST(req: Request) {
   const sessionCookie = cookies().get('marketoir_session');
   if (!sessionCookie?.value) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
@@ -28,6 +36,7 @@ export async function POST(req: Request) {
   const {
     prompt: rawPrompt,
     imageModel = 'gemini-3.1-flash-image',
+    category,
     referenceImageData,
     referenceImageMime,
     forceWhiteBackground,
@@ -38,6 +47,9 @@ export async function POST(req: Request) {
   // Extract content from the FIRST code block if present — that's the clean prompt.
   const codeBlockMatch = rawPrompt.match(/```(?:[^\n]*)?\n([\s\S]+?)```/);
   let prompt = codeBlockMatch ? codeBlockMatch[1].trim() : rawPrompt.trim();
+
+  const categoryRule = CATEGORY_RENDER_RULES[String(category ?? '').toLowerCase()];
+  if (categoryRule) prompt += `\n\nREUSABLE ASSET REQUIREMENTS: ${categoryRule}`;
 
   if (forceWhiteBackground) {
     prompt += '\n\nIMPORTANT: Place the subject on a clean, solid pure-white background. No shadows, no gradients, no textures, no props.';
