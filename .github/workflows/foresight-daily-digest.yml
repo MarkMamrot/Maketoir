@@ -3,10 +3,12 @@ name: Foresight Daily Operations Digest
 on:
   schedule:
     - cron: '35 20 * * *'
+    - cron: '5 21 * * 1'
   workflow_dispatch:
 
 jobs:
   generate:
+    if: github.event.schedule == '35 20 * * *' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Generate tenant daily digests
@@ -15,6 +17,21 @@ jobs:
             -X POST \
             -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \
+            "${{ secrets.APP_URL }}/api/foresight/digests/cron")
+          echo "HTTP status: $RESPONSE"
+          [ "$RESPONSE" = "200" ] || exit 1
+
+  generate-weekly:
+    if: github.event.schedule == '5 21 * * 1' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate tenant weekly summaries
+        run: |
+          RESPONSE=$(curl -s -L -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"digestType":"weekly_summary"}' \
             "${{ secrets.APP_URL }}/api/foresight/digests/cron")
           echo "HTTP status: $RESPONSE"
           [ "$RESPONSE" = "200" ] || exit 1

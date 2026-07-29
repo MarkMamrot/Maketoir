@@ -26,7 +26,17 @@ describe('ForesightDigestRepository', () => {
   it('lists only tenant-scoped daily digests and parses snapshots', async () => {
     mockQuery.mockResolvedValue([{ business_id: 'business-1', snapshot_json: JSON.stringify(snapshot) }]);
     const rows = await ForesightDigestRepository.listRecent('business-1', 100);
-    expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining('LIMIT 31'), ['business-1']);
+    expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining('LIMIT 31'), ['business-1', 'daily_operations']);
     expect(rows[0].snapshot_json).toEqual(snapshot);
+  });
+
+  it('upserts weekly summaries independently from daily operations', async () => {
+    mockExecute.mockResolvedValue({ insertId: 13 });
+    const weekly = { version: 1, digestType: 'weekly_summary', digestDate: '2026-07-28' } as any;
+    await expect(ForesightDigestRepository.upsertWeekly('business-1', '2026-07-28', weekly)).resolves.toBe(13);
+    expect(mockExecute).toHaveBeenCalledWith(
+      expect.stringContaining("VALUES (?, 'weekly_summary', ?, ?)"),
+      ['business-1', '2026-07-28', JSON.stringify(weekly)],
+    );
   });
 });

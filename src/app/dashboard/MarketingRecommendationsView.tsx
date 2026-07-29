@@ -32,7 +32,9 @@ import type { ExecutionPreflightResult } from '@/lib/foresight/executionPrefligh
 import type { MetaExecutionPreflightResult } from '@/lib/foresight/metaExecutionPreflight';
 import type { RollbackPreflightResult } from '@/lib/foresight/rollbackPreflight';
 import type { KlaviyoFlowCoverageEvidence, PaidMediaContributorEvidence } from '@/lib/foresight/types';
+import type { WeeklyDigestSnapshot } from '@/lib/foresight/weeklyDigest';
 import { MarketingStrategyPanel } from './MarketingStrategyPanel';
+import { WeeklyMarketingDigest } from './WeeklyMarketingDigest';
 
 type RecommendationState = 'shadow' | 'pending_approval' | 'approved' | 'executing' | 'succeeded' | 'failed' | 'compensated' | 'rejected';
 type Recommendation = {
@@ -121,6 +123,7 @@ type DigestRow = {
   snapshot_json: DailyDigestSnapshot;
   generated_at: string;
 };
+type WeeklyDigestRow = Omit<DigestRow, 'snapshot_json'> & { snapshot_json: WeeklyDigestSnapshot };
 type InboxResponse = {
   success?: boolean;
   recommendations?: Recommendation[];
@@ -226,6 +229,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const [implementations, setImplementations] = useState<RecommendationImplementation[]>([]);
   const [executions, setExecutions] = useState<RecommendationExecution[]>([]);
   const [digests, setDigests] = useState<DigestRow[]>([]);
+  const [weeklyDigests, setWeeklyDigests] = useState<WeeklyDigestRow[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [loading, setLoading] = useState(true);
@@ -253,7 +257,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
       ]);
       const [body, digestBody] = await Promise.all([
         responseJson(response) as Promise<InboxResponse>,
-        responseJson(digestResponse) as Promise<{ digests?: DigestRow[]; error?: string }>,
+        responseJson(digestResponse) as Promise<{ digests?: DigestRow[]; weeklyDigests?: WeeklyDigestRow[]; error?: string }>,
       ]);
       if (!response.ok) throw new Error(body.error || 'Unable to load recommendations.');
       if (!digestResponse.ok) throw new Error(digestBody.error || 'Unable to load the operations digest.');
@@ -264,6 +268,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
       setImplementations(body.implementations ?? []);
       setExecutions(body.executions ?? []);
       setDigests(digestBody.digests ?? []);
+      setWeeklyDigests(digestBody.weeklyDigests ?? []);
       if (body.businessToday) {
         setBusinessToday(body.businessToday);
         setImplementationDate(body.businessToday);
@@ -290,6 +295,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const selectedExecution = selectedExecutions.find((item) => item.compensates_execution_id == null) ?? null;
   const selectedCompensation = selectedExecutions.find((item) => item.compensates_execution_id != null) ?? null;
   const latestDigest = digests[0] ?? null;
+  const latestWeeklyDigest = weeklyDigests[0] ?? null;
   const selectedPreview = selected
     ? buildRecommendationImplementationPreview(selected.channel as Parameters<typeof buildRecommendationImplementationPreview>[0], selected.proposed_action_json)
     : null;
@@ -333,6 +339,26 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
       await load();
     } catch (error) {
       setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to refresh the operations digest.' });
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  const refreshWeeklyDigest = async () => {
+    setWorking('weekly_digest');
+    setMessage(null);
+    try {
+      const response = await fetch('/api/foresight/digests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ digestType: 'weekly_summary' }),
+      });
+      const body = await responseJson(response) as { digest?: WeeklyDigestSnapshot; error?: string };
+      if (!response.ok || !body.digest) throw new Error(body.error || 'Unable to refresh the weekly performance digest.');
+      setMessage({ kind: 'success', text: `Weekly performance refreshed through ${body.digest.digestDate}.` });
+      await load();
+    } catch (error) {
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to refresh the weekly performance digest.' });
     } finally {
       setWorking(null);
     }
@@ -592,6 +618,12 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
           <div className="mt-3 flex items-center gap-2 text-sm text-emerald-700"><CheckCircle2 size={16} /> No operational follow-ups are due today.</div>
         ) : null}
       </section>
+      <WeeklyMarketingDigest
+        digest={latestWeeklyDigest?.snapshot_json ?? null}
+        isAdmin={isAdmin}
+        working={working === 'weekly_digest'}
+        onRefresh={() => void refreshWeeklyDigest()}
+      />
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4">
         <div className="flex flex-wrap items-center gap-1" role="tablist" aria-label="Recommendation states">
           {(['all', 'shadow', 'pending_approval', 'approved', 'succeeded', 'failed', 'compensated', 'rejected'] as Filter[]).map((state) => (

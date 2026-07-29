@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockRecommendations, mockEvents, mockImplementations, mockOutcomes, mockUpsert, mockListRecent } = vi.hoisted(() => ({
+const { mockRecommendations, mockEvents, mockImplementations, mockOutcomes, mockUpsert, mockUpsertWeekly, mockListRecent, mockMetrics } = vi.hoisted(() => ({
   mockRecommendations: vi.fn(), mockEvents: vi.fn(), mockImplementations: vi.fn(),
-  mockOutcomes: vi.fn(), mockUpsert: vi.fn(), mockListRecent: vi.fn(),
+  mockOutcomes: vi.fn(), mockUpsert: vi.fn(), mockUpsertWeekly: vi.fn(), mockListRecent: vi.fn(), mockMetrics: vi.fn(),
 }));
 
 vi.mock('../repositories/ForesightRepository', () => ({
@@ -14,8 +14,9 @@ vi.mock('../repositories/ForesightRepository', () => ({
   },
 }));
 vi.mock('../repositories/ForesightDigestRepository', () => ({
-  ForesightDigestRepository: { upsertDaily: mockUpsert, listRecent: mockListRecent },
+  ForesightDigestRepository: { upsertDaily: mockUpsert, upsertWeekly: mockUpsertWeekly, listRecent: mockListRecent },
 }));
+vi.mock('../ForesightMetricsService', () => ({ ForesightMetricsService: { getDailyMarketingMetrics: mockMetrics } }));
 
 import { ForesightDigestService } from '../ForesightDigestService';
 
@@ -30,6 +31,8 @@ describe('ForesightDigestService', () => {
     mockImplementations.mockResolvedValue([]);
     mockOutcomes.mockResolvedValue([]);
     mockUpsert.mockResolvedValue(9);
+    mockUpsertWeekly.mockResolvedValue(10);
+    mockMetrics.mockResolvedValue({ reconciliation: [], paidMedia: [], paidMediaEntities: [] });
   });
 
   it('loads only tenant-scoped Foresight data and persists the business-local daily snapshot', async () => {
@@ -48,5 +51,13 @@ describe('ForesightDigestService', () => {
     expect(snapshot.counts.total).toBe(0);
     expect(mockEvents).toHaveBeenCalledWith('business-2', []);
     expect(mockUpsert).toHaveBeenCalledWith('business-2', '2026-07-29', snapshot);
+  });
+
+  it('builds a weekly summary from the exact tenant-scoped 14-day metric range', async () => {
+    const snapshot = await ForesightDigestService.generateWeekly('business-1', '2026-07-28');
+    expect(snapshot).toMatchObject({ digestType: 'weekly_summary', digestDate: '2026-07-28' });
+    expect(mockMetrics).toHaveBeenCalledWith('business-1', '2026-07-15', '2026-07-28');
+    expect(mockRecommendations).toHaveBeenCalledWith('business-1', expect.arrayContaining(['expired']));
+    expect(mockUpsertWeekly).toHaveBeenCalledWith('business-1', '2026-07-28', snapshot);
   });
 });
