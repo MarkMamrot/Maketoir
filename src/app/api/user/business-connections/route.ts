@@ -29,7 +29,7 @@ export async function GET(req: Request) {
     // Decrypt secret fields before returning to frontend
     const data: Record<string, string> = {};
     for (const [key, val] of Object.entries(raw)) {
-      data[key] = CONNECTION_SECRET_FIELDS.has(key) ? decrypt(val) : val;
+      data[key] = key === 'MetaAccessToken' ? '' : CONNECTION_SECRET_FIELDS.has(key) ? decrypt(val) : val;
     }
     return NextResponse.json({ success: true, connections: data });
   } catch (error: any) {

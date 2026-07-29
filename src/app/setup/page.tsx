@@ -1087,14 +1087,14 @@ const HELP: Record<string, HelpInfo> = {
   },
   meta: {
     title: 'Connect Meta Ads',
-    url: 'https://business.facebook.com/settings/system-users',
+    url: 'https://business.facebook.com/settings/ad-accounts',
     urlLabel: 'Open Meta Business Settings →',
     steps: [
-      { text: 'Go to business.facebook.com → Settings → Users → System Users.' },
-      { text: 'Create a System User (or use an existing one) with Admin role.' },
-      { text: 'Click "Generate New Token", select your app, and enable ads_read and ads_management permissions.' },
-      { text: 'Copy the generated token — this is your Access Token.' },
-      { text: 'Your Ad Account ID is found in Meta Ads Manager → top-left dropdown. It is a number like 1234567890 (enter without "act_" prefix, or with — either works).' },
+      { text: 'Make sure your Facebook profile has access to the required ad account in Meta Business Settings.' },
+      { text: 'Select Connect Meta Ads in Solvantis and sign in to Meta.' },
+      { text: 'Approve the requested read-only advertising and business asset permissions.' },
+      { text: 'If Meta returns more than one ad account, select the account belonging to this Solvantis business.' },
+      { text: 'Solvantis stores the resulting long-lived token encrypted and never exposes it in the browser or a URL.' },
     ],
   },
   cin7: {
@@ -1156,7 +1156,8 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
   const [gaPropertyId, setGaPropertyId] = useState('');
   const [googleAdsCustomerId, setGoogleAdsCustomerId] = useState('');
   const [metaAdAccountId, setMetaAdAccountId] = useState('');
-  const [metaAccessToken, setMetaAccessToken] = useState('');
+  const [metaStatus, setMetaStatus] = useState<{ configured: boolean; connected: boolean; accountId: string | null } | null>(null);
+  const [metaAccounts, setMetaAccounts] = useState<Array<{ accountId: string; name: string; currency: string | null; accountStatus: number | null }>>([]);
   const [cin7AccountId, setCin7AccountId] = useState('');
   const [cin7ApiKey, setCin7ApiKey] = useState('');
   const [geminiModel, setGeminiModel] = useState('gemini-2.5-pro-preview');
@@ -1179,6 +1180,32 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
 
   // Help modal
   const [openHelp, setOpenHelp] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const success = params.get('metaSuccess');
+    const error = params.get('metaError');
+    const select = params.get('metaSelect');
+    if (!success && !error && !select) return;
+    window.history.replaceState({}, '', window.location.pathname);
+    if (error) {
+      setMetaResult({ success: false, error });
+      return;
+    }
+    if (success) setMetaResult({ success: true, message: success });
+    if (select) {
+      setMetaLoading(true);
+      fetch('/api/meta/accounts', { cache: 'no-store' })
+        .then(async response => {
+          const body = await response.json();
+          if (!response.ok) throw new Error(body.error || 'Unable to load Meta ad accounts.');
+          setMetaAccounts(Array.isArray(body.accounts) ? body.accounts : []);
+        })
+        .catch(err => setMetaResult({ success: false, error: err instanceof Error ? err.message : 'Unable to load Meta ad accounts.' }))
+        .finally(() => setMetaLoading(false));
+    }
+  }, []);
 
   // Gmail OAuth — handle callback params from /api/auth/gmail/callback redirect.
   useEffect(() => {
@@ -1255,7 +1282,6 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
       const gaId = creds.GA4PropertyId       || '';
       const gads = creds.GoogleAdsCustomerId  || '';
       const maa  = creds.MetaAdAccountId     || '';
-      const mat  = creds.MetaAccessToken     || '';
       const c7id = creds.Cin7AccountId       || '';
       const c7k  = creds.Cin7ApiKey          || '';
       const mdl  = creds.GeminiModel         || 'gemini-2.5-pro-preview';
@@ -1271,7 +1297,6 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
       setGaPropertyId(gaId);
       setGoogleAdsCustomerId(gads);
       setMetaAdAccountId(maa);
-      setMetaAccessToken(mat);
       setCin7AccountId(c7id);
       setCin7ApiKey(c7k);
       setGeminiModel(mdl);
@@ -1305,7 +1330,17 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
 
       ping(`/api/sync/analytics?propertyId=${encodeURIComponent(gaId)}`, setGaResult);
       ping(`/api/sync/google-ads?customerId=${encodeURIComponent(gads)}`, setAdsResult);
-      ping(`/api/sync/meta-ads?adAccountId=${encodeURIComponent(maa)}&accessToken=${encodeURIComponent(mat)}`, setMetaResult);
+      try {
+        const statusResponse = await fetch('/api/meta/status', { cache: 'no-store' });
+        const status = await statusResponse.json();
+        setMetaStatus(status);
+        if (status.connected) {
+          const testResponse = await fetch('/api/meta/status', { method: 'POST' });
+          setMetaResult(await testResponse.json());
+        }
+      } catch {
+        setMetaStatus({ configured: false, connected: false, accountId: null });
+      }
       ping(`/api/sync/cin7?accountId=${encodeURIComponent(c7id)}&apiKey=${encodeURIComponent(c7k)}`, setCin7Result);
       if (gmTok) {
         ping(`/api/sync/gmail?refreshToken=${encodeURIComponent(gmTok)}`, setGmailResult);
@@ -1345,27 +1380,21 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
     setSavingCard(cardId);
     setCardMsgs(prev => ({ ...prev, [cardId]: '' }));
     try {
+      const valuesByCard: Record<string, Record<string, string>> = {
+        shopify: { ShopifyShopId: shopId, ShopifyAccessToken: accessToken },
+        ga4: { GA4PropertyId: gaPropertyId },
+        gads: { GoogleAdsCustomerId: googleAdsCustomerId },
+        cin7: { Cin7AccountId: cin7AccountId, Cin7ApiKey: cin7ApiKey },
+        klaviyo: { KlaviyoApiKey: klaviyoApiKey },
+        gmail: { GmailAddress: gmailAddress, GmailRefreshToken: gmailRefreshToken, GmailClientId: gmailClientId, GmailClientSecret: gmailClientSecret },
+        ai: { GeminiModel: geminiModel },
+      };
       const res = await fetch('/api/user/business-connections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           databaseId: business.databaseId,
-          connections: {
-            ShopifyShopId: shopId,
-            ShopifyAccessToken: accessToken,
-            GA4PropertyId: gaPropertyId,
-            GoogleAdsCustomerId: googleAdsCustomerId,
-            MetaAdAccountId: metaAdAccountId,
-            MetaAccessToken: metaAccessToken,
-            Cin7AccountId: cin7AccountId,
-            Cin7ApiKey: cin7ApiKey,
-            GeminiModel: geminiModel,
-            GmailAddress: gmailAddress,
-            GmailRefreshToken: gmailRefreshToken,
-            GmailClientId: gmailClientId,
-            GmailClientSecret: gmailClientSecret,
-            KlaviyoApiKey: klaviyoApiKey,
-          },
+          connections: valuesByCard[cardId] ?? {},
         }),
       });
       const data = await res.json();
@@ -1424,10 +1453,46 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
   const testMetaSync = async () => {
     setMetaLoading(true); setMetaResult(null);
     try {
-      const res = await fetch(`/api/sync/meta-ads?adAccountId=${encodeURIComponent(metaAdAccountId)}&accessToken=${encodeURIComponent(metaAccessToken)}`);
+      const res = await fetch('/api/meta/status', { method: 'POST' });
       setMetaResult(await res.json());
     } catch (err: any) { setMetaResult({ success: false, error: err.message }); }
     setMetaLoading(false);
+  };
+
+  const selectMetaAccount = async (accountId: string) => {
+    setMetaLoading(true); setMetaResult(null);
+    try {
+      const response = await fetch('/api/meta/accounts', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accountId }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Unable to select Meta ad account.');
+      setMetaAdAccountId(body.account.accountId);
+      setMetaAccounts([]);
+      setMetaStatus(current => ({ configured: current?.configured ?? true, connected: true, accountId: body.account.accountId }));
+      setMetaResult({ success: true, message: `Connected to ${body.account.name}.` });
+    } catch (error) {
+      setMetaResult({ success: false, error: error instanceof Error ? error.message : 'Unable to select Meta ad account.' });
+    } finally {
+      setMetaLoading(false);
+    }
+  };
+
+  const disconnectMeta = async () => {
+    if (!confirm('Disconnect Meta Ads from this business?')) return;
+    setMetaLoading(true); setMetaResult(null);
+    try {
+      const response = await fetch('/api/meta/disconnect', { method: 'POST' });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Unable to disconnect Meta Ads.');
+      setMetaAdAccountId('');
+      setMetaStatus(current => ({ configured: current?.configured ?? true, connected: false, accountId: null }));
+      setMetaResult({ success: true, message: 'Meta Ads disconnected.' });
+    } catch (error) {
+      setMetaResult({ success: false, error: error instanceof Error ? error.message : 'Unable to disconnect Meta Ads.' });
+    } finally {
+      setMetaLoading(false);
+    }
   };
 
   const testCin7Sync = async () => {
@@ -1634,25 +1699,54 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
             </div>
             <button onClick={() => setOpenHelp('meta')} className="text-xs text-blue-500 hover:underline">How to connect →</button>
           </div>
-          <div className="w-full">
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Ad Account ID</label>
-            <input className="w-full p-2 border rounded text-sm" value={metaAdAccountId} onChange={e => setMetaAdAccountId(e.target.value)} placeholder="act_..." />
-          </div>
-          <div className="w-full">
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Access Token</label>
-            <input className="w-full p-2 border rounded text-sm font-mono" type="password" value={metaAccessToken} onChange={e => setMetaAccessToken(e.target.value)} placeholder="EAAi..." />
-          </div>
-          <div className="w-full flex items-center justify-between pt-2 border-t border-gray-100">
-            <button onClick={testMetaSync} disabled={metaLoading} className="px-3 py-1.5 bg-indigo-500 text-white rounded text-xs font-medium hover:bg-indigo-600 transition">
-              {metaLoading ? 'Testing...' : 'Test'}
-            </button>
-            <div className="flex items-center gap-2">
-              {cardMsgs['meta'] && <span className="text-xs font-medium">{cardMsgs['meta']}</span>}
-              <button onClick={() => saveCard('meta')} disabled={savingCard === 'meta'} className="px-3 py-1.5 bg-gray-800 text-white rounded text-xs font-semibold hover:bg-gray-900 transition">
-                {savingCard === 'meta' ? 'Saving...' : 'Save'}
-              </button>
+          {metaAccounts.length > 0 ? (
+            <div className="w-full border border-gray-200">
+              <div className="border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-600">Choose an ad account</div>
+              {metaAccounts.map(account => (
+                <button
+                  key={account.accountId}
+                  onClick={() => void selectMetaAccount(account.accountId)}
+                  disabled={metaLoading}
+                  className="flex w-full items-center justify-between gap-3 border-b border-gray-100 px-3 py-3 text-left text-sm last:border-b-0 hover:bg-blue-50 disabled:opacity-50"
+                >
+                  <span><strong className="block text-gray-900">{account.name}</strong><span className="text-xs text-gray-500">{account.accountId}</span></span>
+                  <span className="shrink-0 text-xs font-semibold text-gray-500">{account.currency ?? 'Currency unavailable'}</span>
+                </button>
+              ))}
             </div>
+          ) : metaStatus?.connected ? (
+            <div className="w-full border border-emerald-200 bg-emerald-50 px-3 py-3">
+              <div className="text-sm font-semibold text-emerald-900">Connected</div>
+              <div className="mt-1 text-xs text-emerald-700">Ad account {metaAdAccountId || metaStatus.accountId}</div>
+            </div>
+          ) : (
+            <div className="w-full text-sm leading-5 text-gray-600">
+              Sign in with Meta, approve read-only advertising access, then choose the ad account for this business.
+            </div>
+          )}
+          <div className="w-full flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100">
+            {metaStatus?.connected ? (
+              <>
+                <button onClick={() => void testMetaSync()} disabled={metaLoading} className="px-3 py-1.5 bg-indigo-600 text-white rounded text-xs font-medium hover:bg-indigo-700 transition disabled:opacity-50">
+                  {metaLoading ? 'Checking...' : 'Test connection'}
+                </button>
+                <button onClick={() => void disconnectMeta()} disabled={metaLoading} className="px-3 py-1.5 border border-red-300 text-red-700 rounded text-xs font-semibold hover:bg-red-50 disabled:opacity-50">
+                  Disconnect
+                </button>
+              </>
+            ) : (
+              <a
+                href="/api/meta/connect"
+                aria-disabled={metaStatus != null && !metaStatus.configured}
+                className={`inline-flex items-center px-4 py-2 rounded text-sm font-semibold text-white ${metaStatus != null && !metaStatus.configured ? 'pointer-events-none bg-gray-400' : 'bg-blue-700 hover:bg-blue-800'}`}
+              >
+                Connect Meta Ads
+              </a>
+            )}
           </div>
+          {metaStatus != null && !metaStatus.configured && (
+            <p className="text-xs leading-5 text-amber-700">Meta OAuth needs META_APP_ID and META_APP_SECRET configured on Railway.</p>
+          )}
           <div className="w-full flex flex-col gap-1 pt-2 border-t border-dashed border-gray-200">
             <div className="flex items-center gap-2 flex-wrap">
               <button onClick={() => buildInstructions('meta')} disabled={!!apiActLoading['meta']} className="px-2 py-1 bg-purple-600 text-white rounded text-xs font-medium hover:bg-purple-700 transition">
