@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { decrypt } from '@/lib/encryption';
+import { requireAdminSession } from '@/lib/sessionUtils';
 import { GoogleAdsService } from '../../../../services/GoogleAdsService';
 
 function getDateRange() {
@@ -16,12 +18,13 @@ function getDateRange() {
  * App-level OAuth keys are always from ENV; per-business tokens from query params.
  */
 export async function GET(req: Request) {
-  const session = cookies().get('marketoir_session');
-  if (!session?.value) return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
+  const { user, response } = requireAdminSession();
+  if (response) return response;
 
   const { searchParams } = new URL(req.url);
   const customerId    = searchParams.get('customerId')    ?? '';
-  const refreshToken  = searchParams.get('refreshToken')  ?? '';
+  const connection = await ConnectionsRepository.get(user.businessId);
+  const refreshToken = connection?.google_ads_refresh_token ? decrypt(connection.google_ads_refresh_token) : '';
 
   if (!customerId || !refreshToken) {
     return NextResponse.json({ success: false, error: 'customerId and refreshToken are required.' }, { status: 400 });

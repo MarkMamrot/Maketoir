@@ -1155,6 +1155,23 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
   const [spreadsheetId, setSpreadsheetId] = useState('');
   const [gaPropertyId, setGaPropertyId] = useState('');
   const [googleAdsCustomerId, setGoogleAdsCustomerId] = useState('');
+  const [googleStatus, setGoogleStatus] = useState<{
+    configured: boolean;
+    clientIdPresent?: boolean;
+    clientSecretPresent?: boolean;
+    developerTokenPresent?: boolean;
+    authorised: boolean;
+    adsConnected: boolean;
+    analyticsConnected: boolean;
+    customerId: string | null;
+    propertyId: string | null;
+  } | null>(null);
+  const [googleAdsAccounts, setGoogleAdsAccounts] = useState<Array<{ customerId: string; name: string; manager: boolean }>>([]);
+  const [googleAnalyticsProperties, setGoogleAnalyticsProperties] = useState<Array<{ propertyId: string; name: string; accountName: string }>>([]);
+  const [selectedGoogleAdsId, setSelectedGoogleAdsId] = useState('');
+  const [selectedGooglePropertyId, setSelectedGooglePropertyId] = useState('');
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleMessage, setGoogleMessage] = useState('');
   const [metaAdAccountId, setMetaAdAccountId] = useState('');
   const [metaStatus, setMetaStatus] = useState<{
     configured: boolean;
@@ -1214,6 +1231,34 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
     }
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const error = params.get('googleError');
+    const select = params.get('googleSelect');
+    if (!error && !select) return;
+    window.history.replaceState({}, '', window.location.pathname);
+    if (error) {
+      setGoogleMessage(error);
+      return;
+    }
+    setGoogleLoading(true);
+    fetch('/api/google/accounts', { cache: 'no-store' })
+      .then(async response => {
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || 'Unable to load Google accounts.');
+        const adsAccounts = Array.isArray(body.adsAccounts) ? body.adsAccounts : [];
+        const analyticsProperties = Array.isArray(body.analyticsProperties) ? body.analyticsProperties : [];
+        setGoogleAdsAccounts(adsAccounts);
+        setGoogleAnalyticsProperties(analyticsProperties);
+        if (adsAccounts.length === 1) setSelectedGoogleAdsId(adsAccounts[0].customerId);
+        if (analyticsProperties.length === 1) setSelectedGooglePropertyId(analyticsProperties[0].propertyId);
+        setGoogleMessage(Array.isArray(body.warnings) && body.warnings.length ? body.warnings.join(' ') : 'Choose the Google Ads account and Analytics property for this business.');
+      })
+      .catch(error => setGoogleMessage(error instanceof Error ? error.message : 'Unable to load Google accounts.'))
+      .finally(() => setGoogleLoading(false));
+  }, []);
+
   // Gmail OAuth — handle callback params from /api/auth/gmail/callback redirect.
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1271,7 +1316,7 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
     // Reset all results when switching business
     setSyncResult(null); setGaResult(null); setAdsResult(null);
       setMetaResult(null); setCin7Result(null); setGmailResult(null); setKlaviyoResult(null);
-      setXeroStatus(null);
+      setXeroStatus(null); setGoogleStatus(null); setGoogleMessage('');
 
     const databaseId = business.databaseId;
 
@@ -1322,6 +1367,16 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
           setter({ success: false, error: 'Network error' });
         }
       };
+      const pingGoogle = async (service: 'ads' | 'analytics', setter: (v: any) => void) => {
+        try {
+          const response = await fetch('/api/google/status', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ service }),
+          });
+          setter(await response.json());
+        } catch {
+          setter({ success: false, error: 'Network error' });
+        }
+      };
       const pingKlaviyo = async (apiKey: string) => {
         try {
           const response = await fetch('/api/sync/klaviyo', {
@@ -1335,8 +1390,16 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
         }
       };
 
-      ping(`/api/sync/analytics?propertyId=${encodeURIComponent(gaId)}`, setGaResult);
-      ping(`/api/sync/google-ads?customerId=${encodeURIComponent(gads)}`, setAdsResult);
+      try {
+        const googleResponse = await fetch('/api/google/status', { cache: 'no-store' });
+        const status = await googleResponse.json();
+        if (!googleResponse.ok) throw new Error(status.error || 'Unable to load Google connection status.');
+        setGoogleStatus(status);
+        if (status.adsConnected) pingGoogle('ads', setAdsResult);
+        if (status.analyticsConnected) pingGoogle('analytics', setGaResult);
+      } catch (error) {
+        setGoogleMessage(error instanceof Error ? error.message : 'Unable to load Google connection status.');
+      }
       try {
         const statusResponse = await fetch('/api/meta/status', { cache: 'no-store' });
         const status = await statusResponse.json();
@@ -1448,7 +1511,9 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
   const testGaSync = async () => {
     setGaLoading(true); setGaResult(null);
     try {
-      const res = await fetch(`/api/sync/analytics?propertyId=${encodeURIComponent(gaPropertyId)}`);
+      const res = await fetch('/api/google/status', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ service: 'analytics' }),
+      });
       setGaResult(await res.json());
     } catch (err: any) { setGaResult({ success: false, error: err.message }); }
     setGaLoading(false);
@@ -1457,10 +1522,58 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
   const testGoogleAdsSync = async () => {
     setAdsLoading(true); setAdsResult(null);
     try {
-      const res = await fetch(`/api/sync/google-ads?customerId=${encodeURIComponent(googleAdsCustomerId)}`);
+      const res = await fetch('/api/google/status', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ service: 'ads' }),
+      });
       setAdsResult(await res.json());
     } catch (err: any) { setAdsResult({ success: false, error: err.message }); }
     setAdsLoading(false);
+  };
+
+  const selectGoogleConnections = async () => {
+    setGoogleLoading(true); setGoogleMessage('');
+    try {
+      const response = await fetch('/api/google/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId: selectedGoogleAdsId || null, propertyId: selectedGooglePropertyId || null }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Unable to save Google selections.');
+      if (body.customerId) setGoogleAdsCustomerId(body.customerId);
+      if (body.propertyId) setGaPropertyId(body.propertyId);
+      setGoogleAdsAccounts([]); setGoogleAnalyticsProperties([]);
+      setGoogleStatus(current => ({
+        configured: current?.configured ?? true,
+        authorised: true,
+        adsConnected: Boolean(body.customerId || current?.customerId),
+        analyticsConnected: Boolean(body.propertyId || current?.propertyId),
+        customerId: body.customerId || current?.customerId || null,
+        propertyId: body.propertyId || current?.propertyId || null,
+      }));
+      setGoogleMessage('Google Ads and Analytics connection saved.');
+    } catch (error) {
+      setGoogleMessage(error instanceof Error ? error.message : 'Unable to save Google selections.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const disconnectGoogle = async () => {
+    if (!confirm('Disconnect Google Ads and Google Analytics from this business?')) return;
+    setGoogleLoading(true); setGoogleMessage('');
+    try {
+      const response = await fetch('/api/google/disconnect', { method: 'POST' });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Unable to disconnect Google.');
+      setGoogleAdsCustomerId(''); setGaPropertyId(''); setGoogleAdsAccounts([]); setGoogleAnalyticsProperties([]);
+      setGoogleStatus(current => ({ configured: current?.configured ?? true, authorised: false, adsConnected: false, analyticsConnected: false, customerId: null, propertyId: null }));
+      setAdsResult(null); setGaResult(null); setGoogleMessage('Google disconnected.');
+    } catch (error) {
+      setGoogleMessage(error instanceof Error ? error.message : 'Unable to disconnect Google.');
+    } finally {
+      setGoogleLoading(false);
+    }
   };
 
   const testMetaSync = async () => {
@@ -1625,6 +1738,33 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
 
       {/* 3. Others */}
       <div className="grid grid-cols-2 gap-4 w-full">
+        {(googleAdsAccounts.length > 0 || googleAnalyticsProperties.length > 0) && (
+          <div className="col-span-2 bg-white text-black p-6 shadow-sm border border-gray-200 flex flex-col gap-4">
+            <div>
+              <h2 className="text-lg font-bold">Choose Google connections</h2>
+              <p className="mt-1 text-sm text-gray-600">Select the advertising account and Analytics property used by this business.</p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <label className="text-xs font-semibold text-gray-600">
+                Google Ads account
+                <select value={selectedGoogleAdsId} onChange={event => setSelectedGoogleAdsId(event.target.value)} className="mt-1 w-full border border-gray-300 bg-white p-2 text-sm font-normal text-gray-900">
+                  <option value="">Do not connect Google Ads</option>
+                  {googleAdsAccounts.map(account => <option key={account.customerId} value={account.customerId}>{account.name} ({account.customerId}){account.manager ? ' - Manager' : ''}</option>)}
+                </select>
+              </label>
+              <label className="text-xs font-semibold text-gray-600">
+                Google Analytics property
+                <select value={selectedGooglePropertyId} onChange={event => setSelectedGooglePropertyId(event.target.value)} className="mt-1 w-full border border-gray-300 bg-white p-2 text-sm font-normal text-gray-900">
+                  <option value="">Do not connect Google Analytics</option>
+                  {googleAnalyticsProperties.map(property => <option key={property.propertyId} value={property.propertyId}>{property.name} ({property.propertyId}) - {property.accountName}</option>)}
+                </select>
+              </label>
+            </div>
+            <button onClick={() => void selectGoogleConnections()} disabled={googleLoading || (!selectedGoogleAdsId && !selectedGooglePropertyId)} className="self-start bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:bg-gray-400">
+              {googleLoading ? 'Saving...' : 'Use selected accounts'}
+            </button>
+          </div>
+        )}
         {/* GA4 */}
         <div className="bg-white text-black p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col items-start gap-4">
           <div className="flex items-center justify-between w-full">
@@ -1636,7 +1776,7 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
           </div>
           <div className="w-full">
             <label className="block text-xs font-semibold text-gray-600 mb-1">GA4 Property ID</label>
-            <input className="w-full p-2 border rounded text-sm" value={gaPropertyId} onChange={e => setGaPropertyId(e.target.value)} placeholder="e.g. 319628615" />
+            <input className="w-full p-2 border rounded text-sm" value={gaPropertyId} onChange={e => setGaPropertyId(e.target.value)} placeholder="Connected through Google" />
           </div>
           <div className="w-full flex items-center justify-between pt-2 border-t border-gray-100">
             <button onClick={testGaSync} disabled={gaLoading} className="px-3 py-1.5 bg-orange-500 text-white rounded text-xs font-medium hover:bg-orange-600 transition">
@@ -1644,9 +1784,7 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
             </button>
             <div className="flex items-center gap-2">
               {cardMsgs['ga4'] && <span className="text-xs font-medium">{cardMsgs['ga4']}</span>}
-              <button onClick={() => saveCard('ga4')} disabled={savingCard === 'ga4'} className="px-3 py-1.5 bg-gray-800 text-white rounded text-xs font-semibold hover:bg-gray-900 transition">
-                {savingCard === 'ga4' ? 'Saving...' : 'Save'}
-              </button>
+              {googleStatus?.analyticsConnected && <span className="text-xs font-semibold text-emerald-700">Connected</span>}
             </div>
           </div>
           <div className="w-full flex flex-col gap-1 pt-2 border-t border-dashed border-gray-200">
@@ -1675,7 +1813,7 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
           </div>
           <div className="w-full">
             <label className="block text-xs font-semibold text-gray-600 mb-1">Customer ID</label>
-            <input className="w-full p-2 border rounded text-sm" value={googleAdsCustomerId} onChange={e => setGoogleAdsCustomerId(e.target.value)} placeholder="e.g. 2436440046" />
+            <input className="w-full p-2 border rounded text-sm" value={googleAdsCustomerId} onChange={e => setGoogleAdsCustomerId(e.target.value)} placeholder="Connected through Google" />
           </div>
           <div className="w-full flex items-center justify-between pt-2 border-t border-gray-100">
             <button onClick={testGoogleAdsSync} disabled={adsLoading} className="px-3 py-1.5 bg-blue-500 text-white rounded text-xs font-medium hover:bg-blue-600 transition">
@@ -1683,9 +1821,7 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
             </button>
             <div className="flex items-center gap-2">
               {cardMsgs['gads'] && <span className="text-xs font-medium">{cardMsgs['gads']}</span>}
-              <button onClick={() => saveCard('gads')} disabled={savingCard === 'gads'} className="px-3 py-1.5 bg-gray-800 text-white rounded text-xs font-semibold hover:bg-gray-900 transition">
-                {savingCard === 'gads' ? 'Saving...' : 'Save'}
-              </button>
+              {googleStatus?.adsConnected && <span className="text-xs font-semibold text-emerald-700">Connected</span>}
             </div>
           </div>
           <div className="w-full flex flex-col gap-1 pt-2 border-t border-dashed border-gray-200">
@@ -1701,6 +1837,26 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
             {apiActMsgs?.['google-ads_schema'] && <p className="text-xs text-gray-600">{apiActMsgs['google-ads_schema']}</p>}
           </div>
           {adsResult && <pre className="w-full p-4 bg-gray-100 rounded text-xs overflow-auto max-h-32">{JSON.stringify(adsResult, null, 2)}</pre>}
+        </div>
+
+        <div className="col-span-2 flex flex-wrap items-center justify-between gap-3 border border-gray-200 bg-white px-6 py-4">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-gray-900">Google marketing access</div>
+            <div className="mt-1 text-xs text-gray-600">One Google authorisation powers both Ads and Analytics. Access is read-only except for existing separately approved Google Ads actions.</div>
+            {googleMessage && <div className="mt-2 text-xs text-amber-700">{googleMessage}</div>}
+            {googleStatus != null && !googleStatus.configured && <div className="mt-2 text-xs text-amber-700">Railway requires GOOGLE_ADS_CLIENT_ID and GOOGLE_ADS_CLIENT_SECRET.</div>}
+            {googleStatus?.configured && googleStatus.developerTokenPresent === false && <div className="mt-2 text-xs text-amber-700">GOOGLE_ADS_DEVELOPER_TOKEN is required to discover and read Ads accounts; Analytics can still connect.</div>}
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {googleStatus?.authorised ? (
+              <>
+                <a href="/api/google/connect" className="bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800">Change accounts</a>
+                <button onClick={() => void disconnectGoogle()} disabled={googleLoading} className="border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">Disconnect</button>
+              </>
+            ) : (
+              <a href="/api/google/connect" aria-disabled={googleStatus != null && !googleStatus.configured} className={`px-4 py-2 text-sm font-semibold text-white ${googleStatus != null && !googleStatus.configured ? 'pointer-events-none bg-gray-400' : 'bg-blue-700 hover:bg-blue-800'}`}>Connect Google Ads & Analytics</a>
+            )}
+          </div>
         </div>
 
         {/* Meta */}

@@ -524,7 +524,10 @@ export async function POST(req: Request) {
             });
             emit({ source: 'ga4', status: 'error', error: 'GA4 Property ID not configured in Connections tab.' });
           } else {
-            const ga = new GoogleAnalyticsService(propertyId);
+            const analyticsRefreshToken = conn?.google_ads_refresh_token
+              ? decrypt(conn.google_ads_refresh_token)
+              : undefined;
+            const ga = new GoogleAnalyticsService(propertyId, analyticsRefreshToken);
             const GA4_TABS = [
               {
                 // date kept — channel/source trend over time is useful for spotting shifts

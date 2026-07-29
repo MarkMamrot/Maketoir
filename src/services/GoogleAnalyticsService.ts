@@ -5,13 +5,19 @@ export class GoogleAnalyticsService {
   private analyticsDataClient: BetaAnalyticsDataClient;
   private propertyId: string;
 
-  constructor(propertyId: string) {
+  constructor(propertyId: string, refreshToken?: string) {
     this.propertyId = propertyId;
 
     let authOptions: any = {};
 
-    // Prioritize direct environment variables for easy hosting management
-    if (process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
+    if (refreshToken) {
+      authOptions.credentials = {
+        client_id: process.env.GOOGLE_ADS_CLIENT_ID || '',
+        client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET || '',
+        refresh_token: refreshToken,
+        type: 'authorized_user',
+      };
+    } else if (process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
       authOptions.credentials = {
         client_email: process.env.GOOGLE_CLIENT_EMAIL,
         private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
