@@ -1,0 +1,20 @@
+name: Foresight Daily Operations Digest
+
+on:
+  schedule:
+    - cron: '35 20 * * *'
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate tenant daily digests
+        run: |
+          RESPONSE=$(curl -s -L -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "${{ secrets.APP_URL }}/api/foresight/digests/cron")
+          echo "HTTP status: $RESPONSE"
+          [ "$RESPONSE" = "200" ] || exit 1

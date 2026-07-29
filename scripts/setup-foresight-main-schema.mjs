@@ -18,6 +18,7 @@ const tableNames = [
   'foresight_recommendation_implementations',
   'foresight_recommendation_outcomes',
   'foresight_executions',
+  'foresight_digest_runs',
   'foresight_sync_runs',
   'foresight_sync_tabs',
   'foresight_marketing_observations',

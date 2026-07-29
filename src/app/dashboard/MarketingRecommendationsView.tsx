@@ -27,6 +27,7 @@ import {
   buildRecommendationImplementationPreview,
   type RecommendationImplementationPreview,
 } from '@/lib/foresight/implementationPreview';
+import type { DailyDigestSnapshot } from '@/lib/foresight/dailyDigest';
 import type { ExecutionPreflightResult } from '@/lib/foresight/executionPreflight';
 import type { MetaExecutionPreflightResult } from '@/lib/foresight/metaExecutionPreflight';
 import type { RollbackPreflightResult } from '@/lib/foresight/rollbackPreflight';
@@ -113,6 +114,12 @@ type RecommendationExecution = {
   compensates_execution_id: number | null;
   created_at: string;
   completed_at: string | null;
+};
+type DigestRow = {
+  id: number;
+  digest_date: string;
+  snapshot_json: DailyDigestSnapshot;
+  generated_at: string;
 };
 type InboxResponse = {
   success?: boolean;
@@ -218,6 +225,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const [outcomes, setOutcomes] = useState<RecommendationOutcome[]>([]);
   const [implementations, setImplementations] = useState<RecommendationImplementation[]>([]);
   const [executions, setExecutions] = useState<RecommendationExecution[]>([]);
+  const [digests, setDigests] = useState<DigestRow[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [loading, setLoading] = useState(true);
@@ -239,15 +247,23 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const load = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/foresight/marketing/recommendations', { cache: 'no-store' });
-      const body = await responseJson(response) as InboxResponse;
+      const [response, digestResponse] = await Promise.all([
+        fetch('/api/foresight/marketing/recommendations', { cache: 'no-store' }),
+        fetch('/api/foresight/digests', { cache: 'no-store' }),
+      ]);
+      const [body, digestBody] = await Promise.all([
+        responseJson(response) as Promise<InboxResponse>,
+        responseJson(digestResponse) as Promise<{ digests?: DigestRow[]; error?: string }>,
+      ]);
       if (!response.ok) throw new Error(body.error || 'Unable to load recommendations.');
+      if (!digestResponse.ok) throw new Error(digestBody.error || 'Unable to load the operations digest.');
       const next = body.recommendations ?? [];
       setRecommendations(next);
       setEvents(body.events ?? []);
       setOutcomes(body.outcomes ?? []);
       setImplementations(body.implementations ?? []);
       setExecutions(body.executions ?? []);
+      setDigests(digestBody.digests ?? []);
       if (body.businessToday) {
         setBusinessToday(body.businessToday);
         setImplementationDate(body.businessToday);
@@ -273,6 +289,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const selectedExecutions = executions.filter((item) => item.recommendation_id === selectedId);
   const selectedExecution = selectedExecutions.find((item) => item.compensates_execution_id == null) ?? null;
   const selectedCompensation = selectedExecutions.find((item) => item.compensates_execution_id != null) ?? null;
+  const latestDigest = digests[0] ?? null;
   const selectedPreview = selected
     ? buildRecommendationImplementationPreview(selected.channel as Parameters<typeof buildRecommendationImplementationPreview>[0], selected.proposed_action_json)
     : null;
@@ -300,6 +317,22 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
       await load();
     } catch (error) {
       setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Evaluation failed.' });
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  const refreshDigest = async () => {
+    setWorking('digest');
+    setMessage(null);
+    try {
+      const response = await fetch('/api/foresight/digests', { method: 'POST' });
+      const body = await responseJson(response) as { digest?: DailyDigestSnapshot; error?: string };
+      if (!response.ok || !body.digest) throw new Error(body.error || 'Unable to refresh the operations digest.');
+      setMessage({ kind: 'success', text: `Daily operations digest refreshed with ${body.digest.counts.total} item${body.digest.counts.total === 1 ? '' : 's'}.` });
+      await load();
+    } catch (error) {
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to refresh the operations digest.' });
     } finally {
       setWorking(null);
     }
@@ -510,6 +543,55 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   return (
     <div className="space-y-4">
       <MarketingStrategyPanel userTier={userTier} />
+      <section className="border-y border-gray-200 bg-gray-50/70 px-4 py-4" aria-label="Daily operations digest">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-700"><ListChecks size={16} /> Daily operations</h2>
+              {latestDigest && (
+                <span className={`text-xs font-semibold ${latestDigest.snapshot_json.counts.high > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
+                  {latestDigest.snapshot_json.counts.high} high priority
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              {latestDigest ? `${latestDigest.digest_date} · ${latestDigest.snapshot_json.counts.total} open signal${latestDigest.snapshot_json.counts.total === 1 ? '' : 's'}` : 'No digest has been generated yet.'}
+            </p>
+          </div>
+          {isAdmin && (
+            <button
+              onClick={() => void refreshDigest()}
+              disabled={working != null}
+              className="inline-flex h-9 items-center gap-2 border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+            >
+              {working === 'digest' ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+              Refresh digest
+            </button>
+          )}
+        </div>
+        {latestDigest && latestDigest.snapshot_json.items.length > 0 ? (
+          <div className="mt-3 grid gap-px border border-gray-200 bg-gray-200 sm:grid-cols-2 xl:grid-cols-3">
+            {latestDigest.snapshot_json.items.slice(0, 6).map((item) => (
+              <button
+                key={`${item.kind}:${item.recommendationId}`}
+                onClick={() => { setFilter('all'); setSelectedId(item.recommendationId); }}
+                className="flex min-w-0 items-start gap-3 bg-white px-3 py-3 text-left hover:bg-cyan-50"
+              >
+                <span className={`mt-0.5 shrink-0 ${item.priority === 'high' ? 'text-red-600' : item.priority === 'medium' ? 'text-amber-600' : 'text-cyan-700'}`}>
+                  {item.priority === 'high' ? <AlertTriangle size={16} /> : item.priority === 'medium' ? <Clock3 size={16} /> : <CheckCircle2 size={16} />}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-gray-900">{item.title}</span>
+                  <span className="mt-1 block text-xs leading-5 text-gray-600">{item.detail}</span>
+                </span>
+                <ChevronRight size={15} className="mt-0.5 shrink-0 text-gray-300" />
+              </button>
+            ))}
+          </div>
+        ) : latestDigest ? (
+          <div className="mt-3 flex items-center gap-2 text-sm text-emerald-700"><CheckCircle2 size={16} /> No operational follow-ups are due today.</div>
+        ) : null}
+      </section>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4">
         <div className="flex flex-wrap items-center gap-1" role="tablist" aria-label="Recommendation states">
           {(['all', 'shadow', 'pending_approval', 'approved', 'succeeded', 'failed', 'compensated', 'rejected'] as Filter[]).map((state) => (

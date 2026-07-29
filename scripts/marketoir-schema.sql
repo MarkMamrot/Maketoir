@@ -474,6 +474,17 @@ CREATE TABLE IF NOT EXISTS foresight_executions (
   INDEX idx_foresight_execution_activity (business_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS foresight_digest_runs (
+  id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id       VARCHAR(100) NOT NULL,
+  digest_type       VARCHAR(32) NOT NULL DEFAULT 'daily_operations',
+  digest_date       DATE NOT NULL,
+  snapshot_json     JSON NOT NULL,
+  generated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_foresight_digest_run (business_id, digest_type, digest_date),
+  INDEX idx_foresight_digest_activity (business_id, generated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS foresight_sync_runs (
   id                BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id       VARCHAR(100) NOT NULL,
