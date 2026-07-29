@@ -44,4 +44,18 @@ describe('/api/meta/status', () => {
     expect(response.status).toBe(409);
     expect(mockReadAccount).not.toHaveBeenCalled();
   });
+
+  it('still reports runtime configuration when the connection lookup fails', async () => {
+    mockGetConnection.mockRejectedValue(new Error('Database unavailable'));
+    const response = await GET();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      configured: true,
+      appIdPresent: true,
+      appSecretPresent: true,
+      connected: false,
+      accountId: null,
+      connectionError: 'Database unavailable',
+    });
+  });
 });

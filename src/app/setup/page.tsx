@@ -1162,6 +1162,7 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
     appSecretPresent?: boolean;
     connected: boolean;
     accountId: string | null;
+    connectionError?: string;
   } | null>(null);
   const [metaAccounts, setMetaAccounts] = useState<Array<{ accountId: string; name: string; currency: string | null; accountStatus: number | null }>>([]);
   const [cin7AccountId, setCin7AccountId] = useState('');
@@ -1339,13 +1340,19 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
       try {
         const statusResponse = await fetch('/api/meta/status', { cache: 'no-store' });
         const status = await statusResponse.json();
+        if (!statusResponse.ok) throw new Error(status.error || `Meta status returned HTTP ${statusResponse.status}.`);
         setMetaStatus(status);
+        if (status.connectionError) setMetaResult({ success: false, error: status.connectionError });
         if (status.connected) {
           const testResponse = await fetch('/api/meta/status', { method: 'POST' });
-          setMetaResult(await testResponse.json());
+          const testResult = await testResponse.json();
+          setMetaResult(testResponse.ok
+            ? testResult
+            : { success: false, error: testResult.error || 'The stored Meta authorisation is no longer valid. Reconnect Meta Ads.' });
         }
-      } catch {
-        setMetaStatus({ configured: false, connected: false, accountId: null });
+      } catch (error) {
+        setMetaStatus(null);
+        setMetaResult({ success: false, error: error instanceof Error ? error.message : 'Unable to load Meta connection status.' });
       }
       ping(`/api/sync/cin7?accountId=${encodeURIComponent(c7id)}&apiKey=${encodeURIComponent(c7k)}`, setCin7Result);
       if (gmTok) {
@@ -1721,9 +1728,13 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
               ))}
             </div>
           ) : metaStatus?.connected ? (
-            <div className="w-full border border-emerald-200 bg-emerald-50 px-3 py-3">
-              <div className="text-sm font-semibold text-emerald-900">Connected</div>
-              <div className="mt-1 text-xs text-emerald-700">Ad account {metaAdAccountId || metaStatus.accountId}</div>
+            <div className={`w-full border px-3 py-3 ${metaResult?.success === false ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+              <div className={`text-sm font-semibold ${metaResult?.success === false ? 'text-amber-900' : 'text-emerald-900'}`}>
+                {metaResult?.success === false ? 'Reconnect required' : 'Connected'}
+              </div>
+              <div className={`mt-1 text-xs ${metaResult?.success === false ? 'text-amber-700' : 'text-emerald-700'}`}>
+                Ad account {metaAdAccountId || metaStatus.accountId}
+              </div>
             </div>
           ) : (
             <div className="w-full text-sm leading-5 text-gray-600">

@@ -9,13 +9,22 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   const { user, response } = requireAdminSession();
   if (response) return response;
-  const connection = await ConnectionsRepository.get(user.businessId);
   const configuration = metaOAuthConfigurationStatus();
-  return NextResponse.json({
-    ...configuration,
-    connected: Boolean(connection?.meta_ad_account_id && connection?.meta_access_token),
-    accountId: connection?.meta_ad_account_id ?? null,
-  }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
+  try {
+    const connection = await ConnectionsRepository.get(user.businessId);
+    return NextResponse.json({
+      ...configuration,
+      connected: Boolean(connection?.meta_ad_account_id && connection?.meta_access_token),
+      accountId: connection?.meta_ad_account_id ?? null,
+    }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
+  } catch (error) {
+    return NextResponse.json({
+      ...configuration,
+      connected: false,
+      accountId: null,
+      connectionError: error instanceof Error ? error.message : 'Unable to read the saved Meta connection.',
+    }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
+  }
 }
 
 export async function POST() {
