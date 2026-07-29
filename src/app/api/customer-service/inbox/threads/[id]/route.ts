@@ -14,9 +14,13 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const { user, response } = requireAdminSession();
   if (response) return response;
-  const threadId = Number(params.id);
-  if (!Number.isInteger(threadId)) return NextResponse.json({ error: 'Invalid thread ID' }, { status: 400 });
-  const body = await req.json();
-  const updated = await updateCustomerServiceThread(user.businessId, threadId, { ...body, userId: user.userId });
-  return updated ? NextResponse.json({ success: true }) : NextResponse.json({ error: 'No valid changes' }, { status: 400 });
+  try {
+    const threadId = Number(params.id);
+    if (!Number.isInteger(threadId)) return NextResponse.json({ error: 'Invalid thread ID' }, { status: 400 });
+    const body = await req.json();
+    const updated = await updateCustomerServiceThread(user.businessId, threadId, { ...body, userId: user.userId });
+    return updated ? NextResponse.json({ success: true }) : NextResponse.json({ error: 'No valid changes' }, { status: 400 });
+  } catch (error: any) {
+    return NextResponse.json({ error: String(error?.message || 'Thread update failed') }, { status: 500 });
+  }
 }

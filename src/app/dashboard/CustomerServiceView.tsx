@@ -44,6 +44,11 @@ const TOOL_LABELS: Record<string, string> = {
 };
 
 function parseJson<T>(value: string, fallback: T): T { try { return JSON.parse(value) as T; } catch { return fallback; } }
+async function parseResponseJson(response: Response): Promise<any> {
+  const raw = await response.text();
+  if (!raw) return {};
+  try { return JSON.parse(raw); } catch { return { error: raw.slice(0, 500) }; }
+}
 function isHttpUrl(value: string): boolean {
   try {
     const parsed = new URL(value);
@@ -120,7 +125,7 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
     try {
       const params = new URLSearchParams({ q: query, category, unread: String(unreadOnly), pageSize: '50' });
       const response = await fetch(`/api/customer-service/inbox/threads?${params}`);
-      const data = await response.json();
+      const data = await parseResponseJson(response);
       if (!response.ok) throw new Error(data.error || 'Failed to load inbox');
       const rows: ThreadSummary[] = [...(data.rows || [])].sort((left, right) =>
         Number(right.is_starred || 0) - Number(left.is_starred || 0)
@@ -140,7 +145,7 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
   }
   async function loadDetail(threadId: number) {
     try {
-      const response = await fetch(`/api/customer-service/inbox/threads/${threadId}`); const data = await response.json();
+      const response = await fetch(`/api/customer-service/inbox/threads/${threadId}`); const data = await parseResponseJson(response);
       if (!response.ok) throw new Error(data.error || 'Failed to load conversation'); setDetail(data);
     } catch (cause: any) { setError(cause.message); }
   }
@@ -175,30 +180,37 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
       await loadThreads();
     } catch (cause: any) { setError(cause.message); } finally { setBusyAction(''); }
   }
+  async function patchThreadById(threadId: number, input: Record<string, string>) {
+    const response = await fetch(`/api/customer-service/inbox/threads/${threadId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+    const data = await parseResponseJson(response);
+    if (!response.ok) throw new Error(data.error || 'Update failed');
+    await Promise.all([loadDetail(threadId), loadThreads(threadId)]);
+  }
   async function patchThread(input: Record<string, string>) {
     if (!selectedId) return;
-    const response = await fetch(`/api/customer-service/inbox/threads/${selectedId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
-    const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Update failed');
-    await Promise.all([loadDetail(selectedId), loadThreads(selectedId)]);
+    await patchThreadById(selectedId, input);
   }
-  async function toggleStar() {
-    if (!detail) return;
-    setBusyAction('star');
+  async function toggleThreadStar(threadId: number, isStarred: number) {
+    setBusyAction(`star-${threadId}`);
     setError('');
     try {
-      await patchThread({ starred: detail.thread.is_starred ? 'false' : 'true' });
-      setNotice(detail.thread.is_starred ? 'Removed follow-up star.' : 'Starred for follow-up.');
+      await patchThreadById(threadId, { starred: isStarred ? 'false' : 'true' });
+      setNotice(isStarred ? 'Removed follow-up star.' : 'Starred for follow-up.');
     } catch (cause: any) {
       setError(cause.message || 'Unable to update star.');
     } finally {
       setBusyAction('');
     }
   }
+  async function toggleStar() {
+    if (!detail) return;
+    await toggleThreadStar(detail.thread.id, detail.thread.is_starred);
+  }
   async function mailboxAction(action: 'read' | 'unread' | 'archive') {
     if (!selectedId) return; setBusyAction(action);
     try {
       const response = await fetch(`/api/customer-service/inbox/threads/${selectedId}/mailbox-action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) });
-      const data = await response.json();
+      const data = await parseResponseJson(response);
       if (!response.ok) {
         if (data?.reconnectRequired) {
           throw new Error('Gmail needs to be reconnected with mailbox permissions. Go to Setup > Connections, reconnect Gmail, then try again.');
@@ -214,7 +226,7 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
   async function saveDraft(): Promise<number | null> {
     const draft = detail?.drafts[0]; if (!draft) return null;
     const response = await fetch(`/api/customer-service/inbox/drafts/${draft.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ version: draft.version, body: draft.current_body }) });
-    const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Draft save failed');
+    const data = await parseResponseJson(response); if (!response.ok) throw new Error(data.error || 'Draft save failed');
     setDetail(previous => previous ? { ...previous, drafts: previous.drafts.map((item, index) => index === 0 ? { ...item, version: data.version } : item) } : previous);
     return draft.id;
   }
@@ -223,7 +235,7 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
     try {
       const draftId = await saveDraft(); if (!draftId) throw new Error('No draft is available');
       const response = await fetch(`/api/customer-service/inbox/drafts/${draftId}/${action}`, { method: 'POST' });
-      const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Reply action failed');
+      const data = await parseResponseJson(response); if (!response.ok) throw new Error(data.error || 'Reply action failed');
       setNotice(action === 'send' ? 'Reply sent.' : 'Draft saved to Gmail.');
       if (selectedId) await Promise.all([loadDetail(selectedId), loadThreads(selectedId)]);
     } catch (cause: any) { setError(cause.message); } finally { setBusyAction(''); }
@@ -234,7 +246,7 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
     setBusyAction('settings');
     try {
       const response = await fetch('/api/customer-service/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) });
-      const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Settings save failed');
+      const data = await parseResponseJson(response); if (!response.ok) throw new Error(data.error || 'Settings save failed');
       setSettings(data.settings); setNotice('Customer service settings saved.');
     } catch (cause: any) { setError(cause.message); } finally { setBusyAction(''); }
   }
@@ -242,7 +254,7 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
     setBusyAction(document.documentKey);
     try {
       const response = await fetch('/api/customer-service/knowledge', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ documentKey: document.documentKey, markdown: document.markdown, reason: 'Manual edit' }) });
-      const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Knowledge save failed');
+      const data = await parseResponseJson(response); if (!response.ok) throw new Error(data.error || 'Knowledge save failed');
       setNotice(`${document.filename} saved as version ${data.version}.`); await loadKnowledge();
     } catch (cause: any) { setError(cause.message); } finally { setBusyAction(''); }
   }
@@ -253,7 +265,7 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: candidate.id, status, markdown: candidate.proposed_markdown }),
       });
-      const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Learning review failed');
+      const data = await parseResponseJson(response); if (!response.ok) throw new Error(data.error || 'Learning review failed');
       await Promise.all([loadCandidates(), loadKnowledge()]);
     } catch (cause: any) { setError(cause.message); } finally { setBusyAction(''); }
   }
@@ -276,7 +288,7 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
       </div>
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)]">
         <aside className="border-r border-gray-200 overflow-y-auto">{loading && <p className="p-4 text-sm text-gray-500">Loading inbox...</p>}{!loading && !threads.length && <p className="p-6 text-sm text-gray-500">No matching emails. Use Get Emails to synchronize Gmail.</p>}{threads.map(thread => <button key={thread.id} onClick={() => setSelectedId(thread.id)} className={`w-full text-left px-4 py-3 border-b border-gray-100 ${selectedId === thread.id ? 'bg-blue-50' : 'hover:bg-gray-50'} ${thread.unread_count ? 'font-semibold' : ''}`}>
-          <div className="flex items-center gap-2"><span className={`text-sm ${thread.is_starred ? 'text-amber-600' : 'text-gray-300'}`}>{thread.is_starred ? '★' : '☆'}</span><span className="text-sm truncate flex-1 text-gray-900">{thread.customer_email || 'Unknown sender'}</span><time className="text-[11px] text-gray-400 shrink-0">{new Date(thread.last_message_at).toLocaleDateString()}</time></div><p className="text-sm text-gray-800 truncate mt-0.5">{thread.subject || '(No subject)'}</p><p className="text-xs text-gray-500 truncate mt-1">{thread.snippet}</p>
+          <div className="flex items-center gap-2"><span onClick={event => { event.preventDefault(); event.stopPropagation(); void toggleThreadStar(thread.id, thread.is_starred); }} role="button" aria-label={thread.is_starred ? 'Unstar thread' : 'Star thread'} className={`text-base leading-none cursor-pointer select-none px-1 rounded ${thread.is_starred ? 'text-amber-600 hover:text-amber-700' : 'text-gray-300 hover:text-amber-500'} ${busyAction === `star-${thread.id}` ? 'opacity-50 pointer-events-none' : ''}`}>{thread.is_starred ? '★' : '☆'}</span><span className="text-sm truncate flex-1 text-gray-900">{thread.customer_email || 'Unknown sender'}</span><time className="text-[11px] text-gray-400 shrink-0">{new Date(thread.last_message_at).toLocaleDateString()}</time></div><p className="text-sm text-gray-800 truncate mt-0.5">{thread.subject || '(No subject)'}</p><p className="text-xs text-gray-500 truncate mt-1">{thread.snippet}</p>
           <div className="flex items-center gap-1.5 mt-2"><span className={`px-1.5 py-0.5 border rounded text-[10px] font-medium ${categoryStyle(thread.category)}`}>{(thread.category || 'unclassified').replace('_', ' ')}</span>{thread.enquiry_subtype && <span className="text-[10px] text-gray-500">{thread.enquiry_subtype.replace('_', ' ')}</span>}{['high', 'urgent'].includes(thread.urgency) && <span className="text-[10px] text-red-600">{thread.urgency}</span>}{thread.draft_status && <span className="ml-auto text-[10px] text-blue-600">{thread.draft_status}</span>}</div>
         </button>)}</aside>
         <main className="min-w-0 overflow-y-auto bg-gray-50">{!detail && <div className="h-full grid place-items-center text-sm text-gray-400">Select a conversation</div>}{detail && <div className="max-w-4xl mx-auto">
