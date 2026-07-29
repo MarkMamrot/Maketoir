@@ -91,6 +91,18 @@ const SETTINGS_NAV: NavItem = {
   ],
 };
 
+const DASHBOARD_VIEW_IDS = new Set<string>([
+  ...NAV.map(item => item.id),
+  ...NAV.flatMap(item => item.children.map(child => child.id)),
+]);
+
+function parseDashboardViewFromHash(hash: string): string | null {
+  const raw = hash.replace(/^#/, '').trim();
+  if (!raw) return null;
+  const decoded = decodeURIComponent(raw);
+  return DASHBOARD_VIEW_IDS.has(decoded) ? decoded : null;
+}
+
 // ── Sidebar ──────────────────────────────────────────────────────────────────
 function Sidebar({
   active,
@@ -8451,6 +8463,27 @@ export default function DashboardPage() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeSettingView, setActiveSettingView] = useState('appearance');
+
+  useEffect(() => {
+    const fromHash = parseDashboardViewFromHash(window.location.hash);
+    if (fromHash) setActiveView(fromHash);
+
+    const onHashChange = () => {
+      const next = parseDashboardViewFromHash(window.location.hash) ?? 'home';
+      setActiveView(prev => (prev === next ? prev : next));
+    };
+
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  useEffect(() => {
+    if (!DASHBOARD_VIEW_IDS.has(activeView)) return;
+    const nextHash = `#${encodeURIComponent(activeView)}`;
+    if (window.location.hash !== nextHash) {
+      window.history.replaceState(null, '', nextHash);
+    }
+  }, [activeView]);
 
   // Load first business and current user on mount; redirect to /login if session expired
   useEffect(() => {
