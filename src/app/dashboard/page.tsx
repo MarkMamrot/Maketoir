@@ -7693,6 +7693,21 @@ const BRAND_ASSET_CATEGORIES: BrandAssetCategory[] = [
   },
 ];
 
+const MODEL_DESCRIPTION_MODIFIERS = [
+  'Model wearing white tee and jean',
+  'Model wearing on-brand clothing',
+  'Long hair',
+  'Short hair',
+  'Straight hair',
+  'Wavy hair',
+  'Curly hair',
+  'Natural makeup look',
+  'Studio lighting',
+  'Soft daylight lighting',
+  'Full body shot',
+  'Three-quarter pose',
+];
+
 type BrandAsset = { id: number; category: string; name: string; content: string; notes?: string | null; image_data?: string | null; image_mime?: string | null; created_at: string };
 type AssetChatMsg = { role: 'user' | 'assistant'; text: string };
 
@@ -7755,6 +7770,16 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMsgs, chatLoading]);
+
+  const addChatModifier = (modifier: string) => {
+    setChatInput(prev => {
+      const trimmed = prev.trim();
+      if (!trimmed) return modifier;
+      if (trimmed.toLowerCase().includes(modifier.toLowerCase())) return prev;
+      const hasTerminalPunctuation = /[.,;:!?]$/.test(trimmed);
+      return `${trimmed}${hasTerminalPunctuation ? '' : ','} ${modifier}`;
+    });
+  };
 
   useEffect(() => {
     if (!databaseId) return;
@@ -8096,7 +8121,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
       {/* AI creation modal */}
       {aiOpen && catInfo && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ width: '100%', maxWidth: 1020, height: 'calc(100vh - 40px)', background: 'var(--sv-bg-2, #fff)', borderRadius: 16, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.28)' }}>
+          <div style={{ width: '100%', maxWidth: 'min(1500px, 96vw)', height: 'calc(100vh - 40px)', background: 'var(--sv-bg-2, #fff)', borderRadius: 16, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.28)' }}>
           {/* Panel header */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: '1px solid var(--sv-etch, #e5e7eb)', flexShrink: 0 }}>
             <span style={{ color: catInfo.accentColor, fontSize: 18 }}>✨</span>
@@ -8124,7 +8149,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
           <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
           {/* Left: settings sidebar */}
-          <div style={{ width: 295, flexShrink: 0, overflowY: 'auto', padding: '14px 16px', borderRight: '1px solid var(--sv-etch, #e5e7eb)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ width: 'clamp(280px, 24vw, 360px)', flexShrink: 0, overflowY: 'auto', padding: '14px 16px', borderRight: '1px solid var(--sv-etch, #e5e7eb)', display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
               <p style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', margin: '0 0 7px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pass brand context</p>
               <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
@@ -8428,6 +8453,22 @@ toggles: ${JSON.stringify(contextPreviewDebug.toggles)}`}
 
           {/* Input */}
           <div style={{ padding: '12px 16px', borderTop: '1px solid var(--sv-etch, #e5e7eb)', flexShrink: 0 }}>
+            {aiCategory === 'models' && (
+              <div style={{ marginBottom: 8 }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Quick description modifiers</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {MODEL_DESCRIPTION_MODIFIERS.map(modifier => (
+                    <button
+                      key={modifier}
+                      onClick={() => addChatModifier(modifier)}
+                      style={{ fontSize: 10, fontWeight: 600, padding: '4px 9px', borderRadius: 999, border: `1px solid ${catInfo.accentColor}55`, background: catInfo.accentColor + '12', color: catInfo.accentColor, cursor: 'pointer' }}
+                    >
+                      + {modifier}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
               <textarea
                 value={chatInput}
