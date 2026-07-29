@@ -19,6 +19,20 @@ const IMAGE_HOSTS = [
 // image cache can't grow unbounded on devices with very large catalogs.
 const MAX_IMAGE_ENTRIES = 3000;
 
+// A cold catalogue can populate hundreds of images at once. Scanning the
+// entire cache after every put() turns that burst into hundreds of overlapping
+// cache.keys() calls and heavy browser disk/CPU churn. Coalesce the burst into
+// one prune after writes have settled.
+let imagePruneTimer = null;
+
+function scheduleImageCachePrune() {
+  if (imagePruneTimer !== null) clearTimeout(imagePruneTimer);
+  imagePruneTimer = setTimeout(() => {
+    imagePruneTimer = null;
+    pruneImageCache().catch(() => {});
+  }, 2000);
+}
+
 async function pruneImageCache() {
   const cache = await caches.open(IMAGE_CACHE);
   const keys = await cache.keys();
@@ -57,7 +71,7 @@ self.addEventListener('fetch', e => {
           fetch(request).then(res => {
             if (res.ok) {
               const clone = res.clone();
-              caches.open(IMAGE_CACHE).then(c => c.put(request, clone).then(pruneImageCache));
+              caches.open(IMAGE_CACHE).then(c => c.put(request, clone).then(scheduleImageCachePrune));
             }
             return res;
           })

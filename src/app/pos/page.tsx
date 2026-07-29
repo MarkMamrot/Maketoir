@@ -1,7 +1,9 @@
 ﻿'use client';
 import { useState, useEffect, useRef, useCallback, useMemo, useDeferredValue } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import type { DeviceConfig, PosSession, CachedProduct, CartItem, PaymentEntry, ParkedSale, CompletedSale } from './_types';
 import { createReceiptPrintGate } from './_receiptPrintGuard';
+import { createPosSyncCoordinator } from './_syncCoordinator';
 import * as Zeller from '@/lib/zeller';
 import {
   loadDeviceConfig, saveDeviceConfig, clearDeviceConfig,
@@ -3287,6 +3289,8 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
 
   const inputRef      = useRef<HTMLInputElement>(null);
   const scanRef       = useRef<HTMLInputElement>(null);
+  const gridScrollRef = useRef<HTMLDivElement>(null);
+  const [gridWidth, setGridWidth] = useState(0);
   const modeRef       = useRef<'browse' | 'search'>('browse');
   modeRef.current = mode;
   const [scanInput,  setScanInput]  = useState('');
@@ -3415,6 +3419,32 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
     }
     return list;
   }, [sortedProducts, brand, inStockOnly, pinnedIds, deferredMode, deferredSearch, searchIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep the responsive card layout, but virtualize by row so a large "all
+  // products" catalogue only mounts the cards near the viewport. This bounds
+  // image decoding, DOM size, and service-worker cache writes at startup.
+  useEffect(() => {
+    const element = gridScrollRef.current;
+    if (!element) return;
+    const updateWidth = () => setGridWidth(element.clientWidth);
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  const gridColumns = Math.max(1, Math.floor((Math.max(0, gridWidth - 24) + 9.6) / 179.6));
+  const productRowVirtualizer = useVirtualizer({
+    count: Math.ceil(filtered.length / gridColumns),
+    getScrollElement: () => gridScrollRef.current,
+    estimateSize: () => 175,
+    overscan: 3,
+    gap: 9.6,
+  });
+
+  useEffect(() => {
+    productRowVirtualizer.scrollToOffset(0);
+  }, [brand, inStockOnly, pinnedIds, deferredMode, deferredSearch, gridColumns]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep dropItemsRef current so the keydown handler always sees the latest list
   dropItemsRef.current = dropdownItems;
@@ -3645,8 +3675,29 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
         {bgImage && (
           <img src={bgImage} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: bgScale === 'original' ? 'none' : 'contain', objectPosition: bgPosition === 'bottom' ? 'center bottom' : 'center center', opacity: bgOpacity / 100, pointerEvents: 'none', zIndex: 0 }} />
         )}
-        <div style={{ position: 'relative', zIndex: 1, overflow: 'auto', height: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px,1fr))', gap: '.6rem', padding: '.75rem', alignContent: 'start' }}>
-        {filtered.map(p => {
+        <div ref={gridScrollRef} style={{ position: 'relative', zIndex: 1, overflow: 'auto', height: '100%', padding: '.75rem', boxSizing: 'border-box' }}>
+        {filtered.length > 0 && (
+          <div style={{ height: productRowVirtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
+          {productRowVirtualizer.getVirtualItems().map(virtualRow => {
+            const rowStart = virtualRow.index * gridColumns;
+            const rowProducts = filtered.slice(rowStart, rowStart + gridColumns);
+            return (
+              <div
+                key={virtualRow.key}
+                ref={productRowVirtualizer.measureElement}
+                data-index={virtualRow.index}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${virtualRow.start}px)`,
+                  display: 'grid',
+                  gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))`,
+                  gap: '.6rem',
+                }}
+              >
+              {rowProducts.map(p => {
           const isRecent = mode === 'browse' && recentIds.includes(p.variant_id);
           const dashIdx  = p.name.indexOf(' — ');
           const optionsStr = dashIdx !== -1 ? p.name.slice(dashIdx + 3) : '';
@@ -3672,7 +3723,7 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
             >
               <div style={{ display: 'flex', gap: '.55rem', alignItems: 'flex-start', marginBottom: '.3rem' }}>
                 {p.image_url ? (
-                  <img src={p.image_url} alt="" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 5, flexShrink: 0 }} />
+                  <img src={p.image_url} alt="" loading="lazy" decoding="async" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 5, flexShrink: 0 }} />
                 ) : (
                   <div style={{ width: 72, height: 72, borderRadius: 5, flexShrink: 0, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-muted)' }}>
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -3713,9 +3764,14 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
               {p.code && <div style={{ fontSize: '.68rem', color: 'var(--sv-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', userSelect: 'text', marginTop: '.15rem' }}>{p.code}</div>}
             </button>
           );
-        })}
+              })}
+              </div>
+            );
+          })}
+          </div>
+        )}
         {filtered.length === 0 && (
-          <div style={{ gridColumn: '1/-1', color: 'var(--sv-text-muted)', textAlign: 'center', paddingTop: '2rem', fontSize: '.9rem' }}>
+          <div style={{ color: 'var(--sv-text-muted)', textAlign: 'center', paddingTop: '2rem', fontSize: '.9rem' }}>
             {mode === 'search' ? `No products found for "${search}".` : 'No products.'}
           </div>
         )}
@@ -7034,6 +7090,7 @@ export default function PosPage() {
   const [offlineMode, setOfflineMode]   = useState(false);
   const [openRegSession, setOpenRegSession] = useState<any>(null);
   const [openEodOnMount, setOpenEodOnMount] = useState(false);
+  const syncCoordinator = useMemo(() => createPosSyncCoordinator(), []);
 
   function checkRegisterGate(sess: PosSession, cfg: DeviceConfig, thenGoPos: () => void) {
     if (!cfg.register_id) { thenGoPos(); return; }
@@ -7205,6 +7262,10 @@ export default function PosPage() {
     const cfg = cfgOverride ?? deviceConfig;
     if (!cfg) return;
     const doFull = forceFull || needsFullProductsResync();
+    return syncCoordinator.run(() => performSync(doFull, cfg), doFull);
+  }
+
+  async function performSync(doFull: boolean, cfg: DeviceConfig) {
     const since  = doFull ? null : getProductsSyncWatermark();
     const productsUrl = `/api/pos/products?location_id=${cfg.location_id}` + (since ? `&since=${since}` : '');
 
@@ -7232,19 +7293,20 @@ export default function PosPage() {
     if (typeof navigator !== 'undefined' && navigator.onLine) {
       const imgSince = doFull ? null : getImageSyncWatermark();
       const imagesUrl = `/api/pos/products/images` + (imgSince ? `?since=${imgSince}` : '');
-      fetch(imagesUrl)
-        .then(r => r.json())
-        .then((d: { images: Record<string, string>; removed?: string[]; server_time?: number }) => {
-          if (!d.images || typeof d.images !== 'object') return;
-          const mergedImages = imgSince ? mergeImageDelta(loadImageCache() ?? {}, d.images, d.removed ?? []) : d.images;
-          saveImageCache(mergedImages, d.server_time ?? Date.now());
-          setProducts(prev => {
-            const updated = mergeProductImages(prev, mergedImages);
-            saveProductsCache(updated);
-            return updated;
-          });
-        })
-        .catch(() => {});
+      try {
+        const imageRes = await fetch(imagesUrl);
+        const imageData: { images: Record<string, string>; removed?: string[]; server_time?: number } = await imageRes.json();
+        if (!imageData.images || typeof imageData.images !== 'object') return;
+        const mergedImages = imgSince
+          ? mergeImageDelta(loadImageCache() ?? {}, imageData.images, imageData.removed ?? [])
+          : imageData.images;
+        saveImageCache(mergedImages, imageData.server_time ?? Date.now());
+        setProducts(prev => {
+          const updated = mergeProductImages(prev, mergedImages);
+          saveProductsCache(updated);
+          return updated;
+        });
+      } catch { /* image sync is non-critical — keep the existing URL cache */ }
     }
   }
 
