@@ -8,7 +8,7 @@ vi.mock('@/lib/sessionUtils', () => ({ requireAdminSession: mockRequireSession }
 vi.mock('@/lib/db/ConnectionsRepository', () => ({ ConnectionsRepository: { get: mockGetConnection } }));
 vi.mock('@/lib/encryption', () => ({ decrypt: (value: string) => `decrypted:${value}` }));
 vi.mock('@/services/MetaOAuthService', () => ({
-  metaOAuthConfigured: () => true,
+  metaOAuthConfigurationStatus: () => ({ configured: true, appIdPresent: true, appSecretPresent: true }),
   readMetaAdAccount: mockReadAccount,
 }));
 
@@ -23,7 +23,10 @@ describe('/api/meta/status', () => {
   it('reports connection state without returning a token', async () => {
     mockGetConnection.mockResolvedValue({ meta_ad_account_id: '123', meta_access_token: 'encrypted-token' });
     const response = await GET();
-    expect(await response.json()).toEqual({ configured: true, connected: true, accountId: '123' });
+    expect(await response.json()).toEqual({
+      configured: true, appIdPresent: true, appSecretPresent: true, connected: true, accountId: '123',
+    });
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store, max-age=0');
   });
 
   it('tests only the signed-in tenant stored connection', async () => {

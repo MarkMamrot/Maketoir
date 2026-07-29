@@ -2,17 +2,20 @@ import { NextResponse } from 'next/server';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
 import { requireAdminSession } from '@/lib/sessionUtils';
-import { metaOAuthConfigured, readMetaAdAccount } from '@/services/MetaOAuthService';
+import { metaOAuthConfigurationStatus, readMetaAdAccount } from '@/services/MetaOAuthService';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const { user, response } = requireAdminSession();
   if (response) return response;
   const connection = await ConnectionsRepository.get(user.businessId);
+  const configuration = metaOAuthConfigurationStatus();
   return NextResponse.json({
-    configured: metaOAuthConfigured(),
+    ...configuration,
     connected: Boolean(connection?.meta_ad_account_id && connection?.meta_access_token),
     accountId: connection?.meta_ad_account_id ?? null,
-  });
+  }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
 }
 
 export async function POST() {

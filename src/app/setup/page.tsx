@@ -1156,7 +1156,13 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
   const [gaPropertyId, setGaPropertyId] = useState('');
   const [googleAdsCustomerId, setGoogleAdsCustomerId] = useState('');
   const [metaAdAccountId, setMetaAdAccountId] = useState('');
-  const [metaStatus, setMetaStatus] = useState<{ configured: boolean; connected: boolean; accountId: string | null } | null>(null);
+  const [metaStatus, setMetaStatus] = useState<{
+    configured: boolean;
+    appIdPresent?: boolean;
+    appSecretPresent?: boolean;
+    connected: boolean;
+    accountId: string | null;
+  } | null>(null);
   const [metaAccounts, setMetaAccounts] = useState<Array<{ accountId: string; name: string; currency: string | null; accountStatus: number | null }>>([]);
   const [cin7AccountId, setCin7AccountId] = useState('');
   const [cin7ApiKey, setCin7ApiKey] = useState('');
@@ -1745,7 +1751,12 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
             )}
           </div>
           {metaStatus != null && !metaStatus.configured && (
-            <p className="text-xs leading-5 text-amber-700">Meta OAuth needs META_APP_ID and META_APP_SECRET configured on Railway.</p>
+            <p className="text-xs leading-5 text-amber-700">
+              Railway runtime cannot see {[
+                metaStatus.appIdPresent === false ? 'META_APP_ID' : null,
+                metaStatus.appSecretPresent === false ? 'META_APP_SECRET' : null,
+              ].filter(Boolean).join(' and ') || 'the Meta OAuth variables'}. Confirm they are service variables in the production environment, then redeploy.
+            </p>
           )}
           <div className="w-full flex flex-col gap-1 pt-2 border-t border-dashed border-gray-200">
             <div className="flex items-center gap-2 flex-wrap">

@@ -28,6 +28,12 @@ export function metaOAuthConfigured(): boolean {
   return Boolean(process.env.META_APP_ID?.trim() && process.env.META_APP_SECRET?.trim());
 }
 
+export function metaOAuthConfigurationStatus() {
+  const appIdPresent = Boolean(process.env.META_APP_ID?.trim());
+  const appSecretPresent = Boolean(process.env.META_APP_SECRET?.trim());
+  return { configured: appIdPresent && appSecretPresent, appIdPresent, appSecretPresent };
+}
+
 export function buildMetaAuthorizeUrl(redirectUri: string, state: string): string {
   const { appId } = config();
   const url = new URL(`https://www.facebook.com/${graphVersion()}/dialog/oauth`);
