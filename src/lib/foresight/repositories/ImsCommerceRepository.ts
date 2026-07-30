@@ -108,6 +108,7 @@ export const ImsCommerceRepository = {
                     COUNT(*) AS cost_line_count,
                     SUM(CASE
                           WHEN ABS(soi.line_total) > 0
+                         AND UPPER(COALESCE(pv.sku, '')) != 'SHOPIFY-MISC'
                            AND COALESCE(NULLIF(soi.unit_cost, 0), NULLIF(pv.avg_cost, 0), NULLIF(pv.cost_aud, 0), 0) = 0
                           THEN 1 ELSE 0 END) AS missing_cost_line_count,
                     SUM(CASE WHEN COALESCE(soi.unit_cost, 0) > 0 THEN 1 ELSE 0 END) AS captured_cost_line_count
@@ -172,6 +173,7 @@ export const ImsCommerceRepository = {
                     SUM(CASE WHEN item.restock = 1 THEN 1 ELSE 0 END) AS cost_line_count,
                     SUM(CASE
                           WHEN item.restock = 1 AND ABS(item.line_total) > 0
+                         AND UPPER(COALESCE(pv.sku, '')) != 'SHOPIFY-MISC'
                            AND COALESCE(NULLIF(pv.avg_cost, 0), NULLIF(pv.cost_aud, 0), 0) = 0
                           THEN 1 ELSE 0 END) AS missing_cost_line_count
              FROM ims_credit_note_items item

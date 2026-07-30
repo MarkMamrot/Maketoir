@@ -196,10 +196,10 @@ export function buildWeeklyDigest(input: {
   const outcomes = input.outcomes.filter((item) => inWindow(item.created_at, currentStart, currentEnd));
   const notices: WeeklyDigestSnapshot['notices'] = [];
   if (!current.complete) {
-    notices.push({ code: 'current_window_incomplete', priority: 'high', message: `Current financial window has ${current.observedDays} of ${WINDOW_DAYS} complete authoritative days.` });
+    notices.push({ code: 'current_window_incomplete', priority: 'high', message: `Current financial window has ${current.observedDays} of ${WINDOW_DAYS} observed days${current.qualityIssues.length > 0 ? `; ${current.qualityIssues.map((issue) => issue.message).join(' ')}` : '.'}` });
   }
   if (!previous.complete) {
-    notices.push({ code: 'previous_window_incomplete', priority: 'medium', message: `Previous comparison window has ${previous.observedDays} of ${WINDOW_DAYS} complete authoritative days.` });
+    notices.push({ code: 'previous_window_incomplete', priority: 'medium', message: `Previous comparison window has ${previous.observedDays} of ${WINDOW_DAYS} observed days${previous.qualityIssues.length > 0 ? `; ${previous.qualityIssues.map((issue) => issue.message).join(' ')}` : '.'}` });
   }
   const merChange = percentChange(current.mer, previous.mer);
   const poasChange = percentChange(current.contributionPoas, previous.contributionPoas);

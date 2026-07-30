@@ -70,9 +70,12 @@ describe('ImsCommerceRepository', () => {
   it('does not count POS return transactions as sales', async () => {
     await ImsCommerceRepository.getDailyCommerce('business-1', '2026-07-28', '2026-07-28');
 
+    const onlineSql = mockImsQuery.mock.calls.map(([sql]) => String(sql)).find((sql) => sql.includes('FROM ims_sales_orders so'));
+    expect(onlineSql).toContain("UPPER(COALESCE(pv.sku, '')) != 'SHOPIFY-MISC'");
     const posSql = mockImsQuery.mock.calls.map(([sql]) => String(sql)).find((sql) => sql.includes('FROM pos_sales ps'));
     expect(posSql).toContain("ps.sale_type = 'sale'");
     const returnsSql = mockImsQuery.mock.calls.map(([sql]) => String(sql)).find((sql) => sql.includes('FROM ims_credit_notes cn'));
     expect(returnsSql).toContain("cn.source IN ('shopify', 'pos')");
+    expect(returnsSql).toContain("UPPER(COALESCE(pv.sku, '')) != 'SHOPIFY-MISC'");
   });
 });

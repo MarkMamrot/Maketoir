@@ -77,6 +77,10 @@ describe('weekly Foresight digest', () => {
     expect(first.current.qualityIssues).toContainEqual(expect.objectContaining({ code: 'missing_online_sales_observation' }));
     expect(second.current.complete).toBe(false);
     expect(second.current.contributionPoas).toBeNull();
+    expect(second.notices).toContainEqual(expect.objectContaining({
+      code: 'current_window_incomplete',
+      message: expect.stringContaining('online sale or return lines have no usable cost'),
+    }));
   });
 
   it('summarizes workflow activity, outcomes, Klaviyo coverage, and diagnostic contributors', () => {

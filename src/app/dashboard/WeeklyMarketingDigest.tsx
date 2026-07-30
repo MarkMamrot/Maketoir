@@ -23,6 +23,10 @@ export function WeeklyMarketingDigest({
   working: boolean;
   onRefresh: () => void;
 }) {
+  const missingCurrentDays = digest
+    ? Math.max(0, digest.current.expectedDays - digest.current.observedDays)
+    : 0;
+  const blockingCurrentIssues = digest?.current.qualityIssues.filter((issue) => issue.severity === 'blocking') ?? [];
   const metrics = digest ? [
     { label: 'Paid-media spend', current: money(digest.current.paidMediaSpend), previous: money(digest.previous.paidMediaSpend), change: digest.changes.spendPercent },
     { label: 'Online revenue ex GST', current: money(digest.current.onlineRevenueExTax), previous: money(digest.previous.onlineRevenueExTax), change: digest.changes.onlineRevenuePercent },
@@ -38,7 +42,7 @@ export function WeeklyMarketingDigest({
             <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-700"><History size={16} /> Weekly performance</h2>
             {digest && (
               <span className={`text-xs font-semibold ${digest.current.complete ? 'text-emerald-700' : 'text-amber-700'}`}>
-                {digest.current.complete ? 'Complete window' : 'Incomplete data'}
+                {digest.current.complete ? 'Complete window' : missingCurrentDays > 0 ? 'Missing observations' : 'Financial data incomplete'}
               </span>
             )}
           </div>
@@ -64,10 +68,16 @@ export function WeeklyMarketingDigest({
         <div className="mt-4 space-y-4">
           {!digest.current.complete && (
             <div className="flex flex-wrap items-center justify-between gap-3 border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900">
-              <span>Source observations have not been imported for this reporting window. Sync marketing data first, then refresh this summary.</span>
-              <a href="#sync-ads" className="shrink-0 border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100">
-                Sync marketing data
-              </a>
+              <span>
+                {missingCurrentDays > 0
+                  ? `${missingCurrentDays} reporting day${missingCurrentDays === 1 ? '' : 's'} have no source observations. Sync marketing data, then refresh this summary.`
+                  : blockingCurrentIssues.map((issue) => issue.message).join(' ')}
+              </span>
+              {missingCurrentDays > 0 && (
+                <a href="#sync-ads" className="shrink-0 border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100">
+                  Sync marketing data
+                </a>
+              )}
             </div>
           )}
           <div className="grid gap-px border border-gray-200 bg-gray-200 sm:grid-cols-2 xl:grid-cols-4">
