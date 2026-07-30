@@ -1170,7 +1170,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               const yMax = niceMax(rawMax);
               const yTicks = [0,1,2,3,4].map(i => Math.round((i/4) * yMax));
 
-              const VW=visibleSalesBarCount <= 2 ? 420 : visibleSalesBarCount <= 6 ? 600 : visibleSalesBarCount <= 12 ? 840 : 1100;
+              const VW=visibleSalesBarCount <= 12 ? 1000 : 1200;
               const VH=360, PL=72, PR=16, PT=20, PB=56;
               const plotW=VW-PL-PR, plotH=VH-PT-PB;
               const nLoc=locations.length, nCh=activeChannels.length;
@@ -1207,8 +1207,8 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                     ))}
                     </div>
                   </div>
-                  <div style={{ width: '100%', flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid meet" style={{ width: 'max(75%, min(100%, 1100px))', maxWidth: '100%', maxHeight: '100%', display: 'block', overflow: 'visible' }}>
+                  <div style={{ width: '75%', height: '100%', flex: '0 0 75%', minHeight: 0, display: 'flex', alignItems: 'stretch', justifyContent: 'center' }}>
+                  <svg viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%', display: 'block', overflow: 'visible' }}>
                     {yTicks.map(tick => {
                       const y = yVal(tick);
                       return (
@@ -6994,8 +6994,14 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
   const [skipped, setSkipped] = React.useState<Set<number>>(new Set());
   const [aiMatchLoading, setAiMatchLoading] = React.useState(false);
   const [aiMatchError, setAiMatchError] = React.useState<string | null>(null);
+  const [createdVariants, setCreatedVariants] = React.useState<any[]>([]);
+  const [createProductLine, setCreateProductLine] = React.useState<number | null>(null);
+  const [createProductForm, setCreateProductForm] = React.useState({ name: '', sku: '', barcode: '', brand: '', rrp: '' });
+  const [createProductSaving, setCreateProductSaving] = React.useState(false);
+  const [createProductError, setCreateProductError] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const isPo = !!poId;
+  const selectableVariants = React.useMemo(() => [...createdVariants, ...variants], [createdVariants, variants]);
 
   // Auto-process a file passed in from outside (e.g. the banner picker)
   React.useEffect(() => {
@@ -7109,6 +7115,72 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
       setAiMatchError(e.message ?? 'AI matching failed');
     } finally {
       setAiMatchLoading(false);
+    }
+  }
+
+  function openCreateProduct(i: number, lr: InvoiceParseResult['line_results'][0]) {
+    setCreateProductLine(i);
+    setCreateProductError(null);
+    setCreateProductForm({
+      name: lr.invoice_line.product_name || '',
+      sku: lr.invoice_line.product_code || '',
+      barcode: lr.invoice_line.barcode || '',
+      brand: '',
+      rrp: lr.invoice_line.rrp != null ? String(lr.invoice_line.rrp) : '',
+    });
+  }
+
+  async function createProductFromInvoiceLine() {
+    if (createProductLine == null || !result || !createProductForm.name.trim() || !createProductForm.sku.trim()) return;
+    setCreateProductSaving(true);
+    setCreateProductError(null);
+    try {
+      const productRes = await fetch('/api/ims/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: createProductForm.name.trim(),
+          base_sku: createProductForm.sku.trim(),
+          brand: createProductForm.brand.trim() || null,
+          supplier_contact_id: supplierId || null,
+          is_active: 1,
+          is_online: 1,
+        }),
+      });
+      const productJson = await productRes.json();
+      if (!productRes.ok || !productJson.success) throw new Error(productJson.error || 'Could not create product.');
+
+      const invoiceLine = result.line_results[createProductLine].invoice_line;
+      const variantRes = await fetch('/api/ims/variants', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product_id: productJson.product_id,
+          sku: createProductForm.sku.trim(),
+          barcode: createProductForm.barcode.trim() || null,
+          cost_aud: Number(invoiceLine.unit_price || 0),
+          price_rrp: createProductForm.rrp === '' ? null : Number(createProductForm.rrp),
+          is_active: 1,
+        }),
+      });
+      const variantJson = await variantRes.json();
+      if (!variantRes.ok || !variantJson.success) throw new Error(variantJson.error || 'Product created, but its variant could not be created.');
+
+      const createdVariant = {
+        variant_id: variantJson.variant_id,
+        product_id: productJson.product_id,
+        product_name: createProductForm.name.trim(),
+        sku: createProductForm.sku.trim(),
+        barcode: createProductForm.barcode.trim() || null,
+        price_rrp: createProductForm.rrp === '' ? null : Number(createProductForm.rrp),
+      };
+      setCreatedVariants(current => [createdVariant, ...current]);
+      setOverrides(current => ({ ...current, [createProductLine]: variantJson.variant_id }));
+      setCreateProductLine(null);
+    } catch (e: any) {
+      setCreateProductError(e.message || 'Could not create product.');
+    } finally {
+      setCreateProductSaving(false);
     }
   }
 
@@ -7277,7 +7349,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
               const hasOverride = i in overrides;
               const conf = hasOverride ? (overrides[i] ? 'manual' : 'skipped') : (lr.match?.confidence ?? 'none');
               const confLabel = conf === 'exact_sku' ? '✓ SKU' : conf === 'exact_barcode' ? '✓ Barcode' : conf === 'fuzzy_name' ? '~ Name' : conf === 'manual' ? '✎ Manual' : conf === 'ai_high' ? '🤖 AI' : conf === 'ai_match' ? '🤖 AI~' : '✗ None';
-              const imsV = effectiveVid ? variants.find((v: any) => v.variant_id === effectiveVid) : null;
+              const imsV = effectiveVid ? selectableVariants.find((v: any) => v.variant_id === effectiveVid) : null;
               const imsLabel = imsV ? `${imsV.product_name}${imsV.variant_label ? ' · ' + imsV.variant_label : ''} (${imsV.sku ?? ''})` : (lr.match && !hasOverride) ? `${lr.match.product_name ?? ''}${lr.match.variant_label ? ' · ' + lr.match.variant_label : ''} (${lr.match.sku ?? ''})` : null;
               return (
                 <tr key={i} style={{ opacity: isSkipped ? 0.4 : 1, borderBottom: '1px solid var(--sv-border)' }}>
@@ -7292,7 +7364,12 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
                   <td style={{ ...tdSt, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{lr.invoice_line.rrp != null ? fmt$(lr.invoice_line.rrp) : '—'}</td>
                   <td style={{ ...tdSt, minWidth: 200 }}>
                     {conf === 'none' || hasOverride
-                      ? <VariantSearch value={effectiveVid ?? ''} variants={variants} onChange={vid => setOverrides(p => ({ ...p, [i]: vid }))} style={{ minWidth: 180 }} />
+                      ? <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 280 }}>
+                          <VariantSearch value={effectiveVid ?? ''} variants={selectableVariants} onChange={vid => setOverrides(p => ({ ...p, [i]: vid }))} style={{ minWidth: 180, flex: 1 }} />
+                          {!effectiveVid && (
+                            <button type="button" onClick={() => openCreateProduct(i, lr)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--sv-action)', background: 'color-mix(in srgb, var(--sv-action) 10%, transparent)', color: 'var(--sv-action)', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>+ Create new</button>
+                          )}
+                        </div>
                       : <span style={{ fontSize: 12 }}>{imsLabel ?? <em style={{ color: 'var(--sv-text-muted)' }}>No match</em>}</span>}
                   </td>
                   <td style={{ ...tdSt, whiteSpace: 'nowrap' }}>
@@ -7310,6 +7387,37 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
           </tbody>
         </table>
       </div>
+
+      {createProductLine != null && (
+        <div style={{ marginBottom: 14, padding: '14px 16px', border: '1px solid color-mix(in srgb, var(--sv-action) 45%, var(--sv-etch))', borderRadius: 8, background: 'color-mix(in srgb, var(--sv-action) 5%, var(--sv-bg-2))' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Create new product from invoice line</div>
+              <div style={{ marginTop: 2, fontSize: 11, color: 'var(--sv-text-muted)' }}>The new variant will be selected for this PO line automatically.</div>
+            </div>
+            <button type="button" onClick={() => setCreateProductLine(null)} style={{ background: 'none', border: 'none', color: 'var(--sv-text-muted)', cursor: 'pointer', fontSize: 16 }}>×</button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 2fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(90px, .7fr)', gap: 10, alignItems: 'end' }}>
+            {[
+              { key: 'name', label: 'Product name *', value: createProductForm.name },
+              { key: 'sku', label: 'SKU *', value: createProductForm.sku },
+              { key: 'barcode', label: 'Barcode', value: createProductForm.barcode },
+              { key: 'brand', label: 'Brand', value: createProductForm.brand },
+              { key: 'rrp', label: 'RRP', value: createProductForm.rrp, type: 'number' },
+            ].map(field => (
+              <label key={field.key} style={{ display: 'block' }}>
+                <span style={{ display: 'block', marginBottom: 4, fontSize: 10, fontWeight: 700, color: 'var(--sv-text-muted)', textTransform: 'uppercase' }}>{field.label}</span>
+                <input type={field.type || 'text'} value={field.value} onChange={e => setCreateProductForm(current => ({ ...current, [field.key]: e.target.value }))} style={{ width: '100%', boxSizing: 'border-box', padding: '7px 8px', borderRadius: 5, border: '1px solid var(--sv-border)', background: 'var(--sv-bg-card)', color: 'var(--sv-text-strong)', fontSize: 12 }} />
+              </label>
+            ))}
+          </div>
+          {createProductError && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--sv-red)' }}>{createProductError}</div>}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+            <button type="button" onClick={() => setCreateProductLine(null)} style={{ padding: '7px 14px', background: 'none', border: '1px solid var(--sv-border)', borderRadius: 6, color: 'var(--sv-text-muted)', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+            <button type="button" onClick={createProductFromInvoiceLine} disabled={createProductSaving || !createProductForm.name.trim() || !createProductForm.sku.trim()} style={{ padding: '7px 16px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 700, cursor: createProductSaving ? 'wait' : 'pointer', opacity: createProductSaving || !createProductForm.name.trim() || !createProductForm.sku.trim() ? .55 : 1 }}>{createProductSaving ? 'Creating…' : 'Create and select'}</button>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid var(--sv-border)', flexWrap: 'wrap' }}>
         <div style={{ fontSize: 12, color: 'var(--sv-text-muted)' }}>{importableCount} line{importableCount !== 1 ? 's' : ''} will be added to the PO</div>
