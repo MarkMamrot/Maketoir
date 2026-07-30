@@ -1062,29 +1062,6 @@ const HELP: Record<string, HelpInfo> = {
       { text: 'Your Shop ID is your store URL, e.g. mystore.myshopify.com.' },
     ],
   },
-  ga4: {
-    title: 'Connect Google Analytics (GA4)',
-    url: 'https://analytics.google.com/',
-    urlLabel: 'Open Google Analytics →',
-    steps: [
-      { text: 'Go to analytics.google.com and open your property.' },
-      { text: 'Click the gear icon (Admin) in the bottom-left.' },
-      { text: 'Under "Property", click Property Settings.' },
-      { text: 'Your Property ID is the number shown at the top (e.g. 319628615).' },
-      { text: 'Make sure the Google service account used by Marketoir has been granted Viewer access: go to Admin → Property Access Management → Add users, and enter the service account email.' },
-    ],
-  },
-  gads: {
-    title: 'Connect Google Ads',
-    url: 'https://ads.google.com/',
-    urlLabel: 'Open Google Ads →',
-    steps: [
-      { text: 'Log in to ads.google.com.' },
-      { text: 'Your Customer ID is the 10-digit number shown in the top-right corner (format: XXX-XXX-XXXX). Enter it without hyphens.' },
-      { text: 'To grant API access, go to Tools & Settings → Access and security → API Center.' },
-      { text: 'Ensure a developer token is approved and a refresh token has been generated for the Marketoir service account.' },
-    ],
-  },
   meta: {
     title: 'Connect Meta Ads',
     url: 'https://business.facebook.com/settings/ad-accounts',
@@ -1458,8 +1435,6 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
     try {
       const valuesByCard: Record<string, Record<string, string>> = {
         shopify: { ShopifyShopId: shopId, ShopifyAccessToken: accessToken },
-        ga4: { GA4PropertyId: gaPropertyId },
-        gads: { GoogleAdsCustomerId: googleAdsCustomerId },
         cin7: { Cin7AccountId: cin7AccountId, Cin7ApiKey: cin7ApiKey },
         klaviyo: { KlaviyoApiKey: klaviyoApiKey },
         gmail: { GmailAddress: gmailAddress, GmailRefreshToken: gmailRefreshToken, GmailClientId: gmailClientId, GmailClientSecret: gmailClientSecret },
@@ -1738,12 +1713,28 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
 
       {/* 3. Others */}
       <div className="grid grid-cols-2 gap-4 w-full">
-        {(googleAdsAccounts.length > 0 || googleAnalyticsProperties.length > 0) && (
-          <div className="col-span-2 bg-white text-black p-6 shadow-sm border border-gray-200 flex flex-col gap-4">
+        <div className="col-span-2 bg-white text-black p-6 shadow-sm border border-gray-200 flex flex-col gap-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold">Choose Google connections</h2>
-              <p className="mt-1 text-sm text-gray-600">Select the advertising account and Analytics property used by this business.</p>
+              <h2 className="text-lg font-bold">Google Ads &amp; Analytics</h2>
+              <p className="mt-1 text-sm text-gray-600">One Google authorisation connects the advertising account and Analytics property for this business.</p>
             </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {googleStatus?.authorised ? (
+                <>
+                  <a href="/api/google/connect" className="bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800">Change accounts</a>
+                  <button onClick={() => void disconnectGoogle()} disabled={googleLoading} className="border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">Disconnect</button>
+                </>
+              ) : (
+                <a href="/api/google/connect" aria-disabled={googleStatus != null && !googleStatus.configured} className={`px-4 py-2 text-sm font-semibold text-white ${googleStatus != null && !googleStatus.configured ? 'pointer-events-none bg-gray-400' : 'bg-blue-700 hover:bg-blue-800'}`}>Connect Google Ads &amp; Analytics</a>
+              )}
+            </div>
+          </div>
+
+          {(googleAdsAccounts.length > 0 || googleAnalyticsProperties.length > 0) && (
+            <div className="border-t border-gray-200 pt-5">
+              <h3 className="text-sm font-semibold text-gray-900">Choose Google connections</h3>
+              <p className="mt-1 text-xs text-gray-600">Select one or both services, then save your choices.</p>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <label className="text-xs font-semibold text-gray-600">
                 Google Ads account
@@ -1760,103 +1751,31 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
                 </select>
               </label>
             </div>
-            <button onClick={() => void selectGoogleConnections()} disabled={googleLoading || (!selectedGoogleAdsId && !selectedGooglePropertyId)} className="self-start bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:bg-gray-400">
+              <button onClick={() => void selectGoogleConnections()} disabled={googleLoading || (!selectedGoogleAdsId && !selectedGooglePropertyId)} className="mt-4 bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:bg-gray-400">
               {googleLoading ? 'Saving...' : 'Use selected accounts'}
-            </button>
-          </div>
-        )}
-        {/* GA4 */}
-        <div className="bg-white text-black p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col items-start gap-4">
-          <div className="flex items-center justify-between w-full">
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold">Google Analytics</h2>
-              <ConnectionStatus result={gaResult} />
-            </div>
-            <button onClick={() => setOpenHelp('ga4')} className="text-xs text-blue-500 hover:underline">How to connect →</button>
-          </div>
-          <div className="w-full">
-            <label className="block text-xs font-semibold text-gray-600 mb-1">GA4 Property ID</label>
-            <input className="w-full p-2 border rounded text-sm" value={gaPropertyId} onChange={e => setGaPropertyId(e.target.value)} placeholder="Connected through Google" />
-          </div>
-          <div className="w-full flex items-center justify-between pt-2 border-t border-gray-100">
-            <button onClick={testGaSync} disabled={gaLoading} className="px-3 py-1.5 bg-orange-500 text-white rounded text-xs font-medium hover:bg-orange-600 transition">
-              {gaLoading ? 'Testing...' : 'Test'}
-            </button>
-            <div className="flex items-center gap-2">
-              {cardMsgs['ga4'] && <span className="text-xs font-medium">{cardMsgs['ga4']}</span>}
-              {googleStatus?.analyticsConnected && <span className="text-xs font-semibold text-emerald-700">Connected</span>}
-            </div>
-          </div>
-          <div className="w-full flex flex-col gap-1 pt-2 border-t border-dashed border-gray-200">
-            <div className="flex items-center gap-2 flex-wrap">
-              <button onClick={() => buildInstructions('ga4')} disabled={!!apiActLoading['ga4']} className="px-2 py-1 bg-purple-600 text-white rounded text-xs font-medium hover:bg-purple-700 transition">
-                {apiActLoading['ga4'] === 'instructions' ? '⏳' : '📚'} Build
-              </button>
-              <button onClick={() => buildSchema('ga4')} disabled={!!apiActLoading['ga4_schema']} className="px-2 py-1 bg-violet-600 text-white rounded text-xs font-medium hover:bg-violet-700 transition">
-                {apiActLoading['ga4_schema'] === 'schema' ? '⏳' : '🔍'} Schema
               </button>
             </div>
-            {apiActMsgs?.['ga4'] && <p className="text-xs text-gray-600">{apiActMsgs['ga4']}</p>}
-            {apiActMsgs?.['ga4_schema'] && <p className="text-xs text-gray-600">{apiActMsgs['ga4_schema']}</p>}
-          </div>
-          {gaResult && <pre className="w-full p-4 bg-gray-100 rounded text-xs overflow-auto max-h-32">{JSON.stringify(gaResult, null, 2)}</pre>}
-        </div>
+          )}
 
-        {/* Google Ads */}
-        <div className="bg-white text-black p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col items-start gap-4">
-          <div className="flex items-center justify-between w-full">
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold">Google Ads</h2>
-              <ConnectionStatus result={adsResult} />
+          <div className="grid grid-cols-1 gap-3 border-t border-gray-200 pt-5 md:grid-cols-2">
+            <div className="border border-gray-200 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div><div className="text-sm font-semibold text-gray-900">Google Ads</div><div className="mt-1 text-xs text-gray-600">{googleStatus?.customerId ? `Account ${googleStatus.customerId}` : 'No account selected'}</div></div>
+                <ConnectionStatus result={adsResult} />
+              </div>
+              {googleStatus?.adsConnected && <button onClick={testGoogleAdsSync} disabled={adsLoading} className="mt-3 border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">{adsLoading ? 'Testing...' : 'Test connection'}</button>}
             </div>
-            <button onClick={() => setOpenHelp('gads')} className="text-xs text-blue-500 hover:underline">How to connect →</button>
-          </div>
-          <div className="w-full">
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Customer ID</label>
-            <input className="w-full p-2 border rounded text-sm" value={googleAdsCustomerId} onChange={e => setGoogleAdsCustomerId(e.target.value)} placeholder="Connected through Google" />
-          </div>
-          <div className="w-full flex items-center justify-between pt-2 border-t border-gray-100">
-            <button onClick={testGoogleAdsSync} disabled={adsLoading} className="px-3 py-1.5 bg-blue-500 text-white rounded text-xs font-medium hover:bg-blue-600 transition">
-              {adsLoading ? 'Testing...' : 'Test'}
-            </button>
-            <div className="flex items-center gap-2">
-              {cardMsgs['gads'] && <span className="text-xs font-medium">{cardMsgs['gads']}</span>}
-              {googleStatus?.adsConnected && <span className="text-xs font-semibold text-emerald-700">Connected</span>}
+            <div className="border border-gray-200 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div><div className="text-sm font-semibold text-gray-900">Google Analytics</div><div className="mt-1 text-xs text-gray-600">{googleStatus?.propertyId ? `Property ${googleStatus.propertyId}` : 'No property selected'}</div></div>
+                <ConnectionStatus result={gaResult} />
+              </div>
+              {googleStatus?.analyticsConnected && <button onClick={testGaSync} disabled={gaLoading} className="mt-3 border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">{gaLoading ? 'Testing...' : 'Test connection'}</button>}
             </div>
-          </div>
-          <div className="w-full flex flex-col gap-1 pt-2 border-t border-dashed border-gray-200">
-            <div className="flex items-center gap-2 flex-wrap">
-              <button onClick={() => buildInstructions('google-ads')} disabled={!!apiActLoading['google-ads']} className="px-2 py-1 bg-purple-600 text-white rounded text-xs font-medium hover:bg-purple-700 transition">
-                {apiActLoading['google-ads'] === 'instructions' ? '⏳' : '📚'} Build
-              </button>
-              <button onClick={() => buildSchema('google-ads')} disabled={!!apiActLoading['google-ads_schema']} className="px-2 py-1 bg-violet-600 text-white rounded text-xs font-medium hover:bg-violet-700 transition">
-                {apiActLoading['google-ads_schema'] === 'schema' ? '⏳' : '🔍'} Schema
-              </button>
-            </div>
-            {apiActMsgs?.['google-ads'] && <p className="text-xs text-gray-600">{apiActMsgs['google-ads']}</p>}
-            {apiActMsgs?.['google-ads_schema'] && <p className="text-xs text-gray-600">{apiActMsgs['google-ads_schema']}</p>}
-          </div>
-          {adsResult && <pre className="w-full p-4 bg-gray-100 rounded text-xs overflow-auto max-h-32">{JSON.stringify(adsResult, null, 2)}</pre>}
         </div>
-
-        <div className="col-span-2 flex flex-wrap items-center justify-between gap-3 border border-gray-200 bg-white px-6 py-4">
-          <div className="min-w-0">
-            <div className="text-sm font-semibold text-gray-900">Google marketing access</div>
-            <div className="mt-1 text-xs text-gray-600">One Google authorisation powers both Ads and Analytics. Access is read-only except for existing separately approved Google Ads actions.</div>
-            {googleMessage && <div className="mt-2 text-xs text-amber-700">{googleMessage}</div>}
-            {googleStatus != null && !googleStatus.configured && <div className="mt-2 text-xs text-amber-700">Railway requires GOOGLE_ADS_CLIENT_ID and GOOGLE_ADS_CLIENT_SECRET.</div>}
-            {googleStatus?.configured && googleStatus.developerTokenPresent === false && <div className="mt-2 text-xs text-amber-700">GOOGLE_ADS_DEVELOPER_TOKEN is required to discover and read Ads accounts; Analytics can still connect.</div>}
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {googleStatus?.authorised ? (
-              <>
-                <a href="/api/google/connect" className="bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800">Change accounts</a>
-                <button onClick={() => void disconnectGoogle()} disabled={googleLoading} className="border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">Disconnect</button>
-              </>
-            ) : (
-              <a href="/api/google/connect" aria-disabled={googleStatus != null && !googleStatus.configured} className={`px-4 py-2 text-sm font-semibold text-white ${googleStatus != null && !googleStatus.configured ? 'pointer-events-none bg-gray-400' : 'bg-blue-700 hover:bg-blue-800'}`}>Connect Google Ads & Analytics</a>
-            )}
-          </div>
+          {googleMessage && <div className="text-xs text-amber-700">{googleMessage}</div>}
+          {googleStatus != null && !googleStatus.configured && <div className="text-xs text-amber-700">Railway requires GOOGLE_ADS_CLIENT_ID and GOOGLE_ADS_CLIENT_SECRET.</div>}
+          {googleStatus?.configured && googleStatus.developerTokenPresent === false && <div className="text-xs text-amber-700">GOOGLE_ADS_DEVELOPER_TOKEN is required to discover and read Ads accounts; Analytics can still connect.</div>}
         </div>
 
         {/* Meta */}
