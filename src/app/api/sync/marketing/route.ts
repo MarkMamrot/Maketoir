@@ -125,7 +125,8 @@ async function fetchMetaInsights(
   breakdowns?: string[],
 ): Promise<any[]> {
   const id = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
-  const url = new URL(`https://graph.facebook.com/v19.0/${id}/insights`);
+  const graphVersion = (process.env.META_GRAPH_API_VERSION || 'v25.0').replace(/^\/?/, '').replace(/\/$/, '');
+  const url = new URL(`https://graph.facebook.com/${graphVersion}/${id}/insights`);
   url.searchParams.set('level', level);
   url.searchParams.set('fields', fields.join(','));
   url.searchParams.set('date_preset', datePreset);
@@ -153,7 +154,8 @@ async function fetchMetaDailyInsights(
   level: 'campaign' | 'adset' = 'campaign',
 ): Promise<any[]> {
   const id = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
-  const url = new URL(`https://graph.facebook.com/v19.0/${id}/insights`);
+  const graphVersion = (process.env.META_GRAPH_API_VERSION || 'v25.0').replace(/^\/?/, '').replace(/\/$/, '');
+  const url = new URL(`https://graph.facebook.com/${graphVersion}/${id}/insights`);
   url.searchParams.set('level', level);
   url.searchParams.set(
     'fields',
