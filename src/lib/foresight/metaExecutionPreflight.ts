@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import type { PaidMediaContributorEvidence } from './types';
 
 export interface MetaAdAccountSetting {
@@ -51,9 +52,34 @@ export interface MetaExecutionPreflightResult {
   executable: false;
   ready: boolean;
   checkedAt: string;
+  confirmationFingerprint: string | null;
   account: { source: 'meta_ads'; accountId: string; currencyCode: string } | null;
   changes: MetaBudgetChangePreview[];
   blockers: MetaPreflightBlocker[];
+}
+
+export function metaExecutionPreflightFingerprint(result: MetaExecutionPreflightResult): string {
+  const confirmation = {
+    mode: result.mode,
+    executable: result.executable,
+    ready: result.ready,
+    account: result.account,
+    changes: [...result.changes]
+      .sort((left, right) => `${left.entityType}:${left.entityId}`.localeCompare(`${right.entityType}:${right.entityId}`))
+      .map((change) => ({
+        source: change.source,
+        entityType: change.entityType,
+        entityId: change.entityId,
+        campaignId: change.campaignId,
+        currencyCode: change.currencyCode,
+        currentDailyBudgetMinor: change.currentDailyBudgetMinor,
+        proposedDailyBudgetMinor: change.proposedDailyBudgetMinor,
+        reductionPercent: change.reductionPercent,
+        operation: change.operation,
+      })),
+    blockers: result.blockers.map((blocker) => ({ code: blocker.code, entityId: blocker.entityId ?? null })),
+  };
+  return createHash('sha256').update(JSON.stringify(confirmation)).digest('hex');
 }
 
 function normalizedAccountId(value: string): string {
@@ -187,13 +213,16 @@ export function planMetaBudgetReductionPreflight(input: {
     }
   }
 
-  return {
+  const result: MetaExecutionPreflightResult = {
     mode: 'read_only_meta_preflight', executable: false,
     ready: changes.length > 0 && blockers.length === 0,
     checkedAt: input.checkedAt,
+    confirmationFingerprint: null,
     account: input.account ? { source: 'meta_ads', accountId: expectedAccountId, currencyCode: input.account.currencyCode } : null,
     changes, blockers,
   };
+  result.confirmationFingerprint = result.ready ? metaExecutionPreflightFingerprint(result) : null;
+  return result;
 }
 
 function buildChange(input: Omit<MetaBudgetChangePreview, 'source' | 'proposedDailyBudgetMinor' | 'operation'>): MetaBudgetChangePreview {

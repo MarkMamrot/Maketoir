@@ -31,6 +31,7 @@ import {
 import type { DailyDigestSnapshot } from '@/lib/foresight/dailyDigest';
 import type { ExecutionPreflightResult } from '@/lib/foresight/executionPreflight';
 import type { MetaExecutionPreflightResult } from '@/lib/foresight/metaExecutionPreflight';
+import type { MetaRollbackPreflightResult } from '@/lib/foresight/metaRollbackPreflight';
 import type { RollbackPreflightResult } from '@/lib/foresight/rollbackPreflight';
 import type { KlaviyoFlowCoverageEvidence, PaidMediaContributorEvidence } from '@/lib/foresight/types';
 import type { WeeklyDigestSnapshot } from '@/lib/foresight/weeklyDigest';
@@ -100,22 +101,33 @@ type RecommendationImplementation = {
   preview_json: RecommendationImplementationPreview;
   created_at: string;
 };
+type GoogleExecutionChange = {
+  campaignId: string;
+  campaignName: string;
+  budgetId: string;
+  currencyCode: string;
+  currentAmountMicros: number;
+  proposedAmountMicros: number;
+  direction?: 'increase' | 'reduction';
+  changePercent?: number;
+  reductionPercent: number;
+};
+type MetaExecutionChange = {
+  entityType: 'campaign' | 'adset';
+  entityId: string;
+  entityName: string;
+  campaignId: string;
+  currencyCode: string;
+  currentDailyBudgetMinor: number;
+  proposedDailyBudgetMinor: number;
+  reductionPercent: number;
+};
 type RecommendationExecution = {
   id: number;
   recommendation_id: number;
   state: 'in_progress' | 'succeeded' | 'failed';
   before_json: Record<string, unknown>;
-  request_json: { changes?: Array<{
-    campaignId: string;
-    campaignName: string;
-    budgetId: string;
-    currencyCode: string;
-    currentAmountMicros: number;
-    proposedAmountMicros: number;
-    direction?: 'increase' | 'reduction';
-    changePercent?: number;
-    reductionPercent: number;
-  }> };
+  request_json: { platform?: 'google_ads' | 'meta_ads'; changes?: Array<GoogleExecutionChange | MetaExecutionChange> };
   response_json: Record<string, unknown> | null;
   after_json: Record<string, unknown> | null;
   error_text: string | null;
@@ -154,6 +166,10 @@ function executionCustomerId(execution: RecommendationExecution | null): string 
   const account = execution?.before_json?.account;
   if (!account || typeof account !== 'object' || !('customerId' in account)) return null;
   return typeof account.customerId === 'string' ? account.customerId : null;
+}
+
+function isMetaExecution(execution: RecommendationExecution | null): boolean {
+  return execution?.request_json.platform === 'meta_ads';
 }
 
 function CampaignLink({ customerId, campaignId, children }: {
@@ -309,8 +325,11 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const [preflight, setPreflight] = useState<ExecutionPreflightResult | null>(null);
   const [metaPreflight, setMetaPreflight] = useState<MetaExecutionPreflightResult | null>(null);
   const [executionConfirmed, setExecutionConfirmed] = useState(false);
+  const [metaExecutionConfirmed, setMetaExecutionConfirmed] = useState(false);
   const [rollbackPreflight, setRollbackPreflight] = useState<RollbackPreflightResult | null>(null);
   const [rollbackConfirmed, setRollbackConfirmed] = useState(false);
+  const [metaRollbackPreflight, setMetaRollbackPreflight] = useState<MetaRollbackPreflightResult | null>(null);
+  const [metaRollbackConfirmed, setMetaRollbackConfirmed] = useState(false);
   const [message, setMessage] = useState<{ kind: 'error' | 'success'; text: string } | null>(null);
   const isAdmin = userTier === 'Admin' || userTier === 'SuperAdmin';
 
@@ -379,8 +398,11 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
     setPreflight(null);
     setMetaPreflight(null);
     setExecutionConfirmed(false);
+    setMetaExecutionConfirmed(false);
     setRollbackPreflight(null);
     setRollbackConfirmed(false);
+    setMetaRollbackPreflight(null);
+    setMetaRollbackConfirmed(false);
   }, [selectedId]);
 
   const evaluate = async () => {
@@ -513,6 +535,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const runMetaPreflight = async () => {
     if (!selected?.proposal_hash) return;
     setWorking('meta_preflight');
+    setMetaExecutionConfirmed(false);
     setMessage(null);
     try {
       const response = await fetch(`/api/foresight/marketing/recommendations/${selected.id}/meta/preflight`, {
@@ -525,6 +548,50 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
       setMetaPreflight(body.preflight);
     } catch (error) {
       setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to run Meta readiness check.' });
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  const executeApprovedMetaChange = async () => {
+    if (!selected?.proposal_hash || !metaPreflight?.confirmationFingerprint || !metaExecutionConfirmed) return;
+    setWorking('meta_execute');
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/foresight/marketing/recommendations/${selected.id}/meta/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          proposalHash: selected.proposal_hash,
+          confirmationFingerprint: metaPreflight.confirmationFingerprint,
+          confirmationPhrase: 'APPLY META BUDGET CHANGES',
+        }),
+      });
+      const body = await responseJson(response) as {
+        execution?: RecommendationExecution;
+        idempotentReplay?: boolean;
+        notification?: 'sent' | 'failed' | 'not_sent';
+        notificationError?: string;
+        error?: string;
+      };
+      if (!response.ok || !body.execution) throw new Error(body.error || 'Unable to execute Meta Ads changes.');
+      setMessage({
+        kind: body.execution.state === 'succeeded' ? 'success' : 'error',
+        text: body.execution.state === 'succeeded'
+          ? body.idempotentReplay
+            ? 'Existing verified Meta execution receipt loaded.'
+            : body.notification === 'sent'
+              ? 'Meta Ads budgets updated, verified by live read-back, and the warning email was sent.'
+              : body.notification === 'failed'
+                ? `Meta Ads budgets were updated and verified, but the warning email failed: ${body.notificationError ?? 'unknown email error'}`
+                : 'Meta Ads budgets updated and verified by live read-back.'
+          : body.execution.error_text || 'Meta execution did not verify successfully. Review the audit receipt.',
+      });
+      setMetaExecutionConfirmed(false);
+      await load();
+    } catch (error) {
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to execute Meta Ads changes.' });
+      setMetaExecutionConfirmed(false);
     } finally {
       setWorking(null);
     }
@@ -632,6 +699,57 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
     } catch (error) {
       setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to reverse Google Ads changes.' });
       setRollbackConfirmed(false);
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  const runMetaRollbackPreflight = async () => {
+    if (!selected?.proposal_hash || !selectedExecution) return;
+    setWorking('meta_rollback_preflight');
+    setMetaRollbackConfirmed(false);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/foresight/marketing/recommendations/${selected.id}/meta/rollback/preflight`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ executionId: selectedExecution.id, proposalHash: selected.proposal_hash }),
+      });
+      const body = await responseJson(response) as { preflight?: MetaRollbackPreflightResult; error?: string };
+      if (!response.ok || !body.preflight) throw new Error(body.error || 'Unable to check Meta rollback readiness.');
+      setMetaRollbackPreflight(body.preflight);
+    } catch (error) {
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to check Meta rollback readiness.' });
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  const executeMetaRollback = async () => {
+    if (!selected?.proposal_hash || !selectedExecution || !metaRollbackPreflight?.confirmationFingerprint || !metaRollbackConfirmed) return;
+    setWorking('meta_rollback');
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/foresight/marketing/recommendations/${selected.id}/meta/rollback`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          executionId: selectedExecution.id, proposalHash: selected.proposal_hash,
+          confirmationFingerprint: metaRollbackPreflight.confirmationFingerprint,
+          confirmationPhrase: 'REVERSE META BUDGET CHANGES',
+        }),
+      });
+      const body = await responseJson(response) as { execution?: RecommendationExecution; idempotentReplay?: boolean; error?: string };
+      if (!response.ok || !body.execution) throw new Error(body.error || 'Unable to reverse Meta Ads changes.');
+      setMessage({
+        kind: body.execution.state === 'succeeded' ? 'success' : 'error',
+        text: body.execution.state === 'succeeded'
+          ? body.idempotentReplay ? 'Existing verified Meta rollback receipt loaded.' : 'Original Meta Ads budgets restored and verified by live read-back.'
+          : body.execution.error_text || 'Meta rollback did not verify successfully. Review the compensation receipt.',
+      });
+      setMetaRollbackConfirmed(false);
+      await load();
+    } catch (error) {
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to reverse Meta Ads changes.' });
+      setMetaRollbackConfirmed(false);
     } finally {
       setWorking(null);
     }
@@ -1055,8 +1173,8 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                 <div className="border border-sky-200 bg-sky-50/40 px-4 py-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-sky-900"><ShieldCheck size={15} /> Meta budget ownership check</h3>
-                      <p className="mt-2 text-sm leading-6 text-gray-700">Reads the live Meta account, campaign, and ad-set settings to identify which entity controls each daily budget. This check cannot submit changes.</p>
+                      <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-sky-900"><ShieldCheck size={15} /> Meta live execution preflight</h3>
+                      <p className="mt-2 text-sm leading-6 text-gray-700">Reads the live Meta account, campaign, and ad-set settings, identifies the budget owner, and prepares an exact guarded reduction for approval.</p>
                     </div>
                     <button
                       onClick={() => void runMetaPreflight()}
@@ -1071,9 +1189,9 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                     <div className="mt-4 border-t border-sky-200 pt-4">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className={`text-sm font-semibold ${metaPreflight.ready ? 'text-emerald-700' : 'text-amber-800'}`}>
-                          {metaPreflight.ready ? 'Exact read-only proposal available' : 'Budget ownership blocked'}
+                          {metaPreflight.ready ? 'Ready for operator review' : 'Blocked from execution'}
                         </span>
-                        <span className="text-xs text-gray-500">Checked {dateTime(metaPreflight.checkedAt)} · Diagnostics only</span>
+                        <span className="text-xs text-gray-500">Checked {dateTime(metaPreflight.checkedAt)} · Preview only</span>
                       </div>
                       {metaPreflight.changes.length > 0 && (
                         <div className="mt-3 space-y-2">
@@ -1085,7 +1203,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                               </div>
                               <div className="mt-1 text-sm text-gray-700">
                                 {minorUnitMoney(change.currentDailyBudgetMinor, change.currencyCode)} → <strong>{minorUnitMoney(change.proposedDailyBudgetMinor, change.currencyCode)}</strong>
-                                <span className="ml-2 text-xs text-gray-500">-{change.reductionPercent}% daily budget · no write enabled</span>
+                                <span className="ml-2 text-xs text-gray-500">-{change.reductionPercent}% daily budget</span>
                               </div>
                             </div>
                           ))}
@@ -1101,8 +1219,29 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                           ))}
                         </ul>
                       )}
-                      {metaPreflight.ready && (
-                        <p className="mt-4 border-t border-sky-200 pt-3 text-xs leading-5 text-gray-600">Meta execution remains disabled. Apply any reviewed change directly in Meta Ads Manager and record it as an external implementation.</p>
+                      {metaPreflight.ready && metaPreflight.confirmationFingerprint && (
+                        <div className="mt-4 border-t border-sky-200 pt-4">
+                          <label className="flex items-start gap-3 text-sm leading-5 text-gray-700">
+                            <input
+                              type="checkbox"
+                              checked={metaExecutionConfirmed}
+                              onChange={(event) => setMetaExecutionConfirmed(event.target.checked)}
+                              className="mt-0.5 h-4 w-4 border-gray-300 text-sky-700 focus:ring-sky-600"
+                            />
+                            <span>I confirm these exact live Meta before/after budgets. Execution will recheck them and stop if anything changed.</span>
+                          </label>
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                            <span className="text-xs text-gray-500">Meta daily-budget update · verified by read-back · email alert · audit receipt retained</span>
+                            <button
+                              onClick={() => void executeApprovedMetaChange()}
+                              disabled={working != null || !metaExecutionConfirmed}
+                              className="inline-flex h-9 items-center gap-2 bg-sky-700 px-3 text-sm font-semibold text-white hover:bg-sky-800 disabled:opacity-50"
+                            >
+                              {working === 'meta_execute' ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                              Apply exact Meta budgets
+                            </button>
+                          </div>
+                        </div>
                       )}
                     </div>
                   )}
@@ -1120,7 +1259,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                           : <Loader2 size={18} className="mt-0.5 shrink-0 animate-spin text-amber-700" />}
                       <div>
                         <h3 className="text-sm font-semibold text-gray-900">
-                          {selectedExecution.state === 'succeeded' ? 'Google Ads execution verified' : selectedExecution.state === 'failed' ? 'Google Ads execution requires review' : 'Google Ads execution in progress'}
+                          {isMetaExecution(selectedExecution) ? 'Meta Ads' : 'Google Ads'} execution {selectedExecution.state === 'succeeded' ? 'verified' : selectedExecution.state === 'failed' ? 'requires review' : 'in progress'}
                         </h3>
                         <p className="mt-1 text-xs text-gray-600">Execution {selectedExecution.id} · {dateTime(selectedExecution.completed_at ?? selectedExecution.created_at)}</p>
                       </div>
@@ -1130,10 +1269,20 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                   {Array.isArray(selectedExecution.request_json.changes) && selectedExecution.request_json.changes.length > 0 && (
                     <div className="mt-3 space-y-2">
                       {selectedExecution.request_json.changes.map((change) => (
-                        <div key={`${change.campaignId}:${change.budgetId}`} className="border border-black/10 bg-white/70 px-3 py-2 text-sm text-gray-700">
-                          <CampaignLink customerId={executionCustomerId(selectedExecution)} campaignId={change.campaignId}>{change.campaignName}</CampaignLink>
-                          <span className="ml-2">{budgetMoney(change.currentAmountMicros, change.currencyCode)} → {budgetMoney(change.proposedAmountMicros, change.currencyCode)}</span>
-                          <span className="ml-2 text-xs text-gray-500">budget {change.budgetId}</span>
+                        <div key={'entityId' in change ? `${change.entityType}:${change.entityId}` : `${change.campaignId}:${change.budgetId}`} className="border border-black/10 bg-white/70 px-3 py-2 text-sm text-gray-700">
+                          {'entityId' in change ? (
+                            <>
+                              <strong>{change.entityName}</strong>
+                              <span className="ml-2">{minorUnitMoney(change.currentDailyBudgetMinor, change.currencyCode)} → {minorUnitMoney(change.proposedDailyBudgetMinor, change.currencyCode)}</span>
+                              <span className="ml-2 text-xs uppercase text-gray-500">{change.entityType}</span>
+                            </>
+                          ) : (
+                            <>
+                              <CampaignLink customerId={executionCustomerId(selectedExecution)} campaignId={change.campaignId}>{change.campaignName}</CampaignLink>
+                              <span className="ml-2">{budgetMoney(change.currentAmountMicros, change.currencyCode)} → {budgetMoney(change.proposedAmountMicros, change.currencyCode)}</span>
+                              <span className="ml-2 text-xs text-gray-500">budget {change.budgetId}</span>
+                            </>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1151,7 +1300,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                 </div>
               )}
 
-              {isAdmin && selected.state === 'succeeded' && selectedExecution?.state === 'succeeded' && !selectedCompensation && (
+              {isAdmin && selected.state === 'succeeded' && selectedExecution?.state === 'succeeded' && !isMetaExecution(selectedExecution) && !selectedCompensation && (
                 <div className="border border-amber-200 bg-amber-50/50 px-4 py-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -1227,6 +1376,57 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                 </div>
               )}
 
+              {isAdmin && selected.state === 'succeeded' && selectedExecution?.state === 'succeeded' && isMetaExecution(selectedExecution) && !selectedCompensation && (
+                <div className="border border-amber-200 bg-amber-50/50 px-4 py-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-900"><History size={15} /> Audited Meta rollback</h3>
+                      <p className="mt-2 text-sm leading-6 text-gray-700">Checks that each live Meta budget still matches the verified execution receipt, then prepares an exact restoration to its stored original value.</p>
+                    </div>
+                    <button onClick={() => void runMetaRollbackPreflight()} disabled={working != null} className="inline-flex h-9 items-center gap-2 border border-amber-300 bg-white px-3 text-sm font-semibold text-amber-900 hover:bg-amber-50 disabled:opacity-50">
+                      {working === 'meta_rollback_preflight' ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                      Check rollback readiness
+                    </button>
+                  </div>
+                  {metaRollbackPreflight && (
+                    <div className="mt-4 border-t border-amber-200 pt-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className={`text-sm font-semibold ${metaRollbackPreflight.ready ? 'text-emerald-700' : 'text-amber-900'}`}>{metaRollbackPreflight.ready ? 'Ready for restoration review' : 'Rollback blocked'}</span>
+                        <span className="text-xs text-gray-500">Checked {dateTime(metaRollbackPreflight.checkedAt)} · No write yet</span>
+                      </div>
+                      {metaRollbackPreflight.changes.map(change => (
+                        <div key={`${change.entityType}:${change.entityId}`} className="mt-3 border border-amber-200 bg-white px-3 py-3 text-sm text-gray-700">
+                          <strong>{change.entityName}</strong>
+                          <span className="ml-2">{minorUnitMoney(change.currentDailyBudgetMinor, change.currencyCode)} → <strong>{minorUnitMoney(change.proposedDailyBudgetMinor, change.currencyCode)}</strong></span>
+                          <span className="ml-2 text-xs uppercase text-gray-500">{change.entityType}</span>
+                        </div>
+                      ))}
+                      {metaRollbackPreflight.blockers.length > 0 && (
+                        <ul className="mt-3 space-y-2">
+                          {metaRollbackPreflight.blockers.map((blocker, index) => (
+                            <li key={`${blocker.code}:${blocker.entityId ?? index}`} className="flex gap-2 text-sm leading-5 text-amber-900"><AlertTriangle size={15} className="mt-0.5 shrink-0" /><span>{blocker.message}</span></li>
+                          ))}
+                        </ul>
+                      )}
+                      {metaRollbackPreflight.ready && metaRollbackPreflight.confirmationFingerprint && (
+                        <div className="mt-4 border-t border-amber-200 pt-4">
+                          <label className="flex items-start gap-3 text-sm leading-5 text-gray-700">
+                            <input type="checkbox" checked={metaRollbackConfirmed} onChange={event => setMetaRollbackConfirmed(event.target.checked)} className="mt-0.5 h-4 w-4 border-gray-300 text-amber-700 focus:ring-amber-600" />
+                            <span>I confirm these exact live and original Meta budgets. Rollback will recheck, restore once, and verify by live read-back.</span>
+                          </label>
+                          <div className="mt-3 flex justify-end">
+                            <button onClick={() => void executeMetaRollback()} disabled={working != null || !metaRollbackConfirmed} className="inline-flex h-9 items-center gap-2 bg-amber-700 px-3 text-sm font-semibold text-white hover:bg-amber-800 disabled:opacity-50">
+                              {working === 'meta_rollback' ? <Loader2 size={16} className="animate-spin" /> : <History size={16} />}
+                              Restore original Meta budgets
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {selectedCompensation && (
                 <div className={`border px-4 py-4 ${selectedCompensation.state === 'succeeded' ? 'border-emerald-200 bg-emerald-50' : selectedCompensation.state === 'failed' ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}`}>
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1238,7 +1438,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                           : <Loader2 size={18} className="mt-0.5 shrink-0 animate-spin text-amber-700" />}
                       <div>
                         <h3 className="text-sm font-semibold text-gray-900">
-                          {selectedCompensation.state === 'succeeded' ? 'Google Ads rollback verified' : selectedCompensation.state === 'failed' ? 'Google Ads rollback requires review' : 'Google Ads rollback awaiting reconciliation'}
+                          {isMetaExecution(selectedCompensation) ? 'Meta Ads' : 'Google Ads'} rollback {selectedCompensation.state === 'succeeded' ? 'verified' : selectedCompensation.state === 'failed' ? 'requires review' : 'awaiting reconciliation'}
                         </h3>
                         <p className="mt-1 text-xs text-gray-600">Compensation {selectedCompensation.id} for execution {selectedCompensation.compensates_execution_id} · {dateTime(selectedCompensation.completed_at ?? selectedCompensation.created_at)}</p>
                       </div>
@@ -1248,10 +1448,20 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                   {Array.isArray(selectedCompensation.request_json.changes) && selectedCompensation.request_json.changes.length > 0 && (
                     <div className="mt-3 space-y-2">
                       {selectedCompensation.request_json.changes.map((change) => (
-                        <div key={`${change.campaignId}:${change.budgetId}`} className="border border-black/10 bg-white/70 px-3 py-2 text-sm text-gray-700">
-                          <CampaignLink customerId={executionCustomerId(selectedCompensation) ?? executionCustomerId(selectedExecution)} campaignId={change.campaignId}>{change.campaignName}</CampaignLink>
-                          <span className="ml-2">{budgetMoney(change.currentAmountMicros, change.currencyCode)} → {budgetMoney(change.proposedAmountMicros, change.currencyCode)}</span>
-                          <span className="ml-2 text-xs text-gray-500">restored budget {change.budgetId}</span>
+                        <div key={'entityId' in change ? `${change.entityType}:${change.entityId}` : `${change.campaignId}:${change.budgetId}`} className="border border-black/10 bg-white/70 px-3 py-2 text-sm text-gray-700">
+                          {'entityId' in change ? (
+                            <>
+                              <strong>{change.entityName}</strong>
+                              <span className="ml-2">{minorUnitMoney(change.currentDailyBudgetMinor, change.currencyCode)} → {minorUnitMoney(change.proposedDailyBudgetMinor, change.currencyCode)}</span>
+                              <span className="ml-2 text-xs uppercase text-gray-500">restored {change.entityType}</span>
+                            </>
+                          ) : (
+                            <>
+                              <CampaignLink customerId={executionCustomerId(selectedCompensation) ?? executionCustomerId(selectedExecution)} campaignId={change.campaignId}>{change.campaignName}</CampaignLink>
+                              <span className="ml-2">{budgetMoney(change.currentAmountMicros, change.currencyCode)} → {budgetMoney(change.proposedAmountMicros, change.currencyCode)}</span>
+                              <span className="ml-2 text-xs text-gray-500">restored budget {change.budgetId}</span>
+                            </>
+                          )}
                         </div>
                       ))}
                     </div>

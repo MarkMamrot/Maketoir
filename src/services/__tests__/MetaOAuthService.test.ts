@@ -19,7 +19,7 @@ describe('MetaOAuthService', () => {
     const url = new URL(buildMetaAuthorizeUrl('https://solvantis.com.au/api/meta/callback', 'signed-state'));
     expect(url.origin + url.pathname).toBe('https://www.facebook.com/v25.0/dialog/oauth');
     expect(url.searchParams.get('client_id')).toBe('app-123');
-    expect(url.searchParams.get('scope')).toBe('ads_read,business_management');
+    expect(url.searchParams.get('scope')).toBe('ads_read,ads_management,business_management');
     expect(url.searchParams.get('state')).toBe('signed-state');
   });
 

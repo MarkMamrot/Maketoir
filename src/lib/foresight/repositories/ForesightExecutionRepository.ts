@@ -100,6 +100,7 @@ export const ForesightExecutionRepository = {
     idempotencyKey: string;
     before: Record<string, unknown>;
     request: Record<string, unknown>;
+    platform?: 'google_ads' | 'meta_ads';
   }): Promise<{ created: boolean; execution: ForesightExecutionRow }> {
     const connection = await getPool().getConnection();
     try {
@@ -166,8 +167,15 @@ export const ForesightExecutionRepository = {
       await connection.execute(
         `INSERT INTO foresight_recommendation_events
            (business_id, recommendation_id, from_state, to_state, proposal_hash, actor_id, reason_code, note)
-         VALUES (?, ?, 'approved', 'executing', ?, ?, 'google_ads_execution_started', ?)`,
-        [input.businessId, input.recommendationId, input.proposalHash, input.actorId, `Execution ${executionId}`],
+         VALUES (?, ?, 'approved', 'executing', ?, ?, ?, ?)`,
+        [
+          input.businessId,
+          input.recommendationId,
+          input.proposalHash,
+          input.actorId,
+          `${input.platform ?? 'google_ads'}_execution_started`,
+          `Execution ${executionId}`,
+        ],
       );
       const [executionRows] = await connection.execute(
         'SELECT * FROM foresight_executions WHERE id = ? AND business_id = ? LIMIT 1',
@@ -191,6 +199,7 @@ export const ForesightExecutionRepository = {
     response: Record<string, unknown> | null;
     after: Record<string, unknown> | null;
     errorText: string | null;
+    platform?: 'google_ads' | 'meta_ads';
   }): Promise<ForesightExecutionRow> {
     const connection = await getPool().getConnection();
     try {
@@ -247,7 +256,7 @@ export const ForesightExecutionRepository = {
           input.state,
           recommendation.proposal_hash,
           input.actorId,
-          input.state === 'succeeded' ? 'google_ads_execution_succeeded' : 'google_ads_execution_failed',
+          `${input.platform ?? 'google_ads'}_execution_${input.state}`,
           input.errorText ?? `Execution ${input.executionId}`,
         ],
       );
@@ -274,6 +283,7 @@ export const ForesightExecutionRepository = {
     idempotencyKey: string;
     before: Record<string, unknown>;
     request: Record<string, unknown>;
+    platform?: 'google_ads' | 'meta_ads';
   }): Promise<{ created: boolean; execution: ForesightExecutionRow }> {
     const connection = await getPool().getConnection();
     try {
@@ -351,8 +361,8 @@ export const ForesightExecutionRepository = {
       await connection.execute(
         `INSERT INTO foresight_recommendation_events
            (business_id, recommendation_id, from_state, to_state, proposal_hash, actor_id, reason_code, note)
-         VALUES (?, ?, 'succeeded', 'succeeded', ?, ?, 'google_ads_rollback_started', ?)`,
-        [input.businessId, input.recommendationId, input.proposalHash, input.actorId, `Compensation ${executionId} for execution ${input.originalExecutionId}`],
+         VALUES (?, ?, 'succeeded', 'succeeded', ?, ?, ?, ?)`,
+        [input.businessId, input.recommendationId, input.proposalHash, input.actorId, `${input.platform ?? 'google_ads'}_rollback_started`, `Compensation ${executionId} for execution ${input.originalExecutionId}`],
       );
       const [executionRows] = await connection.execute(
         'SELECT * FROM foresight_executions WHERE id = ? AND business_id = ? LIMIT 1',
@@ -376,6 +386,7 @@ export const ForesightExecutionRepository = {
     response: Record<string, unknown> | null;
     after: Record<string, unknown> | null;
     errorText: string | null;
+    platform?: 'google_ads' | 'meta_ads';
   }): Promise<ForesightExecutionRow> {
     const connection = await getPool().getConnection();
     try {
@@ -442,7 +453,7 @@ export const ForesightExecutionRepository = {
           input.state === 'succeeded' ? 'compensated' : 'succeeded',
           recommendation.proposal_hash,
           input.actorId,
-          input.state === 'succeeded' ? 'google_ads_rollback_succeeded' : 'google_ads_rollback_failed',
+          `${input.platform ?? 'google_ads'}_rollback_${input.state}`,
           input.errorText ?? `Compensation ${input.executionId} for execution ${execution.compensates_execution_id}`,
         ],
       );

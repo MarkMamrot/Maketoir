@@ -9,6 +9,7 @@ const metaSdk = require('facebook-nodejs-business-sdk') as MetaSdk;
 
 interface MetaReadable {
   read(fields: string[]): Promise<unknown>;
+  update(fields: string[], params: Record<string, unknown>): Promise<unknown>;
 }
 
 interface MetaSdk {
@@ -22,6 +23,12 @@ export interface MetaBudgetSettings {
   account: MetaAdAccountSetting;
   campaigns: MetaCampaignSetting[];
   adSets: MetaAdSetSetting[];
+}
+
+export interface MetaDailyBudgetUpdate {
+  entityType: 'campaign' | 'adset';
+  entityId: string;
+  dailyBudgetMinor: number;
 }
 
 function plainData(value: unknown): Record<string, unknown> {
@@ -79,6 +86,20 @@ export class MetaAdsReadService {
       campaigns,
       adSets,
     };
+  }
+
+  async updateDailyBudgets(changes: MetaDailyBudgetUpdate[]): Promise<unknown[]> {
+    if (changes.length === 0) throw new Error('At least one Meta daily-budget change is required.');
+    return Promise.all(changes.map(change => {
+      if (!change.entityId.trim()) throw new Error('Meta budget entity ID is required.');
+      if (!Number.isSafeInteger(change.dailyBudgetMinor) || change.dailyBudgetMinor <= 0) {
+        throw new Error('Meta daily budget must be a positive integer in account minor units.');
+      }
+      const entity = change.entityType === 'campaign'
+        ? new this.sdk.Campaign(change.entityId, {}, undefined, this.api)
+        : new this.sdk.AdSet(change.entityId, {}, undefined, this.api);
+      return entity.update([], { daily_budget: change.dailyBudgetMinor });
+    }));
   }
 
   private async readCampaign(id: string): Promise<MetaCampaignSetting> {

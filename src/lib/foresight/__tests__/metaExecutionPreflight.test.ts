@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PaidMediaContributorEvidence } from '../types';
 import {
+  metaExecutionPreflightFingerprint,
   planMetaBudgetReductionPreflight,
   type MetaAdAccountSetting,
   type MetaAdSetSetting,
@@ -36,6 +37,7 @@ describe('Meta budget reduction preflight', () => {
   it('prepares an exact non-executable campaign daily-budget proposal', () => {
     const result = plan();
     expect(result).toMatchObject({ mode: 'read_only_meta_preflight', executable: false, ready: true });
+    expect(result.confirmationFingerprint).toBe(metaExecutionPreflightFingerprint(result));
     expect(result.changes[0]).toMatchObject({
       entityType: 'campaign', entityId: 'campaign-1', currencyCode: 'AUD',
       currentDailyBudgetMinor: 10_000, proposedDailyBudgetMinor: 9_200, reductionPercent: 8,
@@ -54,6 +56,7 @@ describe('Meta budget reduction preflight', () => {
   it('blocks an ad-set proposal when its parent campaign controls budget', () => {
     const result = plan({ contributors: [{ ...campaignContributor, entityType: 'adset', entityId: 'adset-1' }] });
     expect(result.ready).toBe(false);
+    expect(result.confirmationFingerprint).toBeNull();
     expect(result.changes).toEqual([]);
     expect(result.blockers[0].code).toBe('meta_campaign_budget_controls_adset');
   });

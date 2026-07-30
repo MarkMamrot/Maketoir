@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import { ConfigRepository } from '@/lib/db/ConfigRepository';
 import type { BudgetChangePreview } from './executionPreflight';
+import type { MetaBudgetChangePreview } from './metaExecutionPreflight';
 
 export const BUDGET_CHANGE_NOTIFICATION_EMAIL = 'Marketing_BudgetChangeNotificationEmail';
 
@@ -55,5 +56,38 @@ export async function sendBudgetChangeNotification(input: {
       <p style="font-size:12px;color:#64748b;">Recommendation #${input.recommendationId} · Execution #${input.executionId} · Verified ${new Date().toISOString()}</p>
     </div>`,
   }, { idempotencyKey: `foresight-budget-change-${input.executionId}` });
+  if (error) throw new Error(error.message);
+}
+
+export async function sendMetaBudgetChangeNotification(input: {
+  recipient: string;
+  recommendationId: number;
+  executionId: number;
+  changes: MetaBudgetChangePreview[];
+}): Promise<void> {
+  if (!process.env.RESEND_API_KEY) throw new Error('RESEND_API_KEY is not configured.');
+  const rows = input.changes.map(change => `
+    <tr>
+      <td style="padding:10px;border-bottom:1px solid #e2e8f0;">${escapeHtml(change.entityName)}</td>
+      <td style="padding:10px;border-bottom:1px solid #e2e8f0;">${escapeHtml(change.entityType === 'campaign' ? 'Campaign' : 'Ad set')}</td>
+      <td style="padding:10px;border-bottom:1px solid #e2e8f0;">${money(change.currentDailyBudgetMinor * 10_000, change.currencyCode)}</td>
+      <td style="padding:10px;border-bottom:1px solid #e2e8f0;font-weight:700;">${money(change.proposedDailyBudgetMinor * 10_000, change.currencyCode)}</td>
+      <td style="padding:10px;border-bottom:1px solid #e2e8f0;">-${change.reductionPercent}%</td>
+    </tr>`).join('');
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  const { error } = await resend.emails.send({
+    from: process.env.RESEND_FROM_EMAIL ?? 'Solvantis <onboarding@resend.dev>',
+    to: input.recipient,
+    subject: 'Meta Ads budgets reduced by Solvantis',
+    html: `<div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto;color:#0f172a;">
+      <h1 style="font-size:22px;">Meta Ads budget change verified</h1>
+      <p>Solvantis submitted and verified the following approved Meta Ads budget change.</p>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <thead><tr><th style="padding:10px;text-align:left;">Entity</th><th style="padding:10px;text-align:left;">Level</th><th style="padding:10px;text-align:left;">Before</th><th style="padding:10px;text-align:left;">After</th><th style="padding:10px;text-align:left;">Change</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <p style="font-size:12px;color:#64748b;">Recommendation #${input.recommendationId} · Execution #${input.executionId} · Verified ${new Date().toISOString()}</p>
+    </div>`,
+  }, { idempotencyKey: `foresight-meta-budget-change-${input.executionId}` });
   if (error) throw new Error(error.message);
 }

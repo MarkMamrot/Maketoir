@@ -41,7 +41,7 @@ export function buildMetaAuthorizeUrl(redirectUri: string, state: string): strin
   url.searchParams.set('redirect_uri', redirectUri);
   url.searchParams.set('state', state);
   url.searchParams.set('response_type', 'code');
-  url.searchParams.set('scope', 'ads_read,business_management');
+  url.searchParams.set('scope', 'ads_read,ads_management,business_management');
   return url.toString();
 }
 

@@ -6,11 +6,13 @@ import {
   type MetaExecutionPreflightResult,
 } from './metaExecutionPreflight';
 import { ForesightRepository } from './repositories/ForesightRepository';
+import { getBudgetChangeNotificationEmail, isValidNotificationEmail } from './budgetChangeNotification';
 
 function blocked(code: string, message: string): MetaExecutionPreflightResult {
   return {
     mode: 'read_only_meta_preflight', executable: false, ready: false,
-    checkedAt: new Date().toISOString(), account: null, changes: [], blockers: [{ code, message }],
+    checkedAt: new Date().toISOString(), confirmationFingerprint: null,
+    account: null, changes: [], blockers: [{ code, message }],
   };
 }
 
@@ -41,6 +43,14 @@ export const ForesightMetaExecutionPreflightService = {
     const metaContributors = contributors.filter((item) => item.source === 'meta_ads');
     if (metaContributors.length === 0) {
       return blocked('no_meta_candidates', 'No Meta campaign or ad-set contributor is available for live preflight.');
+    }
+
+    const notificationEmail = await getBudgetChangeNotificationEmail(businessId);
+    if (!isValidNotificationEmail(notificationEmail)) {
+      return blocked('notification_email_required', 'Set a valid Budget Change Alerts email in Marketing Settings before executing Meta Ads changes.');
+    }
+    if (!process.env.RESEND_API_KEY) {
+      return blocked('email_service_unavailable', 'Budget changes are blocked because the email notification service is not configured.');
     }
 
     const connection = await ConnectionsRepository.get(businessId);

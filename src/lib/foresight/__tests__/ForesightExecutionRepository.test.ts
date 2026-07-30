@@ -53,11 +53,33 @@ describe('ForesightExecutionRepository', () => {
       ['business-1', 12],
     );
     expect(mockConnection.execute).toHaveBeenCalledWith(
-      expect.stringContaining("'google_ads_execution_started'"),
-      ['business-1', 12, 'proposal', 7, 'Execution 9'],
+      expect.stringContaining("VALUES (?, ?, 'approved', 'executing', ?, ?, ?, ?)"),
+      ['business-1', 12, 'proposal', 7, 'google_ads_execution_started', 'Execution 9'],
     );
     expect(mockConnection.commit).toHaveBeenCalledOnce();
     expect(mockConnection.rollback).not.toHaveBeenCalled();
+  });
+
+  it('records Meta execution audit events with the correct platform', async () => {
+    mockConnection.execute
+      .mockResolvedValueOnce([[{ state: 'approved', proposal_hash: 'proposal' }]])
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[{ id: 4 }]])
+      .mockResolvedValueOnce([{ insertId: 9 }])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      .mockResolvedValueOnce([{ insertId: 22 }])
+      .mockResolvedValueOnce([[execution]]);
+
+    await ForesightExecutionRepository.claim({
+      businessId: 'business-1', recommendationId: 12, actorId: 7,
+      proposalHash: 'proposal', idempotencyKey: 'stable-key',
+      before: execution.before_json, request: execution.request_json, platform: 'meta_ads',
+    });
+
+    expect(mockConnection.execute).toHaveBeenCalledWith(
+      expect.stringContaining("VALUES (?, ?, 'approved', 'executing', ?, ?, ?, ?)"),
+      ['business-1', 12, 'proposal', 7, 'meta_ads_execution_started', 'Execution 9'],
+    );
   });
 
   it('returns the existing idempotent claim without changing recommendation state', async () => {

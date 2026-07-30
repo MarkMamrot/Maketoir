@@ -3,6 +3,7 @@ import { MetaAdsReadService } from '../MetaAdsReadService';
 
 function sdkFixture() {
   const reads: Array<{ kind: string; id: string; fields: string[]; api: unknown }> = [];
+  const updates: Array<{ kind: string; id: string; fields: string[]; params: Record<string, unknown>; api: unknown }> = [];
   const records: Record<string, Record<string, unknown>> = {
     'account:act_123': { id: 'act_123', account_id: '123', account_status: 1, currency: 'aud' },
     'campaign:campaign-1': { id: 'campaign-1', account_id: '123', name: 'Prospecting', configured_status: 'ACTIVE', effective_status: 'ACTIVE', daily_budget: '10000' },
@@ -18,6 +19,10 @@ function sdkFixture() {
         reads.push({ kind, id, fields, api: suppliedApi });
         return { exportData: () => records[`${kind}:${id}`] ?? {} };
       },
+      async update(fields: string[], params: Record<string, unknown>) {
+        updates.push({ kind, id, fields, params, api: suppliedApi });
+        return { success: true };
+      },
     };
   }
   const AdAccount = vi.fn(function (this: unknown, id: string, _data: object, _parent: string, suppliedApi: unknown) {
@@ -29,7 +34,7 @@ function sdkFixture() {
   const AdSet = vi.fn(function (this: unknown, id: string, _data: object, _parent: string, suppliedApi: unknown) {
     return readable('adset', id, suppliedApi);
   });
-  return { sdk: { FacebookAdsApi, AdAccount, Campaign, AdSet }, reads };
+  return { sdk: { FacebookAdsApi, AdAccount, Campaign, AdSet }, reads, updates };
 }
 
 describe('MetaAdsReadService', () => {
@@ -52,5 +57,31 @@ describe('MetaAdsReadService', () => {
     expect(() => new MetaAdsReadService('tenant-token', 'not-an-account', fixture.sdk as never))
       .toThrow('digits only');
     expect(fixture.reads).toEqual([]);
+  });
+
+  it('updates explicit campaign and ad-set daily budgets through the tenant API', async () => {
+    const fixture = sdkFixture();
+    const service = new MetaAdsReadService('tenant-token', '123', fixture.sdk as never);
+
+    await service.updateDailyBudgets([
+      { entityType: 'campaign', entityId: 'campaign-1', dailyBudgetMinor: 9_200 },
+      { entityType: 'adset', entityId: 'adset-1', dailyBudgetMinor: 4_600 },
+    ]);
+
+    expect(fixture.updates.map(update => ({ kind: update.kind, id: update.id, params: update.params }))).toEqual([
+      { kind: 'campaign', id: 'campaign-1', params: { daily_budget: 9_200 } },
+      { kind: 'adset', id: 'adset-1', params: { daily_budget: 4_600 } },
+    ]);
+    expect(fixture.updates.every(update => (update.api as { token: string }).token === 'tenant-token')).toBe(true);
+  });
+
+  it('rejects invalid daily budgets before submitting a Meta mutation', async () => {
+    const fixture = sdkFixture();
+    const service = new MetaAdsReadService('tenant-token', '123', fixture.sdk as never);
+
+    await expect(service.updateDailyBudgets([
+      { entityType: 'campaign', entityId: 'campaign-1', dailyBudgetMinor: 0 },
+    ])).rejects.toThrow('positive integer');
+    expect(fixture.updates).toEqual([]);
   });
 });

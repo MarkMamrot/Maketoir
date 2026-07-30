@@ -1,13 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetRecommendation, mockGetConnection, mockDecrypt, mockRead, mockConstructor } = vi.hoisted(() => ({
+const { mockGetRecommendation, mockGetConnection, mockDecrypt, mockRead, mockConstructor, mockNotificationEmail } = vi.hoisted(() => ({
   mockGetRecommendation: vi.fn(), mockGetConnection: vi.fn(), mockDecrypt: vi.fn(),
-  mockRead: vi.fn(), mockConstructor: vi.fn(),
+  mockRead: vi.fn(), mockConstructor: vi.fn(), mockNotificationEmail: vi.fn(),
 }));
 
 vi.mock('../repositories/ForesightRepository', () => ({ ForesightRepository: { getRecommendation: mockGetRecommendation } }));
 vi.mock('@/lib/db/ConnectionsRepository', () => ({ ConnectionsRepository: { get: mockGetConnection } }));
 vi.mock('@/lib/encryption', () => ({ decrypt: mockDecrypt }));
+vi.mock('../budgetChangeNotification', () => ({
+  getBudgetChangeNotificationEmail: mockNotificationEmail,
+  isValidNotificationEmail: (value: string) => value.includes('@'),
+}));
 vi.mock('@/services/MetaAdsReadService', () => ({
   MetaAdsReadService: class {
     constructor(...args: unknown[]) { mockConstructor(...args); }
@@ -28,6 +32,8 @@ const contributor = {
 describe('ForesightMetaExecutionPreflightService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv('RESEND_API_KEY', 'resend-key');
+    mockNotificationEmail.mockResolvedValue('alerts@example.com');
     mockGetRecommendation.mockResolvedValue({
       state: 'approved', proposal_hash: 'proposal',
       proposed_action_json: { type: 'review_budget_reduction', maximumReductionPercent: 8 },
@@ -40,6 +46,13 @@ describe('ForesightMetaExecutionPreflightService', () => {
       campaigns: [{ accountId: '123', campaignId: 'campaign-1', campaignName: 'Prospecting', configuredStatus: 'ACTIVE', effectiveStatus: 'ACTIVE', dailyBudgetMinor: null, lifetimeBudgetMinor: null }],
       adSets: [{ accountId: '123', adSetId: 'adset-1', adSetName: 'Broad', campaignId: 'campaign-1', configuredStatus: 'ACTIVE', effectiveStatus: 'ACTIVE', dailyBudgetMinor: 5000, lifetimeBudgetMinor: null }],
     });
+  });
+
+  it('does not load Meta credentials when budget alerts are not configured', async () => {
+    mockNotificationEmail.mockResolvedValue('');
+    const result = await ForesightMetaExecutionPreflightService.preflight('business-1', 42, 'proposal');
+    expect(result.blockers[0].code).toBe('notification_email_required');
+    expect(mockGetConnection).not.toHaveBeenCalled();
   });
 
   it('derives tenant credentials and entity IDs server-side', async () => {
