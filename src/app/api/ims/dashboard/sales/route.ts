@@ -34,6 +34,10 @@ type BrandRow = {
   sales: number;
 };
 
+type ItemCountRow = {
+  item_count: number;
+};
+
 function keyByChannelLocation(channel: string, locationName: string): string {
   return `${channel}::${locationName}`;
 }
@@ -280,6 +284,37 @@ export async function GET(req: Request) {
     console.error('[dashboard/sales] Brand aggregation failed.', error);
   }
 
+  let itemCount = 0;
+  try {
+    const itemRows = await imsQuery<ItemCountRow>(
+      `SELECT COALESCE(SUM(item_lines.qty), 0) AS item_count
+       FROM (
+         SELECT COALESCE(psi.qty, 0) AS qty
+         FROM pos_sales ps
+         JOIN ims_locations l ON l.id = ps.location_id AND l.business_id = ?
+         JOIN pos_sale_items psi ON psi.sale_id = ps.id
+         WHERE ps.status = 'completed'
+           AND ps.created_at >= ?
+           ${posUpperClause}
+
+         UNION ALL
+
+         SELECT ABS(COALESCE(soi.qty_ordered, 0)) AS qty
+         FROM ims_sales_orders so
+         JOIN ims_sales_order_items soi ON soi.so_id = so.id
+         WHERE so.order_date >= ?
+           ${soUpperClause}
+           AND ((so.so_type = 'online' AND (so.is_historical IS NULL OR so.is_historical = 0) AND so.status != 'cancelled')
+             OR (so.so_type != 'online' AND so.status = 'fulfilled'))
+           ${soBizClause}
+       ) item_lines`,
+      [biz, ...posDateParams, ...soDateParams, ...(biz ? [biz] : [])],
+    );
+    itemCount = Number(itemRows[0]?.item_count ?? 0);
+  } catch (error) {
+    console.error('[dashboard/sales] Item count aggregation failed.', error);
+  }
+
   // Recent POS sales (last 20, regardless of period filter)
   const recentPOS = await imsQuery<any>(
     `SELECT ps.id, ps.created_at, ps.total, ps.cashier_name, ps.customer_name,
@@ -296,6 +331,7 @@ export async function GET(req: Request) {
     success: true,
     channelData: normaliseDashboardSalesRows(channelRows),
     brandData: normaliseDashboardBrandRows(brandRows),
+    summary: { itemCount },
     recentPOS,
   });
 }

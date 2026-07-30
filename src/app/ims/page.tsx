@@ -568,10 +568,11 @@ const IMS_ONBOARDING_ACTIONS: Record<string, ImsOnboardingAction> = {
   pos_ready:        { type: 'settings', section: 'pos',              label: 'Review POS Setup' },
 };
 
-function TotalSalesProfitCircle({ rows, periodLabel, loading, showSalesCount }: { rows: any[]; periodLabel: string; loading: boolean; showSalesCount: boolean }) {
+function TotalSalesProfitCircle({ rows, itemCount, periodLabel, loading }: { rows: any[]; itemCount: number; periodLabel: string; loading: boolean }) {
   const totalSales = rows.reduce((sum, row) => sum + Number(row?.total ?? 0), 0);
   const totalGrossProfit = rows.reduce((sum, row) => sum + Number(row?.gross_profit ?? 0), 0);
   const totalOrderCount = rows.reduce((sum, row) => sum + Number(row?.order_count ?? 0), 0);
+  const averageOrderValue = totalOrderCount > 0 ? totalSales / totalOrderCount : 0;
   const profitShare = totalSales > 0 ? Math.max(0, Math.min(1, totalGrossProfit / totalSales)) : 0;
   const marginPercent = profitShare * 100;
   const outerRadius = 105;
@@ -598,15 +599,15 @@ function TotalSalesProfitCircle({ rows, periodLabel, loading, showSalesCount }: 
     <div style={{ minWidth: 0 }}>
       <div style={{ position: 'relative', height: 450, boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: 18, left: 20, right: 20, fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Total Sales vs Gross Profit - {periodLabel}</div>
-        <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 28, paddingTop: 24 }}>
-          <div style={{ width: 250, flex: '0 1 250px', minWidth: 190, textAlign: 'center' }}>
+        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 30 }}>
+          <div style={{ width: 205, flex: '0 1 205px', minHeight: 0, textAlign: 'center' }}>
             <svg viewBox="0 0 250 250" role="img" aria-label={`Total sales ${fmtCurrency(totalSales)}, gross profit ${fmtCurrency(totalGrossProfit)}, margin ${marginPercent.toFixed(1)} percent`} style={{ width: '100%', maxHeight: 270, display: 'block' }}>
               <circle cx="125" cy="125" r={outerRadius} fill="#25364d" />
               <circle cx="125" cy="125" r={innerRadius} fill="#58c7b5" stroke="rgba(255,255,255,.7)" strokeWidth="2" />
               <text x="125" y="120" textAnchor="middle" fill="#102a2d" fontSize="27" fontWeight="800">{marginPercent.toFixed(1)}%</text>
               <text x="125" y="140" textAnchor="middle" fill="#102a2d" fillOpacity=".78" fontSize="10" fontWeight="700">GROSS MARGIN</text>
             </svg>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: 24, marginTop: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: 18, marginTop: 7 }}>
               <div style={{ textAlign: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: 'var(--sv-text-dim)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>
                   <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#25364d' }} /> Total sales
@@ -621,14 +622,18 @@ function TotalSalesProfitCircle({ rows, periodLabel, loading, showSalesCount }: 
               </div>
             </div>
           </div>
-          {showSalesCount && (
-            <div style={{ width: 150, flex: '0 0 150px', padding: '18px 16px', borderLeft: '1px solid var(--sv-etch)', textAlign: 'center' }}>
-              <div style={{ width: 42, height: 42, margin: '0 auto 12px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(88,199,181,.13)', border: '1px solid rgba(88,199,181,.35)', color: '#3f9d90', fontSize: 18, fontWeight: 800 }}>#</div>
-              <div style={{ color: 'var(--sv-text-strong)', fontSize: 30, lineHeight: 1, fontWeight: 800 }}>{totalOrderCount.toLocaleString('en-AU')}</div>
-              <div style={{ marginTop: 7, color: 'var(--sv-text-dim)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>Sales count</div>
-              <div style={{ marginTop: 5, color: 'var(--sv-text-dim)', fontSize: 11 }}>{periodLabel.toLowerCase()}</div>
-            </div>
-          )}
+          <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', marginTop: 22, paddingTop: 16, borderTop: '1px solid var(--sv-etch)' }}>
+            {[
+              { label: 'Sales count', value: totalOrderCount.toLocaleString('en-AU') },
+              { label: 'Number of items', value: Number(itemCount).toLocaleString('en-AU', { maximumFractionDigits: 2 }) },
+              { label: 'AOV', value: fmtCurrency(averageOrderValue) },
+            ].map((metric, index) => (
+              <div key={metric.label} style={{ minWidth: 0, padding: '2px 8px', textAlign: 'center', borderLeft: index === 0 ? 'none' : '1px solid var(--sv-etch)' }}>
+                <div style={{ color: 'var(--sv-text-strong)', fontSize: 19, lineHeight: 1.1, fontWeight: 800, whiteSpace: 'nowrap' }}>{metric.value}</div>
+                <div style={{ marginTop: 7, color: 'var(--sv-text-dim)', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{metric.label}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -738,7 +743,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
   const brandMax = brandChartData.reduce((max, brand) => Math.max(max, brand.sales), 0);
   const periodLabel = salesWindow === 'today' ? 'Today' : salesWindow === 'yesterday' ? 'Yesterday' : salesWindow === '365' ? 'Last year' : `Last ${salesWindow} days`;
   const visibleSalesBarCount = dashboardSalesRows.filter(row => Number(row?.total ?? 0) > 0).length;
-  const salesChartColumns = visibleSalesBarCount <= 2 ? 4 : visibleSalesBarCount <= 6 ? 6 : visibleSalesBarCount <= 12 ? 9 : 12;
+  const salesChartColumns = visibleSalesBarCount <= 12 ? 9 : 12;
   const salesSummaryColumns = salesChartColumns === 12 ? 12 : 12 - salesChartColumns;
   const barColor = (i: number, total: number) => {
     const t = total <= 1 ? 0 : i / (total - 1);
@@ -1162,7 +1167,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               const yMax = niceMax(rawMax);
               const yTicks = [0,1,2,3,4].map(i => Math.round((i/4) * yMax));
 
-              const VW=visibleSalesBarCount <= 2 ? 420 : visibleSalesBarCount <= 6 ? 600 : visibleSalesBarCount <= 12 ? 840 : 1100;
+              const VW=visibleSalesBarCount <= 12 ? 1000 : 1200;
               const VH=360, PL=72, PR=16, PT=20, PB=56;
               const plotW=VW-PL-PR, plotH=VH-PT-PB;
               const nLoc=locations.length, nCh=activeChannels.length;
@@ -1342,7 +1347,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               </div>
 
               <div className="ims-sales-summary-panel" style={{ minWidth: 0, gridColumn: `span ${salesSummaryColumns}` }}>
-                <TotalSalesProfitCircle rows={dashboardSalesRows} periodLabel={periodLabel} loading={salesLoading} showSalesCount={salesSummaryColumns >= 6} />
+                <TotalSalesProfitCircle rows={dashboardSalesRows} itemCount={Number(salesData?.summary?.itemCount ?? 0)} periodLabel={periodLabel} loading={salesLoading} />
               </div>
             </div>
 
