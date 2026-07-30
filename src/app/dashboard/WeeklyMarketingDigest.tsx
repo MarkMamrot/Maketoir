@@ -62,6 +62,14 @@ export function WeeklyMarketingDigest({
 
       {digest && (
         <div className="mt-4 space-y-4">
+          {!digest.current.complete && (
+            <div className="flex flex-wrap items-center justify-between gap-3 border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900">
+              <span>Source observations have not been imported for this reporting window. Sync marketing data first, then refresh this summary.</span>
+              <a href="#sync-ads" className="shrink-0 border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100">
+                Sync marketing data
+              </a>
+            </div>
+          )}
           <div className="grid gap-px border border-gray-200 bg-gray-200 sm:grid-cols-2 xl:grid-cols-4">
             {metrics.map((metric) => (
               <div key={metric.label} className="min-w-0 bg-white px-3 py-3">
