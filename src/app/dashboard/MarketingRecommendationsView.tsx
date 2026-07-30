@@ -1211,7 +1211,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
               {isAdmin && selected.state === 'approved' && !selectedImplementation && (
                 <div className="border border-gray-200 px-4 py-4">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Record external implementation</h3>
-                  <p className="mt-2 text-sm leading-6 text-gray-600">Use this only after the approved work was actually completed in Google, Meta, or Klaviyo. This starts the follow-up window.</p>
+                  <p className="mt-2 text-sm leading-6 text-gray-600">Use this only after the approved work was actually completed in Google Ads, Meta, GA4, Klaviyo, or the website. This starts the follow-up window.</p>
                   <div className="mt-4 grid gap-4 sm:grid-cols-[180px_1fr]">
                     <label>
                       <span className="mb-2 block text-xs font-semibold text-gray-600">Implementation date</span>
@@ -1359,7 +1359,14 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
               {selected.state === 'approved' && (
                 <div className="flex items-start gap-3 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
                   <ShieldCheck size={18} className="mt-0.5 shrink-0" />
-                  <div><strong>Approved for planning.</strong><br />{selectedImplementation ? 'Implementation was recorded as completed externally; Solvantis did not execute the platform change.' : 'No implementation has been recorded. Eligible Google budget changes require a fresh live preflight and explicit confirmation above.'}</div>
+                  <div>
+                    <strong>Approved for planning.</strong><br />
+                    {selectedImplementation
+                      ? 'Implementation was recorded as completed externally; Solvantis did not execute the platform change.'
+                      : selected.proposed_action_json?.type === 'review_budget_reduction'
+                        ? 'No implementation has been recorded. Eligible Google budget reductions require a fresh live preflight and explicit confirmation above.'
+                        : 'No implementation has been recorded. Complete the approved work manually in the external platform, then use Record implementation above to start the seven-day follow-up.'}
+                  </div>
                 </div>
               )}
             </div>
