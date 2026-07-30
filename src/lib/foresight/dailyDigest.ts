@@ -41,11 +41,12 @@ export interface DailyDigestSnapshot {
 
 const DAY_MS = 86_400_000;
 
-function isoDate(value: string): string {
-  return value.slice(0, 10);
+function isoDate(value: string | Date): string {
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value).slice(0, 10);
 }
 
-function daysBetween(from: string, to: string): number {
+function daysBetween(from: string | Date, to: string | Date): number {
   return Math.floor((Date.parse(`${isoDate(to)}T00:00:00Z`) - Date.parse(`${isoDate(from)}T00:00:00Z`)) / DAY_MS);
 }
 
@@ -63,7 +64,7 @@ const KIND_ORDER: Record<DailyDigestItemKind, number> = {
   monitoring_active: 5,
 };
 
-function addDays(value: string, days: number): string {
+function addDays(value: string | Date, days: number): string {
   const date = new Date(`${isoDate(value)}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);

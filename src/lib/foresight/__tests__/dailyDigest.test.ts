@@ -79,4 +79,19 @@ describe('daily Foresight digest', () => {
     expect(digest.items[0].detail).toContain('2026-07-31 through 2026-08-06');
     expect(digest.items[0].detail).toContain('2026-08-07');
   });
+
+  it('accepts MySQL driver Date objects in event and execution calendar fields', () => {
+    const digest = build({
+      digestDate: '2026-07-30',
+      recommendations: [recommendation({ state: 'succeeded' })],
+      events: [{ recommendation_id: 1, to_state: 'approved', created_at: new Date('2026-07-30T00:00:00.000Z') }],
+      executions: [{
+        recommendation_id: 1, state: 'succeeded', compensates_execution_id: null,
+        completion_date: new Date('2026-07-30T00:00:00.000Z'),
+      }],
+    });
+
+    expect(digest.items[0].kind).toBe('monitoring_active');
+    expect(digest.items[0].detail).toContain('2026-08-07');
+  });
 });

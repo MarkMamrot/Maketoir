@@ -19,7 +19,7 @@ export interface ForesightExecutionRow {
   compensates_execution_id: number | null;
   created_at: string;
   completed_at: string | null;
-  completion_date?: string | null;
+  completion_date?: string | Date | null;
 }
 
 function parseJson(value: unknown): Record<string, unknown> | null {
