@@ -253,6 +253,15 @@ function dateTime(value: string | null): string {
   return new Intl.DateTimeFormat('en-AU', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 }
 
+function dateOnly(value: string): string {
+  return new Intl.DateTimeFormat('en-AU', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(`${value.slice(0, 10)}T00:00:00Z`));
+}
+
 function stateLabel(state: RecommendationState): string {
   if (state === 'pending_approval') return 'Pending approval';
   if (state === 'approved') return 'Approved';
