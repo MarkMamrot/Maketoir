@@ -50,6 +50,7 @@ const NAV: NavItem[] = [
   {
     id: 'marketing', label: 'Marketing Activities', icon: 'marketing',
     children: [
+      { id: 'sync-ads', label: 'Sync Marketing Data' },
       { id: 'marketing-assistant', label: 'Marketing Assistant' },
       { id: 'marketing-recommendations', label: 'Recommendation Inbox' },
       { id: 'campaign-audit',      label: 'Campaign Audit'      },
@@ -8564,6 +8565,7 @@ export default function DashboardPage() {
     'ai-helper': 'AI Business Helper',
     'inactive-candidates': 'Inactive Candidates',
     'lost-candidates': 'Possible Losses',
+    'sync-ads': 'Sync Marketing Data',
     'marketing-assistant': 'Marketing Assistant',
     'marketing-recommendations': 'Recommendation Inbox',
     'campaign-audit':       'Campaign Architecture Audit',
