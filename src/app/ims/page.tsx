@@ -6,7 +6,7 @@ import { RefreshCw, Search, Wrench } from 'lucide-react';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
-import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
+import { buildBarcodeLabelBatchHtml, buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 import { MainSections } from './views/MainSections';
@@ -4104,6 +4104,151 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
   );
 }
 
+interface POBarcodeLabelRow {
+  key: string;
+  productName: string;
+  variantLabel?: string;
+  brand?: string;
+  barcode?: string;
+  sku?: string;
+  priceRrp?: number | string;
+  priceRrpSale?: number | string;
+  orderedQty: number;
+}
+
+function POBarcodeLabelDialog({ poNumber, rows, onClose }: {
+  poNumber: string;
+  rows: POBarcodeLabelRow[];
+  onClose: () => void;
+}) {
+  const [settings, setSettings] = useState<LabelSettings>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('ims_label_settings') ?? '');
+      return { ...DEFAULT_LABEL, ...saved };
+    } catch { return DEFAULT_LABEL; }
+  });
+  const [quantities, setQuantities] = useState<Record<string, number>>(() => Object.fromEntries(
+    rows.map(row => [row.key, row.barcode && buildBarcodeSvgMarkup(row.barcode, 37, 8) ? Math.min(100, Math.max(0, Math.floor(row.orderedQty))) : 0])
+  ));
+
+  const set = <K extends keyof LabelSettings>(key: K, value: LabelSettings[K]) =>
+    setSettings(previous => {
+      const next = { ...previous, [key]: value };
+      localStorage.setItem('ims_label_settings', JSON.stringify(next));
+      return next;
+    });
+
+  const size = LABEL_SIZES[settings.sizeIdx] ?? LABEL_SIZES[0];
+  const isPrintable = (row: POBarcodeLabelRow) => !!row.barcode && !!buildBarcodeSvgMarkup(row.barcode, 37, 8);
+  const includedRows = rows.filter(row => isPrintable(row) && Number(quantities[row.key] ?? 0) > 0);
+  const totalLabels = includedRows.reduce((sum, row) => sum + Number(quantities[row.key] ?? 0), 0);
+  const previewRow = includedRows[0] ?? rows.find(isPrintable);
+
+  const updateQty = (row: POBarcodeLabelRow, value: number) => {
+    setQuantities(previous => ({ ...previous, [row.key]: Math.min(100, Math.max(0, Math.floor(value || 0))) }));
+  };
+
+  const printLabels = () => {
+    if (!totalLabels) return;
+    const html = buildBarcodeLabelBatchHtml({
+      size,
+      items: includedRows.map(row => ({
+        productName: row.productName,
+        brand: row.brand,
+        variant: { barcode: row.barcode, sku: row.sku, price_rrp: row.priceRrp, price_rrp_sale: row.priceRrpSale },
+        qty: quantities[row.key],
+      })),
+      showName: settings.showName,
+      showBarcode: settings.showBarcode,
+      showBrand: settings.showBrand,
+      showSku: settings.showSku,
+      priceMode: settings.priceMode,
+    });
+    const win = window.open('', '_blank', `width=${size.w * 4},height=${Math.min(900, size.h * 4 * totalLabels + 80)}`);
+    if (!win) { alert('Please allow pop-ups to print labels.'); return; }
+    win.document.open(); win.document.write(html); win.document.close();
+  };
+
+  const option = (label: string, checked: boolean, onChange: (value: boolean) => void) => (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, cursor: 'pointer' }}>
+      <input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} /> {label}
+    </label>
+  );
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, width: 920, maxWidth: '96vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', padding: '18px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
+          <div style={{ flex: 1 }}>
+            <h2 style={{ margin: 0, fontSize: 17, color: 'var(--sv-text-strong)' }}>Print Barcode Labels</h2>
+            <div style={{ marginTop: 3, fontSize: 12, color: 'var(--sv-text-dim)' }}>{poNumber}</div>
+          </div>
+          <button type="button" aria-label="Close label dialog" onClick={onClose} style={{ background: 'none', border: 0, color: 'var(--sv-text-dim)', fontSize: 22, cursor: 'pointer' }}>×</button>
+        </div>
+
+        <div style={{ padding: 20, overflowY: 'auto' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 250px', gap: 20 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-main)' }}>PO items</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button type="button" onClick={() => setQuantities(Object.fromEntries(rows.map(row => [row.key, isPrintable(row) ? Math.min(100, Math.max(0, Math.floor(row.orderedQty))) : 0])))} style={btnStyle('ghost', 'xs')}>Select printable</button>
+                  <button type="button" onClick={() => setQuantities(Object.fromEntries(rows.map(row => [row.key, 0])))} style={btnStyle('ghost', 'xs')}>Clear</button>
+                </div>
+              </div>
+              <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 6, overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 560 }}>
+                  <thead><tr style={{ borderBottom: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)' }}>
+                    <th style={{ textAlign: 'left', padding: '8px 10px' }}>Item</th>
+                    <th style={{ textAlign: 'left', padding: '8px 10px' }}>Barcode</th>
+                    <th style={{ textAlign: 'right', padding: '8px 10px' }}>PO qty</th>
+                    <th style={{ textAlign: 'right', padding: '8px 10px', width: 90 }}>Print qty</th>
+                    <th style={{ width: 42 }}><span className="sr-only">Remove</span></th>
+                  </tr></thead>
+                  <tbody>{rows.map(row => {
+                    const printable = isPrintable(row);
+                    return <tr key={row.key} style={{ borderBottom: '1px solid var(--sv-etch)', opacity: printable ? 1 : .55 }}>
+                      <td style={{ padding: '9px 10px' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--sv-text-main)' }}>{row.productName}</div>
+                        <div style={{ color: 'var(--sv-text-dim)', marginTop: 2 }}>{row.variantLabel || row.sku || 'Default variant'}</div>
+                      </td>
+                      <td style={{ padding: '9px 10px', fontFamily: 'monospace', color: printable ? 'var(--sv-text-main)' : 'var(--sv-red)' }}>{printable ? row.barcode : row.barcode ? 'Unsupported barcode' : 'No barcode'}</td>
+                      <td style={{ padding: '9px 10px', textAlign: 'right' }}>{row.orderedQty}</td>
+                      <td style={{ padding: '9px 10px', textAlign: 'right' }}>
+                        <input aria-label={`Print quantity for ${row.productName}`} type="number" min={0} max={100} disabled={!printable} value={quantities[row.key] ?? 0} onChange={event => updateQty(row, Number(event.target.value))} style={{ ...inputStyle, width: 68, padding: '5px 7px', textAlign: 'right' }} />
+                      </td>
+                      <td style={{ padding: '9px 8px' }}><button type="button" title="Remove from print batch" aria-label={`Remove ${row.productName} from print batch`} disabled={!printable || !quantities[row.key]} onClick={() => updateQty(row, 0)} style={{ background: 'none', border: 0, color: 'var(--sv-text-dim)', cursor: printable ? 'pointer' : 'default', fontSize: 17 }}>×</button></td>
+                    </tr>;
+                  })}</tbody>
+                </table>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div><label style={{ ...labelStyle, display: 'block', marginBottom: 4 }}>Label Size</label><select value={settings.sizeIdx} onChange={event => set('sizeIdx', Number(event.target.value))} style={inputStyle}>{LABEL_SIZES.map((labelSize, index) => <option key={index} value={index}>{labelSize.label}</option>)}</select></div>
+              <div><div style={{ ...labelStyle, marginBottom: 6 }}>Show on Label</div><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>{option('Product name', settings.showName, value => set('showName', value))}{option('Barcode', settings.showBarcode, value => set('showBarcode', value))}{option('Brand', settings.showBrand, value => set('showBrand', value))}{option('SKU', settings.showSku, value => set('showSku', value))}</div></div>
+              <div><label style={{ ...labelStyle, display: 'block', marginBottom: 4 }}>Price</label><select value={settings.priceMode} onChange={event => set('priceMode', event.target.value as LabelPriceMode)} style={inputStyle}><option value="none">No price</option><option value="rrp">Show RRP</option><option value="sale">Sale price with RRP strikeout</option></select></div>
+              <div style={{ borderTop: '1px solid var(--sv-etch)', paddingTop: 12 }}>
+                <div style={{ ...labelStyle, marginBottom: 6 }}>Representative preview</div>
+                <div style={{ background: '#fff', border: '1px solid #ccc', color: '#000', aspectRatio: `${size.w} / ${size.h}`, width: '100%', padding: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  {previewRow ? <><div style={{ display: 'flex', justifyContent: 'space-between', gap: 4, fontSize: 10, fontWeight: 700 }}><span style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{settings.showName ? previewRow.productName : ''}</span>{settings.priceMode !== 'none' && previewRow.priceRrp != null && <span>${Number(settings.priceMode === 'sale' && previewRow.priceRrpSale != null ? previewRow.priceRrpSale : previewRow.priceRrp).toFixed(2)}</span>}</div>{settings.showBarcode && previewRow.barcode && <div style={{ flex: 1, minHeight: 0 }} dangerouslySetInnerHTML={{ __html: buildBarcodeSvgMarkup(previewRow.barcode, size.w - 3, Math.max(4, size.h * .45)) }} />}<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#444' }}><span>{settings.showBrand ? previewRow.brand : ''}</span><span>{settings.showSku ? previewRow.sku : ''}</span></div></> : <div style={{ margin: 'auto', fontSize: 11, color: '#777' }}>No printable item selected</div>}
+                </div>
+                <div style={{ marginTop: 5, fontSize: 11, color: 'var(--sv-text-dim)', textAlign: 'center' }}>{size.w} × {size.h} mm</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 20px', borderTop: '1px solid var(--sv-etch)' }}>
+          <div style={{ flex: 1, fontSize: 13, color: 'var(--sv-text-main)' }}><strong>{totalLabels}</strong> label{totalLabels === 1 ? '' : 's'} selected</div>
+          <button type="button" onClick={onClose} style={btnStyle('ghost')}>Close</button>
+          <button type="button" disabled={!totalLabels} onClick={printLabels} style={btnStyle('action')}>Print {totalLabels || ''} Label{totalLabels === 1 ? '' : 's'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 // ── Hover-zoom image ──────────────────────────────────────────────────────────────
 type HoverImageSpec = { type?: string; size?: string; dimensions?: string; dpi?: string };
@@ -7732,6 +7877,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
   const [showInvoiceImport, setShowInvoiceImport] = useState(false);
   const [invoiceImportPoId, setInvoiceImportPoId] = useState<number | null>(null);
   const [invoicePendingFile, setInvoicePendingFile] = useState<File | null>(null);
+  const [poBarcodeLabels, setPoBarcodeLabels] = useState<{ poNumber: string; rows: POBarcodeLabelRow[] } | null>(null);
   const pendingReceiveOverrideRef = React.useRef<Record<string, number> | null>(null);
   const { settings } = useImsSettings();
   const load = useCallback(() => {
@@ -7820,6 +7966,35 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
   };
 
   const lineTotal = (item: any) => Number(item.qty_ordered || 0) * Number(item.unit_cost || 0) * (1 - Number(item.discount_pct || 0) / 100);
+
+  const persistedLabelRows = (po: any): POBarcodeLabelRow[] => (po.items ?? []).map((item: any, index: number) => ({
+    key: String(item.id ?? `${item.variant_id ?? 'line'}-${index}`),
+    productName: item.product_name || item.name_raw || item.sku || `PO item ${index + 1}`,
+    variantLabel: item.variant_label,
+    brand: item.brand,
+    barcode: item.barcode,
+    sku: item.sku,
+    priceRrp: item.price_rrp,
+    priceRrpSale: item.price_rrp_sale,
+    orderedQty: Number(item.qty_ordered ?? 0),
+  }));
+
+  const editLabelRows = (): POBarcodeLabelRow[] => lineItems.filter(item => item.variant_id).map((item, index) => {
+    const variant = variants.find(candidate => String(candidate.variant_id) === String(item.variant_id));
+    const variantLabel = [variant?.option1_value, variant?.option2_value, variant?.option3_value].filter(Boolean).join(' / ');
+    return {
+      key: `${item.variant_id}-${index}`,
+      productName: variant?.product_name || variant?.name || variant?.sku || `PO item ${index + 1}`,
+      variantLabel,
+      brand: variant?.brand,
+      barcode: variant?.barcode,
+      sku: variant?.sku,
+      priceRrp: variant?.price_rrp,
+      priceRrpSale: variant?.price_rrp_sale,
+      orderedQty: Number(item.qty_ordered ?? 0),
+    };
+  });
+
   const taxTreatment = (form.tax_treatment ?? 'ex_tax') as 'ex_tax' | 'inc_tax' | 'no_tax';
   const isReceiving = !!modal.edit && !modal.editOnly && (modal.edit.status === 'confirmed' || modal.edit.status === 'partially_received');
   const poSubtotal = taxTreatment === 'inc_tax'
@@ -8390,13 +8565,17 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
 
             {isReceiving ? (
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+                {modal.edit && !modal.edit.is_historical && <button type="button" onClick={() => setPoBarcodeLabels({ poNumber: modal.edit.po_number, rows: editLabelRows() })} style={{ ...btnStyle('secondary'), marginRight: 'auto' }}>Print Labels</button>}
                 <button type="button" onClick={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} style={btnStyle('ghost')}>Cancel</button>
                 <button type="button" disabled={saving} title="Saves received quantities. PO becomes Partially Received if any items have been received, or stays Confirmed if nothing received yet. Does NOT sync to Xero." onClick={e => { const hasAny = lineItems.some(item => item.variant_id && Number(receiveQtys[item.variant_id] || 0) > 0); handleSubmit(e as any, false, undefined, (hasAny || modal.edit?.status === 'partially_received') ? 'partially_received' : undefined); }} style={btnStyle('ghost')}>{saving ? 'Saving…' : 'Save'}</button>
                 <button type="button" disabled={saving} title="Saves received quantities and marks this PO as complete. Triggers Xero sync: bill is approved and inventory journal is posted." onClick={e => handleSubmit(e as any, false, undefined, 'complete')} style={btnStyle('mint')}>{saving ? 'Saving…' : 'Save and Complete'}</button>
               </div>
             ) : (
-              <FormActions onCancel={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} saving={saving} isEdit={!!modal.edit}
-                extraActions={!modal.edit ? [{ label: saving ? 'Creating…' : 'Create & Confirm', onClick: (e: React.MouseEvent) => handleSubmit(e as any, true) }] : []} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {modal.edit && !modal.edit.is_historical && <button type="button" onClick={() => setPoBarcodeLabels({ poNumber: modal.edit.po_number, rows: editLabelRows() })} style={btnStyle('secondary')}>Print Labels</button>}
+                <div style={{ marginLeft: 'auto' }}><FormActions onCancel={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} saving={saving} isEdit={!!modal.edit}
+                  extraActions={!modal.edit ? [{ label: saving ? 'Creating…' : 'Create & Confirm', onClick: (e: React.MouseEvent) => handleSubmit(e as any, true) }] : []} /></div>
+              </div>
             )}
           </form>
         </Modal>
@@ -8460,6 +8639,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <POActions isAdvisor={isAdvisor} po={viewModal.po} onEdit={() => editPoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onDelete={() => deletePoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onStatus={changeStatus} context="view" />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+              {!viewModal.po.is_historical && <button type="button" onClick={() => setPoBarcodeLabels({ poNumber: viewModal.po.po_number, rows: persistedLabelRows(viewModal.po) })} style={btnStyle('secondary', 'sm')}>Print Labels</button>}
               <button
                 onClick={() => { window.open(`/api/ims/purchase-orders/${viewModal.po.id}/pdf`, '_blank'); }}
                 style={btnStyle('secondary', 'sm')}
@@ -8784,6 +8964,10 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
             )}
           </div>
         </Modal>
+      )}
+
+      {poBarcodeLabels && (
+        <POBarcodeLabelDialog poNumber={poBarcodeLabels.poNumber} rows={poBarcodeLabels.rows} onClose={() => setPoBarcodeLabels(null)} />
       )}
 
       {/* ── Invoice Import Modal (Pathway 1: new PO pre-fill; Pathway 2: PO comparison) ── */}

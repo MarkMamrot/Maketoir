@@ -24,6 +24,23 @@ export interface BarcodeLabelRenderOptions {
   priceMode: 'none' | 'rrp' | 'sale';
 }
 
+export interface BarcodeLabelBatchItem {
+  productName?: string | null;
+  brand?: string | null;
+  variant?: BarcodeLabelVariant | null;
+  qty: number;
+}
+
+export interface BarcodeLabelBatchRenderOptions {
+  size: BarcodeLabelSize;
+  items: BarcodeLabelBatchItem[];
+  showName: boolean;
+  showBarcode: boolean;
+  showBrand: boolean;
+  showSku: boolean;
+  priceMode: 'none' | 'rrp' | 'sale';
+}
+
 function fmtPrice(value: number | string | null | undefined): string {
   if (value == null || value === '') return '';
   const num = Number(value);
@@ -75,8 +92,8 @@ export function buildBarcodeSvgMarkup(text: string, widthMm: number, heightMm: n
   return `<svg viewBox="0 0 ${widthMm} ${heightMm}" width="100%" height="100%" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><rect width="${widthMm}" height="${heightMm}" fill="white"/>${rects}</svg>`;
 }
 
-export function buildBarcodeLabelHtml(options: BarcodeLabelRenderOptions): string {
-  const { size, productName, brand, variant, qty, showName, showBarcode, showBrand, showSku, priceMode } = options;
+function buildSingleLabelMarkup(options: Omit<BarcodeLabelRenderOptions, 'qty'>): string {
+  const { size, productName, brand, variant, showName, showBarcode, showBrand, showSku, priceMode } = options;
   const padV = 1.0;
   const padH = 1.5;
   const showTopRow = (showName && !!productName) || priceMode !== 'none';
@@ -103,7 +120,7 @@ export function buildBarcodeLabelHtml(options: BarcodeLabelRenderOptions): strin
   })();
 
   const barcodeSvg = showBarcode && variant?.barcode ? buildBarcodeSvgMarkup(String(variant.barcode), size.w - 2 * padH, bcH) : '';
-  const singleLabel = `<div class="label">
+  return `<div class="label">
   ${showTopRow ? `<div class="top-row">
     <span class="pname">${name}</span>
     <span class="price-group">${priceSpan}</span>
@@ -114,8 +131,33 @@ export function buildBarcodeLabelHtml(options: BarcodeLabelRenderOptions): strin
     ${sku ? `<span class="sku">${sku}</span>` : ''}
   </div>` : ''}
 </div>`;
+}
 
-  const labelsHtml = Array.from({ length: Math.max(1, qty) }).map(() => singleLabel).join('');
+export function buildBarcodeLabelBatchHtml(options: BarcodeLabelBatchRenderOptions): string {
+  const { size, items, showName, showBarcode, showBrand, showSku, priceMode } = options;
+  const padV = 1.0;
+  const padH = 1.5;
+  const topH = showName || priceMode !== 'none' ? size.h * 0.30 : 0;
+  const botH = showBrand || showSku ? size.h * 0.23 : 0;
+  const namePt = Math.max(4, Math.round(topH * 2.835 * 0.50));
+  const pricePt = Math.max(5, Math.round(topH * 2.835 * 0.80));
+  const bottomPt = Math.max(4, Math.round(botH * 2.835 * 0.68));
+
+  const labelsHtml = items.flatMap(item => {
+    const qty = Math.max(0, Math.floor(Number(item.qty) || 0));
+    const label = buildSingleLabelMarkup({
+      size,
+      productName: item.productName,
+      brand: item.brand,
+      variant: item.variant,
+      showName,
+      showBarcode,
+      showBrand,
+      showSku,
+      priceMode,
+    });
+    return Array.from({ length: qty }, () => label);
+  }).join('');
 
   return `<!DOCTYPE html>
 <html>
@@ -151,4 +193,12 @@ export function buildBarcodeLabelHtml(options: BarcodeLabelRenderOptions): strin
   ${labelsHtml}
 </body>
 </html>`;
+}
+
+export function buildBarcodeLabelHtml(options: BarcodeLabelRenderOptions): string {
+  const { productName, brand, variant, qty, ...batchOptions } = options;
+  return buildBarcodeLabelBatchHtml({
+    ...batchOptions,
+    items: [{ productName, brand, variant, qty: Math.max(1, qty) }],
+  });
 }

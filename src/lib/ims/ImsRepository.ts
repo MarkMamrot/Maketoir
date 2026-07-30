@@ -187,7 +187,8 @@ export interface ImsPOItem {
   id: number; po_id: number; variant_id: string | null; qty_ordered: number;
   qty_received: number; unit_cost: number; discount_pct: number; landed_cost_per_unit?: number; tax_rate: number;
   line_total: number; notes?: string;
-  sku?: string; product_name?: string; variant_label?: string;
+  sku?: string; barcode?: string; product_name?: string; brand?: string; variant_label?: string;
+  price_rrp?: number; price_rrp_sale?: number;
   name_raw?: string; sku_raw?: string;
 }
 
@@ -918,7 +919,11 @@ export const ImsPORepo = {
       items = await imsQuery<ImsPOItem>(
         `SELECT i.*,
                 COALESCE(v.sku, i.sku_raw)       AS sku,
+                v.barcode                        AS barcode,
+                v.price_rrp                      AS price_rrp,
+                v.price_rrp_sale                 AS price_rrp_sale,
                 COALESCE(p.name, i.name_raw)      AS product_name,
+                p.brand                          AS brand,
                 st.avg_cost                       AS current_avg_cost,
                 CONCAT_WS(' / ',
                   NULLIF(v.option1_value,''),
@@ -938,7 +943,11 @@ export const ImsPORepo = {
       items = await imsQuery<ImsPOItem>(
         `SELECT i.*,
                 v.sku                            AS sku,
+                v.barcode                        AS barcode,
+                v.price_rrp                      AS price_rrp,
+                v.price_rrp_sale                 AS price_rrp_sale,
                 p.name                           AS product_name,
+                p.brand                          AS brand,
                 st.avg_cost                      AS current_avg_cost,
                 CONCAT_WS(' / ',
                   NULLIF(v.option1_value,''),

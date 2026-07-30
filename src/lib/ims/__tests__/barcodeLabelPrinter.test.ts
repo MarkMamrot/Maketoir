@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '../barcodeLabelPrinter';
+import { buildBarcodeLabelBatchHtml, buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '../barcodeLabelPrinter';
 
 describe('buildBarcodeLabelHtml', () => {
   it('renders label content and includes a print trigger', () => {
@@ -30,5 +30,26 @@ describe('buildBarcodeLabelHtml', () => {
   it('returns an empty SVG string when the value cannot be encoded', () => {
     const svg = buildBarcodeSvgMarkup('\n\t', 37, 8);
     expect(svg).toBe('');
+  });
+
+  it('renders a mixed-product batch in item order and skips zero quantities', () => {
+    const html = buildBarcodeLabelBatchHtml({
+      size: { w: 40, h: 15, label: '40 × 15 mm' },
+      items: [
+        { productName: 'First Product', variant: { barcode: '111', sku: 'FIRST' }, qty: 2 },
+        { productName: 'Skipped Product', variant: { barcode: '222' }, qty: 0 },
+        { productName: 'Last Product', variant: { barcode: '333', sku: 'LAST' }, qty: 1 },
+      ],
+      showName: true,
+      showBarcode: true,
+      showBrand: false,
+      showSku: true,
+      priceMode: 'none',
+    });
+
+    expect(html.match(/class="label"/g)).toHaveLength(3);
+    expect(html.match(/First Product/g)).toHaveLength(2);
+    expect(html).not.toContain('Skipped Product');
+    expect(html.indexOf('First Product')).toBeLessThan(html.indexOf('Last Product'));
   });
 });
