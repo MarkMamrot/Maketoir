@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { ForesightDigestService } from '@/lib/foresight/ForesightDigestService';
 import { ForesightOutcomeService } from '@/lib/foresight/ForesightOutcomeService';
+import { ForesightMonitoringSyncService } from '@/lib/foresight/ForesightMonitoringSyncService';
 import { DEFAULT_BUSINESS_TIME_ZONE, getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { query } from '@/services/MySQLService';
 
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
     itemCount?: number;
     measuredOutcomes?: number;
     deferredOutcomes?: number;
+    monitoringSyncState?: string;
     error?: string;
   }> = [];
   for (const { business_id: businessId } of businesses) {
@@ -42,10 +44,17 @@ export async function POST(request: Request) {
       ).catch(() => DEFAULT_BUSINESS_TIME_ZONE);
       const today = new Date().toLocaleDateString('sv-SE', { timeZone });
       const digestDate = digestType === 'weekly_summary' ? addDays(today, -1) : today;
+      const throughDate = addDays(today, -1);
+      const monitoringSync = digestType === 'daily_operations'
+        ? await runImsForBusiness(
+          businessId,
+          () => ForesightMonitoringSyncService.syncActiveWindow(businessId, throughDate),
+        )
+        : null;
       const outcomes = digestType === 'daily_operations'
         ? await runImsForBusiness(
           businessId,
-          () => ForesightOutcomeService.evaluateDuePaidMedia(businessId, addDays(today, -1)),
+          () => ForesightOutcomeService.evaluateDuePaidMedia(businessId, throughDate),
         )
         : null;
       const digest = digestType === 'weekly_summary'
@@ -58,6 +67,7 @@ export async function POST(request: Request) {
         itemCount,
         measuredOutcomes: outcomes?.measuredCount,
         deferredOutcomes: outcomes?.deferredCount,
+        monitoringSyncState: monitoringSync?.skipped ? 'skipped' : monitoringSync?.state,
       });
     } catch (error) {
       results.push({ businessId, error: error instanceof Error ? error.message : 'Digest generation failed.' });

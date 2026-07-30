@@ -139,6 +139,29 @@ function normalizeRecommendation(row: RecommendationRow): RecommendationRow {
 }
 
 export const ForesightRepository = {
+  async hasActiveOutcomeMonitoring(businessId: string, horizonDays: number): Promise<boolean> {
+    const rows = await query<{ active: number }>(
+      `SELECT EXISTS(
+         SELECT 1
+         FROM foresight_executions execution
+         INNER JOIN foresight_recommendations recommendation
+           ON recommendation.business_id = execution.business_id
+          AND recommendation.id = execution.recommendation_id
+         LEFT JOIN foresight_recommendation_outcomes outcome
+           ON outcome.business_id = execution.business_id
+          AND outcome.recommendation_id = execution.recommendation_id
+          AND outcome.horizon_days = ?
+         WHERE execution.business_id = ?
+           AND execution.state = 'succeeded'
+           AND execution.compensates_execution_id IS NULL
+           AND recommendation.state = 'succeeded'
+           AND outcome.id IS NULL
+       ) AS active`,
+      [Math.max(1, Math.trunc(horizonDays)), businessId],
+    );
+    return Number(rows[0]?.active ?? 0) === 1;
+  },
+
   async expireSupersededShadowRecommendations(
     businessId: string,
     ruleIds: string[],
