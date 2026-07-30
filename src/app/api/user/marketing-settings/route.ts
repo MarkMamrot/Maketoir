@@ -9,8 +9,13 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { GoogleSheetsService } from '../../../../services/GoogleSheetsService';
+import { ConfigRepository } from '@/lib/db/ConfigRepository';
+import { BUDGET_CHANGE_NOTIFICATION_EMAIL } from '@/lib/foresight/budgetChangeNotification';
 
 export const DEFAULT_THRESHOLDS = { high: 65, mid: 40 };
+function validEmail(value: string): boolean {
+  return value === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
 
 function requireSession() {
   const session = cookies().get('marketoir_session');
@@ -50,9 +55,10 @@ export async function GET(req: Request) {
 
   try {
     const sheets = new GoogleSheetsService();
-    const [rawHigh, rawMid] = await Promise.all([
+    const [rawHigh, rawMid, budgetChangeNotificationEmail] = await Promise.all([
       readConfig(sheets, databaseId, 'MarginTier_High'),
       readConfig(sheets, databaseId, 'MarginTier_Mid'),
+      ConfigRepository.get(user.businessId, BUDGET_CHANGE_NOTIFICATION_EMAIL),
     ]);
     const high = rawHigh ? parseFloat(rawHigh) : DEFAULT_THRESHOLDS.high;
     const mid  = rawMid  ? parseFloat(rawMid)  : DEFAULT_THRESHOLDS.mid;
@@ -63,6 +69,7 @@ export async function GET(req: Request) {
         mid:  Number.isFinite(mid)  ? mid  : DEFAULT_THRESHOLDS.mid,
       },
       defaults: DEFAULT_THRESHOLDS,
+      budgetChangeNotificationEmail: budgetChangeNotificationEmail ?? '',
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
@@ -74,7 +81,7 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
 
   try {
-    const { databaseId, highMin, midMin } = await req.json();
+    const { databaseId, highMin, midMin, budgetChangeNotificationEmail } = await req.json();
     if (!databaseId || databaseId !== user.businessId) return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
 
     const high = parseFloat(String(highMin));
@@ -85,13 +92,23 @@ export async function POST(req: Request) {
     if (!Number.isFinite(mid) || mid <= 0 || mid >= high)
       return NextResponse.json({ error: 'midMin must be > 0 and < highMin.' }, { status: 400 });
 
+    const notificationEmail = String(budgetChangeNotificationEmail ?? '').trim().toLowerCase();
+    if (!validEmail(notificationEmail)) {
+      return NextResponse.json({ error: 'Enter a valid budget change notification email address.' }, { status: 400 });
+    }
+
     const sheets = new GoogleSheetsService();
     await Promise.all([
       writeConfig(sheets, databaseId, 'MarginTier_High', String(high)),
       writeConfig(sheets, databaseId, 'MarginTier_Mid',  String(mid)),
+      ConfigRepository.set(user.businessId, BUDGET_CHANGE_NOTIFICATION_EMAIL, notificationEmail),
     ]);
 
-    return NextResponse.json({ success: true, thresholds: { high, mid } });
+    return NextResponse.json({
+      success: true,
+      thresholds: { high, mid },
+      budgetChangeNotificationEmail: notificationEmail,
+    });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

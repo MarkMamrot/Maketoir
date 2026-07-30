@@ -72,8 +72,8 @@ export function buildRecommendationImplementationPreview(
       summary: `Review sustained strong performance before increasing any selected budget by no more than ${cap}.`,
       steps: [
         'Inspect the named stable campaign contributors and confirm their current live delivery and budget constraints.',
-        `Choose any manual budget increases, capped at ${cap} for each reviewed budget.`,
-        'Record the platform, campaign names, previous budgets, new budgets, and implementation date.',
+        `Choose budget increases capped at ${cap} for each reviewed budget; eligible Google campaigns can use guarded in-app execution.`,
+        'For unsupported platforms or campaigns, record the platform, campaign names, previous budgets, new budgets, and implementation date.',
       ],
       guardrails: [
         ...commonGuardrails,

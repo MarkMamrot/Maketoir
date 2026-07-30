@@ -3,11 +3,13 @@ import { decrypt } from '@/lib/encryption';
 import { GoogleAdsService } from '@/services/GoogleAdsService';
 import {
   executionPreflightFingerprint,
+  planGoogleBudgetIncreasePreflight,
   planGoogleBudgetReductionPreflight,
   type ExecutionPreflightResult,
   type GoogleCampaignSetting,
 } from './executionPreflight';
 import { ForesightRepository } from './repositories/ForesightRepository';
+import { getBudgetChangeNotificationEmail, isValidNotificationEmail } from './budgetChangeNotification';
 
 function blocked(code: string, message: string): ExecutionPreflightResult {
   return {
@@ -60,7 +62,8 @@ export const ForesightExecutionPreflightService = {
     if (!recommendation.proposal_hash || recommendation.proposal_hash !== proposalHash) {
       return blocked('proposal_hash_mismatch', 'The proposal changed; refresh before running preflight.');
     }
-    if (recommendation.proposed_action_json?.type !== 'review_budget_reduction') {
+    const actionType = recommendation.proposed_action_json?.type;
+    if (actionType !== 'review_budget_reduction' && actionType !== 'review_capped_budget_increase') {
       return blocked('unsupported_action', 'This recommendation does not yet map to a supported exact platform change.');
     }
 
@@ -70,6 +73,14 @@ export const ForesightExecutionPreflightService = {
       .map((item) => item.entityId);
     if (googleCampaignIds.length === 0) {
       return blocked('no_google_campaign_candidates', 'No Google campaign contributor is available for live preflight.');
+    }
+
+    const notificationEmail = await getBudgetChangeNotificationEmail(businessId);
+    if (!isValidNotificationEmail(notificationEmail)) {
+      return blocked('notification_email_required', 'Set a valid Budget Change Alerts email in Marketing Settings before executing Google Ads changes.');
+    }
+    if (!process.env.RESEND_API_KEY) {
+      return blocked('email_service_unavailable', 'Budget changes are blocked because the email notification service is not configured.');
     }
 
     const connection = await ConnectionsRepository.get(businessId);
@@ -82,13 +93,21 @@ export const ForesightExecutionPreflightService = {
     const refreshToken = decrypt(storedRefreshToken);
     const service = new GoogleAdsService(customerId, refreshToken);
     const rows = await service.getCampaignSettings(googleCampaignIds);
-    const result = planGoogleBudgetReductionPreflight({
+    const common = {
       contributors,
       liveCampaigns: (Array.isArray(rows) ? rows : []).map(normalizeCampaignSetting),
-      maximumReductionPercent: numberValue(recommendation.proposed_action_json.maximumReductionPercent),
       expectedCustomerId: customerId,
       checkedAt: new Date().toISOString(),
-    });
+    };
+    const result = actionType === 'review_capped_budget_increase'
+      ? planGoogleBudgetIncreasePreflight({
+        ...common,
+        maximumIncreasePercent: numberValue(recommendation.proposed_action_json.maximumIncreasePercent),
+      })
+      : planGoogleBudgetReductionPreflight({
+        ...common,
+        maximumReductionPercent: numberValue(recommendation.proposed_action_json.maximumReductionPercent),
+      });
     return result.ready
       ? { ...result, confirmationFingerprint: executionPreflightFingerprint(result) }
       : result;

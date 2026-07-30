@@ -12,7 +12,7 @@ const preflight: ExecutionPreflightResult = {
     source: 'google_ads', entityType: 'campaign_budget', campaignId: '123',
     campaignName: 'Search AU', budgetId: '456', budgetName: 'Search budget',
     currencyCode: 'AUD', currentAmountMicros: 100_000_000,
-    proposedAmountMicros: 92_000_000, reductionPercent: 8,
+    proposedAmountMicros: 92_000_000, direction: 'reduction', changePercent: 8, reductionPercent: 8,
     operation: 'update_campaign_budget',
   }],
 };
@@ -44,11 +44,13 @@ function setup() {
     ...execution(input.state), response_json: input.response, after_json: input.after,
     error_text: input.errorText,
   }));
+  const notifyBudgetChange = vi.fn().mockResolvedValue(undefined);
   const service = createForesightExecutionService({
     preflight: vi.fn().mockResolvedValue(preflight), findExecution, claimExecution,
     completeExecution, createGoogleClient: vi.fn().mockResolvedValue({ updateCampaignBudgets, getCampaignSettings }),
+    notifyBudgetChange,
   });
-  return { service, findExecution, claimExecution, completeExecution, updateCampaignBudgets, getCampaignSettings };
+  return { service, findExecution, claimExecution, completeExecution, updateCampaignBudgets, getCampaignSettings, notifyBudgetChange };
 }
 
 const input = {
@@ -65,6 +67,8 @@ describe('ForesightExecutionService', () => {
     expect(context.completeExecution).toHaveBeenCalledWith(expect.objectContaining({ state: 'succeeded', errorText: null }));
     expect(result.execution.state).toBe('succeeded');
     expect(result.mutationSubmitted).toBe(true);
+    expect(result.notification).toBe('sent');
+    expect(context.notifyBudgetChange).toHaveBeenCalledOnce();
   });
 
   it('rejects a stale exact-state confirmation before claiming or mutating', async () => {
@@ -72,6 +76,7 @@ describe('ForesightExecutionService', () => {
     await expect(context.service.execute({ ...input, confirmationFingerprint: 'stale' }))
       .rejects.toThrow('settings changed');
     expect(context.claimExecution).not.toHaveBeenCalled();
+    expect(context.notifyBudgetChange).not.toHaveBeenCalled();
     expect(context.updateCampaignBudgets).not.toHaveBeenCalled();
   });
 
@@ -85,6 +90,7 @@ describe('ForesightExecutionService', () => {
     expect(result.mutationSubmitted).toBe(false);
     expect(context.updateCampaignBudgets).not.toHaveBeenCalled();
     expect(context.claimExecution).not.toHaveBeenCalled();
+    expect(context.notifyBudgetChange).toHaveBeenCalledOnce();
   });
 
   it('never replays an in-progress mutation and reconciles it by read-back only', async () => {
@@ -97,5 +103,17 @@ describe('ForesightExecutionService', () => {
     expect(result.mutationSubmitted).toBe(false);
     expect(context.updateCampaignBudgets).not.toHaveBeenCalled();
     expect(context.getCampaignSettings).toHaveBeenCalledOnce();
+    expect(context.notifyBudgetChange).not.toHaveBeenCalled();
+  });
+
+  it('reports an email failure without changing a verified execution to failed', async () => {
+    const context = setup();
+    context.notifyBudgetChange.mockRejectedValue(new Error('Resend unavailable'));
+
+    const result = await context.service.execute(input);
+
+    expect(result.execution.state).toBe('succeeded');
+    expect(result.notification).toBe('failed');
+    expect(result.notificationError).toBe('Resend unavailable');
   });
 });

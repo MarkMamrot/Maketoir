@@ -16,6 +16,10 @@ import {
   ForesightExecutionRepository,
   type ForesightExecutionRow,
 } from './repositories/ForesightExecutionRepository';
+import {
+  getBudgetChangeNotificationEmail,
+  sendBudgetChangeNotification,
+} from './budgetChangeNotification';
 
 interface GoogleBudgetClient {
   updateCampaignBudgets(changes: Array<{ budgetId: string; amountMicros: number }>): Promise<unknown>;
@@ -28,12 +32,20 @@ interface ExecutionDependencies {
   claimExecution(input: Parameters<typeof ForesightExecutionRepository.claim>[0]): ReturnType<typeof ForesightExecutionRepository.claim>;
   completeExecution(input: Parameters<typeof ForesightExecutionRepository.complete>[0]): ReturnType<typeof ForesightExecutionRepository.complete>;
   createGoogleClient(businessId: string): Promise<GoogleBudgetClient>;
+  notifyBudgetChange(input: {
+    businessId: string;
+    recommendationId: number;
+    executionId: number;
+    changes: BudgetChangePreview[];
+  }): Promise<void>;
 }
 
 export interface ForesightExecutionResult {
   execution: ForesightExecutionRow;
   idempotentReplay: boolean;
   mutationSubmitted: boolean;
+  notification: 'sent' | 'failed' | 'not_sent';
+  notificationError?: string;
 }
 
 function idempotencyKey(input: {
@@ -93,9 +105,34 @@ const defaultDependencies: ExecutionDependencies = {
   claimExecution: (input) => ForesightExecutionRepository.claim(input),
   completeExecution: (input) => ForesightExecutionRepository.complete(input),
   createGoogleClient: defaultGoogleClient,
+  notifyBudgetChange: async input => {
+    const recipient = await getBudgetChangeNotificationEmail(input.businessId);
+    await sendBudgetChangeNotification({ ...input, recipient });
+  },
 };
 
 export function createForesightExecutionService(dependencies: ExecutionDependencies = defaultDependencies) {
+  async function notify(
+    businessId: string,
+    recommendationId: number,
+    execution: ForesightExecutionRow,
+  ): Promise<Pick<ForesightExecutionResult, 'notification' | 'notificationError'>> {
+    try {
+      await dependencies.notifyBudgetChange({
+        businessId,
+        recommendationId,
+        executionId: execution.id,
+        changes: requestChanges(execution),
+      });
+      return { notification: 'sent' };
+    } catch (error) {
+      return {
+        notification: 'failed',
+        notificationError: error instanceof Error ? error.message : 'Budget change email failed.',
+      };
+    }
+  }
+
   async function reconcile(
     businessId: string,
     actorId: number,
@@ -151,12 +188,15 @@ export function createForesightExecutionService(dependencies: ExecutionDependenc
       const key = idempotencyKey(input);
       const existing = await dependencies.findExecution(input.businessId, key);
       if (existing && existing.state !== 'in_progress') {
-        return { execution: existing, idempotentReplay: true, mutationSubmitted: false };
+        const notification = existing.state === 'succeeded'
+          ? await notify(input.businessId, input.recommendationId, existing)
+          : { notification: 'not_sent' as const };
+        return { execution: existing, idempotentReplay: true, mutationSubmitted: false, ...notification };
       }
       if (existing) {
         const client = await dependencies.createGoogleClient(input.businessId);
         const execution = await reconcile(input.businessId, input.actorId, existing, client, null, null);
-        return { execution, idempotentReplay: true, mutationSubmitted: false };
+        return { execution, idempotentReplay: true, mutationSubmitted: false, notification: 'not_sent' };
       }
 
       const preflight = await dependencies.preflight(
@@ -199,10 +239,10 @@ export function createForesightExecutionService(dependencies: ExecutionDependenc
       const client = await dependencies.createGoogleClient(input.businessId);
       if (!claim.created) {
         if (claim.execution.state !== 'in_progress') {
-          return { execution: claim.execution, idempotentReplay: true, mutationSubmitted: false };
+          return { execution: claim.execution, idempotentReplay: true, mutationSubmitted: false, notification: 'not_sent' };
         }
         const execution = await reconcile(input.businessId, input.actorId, claim.execution, client, null, null);
-        return { execution, idempotentReplay: true, mutationSubmitted: false };
+        return { execution, idempotentReplay: true, mutationSubmitted: false, notification: 'not_sent' };
       }
 
       let mutationResponse: Record<string, unknown> | null = null;
@@ -225,7 +265,11 @@ export function createForesightExecutionService(dependencies: ExecutionDependenc
         mutationResponse,
         mutationError,
       );
-      return { execution, idempotentReplay: false, mutationSubmitted: true };
+      if (execution.state !== 'succeeded') {
+        return { execution, idempotentReplay: false, mutationSubmitted: true, notification: 'not_sent' };
+      }
+      const notification = await notify(input.businessId, input.recommendationId, execution);
+      return { execution, idempotentReplay: false, mutationSubmitted: true, ...notification };
     },
   };
 }

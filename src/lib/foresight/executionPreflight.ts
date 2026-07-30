@@ -30,6 +30,8 @@ export interface BudgetChangePreview {
   currencyCode: string;
   currentAmountMicros: number;
   proposedAmountMicros: number;
+  direction: 'increase' | 'reduction';
+  changePercent: number;
   reductionPercent: number;
   operation: 'update_campaign_budget';
 }
@@ -61,6 +63,8 @@ export function executionPreflightFingerprint(result: ExecutionPreflightResult):
         currencyCode: change.currencyCode,
         currentAmountMicros: change.currentAmountMicros,
         proposedAmountMicros: change.proposedAmountMicros,
+        direction: change.direction,
+        changePercent: change.changePercent,
         reductionPercent: change.reductionPercent,
         operation: change.operation,
       })),
@@ -138,7 +142,96 @@ export function planGoogleBudgetReductionPreflight(input: {
       currencyCode: live.currencyCode,
       currentAmountMicros: micros(live.amountMicros),
       proposedAmountMicros,
+      direction: 'reduction',
+      changePercent: reductionPercent,
       reductionPercent,
+      operation: 'update_campaign_budget',
+    });
+  }
+
+  return {
+    mode: 'read_only_preflight',
+    executable: false,
+    ready: changes.length > 0 && blockers.length === 0,
+    checkedAt: input.checkedAt,
+    confirmationFingerprint: null,
+    account: { source: 'google_ads', customerId: input.expectedCustomerId },
+    changes,
+    blockers,
+  };
+}
+
+export function planGoogleBudgetIncreasePreflight(input: {
+  contributors: PaidMediaContributorEvidence[];
+  liveCampaigns: GoogleCampaignSetting[];
+  maximumIncreasePercent: number;
+  expectedCustomerId: string;
+  checkedAt: string;
+}): ExecutionPreflightResult {
+  const increasePercent = Math.max(0, Math.min(10, input.maximumIncreasePercent));
+  const blockers: ExecutionPreflightBlocker[] = [];
+  const changes: BudgetChangePreview[] = [];
+  const liveById = new Map(input.liveCampaigns.map((item) => [item.campaignId, item]));
+  const candidates = input.contributors.filter((item) =>
+    item.source === 'google_ads'
+    && item.entityType === 'campaign'
+    && item.currentSpend > 0
+    && item.currentAttributedRevenue > 0
+    && !item.signals.includes('spend_without_platform_revenue')
+    && !item.signals.includes('platform_roas_decline'),
+  );
+
+  if (increasePercent <= 0) {
+    blockers.push({ code: 'invalid_increase_guardrail', message: 'The approved increase guardrail is not greater than zero.' });
+  }
+  if (candidates.length === 0) {
+    blockers.push({
+      code: 'no_supported_google_campaign_candidates',
+      message: 'No stable Google campaign contributor is available for a guarded budget increase.',
+    });
+  }
+
+  for (const contributor of candidates) {
+    const live = liveById.get(contributor.entityId);
+    if (!live) {
+      blockers.push({ code: 'campaign_not_found', entityId: contributor.entityId, message: `${contributor.entityName} was not found in the connected Google Ads account.` });
+      continue;
+    }
+    if (live.customerId.replace(/-/g, '') !== input.expectedCustomerId.replace(/-/g, '')) {
+      blockers.push({ code: 'account_mismatch', entityId: contributor.entityId, message: `${live.campaignName} belongs to a different Google Ads customer.` });
+      continue;
+    }
+    if (live.status.toUpperCase() !== 'ENABLED') {
+      blockers.push({ code: 'campaign_not_enabled', entityId: contributor.entityId, message: `${live.campaignName} is ${live.status.toLowerCase()}, so no budget change was prepared.` });
+      continue;
+    }
+    if (live.explicitlyShared || live.referenceCount > 1) {
+      blockers.push({ code: 'shared_campaign_budget', entityId: contributor.entityId, message: `${live.campaignName} uses a shared budget; changing it could affect other campaigns.` });
+      continue;
+    }
+    if (!Number.isFinite(live.amountMicros) || live.amountMicros <= 0) {
+      blockers.push({ code: 'invalid_live_budget', entityId: contributor.entityId, message: `${live.campaignName} has no usable live campaign budget.` });
+      continue;
+    }
+
+    const proposedAmountMicros = micros(live.amountMicros * (1 + increasePercent / 100));
+    if (proposedAmountMicros <= live.amountMicros) {
+      blockers.push({ code: 'no_budget_change', entityId: contributor.entityId, message: `${live.campaignName} did not produce a higher guarded budget.` });
+      continue;
+    }
+    changes.push({
+      source: 'google_ads',
+      entityType: 'campaign_budget',
+      campaignId: live.campaignId,
+      campaignName: live.campaignName,
+      budgetId: live.budgetId,
+      budgetName: live.budgetName,
+      currencyCode: live.currencyCode,
+      currentAmountMicros: micros(live.amountMicros),
+      proposedAmountMicros,
+      direction: 'increase',
+      changePercent: increasePercent,
+      reductionPercent: 0,
       operation: 'update_campaign_budget',
     });
   }

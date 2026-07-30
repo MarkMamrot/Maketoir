@@ -110,6 +110,8 @@ type RecommendationExecution = {
     currencyCode: string;
     currentAmountMicros: number;
     proposedAmountMicros: number;
+    direction?: 'increase' | 'reduction';
+    changePercent?: number;
     reductionPercent: number;
   }> };
   response_json: Record<string, unknown> | null;
@@ -501,13 +503,21 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
       const body = await responseJson(response) as {
         execution?: RecommendationExecution;
         idempotentReplay?: boolean;
+        notification?: 'sent' | 'failed' | 'not_sent';
+        notificationError?: string;
         error?: string;
       };
       if (!response.ok || !body.execution) throw new Error(body.error || 'Unable to execute Google Ads changes.');
       setMessage({
         kind: body.execution.state === 'succeeded' ? 'success' : 'error',
         text: body.execution.state === 'succeeded'
-          ? body.idempotentReplay ? 'Existing verified execution receipt loaded.' : 'Google Ads budgets updated and verified by live read-back.'
+          ? body.idempotentReplay
+            ? 'Existing verified execution receipt loaded.'
+            : body.notification === 'sent'
+              ? 'Google Ads budgets updated, verified by live read-back, and the warning email was sent.'
+              : body.notification === 'failed'
+                ? `Google Ads budgets were updated and verified, but the warning email failed: ${body.notificationError ?? 'unknown email error'}`
+                : 'Google Ads budgets updated and verified by live read-back.'
           : body.execution.error_text || 'Execution did not verify successfully. Review the audit receipt.',
       });
       setExecutionConfirmed(false);
@@ -916,7 +926,9 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                 </div>
               )}
 
-              {isAdmin && selected.state === 'approved' && selected.proposed_action_json?.type === 'review_budget_reduction' && (
+              {isAdmin && selected.state === 'approved'
+                && (selected.proposed_action_json?.type === 'review_budget_reduction'
+                  || selected.proposed_action_json?.type === 'review_capped_budget_increase') && (
                 <div className="border border-blue-200 bg-blue-50/40 px-4 py-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -947,7 +959,9 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                               <div className="text-sm font-semibold text-gray-900">{change.campaignName}</div>
                               <div className="mt-1 text-sm text-gray-700">
                                 {budgetMoney(change.currentAmountMicros, change.currencyCode)} → <strong>{budgetMoney(change.proposedAmountMicros, change.currencyCode)}</strong>
-                                <span className="ml-2 text-xs text-gray-500">-{change.reductionPercent}% · budget {change.budgetId}</span>
+                                <span className="ml-2 text-xs text-gray-500">
+                                  {change.direction === 'increase' ? '+' : '-'}{change.changePercent ?? change.reductionPercent}% · budget {change.budgetId}
+                                </span>
                               </div>
                             </div>
                           ))}
@@ -975,7 +989,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                             <span>I confirm these exact live before/after budgets. Execution will recheck them and stop if anything changed.</span>
                           </label>
                           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                            <span className="text-xs text-gray-500">Atomic Google Ads update · verified by read-back · rollback values retained</span>
+                            <span className="text-xs text-gray-500">Atomic Google Ads update · verified by read-back · email alert · rollback values retained</span>
                             <button
                               onClick={() => void executeApprovedChange()}
                               disabled={working != null || !executionConfirmed}
@@ -1364,7 +1378,8 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                     {selectedImplementation
                       ? 'Implementation was recorded as completed externally; Solvantis did not execute the platform change.'
                       : selected.proposed_action_json?.type === 'review_budget_reduction'
-                        ? 'No implementation has been recorded. Eligible Google budget reductions require a fresh live preflight and explicit confirmation above.'
+                        || selected.proposed_action_json?.type === 'review_capped_budget_increase'
+                        ? 'No implementation has been recorded. Eligible Google budget changes require a fresh live preflight and explicit confirmation above.'
                         : 'No implementation has been recorded. Complete the approved work manually in the external platform, then use Record implementation above to start the seven-day follow-up.'}
                   </div>
                 </div>

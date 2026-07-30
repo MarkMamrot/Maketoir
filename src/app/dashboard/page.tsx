@@ -1491,6 +1491,7 @@ function LostCandidatesView({ databaseId }: { databaseId: string }) {
 function MarketingSettingsView({ databaseId }: { databaseId: string }) {
   const [highMin, setHighMin] = useState('65');
   const [midMin,  setMidMin]  = useState('40');
+  const [budgetChangeNotificationEmail, setBudgetChangeNotificationEmail] = useState('');
   const [status,  setStatus]  = useState<'idle' | 'loading' | 'saving' | 'saved' | 'error'>('loading');
   const [error,   setError]   = useState('');
 
@@ -1508,6 +1509,7 @@ function MarketingSettingsView({ databaseId }: { databaseId: string }) {
           setHighMin(String(d.thresholds.high));
           setMidMin(String(d.thresholds.mid));
         }
+        setBudgetChangeNotificationEmail(String(d.budgetChangeNotificationEmail ?? ''));
         setStatus('idle');
       })
       .catch(() => setStatus('idle'));
@@ -1524,7 +1526,7 @@ function MarketingSettingsView({ databaseId }: { databaseId: string }) {
       const res = await fetch('/api/user/marketing-settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ databaseId, highMin: h, midMin: m }),
+        body: JSON.stringify({ databaseId, highMin: h, midMin: m, budgetChangeNotificationEmail }),
       });
       const d = await res.json();
       if (!res.ok || d.error) throw new Error(d.error || 'Save failed');
@@ -1604,6 +1606,21 @@ function MarketingSettingsView({ databaseId }: { databaseId: string }) {
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="bg-gray-800 rounded-xl p-5 space-y-3">
+        <h3 className="text-sm font-semibold text-gray-200 uppercase tracking-wider">Budget Change Alerts</h3>
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">Notification Email</label>
+          <input
+            type="email"
+            value={budgetChangeNotificationEmail}
+            onChange={event => setBudgetChangeNotificationEmail(event.target.value)}
+            placeholder="marketing@example.com"
+            className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+          />
+        </div>
+        <p className="text-xs text-gray-500">Solvantis emails this address after a Google Ads budget change has been submitted and verified by live read-back. Leave blank to disable alerts.</p>
       </div>
 
       {/* Save */}

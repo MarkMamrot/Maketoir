@@ -13,7 +13,7 @@ describe('recommendation implementation preview', () => {
     expect(preview.guardrails.join(' ')).toContain('No reviewed budget reduction may exceed 8%');
   });
 
-  it('renders a capped manual growth review without enabling execution', () => {
+  it('renders a capped growth review that identifies guarded Google execution', () => {
     const preview = buildRecommendationImplementationPreview('paid_media', {
       type: 'review_capped_budget_increase',
       maximumIncreasePercent: 10,
@@ -21,6 +21,7 @@ describe('recommendation implementation preview', () => {
 
     expect(preview).toMatchObject({ mode: 'manual_external', executable: false });
     expect(preview.summary).toContain('10%');
+    expect(preview.steps.join(' ')).toContain('guarded in-app execution');
     expect(preview.guardrails.join(' ')).toContain('No reviewed budget increase may exceed 10%');
   });
 
