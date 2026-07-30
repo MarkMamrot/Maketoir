@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock3,
+  ExternalLink,
   History,
   ListChecks,
   Loader2,
@@ -34,6 +35,7 @@ import type { RollbackPreflightResult } from '@/lib/foresight/rollbackPreflight'
 import type { KlaviyoFlowCoverageEvidence, PaidMediaContributorEvidence } from '@/lib/foresight/types';
 import type { WeeklyDigestSnapshot } from '@/lib/foresight/weeklyDigest';
 import { buildRecommendationEvaluationSummary } from '@/lib/foresight/recommendationEvaluationSummary';
+import { googleAdsCampaignUrl } from '@/lib/foresight/googleAdsLinks';
 import type { ForesightMarketingStrategy } from '@/lib/foresight/marketingStrategy';
 import { MarketingStrategyPanel } from './MarketingStrategyPanel';
 import { WeeklyMarketingDigest } from './WeeklyMarketingDigest';
@@ -140,6 +142,32 @@ type InboxResponse = {
   error?: string;
 };
 type Filter = 'all' | RecommendationState;
+
+function executionCustomerId(execution: RecommendationExecution | null): string | null {
+  const account = execution?.before_json?.account;
+  if (!account || typeof account !== 'object' || !('customerId' in account)) return null;
+  return typeof account.customerId === 'string' ? account.customerId : null;
+}
+
+function CampaignLink({ customerId, campaignId, children }: {
+  customerId: string | null | undefined;
+  campaignId: string;
+  children: React.ReactNode;
+}) {
+  const href = googleAdsCampaignUrl(customerId, campaignId);
+  if (!href) return <span className="font-semibold text-gray-900">{children}</span>;
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Open campaign in Google Ads"
+      className="inline-flex items-center gap-1 font-semibold text-blue-800 underline decoration-blue-300 underline-offset-2 hover:text-blue-950"
+    >
+      {children}<ExternalLink size={13} aria-hidden="true" />
+    </a>
+  );
+}
 
 const RULE_LABELS: Record<string, string> = {
   spend_without_online_revenue: 'Spend without online revenue',
@@ -956,7 +984,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                         <div className="mt-3 space-y-2">
                           {preflight.changes.map((change) => (
                             <div key={`${change.campaignId}:${change.budgetId}`} className="border border-blue-200 bg-white px-3 py-3">
-                              <div className="text-sm font-semibold text-gray-900">{change.campaignName}</div>
+                              <div className="text-sm"><CampaignLink customerId={preflight.account?.customerId} campaignId={change.campaignId}>{change.campaignName}</CampaignLink></div>
                               <div className="mt-1 text-sm text-gray-700">
                                 {budgetMoney(change.currentAmountMicros, change.currencyCode)} → <strong>{budgetMoney(change.proposedAmountMicros, change.currencyCode)}</strong>
                                 <span className="ml-2 text-xs text-gray-500">
@@ -1087,7 +1115,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                     <div className="mt-3 space-y-2">
                       {selectedExecution.request_json.changes.map((change) => (
                         <div key={`${change.campaignId}:${change.budgetId}`} className="border border-black/10 bg-white/70 px-3 py-2 text-sm text-gray-700">
-                          <span className="font-semibold text-gray-900">{change.campaignName}</span>
+                          <CampaignLink customerId={executionCustomerId(selectedExecution)} campaignId={change.campaignId}>{change.campaignName}</CampaignLink>
                           <span className="ml-2">{budgetMoney(change.currentAmountMicros, change.currencyCode)} → {budgetMoney(change.proposedAmountMicros, change.currencyCode)}</span>
                           <span className="ml-2 text-xs text-gray-500">budget {change.budgetId}</span>
                         </div>
@@ -1127,7 +1155,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                         <div className="mt-3 space-y-2">
                           {rollbackPreflight.changes.map((change) => (
                             <div key={`${change.campaignId}:${change.budgetId}`} className="border border-amber-200 bg-white px-3 py-3">
-                              <div className="text-sm font-semibold text-gray-900">{change.campaignName}</div>
+                              <div className="text-sm"><CampaignLink customerId={rollbackPreflight.account?.customerId} campaignId={change.campaignId}>{change.campaignName}</CampaignLink></div>
                               <div className="mt-1 text-sm text-gray-700">
                                 {budgetMoney(change.currentAmountMicros, change.currencyCode)} → <strong>{budgetMoney(change.proposedAmountMicros, change.currencyCode)}</strong>
                                 <span className="ml-2 text-xs text-gray-500">restore budget {change.budgetId}</span>
@@ -1197,7 +1225,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                     <div className="mt-3 space-y-2">
                       {selectedCompensation.request_json.changes.map((change) => (
                         <div key={`${change.campaignId}:${change.budgetId}`} className="border border-black/10 bg-white/70 px-3 py-2 text-sm text-gray-700">
-                          <span className="font-semibold text-gray-900">{change.campaignName}</span>
+                          <CampaignLink customerId={executionCustomerId(selectedCompensation) ?? executionCustomerId(selectedExecution)} campaignId={change.campaignId}>{change.campaignName}</CampaignLink>
                           <span className="ml-2">{budgetMoney(change.currentAmountMicros, change.currencyCode)} → {budgetMoney(change.proposedAmountMicros, change.currencyCode)}</span>
                           <span className="ml-2 text-xs text-gray-500">restored budget {change.budgetId}</span>
                         </div>
