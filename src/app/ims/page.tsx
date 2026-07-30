@@ -597,9 +597,9 @@ function TotalSalesProfitCircle({ rows, itemCount, periodLabel, loading }: { row
 
   return (
     <div style={{ minWidth: 0 }}>
-      <div style={{ position: 'relative', height: 450, boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+      <div style={{ position: 'relative', height: 450, boxSizing: 'border-box', containerType: 'inline-size', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: 18, left: 20, right: 20, fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Total Sales vs Gross Profit - {periodLabel}</div>
-        <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'minmax(210px, 1.4fr) minmax(110px, .75fr) minmax(135px, .9fr)', alignItems: 'center', paddingTop: 30 }}>
+        <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'minmax(210px, 1.25fr) minmax(125px, .8fr) minmax(155px, 1fr)', alignItems: 'center', paddingTop: 30 }}>
           <div style={{ minWidth: 210, textAlign: 'center' }}>
             <svg viewBox="0 0 250 250" role="img" aria-label={`Total sales ${fmtCurrency(totalSales)}, gross profit ${fmtCurrency(totalGrossProfit)}, margin ${marginPercent.toFixed(1)} percent`} style={{ width: '100%', maxHeight: 270, display: 'block' }}>
               <circle cx="125" cy="125" r={outerRadius} fill="#25364d" />
@@ -622,20 +622,20 @@ function TotalSalesProfitCircle({ rows, itemCount, periodLabel, loading }: { row
               </div>
             </div>
           </div>
-          <div style={{ alignSelf: 'stretch', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 24, padding: '8px 18px', borderLeft: '1px solid var(--sv-etch)' }}>
+          <div style={{ alignSelf: 'stretch', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 'clamp(24px, 4cqw, 44px)', padding: 'clamp(10px, 2cqw, 26px)', borderLeft: '1px solid var(--sv-etch)' }}>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ color: 'var(--sv-text-strong)', fontSize: 24, lineHeight: 1, fontWeight: 800 }}>{totalOrderCount.toLocaleString('en-AU')}</div>
-              <div style={{ marginTop: 7, color: 'var(--sv-text-dim)', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Sales count</div>
+              <div style={{ color: 'var(--sv-text-strong)', fontSize: 'clamp(26px, 4cqw, 42px)', lineHeight: 1, fontWeight: 800 }}>{totalOrderCount.toLocaleString('en-AU')}</div>
+              <div style={{ marginTop: 'clamp(7px, 1cqw, 12px)', color: 'var(--sv-text-dim)', fontSize: 'clamp(10px, 1.25cqw, 13px)', fontWeight: 700, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Sales count</div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ color: 'var(--sv-text-strong)', fontSize: 24, lineHeight: 1, fontWeight: 800 }}>{Number(itemCount).toLocaleString('en-AU', { maximumFractionDigits: 2 })}</div>
-              <div style={{ marginTop: 7, color: 'var(--sv-text-dim)', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Number of items</div>
+              <div style={{ color: 'var(--sv-text-strong)', fontSize: 'clamp(26px, 4cqw, 42px)', lineHeight: 1, fontWeight: 800 }}>{Number(itemCount).toLocaleString('en-AU', { maximumFractionDigits: 2 })}</div>
+              <div style={{ marginTop: 'clamp(7px, 1cqw, 12px)', color: 'var(--sv-text-dim)', fontSize: 'clamp(10px, 1.25cqw, 13px)', fontWeight: 700, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Number of items</div>
             </div>
           </div>
-          <div style={{ alignSelf: 'stretch', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 18px', borderLeft: '1px solid var(--sv-etch)' }}>
-            <div style={{ color: 'var(--sv-text-strong)', fontSize: 34, lineHeight: 1, fontWeight: 800, whiteSpace: 'nowrap' }}>{fmtCurrency(averageOrderValue)}</div>
-            <div style={{ marginTop: 9, color: 'var(--sv-text-dim)', fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>AOV</div>
-            <div style={{ marginTop: 5, color: 'var(--sv-text-dim)', fontSize: 10, textAlign: 'center' }}>Average order value</div>
+          <div style={{ alignSelf: 'stretch', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 'clamp(10px, 2cqw, 28px)', borderLeft: '1px solid var(--sv-etch)' }}>
+            <div style={{ color: 'var(--sv-text-strong)', fontSize: 'clamp(36px, 5.5cqw, 58px)', lineHeight: 1, fontWeight: 800, whiteSpace: 'nowrap' }}>{fmtCurrency(averageOrderValue)}</div>
+            <div style={{ marginTop: 'clamp(10px, 1.4cqw, 16px)', color: 'var(--sv-text-dim)', fontSize: 'clamp(11px, 1.35cqw, 14px)', fontWeight: 800, textTransform: 'uppercase' }}>AOV</div>
+            <div style={{ marginTop: 6, color: 'var(--sv-text-dim)', fontSize: 'clamp(10px, 1.2cqw, 13px)', textAlign: 'center' }}>Average order value</div>
           </div>
         </div>
       </div>
@@ -1171,7 +1171,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               const yTicks = [0,1,2,3,4].map(i => Math.round((i/4) * yMax));
 
               const VW=visibleSalesBarCount <= 12 ? 1000 : 1200;
-              const VH=360, PL=72, PR=16, PT=20, PB=56;
+              const VH=360, PL=72, PR=16, PT=14, PB=48;
               const plotW=VW-PL-PR, plotH=VH-PT-PB;
               const nLoc=locations.length, nCh=activeChannels.length;
               const groupW=plotW/nLoc;
@@ -1207,8 +1207,8 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                     ))}
                     </div>
                   </div>
-                  <div style={{ width: '75%', height: '100%', flex: '0 0 75%', minHeight: 0, display: 'flex', alignItems: 'stretch', justifyContent: 'center' }}>
-                  <svg viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%', display: 'block', overflow: 'visible' }}>
+                  <div style={{ width: '100%', flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid meet" style={{ width: '92%', height: '100%', display: 'block', overflow: 'visible' }}>
                     {yTicks.map(tick => {
                       const y = yVal(tick);
                       return (
@@ -6994,14 +6994,8 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
   const [skipped, setSkipped] = React.useState<Set<number>>(new Set());
   const [aiMatchLoading, setAiMatchLoading] = React.useState(false);
   const [aiMatchError, setAiMatchError] = React.useState<string | null>(null);
-  const [createdVariants, setCreatedVariants] = React.useState<any[]>([]);
-  const [createProductLine, setCreateProductLine] = React.useState<number | null>(null);
-  const [createProductForm, setCreateProductForm] = React.useState({ name: '', sku: '', barcode: '', brand: '', rrp: '' });
-  const [createProductSaving, setCreateProductSaving] = React.useState(false);
-  const [createProductError, setCreateProductError] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const isPo = !!poId;
-  const selectableVariants = React.useMemo(() => [...createdVariants, ...variants], [createdVariants, variants]);
 
   // Auto-process a file passed in from outside (e.g. the banner picker)
   React.useEffect(() => {
@@ -7115,72 +7109,6 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
       setAiMatchError(e.message ?? 'AI matching failed');
     } finally {
       setAiMatchLoading(false);
-    }
-  }
-
-  function openCreateProduct(i: number, lr: InvoiceParseResult['line_results'][0]) {
-    setCreateProductLine(i);
-    setCreateProductError(null);
-    setCreateProductForm({
-      name: lr.invoice_line.product_name || '',
-      sku: lr.invoice_line.product_code || '',
-      barcode: lr.invoice_line.barcode || '',
-      brand: '',
-      rrp: lr.invoice_line.rrp != null ? String(lr.invoice_line.rrp) : '',
-    });
-  }
-
-  async function createProductFromInvoiceLine() {
-    if (createProductLine == null || !result || !createProductForm.name.trim() || !createProductForm.sku.trim()) return;
-    setCreateProductSaving(true);
-    setCreateProductError(null);
-    try {
-      const productRes = await fetch('/api/ims/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: createProductForm.name.trim(),
-          base_sku: createProductForm.sku.trim(),
-          brand: createProductForm.brand.trim() || null,
-          supplier_contact_id: supplierId || null,
-          is_active: 1,
-          is_online: 1,
-        }),
-      });
-      const productJson = await productRes.json();
-      if (!productRes.ok || !productJson.success) throw new Error(productJson.error || 'Could not create product.');
-
-      const invoiceLine = result.line_results[createProductLine].invoice_line;
-      const variantRes = await fetch('/api/ims/variants', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          product_id: productJson.product_id,
-          sku: createProductForm.sku.trim(),
-          barcode: createProductForm.barcode.trim() || null,
-          cost_aud: Number(invoiceLine.unit_price || 0),
-          price_rrp: createProductForm.rrp === '' ? null : Number(createProductForm.rrp),
-          is_active: 1,
-        }),
-      });
-      const variantJson = await variantRes.json();
-      if (!variantRes.ok || !variantJson.success) throw new Error(variantJson.error || 'Product created, but its variant could not be created.');
-
-      const createdVariant = {
-        variant_id: variantJson.variant_id,
-        product_id: productJson.product_id,
-        product_name: createProductForm.name.trim(),
-        sku: createProductForm.sku.trim(),
-        barcode: createProductForm.barcode.trim() || null,
-        price_rrp: createProductForm.rrp === '' ? null : Number(createProductForm.rrp),
-      };
-      setCreatedVariants(current => [createdVariant, ...current]);
-      setOverrides(current => ({ ...current, [createProductLine]: variantJson.variant_id }));
-      setCreateProductLine(null);
-    } catch (e: any) {
-      setCreateProductError(e.message || 'Could not create product.');
-    } finally {
-      setCreateProductSaving(false);
     }
   }
 
@@ -7349,7 +7277,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
               const hasOverride = i in overrides;
               const conf = hasOverride ? (overrides[i] ? 'manual' : 'skipped') : (lr.match?.confidence ?? 'none');
               const confLabel = conf === 'exact_sku' ? '✓ SKU' : conf === 'exact_barcode' ? '✓ Barcode' : conf === 'fuzzy_name' ? '~ Name' : conf === 'manual' ? '✎ Manual' : conf === 'ai_high' ? '🤖 AI' : conf === 'ai_match' ? '🤖 AI~' : '✗ None';
-              const imsV = effectiveVid ? selectableVariants.find((v: any) => v.variant_id === effectiveVid) : null;
+              const imsV = effectiveVid ? variants.find((v: any) => v.variant_id === effectiveVid) : null;
               const imsLabel = imsV ? `${imsV.product_name}${imsV.variant_label ? ' · ' + imsV.variant_label : ''} (${imsV.sku ?? ''})` : (lr.match && !hasOverride) ? `${lr.match.product_name ?? ''}${lr.match.variant_label ? ' · ' + lr.match.variant_label : ''} (${lr.match.sku ?? ''})` : null;
               return (
                 <tr key={i} style={{ opacity: isSkipped ? 0.4 : 1, borderBottom: '1px solid var(--sv-border)' }}>
@@ -7364,12 +7292,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
                   <td style={{ ...tdSt, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{lr.invoice_line.rrp != null ? fmt$(lr.invoice_line.rrp) : '—'}</td>
                   <td style={{ ...tdSt, minWidth: 200 }}>
                     {conf === 'none' || hasOverride
-                      ? <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 280 }}>
-                          <VariantSearch value={effectiveVid ?? ''} variants={selectableVariants} onChange={vid => setOverrides(p => ({ ...p, [i]: vid }))} style={{ minWidth: 180, flex: 1 }} />
-                          {!effectiveVid && (
-                            <button type="button" onClick={() => openCreateProduct(i, lr)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--sv-action)', background: 'color-mix(in srgb, var(--sv-action) 10%, transparent)', color: 'var(--sv-action)', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>+ Create new</button>
-                          )}
-                        </div>
+                      ? <VariantSearch value={effectiveVid ?? ''} variants={variants} onChange={vid => setOverrides(p => ({ ...p, [i]: vid }))} style={{ minWidth: 180 }} />
                       : <span style={{ fontSize: 12 }}>{imsLabel ?? <em style={{ color: 'var(--sv-text-muted)' }}>No match</em>}</span>}
                   </td>
                   <td style={{ ...tdSt, whiteSpace: 'nowrap' }}>
@@ -7387,37 +7310,6 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
           </tbody>
         </table>
       </div>
-
-      {createProductLine != null && (
-        <div style={{ marginBottom: 14, padding: '14px 16px', border: '1px solid color-mix(in srgb, var(--sv-action) 45%, var(--sv-etch))', borderRadius: 8, background: 'color-mix(in srgb, var(--sv-action) 5%, var(--sv-bg-2))' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Create new product from invoice line</div>
-              <div style={{ marginTop: 2, fontSize: 11, color: 'var(--sv-text-muted)' }}>The new variant will be selected for this PO line automatically.</div>
-            </div>
-            <button type="button" onClick={() => setCreateProductLine(null)} style={{ background: 'none', border: 'none', color: 'var(--sv-text-muted)', cursor: 'pointer', fontSize: 16 }}>×</button>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 2fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(90px, .7fr)', gap: 10, alignItems: 'end' }}>
-            {[
-              { key: 'name', label: 'Product name *', value: createProductForm.name },
-              { key: 'sku', label: 'SKU *', value: createProductForm.sku },
-              { key: 'barcode', label: 'Barcode', value: createProductForm.barcode },
-              { key: 'brand', label: 'Brand', value: createProductForm.brand },
-              { key: 'rrp', label: 'RRP', value: createProductForm.rrp, type: 'number' },
-            ].map(field => (
-              <label key={field.key} style={{ display: 'block' }}>
-                <span style={{ display: 'block', marginBottom: 4, fontSize: 10, fontWeight: 700, color: 'var(--sv-text-muted)', textTransform: 'uppercase' }}>{field.label}</span>
-                <input type={field.type || 'text'} value={field.value} onChange={e => setCreateProductForm(current => ({ ...current, [field.key]: e.target.value }))} style={{ width: '100%', boxSizing: 'border-box', padding: '7px 8px', borderRadius: 5, border: '1px solid var(--sv-border)', background: 'var(--sv-bg-card)', color: 'var(--sv-text-strong)', fontSize: 12 }} />
-              </label>
-            ))}
-          </div>
-          {createProductError && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--sv-red)' }}>{createProductError}</div>}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
-            <button type="button" onClick={() => setCreateProductLine(null)} style={{ padding: '7px 14px', background: 'none', border: '1px solid var(--sv-border)', borderRadius: 6, color: 'var(--sv-text-muted)', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-            <button type="button" onClick={createProductFromInvoiceLine} disabled={createProductSaving || !createProductForm.name.trim() || !createProductForm.sku.trim()} style={{ padding: '7px 16px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 700, cursor: createProductSaving ? 'wait' : 'pointer', opacity: createProductSaving || !createProductForm.name.trim() || !createProductForm.sku.trim() ? .55 : 1 }}>{createProductSaving ? 'Creating…' : 'Create and select'}</button>
-          </div>
-        </div>
-      )}
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid var(--sv-border)', flexWrap: 'wrap' }}>
         <div style={{ fontSize: 12, color: 'var(--sv-text-muted)' }}>{importableCount} line{importableCount !== 1 ? 's' : ''} will be added to the PO</div>
