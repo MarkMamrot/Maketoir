@@ -165,10 +165,12 @@ export function planGoogleBudgetIncreasePreflight(input: {
   contributors: PaidMediaContributorEvidence[];
   liveCampaigns: GoogleCampaignSetting[];
   maximumIncreasePercent: number;
+  maximumRoasDeclinePercent: number;
   expectedCustomerId: string;
   checkedAt: string;
 }): ExecutionPreflightResult {
   const increasePercent = Math.max(0, Math.min(10, input.maximumIncreasePercent));
+  const maximumRoasDeclinePercent = Math.max(0, Math.min(100, input.maximumRoasDeclinePercent));
   const blockers: ExecutionPreflightBlocker[] = [];
   const changes: BudgetChangePreview[] = [];
   const liveById = new Map(input.liveCampaigns.map((item) => [item.campaignId, item]));
@@ -178,7 +180,8 @@ export function planGoogleBudgetIncreasePreflight(input: {
     && item.currentSpend > 0
     && item.currentAttributedRevenue > 0
     && !item.signals.includes('spend_without_platform_revenue')
-    && !item.signals.includes('platform_roas_decline'),
+    && (item.platformRoasChangePercent == null
+      || item.platformRoasChangePercent > -maximumRoasDeclinePercent),
   );
 
   if (increasePercent <= 0) {

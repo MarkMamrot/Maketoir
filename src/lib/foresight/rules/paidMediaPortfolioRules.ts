@@ -257,6 +257,7 @@ export function evaluatePaidMediaPortfolioRules(
         currentMer: current.mer,
         previousMer: previous.mer,
         targetMer: policy.targetMer,
+        merDeteriorationPercent: policy.merDeteriorationPercent,
         spend: current.spend,
       }, stableCampaigns),
       proposedAction: {

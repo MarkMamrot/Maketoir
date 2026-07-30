@@ -10,6 +10,10 @@ import {
 } from './executionPreflight';
 import { ForesightRepository } from './repositories/ForesightRepository';
 import { getBudgetChangeNotificationEmail, isValidNotificationEmail } from './budgetChangeNotification';
+import {
+  DEFAULT_FORESIGHT_MARKETING_STRATEGY,
+  parseMarketingStrategy,
+} from './marketingStrategy';
 
 function blocked(code: string, message: string): ExecutionPreflightResult {
   return {
@@ -93,6 +97,15 @@ export const ForesightExecutionPreflightService = {
     const refreshToken = decrypt(storedRefreshToken);
     const service = new GoogleAdsService(customerId, refreshToken);
     const rows = await service.getCampaignSettings(googleCampaignIds);
+    const storedTolerance = numberValue(recommendation.evidence_json.observedValues?.merDeteriorationPercent);
+    const storedStrategy = storedTolerance > 0 || actionType !== 'review_capped_budget_increase'
+      ? null
+      : await ForesightRepository.latestStrategy(businessId);
+    const maximumRoasDeclinePercent = storedTolerance > 0
+      ? storedTolerance
+      : storedStrategy
+        ? parseMarketingStrategy(storedStrategy.strategy_json).paidMedia.merDeteriorationPercent
+        : DEFAULT_FORESIGHT_MARKETING_STRATEGY.paidMedia.merDeteriorationPercent;
     const common = {
       contributors,
       liveCampaigns: (Array.isArray(rows) ? rows : []).map(normalizeCampaignSetting),
@@ -103,6 +116,7 @@ export const ForesightExecutionPreflightService = {
       ? planGoogleBudgetIncreasePreflight({
         ...common,
         maximumIncreasePercent: numberValue(recommendation.proposed_action_json.maximumIncreasePercent),
+        maximumRoasDeclinePercent,
       })
       : planGoogleBudgetReductionPreflight({
         ...common,

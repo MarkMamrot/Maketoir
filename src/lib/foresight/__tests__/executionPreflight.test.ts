@@ -73,8 +73,8 @@ describe('Google budget reduction preflight', () => {
 describe('Google budget increase preflight', () => {
   it('prepares an exact increase capped at ten percent from live account state', () => {
     const result = planGoogleBudgetIncreasePreflight({
-      contributors: [{ ...contributor, currentAttributedRevenue: 900, signals: [] }],
-      liveCampaigns: [live], maximumIncreasePercent: 25,
+      contributors: [{ ...contributor, currentAttributedRevenue: 900, platformRoasChangePercent: 5, signals: [] }],
+      liveCampaigns: [live], maximumIncreasePercent: 25, maximumRoasDeclinePercent: 25,
       expectedCustomerId: '111-222-3333', checkedAt: '2026-07-30T10:00:00.000Z',
     });
 
@@ -85,14 +85,25 @@ describe('Google budget increase preflight', () => {
     });
   });
 
-  it('blocks deteriorating campaign evidence from an increase', () => {
+  it('permits a modest decline inside the approved tolerance', () => {
     const result = planGoogleBudgetIncreasePreflight({
-      contributors: [contributor], liveCampaigns: [live], maximumIncreasePercent: 5,
+      contributors: [{ ...contributor, platformRoasChangePercent: -12.4 }],
+      liveCampaigns: [live], maximumIncreasePercent: 5, maximumRoasDeclinePercent: 25,
       expectedCustomerId: '1112223333', checkedAt: '2026-07-30T10:00:00.000Z',
     });
 
+    expect(result.ready).toBe(true);
+    expect(result.changes[0].proposedAmountMicros).toBe(105_000_000);
+  });
+
+  it('blocks campaign deterioration beyond the approved tolerance', () => {
+    const result = planGoogleBudgetIncreasePreflight({
+      contributors: [contributor], liveCampaigns: [live], maximumIncreasePercent: 5,
+      maximumRoasDeclinePercent: 25, expectedCustomerId: '1112223333',
+      checkedAt: '2026-07-30T10:00:00.000Z',
+    });
+
     expect(result.ready).toBe(false);
-    expect(result.changes).toEqual([]);
     expect(result.blockers[0].code).toBe('no_supported_google_campaign_candidates');
   });
 });
