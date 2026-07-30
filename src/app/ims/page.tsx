@@ -576,24 +576,28 @@ function TotalSalesProfitCircle({ rows, periodLabel, loading, showSalesCount }: 
   const outerRadius = 105;
   const innerRadius = outerRadius * Math.sqrt(profitShare);
   if (loading) {
-    return <div style={{ height: 450, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spinner /></div>;
+    return (
+      <div style={{ height: 450, padding: '18px 20px', boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Total Sales vs Gross Profit - {periodLabel}</div>
+        <div style={{ height: 'calc(100% - 20px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spinner /></div>
+      </div>
+    );
   }
 
   if (!rows.length || totalSales <= 0) {
     return (
-      <div style={{ height: 450, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontSize: 13,
-        background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>No sales in this period.</div>
+      <div style={{ height: 450, padding: '18px 20px', boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Total Sales vs Gross Profit - {periodLabel}</div>
+        <div style={{ height: 'calc(100% - 20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No sales in this period.</div>
+      </div>
     );
   }
 
   return (
     <div style={{ minWidth: 0 }}>
-      <div style={{ height: 42 }}>
-        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Total Sales vs Gross Profit</div>
-        <div style={{ marginTop: 3, fontSize: 11, color: 'var(--sv-text-dim)' }}>{periodLabel}</div>
-      </div>
-      <div style={{ height: 450, boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-        <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 28 }}>
+      <div style={{ position: 'relative', height: 450, boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: 18, left: 20, right: 20, fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Total Sales vs Gross Profit - {periodLabel}</div>
+        <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 28, paddingTop: 24 }}>
           <div style={{ width: 250, flex: '0 1 250px', minWidth: 190, textAlign: 'center' }}>
             <svg viewBox="0 0 250 250" role="img" aria-label={`Total sales ${fmtCurrency(totalSales)}, gross profit ${fmtCurrency(totalGrossProfit)}, margin ${marginPercent.toFixed(1)} percent`} style={{ width: '100%', maxHeight: 270, display: 'block' }}>
               <circle cx="125" cy="125" r={outerRadius} fill="#25364d" />
@@ -1131,15 +1135,16 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
             <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', gap: 18, alignItems: 'start' }}>
               {/* ── Sales by Channel ── */}
               <div className="ims-sales-chart-panel" style={{ minWidth: 0, gridColumn: `span ${salesChartColumns}` }}>
-              <div style={{ height: 42 }}>
-                <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales and Gross Profit by Channel</div>
-                <div style={{ marginTop: 3, fontSize: 11, color: 'var(--sv-text-dim)' }}>{periodLabel}</div>
-              </div>
             {salesLoading ? (
-              <div style={{ height: 450, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spinner /></div>
+              <div style={{ height: 450, padding: '18px 20px', boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales and Gross Profit by Channel - {periodLabel}</div>
+                <div style={{ height: 'calc(100% - 20px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spinner /></div>
+              </div>
             ) : !(salesData?.channelData?.length) ? (
-              <div style={{ height: 450, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13,
-                background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>No sales in this period.</div>
+              <div style={{ height: 450, padding: '18px 20px', boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales and Gross Profit by Channel - {periodLabel}</div>
+                <div style={{ height: 'calc(100% - 20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No sales in this period.</div>
+              </div>
             ) : (() => {
               const CD = salesData.channelData as any[];
               const CH_COLOR: Record<string, string> = { pos: '#5ab5bc', wholesale: '#f59e0b', online: '#818cf8' };
@@ -1182,13 +1187,16 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
 
               return (
                 <div ref={channelChartRef} style={{ position: 'relative', height: 450, boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px 8px', display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ display: 'flex', gap: 16, marginBottom: 8, justifyContent: 'flex-end' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 8 }}>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales and Gross Profit by Channel - {periodLabel}</div>
+                    <div style={{ display: 'flex', gap: 16, flexShrink: 0 }}>
                     {activeChannels.map(ch => (
                       <div key={ch} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--sv-text-dim)' }}>
                         <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: CH_COLOR[ch] }} />
                         {CH_LABEL[ch]}
                       </div>
                     ))}
+                    </div>
                   </div>
                   <svg viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid meet" style={{ width: '100%', flex: 1, minHeight: 0, display: 'block', overflow: 'visible' }}>
                     {yTicks.map(tick => {
@@ -1339,13 +1347,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
 
             {/* Top 10 Brands */}
             <div style={{ width: 'min(100%, 50%)', minWidth: 300, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(129,140,248,.16)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>🏷️</div>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Top 10 Brands</div>
-                  <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{periodLabel}</div>
-                </div>
-              </div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 14 }}>Top 10 Brands - {periodLabel}</div>
               {salesLoading && <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', margin: 0, padding: '10px 0', textAlign: 'center' }}>Loading…</p>}
               {!salesLoading && brandChartData.length === 0 && (
                 <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', margin: 0, padding: '10px 0', textAlign: 'center' }}>No brand sales in this period.</p>

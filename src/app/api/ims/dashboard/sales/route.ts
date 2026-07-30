@@ -246,27 +246,31 @@ export async function GET(req: Request) {
     brandRows = await imsQuery<BrandRow>(
       `SELECT COALESCE(NULLIF(TRIM(p.brand), ''), 'Unbranded') AS name, SUM(lines.sales) AS sales
        FROM (
-         SELECT psi.variant_id, COALESCE(psi.line_total, 0) AS sales
+         SELECT COALESCE(pvid.variant_id, psku.variant_id) AS variant_id, COALESCE(psi.line_total, 0) AS sales
          FROM pos_sales ps
          JOIN ims_locations l ON l.id = ps.location_id AND l.business_id = ?
          JOIN pos_sale_items psi ON psi.sale_id = ps.id
+         LEFT JOIN ims_product_variants pvid ON pvid.variant_id = psi.variant_id
+         LEFT JOIN ims_product_variants psku ON pvid.variant_id IS NULL AND psku.sku = psi.code
          WHERE ps.status = 'completed'
            AND ps.created_at >= ?
            ${posUpperClause}
 
          UNION ALL
 
-         SELECT soi.variant_id, COALESCE(soi.line_total, 0) AS sales
+         SELECT COALESCE(svid.variant_id, ssku.variant_id) AS variant_id, COALESCE(soi.line_total, 0) AS sales
          FROM ims_sales_orders so
          JOIN ims_sales_order_items soi ON soi.so_id = so.id
+         LEFT JOIN ims_product_variants svid ON svid.variant_id = soi.variant_id
+         LEFT JOIN ims_product_variants ssku ON svid.variant_id IS NULL AND ssku.sku = soi.code
          WHERE so.order_date >= ?
            ${soUpperClause}
            AND ((so.so_type = 'online' AND (so.is_historical IS NULL OR so.is_historical = 0) AND so.status != 'cancelled')
              OR (so.so_type != 'online' AND so.status = 'fulfilled'))
            ${soBizClause}
        ) lines
-       JOIN ims_product_variants pv ON pv.variant_id = lines.variant_id
-       JOIN ims_products p ON p.product_id = pv.product_id
+      LEFT JOIN ims_product_variants pv ON pv.variant_id = lines.variant_id
+      LEFT JOIN ims_products p ON p.product_id = pv.product_id
        GROUP BY COALESCE(NULLIF(TRIM(p.brand), ''), 'Unbranded')
        ORDER BY sales DESC
        LIMIT 10`,
