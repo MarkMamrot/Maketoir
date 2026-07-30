@@ -12,10 +12,15 @@ vi.mock('@/services/MySQLService', () => ({
   query: mockQuery,
 }));
 
-import { ForesightIngestionRepository } from '../repositories/ForesightIngestionRepository';
+import { ForesightIngestionRepository, mysqlDateOnly } from '../repositories/ForesightIngestionRepository';
 
 describe('ForesightIngestionRepository', () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it('normalizes MySQL DATE objects and strings without shifting the business date', () => {
+    expect(mysqlDateOnly(new Date(2026, 6, 16))).toBe('2026-07-16');
+    expect(mysqlDateOnly('2026-07-16T00:00:00.000Z')).toBe('2026-07-16');
+  });
 
   it('starts a tenant-keyed sync run', async () => {
     mockExecute.mockResolvedValue({ insertId: 71 });

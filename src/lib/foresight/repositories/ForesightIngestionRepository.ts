@@ -81,6 +81,19 @@ interface CommerceObservationRow {
   cost_basis: DailyCommerceObservation['costBasis'];
 }
 
+export function mysqlDateOnly(value: unknown): string {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return [
+      value.getFullYear(),
+      String(value.getMonth() + 1).padStart(2, '0'),
+      String(value.getDate()).padStart(2, '0'),
+    ].join('-');
+  }
+  const text = String(value ?? '').trim();
+  const match = text.match(/^\d{4}-\d{2}-\d{2}/);
+  return match?.[0] ?? text.slice(0, 10);
+}
+
 export const ForesightIngestionRepository = {
   async getLatestSyncTabOutcome(
     businessId: string,
@@ -142,7 +155,7 @@ export const ForesightIngestionRepository = {
       [businessId, startDate, endDate, businessId],
     );
     return rows.map((row) => ({
-      metricDate: String(row.metric_date).slice(0, 10),
+      metricDate: mysqlDateOnly(row.metric_date),
       source: row.source,
       accountId: row.account_id,
       spend: Number(row.spend),
@@ -184,7 +197,7 @@ export const ForesightIngestionRepository = {
       [businessId, startDate, endDate, businessId],
     );
     return rows.map((row) => ({
-      metricDate: String(row.metric_date).slice(0, 10),
+      metricDate: mysqlDateOnly(row.metric_date),
       source: row.source,
       accountId: row.account_id,
       entityType: row.entity_type,
@@ -229,7 +242,7 @@ export const ForesightIngestionRepository = {
       [businessId, startDate, endDate, businessId],
     );
     return rows.map((row) => ({
-      metricDate: String(row.metric_date).slice(0, 10),
+      metricDate: mysqlDateOnly(row.metric_date),
       channel: row.channel,
       salesIncTax: Number(row.sales_inc_tax),
       salesTax: Number(row.sales_tax),

@@ -28,6 +28,7 @@ import { ImsCommerceRepository } from '@/lib/foresight/repositories/ImsCommerceR
 import { ForesightRecommendationService } from '@/lib/foresight/ForesightRecommendationService';
 import { KlaviyoRecommendationService } from '@/lib/foresight/KlaviyoRecommendationService';
 import { ForesightOutcomeService } from '@/lib/foresight/ForesightOutcomeService';
+import { ForesightDigestService } from '@/lib/foresight/ForesightDigestService';
 
 /** Extract a readable message from any error shape (Google Ads API returns e.errors[0].message). */
 function errorMessage(e: any): string {
@@ -757,7 +758,16 @@ export async function POST(req: Request) {
             });
           }
         }
-        emit({ status: 'complete', runId, state, successfulTabs, failedTabs, recommendationCount });
+        let weeklyDigestDate: string | null = null;
+        let weeklyDigestError: string | null = null;
+        try {
+          weeklyDigestDate = addDays(endDate, -1);
+          await ForesightDigestService.generateWeekly(databaseId, weeklyDigestDate);
+        } catch (digestError) {
+          weeklyDigestError = errorMessage(digestError);
+          emit({ source: 'foresight-weekly-digest', status: 'error', error: weeklyDigestError });
+        }
+        emit({ status: 'complete', runId, state, successfulTabs, failedTabs, recommendationCount, weeklyDigestDate, weeklyDigestError });
       } catch (e: any) {
         const message = errorMessage(e);
         if (runId != null) {

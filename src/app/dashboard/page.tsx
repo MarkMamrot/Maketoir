@@ -2664,7 +2664,7 @@ function SyncAdsView({ databaseId }: { databaseId: string }) {
   const [sources, setSources] = useState<Set<string>>(new Set(['google-ads', 'meta', 'ga4']));
   const [syncing, setSyncing] = useState(false);
   const [tabState, setTabState] = useState<Record<string, TabStatus>>({});
-  const [spreadsheetUrl, setSpreadsheetUrl] = useState<string | null>(null);
+  const [digestRefreshed, setDigestRefreshed] = useState(false);
   const [globalError, setGlobalError] = useState('');
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [errorModal, setErrorModal] = useState<{ label: string; error: string } | null>(null);
@@ -2688,7 +2688,7 @@ function SyncAdsView({ databaseId }: { databaseId: string }) {
 
     setSyncing(true);
     setGlobalError('');
-    setSpreadsheetUrl(null);
+    setDigestRefreshed(false);
 
     // Prime all selected tabs to 'pending'
     const initial: Record<string, TabStatus> = {};
@@ -2734,9 +2734,12 @@ function SyncAdsView({ databaseId }: { databaseId: string }) {
               const now = new Date().toLocaleString();
               setLastSync(now);
               localStorage.setItem('marketoir_last_sync_marketing', now);
-              if (evt.spreadsheetUrl) setSpreadsheetUrl(evt.spreadsheetUrl);
+              setDigestRefreshed(Boolean(evt.weeklyDigestDate) && !evt.weeklyDigestError);
+              if (evt.weeklyDigestError) {
+                setGlobalError(`Data synced, but Weekly Performance could not refresh: ${evt.weeklyDigestError}`);
+              }
             }
-            if (evt.status === 'error' && !evt.tab) {
+            if (evt.status === 'error' && !evt.tab && evt.source !== 'foresight-weekly-digest') {
               setGlobalError(evt.error ?? 'Unknown error');
             }
           } catch { /* ignore parse errors */ }
@@ -2791,7 +2794,7 @@ function SyncAdsView({ databaseId }: { databaseId: string }) {
       </div>
 
       <p className="text-xs text-gray-500 mb-4">
-        Pulls the last <strong>90 days</strong> of data from selected platforms into your Marketing Data spreadsheet.
+        Pulls the last <strong>90 days</strong> into the database and refreshes Foresight recommendations and Weekly Performance.
       </p>
 
       {/* Tab progress list */}
@@ -2840,12 +2843,7 @@ function SyncAdsView({ databaseId }: { databaseId: string }) {
         </div>
       )}
 
-      {spreadsheetUrl && (
-        <a href={spreadsheetUrl} target="_blank" rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-green-600 hover:text-green-700 underline mb-2">
-          📄 Open Marketing Spreadsheet
-        </a>
-      )}
+      {digestRefreshed && <p className="text-sm font-semibold text-green-700 mt-2">Weekly Performance refreshed.</p>}
       {globalError && <p className="text-sm text-red-600 mt-2">❌ {globalError}</p>}
 
       {/* Error detail modal */}
