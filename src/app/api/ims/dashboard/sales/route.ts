@@ -244,7 +244,7 @@ export async function GET(req: Request) {
   let brandRows: BrandRow[] = [];
   try {
     brandRows = await imsQuery<BrandRow>(
-      `SELECT COALESCE(NULLIF(TRIM(p.brand), ''), 'Unbranded') AS name, SUM(lines.sales) AS sales
+      `SELECT COALESCE(NULLIF(TRIM(p.brand), ''), 'Unbranded') AS name, SUM(sales_lines.sales) AS sales
        FROM (
          SELECT COALESCE(pvid.variant_id, psku.variant_id) AS variant_id, COALESCE(psi.line_total, 0) AS sales
          FROM pos_sales ps
@@ -268,8 +268,8 @@ export async function GET(req: Request) {
            AND ((so.so_type = 'online' AND (so.is_historical IS NULL OR so.is_historical = 0) AND so.status != 'cancelled')
              OR (so.so_type != 'online' AND so.status = 'fulfilled'))
            ${soBizClause}
-       ) lines
-      LEFT JOIN ims_product_variants pv ON pv.variant_id = lines.variant_id
+      ) sales_lines
+      LEFT JOIN ims_product_variants pv ON pv.variant_id = sales_lines.variant_id
       LEFT JOIN ims_products p ON p.product_id = pv.product_id
        GROUP BY COALESCE(NULLIF(TRIM(p.brand), ''), 'Unbranded')
        ORDER BY sales DESC
