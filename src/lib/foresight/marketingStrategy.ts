@@ -13,6 +13,8 @@ export interface ForesightMarketingStrategy {
     zeroRevenueSpend: number;
     merDeteriorationPercent: number;
     maximumBudgetReductionPercent: number;
+    growthMinimumContributionPoas: number;
+    maximumBudgetIncreasePercent: number;
   };
 }
 
@@ -27,6 +29,8 @@ export const DEFAULT_FORESIGHT_MARKETING_STRATEGY: ForesightMarketingStrategy = 
     zeroRevenueSpend: 100,
     merDeteriorationPercent: 25,
     maximumBudgetReductionPercent: 10,
+    growthMinimumContributionPoas: 3,
+    maximumBudgetIncreasePercent: 10,
   },
 };
 
@@ -114,6 +118,20 @@ export function parseMarketingStrategy(value: unknown): ForesightMarketingStrate
         50,
         issues,
       ),
+      growthMinimumContributionPoas: boundedNumber(
+        paidMedia.growthMinimumContributionPoas ?? DEFAULT_FORESIGHT_MARKETING_STRATEGY.paidMedia.growthMinimumContributionPoas,
+        'paidMedia.growthMinimumContributionPoas',
+        1,
+        20,
+        issues,
+      ),
+      maximumBudgetIncreasePercent: boundedNumber(
+        paidMedia.maximumBudgetIncreasePercent ?? DEFAULT_FORESIGHT_MARKETING_STRATEGY.paidMedia.maximumBudgetIncreasePercent,
+        'paidMedia.maximumBudgetIncreasePercent',
+        0,
+        25,
+        issues,
+      ),
     },
   };
 
@@ -137,6 +155,8 @@ export function renderMarketingStrategyMarkdown(strategy: ForesightMarketingStra
     `- Zero-revenue spend threshold: AUD ${strategy.paidMedia.zeroRevenueSpend}`,
     `- MER deterioration tolerance: ${strategy.paidMedia.merDeteriorationPercent}%`,
     `- Maximum suggested budget reduction: ${strategy.paidMedia.maximumBudgetReductionPercent}%`,
+    `- Profitable-growth contribution POAS floor: ${strategy.paidMedia.growthMinimumContributionPoas}`,
+    `- Maximum suggested budget increase: ${strategy.paidMedia.maximumBudgetIncreasePercent}%`,
     '',
     'Approval authorizes planning only. It does not execute changes in Google or Meta.',
   ].join('\n');

@@ -13,6 +13,17 @@ describe('recommendation implementation preview', () => {
     expect(preview.guardrails.join(' ')).toContain('No reviewed budget reduction may exceed 8%');
   });
 
+  it('renders a capped manual growth review without enabling execution', () => {
+    const preview = buildRecommendationImplementationPreview('paid_media', {
+      type: 'review_capped_budget_increase',
+      maximumIncreasePercent: 10,
+    });
+
+    expect(preview).toMatchObject({ mode: 'manual_external', executable: false });
+    expect(preview.summary).toContain('10%');
+    expect(preview.guardrails.join(' ')).toContain('No reviewed budget increase may exceed 10%');
+  });
+
   it('names Klaviyo gaps but still requires validation before activation', () => {
     const preview = buildRecommendationImplementationPreview('klaviyo', {
       type: 'review_klaviyo_lifecycle_flows',

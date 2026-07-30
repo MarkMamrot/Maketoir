@@ -71,6 +71,24 @@ describe('recommendation outcome assessment', () => {
     expect(outcome).toMatchObject({ direction: 'worsened', conditionState: 'persisted', followupValue: 1.2 });
   });
 
+  it('measures whether profitable-growth guardrails remain sustained', () => {
+    const followup = summarizePaidMediaOutcomeWindow([
+      row({ spend: 100, revenue: 500, contributionBeforeAds: 350 }),
+    ]);
+    const outcome = assessPaidMediaRecommendationOutcome(
+      'profitable_growth_opportunity',
+      { currentContributionPoas: 3.2, growthMinimumContributionPoas: 3, targetMer: 3 },
+      followup,
+    );
+
+    expect(outcome).toMatchObject({
+      direction: 'improved',
+      conditionState: 'persisted',
+      primaryMetric: 'contribution_poas',
+      followupValue: 3.5,
+    });
+  });
+
   it('does not infer an outcome from blocking follow-up quality', () => {
     const followup = summarizePaidMediaOutcomeWindow([row({ contributionBeforeAds: null, blocking: true })]);
     const outcome = assessPaidMediaRecommendationOutcome(

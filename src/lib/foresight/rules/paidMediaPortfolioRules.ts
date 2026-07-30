@@ -17,6 +17,9 @@ export interface PaidMediaRulePolicy {
   merDeteriorationPercent: number;
   minimumContributionPoas: number;
   maximumBudgetReductionPercent: number;
+  targetMer: number;
+  growthMinimumContributionPoas: number;
+  maximumBudgetIncreasePercent: number;
 }
 
 export const DEFAULT_PAID_MEDIA_RULE_POLICY: PaidMediaRulePolicy = {
@@ -27,6 +30,9 @@ export const DEFAULT_PAID_MEDIA_RULE_POLICY: PaidMediaRulePolicy = {
   merDeteriorationPercent: 25,
   minimumContributionPoas: 1,
   maximumBudgetReductionPercent: 10,
+  targetMer: 3,
+  growthMinimumContributionPoas: 3,
+  maximumBudgetIncreasePercent: 10,
 };
 
 export interface PaidMediaRuleRecommendation {
@@ -34,7 +40,7 @@ export interface PaidMediaRuleRecommendation {
   channel: 'paid_media';
   subjectType: 'portfolio';
   subjectId: 'google_meta_blended';
-  ruleId: 'spend_without_online_revenue' | 'contribution_poas_below_one' | 'mer_deterioration';
+  ruleId: 'spend_without_online_revenue' | 'contribution_poas_below_one' | 'mer_deterioration' | 'profitable_growth_opportunity';
   evidence: RecommendationEvidence;
   proposedAction: Record<string, unknown>;
   confidence: number;
@@ -210,6 +216,58 @@ export function evaluatePaidMediaPortfolioRules(
         expectedImpactHigh: null,
       });
     }
+  }
+
+  const stableCampaigns = contributors.filter((item) =>
+    item.entityType === 'campaign'
+    && item.currentSpend > 0
+    && item.currentAttributedRevenue > 0
+    && (item.platformRoasChangePercent == null
+      || item.platformRoasChangePercent > -policy.merDeteriorationPercent)
+    && !item.signals.includes('spend_without_platform_revenue'));
+  if (
+    previous
+    && previous.days === policy.minimumCurrentDays
+    && !previous.issues.some((issue) => issue.severity === 'blocking')
+    && current.spend >= policy.minimumSpend
+    && previous.spend >= policy.minimumSpend
+    && current.revenue > 0
+    && previous.revenue > 0
+    && current.mer != null
+    && previous.mer != null
+    && current.mer >= policy.targetMer
+    && previous.mer >= policy.targetMer
+    && current.contributionPoas != null
+    && previous.contributionPoas != null
+    && current.contributionPoas >= policy.growthMinimumContributionPoas
+    && previous.contributionPoas >= policy.growthMinimumContributionPoas
+    && policy.maximumBudgetIncreasePercent > 0
+    && stableCampaigns.length > 0
+  ) {
+    recommendations.push({
+      fingerprint: fingerprint('profitable_growth_opportunity', current, policy),
+      channel: 'paid_media',
+      subjectType: 'portfolio',
+      subjectId: 'google_meta_blended',
+      ruleId: 'profitable_growth_opportunity',
+      evidence: evidence(current, ['contribution_poas', 'paid_media_ecommerce_mer'], {
+        currentContributionPoas: current.contributionPoas,
+        previousContributionPoas: previous.contributionPoas,
+        growthMinimumContributionPoas: policy.growthMinimumContributionPoas,
+        currentMer: current.mer,
+        previousMer: previous.mer,
+        targetMer: policy.targetMer,
+        spend: current.spend,
+      }, stableCampaigns),
+      proposedAction: {
+        type: 'review_capped_budget_increase',
+        maximumIncreasePercent: policy.maximumBudgetIncreasePercent,
+        reason: 'Both complete evaluation windows remained above the configured MER and contribution POAS growth guardrails.',
+      },
+      confidence: 0.75,
+      expectedImpactLow: null,
+      expectedImpactHigh: null,
+    });
   }
 
   return recommendations;

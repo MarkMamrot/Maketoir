@@ -104,6 +104,9 @@ describe('ForesightRecommendationService', () => {
       merDeteriorationPercent: 15,
       minimumContributionPoas: 1.25,
       maximumBudgetReductionPercent: 8,
+      targetMer: 4,
+      growthMinimumContributionPoas: 3,
+      maximumBudgetIncreasePercent: 10,
     }, []);
     expect(result.strategyVersion).toBe(4);
   });

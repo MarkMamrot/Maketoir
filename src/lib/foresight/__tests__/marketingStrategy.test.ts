@@ -27,6 +27,8 @@ describe('Foresight marketing strategy', () => {
     const markdown = renderMarketingStrategyMarkdown(DEFAULT_FORESIGHT_MARKETING_STRATEGY);
     expect(markdown).toContain('Target blended MER: 3');
     expect(markdown).toContain('Maximum suggested budget reduction: 10%');
+    expect(markdown).toContain('Profitable-growth contribution POAS floor: 3');
+    expect(markdown).toContain('Maximum suggested budget increase: 10%');
     expect(markdown).toContain('does not execute changes');
   });
 });

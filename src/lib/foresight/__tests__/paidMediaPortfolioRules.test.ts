@@ -137,4 +137,65 @@ describe('paid media portfolio rules', () => {
     expect(recommendations[0].evidence.contributors).toEqual([contributor]);
     expect(recommendations[0].evidence.observedValues?.spend).toBe(140);
   });
+
+  it('suggests a capped growth review after two strong windows with a stable campaign', () => {
+    const contributor = {
+      source: 'google_ads' as const,
+      entityType: 'campaign' as const,
+      entityId: 'campaign-1',
+      entityName: 'Stable PMax',
+      parentEntityId: null,
+      parentEntityName: null,
+      currentSpend: 140,
+      previousSpend: 140,
+      spendChange: 0,
+      currentAttributedRevenue: 700,
+      previousAttributedRevenue: 650,
+      currentPlatformRoas: 5,
+      previousPlatformRoas: 4.64,
+      platformRoasChangePercent: 7.8,
+      diagnosticScore: 0,
+      signals: [] as const,
+    };
+    const recommendations = evaluatePaidMediaPortfolioRules(
+      dates(14).map((date) => day(date, 20, 100, 70)),
+      undefined,
+      [contributor],
+    );
+    const recommendation = recommendations.find((item) => item.ruleId === 'profitable_growth_opportunity');
+
+    expect(recommendation?.proposedAction).toMatchObject({
+      type: 'review_capped_budget_increase',
+      maximumIncreasePercent: 10,
+    });
+    expect(recommendation?.evidence.contributors).toEqual([contributor]);
+  });
+
+  it('does not suggest growth when campaign ROAS declines beyond the configured tolerance', () => {
+    const contributor = {
+      source: 'google_ads' as const,
+      entityType: 'campaign' as const,
+      entityId: 'campaign-1',
+      entityName: 'Declining PMax',
+      parentEntityId: null,
+      parentEntityName: null,
+      currentSpend: 140,
+      previousSpend: 100,
+      spendChange: 40,
+      currentAttributedRevenue: 350,
+      previousAttributedRevenue: 500,
+      currentPlatformRoas: 2.5,
+      previousPlatformRoas: 5,
+      platformRoasChangePercent: -50,
+      diagnosticScore: 70,
+      signals: ['spend_increase', 'platform_roas_decline'] as const,
+    };
+    const recommendations = evaluatePaidMediaPortfolioRules(
+      dates(14).map((date) => day(date, 20, 100, 70)),
+      undefined,
+      [contributor],
+    );
+
+    expect(recommendations.some((item) => item.ruleId === 'profitable_growth_opportunity')).toBe(false);
+  });
 });

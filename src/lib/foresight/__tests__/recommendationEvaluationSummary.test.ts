@@ -49,4 +49,19 @@ describe('recommendation evaluation summary', () => {
   it('does not claim health without a complete current window', () => {
     expect(buildRecommendationEvaluationSummary(digest({ complete: false })).status).toBe('insufficient_data');
   });
+
+  it('surfaces an eligible growth opportunity before it is recorded', () => {
+    const input = digest();
+    input.contributors = [{
+      source: 'google_ads', entityType: 'campaign', entityId: 'campaign-1', entityName: 'Stable PMax',
+      parentEntityId: null, parentEntityName: null, currentSpend: 500, previousSpend: 500,
+      spendChange: 0, currentAttributedRevenue: 3900, previousAttributedRevenue: 3600,
+      currentPlatformRoas: 7.8, previousPlatformRoas: 7.2, platformRoasChangePercent: 8.3,
+      diagnosticScore: 0, signals: [],
+    }];
+
+    const result = buildRecommendationEvaluationSummary(input, 1, 25, 3, 3, 10);
+    expect(result.status).toBe('opportunity');
+    expect(result.detail).toContain('capped at 10%');
+  });
 });

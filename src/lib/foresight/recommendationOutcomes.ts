@@ -142,5 +142,26 @@ export function assessPaidMediaRecommendationOutcome(
     };
   }
 
+  if (ruleId === 'profitable_growth_opportunity') {
+    const baselineValue = baseline.currentContributionPoas;
+    const poasFloor = baseline.growthMinimumContributionPoas ?? 3;
+    const targetMer = baseline.targetMer ?? 3;
+    if (baselineValue == null || followup.contributionPoas == null || followup.mer == null) {
+      return unavailable(followup, 'Contribution POAS and MER could not be calculated for the growth follow-up window.');
+    }
+    const sustained = followup.contributionPoas >= poasFloor && followup.mer >= targetMer;
+    return {
+      direction: direction(followup.contributionPoas, baselineValue),
+      conditionState: sustained ? 'persisted' : 'resolved',
+      primaryMetric: 'contribution_poas',
+      baselineValue,
+      followupValue: followup.contributionPoas,
+      followup,
+      explanation: sustained
+        ? 'Contribution POAS and MER remained above the configured profitable-growth guardrails.'
+        : 'The portfolio no longer met both profitable-growth guardrails in the follow-up window.',
+    };
+  }
+
   return unavailable(followup, 'This recommendation rule does not yet have a deterministic outcome measure.');
 }

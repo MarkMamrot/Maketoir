@@ -34,6 +34,8 @@ const FIELDS: Array<{
   { key: 'zeroRevenueSpend', label: 'Zero-revenue spend threshold', min: 0, max: 1000000, step: 10, suffix: 'AUD' },
   { key: 'merDeteriorationPercent', label: 'MER deterioration tolerance', min: 1, max: 100, step: 1, suffix: '%' },
   { key: 'maximumBudgetReductionPercent', label: 'Maximum suggested reduction', min: 0, max: 50, step: 1, suffix: '%' },
+  { key: 'growthMinimumContributionPoas', label: 'Growth contribution POAS floor', min: 1, max: 20, step: 0.1, suffix: 'x' },
+  { key: 'maximumBudgetIncreasePercent', label: 'Maximum suggested increase', min: 0, max: 25, step: 1, suffix: '%' },
 ];
 
 async function json(response: Response): Promise<any> {

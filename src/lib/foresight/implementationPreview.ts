@@ -62,6 +62,28 @@ export function buildRecommendationImplementationPreview(
     };
   }
 
+  if (actionType === 'review_capped_budget_increase') {
+    const maximumIncreasePercent = number(proposedAction?.maximumIncreasePercent);
+    const cap = maximumIncreasePercent == null ? 'the approved business guardrail' : `${maximumIncreasePercent}%`;
+    return {
+      mode: 'manual_external',
+      executable: false,
+      title: 'Capped profitable-growth review',
+      summary: `Review sustained strong performance before increasing any selected budget by no more than ${cap}.`,
+      steps: [
+        'Inspect the named stable campaign contributors and confirm their current live delivery and budget constraints.',
+        `Choose any manual budget increases, capped at ${cap} for each reviewed budget.`,
+        'Record the platform, campaign names, previous budgets, new budgets, and implementation date.',
+      ],
+      guardrails: [
+        ...commonGuardrails,
+        `No reviewed budget increase may exceed ${cap}.`,
+        'Do not increase a campaign with a current tracking issue, material ROAS deterioration beyond the configured tolerance, shared budget, or incomplete financial evidence.',
+        'Platform attribution is diagnostic; the portfolio contribution and MER gates remain authoritative.',
+      ],
+    };
+  }
+
   if (actionType === 'review_channel_and_campaign_mix') {
     return {
       mode: 'manual_external',

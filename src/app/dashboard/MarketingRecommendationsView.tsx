@@ -143,12 +143,14 @@ const RULE_LABELS: Record<string, string> = {
   spend_without_online_revenue: 'Spend without online revenue',
   contribution_poas_below_one: 'Contribution POAS below configured floor',
   mer_deterioration: 'MER deterioration',
+  profitable_growth_opportunity: 'Profitable growth opportunity',
   klaviyo_lifecycle_coverage_gap: 'Klaviyo lifecycle coverage gap',
 };
 const ACTION_LABELS: Record<string, string> = {
   investigate_measurement_and_spend: 'Investigate measurement and spend',
   review_budget_reduction: 'Review a capped budget reduction',
   review_channel_and_campaign_mix: 'Review channel and campaign mix',
+  review_capped_budget_increase: 'Review a capped budget increase',
   review_klaviyo_lifecycle_flows: 'Review lifecycle flow coverage',
 };
 const METRIC_LABELS: Record<string, string> = {
@@ -161,6 +163,10 @@ const METRIC_LABELS: Record<string, string> = {
   previousMer: 'Previous MER',
   deteriorationPercent: 'Deterioration',
   merDeteriorationPercent: 'Configured deterioration boundary',
+  currentContributionPoas: 'Current contribution POAS',
+  previousContributionPoas: 'Previous contribution POAS',
+  growthMinimumContributionPoas: 'Growth POAS floor',
+  targetMer: 'Target MER',
   flowCount: 'Klaviyo flows',
   activeFlowCount: 'Active flows',
   activeCriticalFlowCount: 'Critical flows active',
@@ -305,6 +311,9 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
     latestWeeklyDigest?.snapshot_json ?? null,
     paidMediaPolicy?.minimumContributionPoas,
     paidMediaPolicy?.merDeteriorationPercent,
+    paidMediaPolicy?.targetMer,
+    paidMediaPolicy?.growthMinimumContributionPoas,
+    paidMediaPolicy?.maximumBudgetIncreasePercent,
   );
   const selectedPreview = selected
     ? buildRecommendationImplementationPreview(selected.channel as Parameters<typeof buildRecommendationImplementationPreview>[0], selected.proposed_action_json)
@@ -673,10 +682,12 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
           ) : filtered.length === 0 ? (
             filter === 'all' ? (
               <div className="space-y-4 px-4 py-5">
-                <div className={`border px-4 py-4 ${evaluationSummary.status === 'healthy' ? 'border-emerald-200 bg-emerald-50' : evaluationSummary.status === 'attention' ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-gray-50'}`}>
+                <div className={`border px-4 py-4 ${evaluationSummary.status === 'healthy' ? 'border-emerald-200 bg-emerald-50' : evaluationSummary.status === 'opportunity' ? 'border-cyan-200 bg-cyan-50' : evaluationSummary.status === 'attention' ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-gray-50'}`}>
                   <div className="flex items-start gap-3">
                     {evaluationSummary.status === 'healthy'
                       ? <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-emerald-700" />
+                      : evaluationSummary.status === 'opportunity'
+                        ? <ArrowUpRight size={18} className="mt-0.5 shrink-0 text-cyan-700" />
                       : <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-700" />}
                     <div>
                       <div className="text-sm font-semibold text-gray-900">{evaluationSummary.title}</div>

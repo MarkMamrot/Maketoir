@@ -15,6 +15,7 @@ const PAID_MEDIA_RULE_IDS = [
   'spend_without_online_revenue',
   'contribution_poas_below_one',
   'mer_deterioration',
+  'profitable_growth_opportunity',
 ];
 
 function addDays(date: string, days: number): string {
@@ -37,6 +38,9 @@ export const ForesightRecommendationService = {
       merDeteriorationPercent: strategy.paidMedia.merDeteriorationPercent,
       minimumContributionPoas: strategy.paidMedia.minimumContributionPoas,
       maximumBudgetReductionPercent: strategy.paidMedia.maximumBudgetReductionPercent,
+      targetMer: strategy.paidMedia.targetMer,
+      growthMinimumContributionPoas: strategy.paidMedia.growthMinimumContributionPoas,
+      maximumBudgetIncreasePercent: strategy.paidMedia.maximumBudgetIncreasePercent,
     };
     const startDate = addDays(throughDate, -(policy.minimumCurrentDays * 2 - 1));
     const metrics = await ForesightMetricsService.getDailyMarketingMetrics(
