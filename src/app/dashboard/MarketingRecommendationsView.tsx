@@ -909,7 +909,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                     <span className="border border-cyan-200 bg-white px-2 py-1 text-[11px] font-semibold uppercase text-cyan-800">No platform writes</span>
                   </div>
                   <p className="mt-2 text-sm leading-6 text-gray-700">{selectedPreview.summary}</p>
-                  <ol className="mt-3 space-y-2">
+                  <ol className="mt-3 list-none space-y-2 p-0">
                     {selectedPreview.steps.map((step, index) => (
                       <li key={step} className="flex gap-3 text-sm text-gray-700">
                         <span className="flex h-5 w-5 shrink-0 items-center justify-center border border-cyan-300 bg-white text-[11px] font-bold text-cyan-800">{index + 1}</span>
@@ -919,7 +919,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                   </ol>
                   <div className="mt-4 border-t border-cyan-200 pt-3">
                     <div className="text-xs font-bold uppercase tracking-wider text-cyan-900">Guardrails</div>
-                    <ul className="mt-2 space-y-1 text-xs leading-5 text-gray-600">
+                    <ul className="mt-2 list-none space-y-1 p-0 text-xs leading-5 text-gray-600">
                       {selectedPreview.guardrails.map((guardrail) => <li key={guardrail}>• {guardrail}</li>)}
                     </ul>
                   </div>
