@@ -686,7 +686,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
     const observer = new ResizeObserver(updateSize);
     observer.observe(chartBody);
     return () => observer.disconnect();
-  }, []);
+  }, [salesLoading, salesData]);
 
   useEffect(() => {
     setLoading(true);
