@@ -33,6 +33,8 @@ import type { MetaExecutionPreflightResult } from '@/lib/foresight/metaExecution
 import type { RollbackPreflightResult } from '@/lib/foresight/rollbackPreflight';
 import type { KlaviyoFlowCoverageEvidence, PaidMediaContributorEvidence } from '@/lib/foresight/types';
 import type { WeeklyDigestSnapshot } from '@/lib/foresight/weeklyDigest';
+import { buildRecommendationEvaluationSummary } from '@/lib/foresight/recommendationEvaluationSummary';
+import type { ForesightMarketingStrategy } from '@/lib/foresight/marketingStrategy';
 import { MarketingStrategyPanel } from './MarketingStrategyPanel';
 import { WeeklyMarketingDigest } from './WeeklyMarketingDigest';
 
@@ -132,6 +134,7 @@ type InboxResponse = {
   implementations?: RecommendationImplementation[];
   executions?: RecommendationExecution[];
   businessToday?: string;
+  paidMediaPolicy?: ForesightMarketingStrategy['paidMedia'];
   error?: string;
 };
 type Filter = 'all' | RecommendationState;
@@ -224,6 +227,7 @@ async function responseJson(response: Response): Promise<any> {
 
 export function MarketingRecommendationsView({ userTier }: { userTier: string }) {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [paidMediaPolicy, setPaidMediaPolicy] = useState<ForesightMarketingStrategy['paidMedia'] | null>(null);
   const [events, setEvents] = useState<RecommendationEvent[]>([]);
   const [outcomes, setOutcomes] = useState<RecommendationOutcome[]>([]);
   const [implementations, setImplementations] = useState<RecommendationImplementation[]>([]);
@@ -267,6 +271,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
       setOutcomes(body.outcomes ?? []);
       setImplementations(body.implementations ?? []);
       setExecutions(body.executions ?? []);
+      setPaidMediaPolicy(body.paidMediaPolicy ?? null);
       setDigests(digestBody.digests ?? []);
       setWeeklyDigests(digestBody.weeklyDigests ?? []);
       if (body.businessToday) {
@@ -296,6 +301,11 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const selectedCompensation = selectedExecutions.find((item) => item.compensates_execution_id != null) ?? null;
   const latestDigest = digests[0] ?? null;
   const latestWeeklyDigest = weeklyDigests[0] ?? null;
+  const evaluationSummary = buildRecommendationEvaluationSummary(
+    latestWeeklyDigest?.snapshot_json ?? null,
+    paidMediaPolicy?.minimumContributionPoas,
+    paidMediaPolicy?.merDeteriorationPercent,
+  );
   const selectedPreview = selected
     ? buildRecommendationImplementationPreview(selected.channel as Parameters<typeof buildRecommendationImplementationPreview>[0], selected.proposed_action_json)
     : null;
@@ -661,7 +671,50 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
           {loading ? (
             <div className="flex h-48 items-center justify-center text-gray-400"><Loader2 size={22} className="animate-spin" /></div>
           ) : filtered.length === 0 ? (
-            <div className="px-6 py-16 text-center text-sm text-gray-500">No recommendations in this state.</div>
+            filter === 'all' ? (
+              <div className="space-y-4 px-4 py-5">
+                <div className={`border px-4 py-4 ${evaluationSummary.status === 'healthy' ? 'border-emerald-200 bg-emerald-50' : evaluationSummary.status === 'attention' ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-gray-50'}`}>
+                  <div className="flex items-start gap-3">
+                    {evaluationSummary.status === 'healthy'
+                      ? <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-emerald-700" />
+                      : <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-700" />}
+                    <div>
+                      <div className="text-sm font-semibold text-gray-900">{evaluationSummary.title}</div>
+                      <p className="mt-1 text-xs leading-5 text-gray-600">{evaluationSummary.detail}</p>
+                    </div>
+                  </div>
+                </div>
+                {evaluationSummary.checks.length > 0 && (
+                  <div className="divide-y divide-gray-100 border border-gray-200">
+                    {evaluationSummary.checks.map((check) => (
+                      <div key={check.key} className="flex items-start gap-3 px-3 py-3">
+                        {check.passed ? <Check size={15} className="mt-0.5 shrink-0 text-emerald-700" /> : <X size={15} className="mt-0.5 shrink-0 text-red-600" />}
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold text-gray-800">{check.label}</div>
+                          <div className="mt-0.5 text-xs leading-5 text-gray-500">{check.detail}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {evaluationSummary.contributors.length > 0 && (
+                  <div>
+                    <div className="text-xs font-bold uppercase text-gray-500">Campaign watch</div>
+                    <div className="mt-2 space-y-2">
+                      {evaluationSummary.contributors.slice(0, 3).map((contributor) => (
+                        <div key={`${contributor.source}:${contributor.entityType}:${contributor.entityId}`} className="border border-gray-200 px-3 py-3 text-xs">
+                          <div className="font-semibold text-gray-800">{contributor.entityName}</div>
+                          <div className="mt-1 text-gray-500">{money(contributor.currentSpend)} spend · platform ROAS {contributor.currentPlatformRoas?.toFixed(2) ?? 'N/A'}</div>
+                          <div className="mt-1 text-gray-500">{contributor.signals.length > 0 ? contributor.signals.map((signal) => SIGNAL_LABELS[signal]).join(' · ') : 'No deterioration signal detected'}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="px-6 py-16 text-center text-sm text-gray-500">No recommendations in this state.</div>
+            )
           ) : filtered.map((item) => {
             const isSelected = item.id === selectedId;
             const observed = item.evidence_json.observedValues ?? {};
@@ -689,7 +742,11 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
 
         <section className="min-w-0 p-5 sm:p-6" aria-label="Recommendation details">
           {!selected ? (
-            <div className="flex h-full min-h-64 items-center justify-center text-sm text-gray-500">Select a recommendation to review.</div>
+            <div className="flex h-full min-h-64 items-center justify-center px-6 text-center text-sm text-gray-500">
+              {recommendations.length === 0
+                ? 'No intervention requires approval. The evaluation evidence and campaign watch list are shown alongside.'
+                : 'Select a recommendation to review.'}
+            </div>
           ) : (
             <div className="space-y-6">
               <div className="flex flex-wrap items-start justify-between gap-3">

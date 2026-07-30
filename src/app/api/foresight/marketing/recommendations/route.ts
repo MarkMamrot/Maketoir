@@ -7,6 +7,7 @@ import { ForesightRepository } from '@/lib/foresight/repositories/ForesightRepos
 import { ForesightExecutionRepository } from '@/lib/foresight/repositories/ForesightExecutionRepository';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { DEFAULT_BUSINESS_TIME_ZONE, getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
+import { DEFAULT_FORESIGHT_MARKETING_STRATEGY, parseMarketingStrategy } from '@/lib/foresight/marketingStrategy';
 
 function isIsoDate(value: unknown): value is string {
   return typeof value === 'string'
@@ -24,16 +25,22 @@ export async function GET() {
   const { user, response } = requireAdminSession();
   if (response) return response;
 
-  const recommendations = await ForesightRepository.listRecommendations(user.businessId, [
-    'shadow',
-    'pending_approval',
-    'approved',
-    'executing',
-    'succeeded',
-    'failed',
-    'compensated',
-    'rejected',
+  const [recommendations, storedStrategy] = await Promise.all([
+    ForesightRepository.listRecommendations(user.businessId, [
+      'shadow',
+      'pending_approval',
+      'approved',
+      'executing',
+      'succeeded',
+      'failed',
+      'compensated',
+      'rejected',
+    ]),
+    ForesightRepository.latestStrategy(user.businessId),
   ]);
+  const strategy = storedStrategy
+    ? parseMarketingStrategy(storedStrategy.strategy_json)
+    : DEFAULT_FORESIGHT_MARKETING_STRATEGY;
   const recommendationIds = recommendations.map((recommendation) => recommendation.id);
   const timeZone = await runImsForBusiness(
     user.businessId,
@@ -54,6 +61,7 @@ export async function GET() {
     implementations,
     executions,
     businessToday,
+    paidMediaPolicy: strategy.paidMedia,
   });
 }
 

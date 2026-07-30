@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockRequireAdminSession, mockRequireAdminTier, mockEvaluate, mockEvaluateKlaviyo, mockEvaluateOutcomes, mockList, mockListEvents, mockListOutcomes, mockListImplementations, mockListExecutions } = vi.hoisted(() => ({
+const { mockRequireAdminSession, mockRequireAdminTier, mockEvaluate, mockEvaluateKlaviyo, mockEvaluateOutcomes, mockList, mockLatestStrategy, mockListEvents, mockListOutcomes, mockListImplementations, mockListExecutions } = vi.hoisted(() => ({
   mockRequireAdminSession: vi.fn(),
   mockRequireAdminTier: vi.fn(),
   mockEvaluate: vi.fn(),
   mockEvaluateKlaviyo: vi.fn(),
   mockEvaluateOutcomes: vi.fn(),
   mockList: vi.fn(),
+  mockLatestStrategy: vi.fn(),
   mockListEvents: vi.fn(),
   mockListOutcomes: vi.fn(),
   mockListImplementations: vi.fn(),
@@ -36,6 +37,7 @@ vi.mock('@/lib/foresight/ForesightOutcomeService', () => ({
 vi.mock('@/lib/foresight/repositories/ForesightRepository', () => ({
   ForesightRepository: {
     listRecommendations: mockList,
+    latestStrategy: mockLatestStrategy,
     listRecommendationEvents: mockListEvents,
     listRecommendationOutcomes: mockListOutcomes,
     listRecommendationImplementations: mockListImplementations,
@@ -55,6 +57,7 @@ describe('/api/foresight/marketing/recommendations', () => {
     mockEvaluate.mockResolvedValue({ recommendationCount: 0, expiredCount: 0, recommendations: [] });
     mockEvaluateKlaviyo.mockResolvedValue({ recommendationCount: 0, expiredCount: 0, recommendations: [], skipped: true });
     mockList.mockResolvedValue([]);
+    mockLatestStrategy.mockResolvedValue(null);
     mockListEvents.mockResolvedValue([]);
     mockListOutcomes.mockResolvedValue([]);
     mockListImplementations.mockResolvedValue([]);
@@ -95,5 +98,7 @@ describe('/api/foresight/marketing/recommendations', () => {
     expect(mockListOutcomes).toHaveBeenCalledWith('business-1', []);
     expect(mockListImplementations).toHaveBeenCalledWith('business-1', []);
     expect(mockListExecutions).toHaveBeenCalledWith('business-1', []);
+    const body = await response.json();
+    expect(body.paidMediaPolicy).toMatchObject({ minimumContributionPoas: 1, merDeteriorationPercent: 25 });
   });
 });
