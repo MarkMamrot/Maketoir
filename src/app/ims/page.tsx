@@ -599,8 +599,8 @@ function TotalSalesProfitCircle({ rows, itemCount, periodLabel, loading }: { row
     <div style={{ minWidth: 0 }}>
       <div style={{ position: 'relative', height: 450, boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: 18, left: 20, right: 20, fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Total Sales vs Gross Profit - {periodLabel}</div>
-        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 30 }}>
-          <div style={{ width: 205, flex: '0 1 205px', minHeight: 0, textAlign: 'center' }}>
+        <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'minmax(210px, 1.4fr) minmax(110px, .75fr) minmax(135px, .9fr)', alignItems: 'center', paddingTop: 30 }}>
+          <div style={{ minWidth: 210, textAlign: 'center' }}>
             <svg viewBox="0 0 250 250" role="img" aria-label={`Total sales ${fmtCurrency(totalSales)}, gross profit ${fmtCurrency(totalGrossProfit)}, margin ${marginPercent.toFixed(1)} percent`} style={{ width: '100%', maxHeight: 270, display: 'block' }}>
               <circle cx="125" cy="125" r={outerRadius} fill="#25364d" />
               <circle cx="125" cy="125" r={innerRadius} fill="#58c7b5" stroke="rgba(255,255,255,.7)" strokeWidth="2" />
@@ -622,17 +622,20 @@ function TotalSalesProfitCircle({ rows, itemCount, periodLabel, loading }: { row
               </div>
             </div>
           </div>
-          <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', marginTop: 22, paddingTop: 16, borderTop: '1px solid var(--sv-etch)' }}>
-            {[
-              { label: 'Sales count', value: totalOrderCount.toLocaleString('en-AU') },
-              { label: 'Number of items', value: Number(itemCount).toLocaleString('en-AU', { maximumFractionDigits: 2 }) },
-              { label: 'AOV', value: fmtCurrency(averageOrderValue) },
-            ].map((metric, index) => (
-              <div key={metric.label} style={{ minWidth: 0, padding: '2px 8px', textAlign: 'center', borderLeft: index === 0 ? 'none' : '1px solid var(--sv-etch)' }}>
-                <div style={{ color: 'var(--sv-text-strong)', fontSize: 19, lineHeight: 1.1, fontWeight: 800, whiteSpace: 'nowrap' }}>{metric.value}</div>
-                <div style={{ marginTop: 7, color: 'var(--sv-text-dim)', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{metric.label}</div>
-              </div>
-            ))}
+          <div style={{ alignSelf: 'stretch', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 24, padding: '8px 18px', borderLeft: '1px solid var(--sv-etch)' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ color: 'var(--sv-text-strong)', fontSize: 24, lineHeight: 1, fontWeight: 800 }}>{totalOrderCount.toLocaleString('en-AU')}</div>
+              <div style={{ marginTop: 7, color: 'var(--sv-text-dim)', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Sales count</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ color: 'var(--sv-text-strong)', fontSize: 24, lineHeight: 1, fontWeight: 800 }}>{Number(itemCount).toLocaleString('en-AU', { maximumFractionDigits: 2 })}</div>
+              <div style={{ marginTop: 7, color: 'var(--sv-text-dim)', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Number of items</div>
+            </div>
+          </div>
+          <div style={{ alignSelf: 'stretch', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 18px', borderLeft: '1px solid var(--sv-etch)' }}>
+            <div style={{ color: 'var(--sv-text-strong)', fontSize: 34, lineHeight: 1, fontWeight: 800, whiteSpace: 'nowrap' }}>{fmtCurrency(averageOrderValue)}</div>
+            <div style={{ marginTop: 9, color: 'var(--sv-text-dim)', fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>AOV</div>
+            <div style={{ marginTop: 5, color: 'var(--sv-text-dim)', fontSize: 10, textAlign: 'center' }}>Average order value</div>
           </div>
         </div>
       </div>
@@ -743,7 +746,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
   const brandMax = brandChartData.reduce((max, brand) => Math.max(max, brand.sales), 0);
   const periodLabel = salesWindow === 'today' ? 'Today' : salesWindow === 'yesterday' ? 'Yesterday' : salesWindow === '365' ? 'Last year' : `Last ${salesWindow} days`;
   const visibleSalesBarCount = dashboardSalesRows.filter(row => Number(row?.total ?? 0) > 0).length;
-  const salesChartColumns = visibleSalesBarCount <= 12 ? 9 : 12;
+  const salesChartColumns = visibleSalesBarCount <= 2 ? 4 : visibleSalesBarCount <= 6 ? 6 : visibleSalesBarCount <= 12 ? 9 : 12;
   const salesSummaryColumns = salesChartColumns === 12 ? 12 : 12 - salesChartColumns;
   const barColor = (i: number, total: number) => {
     const t = total <= 1 ? 0 : i / (total - 1);
@@ -1167,7 +1170,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               const yMax = niceMax(rawMax);
               const yTicks = [0,1,2,3,4].map(i => Math.round((i/4) * yMax));
 
-              const VW=visibleSalesBarCount <= 12 ? 1000 : 1200;
+              const VW=visibleSalesBarCount <= 2 ? 420 : visibleSalesBarCount <= 6 ? 600 : visibleSalesBarCount <= 12 ? 840 : 1100;
               const VH=360, PL=72, PR=16, PT=20, PB=56;
               const plotW=VW-PL-PR, plotH=VH-PT-PB;
               const nLoc=locations.length, nCh=activeChannels.length;
@@ -1204,7 +1207,8 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                     ))}
                     </div>
                   </div>
-                  <svg viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid meet" style={{ width: '100%', flex: 1, minHeight: 0, display: 'block', overflow: 'visible' }}>
+                  <div style={{ width: '100%', flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid meet" style={{ width: 'max(75%, min(100%, 1100px))', maxWidth: '100%', maxHeight: '100%', display: 'block', overflow: 'visible' }}>
                     {yTicks.map(tick => {
                       const y = yVal(tick);
                       return (
@@ -1308,6 +1312,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                       );
                     })}
                   </svg>
+                  </div>
                   {channelHover && (() => {
                     const hostW = channelChartRef.current?.clientWidth ?? 760;
                     const left = Math.max(130, Math.min(channelHover.x, hostW - 130));
