@@ -657,6 +657,8 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
   const [salesData, setSalesData] = useState<any>(null);
   const [salesLoading, setSalesLoading] = useState(true);
   const channelChartRef = useRef<HTMLDivElement | null>(null);
+  const channelChartBodyRef = useRef<HTMLDivElement | null>(null);
+  const [channelChartBodySize, setChannelChartBodySize] = useState({ width: 760, height: 380 });
   const [channelHover, setChannelHover] = useState<null | {
     x: number;
     y: number;
@@ -668,6 +670,23 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
     grossProfit: number;
     orders: number;
   }>(null);
+
+  useEffect(() => {
+    const chartBody = channelChartBodyRef.current;
+    if (!chartBody) return;
+    const updateSize = () => {
+      const bounds = chartBody.getBoundingClientRect();
+      setChannelChartBodySize(current => {
+        const width = Math.max(280, Math.round(bounds.width));
+        const height = Math.max(280, Math.round(bounds.height));
+        return current.width === width && current.height === height ? current : { width, height };
+      });
+    };
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(chartBody);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -1145,12 +1164,12 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               {/* ── Sales by Channel ── */}
               <div className="ims-sales-chart-panel" style={{ minWidth: 0, gridColumn: `span ${salesChartColumns}` }}>
             {salesLoading ? (
-              <div style={{ height: 450, padding: '18px 20px', boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
+              <div style={{ height: 'clamp(410px, 34vw, 470px)', padding: '18px 20px', boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
                 <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales and Gross Profit by Channel - {periodLabel}</div>
                 <div style={{ height: 'calc(100% - 20px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spinner /></div>
               </div>
             ) : !(salesData?.channelData?.length) ? (
-              <div style={{ height: 450, padding: '18px 20px', boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
+              <div style={{ height: 'clamp(410px, 34vw, 470px)', padding: '18px 20px', boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
                 <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales and Gross Profit by Channel - {periodLabel}</div>
                 <div style={{ height: 'calc(100% - 20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No sales in this period.</div>
               </div>
@@ -1170,13 +1189,25 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               const yMax = niceMax(rawMax);
               const yTicks = [0,1,2,3,4].map(i => Math.round((i/4) * yMax));
 
-              const VW=visibleSalesBarCount <= 12 ? 1000 : 1200;
-              const VH=360, PL=72, PR=16, PT=14, PB=48;
+              const availableWidth = channelChartBodySize.width;
+              const isNarrowChart = availableWidth < 620;
+              const axisFontSize = isNarrowChart ? 11 : 12;
+              const locationFontSize = isNarrowChart ? 11 : 13;
+              const valueFontSize = isNarrowChart ? 11 : 12;
+              const profitFontSize = isNarrowChart ? 10 : 11;
+              const PL=isNarrowChart ? 58 : 68, PR=12, PT=22, PB=isNarrowChart ? 42 : 48;
+              const minimumGroupWidth = isNarrowChart ? 112 : 126;
+              const minimumContentWidth = PL + PR + locations.reduce((width, loc) => {
+                const localBarCount = Math.max(1, getLocChans(loc).length);
+                return width + Math.max(minimumGroupWidth, localBarCount * 66 + 18);
+              }, 0);
+              const VW=Math.max(availableWidth, minimumContentWidth);
+              const VH=Math.max(280, channelChartBodySize.height);
               const plotW=VW-PL-PR, plotH=VH-PT-PB;
               const nLoc=locations.length, nCh=activeChannels.length;
               const groupW=plotW/nLoc;
-              const slotW=Math.min(72, Math.max(16, (groupW*0.9)/nCh));
-              const barW=Math.max(12, slotW-Math.max(3, slotW*0.08));
+              const slotW=Math.min(92, Math.max(48, (groupW*0.82)/nCh));
+              const barW=Math.max(42, slotW-Math.max(5, slotW*0.12));
               const getLocChans=(loc:string) => activeChannels.filter(ch => getVal(ch,loc) > 0);
               const xBarLocal=(li:number, localCi:number, nLocalCh:number) => {
                 const offset=(groupW - slotW*nLocalCh)/2;
@@ -1195,8 +1226,8 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               const trunc=(s:string,n=17) => s.length>n ? s.slice(0,n)+'…' : s;
 
               return (
-                <div ref={channelChartRef} style={{ position: 'relative', height: 450, boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px 8px', display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 8 }}>
+                <div ref={channelChartRef} style={{ position: 'relative', height: 'clamp(410px, 34vw, 470px)', boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 12px 8px', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px 16px', margin: '0 4px 6px' }}>
                     <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales and Gross Profit by Channel - {periodLabel}</div>
                     <div style={{ display: 'flex', gap: 16, flexShrink: 0 }}>
                     {activeChannels.map(ch => (
@@ -1207,14 +1238,14 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                     ))}
                     </div>
                   </div>
-                  <div style={{ width: '100%', flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid meet" style={{ width: '92%', height: '100%', display: 'block', overflow: 'visible' }}>
+                  <div ref={channelChartBodyRef} style={{ width: '100%', flex: 1, minHeight: 0, overflowX: VW > availableWidth ? 'auto' : 'hidden', overflowY: 'hidden' }}>
+                  <svg viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="none" style={{ width: VW, height: '100%', minWidth: '100%', display: 'block', overflow: 'visible' }}>
                     {yTicks.map(tick => {
                       const y = yVal(tick);
                       return (
                         <g key={tick}>
                           <line x1={PL} y1={y} x2={VW-PR} y2={y} stroke="currentColor" strokeOpacity="0.1" strokeDasharray={tick===0?undefined:'4,3'} />
-                          <text x={PL-7} y={y+4} textAnchor="end" fontSize="11" fill="currentColor" fillOpacity="0.66" fontWeight="500">{fmtY(tick)}</text>
+                          <text x={PL-7} y={y+4} textAnchor="end" fontSize={axisFontSize} fill="currentColor" fillOpacity="0.72" fontWeight="600">{fmtY(tick)}</text>
                         </g>
                       );
                     })}
@@ -1291,7 +1322,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                                       x={x + barW / 2}
                                       y={Math.max(y + 9, gpY - 3)}
                                       textAnchor="middle"
-                                      fontSize="9"
+                                      fontSize={profitFontSize}
                                       fill={CH_GP_LINE[ch] ?? 'rgba(15,23,42,.8)'}
                                       fillOpacity="1"
                                       pointerEvents="none"
@@ -1301,13 +1332,13 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                                   </>
                                 )}
                                 {h>24 && barW>14 && (
-                                  <text x={x+barW/2} y={y-6} textAnchor="middle" fontSize="10" fill="currentColor" fillOpacity="0.72" fontWeight="600">{fmtCurrency(v)}</text>
+                                  <text x={x+barW/2} y={y-7} textAnchor="middle" fontSize={valueFontSize} fill="currentColor" fillOpacity="0.78" fontWeight="700">{fmtCurrency(v)}</text>
                                 )}
                                 <title>{`${CH_LABEL[ch]} — ${loc}\nSales: ${fmtCurrency(v)}\nTax: ${fmtCurrency(tax)}\nCOGS: ${fmtCurrency(cogs)}\nGross Profit: ${fmtCurrency(grossProfit)}\nOrders: ${getOrd(ch,loc)}\nFormula: Sales - Tax - COGS`}</title>
                               </g>
                             );
                           })}
-                          <text x={PL+li*groupW+groupW/2} y={PT+plotH+20} textAnchor="middle" fontSize="12" fill="currentColor" fillOpacity="0.75" fontWeight="600">{trunc(loc)}</text>
+                          <text x={PL+li*groupW+groupW/2} y={PT+plotH+22} textAnchor="middle" fontSize={locationFontSize} fill="currentColor" fillOpacity="0.8" fontWeight="700">{trunc(loc, isNarrowChart ? 13 : 17)}</text>
                         </g>
                       );
                     })}
