@@ -37,13 +37,22 @@ function numberValue(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+export function normalizeCampaignStatus(value: unknown): string {
+  if (typeof value === 'number' || /^\d+$/.test(String(value ?? '').trim())) {
+    const status = Number(value);
+    return ({ 0: 'UNSPECIFIED', 1: 'UNKNOWN', 2: 'ENABLED', 3: 'PAUSED', 4: 'REMOVED' } as Record<number, string>)[status]
+      ?? `UNKNOWN_${status}`;
+  }
+  return stringValue(value).trim().toUpperCase();
+}
+
 export function normalizeCampaignSetting(row: any): GoogleCampaignSetting {
   return {
     customerId: stringValue(row?.customer?.id),
     currencyCode: stringValue(row?.customer?.currency_code),
     campaignId: stringValue(row?.campaign?.id),
     campaignName: stringValue(row?.campaign?.name),
-    status: stringValue(row?.campaign?.status),
+    status: normalizeCampaignStatus(row?.campaign?.status),
     budgetId: stringValue(row?.campaign_budget?.id),
     budgetName: stringValue(row?.campaign_budget?.name),
     amountMicros: numberValue(row?.campaign_budget?.amount_micros),
