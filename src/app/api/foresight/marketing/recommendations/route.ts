@@ -3,6 +3,7 @@ import { requireAdminSession, requireAdminTier } from '@/lib/sessionUtils';
 import { ForesightRecommendationService } from '@/lib/foresight/ForesightRecommendationService';
 import { KlaviyoRecommendationService } from '@/lib/foresight/KlaviyoRecommendationService';
 import { ForesightOutcomeService } from '@/lib/foresight/ForesightOutcomeService';
+import { Ga4RecommendationService } from '@/lib/foresight/Ga4RecommendationService';
 import { ForesightRepository } from '@/lib/foresight/repositories/ForesightRepository';
 import { ForesightExecutionRepository } from '@/lib/foresight/repositories/ForesightExecutionRepository';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
@@ -75,16 +76,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'through must be a valid YYYY-MM-DD date.' }, { status: 400 });
   }
 
-  const [paidMedia, klaviyo] = await Promise.all([
+  const [paidMedia, ga4, klaviyo] = await Promise.all([
     ForesightRecommendationService.evaluatePaidMedia(user.businessId, through),
+    Ga4RecommendationService.evaluateChannels(user.businessId, through),
     KlaviyoRecommendationService.evaluateLifecycle(user.businessId, through),
   ]);
   const outcomes = await ForesightOutcomeService.evaluateDuePaidMedia(user.businessId, through);
   return NextResponse.json({
     success: true,
-    recommendationCount: paidMedia.recommendationCount + klaviyo.recommendationCount,
-    expiredCount: paidMedia.expiredCount + klaviyo.expiredCount,
+    recommendationCount: paidMedia.recommendationCount + ga4.recommendationCount + klaviyo.recommendationCount,
+    expiredCount: paidMedia.expiredCount + ga4.expiredCount + klaviyo.expiredCount,
     paidMedia,
+    ga4,
     klaviyo,
     outcomes,
   });

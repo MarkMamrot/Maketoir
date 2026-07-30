@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockRequireAdminSession, mockRequireAdminTier, mockEvaluate, mockEvaluateKlaviyo, mockEvaluateOutcomes, mockList, mockLatestStrategy, mockListEvents, mockListOutcomes, mockListImplementations, mockListExecutions } = vi.hoisted(() => ({
+const { mockRequireAdminSession, mockRequireAdminTier, mockEvaluate, mockEvaluateGa4, mockEvaluateKlaviyo, mockEvaluateOutcomes, mockList, mockLatestStrategy, mockListEvents, mockListOutcomes, mockListImplementations, mockListExecutions } = vi.hoisted(() => ({
   mockRequireAdminSession: vi.fn(),
   mockRequireAdminTier: vi.fn(),
   mockEvaluate: vi.fn(),
+  mockEvaluateGa4: vi.fn(),
   mockEvaluateKlaviyo: vi.fn(),
   mockEvaluateOutcomes: vi.fn(),
   mockList: vi.fn(),
@@ -31,6 +32,9 @@ vi.mock('@/lib/foresight/ForesightRecommendationService', () => ({
 vi.mock('@/lib/foresight/KlaviyoRecommendationService', () => ({
   KlaviyoRecommendationService: { evaluateLifecycle: mockEvaluateKlaviyo },
 }));
+vi.mock('@/lib/foresight/Ga4RecommendationService', () => ({
+  Ga4RecommendationService: { evaluateChannels: mockEvaluateGa4 },
+}));
 vi.mock('@/lib/foresight/ForesightOutcomeService', () => ({
   ForesightOutcomeService: { evaluateDuePaidMedia: mockEvaluateOutcomes },
 }));
@@ -55,6 +59,7 @@ describe('/api/foresight/marketing/recommendations', () => {
     mockRequireAdminSession.mockReturnValue({ user: { businessId: 'business-1' } });
     mockRequireAdminTier.mockReturnValue({ user: { businessId: 'business-1' } });
     mockEvaluate.mockResolvedValue({ recommendationCount: 0, expiredCount: 0, recommendations: [] });
+    mockEvaluateGa4.mockResolvedValue({ recommendationCount: 0, expiredCount: 0, recommendations: [], skipped: false });
     mockEvaluateKlaviyo.mockResolvedValue({ recommendationCount: 0, expiredCount: 0, recommendations: [], skipped: true });
     mockList.mockResolvedValue([]);
     mockLatestStrategy.mockResolvedValue(null);
@@ -73,6 +78,7 @@ describe('/api/foresight/marketing/recommendations', () => {
 
     expect(response.status).toBe(200);
     expect(mockEvaluate).toHaveBeenCalledWith('business-1', '2026-07-28');
+    expect(mockEvaluateGa4).toHaveBeenCalledWith('business-1', '2026-07-28');
     expect(mockEvaluateKlaviyo).toHaveBeenCalledWith('business-1', '2026-07-28');
     expect(mockEvaluateOutcomes).toHaveBeenCalledWith('business-1', '2026-07-28');
   });

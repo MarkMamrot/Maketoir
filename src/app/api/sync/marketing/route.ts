@@ -29,6 +29,7 @@ import { ForesightRecommendationService } from '@/lib/foresight/ForesightRecomme
 import { KlaviyoRecommendationService } from '@/lib/foresight/KlaviyoRecommendationService';
 import { ForesightOutcomeService } from '@/lib/foresight/ForesightOutcomeService';
 import { ForesightDigestService } from '@/lib/foresight/ForesightDigestService';
+import { Ga4RecommendationService } from '@/lib/foresight/Ga4RecommendationService';
 
 /** Extract a readable message from any error shape (Google Ads API returns e.errors[0].message). */
 function errorMessage(e: any): string {
@@ -713,6 +714,25 @@ export async function POST(req: Request) {
               status: 'error',
               error: errorMessage(evaluationError),
             });
+          }
+        }
+        if (sources.includes('ga4')) {
+          try {
+            const evaluation = await Ga4RecommendationService.evaluateChannels(
+              databaseId,
+              addDays(endDate, -1),
+            );
+            recommendationCount = (recommendationCount ?? 0) + evaluation.recommendationCount;
+            emit({
+              source: 'foresight-ga4',
+              status: 'done',
+              recommendations: evaluation.recommendationCount,
+              expiredRecommendations: evaluation.expiredCount,
+              skipped: evaluation.skipped,
+              skipReason: 'skipReason' in evaluation ? evaluation.skipReason : null,
+            });
+          } catch (evaluationError) {
+            emit({ source: 'foresight-ga4', status: 'error', error: errorMessage(evaluationError) });
           }
         }
         if (sources.includes('klaviyo')) {

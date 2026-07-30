@@ -1,4 +1,5 @@
 import { getPool, execute, query } from '@/services/MySQLService';
+import { createHash } from 'node:crypto';
 
 export interface MarketingDataRow {
   business_id:    string;
@@ -10,6 +11,34 @@ export interface MarketingDataRow {
   entity_name:    string | null;
   metrics:        any;
   last_synced_at: string;
+}
+
+const GA4_METRIC_HEADERS = new Set([
+  'sessions', 'activeUsers', 'newUsers', 'engagementRate', 'bounceRate',
+  'averageSessionDuration', 'conversions', 'totalRevenue', 'itemRevenue',
+  'itemsPurchased', 'itemsViewed', 'itemsAddedToCart', 'purchaseToViewRate',
+]);
+
+export function normalizeMarketingRecordDate(value: unknown, fallback: string): string {
+  const text = String(value ?? '').trim();
+  if (/^\d{8}$/.test(text)) return `${text.slice(0, 4)}-${text.slice(4, 6)}-${text.slice(6, 8)}`;
+  if (/^\d{6}$/.test(text)) return `${text.slice(0, 4)}-${text.slice(4, 6)}-01`;
+  const match = text.match(/^\d{4}-\d{2}-\d{2}/);
+  return match?.[0] ?? fallback;
+}
+
+export function marketingEntityIdentity(headers: string[], row: string[]): { id: string; name: string } {
+  const firstMetric = headers.findIndex((header) => GA4_METRIC_HEADERS.has(header));
+  if (firstMetric <= 0) {
+    return { id: String(row[0] ?? '').slice(0, 100), name: String(row[1] ?? '').slice(0, 499) };
+  }
+  const dimensions = headers.slice(0, firstMetric).map((header, index) => [header, row[index] ?? '']);
+  const canonical = JSON.stringify(dimensions);
+  const nameIndex = headers.slice(0, firstMetric).findIndex((header) => !/^(date|yearMonth)$/i.test(header));
+  return {
+    id: createHash('sha256').update(canonical).digest('hex'),
+    name: String(nameIndex >= 0 ? row[nameIndex] ?? '' : row[0] ?? '').slice(0, 499),
+  };
 }
 
 export const MarketingDataRepository = {
@@ -48,9 +77,12 @@ export const MarketingDataRepository = {
       const vals: any[] = [];
       chunk.forEach((row, idx) => {
         const metrics = Object.fromEntries(headers.map((h, hi) => [h, row[hi] ?? '']));
-        const entityId = String(row[0] ?? (i + idx)).slice(0, 100);
-        const entityName = (row[1] ?? '').slice(0, 499);
-        const recordDate = dateColIdx >= 0 ? (row[dateColIdx]?.slice(0, 10) || syncDate) : syncDate;
+        const identity = marketingEntityIdentity(headers, row);
+        const entityId = identity.id || String(i + idx);
+        const entityName = identity.name;
+        const recordDate = dateColIdx >= 0
+          ? normalizeMarketingRecordDate(row[dateColIdx], syncDate)
+          : syncDate;
         vals.push(
           businessId, platform, accountId, recordDate,
           entityType, entityId, entityName,

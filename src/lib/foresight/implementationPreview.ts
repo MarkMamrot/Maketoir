@@ -128,6 +128,26 @@ export function buildRecommendationImplementationPreview(
     };
   }
 
+  if (actionType === 'investigate_ga4_channel_funnel') {
+    const channelName = String(proposedAction?.channel ?? 'the affected channel');
+    return {
+      mode: 'manual_external',
+      executable: false,
+      title: `${channelName} funnel investigation`,
+      summary: 'Investigate the material GA4 conversion-rate decline before changing acquisition spend.',
+      steps: [
+        `Compare ${channelName} landing pages, devices, source/medium values, and campaign traffic across the two evidence windows.`,
+        'Check consent mode, conversion event definitions, checkout behavior, page speed, broken links, and recent merchandising changes.',
+        'Record confirmed causes and any external analytics, site, or campaign changes in the implementation note.',
+      ],
+      guardrails: [
+        ...commonGuardrails,
+        'GA4 conversions are diagnostic and must not replace authoritative commerce revenue.',
+        'Do not change budgets solely from this funnel signal without reviewing complete financial evidence.',
+      ],
+    };
+  }
+
   return {
     mode: 'manual_external',
     executable: false,

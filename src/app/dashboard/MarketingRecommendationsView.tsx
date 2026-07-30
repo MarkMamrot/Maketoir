@@ -144,6 +144,7 @@ const RULE_LABELS: Record<string, string> = {
   contribution_poas_below_one: 'Contribution POAS below configured floor',
   mer_deterioration: 'MER deterioration',
   profitable_growth_opportunity: 'Profitable growth opportunity',
+  ga4_channel_conversion_rate_decline: 'GA4 channel conversion-rate decline',
   klaviyo_lifecycle_coverage_gap: 'Klaviyo lifecycle coverage gap',
 };
 const ACTION_LABELS: Record<string, string> = {
@@ -151,6 +152,7 @@ const ACTION_LABELS: Record<string, string> = {
   review_budget_reduction: 'Review a capped budget reduction',
   review_channel_and_campaign_mix: 'Review channel and campaign mix',
   review_capped_budget_increase: 'Review a capped budget increase',
+  investigate_ga4_channel_funnel: 'Investigate a GA4 channel funnel',
   review_klaviyo_lifecycle_flows: 'Review lifecycle flow coverage',
 };
 const METRIC_LABELS: Record<string, string> = {
@@ -167,6 +169,14 @@ const METRIC_LABELS: Record<string, string> = {
   previousContributionPoas: 'Previous contribution POAS',
   growthMinimumContributionPoas: 'Growth POAS floor',
   targetMer: 'Target MER',
+  currentSessions: 'Current sessions',
+  previousSessions: 'Previous sessions',
+  currentConversions: 'Current conversions',
+  previousConversions: 'Previous conversions',
+  currentConversionRate: 'Current conversion rate',
+  previousConversionRate: 'Previous conversion rate',
+  conversionRateDeclinePercent: 'Conversion-rate decline',
+  declineThresholdPercent: 'Configured decline boundary',
   flowCount: 'Klaviyo flows',
   activeFlowCount: 'Active flows',
   activeCriticalFlowCount: 'Critical flows active',

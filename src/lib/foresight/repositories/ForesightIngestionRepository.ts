@@ -40,6 +40,8 @@ export interface ForesightSyncRunRow {
 export interface ForesightSyncTabOutcomeRow {
   run_id: number;
   state: 'succeeded' | 'failed';
+  window_start: string | null;
+  window_end: string | null;
   row_count: number;
   error_text: string | null;
   completed_at: string;
@@ -101,7 +103,7 @@ export const ForesightIngestionRepository = {
     tabKey: string,
   ): Promise<ForesightSyncTabOutcomeRow | null> {
     const rows = await query<ForesightSyncTabOutcomeRow>(
-      `SELECT run_id, state, row_count, error_text, completed_at
+      `SELECT run_id, state, window_start, window_end, row_count, error_text, completed_at
        FROM foresight_sync_tabs
        WHERE business_id = ? AND source = ? AND tab_key = ?
        ORDER BY run_id DESC

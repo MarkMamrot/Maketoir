@@ -38,6 +38,17 @@ describe('recommendation implementation preview', () => {
     expect(preview.guardrails.join(' ')).toContain('test messages');
   });
 
+  it('renders a diagnostic-only GA4 funnel investigation', () => {
+    const preview = buildRecommendationImplementationPreview('ga4', {
+      type: 'investigate_ga4_channel_funnel',
+      channel: 'Organic Search',
+    });
+
+    expect(preview).toMatchObject({ mode: 'manual_external', executable: false });
+    expect(preview.title).toContain('Organic Search');
+    expect(preview.guardrails.join(' ')).toContain('authoritative commerce revenue');
+  });
+
   it('does not invent a specific mutation for an unknown action', () => {
     const preview = buildRecommendationImplementationPreview('meta_ads', { type: 'future_action' });
 
