@@ -19,6 +19,7 @@ export interface ForesightExecutionRow {
   compensates_execution_id: number | null;
   created_at: string;
   completed_at: string | null;
+  completion_date?: string | null;
 }
 
 function parseJson(value: unknown): Record<string, unknown> | null {
@@ -83,7 +84,7 @@ export const ForesightExecutionRepository = {
     if (recommendationIds.length === 0) return [];
     const placeholders = recommendationIds.map(() => '?').join(',');
     const rows = await query<ForesightExecutionRow>(
-      `SELECT * FROM foresight_executions
+      `SELECT *, DATE_FORMAT(completed_at, '%Y-%m-%d') AS completion_date FROM foresight_executions
        WHERE business_id = ? AND recommendation_id IN (${placeholders})
        ORDER BY created_at DESC, id DESC`,
       [businessId, ...recommendationIds],

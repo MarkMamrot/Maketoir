@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockRecommendations, mockEvents, mockImplementations, mockOutcomes, mockUpsert, mockUpsertWeekly, mockListRecent, mockMetrics } = vi.hoisted(() => ({
+const { mockRecommendations, mockEvents, mockImplementations, mockOutcomes, mockExecutions, mockUpsert, mockUpsertWeekly, mockListRecent, mockMetrics } = vi.hoisted(() => ({
   mockRecommendations: vi.fn(), mockEvents: vi.fn(), mockImplementations: vi.fn(),
-  mockOutcomes: vi.fn(), mockUpsert: vi.fn(), mockUpsertWeekly: vi.fn(), mockListRecent: vi.fn(), mockMetrics: vi.fn(),
+  mockOutcomes: vi.fn(), mockExecutions: vi.fn(), mockUpsert: vi.fn(), mockUpsertWeekly: vi.fn(), mockListRecent: vi.fn(), mockMetrics: vi.fn(),
+}));
+vi.mock('../repositories/ForesightExecutionRepository', () => ({
+  ForesightExecutionRepository: { listForRecommendations: mockExecutions },
 }));
 
 vi.mock('../repositories/ForesightRepository', () => ({
@@ -30,6 +33,7 @@ describe('ForesightDigestService', () => {
     mockEvents.mockResolvedValue([]);
     mockImplementations.mockResolvedValue([]);
     mockOutcomes.mockResolvedValue([]);
+    mockExecutions.mockResolvedValue([]);
     mockUpsert.mockResolvedValue(9);
     mockUpsertWeekly.mockResolvedValue(10);
     mockMetrics.mockResolvedValue({ reconciliation: [], paidMedia: [], paidMediaEntities: [] });
@@ -42,6 +46,7 @@ describe('ForesightDigestService', () => {
     expect(mockEvents).toHaveBeenCalledWith('business-1', [42]);
     expect(mockImplementations).toHaveBeenCalledWith('business-1', [42]);
     expect(mockOutcomes).toHaveBeenCalledWith('business-1', [42]);
+    expect(mockExecutions).toHaveBeenCalledWith('business-1', [42]);
     expect(mockUpsert).toHaveBeenCalledWith('business-1', '2026-07-29', snapshot);
   });
 

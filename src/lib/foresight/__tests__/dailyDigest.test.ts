@@ -63,4 +63,20 @@ describe('daily Foresight digest', () => {
     expect(digest.counts.outcomeAvailable).toBe(1);
     expect(digest.items[0]).toMatchObject({ kind: 'outcome_available', priority: 'high' });
   });
+
+  it('shows the exact monitoring window for a verified execution without an outcome', () => {
+    const digest = build({
+      digestDate: '2026-07-30',
+      recommendations: [recommendation({ state: 'succeeded' })],
+      executions: [{
+        recommendation_id: 1, state: 'succeeded', compensates_execution_id: null,
+        completion_date: '2026-07-30',
+      }],
+    });
+
+    expect(digest.counts.monitoringActive).toBe(1);
+    expect(digest.items[0]).toMatchObject({ kind: 'monitoring_active', priority: 'info' });
+    expect(digest.items[0].detail).toContain('2026-07-31 through 2026-08-06');
+    expect(digest.items[0].detail).toContain('2026-08-07');
+  });
 });

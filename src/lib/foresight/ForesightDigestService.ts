@@ -3,6 +3,7 @@ import { ForesightMetricsService } from './ForesightMetricsService';
 import { ForesightDigestRepository, type ForesightDigestRow } from './repositories/ForesightDigestRepository';
 import { ForesightRepository } from './repositories/ForesightRepository';
 import { buildWeeklyDigest, type WeeklyDigestSnapshot } from './weeklyDigest';
+import { ForesightExecutionRepository } from './repositories/ForesightExecutionRepository';
 
 const DIGEST_STATES = [
   'shadow', 'pending_approval', 'approved', 'executing', 'succeeded', 'failed', 'compensated', 'rejected',
@@ -18,13 +19,14 @@ export const ForesightDigestService = {
   async generateDaily(businessId: string, digestDate: string): Promise<DailyDigestSnapshot> {
     const recommendations = await ForesightRepository.listRecommendations(businessId, [...DIGEST_STATES]);
     const recommendationIds = recommendations.map((item) => item.id);
-    const [events, implementations, outcomes] = await Promise.all([
+    const [events, implementations, outcomes, executions] = await Promise.all([
       ForesightRepository.listRecommendationEvents(businessId, recommendationIds),
       ForesightRepository.listRecommendationImplementations(businessId, recommendationIds),
       ForesightRepository.listRecommendationOutcomes(businessId, recommendationIds),
+      ForesightExecutionRepository.listForRecommendations(businessId, recommendationIds),
     ]);
     const snapshot = buildDailyDigest({
-      digestDate, recommendations, events, implementations, outcomes,
+      digestDate, recommendations, events, implementations, outcomes, executions,
     });
     await ForesightDigestRepository.upsertDaily(businessId, digestDate, snapshot);
     return snapshot;

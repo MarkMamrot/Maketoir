@@ -122,6 +122,7 @@ type RecommendationExecution = {
   compensates_execution_id: number | null;
   created_at: string;
   completed_at: string | null;
+  completion_date?: string | null;
 };
 type DigestRow = {
   id: number;
@@ -142,6 +143,12 @@ type InboxResponse = {
   error?: string;
 };
 type Filter = 'all' | RecommendationState;
+
+function addCalendarDays(value: string, days: number): string {
+  const date = new Date(`${value.slice(0, 10)}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
 
 function executionCustomerId(execution: RecommendationExecution | null): string | null {
   const account = execution?.before_json?.account;
@@ -1124,6 +1131,14 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                   )}
                   {selectedExecution.error_text && <p className="mt-3 text-sm leading-6 text-red-800">{selectedExecution.error_text}</p>}
                   <p className="mt-3 text-xs text-gray-600">The original live values are retained in the audit ledger. Any rollback requires a fresh live-state check and separate confirmation.</p>
+                  {selectedExecution.state === 'succeeded' && selectedExecution.completion_date && !selectedOutcome && (
+                    <div className="mt-3 border border-emerald-200 bg-white/70 px-3 py-3 text-sm text-emerald-950">
+                      <div className="font-semibold">Seven-day monitoring active</div>
+                      <div className="mt-1 text-xs leading-5 text-emerald-900">
+                        Observe {dateOnly(addCalendarDays(selectedExecution.completion_date, 1))}–{dateOnly(addCalendarDays(selectedExecution.completion_date, 7))}. First outcome assessment is due {dateOnly(addCalendarDays(selectedExecution.completion_date, 8))} after complete commerce and advertising data is available.
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

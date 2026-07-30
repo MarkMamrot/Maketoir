@@ -4,12 +4,14 @@ import type {
   RecommendationOutcomeRow,
   RecommendationRow,
 } from './repositories/ForesightRepository';
+import type { ForesightExecutionRow } from './repositories/ForesightExecutionRepository';
 
 export type DailyDigestItemKind =
   | 'pending_approval'
   | 'implementation_overdue'
   | 'expiring_soon'
   | 'outcome_available'
+  | 'monitoring_active'
   | 'data_quality_blocked';
 
 export interface DailyDigestItem {
@@ -31,6 +33,7 @@ export interface DailyDigestSnapshot {
     implementationOverdue: number;
     expiringSoon: number;
     outcomeAvailable: number;
+    monitoringActive: number;
     dataQualityBlocked: number;
   };
   items: DailyDigestItem[];
@@ -57,7 +60,14 @@ const KIND_ORDER: Record<DailyDigestItemKind, number> = {
   expiring_soon: 2,
   data_quality_blocked: 3,
   outcome_available: 4,
+  monitoring_active: 5,
 };
+
+function addDays(value: string, days: number): string {
+  const date = new Date(`${isoDate(value)}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
 
 export function buildDailyDigest(input: {
   digestDate: string;
@@ -65,6 +75,7 @@ export function buildDailyDigest(input: {
   events: RecommendationEventRow[];
   implementations: RecommendationImplementationRow[];
   outcomes: RecommendationOutcomeRow[];
+  executions?: ForesightExecutionRow[];
   implementationGraceDays?: number;
   expiryWarningDays?: number;
 }): DailyDigestSnapshot {
@@ -72,6 +83,12 @@ export function buildDailyDigest(input: {
   const expiryWarningDays = Math.max(0, Math.trunc(input.expiryWarningDays ?? 2));
   const items: DailyDigestItem[] = [];
   const implementationIds = new Set(input.implementations.map((item) => item.recommendation_id));
+  const outcomeIds = new Set(input.outcomes.map((item) => item.recommendation_id));
+  const successfulExecutionByRecommendation = new Map(
+    (input.executions ?? [])
+      .filter((item) => item.state === 'succeeded' && item.compensates_execution_id == null)
+      .map((item) => [item.recommendation_id, item]),
+  );
   const approvedOn = new Map<number, string>();
   for (const event of input.events) {
     if (event.to_state === 'approved') approvedOn.set(event.recommendation_id, isoDate(event.created_at));
@@ -118,6 +135,19 @@ export function buildDailyDigest(input: {
         detail: blockingIssues.map((issue) => issue.message).join(' '),
       });
     }
+
+    const execution = successfulExecutionByRecommendation.get(recommendation.id);
+    const completionDate = execution?.completion_date ?? null;
+    if (recommendation.state === 'succeeded' && completionDate && !outcomeIds.has(recommendation.id)) {
+      const followupStart = addDays(completionDate, 1);
+      const followupEnd = addDays(completionDate, 7);
+      const assessmentDate = addDays(completionDate, 8);
+      items.push({
+        kind: 'monitoring_active', priority: 'info', recommendationId: recommendation.id,
+        channel: recommendation.channel, title: `${subject(recommendation)} monitoring is active`,
+        detail: `Observe ${followupStart} through ${followupEnd}. The first outcome assessment is due ${assessmentDate} after complete data is available.`,
+      });
+    }
   }
 
   const recommendationById = new Map(input.recommendations.map((item) => [item.id, item]));
@@ -150,6 +180,7 @@ export function buildDailyDigest(input: {
       implementationOverdue: count('implementation_overdue'),
       expiringSoon: count('expiring_soon'),
       outcomeAvailable: count('outcome_available'),
+      monitoringActive: count('monitoring_active'),
       dataQualityBlocked: count('data_quality_blocked'),
     },
     items,
