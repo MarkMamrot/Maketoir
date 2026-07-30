@@ -286,12 +286,22 @@ export async function planShopifyPayoutActions(
     if (creditNotes.length !== 1 || !creditNotes[0]?.xero_credit_note_id) {
       return blockPayout(deps, businessId, payoutId, `Refund ${transaction.id} does not have one completed Xero credit note`);
     }
+    const refundAmount = Math.abs(roundCurrency(Number(transaction.amount)));
+    const creditNoteAmount = roundCurrency(Number(creditNotes[0].total_amount));
+    if (Math.abs(refundAmount - creditNoteAmount) > 0.01) {
+      return blockPayout(
+        deps,
+        businessId,
+        payoutId,
+        `Refund ${transaction.id} amount ${refundAmount.toFixed(2)} does not match completed credit note ${creditNoteAmount.toFixed(2)}`,
+      );
+    }
     actions.push({
       actionKey: `payout:${payoutId}:refund:${transaction.id}`,
       actionType: 'credit_note_refund',
       targetXeroDocumentId: String(creditNotes[0].xero_credit_note_id),
       actionDate: payoutDate,
-      amount: Math.abs(roundCurrency(Number(transaction.amount))),
+      amount: refundAmount,
       currency: String(payout.currency).toUpperCase(),
       accountCode: clearingAccountCode,
       offsetAccountCode: null,

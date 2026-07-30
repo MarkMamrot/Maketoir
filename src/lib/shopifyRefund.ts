@@ -30,10 +30,13 @@ export function parseShopifyRefund(refund: any, fallbackGateway?: string | null)
   const refundTxns = txns.filter(t =>
     String(t?.kind) === 'refund' && (t?.status == null || String(t.status) === 'success'),
   );
-  const amount = refundTxns.reduce((s, t) => s + parseFloat(t?.amount ?? '0'), 0);
-
   const rlis: any[] = Array.isArray(refund?.refund_line_items) ? refund.refund_line_items : [];
   const taxAmount = rlis.reduce((s, r) => s + parseFloat(r?.total_tax ?? '0'), 0);
+  const transactionAmount = refundTxns.reduce((s, t) => s + parseFloat(t?.amount ?? '0'), 0);
+  const itemisedAmount = rlis.reduce((s, r) => (
+    s + parseFloat(r?.subtotal ?? '0') + parseFloat(r?.total_tax ?? '0')
+  ), 0);
+  const amount = transactionAmount > 0 ? transactionAmount : itemisedAmount;
 
   const gateway = refundTxns[0]?.gateway ?? fallbackGateway ?? null;
 

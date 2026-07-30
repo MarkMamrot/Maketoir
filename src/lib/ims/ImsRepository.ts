@@ -2285,6 +2285,9 @@ export const ImsSORepo = {
       const total = Math.round((opts.amount ?? 0) * 100) / 100;
       const tax   = Math.round((opts.taxAmount ?? 0) * 100) / 100;
       const subtotal = Math.round((total - tax) * 100) / 100;
+      if (!(total > 0)) {
+        throw new Error(`Shopify refund ${opts.shopifyRefundId} has no positive refund amount`);
+      }
 
       // If Shopify sent no itemised lines, record a single summary line.
       if (cnItems.length === 0) {

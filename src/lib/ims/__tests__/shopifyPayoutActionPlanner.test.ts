@@ -154,6 +154,33 @@ describe('planShopifyPayoutActions', () => {
     expect(result).toMatchObject({ status: 'blocked', error: 'Refund refund-1 does not have one completed Xero credit note' });
   });
 
+  it('blocks refunds when the completed credit note amount does not match', async () => {
+    deps.mainQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM shopify_payment_payouts')) {
+        return [{ shopify_payout_id: 'pay-2', payout_date: '2026-07-27', shopify_status: 'paid', currency: 'AUD', payout_amount: -12.95 }];
+      }
+      if (sql.includes('FROM shopify_payment_payout_transactions')) {
+        return [{ shopify_transaction_id: 'refund-1', transaction_type: 'refund', amount: -12.95, fee: 0, net: -12.95, currency: 'AUD', source_order_id: 'order-sat' }];
+      }
+      if (sql.includes('FROM xero_gateway_mappings')) {
+        return [{ gateway_name: 'shopify_payments', clearing_account_code: '091', fee_account_code: '404', fee_tax_type: 'NONE' }];
+      }
+      throw new Error(`Unhandled main query: ${sql}`);
+    });
+    deps.tenantQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM ims_sales_orders')) return [{ id: 1, shopify_order_id: 'order-sat', order_date: '2026-07-25' }];
+      if (sql.includes('FROM ims_credit_notes')) return [{ shopify_order_id: 'order-sat', xero_credit_note_id: 'cn-1', total_amount: 0 }];
+      throw new Error(`Unhandled tenant query: ${sql}`);
+    });
+
+    const result = await planShopifyPayoutActions('biz-1', 'pay-2', deps);
+
+    expect(result).toMatchObject({
+      status: 'blocked',
+      error: 'Refund refund-1 amount 12.95 does not match completed credit note 0.00',
+    });
+  });
+
   it('plans a fee reversal as a clearing receive', async () => {
     deps.mainQuery.mockImplementation(async (sql: string) => {
       if (sql.includes('FROM shopify_payment_payouts')) {

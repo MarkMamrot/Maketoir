@@ -92,6 +92,9 @@ describe('syncDailySalesBatch online payout state', () => {
       if (sql.includes('xero_online_order_payments')) return { affectedRows: 0 };
       return { affectedRows: 1 };
     });
+    mockXeroApiFetch.mockResolvedValueOnce({
+      Invoices: [{ InvoiceID: 'invoice-existing', Status: 'AUTHORISED', Total: 55, AmountPaid: 0, AmountCredited: 0 }],
+    });
 
     const result = await syncDailySalesBatch('biz-1', {
       date: '2026-07-25',
@@ -108,7 +111,8 @@ describe('syncDailySalesBatch online payout state', () => {
     });
 
     expect(result).toBe('invoice-existing');
-    expect(mockXeroApiFetch).not.toHaveBeenCalled();
+    expect(mockXeroApiFetch).toHaveBeenCalledTimes(1);
+    expect(mockXeroApiFetch.mock.calls[0][1]).toBe('/Invoices/invoice-existing');
   });
 
   it('posts a separate durable fee spend after the gross order payment', async () => {
@@ -157,7 +161,11 @@ describe('syncDailySalesBatch online payout state', () => {
       if (sql.includes('xero_online_order_payments')) return { affectedRows: 0 };
       return { affectedRows: 1 };
     });
-    mockXeroApiFetch.mockResolvedValueOnce({ BankTransactions: [{ BankTransactionID: 'fee-2' }] });
+    mockXeroApiFetch
+      .mockResolvedValueOnce({
+        Invoices: [{ InvoiceID: 'invoice-existing', Status: 'AUTHORISED', Total: 100, AmountPaid: 100, AmountCredited: 0 }],
+      })
+      .mockResolvedValueOnce({ BankTransactions: [{ BankTransactionID: 'fee-2' }] });
 
     await syncDailySalesBatch('biz-1', {
       date: '2026-07-25',
@@ -171,11 +179,11 @@ describe('syncDailySalesBatch online payout state', () => {
       }],
     });
 
-    expect(mockXeroApiFetch).toHaveBeenCalledTimes(1);
-    expect(mockXeroApiFetch.mock.calls[0][1]).toBe('/BankTransactions');
+    expect(mockXeroApiFetch).toHaveBeenCalledTimes(2);
+    expect(mockXeroApiFetch.mock.calls[1][1]).toBe('/BankTransactions');
   });
 
-  it('returns the existing canonical invoice without posting again', async () => {
+  it('refreshes an unpaid existing canonical invoice when late orders increase the completed-day total', async () => {
     mockQuery.mockImplementation(async (sql: string) => {
       if (sql.includes('FROM xero_account_mappings')) {
         return [{ role_key: 'sales_revenue', xero_account_code: '200' }];
@@ -184,17 +192,66 @@ describe('syncDailySalesBatch online payout state', () => {
       if (sql.includes('FROM xero_online_batches')) return [{ xero_invoice_id: 'invoice-existing' }];
       return [];
     });
+    mockXeroApiFetch
+      .mockResolvedValueOnce({
+        Invoices: [{
+          InvoiceID: 'invoice-existing', Status: 'AUTHORISED', Total: 144.85,
+          AmountDue: 144.85, AmountPaid: 0, AmountCredited: 0,
+        }],
+      })
+      .mockResolvedValueOnce({
+        Invoices: [{ InvoiceID: 'invoice-existing', Status: 'AUTHORISED', Total: 337.04 }],
+      });
 
     const result = await syncDailySalesBatch('biz-1', {
       date: '2026-07-25',
       channel: 'online',
-      totalSales: 150,
-      totalTax: 15,
+      totalSales: 306.4,
+      totalTax: 30.64,
       lineDescription: 'Online Sales 2026-07-25',
     });
 
     expect(result).toBe('invoice-existing');
-    expect(mockXeroApiFetch).not.toHaveBeenCalled();
+    expect(mockXeroApiFetch).toHaveBeenNthCalledWith(1, 'biz-1', '/Invoices/invoice-existing');
+    expect(mockXeroApiFetch).toHaveBeenNthCalledWith(2, 'biz-1', '/Invoices/invoice-existing', expect.objectContaining({
+      method: 'POST',
+      idempotencyKey: expect.stringMatching(/^[a-f0-9]{64}$/),
+      body: { Invoices: [expect.objectContaining({ InvoiceID: 'invoice-existing' })] },
+    }));
+  });
+
+  it('replaces a voided canonical invoice without reusing its Xero ID', async () => {
+    mockQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM xero_account_mappings')) return [{ role_key: 'sales_revenue', xero_account_code: '200' }];
+      if (sql.includes('FROM xero_tracking_mappings')) return [];
+      if (sql.includes('FROM xero_online_batches')) return [{ xero_invoice_id: 'invoice-voided' }];
+      return [];
+    });
+    mockXeroApiFetch
+      .mockResolvedValueOnce({
+        Invoices: [{ InvoiceID: 'invoice-voided', Status: 'VOIDED', Total: 144.85, AmountPaid: 0, AmountCredited: 0 }],
+      })
+      .mockResolvedValueOnce({
+        Invoices: [{ InvoiceID: 'invoice-replacement', InvoiceNumber: 'INV-200', Status: 'AUTHORISED', Total: 337.04 }],
+      });
+
+    const result = await syncDailySalesBatch('biz-1', {
+      date: '2026-07-27',
+      channel: 'online',
+      totalSales: 306.4,
+      totalTax: 30.64,
+      lineDescription: 'Online Sales 2026-07-27 (5 orders)',
+      payoutManaged: true,
+      gatewayAllocations: [{ gateway: 'shopify_payments', amount: 337.04, payoutManaged: true }],
+    });
+
+    expect(result).toBe('invoice-replacement');
+    expect(mockXeroApiFetch).toHaveBeenNthCalledWith(2, 'biz-1', '/Invoices', expect.objectContaining({
+      method: 'POST',
+      idempotencyKey: expect.stringMatching(/^[a-f0-9]{64}$/),
+    }));
+    const persisted = mockExecute.mock.calls.filter(call => String(call[0]).includes('(business_id, batch_date, xero_invoice_id')).at(-1);
+    expect(persisted?.[1]?.[2]).toBe('invoice-replacement');
   });
 
   it('reuses the existing invoice while retrying an idempotent clearing payment', async () => {
@@ -206,7 +263,11 @@ describe('syncDailySalesBatch online payout state', () => {
       if (sql.includes('FROM xero_online_batches')) return [{ xero_invoice_id: 'invoice-existing' }];
       return [];
     });
-    mockXeroApiFetch.mockResolvedValueOnce({ Payments: [{ PaymentID: 'payment-1' }] });
+    mockXeroApiFetch
+      .mockResolvedValueOnce({
+        Invoices: [{ InvoiceID: 'invoice-existing', Status: 'AUTHORISED', Total: 110, AmountPaid: 0, AmountCredited: 0 }],
+      })
+      .mockResolvedValueOnce({ Payments: [{ PaymentID: 'payment-1' }] });
 
     const result = await syncDailySalesBatch('biz-1', {
       date: '2026-07-25',
@@ -218,7 +279,7 @@ describe('syncDailySalesBatch online payout state', () => {
     });
 
     expect(result).toBe('invoice-existing');
-    expect(mockXeroApiFetch).toHaveBeenCalledTimes(1);
+    expect(mockXeroApiFetch).toHaveBeenCalledTimes(2);
     expect(mockXeroApiFetch).toHaveBeenCalledWith('biz-1', '/Payments', expect.objectContaining({
       idempotencyKey: expect.stringMatching(/^[a-f0-9]{64}$/),
     }));
@@ -251,6 +312,9 @@ describe('syncDailySalesBatch online payout state', () => {
       if (sql.includes("sync_type = 'online_batch'")) return [{ xero_id: 'invoice-historical' }];
       return [];
     });
+    mockXeroApiFetch.mockResolvedValueOnce({
+      Invoices: [{ InvoiceID: 'invoice-historical', Status: 'AUTHORISED', Total: 110, AmountPaid: 0, AmountCredited: 0 }],
+    });
 
     const result = await syncDailySalesBatch('biz-1', {
       date: '2026-07-24',
@@ -261,7 +325,8 @@ describe('syncDailySalesBatch online payout state', () => {
     });
 
     expect(result).toBe('invoice-historical');
-    expect(mockXeroApiFetch).not.toHaveBeenCalled();
+    expect(mockXeroApiFetch).toHaveBeenCalledTimes(1);
+    expect(mockXeroApiFetch.mock.calls[0][1]).toBe('/Invoices/invoice-historical');
     expect(mockExecute.mock.calls.some(call => String(call[0]).includes('AUTHORISED'))).toBe(true);
   });
 });

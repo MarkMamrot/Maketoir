@@ -1298,20 +1298,62 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
   }
 
   try {
+    const totalDue = Math.round((batch.totalSales + batch.totalTax) * 100) / 100;
     const invoiceIdempotencyKey = crypto.createHash('sha256')
       .update(`${businessId}|${batchKey}|invoice`)
       .digest('hex');
-    const result = existingOnlineInvoiceId
-      ? { Invoices: [{ InvoiceID: existingOnlineInvoiceId, Status: 'AUTHORISED' }] }
-      : await xeroApiFetch(businessId, '/Invoices', {
+    let result;
+    if (existingOnlineInvoiceId) {
+      const currentResponse = await xeroApiFetch(businessId, `/Invoices/${encodeURIComponent(existingOnlineInvoiceId)}`);
+      const currentInvoice = currentResponse?.Invoices?.[0];
+      if (!currentInvoice) throw new Error(`Existing Xero online invoice ${existingOnlineInvoiceId} was not found`);
+      const currentTotal = roundCurrency(Number(currentInvoice.Total ?? 0));
+      const status = String(currentInvoice.Status ?? '').toUpperCase();
+      if (status === 'VOIDED') {
+        result = await xeroApiFetch(businessId, '/Invoices', {
+          method: 'POST',
+          idempotencyKey: crypto.createHash('sha256')
+            .update(`${businessId}|${batchKey}|invoice-replacement|${totalDue.toFixed(2)}`)
+            .digest('hex'),
+          body: { Invoices: [invoice] },
+        });
+        existingOnlineInvoiceId = null;
+      } else if (totalDue - currentTotal > 0.01) {
+        const amountPaid = roundCurrency(Number(currentInvoice.AmountPaid ?? 0));
+        const amountCredited = roundCurrency(Number(currentInvoice.AmountCredited ?? 0));
+        if (!['DRAFT', 'SUBMITTED', 'AUTHORISED'].includes(status) || amountPaid !== 0 || amountCredited !== 0) {
+          throw new Error(
+            `Existing Xero online invoice ${existingOnlineInvoiceId} is ${status || 'UNKNOWN'} with `
+            + `${amountPaid.toFixed(2)} paid and ${amountCredited.toFixed(2)} credited; `
+            + `cannot increase it from ${currentTotal.toFixed(2)} to ${totalDue.toFixed(2)} automatically`,
+          );
+        }
+        result = await xeroApiFetch(businessId, `/Invoices/${encodeURIComponent(existingOnlineInvoiceId)}`, {
+          method: 'POST',
+          idempotencyKey: crypto.createHash('sha256')
+            .update(`${businessId}|${batchKey}|invoice-refresh|${totalDue.toFixed(2)}`)
+            .digest('hex'),
+          body: { Invoices: [{ ...invoice, InvoiceID: existingOnlineInvoiceId }] },
+        });
+      } else {
+        if (currentTotal - totalDue > 0.01) {
+          throw new Error(
+            `Existing Xero online invoice ${existingOnlineInvoiceId} total ${currentTotal.toFixed(2)} `
+            + `is above rebuilt batch total ${totalDue.toFixed(2)}; automatic reductions are blocked`,
+          );
+        }
+        result = { Invoices: [currentInvoice] };
+      }
+    } else {
+      result = await xeroApiFetch(businessId, '/Invoices', {
           method: 'POST',
           idempotencyKey: invoiceIdempotencyKey,
           body: { Invoices: [invoice] },
         });
+    }
     const batchInv = result.Invoices?.[0];
     const xeroId = batchInv?.InvoiceID ?? null;
 
-    const totalDue = Math.round((batch.totalSales + batch.totalTax) * 100) / 100;
     if (batch.channel === 'online' && !batch.gateway && xeroId) {
       await execute(
         `INSERT INTO xero_online_batches

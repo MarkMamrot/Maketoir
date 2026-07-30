@@ -8,6 +8,7 @@ const {
   mockRunImsForBusiness,
   mockPlan,
   mockExecute,
+  mockSyncOnlineDailySalesDay,
 } = vi.hoisted(() => ({
   mockRequireAdminSession: vi.fn(),
   mockAssertBusinessAccess: vi.fn(),
@@ -15,6 +16,7 @@ const {
   mockRunImsForBusiness: vi.fn(),
   mockPlan: vi.fn(),
   mockExecute: vi.fn(),
+  mockSyncOnlineDailySalesDay: vi.fn(),
 }));
 
 vi.mock('@/lib/sessionUtils', () => ({
@@ -25,6 +27,7 @@ vi.mock('@/services/MySQLService', () => ({ query: mockQuery }));
 vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mockRunImsForBusiness }));
 vi.mock('@/lib/ims/shopifyPayoutActionPlanner', () => ({ planShopifyPayoutActions: mockPlan }));
 vi.mock('@/lib/ims/shopifyPayoutActionExecutor', () => ({ executeShopifyPayoutActions: mockExecute }));
+vi.mock('@/lib/xero/onlineDailySalesSync', () => ({ syncOnlineDailySalesDay: mockSyncOnlineDailySalesDay }));
 
 import { GET, POST } from '../route';
 
@@ -46,6 +49,9 @@ describe('/api/xero/shopify-payouts/[payoutId]', () => {
     mockRunImsForBusiness.mockImplementation((_businessId: string, callback: () => Promise<unknown>) => callback());
     mockPlan.mockResolvedValue({ status: 'planned', actions: [{ actionKey: 'one' }] });
     mockExecute.mockResolvedValue({ status: 'reconciled', completedActionIds: [1] });
+    mockSyncOnlineDailySalesDay.mockResolvedValue({
+      xeroId: 'invoice-1', totalSales: 337.04, totalTax: 30.64, giftCardAmount: 0, orderCount: 5,
+    });
   });
 
   it('returns payout preview, actions, and canonical transactions', async () => {
@@ -76,6 +82,39 @@ describe('/api/xero/shopify-payouts/[payoutId]', () => {
     expect(response.status).toBe(200);
     expect(mockExecute).toHaveBeenCalledWith('biz-1', 'pay-1');
     expect(mockRunImsForBusiness).not.toHaveBeenCalled();
+  });
+
+  it('repairs linked daily invoices and replans without posting payout actions', async () => {
+    mockQuery
+      .mockResolvedValueOnce([{ reconciliation_status: 'blocked', completed_actions: 0 }])
+      .mockResolvedValueOnce([{ batch_date: '2026-07-27' }]);
+
+    const response = await POST(request('POST', { action: 'repair' }), context);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(mockSyncOnlineDailySalesDay).toHaveBeenCalledWith('biz-1', '2026-07-27');
+    expect(mockPlan).toHaveBeenCalledWith('biz-1', 'pay-1');
+    expect(mockExecute).not.toHaveBeenCalled();
+    expect(body).toMatchObject({ status: 'planned', refreshed: [{ date: '2026-07-27', xeroId: 'invoice-1' }] });
+  });
+
+  it('returns the exact replan blocker after invoice repair', async () => {
+    mockQuery
+      .mockResolvedValueOnce([{ reconciliation_status: 'blocked', completed_actions: 0 }])
+      .mockResolvedValueOnce([{ batch_date: '2026-07-27' }]);
+    mockPlan.mockResolvedValueOnce({
+      status: 'blocked',
+      error: 'Refund refund-1 amount 12.95 does not match completed credit note 0.00',
+      actions: [],
+    });
+
+    const response = await POST(request('POST', { action: 'repair' }), context);
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body.error).toBe('Refund refund-1 amount 12.95 does not match completed credit note 0.00');
+    expect(mockExecute).not.toHaveBeenCalled();
   });
 
   it('rejects cross-business access before reading payout data', async () => {

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { RefreshCw, Search, Wrench } from 'lucide-react';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
@@ -16667,6 +16668,9 @@ function ShopifyPayoutsTab({ getBusinessId }: { getBusinessId: () => string }) {
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState<Record<string, boolean>>({});
   const [payoutErrorText, setPayoutErrorText] = useState<string | null>(null);
+  const [catchupDays, setCatchupDays] = useState(14);
+  const [catchupRunning, setCatchupRunning] = useState(false);
+  const [catchupResult, setCatchupResult] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const pageSize = 200;
 
@@ -16713,8 +16717,9 @@ function ShopifyPayoutsTab({ getBusinessId }: { getBusinessId: () => string }) {
 
   const pageEntries = payoutEntries.slice((page - 1) * pageSize, page * pageSize);
 
-  const processShopifyPayout = async (payoutId: string, action: 'plan' | 'execute', key: string, amount: number | null) => {
+  const processShopifyPayout = async (payoutId: string, action: 'plan' | 'repair' | 'execute', key: string, amount: number | null) => {
     if (action === 'execute' && !confirm(`Post the planned Xero actions for Shopify payout ${payoutId}${amount != null ? ` (${fmtMoney(amount)})` : ''}?`)) return;
+    if (action === 'repair' && !confirm(`Validate and repair linked daily Xero invoices for payout ${payoutId}? This may update understated invoices but will not post the payout.`)) return;
     setRetrying(r => ({ ...r, [key]: true }));
     setPayoutErrorText(null);
     try {
@@ -16724,13 +16729,34 @@ function ShopifyPayoutsTab({ getBusinessId }: { getBusinessId: () => string }) {
         body: JSON.stringify({ action }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `Payout ${action} failed`);
+      if (!res.ok) throw new Error(data.error || data.message || `Payout ${action} failed`);
       await loadData();
     } catch (e: any) {
       setPayoutErrorText(e?.message || `Payout ${action} failed`);
       await loadData();
     } finally {
       setRetrying(r => ({ ...r, [key]: false }));
+    }
+  };
+
+  const syncMissedPayouts = async () => {
+    setCatchupRunning(true);
+    setCatchupResult(null);
+    setPayoutErrorText(null);
+    try {
+      const res = await fetch('/api/xero/shopify-payouts/catchup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId: getBusinessId(), days: catchupDays }),
+      });
+      const data = await res.json();
+      if (!res.ok && res.status !== 207) throw new Error(data.error || 'Payout sync failed');
+      setCatchupResult(`Found ${Number(data.discovered ?? 0)} paid payout${Number(data.discovered ?? 0) === 1 ? '' : 's'}; processed ${Number(data.processed ?? 0)}${Number(data.failed ?? 0) > 0 ? `, failed ${Number(data.failed)}` : ''}.`);
+      await loadData();
+    } catch (e: any) {
+      setPayoutErrorText(e?.message || 'Payout sync failed');
+    } finally {
+      setCatchupRunning(false);
     }
   };
 
@@ -16770,10 +16796,22 @@ function ShopifyPayoutsTab({ getBusinessId }: { getBusinessId: () => string }) {
       )}
 
       <div style={{ background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', padding: '14px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Shopify Payouts</span>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button onClick={loadData} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: 'pointer', padding: '4px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>↻ Refresh</button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {catchupResult && <span style={{ fontSize: 12, color: '#34d399' }}>{catchupResult}</span>}
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--sv-text-dim)' }}>
+              Lookback
+              <select value={catchupDays} onChange={event => setCatchupDays(Number(event.target.value))} disabled={catchupRunning} style={{ height: 30, border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', padding: '0 8px', fontSize: 12 }}>
+                <option value={7}>7 days</option>
+                <option value={14}>14 days</option>
+                <option value={30}>30 days</option>
+                <option value={60}>60 days</option>
+                <option value={90}>90 days</option>
+              </select>
+            </label>
+            <button title="Poll Shopify for paid payouts in the selected period and ingest any missing records" onClick={syncMissedPayouts} disabled={catchupRunning} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(20,184,166,.12)', border: '1px solid rgba(20,184,166,.3)', borderRadius: 5, cursor: catchupRunning ? 'wait' : 'pointer', padding: '6px 11px', fontSize: 12, color: '#14b8a6', fontWeight: 600 }}><Search size={14} />{catchupRunning ? 'Syncing…' : 'Sync payouts'}</button>
+            <button title="Reload payout records" onClick={loadData} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: 'pointer', padding: '6px 11px', fontSize: 12, color: 'var(--sv-text-dim)' }}><RefreshCw size={14} />Refresh</button>
           </div>
         </div>
 
@@ -16822,6 +16860,9 @@ function ShopifyPayoutsTab({ getBusinessId }: { getBusinessId: () => string }) {
                         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                           {entry.payout_id && ['blocked', 'ready_to_allocate'].includes(payoutStatus) && (
                             <button title="Rebuild the payout plan after fixing a missing invoice, credit note, mapping, or other blocker. This does not post to Xero." onClick={() => processShopifyPayout(entry.payout_id!, 'plan', retryKey, entry.amount)} disabled={retrying[retryKey]} style={{ background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 6, cursor: 'pointer', padding: '5px 14px', fontSize: 12, color: '#f87171', fontWeight: 600 }}>{retrying[retryKey] ? '…' : '↻ Replan'}</button>
+                          )}
+                          {entry.payout_id && payoutStatus === 'blocked' && (
+                            <button title="Validate linked completed-day invoices against current Shopify orders, repair safely understated invoices, then rebuild the payout plan. This does not post the payout." onClick={() => processShopifyPayout(entry.payout_id!, 'repair', retryKey, entry.amount)} disabled={retrying[retryKey]} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(251,191,36,.12)', border: '1px solid rgba(251,191,36,.3)', borderRadius: 6, cursor: 'pointer', padding: '5px 12px', fontSize: 12, color: '#fbbf24', fontWeight: 600 }}><Wrench size={13} />{retrying[retryKey] ? '…' : 'Validate & Repair'}</button>
                           )}
                           {entry.payout_id && ['planned', 'partial'].includes(payoutStatus) && (
                             <button title={payoutStatus === 'partial' ? 'Retry only unfinished payout actions. Completed Xero actions are not repeated.' : 'Preflight every planned invoice and credit note, then post the payout actions to Xero after confirmation.'} onClick={() => processShopifyPayout(entry.payout_id!, 'execute', retryKey, entry.amount)} disabled={retrying[retryKey]} style={{ background: 'rgba(20,184,166,.12)', border: '1px solid rgba(20,184,166,.3)', borderRadius: 6, cursor: 'pointer', padding: '5px 14px', fontSize: 12, color: '#14b8a6', fontWeight: 600 }}>{retrying[retryKey] ? '…' : payoutStatus === 'partial' ? '↻ Retry' : 'Post Payout'}</button>
