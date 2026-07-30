@@ -568,7 +568,7 @@ const IMS_ONBOARDING_ACTIONS: Record<string, ImsOnboardingAction> = {
   pos_ready:        { type: 'settings', section: 'pos',              label: 'Review POS Setup' },
 };
 
-function TotalSalesProfitCircle({ rows, itemCount, periodLabel, loading }: { rows: any[]; itemCount: number; periodLabel: string; loading: boolean }) {
+function TotalSalesProfitCircle({ rows, itemCount, periodLabel, loading, onViewYesterday }: { rows: any[]; itemCount: number; periodLabel: string; loading: boolean; onViewYesterday?: () => void }) {
   const totalSales = rows.reduce((sum, row) => sum + Number(row?.total ?? 0), 0);
   const totalGrossProfit = rows.reduce((sum, row) => sum + Number(row?.gross_profit ?? 0), 0);
   const totalOrderCount = rows.reduce((sum, row) => sum + Number(row?.order_count ?? 0), 0);
@@ -590,7 +590,10 @@ function TotalSalesProfitCircle({ rows, itemCount, periodLabel, loading }: { row
     return (
       <div style={{ height: 450, padding: '18px 20px', boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
         <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Total Sales vs Gross Profit - {periodLabel}</div>
-        <div style={{ height: 'calc(100% - 20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No sales in this period.</div>
+        <div style={{ height: 'calc(100% - 20px)', display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>
+          <span>{onViewYesterday ? 'No sales yet today.' : 'No sales in this period.'}</span>
+          {onViewYesterday && <button type="button" onClick={onViewYesterday} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>View yesterday</button>}
+        </div>
       </div>
     );
   }
@@ -1171,7 +1174,10 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
             ) : !(salesData?.channelData?.length) ? (
               <div style={{ height: 'clamp(410px, 34vw, 470px)', padding: '18px 20px', boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
                 <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales and Gross Profit by Channel - {periodLabel}</div>
-                <div style={{ height: 'calc(100% - 20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No sales in this period.</div>
+                <div style={{ height: 'calc(100% - 20px)', display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>
+                  <span>{salesWindow === 'today' ? 'No sales yet today.' : 'No sales in this period.'}</span>
+                  {salesWindow === 'today' && <button type="button" onClick={() => setSalesWindow('yesterday')} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>View yesterday</button>}
+                </div>
               </div>
             ) : (() => {
               const CD = salesData.channelData as any[];
@@ -1197,6 +1203,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               const profitFontSize = isNarrowChart ? 10 : 11;
               const PL=isNarrowChart ? 58 : 68, PR=12, PT=22, PB=isNarrowChart ? 42 : 48;
               const minimumGroupWidth = isNarrowChart ? 112 : 126;
+              const getLocChans=(loc:string) => activeChannels.filter(ch => getVal(ch,loc) > 0);
               const minimumContentWidth = PL + PR + locations.reduce((width, loc) => {
                 const localBarCount = Math.max(1, getLocChans(loc).length);
                 return width + Math.max(minimumGroupWidth, localBarCount * 66 + 18);
@@ -1208,7 +1215,6 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               const groupW=plotW/nLoc;
               const slotW=Math.min(92, Math.max(48, (groupW*0.82)/nCh));
               const barW=Math.max(42, slotW-Math.max(5, slotW*0.12));
-              const getLocChans=(loc:string) => activeChannels.filter(ch => getVal(ch,loc) > 0);
               const xBarLocal=(li:number, localCi:number, nLocalCh:number) => {
                 const offset=(groupW - slotW*nLocalCh)/2;
                 return PL + li*groupW + offset + localCi*slotW + 1.5;
@@ -1383,7 +1389,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               </div>
 
               <div className="ims-sales-summary-panel" style={{ minWidth: 0, gridColumn: `span ${salesSummaryColumns}` }}>
-                <TotalSalesProfitCircle rows={dashboardSalesRows} itemCount={Number(salesData?.summary?.itemCount ?? 0)} periodLabel={periodLabel} loading={salesLoading} />
+                <TotalSalesProfitCircle rows={dashboardSalesRows} itemCount={Number(salesData?.summary?.itemCount ?? 0)} periodLabel={periodLabel} loading={salesLoading} onViewYesterday={salesWindow === 'today' ? () => setSalesWindow('yesterday') : undefined} />
               </div>
             </div>
 
@@ -1392,7 +1398,10 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 14 }}>Top 10 Brands - {periodLabel}</div>
               {salesLoading && <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', margin: 0, padding: '10px 0', textAlign: 'center' }}>Loading…</p>}
               {!salesLoading && brandChartData.length === 0 && (
-                <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', margin: 0, padding: '10px 0', textAlign: 'center' }}>No brand sales in this period.</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center', padding: '10px 0', color: 'var(--sv-text-dim)', fontSize: 13 }}>
+                  <span>{salesWindow === 'today' ? 'No brand sales yet today.' : 'No brand sales in this period.'}</span>
+                  {salesWindow === 'today' && <button type="button" onClick={() => setSalesWindow('yesterday')} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>View yesterday</button>}
+                </div>
               )}
               {!salesLoading && brandChartData.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
