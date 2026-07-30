@@ -567,7 +567,7 @@ const IMS_ONBOARDING_ACTIONS: Record<string, ImsOnboardingAction> = {
   pos_ready:        { type: 'settings', section: 'pos',              label: 'Review POS Setup' },
 };
 
-function TotalSalesProfitCircle({ rows, days, loading, showSalesCount }: { rows: any[]; days: number; loading: boolean; showSalesCount: boolean }) {
+function TotalSalesProfitCircle({ rows, periodLabel, loading, showSalesCount }: { rows: any[]; periodLabel: string; loading: boolean; showSalesCount: boolean }) {
   const totalSales = rows.reduce((sum, row) => sum + Number(row?.total ?? 0), 0);
   const totalGrossProfit = rows.reduce((sum, row) => sum + Number(row?.gross_profit ?? 0), 0);
   const totalOrderCount = rows.reduce((sum, row) => sum + Number(row?.order_count ?? 0), 0);
@@ -575,8 +575,6 @@ function TotalSalesProfitCircle({ rows, days, loading, showSalesCount }: { rows:
   const marginPercent = profitShare * 100;
   const outerRadius = 105;
   const innerRadius = outerRadius * Math.sqrt(profitShare);
-  const periodLabel = days === 1 ? 'Today' : days === 365 ? 'Last year' : `Last ${days} days`;
-
   if (loading) {
     return <div style={{ height: 450, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spinner /></div>;
   }
@@ -590,9 +588,9 @@ function TotalSalesProfitCircle({ rows, days, loading, showSalesCount }: { rows:
 
   return (
     <div style={{ minWidth: 0 }}>
-      <div style={{ height: 28, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+      <div style={{ height: 42 }}>
         <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Total Sales vs Gross Profit</div>
-        <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', paddingTop: 3 }}>{periodLabel}</div>
+        <div style={{ marginTop: 3, fontSize: 11, color: 'var(--sv-text-dim)' }}>{periodLabel}</div>
       </div>
       <div style={{ height: 450, boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
         <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 28 }}>
@@ -635,9 +633,7 @@ function TotalSalesProfitCircle({ rows, days, loading, showSalesCount }: { rows:
 function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: { businessId: string; onNav: (v: ImsView) => void; onOpenSettings?: (section: string) => void; onOpenSalesOrder?: (id: number) => void }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [days, setDays] = useState(1);
-  const [brandChartData, setBrandChartData] = useState<{ name: string; sales90: number }[]>([]);
-  const [brandChartLoading, setBrandChartLoading] = useState(false);
+  const [salesWindow, setSalesWindow] = useState<'today' | 'yesterday' | '30' | '120' | '365'>('today');
   const [openOnlineSales, setOpenOnlineSales] = useState<any[]>([]);
   const [openOnlineSalesLoading, setOpenOnlineSalesLoading] = useState(false);
   const [openOnlineSalesModalOpen, setOpenOnlineSalesModalOpen] = useState(false);
@@ -669,28 +665,11 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
 
   useEffect(() => {
     setSalesLoading(true);
-    fetch(`/api/ims/dashboard/sales?days=${days}`).then(r => r.json()).then(d => {
+    const query = salesWindow === 'yesterday' ? 'window=yesterday' : `days=${salesWindow === 'today' ? 1 : salesWindow}`;
+    fetch(`/api/ims/dashboard/sales?${query}`).then(r => r.json()).then(d => {
       if (d.success) setSalesData(d);
     }).finally(() => setSalesLoading(false));
-  }, [days]);
-
-  useEffect(() => {
-    if (!businessId) return;
-    setBrandChartLoading(true);
-    fetch(`/api/calculated/brand-summary?databaseId=${encodeURIComponent(businessId)}`)
-      .then(r => r.json())
-      .then(d => {
-        if (d.success && Array.isArray(d.brands)) {
-          const top10 = [...d.brands]
-            .sort((a: any, b: any) => b.sales90 - a.sales90)
-            .slice(0, 10)
-            .map((b: any) => ({ name: b.name, sales90: b.sales90 }));
-          setBrandChartData(top10);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setBrandChartLoading(false));
-  }, [businessId]);
+  }, [salesWindow]);
 
   useEffect(() => {
     setOpenOnlineSalesLoading(true);
@@ -749,8 +728,10 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
     { label: 'Low Stock',   value: data?.lowStock  ?? 0,                          color: 'var(--sv-red)',    nav: 'stock' as ImsView },
     { label: 'SOH Value',   display: fmtCompact(data?.stockValue ?? 0),           color: 'var(--sv-mint)',   nav: 'stock' as ImsView },
   ];
-  const brandMax = brandChartData.reduce((m, b) => Math.max(m, b.sales90), 0);
   const dashboardSalesRows = (salesData?.channelData as any[]) ?? [];
+  const brandChartData = (salesData?.brandData as Array<{ name: string; sales: number }>) ?? [];
+  const brandMax = brandChartData.reduce((max, brand) => Math.max(max, brand.sales), 0);
+  const periodLabel = salesWindow === 'today' ? 'Today' : salesWindow === 'yesterday' ? 'Yesterday' : salesWindow === '365' ? 'Last year' : `Last ${salesWindow} days`;
   const visibleSalesBarCount = dashboardSalesRows.filter(row => Number(row?.total ?? 0) > 0).length;
   const salesChartColumns = visibleSalesBarCount <= 2 ? 4 : visibleSalesBarCount <= 6 ? 6 : visibleSalesBarCount <= 12 ? 9 : 12;
   const salesSummaryColumns = salesChartColumns === 12 ? 12 : 12 - salesChartColumns;
@@ -1127,22 +1108,32 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
 
           <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 18, alignItems: 'flex-start' }}>
             <style>{`@media (max-width: 900px) { .ims-sales-chart-panel, .ims-sales-summary-panel { grid-column: 1 / -1 !important; } }`}</style>
+            <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, marginBottom: 2 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase' }}>Reporting period</span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 6 }}>
+                {([
+                  ['today', 'Today'],
+                  ['yesterday', 'Yesterday'],
+                  ['30', '30d'],
+                  ['120', '120d'],
+                  ['365', '1yr'],
+                ] as const).map(([value, label]) => (
+                  <button key={value} onClick={() => setSalesWindow(value)}
+                    style={{ padding: '6px 13px', fontSize: 12, fontWeight: 600, borderRadius: 6,
+                      border: `1px solid ${salesWindow === value ? 'var(--sv-action)' : 'var(--sv-etch)'}`,
+                      background: salesWindow === value ? 'var(--sv-action)' : 'var(--sv-bg-2)',
+                      color: salesWindow === value ? '#fff' : 'var(--sv-text-main)', cursor: 'pointer', transition: 'all .15s' }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', gap: 18, alignItems: 'start' }}>
               {/* ── Sales by Channel ── */}
               <div className="ims-sales-chart-panel" style={{ minWidth: 0, gridColumn: `span ${salesChartColumns}` }}>
-              <div style={{ height: 28, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ height: 42 }}>
                 <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales and Gross Profit by Channel</div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {([1, 30, 120, 365] as const).map(d => (
-                    <button key={d} onClick={() => setDays(d)}
-                      style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, borderRadius: 6,
-                        border: `1px solid ${days === d ? 'var(--sv-action)' : 'var(--sv-etch)'}`,
-                        background: days === d ? 'var(--sv-action)' : 'transparent',
-                        color: days === d ? '#fff' : 'var(--sv-text-dim)', cursor: 'pointer', transition: 'all .15s' }}>
-                      {d === 1 ? 'Today' : d === 30 ? '30d' : d === 120 ? '120d' : '1yr'}
-                    </button>
-                  ))}
-                </div>
+                <div style={{ marginTop: 3, fontSize: 11, color: 'var(--sv-text-dim)' }}>{periodLabel}</div>
               </div>
             {salesLoading ? (
               <div style={{ height: 450, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spinner /></div>
@@ -1170,8 +1161,8 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               const plotW=VW-PL-PR, plotH=VH-PT-PB;
               const nLoc=locations.length, nCh=activeChannels.length;
               const groupW=plotW/nLoc;
-              const slotW=Math.min(58, Math.max(14, (groupW*0.82)/nCh));
-              const barW=Math.max(10, slotW-Math.max(3, slotW*0.12));
+              const slotW=Math.min(72, Math.max(16, (groupW*0.9)/nCh));
+              const barW=Math.max(12, slotW-Math.max(3, slotW*0.08));
               const getLocChans=(loc:string) => activeChannels.filter(ch => getVal(ch,loc) > 0);
               const xBarLocal=(li:number, localCi:number, nLocalCh:number) => {
                 const offset=(groupW - slotW*nLocalCh)/2;
@@ -1187,7 +1178,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                 }
                 return `$${Math.round(v)}`;
               };
-              const trunc=(s:string,n=13) => s.length>n ? s.slice(0,n)+'…' : s;
+              const trunc=(s:string,n=17) => s.length>n ? s.slice(0,n)+'…' : s;
 
               return (
                 <div ref={channelChartRef} style={{ position: 'relative', height: 450, boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px 8px', display: 'flex', flexDirection: 'column' }}>
@@ -1205,7 +1196,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                       return (
                         <g key={tick}>
                           <line x1={PL} y1={y} x2={VW-PR} y2={y} stroke="currentColor" strokeOpacity="0.1" strokeDasharray={tick===0?undefined:'4,3'} />
-                          <text x={PL-7} y={y+4} textAnchor="end" fontSize="10" fill="currentColor" fillOpacity="0.4">{fmtY(tick)}</text>
+                          <text x={PL-7} y={y+4} textAnchor="end" fontSize="11" fill="currentColor" fillOpacity="0.66" fontWeight="500">{fmtY(tick)}</text>
                         </g>
                       );
                     })}
@@ -1282,7 +1273,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                                       x={x + barW / 2}
                                       y={Math.max(y + 9, gpY - 3)}
                                       textAnchor="middle"
-                                      fontSize="8"
+                                      fontSize="9"
                                       fill={CH_GP_LINE[ch] ?? 'rgba(15,23,42,.8)'}
                                       fillOpacity="1"
                                       pointerEvents="none"
@@ -1292,13 +1283,13 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                                   </>
                                 )}
                                 {h>24 && barW>14 && (
-                                  <text x={x+barW/2} y={y-5} textAnchor="middle" fontSize="9" fill="currentColor" fillOpacity="0.55">{fmtCurrency(v)}</text>
+                                  <text x={x+barW/2} y={y-6} textAnchor="middle" fontSize="10" fill="currentColor" fillOpacity="0.72" fontWeight="600">{fmtCurrency(v)}</text>
                                 )}
                                 <title>{`${CH_LABEL[ch]} — ${loc}\nSales: ${fmtCurrency(v)}\nTax: ${fmtCurrency(tax)}\nCOGS: ${fmtCurrency(cogs)}\nGross Profit: ${fmtCurrency(grossProfit)}\nOrders: ${getOrd(ch,loc)}\nFormula: Sales - Tax - COGS`}</title>
                               </g>
                             );
                           })}
-                          <text x={PL+li*groupW+groupW/2} y={PT+plotH+18} textAnchor="middle" fontSize="11" fill="currentColor" fillOpacity="0.5">{trunc(loc)}</text>
+                          <text x={PL+li*groupW+groupW/2} y={PT+plotH+20} textAnchor="middle" fontSize="12" fill="currentColor" fillOpacity="0.75" fontWeight="600">{trunc(loc)}</text>
                         </g>
                       );
                     })}
@@ -1342,7 +1333,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               </div>
 
               <div className="ims-sales-summary-panel" style={{ minWidth: 0, gridColumn: `span ${salesSummaryColumns}` }}>
-                <TotalSalesProfitCircle rows={dashboardSalesRows} days={days} loading={salesLoading} showSalesCount={salesSummaryColumns >= 6} />
+                <TotalSalesProfitCircle rows={dashboardSalesRows} periodLabel={periodLabel} loading={salesLoading} showSalesCount={salesSummaryColumns >= 6} />
               </div>
             </div>
 
@@ -1352,23 +1343,23 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                 <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(129,140,248,.16)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>🏷️</div>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Top 10 Brands</div>
-                  <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Last 90 days sales</div>
+                  <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{periodLabel}</div>
                 </div>
               </div>
-              {brandChartLoading && <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', margin: 0, padding: '10px 0', textAlign: 'center' }}>Loading…</p>}
-              {!brandChartLoading && brandChartData.length === 0 && (
-                <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', margin: 0, padding: '10px 0', textAlign: 'center' }}>No brand data yet. Sync your products first.</p>
+              {salesLoading && <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', margin: 0, padding: '10px 0', textAlign: 'center' }}>Loading…</p>}
+              {!salesLoading && brandChartData.length === 0 && (
+                <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', margin: 0, padding: '10px 0', textAlign: 'center' }}>No brand sales in this period.</p>
               )}
-              {!brandChartLoading && brandChartData.length > 0 && (
+              {!salesLoading && brandChartData.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
                   {brandChartData.map((b, i) => {
-                    const pct = brandMax > 0 ? (b.sales90 / brandMax) * 100 : 0;
+                    const pct = brandMax > 0 ? (b.sales / brandMax) * 100 : 0;
                     return (
                       <div key={b.name}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                           <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-main)', maxWidth: '62%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.name}</span>
                           <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
-                            ${b.sales90.toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            ${b.sales.toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                           </span>
                         </div>
                         <div style={{ height: 12, borderRadius: 999, background: 'var(--sv-bg-1)', overflow: 'hidden', border: '1px solid var(--sv-etch)' }}>

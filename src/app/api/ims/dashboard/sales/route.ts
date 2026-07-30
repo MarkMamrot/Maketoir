@@ -29,6 +29,11 @@ type ChannelRow = {
   order_count: number;
 };
 
+type BrandRow = {
+  name: string;
+  sales: number;
+};
+
 function keyByChannelLocation(channel: string, locationName: string): string {
   return `${channel}::${locationName}`;
 }
@@ -67,6 +72,10 @@ export function normaliseDashboardSalesRows<T extends { total?: unknown; tax?: u
   }));
 }
 
+export function normaliseDashboardBrandRows<T extends { sales?: unknown }>(rows: T[]): Array<Omit<T, 'sales'> & { sales: number }> {
+  return rows.map(row => ({ ...row, sales: Number(row.sales ?? 0) }));
+}
+
 // Compute the start-of-period cutoff as an AEST datetime string.
 // pos_sales.created_at stores AEST datetimes (no TZ info).
 // days=1 → start of today AEST; days=30 → start of 30 days ago AEST, etc.
@@ -77,15 +86,28 @@ function businessCutoff(days: number, timeZone: string): string {
   return `${dateStr} 00:00:00`;
 }
 
+export function dashboardSalesBounds(days: number, timeZone: string, yesterday: boolean, now = new Date()): { from: string; to: string | null } {
+  if (!yesterday) return { from: businessCutoff(days, timeZone), to: null };
+  const today = now.toLocaleDateString('sv-SE', { timeZone });
+  const [year, month, day] = today.split('-').map(Number);
+  const previous = new Date(Date.UTC(year, month - 1, day - 1)).toISOString().slice(0, 10);
+  return { from: `${previous} 00:00:00`, to: `${today} 00:00:00` };
+}
+
 export async function GET(req: Request) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const days = Math.max(1, Math.min(365, parseInt(searchParams.get('days') || '1', 10)));
+  const yesterday = searchParams.get('window') === 'yesterday';
   const biz = session.businessId as string;
   const timeZone = await getBusinessTimeZone(biz);
-  const cutoff = businessCutoff(days, timeZone);
+  const { from: cutoff, to: upperBound } = dashboardSalesBounds(days, timeZone, yesterday);
+  const posUpperClause = upperBound ? 'AND ps.created_at < ?' : '';
+  const soUpperClause = upperBound ? 'AND so.order_date < ?' : '';
+  const posDateParams = upperBound ? [cutoff, upperBound] : [cutoff];
+  const soDateParams = upperBound ? [cutoff, upperBound] : [cutoff];
   const soBizClause = biz ? 'AND so.business_id = ?' : '';
 
   // POS channel — scope by ims_locations.business_id (pos_sales.business_id is not reliably set)
@@ -98,8 +120,9 @@ export async function GET(req: Request) {
      JOIN ims_locations l ON l.id = ps.location_id${biz ? ' AND l.business_id = ?' : ''}
      WHERE ps.status = 'completed'
        AND ps.created_at >= ?
+       ${posUpperClause}
      GROUP BY l.id, l.name`,
-    biz ? [biz, cutoff] : [cutoff]
+    biz ? [biz, ...posDateParams] : posDateParams
   );
 
   // SO channel split logic:
@@ -118,11 +141,12 @@ export async function GET(req: Request) {
        LEFT JOIN ims_locations l ON l.id = so.location_id
        WHERE so.so_type = 'online'
          AND so.order_date >= ?
+         ${soUpperClause}
          AND (so.is_historical IS NULL OR so.is_historical = 0)
          AND so.status != 'cancelled'
          ${soBizClause}
        GROUP BY l.id, l.name`,
-      biz ? [cutoff, biz] : [cutoff]
+      biz ? [...soDateParams, biz] : soDateParams
     ),
     imsQuery<RevenueRow>(
       `SELECT 'wholesale' AS channel,
@@ -135,9 +159,10 @@ export async function GET(req: Request) {
        WHERE so.so_type != 'online'
          AND so.status = 'fulfilled'
          AND so.order_date >= ?
+         ${soUpperClause}
          ${soBizClause}
        GROUP BY l.id, l.name`,
-      biz ? [cutoff, biz] : [cutoff]
+      biz ? [...soDateParams, biz] : soDateParams
     ),
   ]);
 
@@ -170,8 +195,9 @@ export async function GET(req: Request) {
          LEFT JOIN ims_product_variants pv ON pv.variant_id = psi.variant_id
          WHERE ps.status = 'completed'
            AND ps.created_at >= ?
+           ${posUpperClause}
          GROUP BY l.id, l.name`,
-        [biz, cutoff],
+        [biz, ...posDateParams],
       ),
       imsQuery<CogsRow>(
         `SELECT 'online' AS channel,
@@ -183,11 +209,12 @@ export async function GET(req: Request) {
          LEFT JOIN ims_product_variants pv ON pv.variant_id = soi.variant_id
          WHERE so.so_type = 'online'
            AND so.order_date >= ?
+           ${soUpperClause}
            AND (so.is_historical IS NULL OR so.is_historical = 0)
            AND so.status != 'cancelled'
            ${soBizClause}
          GROUP BY l.id, l.name`,
-        biz ? [cutoff, biz] : [cutoff],
+        biz ? [...soDateParams, biz] : soDateParams,
       ),
       imsQuery<CogsRow>(
         `SELECT 'wholesale' AS channel,
@@ -200,9 +227,10 @@ export async function GET(req: Request) {
          WHERE so.so_type != 'online'
            AND so.status = 'fulfilled'
            AND so.order_date >= ?
+           ${soUpperClause}
            ${soBizClause}
          GROUP BY l.id, l.name`,
-        biz ? [cutoff, biz] : [cutoff],
+        biz ? [...soDateParams, biz] : soDateParams,
       ),
     ]);
 
@@ -211,6 +239,41 @@ export async function GET(req: Request) {
     channelRows = buildChannelRowsWithGrossProfit(revenueRows, cogsRows);
   } catch (error) {
     console.error('[dashboard/sales] COGS aggregation failed; falling back to ex-tax revenue for GP bars.', error);
+  }
+
+  let brandRows: BrandRow[] = [];
+  try {
+    brandRows = await imsQuery<BrandRow>(
+      `SELECT COALESCE(NULLIF(TRIM(p.brand), ''), 'Unbranded') AS name, SUM(lines.sales) AS sales
+       FROM (
+         SELECT psi.variant_id, COALESCE(psi.line_total, 0) AS sales
+         FROM pos_sales ps
+         JOIN ims_locations l ON l.id = ps.location_id AND l.business_id = ?
+         JOIN pos_sale_items psi ON psi.sale_id = ps.id
+         WHERE ps.status = 'completed'
+           AND ps.created_at >= ?
+           ${posUpperClause}
+
+         UNION ALL
+
+         SELECT soi.variant_id, COALESCE(soi.line_total, 0) AS sales
+         FROM ims_sales_orders so
+         JOIN ims_sales_order_items soi ON soi.so_id = so.id
+         WHERE so.order_date >= ?
+           ${soUpperClause}
+           AND ((so.so_type = 'online' AND (so.is_historical IS NULL OR so.is_historical = 0) AND so.status != 'cancelled')
+             OR (so.so_type != 'online' AND so.status = 'fulfilled'))
+           ${soBizClause}
+       ) lines
+       JOIN ims_product_variants pv ON pv.variant_id = lines.variant_id
+       JOIN ims_products p ON p.product_id = pv.product_id
+       GROUP BY COALESCE(NULLIF(TRIM(p.brand), ''), 'Unbranded')
+       ORDER BY sales DESC
+       LIMIT 10`,
+      [biz, ...posDateParams, ...soDateParams, ...(biz ? [biz] : [])],
+    );
+  } catch (error) {
+    console.error('[dashboard/sales] Brand aggregation failed.', error);
   }
 
   // Recent POS sales (last 20, regardless of period filter)
@@ -228,6 +291,7 @@ export async function GET(req: Request) {
   return NextResponse.json({
     success: true,
     channelData: normaliseDashboardSalesRows(channelRows),
+    brandData: normaliseDashboardBrandRows(brandRows),
     recentPOS,
   });
 }
