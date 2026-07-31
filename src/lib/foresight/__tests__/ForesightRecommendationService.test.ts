@@ -107,6 +107,8 @@ describe('ForesightRecommendationService', () => {
       targetMer: 4,
       growthMinimumContributionPoas: 3,
       maximumBudgetIncreasePercent: 10,
+      metaMinimumSpend: 25,
+      metaMaximumRoas: 1,
     }, []);
     expect(result.strategyVersion).toBe(4);
   });

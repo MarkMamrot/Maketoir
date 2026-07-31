@@ -20,6 +20,8 @@ export interface PaidMediaRulePolicy {
   targetMer: number;
   growthMinimumContributionPoas: number;
   maximumBudgetIncreasePercent: number;
+  metaMinimumSpend?: number;
+  metaMaximumRoas?: number;
 }
 
 export const DEFAULT_PAID_MEDIA_RULE_POLICY: PaidMediaRulePolicy = {
@@ -33,14 +35,16 @@ export const DEFAULT_PAID_MEDIA_RULE_POLICY: PaidMediaRulePolicy = {
   targetMer: 3,
   growthMinimumContributionPoas: 3,
   maximumBudgetIncreasePercent: 10,
+  metaMinimumSpend: 25,
+  metaMaximumRoas: 1,
 };
 
 export interface PaidMediaRuleRecommendation {
   fingerprint: string;
   channel: 'paid_media';
-  subjectType: 'portfolio';
-  subjectId: 'google_meta_blended';
-  ruleId: 'spend_without_online_revenue' | 'contribution_poas_below_one' | 'mer_deterioration' | 'profitable_growth_opportunity';
+  subjectType: 'portfolio' | 'channel';
+  subjectId: 'google_meta_blended' | 'meta_ads';
+  ruleId: 'spend_without_online_revenue' | 'contribution_poas_below_one' | 'mer_deterioration' | 'profitable_growth_opportunity' | 'meta_channel_underperformance';
   evidence: RecommendationEvidence;
   proposedAction: Record<string, unknown>;
   confidence: number;
@@ -115,7 +119,8 @@ function evidence(
 }
 
 function fingerprint(ruleId: string, current: WindowTotals, policy: PaidMediaRulePolicy): string {
-  return `${ruleId}:google_meta_blended:${current.start}:${current.end}:p${PAID_MEDIA_POLICY_VERSION}:s${policy.strategyVersion}`;
+  const subjectId = ruleId === 'meta_channel_underperformance' ? 'meta_ads' : 'google_meta_blended';
+  return `${ruleId}:${subjectId}:${current.start}:${current.end}:p${PAID_MEDIA_POLICY_VERSION}:s${policy.strategyVersion}`;
 }
 
 export function evaluatePaidMediaPortfolioRules(
@@ -133,6 +138,49 @@ export function evaluatePaidMediaPortfolioRules(
   if (!current || current.issues.some((issue) => issue.severity === 'blocking')) return [];
 
   const recommendations: PaidMediaRuleRecommendation[] = [];
+  const metaCampaigns = contributors.filter((item) =>
+    item.source === 'meta_ads'
+    && item.entityType === 'campaign'
+    && item.currentSpend > 0);
+  const metaSpend = metaCampaigns.reduce((sum, item) => sum + item.currentSpend, 0);
+  const metaAttributedRevenue = metaCampaigns.reduce(
+    (sum, item) => sum + item.currentAttributedRevenue,
+    0,
+  );
+  const metaRoas = metaSpend > 0 ? metaAttributedRevenue / metaSpend : null;
+  const metaMinimumSpend = policy.metaMinimumSpend ?? 25;
+  const metaMaximumRoas = policy.metaMaximumRoas ?? 1;
+  if (metaSpend >= metaMinimumSpend && metaRoas != null && metaRoas < metaMaximumRoas) {
+    const weakCampaignIds = new Set(metaCampaigns
+      .filter((item) => item.currentPlatformRoas == null || item.currentPlatformRoas < metaMaximumRoas)
+      .map((item) => item.entityId));
+    const metaEvidence = contributors.filter((item) =>
+      item.source === 'meta_ads'
+      && (weakCampaignIds.has(item.entityId)
+        || (item.parentEntityId != null && weakCampaignIds.has(item.parentEntityId))));
+    recommendations.push({
+      fingerprint: fingerprint('meta_channel_underperformance', current, policy),
+      channel: 'paid_media',
+      subjectType: 'channel',
+      subjectId: 'meta_ads',
+      ruleId: 'meta_channel_underperformance',
+      evidence: evidence(current, ['meta_ads_spend', 'meta_ads_platform_roas'], {
+        metaSpend,
+        metaAttributedRevenue,
+        metaRoas,
+        metaMinimumSpend,
+        metaMaximumRoas,
+      }, metaEvidence),
+      proposedAction: {
+        type: 'review_meta_channel_performance',
+        reason: 'Meta campaign-level attributed revenue remained below the configured diagnostic ROAS boundary.',
+      },
+      confidence: 0.75,
+      expectedImpactLow: null,
+      expectedImpactHigh: null,
+    });
+  }
+
   if (current.spend >= policy.zeroRevenueSpend && current.revenue <= 0) {
     recommendations.push({
       fingerprint: fingerprint('spend_without_online_revenue', current, policy),
@@ -237,6 +285,7 @@ export function evaluatePaidMediaPortfolioRules(
     && previous.mer != null
     && current.mer >= policy.targetMer
     && previous.mer >= policy.targetMer
+    && ((previous.mer - current.mer) / previous.mer) * 100 < policy.merDeteriorationPercent
     && current.contributionPoas != null
     && previous.contributionPoas != null
     && current.contributionPoas >= policy.growthMinimumContributionPoas

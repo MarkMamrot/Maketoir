@@ -36,6 +36,8 @@ const FIELDS: Array<{
   { key: 'maximumBudgetReductionPercent', label: 'Maximum suggested reduction', min: 0, max: 50, step: 1, suffix: '%' },
   { key: 'growthMinimumContributionPoas', label: 'Growth contribution POAS floor', min: 1, max: 20, step: 0.1, suffix: 'x' },
   { key: 'maximumBudgetIncreasePercent', label: 'Maximum suggested increase', min: 0, max: 25, step: 1, suffix: '%' },
+  { key: 'metaMinimumSpend', label: 'Meta diagnostic minimum spend', min: 0, max: 1000000, step: 5, suffix: 'AUD' },
+  { key: 'metaMaximumRoas', label: 'Meta diagnostic maximum ROAS', min: 0, max: 100, step: 0.1, suffix: 'x' },
 ];
 
 async function json(response: Response): Promise<any> {

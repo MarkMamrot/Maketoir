@@ -29,6 +29,8 @@ describe('Foresight marketing strategy', () => {
     expect(markdown).toContain('Maximum suggested budget reduction: 10%');
     expect(markdown).toContain('Profitable-growth contribution POAS floor: 3');
     expect(markdown).toContain('Maximum suggested budget increase: 10%');
+    expect(markdown).toContain('Meta diagnostic minimum spend: AUD 25');
+    expect(markdown).toContain('Meta diagnostic maximum ROAS: 1');
     expect(markdown).toContain('does not execute changes');
   });
 });

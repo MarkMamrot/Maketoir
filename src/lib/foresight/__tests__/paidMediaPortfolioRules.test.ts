@@ -133,9 +133,86 @@ describe('paid media portfolio rules', () => {
       undefined,
       [contributor],
     );
+    const recommendation = recommendations.find((item) => item.ruleId === 'spend_without_online_revenue');
 
-    expect(recommendations[0].evidence.contributors).toEqual([contributor]);
-    expect(recommendations[0].evidence.observedValues?.spend).toBe(140);
+    expect(recommendation?.evidence.contributors).toEqual([contributor]);
+    expect(recommendation?.evidence.observedValues?.spend).toBe(140);
+  });
+
+  it('flags meaningful Meta campaign spend below the diagnostic ROAS boundary without proposing execution', () => {
+    const metaCampaign = {
+      source: 'meta_ads' as const,
+      entityType: 'campaign' as const,
+      entityId: 'meta-campaign-1',
+      entityName: 'Meta prospecting',
+      parentEntityId: null,
+      parentEntityName: null,
+      currentSpend: 40,
+      previousSpend: 20,
+      spendChange: 20,
+      currentAttributedRevenue: 10,
+      previousAttributedRevenue: 20,
+      currentPlatformRoas: 0.25,
+      previousPlatformRoas: 1,
+      platformRoasChangePercent: -75,
+      diagnosticScore: 50,
+      signals: ['spend_increase', 'platform_roas_decline'] as const,
+    };
+    const metaAdSet = {
+      ...metaCampaign,
+      entityType: 'adset' as const,
+      entityId: 'meta-adset-1',
+      entityName: 'Meta video',
+      parentEntityId: metaCampaign.entityId,
+      parentEntityName: metaCampaign.entityName,
+      currentSpend: 30,
+    };
+    const recommendations = evaluatePaidMediaPortfolioRules(
+      dates(7).map((date) => day(date, 20, 100, 70)),
+      undefined,
+      [metaCampaign, metaAdSet],
+    );
+    const recommendation = recommendations.find((item) => item.ruleId === 'meta_channel_underperformance');
+
+    expect(recommendation).toMatchObject({
+      subjectType: 'channel',
+      subjectId: 'meta_ads',
+      proposedAction: { type: 'review_meta_channel_performance' },
+    });
+    expect(recommendation?.evidence.observedValues).toMatchObject({
+      metaSpend: 40,
+      metaAttributedRevenue: 10,
+      metaRoas: 0.25,
+    });
+    expect(recommendation?.evidence.contributors).toEqual([metaCampaign, metaAdSet]);
+  });
+
+  it('does not flag Meta underperformance below the minimum campaign spend', () => {
+    const contributor = {
+      source: 'meta_ads' as const,
+      entityType: 'campaign' as const,
+      entityId: 'meta-campaign-1',
+      entityName: 'Meta prospecting',
+      parentEntityId: null,
+      parentEntityName: null,
+      currentSpend: 20,
+      previousSpend: 0,
+      spendChange: 20,
+      currentAttributedRevenue: 0,
+      previousAttributedRevenue: 0,
+      currentPlatformRoas: 0,
+      previousPlatformRoas: null,
+      platformRoasChangePercent: null,
+      diagnosticScore: 40,
+      signals: ['new_spend', 'spend_without_platform_revenue'] as const,
+    };
+    const recommendations = evaluatePaidMediaPortfolioRules(
+      dates(7).map((date) => day(date, 20, 100, 70)),
+      undefined,
+      [contributor],
+    );
+
+    expect(recommendations.some((item) => item.ruleId === 'meta_channel_underperformance')).toBe(false);
   });
 
   it('suggests a capped growth review after two strong windows with a stable campaign', () => {
@@ -196,6 +273,33 @@ describe('paid media portfolio rules', () => {
       [contributor],
     );
 
+    expect(recommendations.some((item) => item.ruleId === 'profitable_growth_opportunity')).toBe(false);
+  });
+
+  it('does not suggest growth while blended MER is beyond the deterioration boundary', () => {
+    const contributor = {
+      source: 'google_ads' as const,
+      entityType: 'campaign' as const,
+      entityId: 'campaign-1',
+      entityName: 'Stable PMax',
+      parentEntityId: null,
+      parentEntityName: null,
+      currentSpend: 140,
+      previousSpend: 140,
+      spendChange: 0,
+      currentAttributedRevenue: 700,
+      previousAttributedRevenue: 650,
+      currentPlatformRoas: 5,
+      previousPlatformRoas: 4.64,
+      platformRoasChangePercent: 7.8,
+      diagnosticScore: 0,
+      signals: [] as const,
+    };
+    const rows = dates(14).map((date, index) =>
+      index < 7 ? day(date, 20, 140, 100) : day(date, 20, 100, 70));
+    const recommendations = evaluatePaidMediaPortfolioRules(rows, undefined, [contributor]);
+
+    expect(recommendations.some((item) => item.ruleId === 'mer_deterioration')).toBe(true);
     expect(recommendations.some((item) => item.ruleId === 'profitable_growth_opportunity')).toBe(false);
   });
 });

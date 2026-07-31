@@ -102,6 +102,25 @@ export function buildRecommendationImplementationPreview(
     };
   }
 
+  if (actionType === 'review_meta_channel_performance') {
+    return {
+      mode: 'manual_external',
+      executable: false,
+      title: 'Meta channel performance review',
+      summary: 'Review weak Meta campaign evidence before deciding whether creative, targeting, measurement, or budget needs intervention.',
+      steps: [
+        'Open the named Meta campaigns and ad sets and confirm their live delivery and attribution settings.',
+        'Review creative fatigue, audience overlap, placements, learning status, and conversion tracking.',
+        'Record any supported manual change in the implementation note; approval does not execute a Meta budget change.',
+      ],
+      guardrails: [
+        ...commonGuardrails,
+        'Meta-attributed revenue is diagnostic and must not replace authoritative commerce performance.',
+        'Do not reduce a budget solely from this recommendation without reviewing complete-day delivery and live campaign context.',
+      ],
+    };
+  }
+
   if (actionType === 'review_klaviyo_lifecycle_flows') {
     const missing = Array.isArray(proposedAction?.missingCategories)
       ? proposedAction.missingCategories.map(String)

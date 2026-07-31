@@ -15,6 +15,8 @@ export interface ForesightMarketingStrategy {
     maximumBudgetReductionPercent: number;
     growthMinimumContributionPoas: number;
     maximumBudgetIncreasePercent: number;
+    metaMinimumSpend: number;
+    metaMaximumRoas: number;
   };
 }
 
@@ -31,6 +33,8 @@ export const DEFAULT_FORESIGHT_MARKETING_STRATEGY: ForesightMarketingStrategy = 
     maximumBudgetReductionPercent: 10,
     growthMinimumContributionPoas: 3,
     maximumBudgetIncreasePercent: 10,
+    metaMinimumSpend: 25,
+    metaMaximumRoas: 1,
   },
 };
 
@@ -132,6 +136,20 @@ export function parseMarketingStrategy(value: unknown): ForesightMarketingStrate
         25,
         issues,
       ),
+      metaMinimumSpend: boundedNumber(
+        paidMedia.metaMinimumSpend ?? DEFAULT_FORESIGHT_MARKETING_STRATEGY.paidMedia.metaMinimumSpend,
+        'paidMedia.metaMinimumSpend',
+        0,
+        1000000,
+        issues,
+      ),
+      metaMaximumRoas: boundedNumber(
+        paidMedia.metaMaximumRoas ?? DEFAULT_FORESIGHT_MARKETING_STRATEGY.paidMedia.metaMaximumRoas,
+        'paidMedia.metaMaximumRoas',
+        0,
+        100,
+        issues,
+      ),
     },
   };
 
@@ -157,6 +175,8 @@ export function renderMarketingStrategyMarkdown(strategy: ForesightMarketingStra
     `- Maximum suggested budget reduction: ${strategy.paidMedia.maximumBudgetReductionPercent}%`,
     `- Profitable-growth contribution POAS floor: ${strategy.paidMedia.growthMinimumContributionPoas}`,
     `- Maximum suggested budget increase: ${strategy.paidMedia.maximumBudgetIncreasePercent}%`,
+    `- Meta diagnostic minimum spend: AUD ${strategy.paidMedia.metaMinimumSpend}`,
+    `- Meta diagnostic maximum ROAS: ${strategy.paidMedia.metaMaximumRoas}`,
     '',
     'Approval authorizes planning only. It does not execute changes in Google or Meta.',
   ].join('\n');

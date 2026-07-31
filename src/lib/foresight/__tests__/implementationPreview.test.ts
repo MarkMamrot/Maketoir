@@ -50,6 +50,16 @@ describe('recommendation implementation preview', () => {
     expect(preview.guardrails.join(' ')).toContain('authoritative commerce revenue');
   });
 
+  it('renders Meta underperformance as a manual review without execution', () => {
+    const preview = buildRecommendationImplementationPreview('paid_media', {
+      type: 'review_meta_channel_performance',
+    });
+
+    expect(preview).toMatchObject({ mode: 'manual_external', executable: false });
+    expect(preview.title).toContain('Meta channel');
+    expect(preview.guardrails.join(' ')).toContain('must not replace authoritative commerce performance');
+  });
+
   it('does not invent a specific mutation for an unknown action', () => {
     const preview = buildRecommendationImplementationPreview('meta_ads', { type: 'future_action' });
 
