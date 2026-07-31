@@ -1640,6 +1640,9 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [form, setForm] = useState({ ...BLANK_CONTACT });
   const [saving, setSaving] = useState(false);
+  const [storeCreditAdjustment, setStoreCreditAdjustment] = useState('');
+  const [storeCreditReason, setStoreCreditReason] = useState('');
+  const [adjustingStoreCredit, setAdjustingStoreCredit] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
   const [selectedContacts, setSelectedContacts] = useState<Set<number>>(new Set());
   const [bulkWorking, setBulkWorking] = useState(false);
@@ -1698,9 +1701,13 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
 
   useEffect(() => { load(); }, [load]);
 
-  const openNew = () => { setForm({ ...BLANK_CONTACT }); setModal({ open: true, edit: null }); };
-  const openEdit = (c: any) => { setForm({ ...BLANK_CONTACT, ...c }); setModal({ open: true, edit: c }); };
-  const closeModal = () => setModal({ open: false, edit: null });
+  const resetStoreCreditAdjustment = () => {
+    setStoreCreditAdjustment('');
+    setStoreCreditReason('');
+  };
+  const openNew = () => { resetStoreCreditAdjustment(); setForm({ ...BLANK_CONTACT }); setModal({ open: true, edit: null }); };
+  const openEdit = (c: any) => { resetStoreCreditAdjustment(); setForm({ ...BLANK_CONTACT, ...c }); setModal({ open: true, edit: c }); };
+  const closeModal = () => { resetStoreCreditAdjustment(); setModal({ open: false, edit: null }); };
 
   const runInBatches = async <T,>(items: T[], batchSize: number, worker: (item: T) => Promise<void>) => {
     for (let i = 0; i < items.length; i += batchSize) {
@@ -1807,6 +1814,37 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
       }
     } catch (e: any) { alert(e.message); }
     finally { setSaving(false); }
+  };
+
+  const handleStoreCreditAdjustment = async () => {
+    if (!modal.edit || isAdvisor) return;
+    const amount = Math.round(Number(storeCreditAdjustment) * 100) / 100;
+    const reason = storeCreditReason.trim();
+    if (!Number.isFinite(amount) || amount === 0) return alert('Enter a non-zero adjustment amount.');
+    if (!reason) return alert('Enter a reason for the adjustment.');
+    const currentBalance = Math.round(Number(form.store_credit ?? 0) * 100) / 100;
+    const resultingBalance = Math.round((currentBalance + amount) * 100) / 100;
+    if (resultingBalance < 0) return alert('Store credit balance cannot be negative.');
+    if (!confirm(`${amount > 0 ? 'Increase' : 'Decrease'} store credit by $${Math.abs(amount).toFixed(2)}? The new balance will be $${resultingBalance.toFixed(2)}.\n\nReason: ${reason}`)) return;
+
+    setAdjustingStoreCredit(true);
+    try {
+      const result = await apiFetch(`/api/ims/contacts/${modal.edit.id}/store-credit-adjustment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, reason }),
+      });
+      const balanceAfter = Number(result.data.balanceAfter);
+      setForm(prev => ({ ...prev, store_credit: balanceAfter }));
+      setModal(prev => ({ ...prev, edit: prev.edit ? { ...prev.edit, store_credit: balanceAfter } : null }));
+      resetStoreCreditAdjustment();
+      load();
+      flashSyncMsg(`Store credit adjusted to $${balanceAfter.toFixed(2)}.`);
+    } catch (e: any) {
+      alert(e.message || 'Store credit adjustment failed');
+    } finally {
+      setAdjustingStoreCredit(false);
+    }
   };
 
   const handleToggleActive = async (c: any) => {
@@ -2121,6 +2159,30 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
                   <Field label="Store Credit ($)"><input type="number" value={f.store_credit ?? 0} readOnly title="Read-only balance updated by completed manual or POS-generated customer credit notes." style={{ ...inputStyle, opacity: .72, cursor: 'not-allowed' }} /></Field>
                   <Field label="On Account Limit ($)"><input type="number" min="0" step="0.01" value={f.on_account_limit ?? ''} onChange={sf('on_account_limit')} style={inputStyle} /></Field>
                 </Row2>
+                {modal.edit && !isAdvisor && (
+                  <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 6, padding: 12, marginBottom: 12 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 8 }}>Adjust Store Credit</div>
+                    <Row2>
+                      <Field label="Adjustment ($)">
+                        <input type="number" step="0.01" value={storeCreditAdjustment} onChange={e => setStoreCreditAdjustment(e.target.value)} placeholder="e.g. -25.00" style={inputStyle} />
+                      </Field>
+                      <Field label="Resulting Balance ($)">
+                        <input type="text" readOnly value={(() => {
+                          const adjustment = Number(storeCreditAdjustment);
+                          return Number.isFinite(adjustment) ? (Number(f.store_credit ?? 0) + adjustment).toFixed(2) : Number(f.store_credit ?? 0).toFixed(2);
+                        })()} style={{ ...inputStyle, opacity: .72, cursor: 'not-allowed' }} />
+                      </Field>
+                    </Row2>
+                    <Field label="Reason *">
+                      <input value={storeCreditReason} onChange={e => setStoreCreditReason(e.target.value)} maxLength={255} placeholder="Why this balance is being corrected" style={inputStyle} />
+                    </Field>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button type="button" onClick={handleStoreCreditAdjustment} disabled={adjustingStoreCredit} style={btnStyle('secondary', 'sm')}>
+                        {adjustingStoreCredit ? 'Adjusting…' : 'Apply Adjustment'}
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <Row2>
                   <Field label="Price Tier">
                     <select value={f.price_tier ?? 'retail'} onChange={sf('price_tier')} style={inputStyle}>

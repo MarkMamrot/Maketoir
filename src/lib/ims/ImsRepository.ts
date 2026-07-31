@@ -368,6 +368,63 @@ export const ImsContactsRepo = {
     await imsExecute(`UPDATE ims_contacts SET ${sets.join(', ')} WHERE id = ?`, vals);
   },
 
+  async adjustStoreCredit(
+    id: number,
+    businessId: string,
+    amount: number,
+    reason: string,
+  ): Promise<{ transactionId: number; balanceBefore: number; balanceAfter: number }> {
+    const adjustment = Math.round(Number(amount) * 100) / 100;
+    const notes = String(reason ?? '').trim();
+    if (!Number.isFinite(adjustment) || adjustment === 0) {
+      throw new Error('Adjustment amount must be a non-zero number');
+    }
+    if (!notes) throw new Error('A reason is required');
+
+    const pool = getIMSPool();
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [rows] = await conn.execute(
+        `SELECT id, type, store_credit
+           FROM ims_contacts
+          WHERE id = ? AND business_id = ? AND is_active = 1
+          FOR UPDATE`,
+        [id, businessId],
+      );
+      const contact = (rows as { id: number; type: ContactType; store_credit: number }[])[0];
+      if (!contact || !['retail_customer', 'b2b_customer', 'both'].includes(contact.type)) {
+        throw new Error('Active customer contact not found');
+      }
+
+      const balanceBefore = Math.round(Number(contact.store_credit ?? 0) * 100) / 100;
+      const balanceAfter = Math.round((balanceBefore + adjustment) * 100) / 100;
+      if (balanceAfter < 0) throw new Error('Store credit balance cannot be negative');
+
+      const [result] = await conn.execute(
+        `INSERT INTO store_credit_transactions
+           (contact_id, type, amount, balance_after, notes)
+         VALUES (?, 'adjust', ?, ?, ?)`,
+        [id, adjustment, balanceAfter, notes],
+      );
+      await conn.execute(
+        `UPDATE ims_contacts SET store_credit = ? WHERE id = ? AND business_id = ?`,
+        [balanceAfter, id, businessId],
+      );
+      await conn.commit();
+      return {
+        transactionId: Number((result as any).insertId),
+        balanceBefore,
+        balanceAfter,
+      };
+    } catch (error) {
+      await conn.rollback();
+      throw error;
+    } finally {
+      conn.release();
+    }
+  },
+
   async delete(id: number): Promise<void> {
     await imsExecute(`DELETE FROM ims_contacts WHERE id = ?`, [id]);
   },
