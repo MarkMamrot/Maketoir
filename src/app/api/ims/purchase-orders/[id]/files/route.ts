@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { ImsPORepo, ImsPoFilesRepo } from '@/lib/ims/ImsRepository';
 
-const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
+const MAX_FILE_BYTES = 20 * 1024 * 1024; // Matches the invoice parser limit
 const ALLOWED_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png']);
 const EXT_MAP: Record<string, string> = {
   'application/pdf': 'pdf',
@@ -44,7 +44,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ error: 'Only PDF, JPEG and PNG files are allowed.' }, { status: 400 });
     }
     if (file.size > MAX_FILE_BYTES) {
-      return NextResponse.json({ error: 'File exceeds 10 MB limit.' }, { status: 400 });
+      return NextResponse.json({ error: 'File exceeds 20 MB limit.' }, { status: 400 });
     }
 
     const ext = EXT_MAP[file.type] ?? 'bin';

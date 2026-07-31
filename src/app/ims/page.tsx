@@ -7161,7 +7161,7 @@ type InvoiceParseResult = {
 
 function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, variants, poId, pendingFile }: {
   onClose: () => void;
-  onImport?: (data: { supplier_id: number | ''; invoice_number: string; invoice_date: string; currency: string; payment_terms: string; tax_treatment: 'inc_tax' | 'ex_tax' | 'no_tax'; discount_total?: number | null; line_items: Array<{ variant_id: string; qty_ordered: number; unit_cost: number; discount_pct: number; tax_rate: number; barcode?: string | null; rrp?: number | null }> }) => void;
+  onImport?: (data: { supplier_id: number | ''; invoice_number: string; invoice_date: string; currency: string; payment_terms: string; tax_treatment: 'inc_tax' | 'ex_tax' | 'no_tax'; discount_total?: number | null; line_items: Array<{ variant_id: string; qty_ordered: number; unit_cost: number; discount_pct: number; tax_rate: number; barcode?: string | null; rrp?: number | null }>; attachment_file: File | null }) => void;
   onPreFillReceive?: (qtys: Record<string, number>) => void;
   suppliers: any[]; variants: any[]; poId?: number | null; pendingFile?: File | null;
 }) {
@@ -7179,6 +7179,8 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
   const [skipped, setSkipped] = React.useState<Set<number>>(new Set());
   const [aiMatchLoading, setAiMatchLoading] = React.useState(false);
   const [aiMatchError, setAiMatchError] = React.useState<string | null>(null);
+  const [sourceFile, setSourceFile] = React.useState<File | null>(pendingFile ?? null);
+  const [attachToPo, setAttachToPo] = React.useState(true);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const isPo = !!poId;
 
@@ -7188,6 +7190,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function processFile(file: File) {
+    setSourceFile(file);
     setError(null); setStage('uploading');
     try {
       const fd = new FormData();
@@ -7230,7 +7233,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
       .filter((_, i) => !skipped.has(i))
       .map((lr, i) => { const vid = getVid(i, lr); return vid ? { variant_id: vid, qty_ordered: Number(lr.invoice_line.qty) || 1, unit_cost: Number(lr.invoice_line.unit_price) || 0, discount_pct: Number(lr.invoice_line.discount_pct) || 0, tax_rate: Number(lr.invoice_line.tax_rate) || 0.1, barcode: lr.invoice_line.barcode ?? null, rrp: lr.invoice_line.rrp ?? null } : null; })
       .filter((x): x is NonNullable<typeof x> => x !== null);
-    onImport({ supplier_id: supplierId, invoice_number: invoiceNum, invoice_date: invoiceDate, currency, payment_terms: payTerms, tax_treatment: taxTreatment, discount_total: result.invoice.discount_total ?? null, line_items });
+    onImport({ supplier_id: supplierId, invoice_number: invoiceNum, invoice_date: invoiceDate, currency, payment_terms: payTerms, tax_treatment: taxTreatment, discount_total: result.invoice.discount_total ?? null, line_items, attachment_file: attachToPo ? sourceFile : null });
     onClose();
   }
 
@@ -7497,7 +7500,13 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
       </div>
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid var(--sv-border)', flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 12, color: 'var(--sv-text-muted)' }}>{importableCount} line{importableCount !== 1 ? 's' : ''} will be added to the PO</div>
+        <div>
+          <div style={{ fontSize: 12, color: 'var(--sv-text-muted)', marginBottom: 6 }}>{importableCount} line{importableCount !== 1 ? 's' : ''} will be added to the PO</div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'var(--sv-text-strong)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={attachToPo} onChange={e => setAttachToPo(e.target.checked)} />
+            Attach the original invoice to the new PO
+          </label>
+        </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={onClose} style={{ padding: '8px 18px', background: 'none', border: '1px solid var(--sv-border)', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: 'pointer', color: 'var(--sv-text-muted)' }}>Cancel</button>
           <button onClick={handleImport} disabled={importableCount === 0} style={{ padding: '8px 20px', background: 'var(--sv-accent)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: importableCount === 0 ? 'not-allowed' : 'pointer', opacity: importableCount === 0 ? 0.5 : 1 }}>
@@ -7877,6 +7886,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
   const [showInvoiceImport, setShowInvoiceImport] = useState(false);
   const [invoiceImportPoId, setInvoiceImportPoId] = useState<number | null>(null);
   const [invoicePendingFile, setInvoicePendingFile] = useState<File | null>(null);
+  const [invoiceAttachmentFile, setInvoiceAttachmentFile] = useState<File | null>(null);
   const [poBarcodeLabels, setPoBarcodeLabels] = useState<{ poNumber: string; rows: POBarcodeLabelRow[] } | null>(null);
   const pendingReceiveOverrideRef = React.useRef<Record<string, number> | null>(null);
   const { settings } = useImsSettings();
@@ -8027,6 +8037,8 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
     setLineItems([{ variant_id: '', qty_ordered: 1, unit_cost: 0, tax_rate: defaultTaxRate }]);
     setLandedCosts([]);
     setLcForm(null);
+    setInvoicePendingFile(null);
+    setInvoiceAttachmentFile(null);
     setModal({ open: true, edit: null });
   };
 
@@ -8140,12 +8152,25 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
       } else {
         const res = await apiFetch('/api/ims/purchase-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items, landed_costs }) });
         savedPoId = Number(res?.id ?? 0) || null;
+        if (savedPoId && invoiceAttachmentFile) {
+          const fd = new FormData();
+          fd.append('file', invoiceAttachmentFile);
+          try {
+            const uploadRes = await fetch(`/api/ims/purchase-orders/${savedPoId}/files`, { method: 'POST', body: fd });
+            const uploadData = await uploadRes.json();
+            if (!uploadRes.ok) alert(`PO created, but the supplier invoice could not be attached: ${uploadData.error || 'Upload failed'}`);
+          } catch (uploadError: any) {
+            alert(`PO created, but the supplier invoice could not be attached: ${uploadError.message || 'Upload failed'}`);
+          }
+        }
         if (andOrder && res?.id) {
           await apiFetch(`/api/ims/purchase-orders/${res.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'confirmed' }) });
         }
       }
       load();
       setModal({ open: false, edit: null });
+      setInvoicePendingFile(null);
+      setInvoiceAttachmentFile(null);
       setLandedCosts([]);
       setLcForm(null);
       if (savedPoId && ['confirmed', 'complete'].includes(resultingPoStatus)) await openView({ id: savedPoId });
@@ -8993,6 +9018,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
             }));
             if (data.supplier_id) selectSupplier(String(data.supplier_id));
             if (data.line_items.length > 0) setLineItems(data.line_items);
+            setInvoiceAttachmentFile(data.attachment_file);
             setShowInvoiceImport(false);
           }}
           onPreFillReceive={qtys => {
