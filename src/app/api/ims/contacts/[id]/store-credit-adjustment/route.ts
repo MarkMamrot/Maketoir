@@ -34,7 +34,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ success: true, data: result });
   } catch (error: any) {
     const message = error?.message ?? 'Unable to adjust store credit';
-    const status = message === 'Active customer contact not found' ? 404 : 400;
+    const status = message === 'Customer contact not found' ? 404 : 400;
     return NextResponse.json({ success: false, error: message }, { status });
   }
 }

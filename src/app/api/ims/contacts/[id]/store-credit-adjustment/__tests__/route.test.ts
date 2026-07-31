@@ -50,4 +50,16 @@ describe('POST /api/ims/contacts/[id]/store-credit-adjustment', () => {
       data: { transactionId: 7, balanceBefore: 25, balanceAfter: 0 },
     });
   });
+
+  it('tells staff to activate an inactive customer first', async () => {
+    mockAdjustStoreCredit.mockRejectedValueOnce(
+      new Error('This customer is inactive. Activate the customer before adjusting store credit.'),
+    );
+    const response = await POST(request({ amount: -25, reason: 'Entered in error' }), { params: { id: '42' } });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      success: false,
+      error: 'This customer is inactive. Activate the customer before adjusting store credit.',
+    });
+  });
 });

@@ -386,15 +386,18 @@ export const ImsContactsRepo = {
     try {
       await conn.beginTransaction();
       const [rows] = await conn.execute(
-        `SELECT id, type, store_credit
+        `SELECT id, type, store_credit, is_active
            FROM ims_contacts
-          WHERE id = ? AND business_id = ? AND is_active = 1
+          WHERE id = ? AND business_id = ?
           FOR UPDATE`,
         [id, businessId],
       );
-      const contact = (rows as { id: number; type: ContactType; store_credit: number }[])[0];
+      const contact = (rows as { id: number; type: ContactType; store_credit: number; is_active: number }[])[0];
       if (!contact || !['retail_customer', 'b2b_customer', 'both'].includes(contact.type)) {
-        throw new Error('Active customer contact not found');
+        throw new Error('Customer contact not found');
+      }
+      if (!Number(contact.is_active)) {
+        throw new Error('This customer is inactive. Activate the customer before adjusting store credit.');
       }
 
       const balanceBefore = Math.round(Number(contact.store_credit ?? 0) * 100) / 100;
