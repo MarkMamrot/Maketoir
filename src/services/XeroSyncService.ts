@@ -1416,6 +1416,7 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
     // If one or more clearing payments are configured, immediately apply them.
     // This marks the invoice as PAID (when the full amount is covered) and routes
     // funds to clearing accounts for bank reconciliation.
+    let postedClearingPayment = false;
     if (xeroId && clearingPayments.length > 0) {
       try {
         for (const [paymentIndex, p] of clearingPayments.entries()) {
@@ -1472,6 +1473,7 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
                 Reference: p.reference || `${batch.channel.toUpperCase()} clearing ${batch.date}${label ? ` (${label})` : ''}`,
               }] },
             });
+            postedClearingPayment = true;
             if (p.paymentKey) {
               await execute(
                 `UPDATE xero_online_order_payments
@@ -1567,7 +1569,26 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
       }
     }
 
-    await logSync(businessId, syncType, null, xeroId, 'success', batchKey, batchInv?.Status ?? 'AUTHORISED');
+    let finalXeroState = batchInv?.Status ?? 'AUTHORISED';
+    if (xeroId && postedClearingPayment) {
+      try {
+        const refreshedInvoice = await xeroApiFetch(businessId, `/Invoices/${xeroId}`);
+        finalXeroState = refreshedInvoice?.Invoices?.[0]?.Status ?? finalXeroState;
+      } catch (refreshError: any) {
+        await reportRuntimeIssue({
+          businessId,
+          source: 'xero',
+          operation: 'online_batch_post_payment_status_refresh',
+          severity: 'warning',
+          title: 'Online batch invoice state could not be refreshed after payment',
+          error: refreshError,
+          context: { batch_date: batch.date, xero_id: xeroId },
+          reference: { type: 'online_batch', id: batch.date },
+        });
+      }
+    }
+
+    await logSync(businessId, syncType, null, xeroId, 'success', batchKey, finalXeroState);
     return xeroId;
   } catch (err: any) {
     if (isCanonicalOnlineBatch) {

@@ -34,7 +34,8 @@ describe('syncDailySalesBatch online payout state', () => {
       .mockResolvedValueOnce({
         Invoices: [{ InvoiceID: 'invoice-1', InvoiceNumber: 'INV-100', Status: 'AUTHORISED' }],
       })
-      .mockResolvedValueOnce({ Payments: [{ PaymentID: 'payment-1' }] });
+      .mockResolvedValueOnce({ Payments: [{ PaymentID: 'payment-1' }] })
+      .mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'invoice-1', Status: 'PAID' }] });
 
     const result = await syncDailySalesBatch('biz-1', {
       date: '2026-07-25',
@@ -68,6 +69,7 @@ describe('syncDailySalesBatch online payout state', () => {
     ]);
     expect(mockExecute.mock.invocationCallOrder[0]).toBeLessThan(mockXeroApiFetch.mock.invocationCallOrder[1]);
     expect(mockXeroApiFetch.mock.calls[1][1]).toBe('/Payments');
+    expect(mockXeroApiFetch.mock.calls[2][1]).toBe('/Invoices/invoice-1');
     expect(mockXeroApiFetch.mock.calls[1][2].body.Payments[0]).toMatchObject({
       Account: { Code: '092' },
       Amount: 55,
@@ -77,6 +79,8 @@ describe('syncDailySalesBatch online payout state', () => {
     expect(mockXeroApiFetch.mock.calls[1][2].idempotencyKey).toMatch(/^[a-f0-9]{64}$/);
     expect(mockExecute.mock.calls.some(call => String(call[0]).includes('INSERT IGNORE INTO xero_online_order_payments'))).toBe(true);
     expect(mockExecute.mock.calls.some(call => String(call[0]).includes("SET status = 'completed'"))).toBe(true);
+    const finalLog = mockExecute.mock.calls.find(call => String(call[0]).includes('INSERT INTO xero_sync_log'));
+    expect(finalLog?.[1]?.[5]).toBe('PAID');
   });
 
   it('does not repost an order payment already owned or completed by another run', async () => {
@@ -267,7 +271,8 @@ describe('syncDailySalesBatch online payout state', () => {
       .mockResolvedValueOnce({
         Invoices: [{ InvoiceID: 'invoice-existing', Status: 'AUTHORISED', Total: 110, AmountPaid: 0, AmountCredited: 0 }],
       })
-      .mockResolvedValueOnce({ Payments: [{ PaymentID: 'payment-1' }] });
+      .mockResolvedValueOnce({ Payments: [{ PaymentID: 'payment-1' }] })
+      .mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'invoice-existing', Status: 'PAID' }] });
 
     const result = await syncDailySalesBatch('biz-1', {
       date: '2026-07-25',
@@ -279,7 +284,7 @@ describe('syncDailySalesBatch online payout state', () => {
     });
 
     expect(result).toBe('invoice-existing');
-    expect(mockXeroApiFetch).toHaveBeenCalledTimes(2);
+    expect(mockXeroApiFetch).toHaveBeenCalledTimes(3);
     expect(mockXeroApiFetch).toHaveBeenCalledWith('biz-1', '/Payments', expect.objectContaining({
       idempotencyKey: expect.stringMatching(/^[a-f0-9]{64}$/),
     }));

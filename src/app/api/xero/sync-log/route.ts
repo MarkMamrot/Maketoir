@@ -27,6 +27,7 @@ import { imsQuery } from '@/services/IMSMySQLService';
 import { xeroApiFetch } from '@/services/XeroService';
 import { getImsDbNameStrict } from '@/lib/db/BusinessRegistry';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 /** Extract "YYYY-MM-DD" from a MySQL DATE value (Date object or string). */
 function batchDateStr(v: unknown): string {
@@ -792,23 +793,36 @@ export async function GET(req: Request) {
 
       if (uniqueIds.length > 0) {
         const liveStatus = new Map<string, string>(); // xeroId → Xero Status
-        const BATCH = 100;
+        const successfullyRequested = new Set<string>();
+        const BATCH = 20;
         for (let i = 0; i < uniqueIds.length; i += BATCH) {
           const chunk = uniqueIds.slice(i, i + BATCH);
-          const result = await xeroApiFetch(
-            databaseId!,
-            `/Invoices?IDs=${chunk.join(',')}&unitdp=4`,
-          );
-          for (const inv of result?.Invoices ?? []) {
-            if (inv.InvoiceID && inv.Status) liveStatus.set(inv.InvoiceID, inv.Status);
+          try {
+            const result = await xeroApiFetch(
+              databaseId!,
+              `/Invoices?IDs=${chunk.join(',')}&unitdp=4`,
+            );
+            chunk.forEach(id => successfullyRequested.add(id));
+            for (const inv of result?.Invoices ?? []) {
+              if (inv.InvoiceID && inv.Status) liveStatus.set(inv.InvoiceID, inv.Status);
+            }
+          } catch (error) {
+            await reportRuntimeIssue({
+              businessId: databaseId!,
+              source: 'xero',
+              operation: 'sync_history_invoice_status_refresh',
+              severity: 'warning',
+              title: 'Xero Sync History could not refresh invoice states',
+              error,
+              context: { invoice_count: chunk.length },
+            });
           }
         }
 
         // Apply live status — IDs we requested but Xero didn't return = DELETED
-        const requestedSet = new Set(uniqueIds);
         for (const entry of entries) {
           if (!entry.xero_id) continue;
-          if (!requestedSet.has(entry.xero_id)) continue;
+          if (!successfullyRequested.has(entry.xero_id)) continue;
           const live = liveStatus.get(entry.xero_id);
           entry.last_xero_state = live ?? 'DELETED';
         }
@@ -816,22 +830,35 @@ export async function GET(req: Request) {
 
       if (uniqueCreditNoteIds.length > 0) {
         const liveCreditStatus = new Map<string, string>(); // xeroId → Xero Status
-        const BATCH = 100;
+        const successfullyRequested = new Set<string>();
+        const BATCH = 20;
         for (let i = 0; i < uniqueCreditNoteIds.length; i += BATCH) {
           const chunk = uniqueCreditNoteIds.slice(i, i + BATCH);
-          const result = await xeroApiFetch(
-            databaseId!,
-            `/CreditNotes?IDs=${chunk.join(',')}`,
-          );
-          for (const note of result?.CreditNotes ?? []) {
-            if (note.CreditNoteID && note.Status) liveCreditStatus.set(note.CreditNoteID, note.Status);
+          try {
+            const result = await xeroApiFetch(
+              databaseId!,
+              `/CreditNotes?IDs=${chunk.join(',')}`,
+            );
+            chunk.forEach(id => successfullyRequested.add(id));
+            for (const note of result?.CreditNotes ?? []) {
+              if (note.CreditNoteID && note.Status) liveCreditStatus.set(note.CreditNoteID, note.Status);
+            }
+          } catch (error) {
+            await reportRuntimeIssue({
+              businessId: databaseId!,
+              source: 'xero',
+              operation: 'sync_history_credit_note_status_refresh',
+              severity: 'warning',
+              title: 'Xero Sync History could not refresh credit note states',
+              error,
+              context: { credit_note_count: chunk.length },
+            });
           }
         }
 
-        const requestedCreditSet = new Set(uniqueCreditNoteIds);
         for (const entry of entries) {
           if (!entry.xero_id) continue;
-          if (!requestedCreditSet.has(entry.xero_id)) continue;
+          if (!successfullyRequested.has(entry.xero_id)) continue;
           const live = liveCreditStatus.get(entry.xero_id);
           entry.last_xero_state = live ?? 'DELETED';
         }

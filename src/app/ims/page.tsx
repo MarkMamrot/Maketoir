@@ -17128,13 +17128,14 @@ function XeroSyncTab({
   const [retrying, setRetrying] = useState<Record<string, boolean>>({});
   const [pushAll, setPushAll] = useState(false);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [filterSyncType, setFilterSyncType] = useState('');
   const [filterXeroState, setFilterXeroState] = useState('');
 
   const loadData = async () => {
     setLoading(true);
     try {
       const [logRes, queuedRes] = await Promise.all([
-        fetch(`/api/xero/sync-log?databaseId=${encodeURIComponent(getBusinessId())}&limit=100`),
+        fetch(`/api/xero/sync-log?databaseId=${encodeURIComponent(getBusinessId())}&limit=2000`),
         fetch('/api/ims/xero/queued'),
       ]);
       if (logRes.ok) { const d = await logRes.json(); setEntries(d.entries ?? []); }
@@ -17195,8 +17196,25 @@ function XeroSyncTab({
   const toggleExpand = (id: number) => setExpanded(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const typeLabel = (t: string) => ({ po_bill: 'Purchase Order', so_invoice: 'Wholesale SO', cn_credit_note: 'Customer Credit Note', cn_credit_note_void: 'Customer Credit Note Void', scn_credit_note: 'Supplier Credit Note', scn_credit_note_void: 'Supplier Credit Note Void', pos_batch: 'POS Sales (Batch)', online_batch: 'Online Sales (Batch)', shopify_payout: 'Shopify Payout', cogs_journal: 'COGS Journal', eod_reconciliation: 'POS End-of-Day', stocktake_journal: 'Stocktake Journal', gift_card_issue: 'Gift Card Issue', gift_card_liability: 'Gift Card Liability', gift_card_redeem: 'Gift Card Redemption', store_credit_issue: 'Store Credit Issue', store_credit_redeem: 'Store Credit Redemption' }[t] ?? t);
-  const typeColor = (t: string) => ({ po_bill: '#818cf8', so_invoice: '#34d399', cn_credit_note: '#38bdf8', cn_credit_note_void: '#fb7185', scn_credit_note: '#f59e0b', scn_credit_note_void: '#fb7185', pos_batch: '#fb923c', online_batch: '#38bdf8', shopify_payout: '#14b8a6', cogs_journal: '#a78bfa', eod_reconciliation: '#fb923c', stocktake_journal: '#a78bfa', gift_card_issue: '#f59e0b', gift_card_liability: '#f59e0b', gift_card_redeem: '#f97316', store_credit_issue: '#14b8a6', store_credit_redeem: '#0d9488' }[t] ?? '#9ca3af');
-  const typeBg = (t: string) => ({ po_bill: 'rgba(99,102,241,.13)', so_invoice: 'rgba(16,185,129,.13)', cn_credit_note: 'rgba(56,189,248,.14)', cn_credit_note_void: 'rgba(251,113,133,.14)', scn_credit_note: 'rgba(245,158,11,.14)', scn_credit_note_void: 'rgba(251,113,133,.14)', pos_batch: 'rgba(251,146,60,.13)', online_batch: 'rgba(56,189,248,.13)', shopify_payout: 'rgba(20,184,166,.15)', cogs_journal: 'rgba(167,139,250,.13)', eod_reconciliation: 'rgba(251,146,60,.13)', stocktake_journal: 'rgba(167,139,250,.13)', gift_card_issue: 'rgba(245,158,11,.15)', gift_card_liability: 'rgba(245,158,11,.15)', gift_card_redeem: 'rgba(249,115,22,.15)', store_credit_issue: 'rgba(20,184,166,.15)', store_credit_redeem: 'rgba(13,148,136,.15)' }[t] ?? 'rgba(156,163,175,.13)');
+  const typeStyle = (t: string) => ({
+    po_bill: { color: '#818cf8', background: 'rgba(129,140,248,.14)' },
+    so_invoice: { color: '#34d399', background: 'rgba(52,211,153,.14)' },
+    cn_credit_note: { color: '#38bdf8', background: 'rgba(56,189,248,.14)' },
+    cn_credit_note_void: { color: '#fb7185', background: 'rgba(251,113,133,.14)' },
+    scn_credit_note: { color: '#fbbf24', background: 'rgba(251,191,36,.14)' },
+    scn_credit_note_void: { color: '#e879f9', background: 'rgba(232,121,249,.14)' },
+    pos_batch: { color: '#fb923c', background: 'rgba(251,146,60,.14)' },
+    online_batch: { color: '#22d3ee', background: 'rgba(34,211,238,.14)' },
+    shopify_payout: { color: '#2dd4bf', background: 'rgba(45,212,191,.14)' },
+    cogs_journal: { color: '#c084fc', background: 'rgba(192,132,252,.14)' },
+    eod_reconciliation: { color: '#facc15', background: 'rgba(250,204,21,.14)' },
+    stocktake_journal: { color: '#a3e635', background: 'rgba(163,230,53,.14)' },
+    gift_card_issue: { color: '#f472b6', background: 'rgba(244,114,182,.14)' },
+    gift_card_liability: { color: '#a78bfa', background: 'rgba(167,139,250,.14)' },
+    gift_card_redeem: { color: '#f97316', background: 'rgba(249,115,22,.14)' },
+    store_credit_issue: { color: '#14b8a6', background: 'rgba(20,184,166,.14)' },
+    store_credit_redeem: { color: '#0d9488', background: 'rgba(13,148,136,.14)' },
+  }[t] ?? { color: '#9ca3af', background: 'rgba(156,163,175,.13)' });
   const xeroLink = (syncType: string, id: string): string => {
     if (syncType === 'po_bill' || syncType === 'po_bill_void' || syncType === 'po_payment')
       return `https://go.xero.com/AccountsPayable/View.aspx?InvoiceID=${id}`;
@@ -17230,14 +17248,20 @@ function XeroSyncTab({
 
   const nonPayoutEntries = entries.filter(e => e.sync_type !== 'shopify_payout');
 
+  const syncTypeOptions = Array.from(new Set(nonPayoutEntries.map(e => e.sync_type)))
+    .sort((a, b) => typeLabel(a).localeCompare(typeLabel(b)));
+
   // Derive unique xero states from loaded entries for the filter dropdown (exclude payouts — they have their own section)
   const xeroStateOptions = Array.from(
     new Set(nonPayoutEntries.map(e => e.last_xero_state).filter(Boolean) as string[])
   ).sort();
 
-  const visibleEntries = filterXeroState
-    ? nonPayoutEntries.filter(e => (e.last_xero_state ?? '') === filterXeroState)
-    : nonPayoutEntries;
+  const visibleEntries = nonPayoutEntries.filter(entry => {
+    const matchesType = !filterSyncType || entry.sync_type === filterSyncType;
+    const matchesState = !filterXeroState
+      || (filterXeroState === '__none' ? !entry.last_xero_state : entry.last_xero_state === filterXeroState);
+    return matchesType && matchesState;
+  });
 
   if (loading) return <div style={{ padding: 20, color: 'var(--sv-text-dim)' }}>Loading…</div>;
 
@@ -17298,9 +17322,21 @@ function XeroSyncTab({
 
       {/* ── Sync history ── */}
       <div style={{ background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Sync History (last 200)</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, padding: '14px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>
+            Sync History ({visibleEntries.length === nonPayoutEntries.length ? nonPayoutEntries.length : `${visibleEntries.length} of ${nonPayoutEntries.length}`})
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+            {syncTypeOptions.length > 0 && (
+              <select
+                value={filterSyncType}
+                onChange={e => setFilterSyncType(e.target.value)}
+                style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 5, padding: '4px 8px', fontSize: 12, color: filterSyncType ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', cursor: 'pointer' }}
+              >
+                <option value=''>All Types</option>
+                {syncTypeOptions.map(type => <option key={type} value={type}>{typeLabel(type)}</option>)}
+              </select>
+            )}
             {xeroStateOptions.length > 0 && (
               <select
                 value={filterXeroState}
@@ -17309,7 +17345,7 @@ function XeroSyncTab({
               >
                 <option value=''>All Xero States</option>
                 {xeroStateOptions.map(s => <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>)}
-                {!filterXeroState && entries.some(e => !e.last_xero_state) && <option value='__none'>Unknown / Pre-history</option>}
+                {nonPayoutEntries.some(e => !e.last_xero_state) && <option value='__none'>Unknown / Pre-history</option>}
               </select>
             )}
             <button onClick={loadData} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: 'pointer', padding: '4px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>↻ Refresh</button>
@@ -17319,7 +17355,7 @@ function XeroSyncTab({
         {entries.length === 0 ? (
           <div style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No sync events recorded yet.</div>
         ) : visibleEntries.length === 0 ? (
-          <div style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No entries match the selected Xero state filter.</div>
+          <div style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No entries match the selected filters.</div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
@@ -17374,7 +17410,7 @@ function XeroSyncTab({
                         )}
                       </td>
                       <td style={td}>
-                        <span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: typeBg(entry.sync_type), color: typeColor(entry.sync_type) }}>
+                        <span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, ...typeStyle(entry.sync_type) }}>
                           {typeLabel(entry.sync_type)}
                         </span>
                       </td>
