@@ -63,8 +63,8 @@ describe('ForesightRecommendationService', () => {
     expect(mockCreateRecommendation).toHaveBeenCalledWith('business-1', expect.objectContaining({
       fingerprint: 'rule:fingerprint',
       channel: 'paid_media',
-      policyVersion: 1,
-      formulaVersion: 'foresight-paid-media-rules-v1',
+      policyVersion: 2,
+      formulaVersion: 'foresight-paid-media-rules-v2',
       expiresAt: '2026-08-05 23:59:59',
     }));
     expect(mockExpire).toHaveBeenCalledWith(

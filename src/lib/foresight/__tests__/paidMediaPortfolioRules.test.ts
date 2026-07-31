@@ -248,6 +248,48 @@ describe('paid media portfolio rules', () => {
     expect(recommendation?.evidence.contributors).toEqual([contributor]);
   });
 
+  it('excludes weak Meta campaigns from otherwise valid profitable-growth evidence', () => {
+    const googleCampaign = {
+      source: 'google_ads' as const,
+      entityType: 'campaign' as const,
+      entityId: 'google-campaign-1',
+      entityName: 'Stable PMax',
+      parentEntityId: null,
+      parentEntityName: null,
+      currentSpend: 140,
+      previousSpend: 140,
+      spendChange: 0,
+      currentAttributedRevenue: 700,
+      previousAttributedRevenue: 650,
+      currentPlatformRoas: 5,
+      previousPlatformRoas: 4.64,
+      platformRoasChangePercent: 7.8,
+      diagnosticScore: 0,
+      signals: [] as const,
+    };
+    const weakMetaCampaign = {
+      ...googleCampaign,
+      source: 'meta_ads' as const,
+      entityId: 'meta-campaign-1',
+      entityName: 'Weak Meta prospecting',
+      currentSpend: 40,
+      previousSpend: 20,
+      currentAttributedRevenue: 10,
+      previousAttributedRevenue: 0,
+      currentPlatformRoas: 0.25,
+      previousPlatformRoas: 0,
+      platformRoasChangePercent: null,
+    };
+    const recommendations = evaluatePaidMediaPortfolioRules(
+      dates(14).map((date) => day(date, 20, 100, 70)),
+      undefined,
+      [weakMetaCampaign, googleCampaign],
+    );
+    const recommendation = recommendations.find((item) => item.ruleId === 'profitable_growth_opportunity');
+
+    expect(recommendation?.evidence.contributors).toEqual([googleCampaign]);
+  });
+
   it('does not suggest growth when campaign ROAS declines beyond the configured tolerance', () => {
     const contributor = {
       source: 'google_ads' as const,

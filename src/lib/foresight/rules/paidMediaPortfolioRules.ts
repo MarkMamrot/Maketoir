@@ -6,8 +6,8 @@ import type {
   RecommendationEvidence,
 } from '../types';
 
-export const PAID_MEDIA_POLICY_VERSION = 1;
-export const PAID_MEDIA_RULE_FORMULA_VERSION = 'foresight-paid-media-rules-v1';
+export const PAID_MEDIA_POLICY_VERSION = 2;
+export const PAID_MEDIA_RULE_FORMULA_VERSION = 'foresight-paid-media-rules-v2';
 
 export interface PaidMediaRulePolicy {
   strategyVersion: number;
@@ -270,6 +270,8 @@ export function evaluatePaidMediaPortfolioRules(
     item.entityType === 'campaign'
     && item.currentSpend > 0
     && item.currentAttributedRevenue > 0
+    && (item.source !== 'meta_ads'
+      || (item.currentPlatformRoas != null && item.currentPlatformRoas >= metaMaximumRoas))
     && (item.platformRoasChangePercent == null
       || item.platformRoasChangePercent > -policy.merDeteriorationPercent)
     && !item.signals.includes('spend_without_platform_revenue'));
