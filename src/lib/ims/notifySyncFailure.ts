@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 
 import { getIMSPool } from '@/services/IMSMySQLService';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 interface SyncFailureNotificationOptions {
   businessId: string;
@@ -36,6 +37,14 @@ export async function notifySyncFailure(options: SyncFailureNotificationOptions)
   if (!businessId || !dedupeKey) return;
 
   const windowMins = clampDedupeWindow(dedupeMinutes);
+  const centralReport = reportRuntimeIssue({
+    businessId,
+    source,
+    operation: String(detail?.sync_type ?? dedupeKey).slice(0, 128),
+    title,
+    error: message,
+    context: { ...(detail ?? {}), dedupe_key: dedupeKey },
+  });
   const dedupeNeedle = `"dedupe_key":"${dedupeKey.replace(/"/g, '')}"`;
   const lockName = `notify:${crypto.createHash('sha256').update(`${businessId}:${source}:${dedupeKey}`).digest('hex').slice(0, 48)}`;
   const pool = getIMSPool();
@@ -75,5 +84,6 @@ export async function notifySyncFailure(options: SyncFailureNotificationOptions)
   } finally {
     if (lockAcquired) await connection.query('SELECT RELEASE_LOCK(?)', [lockName]).catch(() => {});
     connection.release();
+    await centralReport;
   }
 }

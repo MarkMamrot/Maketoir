@@ -24,10 +24,32 @@ import { runImsForBusiness, getImsDbNameStrict } from '@/lib/db/BusinessRegistry
 import { triggerCNXeroSync } from '@/lib/ims/xeroHooks';
 import { getOrCreateShopifyFallbackVariantId } from '@/lib/shopifyFallbackVariant';
 import { getShopifyApiCreds, ingestShopifyPayout } from '@/lib/ims/shopifyPayoutIngestion';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 export const runtime = 'nodejs';
 
 type Config = { businessId: string; secret: string; syncFrom: string; locationId: number; enabled: boolean };
+
+function reportWebhookFailure(
+  businessId: string,
+  topic: string,
+  error: unknown,
+  context: Record<string, unknown>,
+) {
+  return reportRuntimeIssue({
+    businessId,
+    source: 'shopify_webhook',
+    operation: topic || 'unknown_topic',
+    title: `Shopify webhook failed — ${topic || 'unknown topic'}`,
+    error,
+    context,
+    reference: context.shopify_order_id != null
+      ? { type: 'shopify_order', id: String(context.shopify_order_id) }
+      : context.payout_id != null
+        ? { type: 'shopify_payout', id: String(context.payout_id) }
+        : undefined,
+  });
+}
 
 function getShopifyGiftCardAmount(lineItems: any[]): number {
   if (!Array.isArray(lineItems)) return 0;
@@ -187,6 +209,10 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
     } catch (e: any) {
       const msg = e?.message ?? String(e);
       console.error('[shopify-webhook] order create error:', msg);
+      await reportWebhookFailure(businessId, topic, e, {
+        shopify_order_id: String(payload.id ?? ''),
+        shopify_order_name: payload.name ?? null,
+      });
       createNotification(
         businessId,
         'shopify_webhook',
@@ -215,6 +241,10 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
       try { await ImsSORepo.changeStatus(existing[0].id, 'cancelled'); } catch (e: any) {
         const msg = e?.message ?? String(e);
         console.error('[shopify-webhook] orders/cancelled error:', msg);
+        await reportWebhookFailure(businessId, topic, e, {
+          shopify_order_id: orderIdStr,
+          so_id: existing[0].id,
+        });
         createNotification(
           businessId,
           'shopify_webhook',
@@ -242,6 +272,10 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
       try { await ImsSORepo.changeStatus(existing[0].id, 'fulfilled'); } catch (e: any) {
         const msg = e?.message ?? String(e);
         console.error('[shopify-webhook] fulfillments/create error:', msg);
+        await reportWebhookFailure(businessId, topic, e, {
+          shopify_order_id: orderId,
+          so_id: existing[0].id,
+        });
         createNotification(
           businessId,
           'shopify_webhook',
@@ -290,7 +324,18 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
             );
             const cnId = Number(cnRows[0]?.id ?? 0);
             if (cnId > 0) {
-              triggerCNXeroSync(businessId, cnId).catch((err: any) => console.error('[Xero] Shopify refund CN sync failed:', err?.message));
+              triggerCNXeroSync(businessId, cnId).catch(async (err: any) => {
+                console.error('[Xero] Shopify refund CN sync failed:', err?.message);
+                await reportRuntimeIssue({
+                  businessId,
+                  source: 'xero',
+                  operation: 'shopify_refund_credit_note',
+                  title: 'Shopify refund credit note sync failed',
+                  error: err,
+                  context: { shopify_order_id: orderId, shopify_refund_id: norm.shopifyRefundId },
+                  reference: { type: 'credit_note', id: cnId },
+                });
+              });
             }
             // Reflect financial status if the whole order is now refunded.
             await imsQuery(
@@ -302,7 +347,14 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
               [existing[0].id],
             );
           }
-        } catch (e: any) { console.error('[shopify-webhook] refund error:', e.message); }
+        } catch (e: any) {
+          console.error('[shopify-webhook] refund error:', e.message);
+          await reportWebhookFailure(businessId, topic, e, {
+            shopify_order_id: orderId,
+            so_id: existing[0].id,
+            shopify_refund_id: String(payload.id ?? ''),
+          });
+        }
       }
     }
   }
@@ -365,7 +417,13 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
               );
             }
           }
-        } catch (e: any) { console.error('[shopify-webhook] orders/updated error:', e.message); }
+        } catch (e: any) {
+          console.error('[shopify-webhook] orders/updated error:', e.message);
+          await reportWebhookFailure(businessId, topic, e, {
+            shopify_order_id: orderIdStr,
+            so_id: so.id,
+          });
+        }
       }
     }
   }
@@ -380,6 +438,7 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
       await ingestShopifyPayout(businessId, payload, creds);
     } catch (e: any) {
       const msg = e?.message ?? String(e);
+      await reportWebhookFailure(businessId, topic, e, { payout_id: payoutId });
       createNotification(
         businessId,
         'shopify_webhook',

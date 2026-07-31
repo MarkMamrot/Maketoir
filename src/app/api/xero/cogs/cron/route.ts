@@ -4,6 +4,7 @@ import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { CogsFrequency, getCogsPeriodStartingAt, getLastCompletedCogsPeriod } from '@/lib/xero/cogsPeriods';
 import { execute, query } from '@/services/MySQLService';
 import { postCogsPeriod } from '@/services/XeroCogsService';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 export const runtime = 'nodejs';
 
@@ -37,6 +38,13 @@ export async function POST(req: Request) {
     );
   } catch (error: unknown) {
     console.error('[xero/cogs/cron] unable to load settings:', errorMessage(error));
+    await reportRuntimeIssue({
+      source: 'xero',
+      operation: 'cogs_cron_load_settings',
+      severity: 'critical',
+      title: 'Xero COGS cron could not load schedules',
+      error,
+    });
     return NextResponse.json({ error: 'Unable to load COGS schedules.' }, { status: 500 });
   }
 
@@ -84,6 +92,14 @@ export async function POST(req: Request) {
       });
     } catch (error: unknown) {
       console.error(`[xero/cogs/cron] ${setting.business_id}:`, errorMessage(error));
+      await reportRuntimeIssue({
+        businessId: setting.business_id,
+        source: 'xero',
+        operation: 'cogs_cron_business',
+        title: 'Xero COGS cron failed for organisation',
+        error,
+        context: { frequency: setting.frequency },
+      });
       results.push({ businessId: setting.business_id, outcome: 'error' });
     }
   }

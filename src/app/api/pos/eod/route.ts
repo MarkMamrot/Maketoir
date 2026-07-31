@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { cookies } from 'next/headers';
 import { PosEodRepo } from '@/lib/db/PosRepository';
 import { ConfigRepository } from '@/lib/db/ConfigRepository';
@@ -146,6 +147,7 @@ export async function POST(req: Request) {
     if (hasCount) {
       const adminRaw2    = cookies().get('marketoir_session')?.value;
       const adminBizId   = adminRaw2 ? (() => { try { return JSON.parse(adminRaw2)?.businessId ?? null; } catch { return null; } })() : null;
+      let eodBusinessId: string | null = adminBizId;
       imsQuery<{ name: string; business_id: string | null }>(
         'SELECT name, business_id FROM ims_locations WHERE id = ? LIMIT 1',
         [resolvedLocationId],
@@ -154,6 +156,7 @@ export async function POST(req: Request) {
           const locationName = locs[0]?.name ?? `Location ${resolvedLocationId}`;
           const bizId = adminBizId ?? locs[0]?.business_id ?? null;
           if (!bizId) return; // Xero not configured for this location
+          eodBusinessId = bizId;
           return PosEodRepo.get(resolvedLocationId, resolvedDate, register_id).then(rows =>
             triggerEodXeroSync(
               bizId,
@@ -170,7 +173,22 @@ export async function POST(req: Request) {
             )
           );
         })
-        .catch(e => console.error('EOD Xero auto-sync failed:', e.message));
+        .catch(async e => {
+          console.error('EOD Xero auto-sync failed:', e.message);
+          await reportRuntimeIssue({
+            businessId: eodBusinessId,
+            source: 'xero',
+            operation: 'pos_eod_auto_sync',
+            title: 'POS EOD Xero auto-sync failed',
+            error: e,
+            context: {
+              location_id: resolvedLocationId,
+              register_id: register_id ?? null,
+              reconciliation_date: resolvedDate,
+            },
+            reference: { type: 'pos_eod', id: `${resolvedLocationId}:${resolvedDate}:${register_id ?? 'all'}` },
+          });
+        });
     }
 
     return NextResponse.json({ success: true });

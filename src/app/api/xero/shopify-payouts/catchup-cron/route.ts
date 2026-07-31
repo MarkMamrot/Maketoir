@@ -6,6 +6,7 @@ import {
   ingestShopifyPayout,
 } from '@/lib/ims/shopifyPayoutIngestion';
 import { query } from '@/services/MySQLService';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -55,13 +56,31 @@ export async function POST(request: Request) {
             processed += 1;
           } catch (error) {
             failed += 1;
-            console.error(`[shopify-payout-catchup] ${businessId} payout ${String(payout?.id ?? 'unknown')}:`, error);
+            const payoutId = String(payout?.id ?? 'unknown');
+            console.error(`[shopify-payout-catchup] ${businessId} payout ${payoutId}:`, error);
+            await reportRuntimeIssue({
+              businessId,
+              source: 'shopify',
+              operation: 'payout_catchup_ingest',
+              title: 'Shopify payout catch-up failed',
+              error,
+              context: { date_min: dateMin },
+              reference: { type: 'shopify_payout', id: payoutId },
+            });
           }
         }
         return { businessId, discovered: payouts.length, processed, failed };
       });
       results.push(result);
     } catch (error: any) {
+      await reportRuntimeIssue({
+        businessId,
+        source: 'shopify',
+        operation: 'payout_catchup_business',
+        title: 'Shopify payout catch-up failed for organisation',
+        error,
+        context: { date_min: dateMin },
+      });
       results.push({
         businessId,
         discovered: 0,

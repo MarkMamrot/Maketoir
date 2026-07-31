@@ -6,6 +6,7 @@ import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
 import { ShopifyService } from '@/services/ShopifyService';
 import { syncGiftCardRedemptionReclass } from '@/services/XeroSyncService';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -87,6 +88,15 @@ export async function POST(req: Request) {
       }
     } catch (e: any) {
       console.error('[POS gift-card/redeem] Shopify fallback failed:', e.message);
+      await reportRuntimeIssue({
+        businessId: session.businessId,
+        source: 'shopify',
+        operation: 'gift_card_pos_import',
+        title: 'POS could not import Shopify gift card',
+        error: e,
+        context: { pos_sale_id: pos_sale_id ?? null, code_last_four: code.slice(-4) },
+        reference: pos_sale_id ? { type: 'pos_sale', id: pos_sale_id } : undefined,
+      });
     }
   }
 
@@ -134,6 +144,20 @@ export async function POST(req: Request) {
         card_id:       card.id,
         shopify_gc_id: card.shopify_gc_id,
         newBalance,
+      });
+      await reportRuntimeIssue({
+        businessId: session.businessId,
+        source: 'shopify',
+        operation: 'gift_card_pos_redeem',
+        title: 'POS gift-card redemption did not sync to Shopify',
+        error: e,
+        context: {
+          card_id: card.id,
+          shopify_gc_id: card.shopify_gc_id,
+          pos_sale_id: pos_sale_id ?? null,
+          balance_after: newBalance,
+        },
+        reference: { type: 'gift_card', id: card.id },
       });
     }
   }

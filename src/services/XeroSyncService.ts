@@ -22,6 +22,7 @@ import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { buildCogsJournalLines } from '@/lib/xero/cogsPeriods';
 import { calculateCashPosition, splitExpectedCashTender } from '@/lib/ims/cashBankingMath';
 import crypto from 'crypto';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import fs from 'fs';
 import path from 'path';
 
@@ -168,6 +169,17 @@ async function logSync(
       `INSERT INTO xero_sync_log (business_id, sync_type, reference_id, xero_id, status, xero_state, detail) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [businessId, syncType, referenceId, xeroId, status, xeroState ?? null, detail ?? null],
     );
+    if (status === 'error') {
+      await reportRuntimeIssue({
+        businessId,
+        source: 'xero',
+        operation: syncType,
+        title: `Xero ${syncType.replace(/_/g, ' ')} failed`,
+        error: detail || 'Xero sync failed',
+        context: { xero_id: xeroId, xero_state: xeroState },
+        reference: referenceId == null ? undefined : { type: syncType, id: referenceId },
+      });
+    }
   } catch (err: any) {
     // Logging must never break a sync — swallow and warn instead
     console.warn('[XeroSyncService] logSync failed (sync still proceeded):', err?.message ?? err);

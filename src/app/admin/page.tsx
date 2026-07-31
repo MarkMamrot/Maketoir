@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import RuntimeIssuesView from './RuntimeIssuesView';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Business {
@@ -15,7 +16,7 @@ interface User {
   created_at?: string;
 }
 
-type View = 'businesses' | 'users';
+type View = 'businesses' | 'users' | 'runtime-issues';
 
 // ── Styles (IMS-style) ────────────────────────────────────────────────────────
 const S = {
@@ -597,6 +598,7 @@ export default function AdminPage() {
   const router = useRouter();
   const [view, setView]       = useState<View>('businesses');
   const [checked, setChecked] = useState(false);
+  const [openIssueCount, setOpenIssueCount] = useState(0);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -607,6 +609,16 @@ export default function AdminPage() {
       })
       .catch(() => router.replace('/login'));
   }, [router]);
+
+  useEffect(() => {
+    if (!checked) return;
+    fetch('/api/admin/runtime-issues?limit=1')
+      .then(response => response.json())
+      .then(data => setOpenIssueCount((data.summary ?? [])
+        .filter((row: any) => row.status !== 'fixed')
+        .reduce((total: number, row: any) => total + Number(row.count ?? 0), 0)))
+      .catch(() => {});
+  }, [checked, view]);
 
   if (!checked) return (
     <div style={{ minHeight: '100vh', background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 14 }}>
@@ -636,8 +648,9 @@ export default function AdminPage() {
         <div style={S.sidebar}>
           <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--sv-text-dim,#64748b)', textTransform: 'uppercase', letterSpacing: .7, padding: '4px 12px', margin: '4px 0 8px' }}>Admin</p>
           {([
-            { id: 'businesses', label: '🏢 Businesses' },
-            { id: 'users',      label: '👥 Users' },
+            { id: 'businesses', label: 'Businesses' },
+            { id: 'users',      label: 'Users' },
+            { id: 'runtime-issues', label: `Runtime Issues${openIssueCount ? ` (${openIssueCount})` : ''}` },
           ] as { id: View; label: string }[]).map(item => (
             <button key={item.id} onClick={() => setView(item.id)} style={S.navBtn(view === item.id)}>{item.label}</button>
           ))}
@@ -647,6 +660,7 @@ export default function AdminPage() {
         <div style={S.main}>
           {view === 'businesses' && <BusinessesView />}
           {view === 'users'      && <UsersView />}
+          {view === 'runtime-issues' && <RuntimeIssuesView />}
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getIMSPool, imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { getCurrentImsDb } from '@/services/imsContext';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import {
   computeLandedCostPerUnit,
   computeReceivedUnitCostAud,
@@ -3649,6 +3650,17 @@ export const ImsShopifyRepo = {
       `INSERT INTO ims_shopify_sync_log (business_id, action, status, summary, detail) VALUES (?, ?, ?, ?, ?)`,
       [businessId, action, status, summary, detail ? JSON.stringify(detail) : null],
     );
+    if (status === 'error' || status === 'partial') {
+      await reportRuntimeIssue({
+        businessId,
+        source: 'shopify',
+        operation: action,
+        severity: status === 'error' ? 'error' : 'warning',
+        title: `Shopify ${action.replace(/_/g, ' ')} ${status}`,
+        error: summary,
+        context: detail as Record<string, unknown> | undefined,
+      });
+    }
   },
 
   async getLog(limit = 50, businessId?: string): Promise<ImsShopifySyncLog[]> {

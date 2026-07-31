@@ -37,6 +37,11 @@ Railway (auto-deploy on push to `main`, no test gate other than CI below).
   generic contact writes. Manual and POS-issued credit must come from idempotent customer credit-note
   completion and write `store_credit_transactions` in the same tenant transaction. POS returns use
   the linked CN as the sole stock owner; do not restock in both POS and CN paths.
+6. **Runtime failures must be visible.** New handled operational exceptions and integration failures
+  must call `reportRuntimeIssue()` from `src/lib/runtimeIssues.ts` with the tenant `businessId`, source,
+  operation, safe context, and source reference. Keep domain-specific logs too. Do not persist secrets,
+  tokens, cookies, authorization headers, or raw customer payloads. Expected validation/auth 4xx results
+  are not runtime issues. Never rely on `console.error` as the only record of a live operational failure.
 
 ## Testing
 - Vitest is configured (`npm test` / `npm run test:watch`) but only has light coverage under

@@ -5,6 +5,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
 import { ShopifyService } from '@/services/ShopifyService';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -157,6 +158,15 @@ export async function POST(req: Request) {
       }
     } catch (e: any) {
       console.error('[POS gift-card] Shopify create failed:', e.message);
+      await reportRuntimeIssue({
+        businessId: session.businessId,
+        source: 'shopify',
+        operation: 'gift_card_pos_issue',
+        title: 'POS could not create Shopify gift card',
+        error: e,
+        context: { pos_sale_id: pos_sale_id ?? null, amount: amt },
+        reference: pos_sale_id ? { type: 'pos_sale', id: pos_sale_id } : undefined,
+      });
     }
   }
 

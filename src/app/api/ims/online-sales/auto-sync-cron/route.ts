@@ -16,6 +16,7 @@ import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { syncOnlineDailySalesDay } from '@/lib/xero/onlineDailySalesSync';
 import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 export const runtime = 'nodejs';
 
@@ -37,6 +38,13 @@ export async function POST(req: Request) {
     );
   } catch (e: any) {
     console.error('[auto-sync-cron] failed to load businesses:', e?.message);
+    await reportRuntimeIssue({
+      source: 'cron',
+      operation: 'online_sales_load_businesses',
+      severity: 'critical',
+      title: 'Nightly online sales sync could not load organisations',
+      error: e,
+    });
     return NextResponse.json({ error: 'DB error' }, { status: 500 });
   }
 
@@ -121,6 +129,13 @@ export async function POST(req: Request) {
     try {
       await runImsForBusiness(business_id, () => processBusiness(business_id));
     } catch (e: any) {
+      await reportRuntimeIssue({
+        businessId: business_id,
+        source: 'cron',
+        operation: 'online_sales_auto_sync',
+        title: 'Nightly online sales sync failed for organisation',
+        error: e,
+      });
       results.push({ businessId: business_id, date: '', success: false, error: e?.message });
     }
   }
