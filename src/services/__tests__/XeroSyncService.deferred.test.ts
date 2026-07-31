@@ -16,8 +16,10 @@ vi.mock('@/services/XeroService', () => ({
 }));
 
 import {
+  syncPOAsDraftBill,
   syncGiftCardRedemptionReclass,
   syncStoreCreditIssueReclass,
+  updateXeroDraftBill,
 } from '../XeroSyncService';
 
 function setupBaseMocks() {
@@ -121,5 +123,58 @@ describe('Deferred liability lifecycle sync helpers', () => {
 
     expect(result).toBeNull();
     expect(mockXeroApiFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('PO bill sync', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupBaseMocks();
+    mockQuery.mockImplementation((sql: string) => {
+      if (sql.includes('FROM xero_account_mappings')) {
+        return Promise.resolve([{ role_key: 'inventory_asset', xero_account_code: '630' }]);
+      }
+      if (sql.includes('FROM xero_tracking_mappings')) return Promise.resolve([]);
+      if (sql.includes("SHOW COLUMNS FROM xero_sync_log LIKE 'xero_state'")) return Promise.resolve([{ Field: 'xero_state' }]);
+      return Promise.resolve([]);
+    });
+  });
+
+  it('sends each stored line discount when creating and updating a draft bill', async () => {
+    const po = {
+      id: 4851,
+      po_number: 'PO-2026-0015',
+      supplier_name: 'Supplier',
+      location_id: 4,
+      order_date: '2026-07-27',
+      subtotal: 326.4,
+      tax_amount: 32.64,
+      total_amount: 359.04,
+      tax_treatment: 'ex_tax' as const,
+      items: [{
+        variant_id: 'variant-1',
+        sku: 'RS-LTL/KA',
+        product_name: 'LED Touch Lamp Kangaroo',
+        qty_ordered: 24,
+        unit_cost: 16,
+        discount_pct: 15,
+        tax_rate: 0.1,
+        line_total: 326.4,
+      }],
+    };
+    mockXeroApiFetch
+      .mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'bill-1', Status: 'DRAFT' }] })
+      .mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'bill-1', Status: 'DRAFT' }] })
+      .mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'bill-1', Status: 'DRAFT' }] });
+
+    await syncPOAsDraftBill('biz-1', po);
+    await updateXeroDraftBill('biz-1', po, 'bill-1');
+
+    expect(mockXeroApiFetch.mock.calls[0][2].body.Invoices[0].LineItems[0]).toEqual(
+      expect.objectContaining({ UnitAmount: 16, DiscountRate: 15 }),
+    );
+    expect(mockXeroApiFetch.mock.calls[2][2].body.Invoices[0].LineItems[0]).toEqual(
+      expect.objectContaining({ UnitAmount: 16, DiscountRate: 15 }),
+    );
   });
 });

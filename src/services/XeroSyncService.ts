@@ -388,6 +388,7 @@ interface POForSync {
     product_name?: string;
     qty_ordered: number;
     unit_cost: number;
+    discount_pct: number;
     tax_rate: number;
     line_total: number;
   }[];
@@ -443,6 +444,7 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
     Description: `${item.sku || ''} ${item.product_name || ''}`.trim() || 'Inventory',
     Quantity: item.qty_ordered,
     UnitAmount: item.unit_cost,
+    DiscountRate: item.discount_pct ?? 0,
     AccountCode: lineAccountCode,
     ...(lineTaxType ? { TaxType: lineTaxType } : {}),
     Tracking: tracking,
@@ -537,6 +539,7 @@ export async function updateXeroDraftBill(businessId: string, po: POForSync, xer
     Description: `${item.sku || ''} ${item.product_name || ''}`.trim() || 'Inventory',
     Quantity: item.qty_ordered,
     UnitAmount: item.unit_cost,
+    DiscountRate: item.discount_pct ?? 0,
     AccountCode: lineAccountCode,
     ...(lineTaxType ? { TaxType: lineTaxType } : {}),
     Tracking: tracking,
