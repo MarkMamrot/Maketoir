@@ -1643,6 +1643,7 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
   const [storeCreditAdjustment, setStoreCreditAdjustment] = useState('');
   const [storeCreditReason, setStoreCreditReason] = useState('');
   const [adjustingStoreCredit, setAdjustingStoreCredit] = useState(false);
+  const [storeCreditPopupOpen, setStoreCreditPopupOpen] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
   const [selectedContacts, setSelectedContacts] = useState<Set<number>>(new Set());
   const [bulkWorking, setBulkWorking] = useState(false);
@@ -1704,6 +1705,7 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
   const resetStoreCreditAdjustment = () => {
     setStoreCreditAdjustment('');
     setStoreCreditReason('');
+    setStoreCreditPopupOpen(false);
   };
   const openNew = () => { resetStoreCreditAdjustment(); setForm({ ...BLANK_CONTACT }); setModal({ open: true, edit: null }); };
   const openEdit = (c: any) => { resetStoreCreditAdjustment(); setForm({ ...BLANK_CONTACT, ...c }); setModal({ open: true, edit: c }); };
@@ -2156,33 +2158,18 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
               <div style={{ marginTop: 14 }}>
                 <SectionLabel>Customer Details</SectionLabel>
                 <Row2>
-                  <Field label="Store Credit ($)"><input type="number" value={f.store_credit ?? 0} readOnly title="Read-only balance updated by completed manual or POS-generated customer credit notes." style={{ ...inputStyle, opacity: .72, cursor: 'not-allowed' }} /></Field>
+                  <Field label="Store Credit ($)">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <input type="number" value={f.store_credit ?? 0} readOnly title="Read-only balance updated by completed manual or POS-generated customer credit notes." style={{ ...inputStyle, opacity: .72, cursor: 'not-allowed', flex: 1, minWidth: 0 }} />
+                      {modal.edit && !isAdvisor && (
+                        <button type="button" onClick={() => { resetStoreCreditAdjustment(); setStoreCreditPopupOpen(true); }} style={{ ...btnStyle('secondary', 'xs'), flexShrink: 0 }}>
+                          Adjust
+                        </button>
+                      )}
+                    </div>
+                  </Field>
                   <Field label="On Account Limit ($)"><input type="number" min="0" step="0.01" value={f.on_account_limit ?? ''} onChange={sf('on_account_limit')} style={inputStyle} /></Field>
                 </Row2>
-                {modal.edit && !isAdvisor && (
-                  <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 6, padding: 12, marginBottom: 12 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 8 }}>Adjust Store Credit</div>
-                    <Row2>
-                      <Field label="Adjustment ($)">
-                        <input type="number" step="0.01" value={storeCreditAdjustment} onChange={e => setStoreCreditAdjustment(e.target.value)} placeholder="e.g. -25.00" style={inputStyle} />
-                      </Field>
-                      <Field label="Resulting Balance ($)">
-                        <input type="text" readOnly value={(() => {
-                          const adjustment = Number(storeCreditAdjustment);
-                          return Number.isFinite(adjustment) ? (Number(f.store_credit ?? 0) + adjustment).toFixed(2) : Number(f.store_credit ?? 0).toFixed(2);
-                        })()} style={{ ...inputStyle, opacity: .72, cursor: 'not-allowed' }} />
-                      </Field>
-                    </Row2>
-                    <Field label="Reason *">
-                      <input value={storeCreditReason} onChange={e => setStoreCreditReason(e.target.value)} maxLength={255} placeholder="Why this balance is being corrected" style={inputStyle} />
-                    </Field>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      <button type="button" onClick={handleStoreCreditAdjustment} disabled={adjustingStoreCredit} style={btnStyle('secondary', 'sm')}>
-                        {adjustingStoreCredit ? 'Adjusting…' : 'Apply Adjustment'}
-                      </button>
-                    </div>
-                  </div>
-                )}
                 <Row2>
                   <Field label="Price Tier">
                     <select value={f.price_tier ?? 'retail'} onChange={sf('price_tier')} style={inputStyle}>
@@ -2247,6 +2234,39 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
 
             <FormActions onCancel={closeModal} saving={saving} isEdit={!!modal.edit} />
           </form>
+          {storeCreditPopupOpen && modal.edit && !isAdvisor && (
+            <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,.5)' }} onMouseDown={e => { if (e.target === e.currentTarget && !adjustingStoreCredit) resetStoreCreditAdjustment(); }}>
+              <div role="dialog" aria-modal="true" aria-label="Adjust store credit" style={{ width: 'min(100%, 390px)', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, boxShadow: '0 16px 40px rgba(0,0,0,.28)', padding: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Adjust Store Credit</div>
+                    <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 2 }}>Current balance: ${Number(f.store_credit ?? 0).toFixed(2)}</div>
+                  </div>
+                  <button type="button" aria-label="Close" title="Close" onClick={resetStoreCreditAdjustment} disabled={adjustingStoreCredit} style={{ ...btnStyle('ghost', 'xs'), fontSize: 18, lineHeight: 1 }}>X</button>
+                </div>
+                <Row2>
+                  <Field label="Adjustment ($)">
+                    <input autoFocus type="number" step="0.01" value={storeCreditAdjustment} onChange={e => setStoreCreditAdjustment(e.target.value)} placeholder="e.g. -25.00" style={inputStyle} />
+                  </Field>
+                  <Field label="New Balance ($)">
+                    <input type="text" readOnly value={(() => {
+                      const adjustment = Number(storeCreditAdjustment);
+                      return Number.isFinite(adjustment) ? (Number(f.store_credit ?? 0) + adjustment).toFixed(2) : Number(f.store_credit ?? 0).toFixed(2);
+                    })()} style={{ ...inputStyle, opacity: .72, cursor: 'not-allowed' }} />
+                  </Field>
+                </Row2>
+                <Field label="Reason *">
+                  <input value={storeCreditReason} onChange={e => setStoreCreditReason(e.target.value)} maxLength={255} placeholder="Why this balance is being corrected" style={inputStyle} />
+                </Field>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+                  <button type="button" onClick={resetStoreCreditAdjustment} disabled={adjustingStoreCredit} style={btnStyle('secondary', 'sm')}>Cancel</button>
+                  <button type="button" onClick={handleStoreCreditAdjustment} disabled={adjustingStoreCredit} style={btnStyle('action', 'sm')}>
+                    {adjustingStoreCredit ? 'Applying...' : 'Apply'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </Modal>
       )}
     </div>
