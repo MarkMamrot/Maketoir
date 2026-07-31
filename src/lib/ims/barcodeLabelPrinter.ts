@@ -79,17 +79,20 @@ export function buildBarcodeSvgMarkup(text: string, widthMm: number, heightMm: n
     }
   }
 
-  const qz = 10;
-  const scale = widthMm / (totalModules + qz * 2);
-  let x = qz * scale;
+  const quietZoneModules = 10;
+  const viewBoxWidth = totalModules + quietZoneModules * 2;
+  // Preserve the requested physical ratio while making every horizontal
+  // coordinate an exact Code 128 module. The SVG is rendered width-first;
+  // a shorter label can clip height but must never distort bar widths.
+  const viewBoxHeight = Math.max(1, Math.round(viewBoxWidth * heightMm / widthMm));
+  let x = quietZoneModules;
   let rects = '';
   for (const { w, dark } of bars) {
-    const bw = w * scale;
-    if (dark) rects += `<rect x="${x.toFixed(3)}" y="0" width="${bw.toFixed(3)}" height="${heightMm}" fill="#000"/>`;
-    x += bw;
+    if (dark) rects += `<rect x="${x}" y="0" width="${w}" height="${viewBoxHeight}" fill="#000"/>`;
+    x += w;
   }
 
-  return `<svg viewBox="0 0 ${widthMm} ${heightMm}" width="100%" height="100%" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><rect width="${widthMm}" height="${heightMm}" fill="white"/>${rects}</svg>`;
+  return `<svg viewBox="0 0 ${viewBoxWidth} ${viewBoxHeight}" width="100%" preserveAspectRatio="xMinYMin meet" shape-rendering="crispEdges" style="display:block;width:100%;height:auto" xmlns="http://www.w3.org/2000/svg"><rect width="${viewBoxWidth}" height="${viewBoxHeight}" fill="white"/>${rects}</svg>`;
 }
 
 function buildSingleLabelMarkup(options: Omit<BarcodeLabelRenderOptions, 'qty'>): string {
@@ -183,7 +186,7 @@ export function buildBarcodeLabelBatchHtml(options: BarcodeLabelBatchRenderOptio
     .price       { font-size: ${pricePt}pt; font-weight: 700; }
     .rrp-strike  { font-size: ${Math.max(4, pricePt - 2)}pt; text-decoration: line-through; color: #888; margin-right: 0.5mm; }
     .bc-wrap  { flex: 1 1 0; min-height: 0; display: flex; align-items: flex-start; width: 100%; overflow: hidden; }
-    .bc-wrap svg { display: block; width: 100%; height: 100%; }
+    .bc-wrap svg { display: block; width: 100%; height: auto; }
     .bottom-row { display: flex; align-items: baseline; justify-content: space-between; gap: 1mm; flex-shrink: 0; width: 100%; height: ${botH}mm; }
     .brand { font-size: ${bottomPt}pt; color: #555; flex: 1 1 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .sku   { font-size: ${bottomPt}pt; color: #333; flex-shrink: 0; white-space: nowrap; letter-spacing: .3px; }

@@ -25,6 +25,25 @@ describe('buildBarcodeLabelHtml', () => {
     const svg = buildBarcodeSvgMarkup('1234567890123', 37, 8);
     expect(svg).toContain('svg');
     expect(svg).toContain('rect');
+    expect(svg).toContain('shape-rendering="crispEdges"');
+    expect(svg).toContain('preserveAspectRatio="xMinYMin meet"');
+    expect(svg).toContain('style="display:block;width:100%;height:auto"');
+    expect(svg).not.toContain('preserveAspectRatio="none"');
+  });
+
+  it('uses exact module coordinates with a full 10-module quiet zone on each side', () => {
+    const svg = buildBarcodeSvgMarkup('ABC-123', 37, 8);
+    const viewBox = svg.match(/viewBox="0 0 (\d+) (\d+)"/);
+    const bars = [...svg.matchAll(/<rect x="(\d+)" y="0" width="(\d+)"/g)];
+
+    expect(viewBox).not.toBeNull();
+    expect(bars.length).toBeGreaterThan(0);
+    expect(Number(bars[0][1])).toBe(10);
+    expect(Number(bars.at(-1)?.[1]) + Number(bars.at(-1)?.[2])).toBe(Number(viewBox?.[1]) - 10);
+    for (const [, x, width] of bars) {
+      expect(Number.isInteger(Number(x))).toBe(true);
+      expect(Number.isInteger(Number(width))).toBe(true);
+    }
   });
 
   it('returns an empty SVG string when the value cannot be encoded', () => {
