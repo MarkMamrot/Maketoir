@@ -46,6 +46,15 @@ describe('buildBarcodeLabelHtml', () => {
     }
   });
 
+  it('uses the standard Code 128 auto encoder for numeric and mixed values', () => {
+    const numeric = buildBarcodeSvgMarkup('9346109020145', 37, 8);
+    const mixed = buildBarcodeSvgMarkup('RC-C-SAS1331', 37, 8);
+
+    expect(numeric).toMatch(/viewBox="0 0 \d+ \d+"/);
+    expect(mixed).toMatch(/viewBox="0 0 \d+ \d+"/);
+    expect(numeric).not.toBe(mixed);
+  });
+
   it('returns an empty SVG string when the value cannot be encoded', () => {
     const svg = buildBarcodeSvgMarkup('\n\t', 37, 8);
     expect(svg).toBe('');
