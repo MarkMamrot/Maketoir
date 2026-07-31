@@ -1,5 +1,6 @@
 import { imsQuery, imsExecute, getIMSPool } from '@/services/IMSMySQLService';
 import { getPosStockQtyChange } from '@/lib/ims/posReturnCreditNote';
+import { unwindGiftCardTransactionsForSale, type GiftCardVoidReversal } from '@/lib/pos/giftCardSaleVoid';
 
 /** Current datetime formatted as MySQL DATETIME in the business's local timezone. */
 function localNow(): string {
@@ -444,21 +445,31 @@ export const PosSalesRepo = {
    * does NOT touch stock — this is the version to use when a manager
    * actually wants stock corrected (e.g. deleting a mistaken transaction).
    */
-  async voidWithReversal(id: number): Promise<{ stockError?: string }> {
+  async voidWithReversal(id: number): Promise<{ stockError?: string; giftCardReversals: GiftCardVoidReversal[] }> {
     const existing = await this.get(id);
     if (!existing) throw new Error('Sale not found.');
     const { sale, items } = existing;
 
-    await this.updateStatus(id, 'voided');
-
     // Nothing was ever deducted for sales that never completed.
-    if (!['completed', 'layby_complete'].includes(sale.status)) return {};
+    if (!['completed', 'layby_complete'].includes(sale.status)) {
+      await this.updateStatus(id, 'voided');
+      return { giftCardReversals: [] };
+    }
 
-    let stockError: string | undefined;
     const pool = getIMSPool();
     const stockConn = await pool.getConnection();
     try {
       await stockConn.beginTransaction();
+      const [saleRows]: any = await stockConn.execute(
+        `SELECT status FROM pos_sales WHERE id = ? LIMIT 1 FOR UPDATE`,
+        [id],
+      );
+      if (!saleRows[0]) throw new Error('Sale not found.');
+      if (!['completed', 'layby_complete'].includes(saleRows[0].status)) {
+        throw new Error(`Sale can no longer be voided from status ${saleRows[0].status}.`);
+      }
+
+      const giftCardReversals = await unwindGiftCardTransactionsForSale(stockConn, id);
       for (const item of items) {
         if (!item.variant_id) continue;
         // Opposite of the sign applied in complete(): a normal sale had
@@ -496,15 +507,18 @@ export const PosSalesRepo = {
           [item.variant_id, sale.location_id, 'pos_sale', 'pos_sale', id, qtyChange, newSoh, avgCostAtTime, 'Voided by manager PIN'],
         );
       }
+      await stockConn.execute(
+        `UPDATE pos_sales SET status = 'voided', updated_at = NOW() WHERE id = ?`,
+        [id],
+      );
       await stockConn.commit();
-    } catch (err: any) {
+      return { giftCardReversals };
+    } catch (err) {
       await stockConn.rollback();
-      stockError = err?.message || String(err);
-      console.error(`[POS] Sale ${id} voided but stock reversal failed:`, err);
+      throw err;
     } finally {
       stockConn.release();
     }
-    return { stockError };
   },
 
   /**

@@ -18,6 +18,7 @@ vi.mock('@/services/XeroService', () => ({
 import {
   syncPOAsDraftBill,
   syncGiftCardRedemptionReclass,
+  syncGiftCardRedemptionReversal,
   syncStoreCreditIssueReclass,
   updateXeroDraftBill,
 } from '../XeroSyncService';
@@ -68,12 +69,12 @@ describe('Deferred liability lifecycle sync helpers', () => {
     const lines = payload.body.ManualJournals[0].JournalLines;
     expect(lines[0]).toEqual(expect.objectContaining({
       AccountCode: '230',
-      DebitAmount: 125.5,
+      LineAmount: 125.5,
       TaxType: 'NONE',
     }));
     expect(lines[1]).toEqual(expect.objectContaining({
       AccountCode: '200',
-      CreditAmount: 125.5,
+      LineAmount: -125.5,
       TaxType: 'NONE',
     }));
   });
@@ -124,6 +125,55 @@ describe('Deferred liability lifecycle sync helpers', () => {
     expect(result).toBeNull();
     expect(mockXeroApiFetch).not.toHaveBeenCalled();
   });
+
+  it('posts the counter-journal when the original redemption succeeded', async () => {
+    mockQuery.mockImplementation((sql: string) => {
+      if (sql.includes("sync_type = 'gift_card_redeem'")) return Promise.resolve([{ id: 12 }]);
+      if (sql.includes('FROM xero_sync_log') && sql.includes('sync_type = ?')) return Promise.resolve([]);
+      if (sql.includes('FROM xero_account_mappings')) {
+        return Promise.resolve([
+          { role_key: 'sales_revenue', xero_account_code: '200' },
+          { role_key: 'gift_card_liability', xero_account_code: '230' },
+        ]);
+      }
+      if (sql.includes('FROM xero_tracking_mappings')) return Promise.resolve([]);
+      if (sql.includes("SHOW COLUMNS FROM xero_sync_log LIKE 'xero_state'")) return Promise.resolve([{ Field: 'xero_state' }]);
+      return Promise.resolve([]);
+    });
+    mockXeroApiFetch.mockResolvedValueOnce({
+      ManualJournals: [{ ManualJournalID: 'mj-reverse-1', Status: 'POSTED' }],
+    });
+
+    const result = await syncGiftCardRedemptionReversal({
+      businessId: 'biz-1',
+      transactionId: 99,
+      amount: 125.5,
+      date: '2026-07-31',
+      locationId: 4,
+    });
+
+    expect(result).toBe('mj-reverse-1');
+    const lines = mockXeroApiFetch.mock.calls[0][2].body.ManualJournals[0].JournalLines;
+    expect(lines[0]).toEqual(expect.objectContaining({ AccountCode: '200', LineAmount: 125.5 }));
+    expect(lines[1]).toEqual(expect.objectContaining({ AccountCode: '230', LineAmount: -125.5 }));
+  });
+
+  it('records a skipped reversal when the original redemption never posted', async () => {
+    mockQuery.mockResolvedValue([]);
+
+    await expect(syncGiftCardRedemptionReversal({
+      businessId: 'biz-1',
+      transactionId: 99,
+      amount: 20,
+      date: '2026-07-31',
+    })).resolves.toBeNull();
+
+    expect(mockXeroApiFetch).not.toHaveBeenCalled();
+    const insertLogCall = mockExecute.mock.calls.find((call) =>
+      String(call[0]).includes('INSERT INTO xero_sync_log') && call[1]?.[1] === 'gift_card_redeem_reverse',
+    );
+    expect(insertLogCall?.[1]?.[4]).toBe('skipped');
+  });
 });
 
 describe('PO bill sync', () => {
@@ -140,7 +190,7 @@ describe('PO bill sync', () => {
     });
   });
 
-  it('sends each stored line discount when creating and updating a draft bill', async () => {
+  it('folds line discounts into unit amounts for ACCPAY bills', async () => {
     const po = {
       id: 4851,
       po_number: 'PO-2026-0015',
@@ -171,10 +221,12 @@ describe('PO bill sync', () => {
     await updateXeroDraftBill('biz-1', po, 'bill-1');
 
     expect(mockXeroApiFetch.mock.calls[0][2].body.Invoices[0].LineItems[0]).toEqual(
-      expect.objectContaining({ UnitAmount: 16, DiscountRate: 15 }),
+      expect.objectContaining({ UnitAmount: 13.6 }),
     );
+    expect(mockXeroApiFetch.mock.calls[0][2].body.Invoices[0].LineItems[0]).not.toHaveProperty('DiscountRate');
     expect(mockXeroApiFetch.mock.calls[2][2].body.Invoices[0].LineItems[0]).toEqual(
-      expect.objectContaining({ UnitAmount: 16, DiscountRate: 15 }),
+      expect.objectContaining({ UnitAmount: 13.6 }),
     );
+    expect(mockXeroApiFetch.mock.calls[2][2].body.Invoices[0].LineItems[0]).not.toHaveProperty('DiscountRate');
   });
 });

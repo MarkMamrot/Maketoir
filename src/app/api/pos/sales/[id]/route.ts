@@ -4,6 +4,8 @@ import { PosSalesRepo, PosRegisterSessionRepo } from '@/lib/db/PosRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { verifyManagerPin } from '@/lib/pos/managerPin';
+import { GiftCardVoidBlockedError } from '@/lib/pos/giftCardSaleVoid';
+import { syncGiftCardRedemptionReversal } from '@/services/XeroSyncService';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -25,7 +27,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 // PUT /api/pos/sales/[id] — update status (void, park, complete layby)
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   if (!getPosSession()) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
-  await getImsSession(['pos_session']);
+  const imsSession = await getImsSession(['pos_session']);
   const id = parseInt(params.id, 10);
   if (isNaN(id)) return NextResponse.json({ error: 'Invalid id.' }, { status: 400 });
 
@@ -57,7 +59,16 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         }
       }
 
-      const { stockError } = await PosSalesRepo.voidWithReversal(id);
+      const { stockError, giftCardReversals } = await PosSalesRepo.voidWithReversal(id);
+      for (const reversal of giftCardReversals) {
+        await syncGiftCardRedemptionReversal({
+          businessId: imsSession.businessId,
+          transactionId: reversal.transactionId,
+          amount: reversal.amount,
+          date: new Date().toISOString().slice(0, 10),
+          locationId: existing.sale.location_id,
+        });
+      }
       const vids = existing.items.map(i => i.variant_id).filter(Boolean) as string[];
       if (vids.length > 0) {
         refreshVariantCache(vids).catch(err => console.error('Failed inline cache refresh for POS sale void:', err));
@@ -70,6 +81,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error('POS sale update error:', err);
+    if (err instanceof GiftCardVoidBlockedError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     return NextResponse.json({ error: err.message || String(err) }, { status: 500 });
   }
 }

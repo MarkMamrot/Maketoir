@@ -1,5 +1,6 @@
-import { imsQuery } from '@/services/IMSMySQLService';
-import { createNotification } from '@/lib/ims/createNotification';
+import crypto from 'crypto';
+
+import { getIMSPool } from '@/services/IMSMySQLService';
 
 interface SyncFailureNotificationOptions {
   businessId: string;
@@ -36,28 +37,43 @@ export async function notifySyncFailure(options: SyncFailureNotificationOptions)
 
   const windowMins = clampDedupeWindow(dedupeMinutes);
   const dedupeNeedle = `"dedupe_key":"${dedupeKey.replace(/"/g, '')}"`;
+  const lockName = `notify:${crypto.createHash('sha256').update(`${businessId}:${source}:${dedupeKey}`).digest('hex').slice(0, 48)}`;
+  const pool = getIMSPool();
+  const connection = await pool.getConnection();
+  let lockAcquired = false;
 
-  const existing = await imsQuery<{ id: number }>(
-    `SELECT id
-       FROM ims_notifications
-      WHERE business_id = ?
-        AND source = ?
-        AND title = ?
-        AND detail LIKE ?
-        AND created_at >= DATE_SUB(NOW(), INTERVAL ${windowMins} MINUTE)
-      ORDER BY id DESC
-      LIMIT 1`,
-    [businessId, source, title, `%${dedupeNeedle}%`],
-  ).catch(() => []);
+  try {
+    const [lockRows] = await connection.query<any[]>('SELECT GET_LOCK(?, 5) AS acquired', [lockName]);
+    lockAcquired = Number(lockRows[0]?.acquired) === 1;
+    if (!lockAcquired) return;
 
-  if (existing.length > 0) return;
+    const [existing] = await connection.query<any[]>(
+      `SELECT id
+         FROM ims_notifications
+        WHERE business_id = ?
+          AND source = ?
+          AND title = ?
+          AND detail LIKE ?
+          AND created_at >= DATE_SUB(NOW(), INTERVAL ${windowMins} MINUTE)
+        ORDER BY id DESC
+        LIMIT 1`,
+      [businessId, source, title, `%${dedupeNeedle}%`],
+    );
+    if (existing.length > 0) return;
 
-  await createNotification(
-    businessId,
-    source,
-    title,
-    message,
-    { ...(detail ?? {}), dedupe_key: dedupeKey },
-    'error',
-  );
+    await connection.execute(
+      `INSERT INTO ims_notifications (business_id, type, source, title, message, detail)
+       VALUES (?, 'error', ?, ?, ?, ?)`,
+      [
+        businessId,
+        source.slice(0, 63),
+        title.slice(0, 254),
+        message.slice(0, 5000),
+        JSON.stringify({ ...(detail ?? {}), dedupe_key: dedupeKey }),
+      ],
+    );
+  } finally {
+    if (lockAcquired) await connection.query('SELECT RELEASE_LOCK(?)', [lockName]).catch(() => {});
+    connection.release();
+  }
 }

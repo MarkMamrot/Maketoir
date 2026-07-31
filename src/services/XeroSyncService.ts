@@ -443,8 +443,7 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
   const lineItems = (po.items ?? []).map(item => ({
     Description: `${item.sku || ''} ${item.product_name || ''}`.trim() || 'Inventory',
     Quantity: item.qty_ordered,
-    UnitAmount: item.unit_cost,
-    DiscountRate: item.discount_pct ?? 0,
+    UnitAmount: Number(item.unit_cost) * (1 - Number(item.discount_pct ?? 0) / 100),
     AccountCode: lineAccountCode,
     ...(lineTaxType ? { TaxType: lineTaxType } : {}),
     Tracking: tracking,
@@ -485,7 +484,14 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
   }
 
   try {
-    const result = await xeroApiFetch(businessId, '/Invoices', { method: 'POST', body: { Invoices: [bill] } });
+    const idempotencyKey = crypto.createHash('sha256')
+      .update(`${businessId}|po-bill|${po.id}`)
+      .digest('hex');
+    const result = await xeroApiFetch(businessId, '/Invoices', {
+      method: 'POST',
+      idempotencyKey,
+      body: { Invoices: [bill] },
+    });
     const inv = result.Invoices?.[0];
     const xeroId = inv?.InvoiceID ?? null;
     await logSync(businessId, 'po_bill', po.id, xeroId, 'success', `Draft Bill created: ${po.po_number}`, inv?.Status ?? 'DRAFT');
@@ -493,8 +499,7 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
     return xeroId;
   } catch (err: any) {
     await logSync(businessId, 'po_bill', po.id, null, 'error', err.message);
-    // Status will be set to 'queued' by the hook after retry logic
-    return null;
+    throw err;
   }
 }
 
@@ -538,8 +543,7 @@ export async function updateXeroDraftBill(businessId: string, po: POForSync, xer
   const lineItems = (po.items ?? []).map(item => ({
     Description: `${item.sku || ''} ${item.product_name || ''}`.trim() || 'Inventory',
     Quantity: item.qty_ordered,
-    UnitAmount: item.unit_cost,
-    DiscountRate: item.discount_pct ?? 0,
+    UnitAmount: Number(item.unit_cost) * (1 - Number(item.discount_pct ?? 0) / 100),
     AccountCode: lineAccountCode,
     ...(lineTaxType ? { TaxType: lineTaxType } : {}),
     Tracking: tracking,
@@ -1699,14 +1703,14 @@ async function syncDeferredLiabilityJournal(input: {
     ? {
       Description: description,
       AccountCode: liabilityCode,
-      DebitAmount: amount,
+      LineAmount: amount,
       TaxType: 'NONE',
       Tracking: tracking,
     }
     : {
       Description: description,
       AccountCode: accounts.sales_revenue,
-      DebitAmount: amount,
+      LineAmount: amount,
       TaxType: 'NONE',
       Tracking: tracking,
     };
@@ -1715,14 +1719,14 @@ async function syncDeferredLiabilityJournal(input: {
     ? {
       Description: description,
       AccountCode: accounts.sales_revenue,
-      CreditAmount: amount,
+      LineAmount: -amount,
       TaxType: 'NONE',
       Tracking: tracking,
     }
     : {
       Description: description,
       AccountCode: liabilityCode,
-      CreditAmount: amount,
+      LineAmount: -amount,
       TaxType: 'NONE',
       Tracking: tracking,
     };
@@ -1775,6 +1779,100 @@ export async function syncGiftCardRedemptionReclass(input: {
     liabilityLabel: 'Gift card',
     direction: 'redeem',
   });
+}
+
+export async function syncGiftCardRedemptionReversal(input: {
+  businessId: string;
+  transactionId: number;
+  amount: number;
+  date: string;
+  locationId?: number;
+}): Promise<string | null> {
+  const syncType = 'gift_card_redeem_reverse';
+  const dedupeKey = `gift card redeem reversal tx ${input.transactionId}`;
+  const amount = roundCurrency(Number(input.amount ?? 0));
+  if (!(amount > 0)) return null;
+
+  const existing = await query<{ id: number }>(
+    `SELECT id
+       FROM xero_sync_log
+      WHERE business_id = ?
+        AND sync_type = ?
+        AND reference_id = ?
+        AND status IN ('success', 'skipped')
+      LIMIT 1`,
+    [input.businessId, syncType, input.transactionId],
+  ).catch(() => [] as { id: number }[]);
+  if (existing.length > 0) return null;
+
+  const original = await query<{ id: number }>(
+    `SELECT id
+       FROM xero_sync_log
+      WHERE business_id = ?
+        AND sync_type = 'gift_card_redeem'
+        AND reference_id = ?
+        AND status = 'success'
+      LIMIT 1`,
+    [input.businessId, input.transactionId],
+  ).catch(() => [] as { id: number }[]);
+  if (original.length === 0) {
+    await logSync(input.businessId, syncType, input.transactionId, null, 'skipped', `Original redemption was not posted: ${dedupeKey}`);
+    return null;
+  }
+
+  const accounts = await getAccountMappings(input.businessId);
+  if (!accounts.sales_revenue || !accounts.gift_card_liability) {
+    await logSync(input.businessId, syncType, input.transactionId, null, 'error', `Missing sales_revenue or gift_card_liability mapping: ${dedupeKey}`);
+    return null;
+  }
+
+  const trackingMappings = await getTrackingMappings(input.businessId);
+  const tracking = getTrackingForLocation(trackingMappings, input.locationId ?? null, 'pos');
+  const description = `Voided gift card redemption - POS transaction ${input.transactionId}`;
+  const journal = {
+    Date: input.date,
+    Status: 'POSTED',
+    Narration: description,
+    ShowOnCashBasisReports: false,
+    JournalLines: [
+      {
+        Description: description,
+        AccountCode: accounts.sales_revenue,
+        LineAmount: amount,
+        TaxType: 'NONE',
+        Tracking: tracking,
+      },
+      {
+        Description: description,
+        AccountCode: accounts.gift_card_liability,
+        LineAmount: -amount,
+        TaxType: 'NONE',
+        Tracking: tracking,
+      },
+    ],
+  };
+
+  try {
+    const idempotencyKey = crypto.createHash('sha256')
+      .update(`${input.businessId}|${syncType}|${input.transactionId}`)
+      .digest('hex');
+    const res = await xeroApiFetch(input.businessId, '/ManualJournals', {
+      method: 'POST',
+      idempotencyKey,
+      body: { ManualJournals: [journal] },
+    });
+    const result = res.ManualJournals?.[0];
+    const xeroId = result?.ManualJournalID ?? null;
+    if (!xeroId) {
+      await logSync(input.businessId, syncType, input.transactionId, null, 'error', `No ManualJournalID returned: ${dedupeKey}`);
+      return null;
+    }
+    await logSync(input.businessId, syncType, input.transactionId, xeroId, 'success', dedupeKey, result?.Status ?? 'POSTED');
+    return xeroId;
+  } catch (err: any) {
+    await logSync(input.businessId, syncType, input.transactionId, null, 'error', `${dedupeKey}: ${err.message}`);
+    return null;
+  }
 }
 
 export async function syncStoreCreditIssueReclass(input: {
