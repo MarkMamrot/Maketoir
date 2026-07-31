@@ -28,4 +28,16 @@ describe('parseShopifyRefund', () => {
     expect(result).toMatchObject({ amount: 12.95, taxAmount: 1.18, gateway: 'shopify_payments' });
     expect(result.restockLines[0]).toMatchObject({ unitPrice: 11.77, restock: false });
   });
+
+  it('extracts GST from a shipping-only refund adjustment', () => {
+    const result = parseShopifyRefund({
+      id: 1,
+      transactions: [{ kind: 'refund', status: 'success', amount: '12.95', gateway: 'shopify_payments' }],
+      refund_line_items: [],
+      order_adjustments: [{ kind: 'shipping_refund', amount: '-11.77', tax_amount: '-1.18' }],
+    });
+
+    expect(result).toMatchObject({ amount: 12.95, taxAmount: 1.18, gateway: 'shopify_payments' });
+    expect(result.restockLines).toEqual([]);
+  });
 });

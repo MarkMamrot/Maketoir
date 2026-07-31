@@ -6,7 +6,7 @@ import { RefreshCw, Search, Wrench } from 'lucide-react';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
-import { buildBarcodeLabelBatchHtml, buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
+import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 import { MainSections } from './views/MainSections';
@@ -568,7 +568,7 @@ const IMS_ONBOARDING_ACTIONS: Record<string, ImsOnboardingAction> = {
   pos_ready:        { type: 'settings', section: 'pos',              label: 'Review POS Setup' },
 };
 
-function TotalSalesProfitCircle({ rows, itemCount, periodLabel, loading, onViewYesterday }: { rows: any[]; itemCount: number; periodLabel: string; loading: boolean; onViewYesterday?: () => void }) {
+function TotalSalesProfitCircle({ rows, itemCount, periodLabel, loading }: { rows: any[]; itemCount: number; periodLabel: string; loading: boolean }) {
   const totalSales = rows.reduce((sum, row) => sum + Number(row?.total ?? 0), 0);
   const totalGrossProfit = rows.reduce((sum, row) => sum + Number(row?.gross_profit ?? 0), 0);
   const totalOrderCount = rows.reduce((sum, row) => sum + Number(row?.order_count ?? 0), 0);
@@ -590,10 +590,7 @@ function TotalSalesProfitCircle({ rows, itemCount, periodLabel, loading, onViewY
     return (
       <div style={{ height: 450, padding: '18px 20px', boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
         <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Total Sales vs Gross Profit - {periodLabel}</div>
-        <div style={{ height: 'calc(100% - 20px)', display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>
-          <span>{onViewYesterday ? 'No sales yet today.' : 'No sales in this period.'}</span>
-          {onViewYesterday && <button type="button" onClick={onViewYesterday} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>View yesterday</button>}
-        </div>
+        <div style={{ height: 'calc(100% - 20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No sales in this period.</div>
       </div>
     );
   }
@@ -660,8 +657,6 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
   const [salesData, setSalesData] = useState<any>(null);
   const [salesLoading, setSalesLoading] = useState(true);
   const channelChartRef = useRef<HTMLDivElement | null>(null);
-  const channelChartBodyRef = useRef<HTMLDivElement | null>(null);
-  const [channelChartBodySize, setChannelChartBodySize] = useState({ width: 760, height: 380 });
   const [channelHover, setChannelHover] = useState<null | {
     x: number;
     y: number;
@@ -673,23 +668,6 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
     grossProfit: number;
     orders: number;
   }>(null);
-
-  useEffect(() => {
-    const chartBody = channelChartBodyRef.current;
-    if (!chartBody) return;
-    const updateSize = () => {
-      const bounds = chartBody.getBoundingClientRect();
-      setChannelChartBodySize(current => {
-        const width = Math.max(280, Math.round(bounds.width));
-        const height = Math.max(280, Math.round(bounds.height));
-        return current.width === width && current.height === height ? current : { width, height };
-      });
-    };
-    updateSize();
-    const observer = new ResizeObserver(updateSize);
-    observer.observe(chartBody);
-    return () => observer.disconnect();
-  }, [salesLoading, salesData]);
 
   useEffect(() => {
     setLoading(true);
@@ -1167,17 +1145,14 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               {/* ── Sales by Channel ── */}
               <div className="ims-sales-chart-panel" style={{ minWidth: 0, gridColumn: `span ${salesChartColumns}` }}>
             {salesLoading ? (
-              <div style={{ height: 'clamp(410px, 34vw, 470px)', padding: '18px 20px', boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
+              <div style={{ height: 450, padding: '18px 20px', boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
                 <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales and Gross Profit by Channel - {periodLabel}</div>
                 <div style={{ height: 'calc(100% - 20px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spinner /></div>
               </div>
             ) : !(salesData?.channelData?.length) ? (
-              <div style={{ height: 'clamp(410px, 34vw, 470px)', padding: '18px 20px', boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
+              <div style={{ height: 450, padding: '18px 20px', boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
                 <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales and Gross Profit by Channel - {periodLabel}</div>
-                <div style={{ height: 'calc(100% - 20px)', display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>
-                  <span>{salesWindow === 'today' ? 'No sales yet today.' : 'No sales in this period.'}</span>
-                  {salesWindow === 'today' && <button type="button" onClick={() => setSalesWindow('yesterday')} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>View yesterday</button>}
-                </div>
+                <div style={{ height: 'calc(100% - 20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No sales in this period.</div>
               </div>
             ) : (() => {
               const CD = salesData.channelData as any[];
@@ -1195,26 +1170,14 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               const yMax = niceMax(rawMax);
               const yTicks = [0,1,2,3,4].map(i => Math.round((i/4) * yMax));
 
-              const availableWidth = channelChartBodySize.width;
-              const isNarrowChart = availableWidth < 620;
-              const axisFontSize = isNarrowChart ? 11 : 12;
-              const locationFontSize = isNarrowChart ? 11 : 13;
-              const valueFontSize = isNarrowChart ? 11 : 12;
-              const profitFontSize = isNarrowChart ? 10 : 11;
-              const PL=isNarrowChart ? 58 : 68, PR=12, PT=22, PB=isNarrowChart ? 42 : 48;
-              const minimumGroupWidth = isNarrowChart ? 112 : 126;
-              const getLocChans=(loc:string) => activeChannels.filter(ch => getVal(ch,loc) > 0);
-              const minimumContentWidth = PL + PR + locations.reduce((width, loc) => {
-                const localBarCount = Math.max(1, getLocChans(loc).length);
-                return width + Math.max(minimumGroupWidth, localBarCount * 66 + 18);
-              }, 0);
-              const VW=Math.max(availableWidth, minimumContentWidth);
-              const VH=Math.max(280, channelChartBodySize.height);
+              const VW=visibleSalesBarCount <= 2 ? 420 : visibleSalesBarCount <= 6 ? 600 : visibleSalesBarCount <= 12 ? 840 : 1100;
+              const VH=360, PL=72, PR=16, PT=20, PB=56;
               const plotW=VW-PL-PR, plotH=VH-PT-PB;
               const nLoc=locations.length, nCh=activeChannels.length;
               const groupW=plotW/nLoc;
-              const slotW=Math.min(92, Math.max(48, (groupW*0.82)/nCh));
-              const barW=Math.max(42, slotW-Math.max(5, slotW*0.12));
+              const slotW=Math.min(72, Math.max(16, (groupW*0.9)/nCh));
+              const barW=Math.max(12, slotW-Math.max(3, slotW*0.08));
+              const getLocChans=(loc:string) => activeChannels.filter(ch => getVal(ch,loc) > 0);
               const xBarLocal=(li:number, localCi:number, nLocalCh:number) => {
                 const offset=(groupW - slotW*nLocalCh)/2;
                 return PL + li*groupW + offset + localCi*slotW + 1.5;
@@ -1232,8 +1195,8 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               const trunc=(s:string,n=17) => s.length>n ? s.slice(0,n)+'…' : s;
 
               return (
-                <div ref={channelChartRef} style={{ position: 'relative', height: 'clamp(410px, 34vw, 470px)', boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 12px 8px', display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px 16px', margin: '0 4px 6px' }}>
+                <div ref={channelChartRef} style={{ position: 'relative', height: 450, boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px 8px', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 8 }}>
                     <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales and Gross Profit by Channel - {periodLabel}</div>
                     <div style={{ display: 'flex', gap: 16, flexShrink: 0 }}>
                     {activeChannels.map(ch => (
@@ -1244,14 +1207,14 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                     ))}
                     </div>
                   </div>
-                  <div ref={channelChartBodyRef} style={{ width: '100%', flex: 1, minHeight: 0, overflowX: VW > availableWidth ? 'auto' : 'hidden', overflowY: 'hidden' }}>
-                  <svg viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="none" style={{ width: VW, height: '100%', minWidth: '100%', display: 'block', overflow: 'visible' }}>
+                  <div style={{ width: '100%', flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid meet" style={{ width: 'max(75%, min(100%, 1100px))', maxWidth: '100%', maxHeight: '100%', display: 'block', overflow: 'visible' }}>
                     {yTicks.map(tick => {
                       const y = yVal(tick);
                       return (
                         <g key={tick}>
                           <line x1={PL} y1={y} x2={VW-PR} y2={y} stroke="currentColor" strokeOpacity="0.1" strokeDasharray={tick===0?undefined:'4,3'} />
-                          <text x={PL-7} y={y+4} textAnchor="end" fontSize={axisFontSize} fill="currentColor" fillOpacity="0.72" fontWeight="600">{fmtY(tick)}</text>
+                          <text x={PL-7} y={y+4} textAnchor="end" fontSize="11" fill="currentColor" fillOpacity="0.66" fontWeight="500">{fmtY(tick)}</text>
                         </g>
                       );
                     })}
@@ -1328,7 +1291,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                                       x={x + barW / 2}
                                       y={Math.max(y + 9, gpY - 3)}
                                       textAnchor="middle"
-                                      fontSize={profitFontSize}
+                                      fontSize="9"
                                       fill={CH_GP_LINE[ch] ?? 'rgba(15,23,42,.8)'}
                                       fillOpacity="1"
                                       pointerEvents="none"
@@ -1338,13 +1301,13 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                                   </>
                                 )}
                                 {h>24 && barW>14 && (
-                                  <text x={x+barW/2} y={y-7} textAnchor="middle" fontSize={valueFontSize} fill="currentColor" fillOpacity="0.78" fontWeight="700">{fmtCurrency(v)}</text>
+                                  <text x={x+barW/2} y={y-6} textAnchor="middle" fontSize="10" fill="currentColor" fillOpacity="0.72" fontWeight="600">{fmtCurrency(v)}</text>
                                 )}
                                 <title>{`${CH_LABEL[ch]} — ${loc}\nSales: ${fmtCurrency(v)}\nTax: ${fmtCurrency(tax)}\nCOGS: ${fmtCurrency(cogs)}\nGross Profit: ${fmtCurrency(grossProfit)}\nOrders: ${getOrd(ch,loc)}\nFormula: Sales - Tax - COGS`}</title>
                               </g>
                             );
                           })}
-                          <text x={PL+li*groupW+groupW/2} y={PT+plotH+22} textAnchor="middle" fontSize={locationFontSize} fill="currentColor" fillOpacity="0.8" fontWeight="700">{trunc(loc, isNarrowChart ? 13 : 17)}</text>
+                          <text x={PL+li*groupW+groupW/2} y={PT+plotH+20} textAnchor="middle" fontSize="12" fill="currentColor" fillOpacity="0.75" fontWeight="600">{trunc(loc)}</text>
                         </g>
                       );
                     })}
@@ -1389,7 +1352,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               </div>
 
               <div className="ims-sales-summary-panel" style={{ minWidth: 0, gridColumn: `span ${salesSummaryColumns}` }}>
-                <TotalSalesProfitCircle rows={dashboardSalesRows} itemCount={Number(salesData?.summary?.itemCount ?? 0)} periodLabel={periodLabel} loading={salesLoading} onViewYesterday={salesWindow === 'today' ? () => setSalesWindow('yesterday') : undefined} />
+                <TotalSalesProfitCircle rows={dashboardSalesRows} itemCount={Number(salesData?.summary?.itemCount ?? 0)} periodLabel={periodLabel} loading={salesLoading} />
               </div>
             </div>
 
@@ -1398,10 +1361,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 14 }}>Top 10 Brands - {periodLabel}</div>
               {salesLoading && <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', margin: 0, padding: '10px 0', textAlign: 'center' }}>Loading…</p>}
               {!salesLoading && brandChartData.length === 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center', padding: '10px 0', color: 'var(--sv-text-dim)', fontSize: 13 }}>
-                  <span>{salesWindow === 'today' ? 'No brand sales yet today.' : 'No brand sales in this period.'}</span>
-                  {salesWindow === 'today' && <button type="button" onClick={() => setSalesWindow('yesterday')} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>View yesterday</button>}
-                </div>
+                <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', margin: 0, padding: '10px 0', textAlign: 'center' }}>No brand sales in this period.</p>
               )}
               {!salesLoading && brandChartData.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
@@ -1640,10 +1600,6 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [form, setForm] = useState({ ...BLANK_CONTACT });
   const [saving, setSaving] = useState(false);
-  const [storeCreditAdjustment, setStoreCreditAdjustment] = useState('');
-  const [storeCreditReason, setStoreCreditReason] = useState('');
-  const [adjustingStoreCredit, setAdjustingStoreCredit] = useState(false);
-  const [storeCreditPopupOpen, setStoreCreditPopupOpen] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
   const [selectedContacts, setSelectedContacts] = useState<Set<number>>(new Set());
   const [bulkWorking, setBulkWorking] = useState(false);
@@ -1702,14 +1658,9 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
 
   useEffect(() => { load(); }, [load]);
 
-  const resetStoreCreditAdjustment = () => {
-    setStoreCreditAdjustment('');
-    setStoreCreditReason('');
-    setStoreCreditPopupOpen(false);
-  };
-  const openNew = () => { resetStoreCreditAdjustment(); setForm({ ...BLANK_CONTACT }); setModal({ open: true, edit: null }); };
-  const openEdit = (c: any) => { resetStoreCreditAdjustment(); setForm({ ...BLANK_CONTACT, ...c }); setModal({ open: true, edit: c }); };
-  const closeModal = () => { resetStoreCreditAdjustment(); setModal({ open: false, edit: null }); };
+  const openNew = () => { setForm({ ...BLANK_CONTACT }); setModal({ open: true, edit: null }); };
+  const openEdit = (c: any) => { setForm({ ...BLANK_CONTACT, ...c }); setModal({ open: true, edit: c }); };
+  const closeModal = () => setModal({ open: false, edit: null });
 
   const runInBatches = async <T,>(items: T[], batchSize: number, worker: (item: T) => Promise<void>) => {
     for (let i = 0; i < items.length; i += batchSize) {
@@ -1816,37 +1767,6 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
       }
     } catch (e: any) { alert(e.message); }
     finally { setSaving(false); }
-  };
-
-  const handleStoreCreditAdjustment = async () => {
-    if (!modal.edit || isAdvisor) return;
-    const amount = Math.round(Number(storeCreditAdjustment) * 100) / 100;
-    const reason = storeCreditReason.trim();
-    if (!Number.isFinite(amount) || amount === 0) return alert('Enter a non-zero adjustment amount.');
-    if (!reason) return alert('Enter a reason for the adjustment.');
-    const currentBalance = Math.round(Number(form.store_credit ?? 0) * 100) / 100;
-    const resultingBalance = Math.round((currentBalance + amount) * 100) / 100;
-    if (resultingBalance < 0) return alert('Store credit balance cannot be negative.');
-    if (!confirm(`${amount > 0 ? 'Increase' : 'Decrease'} store credit by $${Math.abs(amount).toFixed(2)}? The new balance will be $${resultingBalance.toFixed(2)}.\n\nReason: ${reason}`)) return;
-
-    setAdjustingStoreCredit(true);
-    try {
-      const result = await apiFetch(`/api/ims/contacts/${modal.edit.id}/store-credit-adjustment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, reason }),
-      });
-      const balanceAfter = Number(result.data.balanceAfter);
-      setForm(prev => ({ ...prev, store_credit: balanceAfter }));
-      setModal(prev => ({ ...prev, edit: prev.edit ? { ...prev.edit, store_credit: balanceAfter } : null }));
-      resetStoreCreditAdjustment();
-      load();
-      flashSyncMsg(`Store credit adjusted to $${balanceAfter.toFixed(2)}.`);
-    } catch (e: any) {
-      alert(e.message || 'Store credit adjustment failed');
-    } finally {
-      setAdjustingStoreCredit(false);
-    }
   };
 
   const handleToggleActive = async (c: any) => {
@@ -2158,16 +2078,7 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
               <div style={{ marginTop: 14 }}>
                 <SectionLabel>Customer Details</SectionLabel>
                 <Row2>
-                  <Field label="Store Credit ($)">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <input type="number" value={f.store_credit ?? 0} readOnly title="Read-only balance updated by completed manual or POS-generated customer credit notes." style={{ ...inputStyle, opacity: .72, cursor: 'not-allowed', flex: 1, minWidth: 0 }} />
-                      {modal.edit && !isAdvisor && (
-                        <button type="button" onClick={() => { resetStoreCreditAdjustment(); setStoreCreditPopupOpen(true); }} style={{ ...btnStyle('secondary', 'xs'), flexShrink: 0 }}>
-                          Adjust
-                        </button>
-                      )}
-                    </div>
-                  </Field>
+                  <Field label="Store Credit ($)"><input type="number" value={f.store_credit ?? 0} readOnly title="Read-only balance updated by completed manual or POS-generated customer credit notes." style={{ ...inputStyle, opacity: .72, cursor: 'not-allowed' }} /></Field>
                   <Field label="On Account Limit ($)"><input type="number" min="0" step="0.01" value={f.on_account_limit ?? ''} onChange={sf('on_account_limit')} style={inputStyle} /></Field>
                 </Row2>
                 <Row2>
@@ -2234,39 +2145,6 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
 
             <FormActions onCancel={closeModal} saving={saving} isEdit={!!modal.edit} />
           </form>
-          {storeCreditPopupOpen && modal.edit && !isAdvisor && (
-            <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,.5)' }} onMouseDown={e => { if (e.target === e.currentTarget && !adjustingStoreCredit) resetStoreCreditAdjustment(); }}>
-              <div role="dialog" aria-modal="true" aria-label="Adjust store credit" style={{ width: 'min(100%, 390px)', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, boxShadow: '0 16px 40px rgba(0,0,0,.28)', padding: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
-                  <div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Adjust Store Credit</div>
-                    <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 2 }}>Current balance: ${Number(f.store_credit ?? 0).toFixed(2)}</div>
-                  </div>
-                  <button type="button" aria-label="Close" title="Close" onClick={resetStoreCreditAdjustment} disabled={adjustingStoreCredit} style={{ ...btnStyle('ghost', 'xs'), fontSize: 18, lineHeight: 1 }}>X</button>
-                </div>
-                <Row2>
-                  <Field label="Adjustment ($)">
-                    <input autoFocus type="number" step="0.01" value={storeCreditAdjustment} onChange={e => setStoreCreditAdjustment(e.target.value)} placeholder="e.g. -25.00" style={inputStyle} />
-                  </Field>
-                  <Field label="New Balance ($)">
-                    <input type="text" readOnly value={(() => {
-                      const adjustment = Number(storeCreditAdjustment);
-                      return Number.isFinite(adjustment) ? (Number(f.store_credit ?? 0) + adjustment).toFixed(2) : Number(f.store_credit ?? 0).toFixed(2);
-                    })()} style={{ ...inputStyle, opacity: .72, cursor: 'not-allowed' }} />
-                  </Field>
-                </Row2>
-                <Field label="Reason *">
-                  <input value={storeCreditReason} onChange={e => setStoreCreditReason(e.target.value)} maxLength={255} placeholder="Why this balance is being corrected" style={inputStyle} />
-                </Field>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-                  <button type="button" onClick={resetStoreCreditAdjustment} disabled={adjustingStoreCredit} style={btnStyle('secondary', 'sm')}>Cancel</button>
-                  <button type="button" onClick={handleStoreCreditAdjustment} disabled={adjustingStoreCredit} style={btnStyle('action', 'sm')}>
-                    {adjustingStoreCredit ? 'Applying...' : 'Apply'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
         </Modal>
       )}
     </div>
@@ -4180,151 +4058,6 @@ function BarcodeLabelDialog({ product, variants, onClose }: {
           <button onClick={printLabels} style={btnStyle('action')}>
             🖨 Print {settings.qty > 1 ? `${settings.qty} × ` : ''}Label{settings.qty !== 1 ? 's' : ''}
           </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-interface POBarcodeLabelRow {
-  key: string;
-  productName: string;
-  variantLabel?: string;
-  brand?: string;
-  barcode?: string;
-  sku?: string;
-  priceRrp?: number | string;
-  priceRrpSale?: number | string;
-  orderedQty: number;
-}
-
-function POBarcodeLabelDialog({ poNumber, rows, onClose }: {
-  poNumber: string;
-  rows: POBarcodeLabelRow[];
-  onClose: () => void;
-}) {
-  const [settings, setSettings] = useState<LabelSettings>(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('ims_label_settings') ?? '');
-      return { ...DEFAULT_LABEL, ...saved };
-    } catch { return DEFAULT_LABEL; }
-  });
-  const [quantities, setQuantities] = useState<Record<string, number>>(() => Object.fromEntries(
-    rows.map(row => [row.key, row.barcode && buildBarcodeSvgMarkup(row.barcode, 37, 8) ? Math.min(100, Math.max(0, Math.floor(row.orderedQty))) : 0])
-  ));
-
-  const set = <K extends keyof LabelSettings>(key: K, value: LabelSettings[K]) =>
-    setSettings(previous => {
-      const next = { ...previous, [key]: value };
-      localStorage.setItem('ims_label_settings', JSON.stringify(next));
-      return next;
-    });
-
-  const size = LABEL_SIZES[settings.sizeIdx] ?? LABEL_SIZES[0];
-  const isPrintable = (row: POBarcodeLabelRow) => !!row.barcode && !!buildBarcodeSvgMarkup(row.barcode, 37, 8);
-  const includedRows = rows.filter(row => isPrintable(row) && Number(quantities[row.key] ?? 0) > 0);
-  const totalLabels = includedRows.reduce((sum, row) => sum + Number(quantities[row.key] ?? 0), 0);
-  const previewRow = includedRows[0] ?? rows.find(isPrintable);
-
-  const updateQty = (row: POBarcodeLabelRow, value: number) => {
-    setQuantities(previous => ({ ...previous, [row.key]: Math.min(100, Math.max(0, Math.floor(value || 0))) }));
-  };
-
-  const printLabels = () => {
-    if (!totalLabels) return;
-    const html = buildBarcodeLabelBatchHtml({
-      size,
-      items: includedRows.map(row => ({
-        productName: row.productName,
-        brand: row.brand,
-        variant: { barcode: row.barcode, sku: row.sku, price_rrp: row.priceRrp, price_rrp_sale: row.priceRrpSale },
-        qty: quantities[row.key],
-      })),
-      showName: settings.showName,
-      showBarcode: settings.showBarcode,
-      showBrand: settings.showBrand,
-      showSku: settings.showSku,
-      priceMode: settings.priceMode,
-    });
-    const win = window.open('', '_blank', `width=${size.w * 4},height=${Math.min(900, size.h * 4 * totalLabels + 80)}`);
-    if (!win) { alert('Please allow pop-ups to print labels.'); return; }
-    win.document.open(); win.document.write(html); win.document.close();
-  };
-
-  const option = (label: string, checked: boolean, onChange: (value: boolean) => void) => (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, cursor: 'pointer' }}>
-      <input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} /> {label}
-    </label>
-  );
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, width: 920, maxWidth: '96vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', padding: '18px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
-          <div style={{ flex: 1 }}>
-            <h2 style={{ margin: 0, fontSize: 17, color: 'var(--sv-text-strong)' }}>Print Barcode Labels</h2>
-            <div style={{ marginTop: 3, fontSize: 12, color: 'var(--sv-text-dim)' }}>{poNumber}</div>
-          </div>
-          <button type="button" aria-label="Close label dialog" onClick={onClose} style={{ background: 'none', border: 0, color: 'var(--sv-text-dim)', fontSize: 22, cursor: 'pointer' }}>×</button>
-        </div>
-
-        <div style={{ padding: 20, overflowY: 'auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 250px', gap: 20 }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-main)' }}>PO items</div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button type="button" onClick={() => setQuantities(Object.fromEntries(rows.map(row => [row.key, isPrintable(row) ? Math.min(100, Math.max(0, Math.floor(row.orderedQty))) : 0])))} style={btnStyle('ghost', 'xs')}>Select printable</button>
-                  <button type="button" onClick={() => setQuantities(Object.fromEntries(rows.map(row => [row.key, 0])))} style={btnStyle('ghost', 'xs')}>Clear</button>
-                </div>
-              </div>
-              <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 6, overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 560 }}>
-                  <thead><tr style={{ borderBottom: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)' }}>
-                    <th style={{ textAlign: 'left', padding: '8px 10px' }}>Item</th>
-                    <th style={{ textAlign: 'left', padding: '8px 10px' }}>Barcode</th>
-                    <th style={{ textAlign: 'right', padding: '8px 10px' }}>PO qty</th>
-                    <th style={{ textAlign: 'right', padding: '8px 10px', width: 90 }}>Print qty</th>
-                    <th style={{ width: 42 }}><span className="sr-only">Remove</span></th>
-                  </tr></thead>
-                  <tbody>{rows.map(row => {
-                    const printable = isPrintable(row);
-                    return <tr key={row.key} style={{ borderBottom: '1px solid var(--sv-etch)', opacity: printable ? 1 : .55 }}>
-                      <td style={{ padding: '9px 10px' }}>
-                        <div style={{ fontWeight: 600, color: 'var(--sv-text-main)' }}>{row.productName}</div>
-                        <div style={{ color: 'var(--sv-text-dim)', marginTop: 2 }}>{row.variantLabel || row.sku || 'Default variant'}</div>
-                      </td>
-                      <td style={{ padding: '9px 10px', fontFamily: 'monospace', color: printable ? 'var(--sv-text-main)' : 'var(--sv-red)' }}>{printable ? row.barcode : row.barcode ? 'Unsupported barcode' : 'No barcode'}</td>
-                      <td style={{ padding: '9px 10px', textAlign: 'right' }}>{row.orderedQty}</td>
-                      <td style={{ padding: '9px 10px', textAlign: 'right' }}>
-                        <input aria-label={`Print quantity for ${row.productName}`} type="number" min={0} max={100} disabled={!printable} value={quantities[row.key] ?? 0} onChange={event => updateQty(row, Number(event.target.value))} style={{ ...inputStyle, width: 68, padding: '5px 7px', textAlign: 'right' }} />
-                      </td>
-                      <td style={{ padding: '9px 8px' }}><button type="button" title="Remove from print batch" aria-label={`Remove ${row.productName} from print batch`} disabled={!printable || !quantities[row.key]} onClick={() => updateQty(row, 0)} style={{ background: 'none', border: 0, color: 'var(--sv-text-dim)', cursor: printable ? 'pointer' : 'default', fontSize: 17 }}>×</button></td>
-                    </tr>;
-                  })}</tbody>
-                </table>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div><label style={{ ...labelStyle, display: 'block', marginBottom: 4 }}>Label Size</label><select value={settings.sizeIdx} onChange={event => set('sizeIdx', Number(event.target.value))} style={inputStyle}>{LABEL_SIZES.map((labelSize, index) => <option key={index} value={index}>{labelSize.label}</option>)}</select></div>
-              <div><div style={{ ...labelStyle, marginBottom: 6 }}>Show on Label</div><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>{option('Product name', settings.showName, value => set('showName', value))}{option('Barcode', settings.showBarcode, value => set('showBarcode', value))}{option('Brand', settings.showBrand, value => set('showBrand', value))}{option('SKU', settings.showSku, value => set('showSku', value))}</div></div>
-              <div><label style={{ ...labelStyle, display: 'block', marginBottom: 4 }}>Price</label><select value={settings.priceMode} onChange={event => set('priceMode', event.target.value as LabelPriceMode)} style={inputStyle}><option value="none">No price</option><option value="rrp">Show RRP</option><option value="sale">Sale price with RRP strikeout</option></select></div>
-              <div style={{ borderTop: '1px solid var(--sv-etch)', paddingTop: 12 }}>
-                <div style={{ ...labelStyle, marginBottom: 6 }}>Representative preview</div>
-                <div style={{ background: '#fff', border: '1px solid #ccc', color: '#000', aspectRatio: `${size.w} / ${size.h}`, width: '100%', padding: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                  {previewRow ? <><div style={{ display: 'flex', justifyContent: 'space-between', gap: 4, fontSize: 10, fontWeight: 700 }}><span style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{settings.showName ? previewRow.productName : ''}</span>{settings.priceMode !== 'none' && previewRow.priceRrp != null && <span>${Number(settings.priceMode === 'sale' && previewRow.priceRrpSale != null ? previewRow.priceRrpSale : previewRow.priceRrp).toFixed(2)}</span>}</div>{settings.showBarcode && previewRow.barcode && <div style={{ flex: 1, minHeight: 0, width: '100%', overflow: 'hidden' }} dangerouslySetInnerHTML={{ __html: buildBarcodeSvgMarkup(previewRow.barcode, size.w - 3, Math.max(4, size.h * .45)) }} />}<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#444' }}><span>{settings.showBrand ? previewRow.brand : ''}</span><span>{settings.showSku ? previewRow.sku : ''}</span></div></> : <div style={{ margin: 'auto', fontSize: 11, color: '#777' }}>No printable item selected</div>}
-                </div>
-                <div style={{ marginTop: 5, fontSize: 11, color: 'var(--sv-text-dim)', textAlign: 'center' }}>{size.w} × {size.h} mm</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 20px', borderTop: '1px solid var(--sv-etch)' }}>
-          <div style={{ flex: 1, fontSize: 13, color: 'var(--sv-text-main)' }}><strong>{totalLabels}</strong> label{totalLabels === 1 ? '' : 's'} selected</div>
-          <button type="button" onClick={onClose} style={btnStyle('ghost')}>Close</button>
-          <button type="button" disabled={!totalLabels} onClick={printLabels} style={btnStyle('action')}>Print {totalLabels || ''} Label{totalLabels === 1 ? '' : 's'}</button>
         </div>
       </div>
     </div>
@@ -7243,7 +6976,7 @@ type InvoiceParseResult = {
 
 function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, variants, poId, pendingFile }: {
   onClose: () => void;
-  onImport?: (data: { supplier_id: number | ''; invoice_number: string; invoice_date: string; currency: string; payment_terms: string; tax_treatment: 'inc_tax' | 'ex_tax' | 'no_tax'; discount_total?: number | null; line_items: Array<{ variant_id: string; qty_ordered: number; unit_cost: number; discount_pct: number; tax_rate: number; barcode?: string | null; rrp?: number | null }>; attachment_file: File | null }) => void;
+  onImport?: (data: { supplier_id: number | ''; invoice_number: string; invoice_date: string; currency: string; payment_terms: string; tax_treatment: 'inc_tax' | 'ex_tax' | 'no_tax'; discount_total?: number | null; line_items: Array<{ variant_id: string; qty_ordered: number; unit_cost: number; discount_pct: number; tax_rate: number; barcode?: string | null; rrp?: number | null }> }) => void;
   onPreFillReceive?: (qtys: Record<string, number>) => void;
   suppliers: any[]; variants: any[]; poId?: number | null; pendingFile?: File | null;
 }) {
@@ -7261,8 +6994,6 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
   const [skipped, setSkipped] = React.useState<Set<number>>(new Set());
   const [aiMatchLoading, setAiMatchLoading] = React.useState(false);
   const [aiMatchError, setAiMatchError] = React.useState<string | null>(null);
-  const [sourceFile, setSourceFile] = React.useState<File | null>(pendingFile ?? null);
-  const [attachToPo, setAttachToPo] = React.useState(true);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const isPo = !!poId;
 
@@ -7272,7 +7003,6 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function processFile(file: File) {
-    setSourceFile(file);
     setError(null); setStage('uploading');
     try {
       const fd = new FormData();
@@ -7315,7 +7045,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
       .filter((_, i) => !skipped.has(i))
       .map((lr, i) => { const vid = getVid(i, lr); return vid ? { variant_id: vid, qty_ordered: Number(lr.invoice_line.qty) || 1, unit_cost: Number(lr.invoice_line.unit_price) || 0, discount_pct: Number(lr.invoice_line.discount_pct) || 0, tax_rate: Number(lr.invoice_line.tax_rate) || 0.1, barcode: lr.invoice_line.barcode ?? null, rrp: lr.invoice_line.rrp ?? null } : null; })
       .filter((x): x is NonNullable<typeof x> => x !== null);
-    onImport({ supplier_id: supplierId, invoice_number: invoiceNum, invoice_date: invoiceDate, currency, payment_terms: payTerms, tax_treatment: taxTreatment, discount_total: result.invoice.discount_total ?? null, line_items, attachment_file: attachToPo ? sourceFile : null });
+    onImport({ supplier_id: supplierId, invoice_number: invoiceNum, invoice_date: invoiceDate, currency, payment_terms: payTerms, tax_treatment: taxTreatment, discount_total: result.invoice.discount_total ?? null, line_items });
     onClose();
   }
 
@@ -7582,13 +7312,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
       </div>
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid var(--sv-border)', flexWrap: 'wrap' }}>
-        <div>
-          <div style={{ fontSize: 12, color: 'var(--sv-text-muted)', marginBottom: 6 }}>{importableCount} line{importableCount !== 1 ? 's' : ''} will be added to the PO</div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'var(--sv-text-strong)', cursor: 'pointer' }}>
-            <input type="checkbox" checked={attachToPo} onChange={e => setAttachToPo(e.target.checked)} />
-            Attach the original invoice to the new PO
-          </label>
-        </div>
+        <div style={{ fontSize: 12, color: 'var(--sv-text-muted)' }}>{importableCount} line{importableCount !== 1 ? 's' : ''} will be added to the PO</div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={onClose} style={{ padding: '8px 18px', background: 'none', border: '1px solid var(--sv-border)', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: 'pointer', color: 'var(--sv-text-muted)' }}>Cancel</button>
           <button onClick={handleImport} disabled={importableCount === 0} style={{ padding: '8px 20px', background: 'var(--sv-accent)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: importableCount === 0 ? 'not-allowed' : 'pointer', opacity: importableCount === 0 ? 0.5 : 1 }}>
@@ -7968,8 +7692,6 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
   const [showInvoiceImport, setShowInvoiceImport] = useState(false);
   const [invoiceImportPoId, setInvoiceImportPoId] = useState<number | null>(null);
   const [invoicePendingFile, setInvoicePendingFile] = useState<File | null>(null);
-  const [invoiceAttachmentFile, setInvoiceAttachmentFile] = useState<File | null>(null);
-  const [poBarcodeLabels, setPoBarcodeLabels] = useState<{ poNumber: string; rows: POBarcodeLabelRow[] } | null>(null);
   const pendingReceiveOverrideRef = React.useRef<Record<string, number> | null>(null);
   const { settings } = useImsSettings();
   const load = useCallback(() => {
@@ -8058,35 +7780,6 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
   };
 
   const lineTotal = (item: any) => Number(item.qty_ordered || 0) * Number(item.unit_cost || 0) * (1 - Number(item.discount_pct || 0) / 100);
-
-  const persistedLabelRows = (po: any): POBarcodeLabelRow[] => (po.items ?? []).map((item: any, index: number) => ({
-    key: String(item.id ?? `${item.variant_id ?? 'line'}-${index}`),
-    productName: item.product_name || item.name_raw || item.sku || `PO item ${index + 1}`,
-    variantLabel: item.variant_label,
-    brand: item.brand,
-    barcode: item.barcode,
-    sku: item.sku,
-    priceRrp: item.price_rrp,
-    priceRrpSale: item.price_rrp_sale,
-    orderedQty: Number(item.qty_ordered ?? 0),
-  }));
-
-  const editLabelRows = (): POBarcodeLabelRow[] => lineItems.filter(item => item.variant_id).map((item, index) => {
-    const variant = variants.find(candidate => String(candidate.variant_id) === String(item.variant_id));
-    const variantLabel = [variant?.option1_value, variant?.option2_value, variant?.option3_value].filter(Boolean).join(' / ');
-    return {
-      key: `${item.variant_id}-${index}`,
-      productName: variant?.product_name || variant?.name || variant?.sku || `PO item ${index + 1}`,
-      variantLabel,
-      brand: variant?.brand,
-      barcode: variant?.barcode,
-      sku: variant?.sku,
-      priceRrp: variant?.price_rrp,
-      priceRrpSale: variant?.price_rrp_sale,
-      orderedQty: Number(item.qty_ordered ?? 0),
-    };
-  });
-
   const taxTreatment = (form.tax_treatment ?? 'ex_tax') as 'ex_tax' | 'inc_tax' | 'no_tax';
   const isReceiving = !!modal.edit && !modal.editOnly && (modal.edit.status === 'confirmed' || modal.edit.status === 'partially_received');
   const poSubtotal = taxTreatment === 'inc_tax'
@@ -8119,8 +7812,6 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
     setLineItems([{ variant_id: '', qty_ordered: 1, unit_cost: 0, tax_rate: defaultTaxRate }]);
     setLandedCosts([]);
     setLcForm(null);
-    setInvoicePendingFile(null);
-    setInvoiceAttachmentFile(null);
     setModal({ open: true, edit: null });
   };
 
@@ -8234,25 +7925,12 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
       } else {
         const res = await apiFetch('/api/ims/purchase-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items, landed_costs }) });
         savedPoId = Number(res?.id ?? 0) || null;
-        if (savedPoId && invoiceAttachmentFile) {
-          const fd = new FormData();
-          fd.append('file', invoiceAttachmentFile);
-          try {
-            const uploadRes = await fetch(`/api/ims/purchase-orders/${savedPoId}/files`, { method: 'POST', body: fd });
-            const uploadData = await uploadRes.json();
-            if (!uploadRes.ok) alert(`PO created, but the supplier invoice could not be attached: ${uploadData.error || 'Upload failed'}`);
-          } catch (uploadError: any) {
-            alert(`PO created, but the supplier invoice could not be attached: ${uploadError.message || 'Upload failed'}`);
-          }
-        }
         if (andOrder && res?.id) {
           await apiFetch(`/api/ims/purchase-orders/${res.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'confirmed' }) });
         }
       }
       load();
       setModal({ open: false, edit: null });
-      setInvoicePendingFile(null);
-      setInvoiceAttachmentFile(null);
       setLandedCosts([]);
       setLcForm(null);
       if (savedPoId && ['confirmed', 'complete'].includes(resultingPoStatus)) await openView({ id: savedPoId });
@@ -8672,17 +8350,13 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
 
             {isReceiving ? (
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
-                {modal.edit && !modal.edit.is_historical && <button type="button" onClick={() => setPoBarcodeLabels({ poNumber: modal.edit.po_number, rows: editLabelRows() })} style={{ ...btnStyle('secondary'), marginRight: 'auto' }}>Print Labels</button>}
                 <button type="button" onClick={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} style={btnStyle('ghost')}>Cancel</button>
                 <button type="button" disabled={saving} title="Saves received quantities. PO becomes Partially Received if any items have been received, or stays Confirmed if nothing received yet. Does NOT sync to Xero." onClick={e => { const hasAny = lineItems.some(item => item.variant_id && Number(receiveQtys[item.variant_id] || 0) > 0); handleSubmit(e as any, false, undefined, (hasAny || modal.edit?.status === 'partially_received') ? 'partially_received' : undefined); }} style={btnStyle('ghost')}>{saving ? 'Saving…' : 'Save'}</button>
                 <button type="button" disabled={saving} title="Saves received quantities and marks this PO as complete. Triggers Xero sync: bill is approved and inventory journal is posted." onClick={e => handleSubmit(e as any, false, undefined, 'complete')} style={btnStyle('mint')}>{saving ? 'Saving…' : 'Save and Complete'}</button>
               </div>
             ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {modal.edit && !modal.edit.is_historical && <button type="button" onClick={() => setPoBarcodeLabels({ poNumber: modal.edit.po_number, rows: editLabelRows() })} style={btnStyle('secondary')}>Print Labels</button>}
-                <div style={{ marginLeft: 'auto' }}><FormActions onCancel={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} saving={saving} isEdit={!!modal.edit}
-                  extraActions={!modal.edit ? [{ label: saving ? 'Creating…' : 'Create & Confirm', onClick: (e: React.MouseEvent) => handleSubmit(e as any, true) }] : []} /></div>
-              </div>
+              <FormActions onCancel={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} saving={saving} isEdit={!!modal.edit}
+                extraActions={!modal.edit ? [{ label: saving ? 'Creating…' : 'Create & Confirm', onClick: (e: React.MouseEvent) => handleSubmit(e as any, true) }] : []} />
             )}
           </form>
         </Modal>
@@ -8746,7 +8420,6 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <POActions isAdvisor={isAdvisor} po={viewModal.po} onEdit={() => editPoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onDelete={() => deletePoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onStatus={changeStatus} context="view" />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-              {!viewModal.po.is_historical && <button type="button" onClick={() => setPoBarcodeLabels({ poNumber: viewModal.po.po_number, rows: persistedLabelRows(viewModal.po) })} style={btnStyle('secondary', 'sm')}>Print Labels</button>}
               <button
                 onClick={() => { window.open(`/api/ims/purchase-orders/${viewModal.po.id}/pdf`, '_blank'); }}
                 style={btnStyle('secondary', 'sm')}
@@ -9073,10 +8746,6 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
         </Modal>
       )}
 
-      {poBarcodeLabels && (
-        <POBarcodeLabelDialog poNumber={poBarcodeLabels.poNumber} rows={poBarcodeLabels.rows} onClose={() => setPoBarcodeLabels(null)} />
-      )}
-
       {/* ── Invoice Import Modal (Pathway 1: new PO pre-fill; Pathway 2: PO comparison) ── */}
       {showInvoiceImport && (
         <InvoiceImportModal
@@ -9100,7 +8769,6 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
             }));
             if (data.supplier_id) selectSupplier(String(data.supplier_id));
             if (data.line_items.length > 0) setLineItems(data.line_items);
-            setInvoiceAttachmentFile(data.attachment_file);
             setShowInvoiceImport(false);
           }}
           onPreFillReceive={qtys => {

@@ -62,11 +62,6 @@ async function blockPayout(
   error: string,
 ): Promise<ShopifyPayoutPlanResult> {
   await deps.mainExecute(
-    `DELETE FROM shopify_payment_xero_actions
-      WHERE business_id = ? AND shopify_payout_id = ? AND status != 'completed'`,
-    [businessId, payoutId],
-  );
-  await deps.mainExecute(
     `UPDATE shopify_payment_payouts
         SET reconciliation_status = 'blocked', error_detail = ?
       WHERE business_id = ? AND shopify_payout_id = ?`,

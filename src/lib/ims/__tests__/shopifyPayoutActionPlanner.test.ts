@@ -179,6 +179,7 @@ describe('planShopifyPayoutActions', () => {
       status: 'blocked',
       error: 'Refund refund-1 amount 12.95 does not match completed credit note 0.00',
     });
+    expect(deps.mainExecute.mock.calls.some(([sql]) => String(sql).includes('DELETE FROM shopify_payment_xero_actions'))).toBe(false);
   });
 
   it('plans a fee reversal as a clearing receive', async () => {

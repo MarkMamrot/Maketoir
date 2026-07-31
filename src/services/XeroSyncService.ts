@@ -2538,9 +2538,21 @@ export async function syncCNAsCreditNote(businessId: string, cn: CNForSync): Pro
     LineItems: lineItems,
   };
 
+  const monetaryFingerprint = JSON.stringify({
+    totalAmount: Number(cn.total_amount),
+    taxTreatment: cn.tax_treatment ?? 'ex_tax',
+    items: (cn.items ?? []).map(item => ({
+      code: item.code ?? null,
+      name: item.name ?? null,
+      qty: Number(item.qty),
+      unitPrice: Number(item.unit_price),
+      taxRate: Number(item.tax_rate),
+      lineTotal: Number(item.line_total),
+    })),
+  });
   try {
     const idempotencyKey = crypto.createHash('sha256')
-      .update(`${businessId}|customer-credit-note|${cn.id}|${cn.cn_number}`)
+      .update(`${businessId}|customer-credit-note|${cn.id}|${cn.cn_number}|${monetaryFingerprint}`)
       .digest('hex');
     const result = await xeroApiFetch(businessId, '/CreditNotes', {
       method: 'POST',
@@ -2552,7 +2564,36 @@ export async function syncCNAsCreditNote(businessId: string, cn: CNForSync): Pro
     await markCNXeroStatus(cn.id, 'synced', xeroId);
     return xeroId;
   } catch (err: any) {
-    await logSync(businessId, 'cn_credit_note', cn.id, null, 'error', err.message);
+    const parsed = parseXeroValidationDetails(err.message);
+    if (parsed.duplicateNumber) {
+      try {
+        const creditNoteNoNumber = { ...creditNote };
+        delete creditNoteNoNumber.CreditNoteNumber;
+        const retry = await xeroApiFetch(businessId, '/CreditNotes', {
+          method: 'POST',
+          idempotencyKey: crypto.createHash('sha256')
+            .update(`${businessId}|customer-credit-note|${cn.id}|${cn.cn_number}|${monetaryFingerprint}|auto-number`)
+            .digest('hex'),
+          body: { CreditNotes: [creditNoteNoNumber] },
+        });
+        const xeroId = retry.CreditNotes?.[0]?.CreditNoteID ?? null;
+        await logSync(
+          businessId,
+          'cn_credit_note',
+          cn.id,
+          xeroId,
+          'success',
+          `Credit note created after duplicate-number fallback: ${cn.cn_number}`,
+          retry.CreditNotes?.[0]?.Status ?? 'AUTHORISED',
+        );
+        await markCNXeroStatus(cn.id, 'synced', xeroId);
+        return xeroId;
+      } catch (retryErr: any) {
+        await logSync(businessId, 'cn_credit_note', cn.id, null, 'error', parseXeroValidationDetails(retryErr.message).summary);
+        return null;
+      }
+    }
+    await logSync(businessId, 'cn_credit_note', cn.id, null, 'error', parsed.summary);
     return null;
   }
 }
@@ -2617,7 +2658,7 @@ function parseXeroValidationDetails(errMessage: string): { summary: string; dupl
 
   const combined = out.join(' | ') || msg;
   const haystack = combined.toLowerCase();
-  duplicateNumber = /invoice number|credit note number|already been used|must be unique|duplicate/.test(haystack);
+  duplicateNumber = /invoice number|credit note number|already been used|must be unique|duplicate|credit note not of valid status for modification/.test(haystack);
   return { summary: combined, duplicateNumber };
 }
 

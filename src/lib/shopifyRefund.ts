@@ -31,7 +31,12 @@ export function parseShopifyRefund(refund: any, fallbackGateway?: string | null)
     String(t?.kind) === 'refund' && (t?.status == null || String(t.status) === 'success'),
   );
   const rlis: any[] = Array.isArray(refund?.refund_line_items) ? refund.refund_line_items : [];
-  const taxAmount = rlis.reduce((s, r) => s + parseFloat(r?.total_tax ?? '0'), 0);
+  const adjustments: any[] = Array.isArray(refund?.order_adjustments) ? refund.order_adjustments : [];
+  const itemTaxAmount = rlis.reduce((s, r) => s + parseFloat(r?.total_tax ?? '0'), 0);
+  const shippingTaxAmount = adjustments
+    .filter(adjustment => String(adjustment?.kind) === 'shipping_refund')
+    .reduce((sum, adjustment) => sum + Math.abs(parseFloat(adjustment?.tax_amount ?? '0')), 0);
+  const taxAmount = itemTaxAmount + shippingTaxAmount;
   const transactionAmount = refundTxns.reduce((s, t) => s + parseFloat(t?.amount ?? '0'), 0);
   const itemisedAmount = rlis.reduce((s, r) => (
     s + parseFloat(r?.subtotal ?? '0') + parseFloat(r?.total_tax ?? '0')

@@ -2390,7 +2390,7 @@ export const ImsSORepo = {
           await conn.execute(
             `UPDATE ims_credit_notes
                 SET shopify_refund_id = ?, subtotal = ?, tax_amount = ?, total_amount = ?,
-                    status = 'complete', completed_at = NOW()
+                    tax_treatment = 'ex_tax', status = 'complete', completed_at = NOW()
               WHERE id = ?`,
             [String(opts.shopifyRefundId), subtotal, tax, total, existingCn.id],
           );
@@ -2430,7 +2430,7 @@ export const ImsSORepo = {
            (business_id, cn_number, customer_id, so_id, original_so_number, location_id,
             status, source, shopify_refund_id, cn_date, completed_at, reference,
             tax_treatment, subtotal, tax_amount, total_amount, notes)
-         VALUES (?,?,?,?,?,?, 'complete','shopify',?, ?, NOW(), ?, 'inc_tax', ?, ?, ?, ?)`,
+         VALUES (?,?,?,?,?,?, 'complete','shopify',?, ?, NOW(), ?, 'ex_tax', ?, ?, ?, ?)`,
         [businessId, cnNumber, so.customer_id ?? null, so.id, so.so_number ?? null, so.location_id,
          String(opts.shopifyRefundId), cnDate,
          `Shopify refund ${opts.shopifyRefundId}`, subtotal, tax, total,
