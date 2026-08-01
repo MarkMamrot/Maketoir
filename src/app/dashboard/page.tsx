@@ -6,6 +6,7 @@ import { SpaceAnalysisView } from './SpaceAnalysisView';
 import { StockTurnoverView } from './StockTurnoverView';
 import { CustomerServiceView } from './CustomerServiceView';
 import { MarketingRecommendationsView } from './MarketingRecommendationsView';
+import { ForesightPlannerWorkspace } from './ForesightPlannerWorkspace';
 import { AppearanceTab, BusinessInfoTab, BrandProfileTab, ConnectionsTab, DataSourceTab } from '../setup/page';
 import { AI_DATA_SOURCES } from '@/lib/aiDataSources';
 
@@ -52,6 +53,7 @@ const NAV: NavItem[] = [
     children: [
       { id: 'sync-ads', label: 'Sync Marketing Data' },
       { id: 'marketing-assistant', label: 'Marketing Assistant' },
+      { id: 'planning-workspace', label: 'Planning Workspace' },
       { id: 'marketing-recommendations', label: 'Recommendation Inbox' },
       { id: 'campaign-audit',      label: 'Campaign Audit'      },
     ],
@@ -8582,6 +8584,7 @@ export default function DashboardPage() {
     'lost-candidates': 'Possible Losses',
     'sync-ads': 'Sync Marketing Data',
     'marketing-assistant': 'Marketing Assistant',
+    'planning-workspace': 'Foresight Planning Workspace',
     'marketing-recommendations': 'Recommendation Inbox',
     'campaign-audit':       'Campaign Architecture Audit',
     'product-description-template': 'Web Field Templates',
@@ -8721,6 +8724,7 @@ export default function DashboardPage() {
           {activeView === 'inactive-candidates' && <InactiveCandidatesView databaseId={databaseId} />}
           {activeView === 'lost-candidates' && <LostCandidatesView databaseId={databaseId} />}
           {activeView === 'marketing-assistant' && <MarketingAssistantView databaseId={databaseId} />}
+          {activeView === 'planning-workspace' && <ForesightPlannerWorkspace userTier={userTier} />}
           {activeView === 'marketing-recommendations' && <MarketingRecommendationsView userTier={userTier} />}
           {activeView === 'campaign-audit' && <CampaignAuditView databaseId={databaseId} />}
           {activeView === 'product-description-template' && <WebContentTemplatesView databaseId={databaseId} />}
