@@ -26,6 +26,11 @@ export interface PlanningThreadDetail {
   thread: PlanningThread;
   messages: PlanningMessage[];
   latestPlan: { markdown_text?: string; version?: number; state?: string } | null;
+  latestValidation: {
+    state: 'passed' | 'failed' | 'needs_human';
+    findings_json: { blocking?: string[]; needsHuman?: string[]; warnings?: string[] };
+    validator_version: string;
+  } | null;
   links: Array<{
     id: number;
     link_type: 'recommendation' | 'initiative' | 'strategy';

@@ -122,6 +122,7 @@ export function ForesightPlannerWorkspace({ userTier }: { userTier: string }) {
   const [loadingThreads, setLoadingThreads] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [sending, setSending] = useState(false);
+  const [draftingPlan, setDraftingPlan] = useState(false);
   const [creating, setCreating] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [newType, setNewType] = useState<PlanningThreadType>('strategy');
@@ -229,6 +230,35 @@ export function ForesightPlannerWorkspace({ userTier }: { userTier: string }) {
       await loadDetail(detail.thread.id);
     } finally {
       setSending(false);
+    }
+  };
+
+  const draftPlan = async () => {
+    if (!detail || draftingPlan) return;
+    setDraftingPlan(true);
+    setNotice(null);
+    try {
+      const response = await fetch(`/api/foresight/planning/threads/${detail.thread.id}/plan`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expectedRevision: detail.thread.revision }),
+      });
+      const body = await plannerResponseJson(response);
+      if (!response.ok) {
+        if (response.status === 409) {
+          setNotice({ kind: 'warning', text: 'This planning thread changed in another tab. The latest version has been loaded.' });
+          await Promise.all([loadThreads(detail.thread.id), loadDetail(detail.thread.id)]);
+          return;
+        }
+        const validation = body.validation as { findings?: { blocking?: string[] } } | undefined;
+        const blocking = validation?.findings?.blocking?.[0];
+        throw new Error(blocking || String(body.error || 'Foresight could not draft this plan.'));
+      }
+      setNotice({ kind: 'success', text: detail.latestPlan ? 'A new immutable plan version was drafted.' : 'The first structured plan version was drafted.' });
+      await Promise.all([loadThreads(detail.thread.id), loadDetail(detail.thread.id)]);
+    } catch (error) {
+      setNotice({ kind: 'error', text: error instanceof Error ? error.message : 'Foresight could not draft this plan.' });
+    } finally {
+      setDraftingPlan(false);
     }
   };
 
@@ -396,11 +426,36 @@ export function ForesightPlannerWorkspace({ userTier }: { userTier: string }) {
               <h3 className="flex items-center gap-2 text-[11px] font-bold uppercase text-gray-500"><FileText size={14} /> Current plan</h3>
               {detail?.latestPlan ? (
                 <div className="mt-3">
-                  <div className="text-sm font-semibold text-gray-800">Version {detail.latestPlan.version ?? '—'}</div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm font-semibold text-gray-800">Version {detail.latestPlan.version ?? '—'}</div>
+                    {detail.latestValidation && (
+                      <span className={`text-[10px] font-bold uppercase ${detail.latestValidation.state === 'passed' ? 'text-emerald-700' : detail.latestValidation.state === 'needs_human' ? 'text-amber-700' : 'text-red-700'}`}>
+                        {stateLabel(detail.latestValidation.state)}
+                      </span>
+                    )}
+                  </div>
                   <div className="mt-1 text-xs text-gray-500">{stateLabel(detail.latestPlan.state ?? 'drafting')}</div>
+                  {detail.latestValidation?.findings_json.needsHuman?.map((finding) => (
+                    <p key={finding} className="mt-2 text-xs leading-5 text-amber-800">{finding}</p>
+                  ))}
+                  {detail.latestValidation?.findings_json.warnings?.map((finding) => (
+                    <p key={finding} className="mt-2 text-xs leading-5 text-gray-600">{finding}</p>
+                  ))}
+                  {detail.latestPlan.markdown_text && (
+                    <details className="mt-3 border-t border-gray-200 pt-3">
+                      <summary className="cursor-pointer text-xs font-semibold text-cyan-700">View plan document</summary>
+                      <div className="mt-3 max-h-80 overflow-y-auto whitespace-pre-wrap break-words text-xs leading-5 text-gray-700">{detail.latestPlan.markdown_text}</div>
+                    </details>
+                  )}
                 </div>
               ) : (
                 <p className="mt-2 text-sm leading-5 text-gray-500">No structured plan version has been drafted yet.</p>
+              )}
+              {detail && isAdmin && (
+                <button type="button" onClick={() => void draftPlan()} disabled={draftingPlan || sending || loadingDetail} className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 bg-cyan-700 px-3 text-sm font-semibold text-white hover:bg-cyan-800 disabled:bg-gray-200 disabled:text-gray-400">
+                  {draftingPlan ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />}
+                  {detail.latestPlan ? 'Revise plan' : 'Draft plan'}
+                </button>
               )}
             </section>
             <section className="border-t border-gray-200 pt-4">

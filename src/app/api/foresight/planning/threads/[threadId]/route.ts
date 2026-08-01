@@ -11,10 +11,11 @@ export async function GET(_request: Request, context: { params: { threadId: stri
   }
   const thread = await ForesightPlanningRepository.getThread(user.businessId, threadId);
   if (!thread) return NextResponse.json({ error: 'Planning thread not found.' }, { status: 404 });
-  const [messages, latestPlan, links] = await Promise.all([
+  const [messages, latestPlan, latestValidation, links] = await Promise.all([
     ForesightPlanningRepository.listMessages(user.businessId, threadId, 200),
     ForesightPlanningRepository.latestPlanVersion(user.businessId, threadId),
+    ForesightPlanningRepository.latestPlanValidation(user.businessId, threadId),
     ForesightPlanningRepository.listThreadLinks(user.businessId, threadId),
   ]);
-  return NextResponse.json({ success: true, thread, messages, latestPlan, links });
+  return NextResponse.json({ success: true, thread, messages, latestPlan, latestValidation, links });
 }

@@ -74,6 +74,25 @@ describe('ForesightPlanningRepository', () => {
     );
   });
 
+  it('loads unique governed facts only from successful tenant thread audits', async () => {
+    mockQuery.mockResolvedValue([{
+      result_json: JSON.stringify({ facts: [{
+        factId: 'fact-1', label: 'Revenue', source: 'IMS', authority: 'authoritative',
+        observedFrom: '2026-07-01', observedThrough: '2026-07-31', freshnessAt: '2026-07-31',
+        quality: { grade: 'good' }, value: { revenue: 100 },
+      }] }),
+    }, { result_json: '{invalid' }]);
+
+    await expect(ForesightPlanningRepository.listThreadFacts('business-1', 12)).resolves.toEqual([expect.objectContaining({
+      factId: 'fact-1', authority: 'authoritative', value: { revenue: 100 },
+    })]);
+
+    expect(mockQuery).toHaveBeenCalledWith(
+      expect.stringMatching(/tool\.business_id = \? AND tool\.thread_id = \?[\s\S]*tool\.state = 'succeeded'/),
+      ['business-1', 12],
+    );
+  });
+
   it('atomically appends a human turn and advances the locked thread revision', async () => {
     mockConnection.execute
       .mockResolvedValueOnce([[{ revision: 2 }]])

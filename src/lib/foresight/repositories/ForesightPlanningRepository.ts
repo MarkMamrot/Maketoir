@@ -64,6 +64,31 @@ export interface PlanningLinkRow {
   created_at: string;
 }
 
+export interface PlanningFactSnapshot {
+  factId: string;
+  label: string;
+  source: string;
+  authority: 'authoritative' | 'diagnostic' | 'human';
+  observedFrom: string | null;
+  observedThrough: string | null;
+  freshnessAt: string | null;
+  quality: Record<string, unknown>;
+  value: Record<string, unknown>;
+}
+
+export interface PlanValidationRow {
+  id: number;
+  business_id: string;
+  thread_id: number;
+  plan_version_id: number;
+  plan_hash: string;
+  state: 'passed' | 'failed' | 'needs_human';
+  findings_json: Record<string, unknown>;
+  validator_version: string;
+  validated_by: number | null;
+  created_at: string;
+}
+
 export class PlanningThreadConflictError extends Error {
   constructor() {
     super('The planning thread changed. Reload it before saving another plan version.');
@@ -81,6 +106,27 @@ function normalizePlanVersion(row: PlanVersionRow): PlanVersionRow {
 
 function hashResult(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
+}
+
+function planningFactSnapshot(value: unknown): PlanningFactSnapshot | null {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const fact = value as Record<string, unknown>;
+  if (typeof fact.factId !== 'string' || typeof fact.label !== 'string' || typeof fact.source !== 'string') return null;
+  if (!['authoritative', 'diagnostic', 'human'].includes(String(fact.authority))) return null;
+  if (fact.value == null || typeof fact.value !== 'object' || Array.isArray(fact.value)) return null;
+  return {
+    factId: fact.factId,
+    label: fact.label,
+    source: fact.source,
+    authority: fact.authority as PlanningFactSnapshot['authority'],
+    observedFrom: typeof fact.observedFrom === 'string' ? fact.observedFrom : null,
+    observedThrough: typeof fact.observedThrough === 'string' ? fact.observedThrough : null,
+    freshnessAt: typeof fact.freshnessAt === 'string' ? fact.freshnessAt : null,
+    quality: fact.quality != null && typeof fact.quality === 'object' && !Array.isArray(fact.quality)
+      ? fact.quality as Record<string, unknown>
+      : {},
+    value: fact.value as Record<string, unknown>,
+  };
 }
 
 export const ForesightPlanningRepository = {
@@ -130,6 +176,34 @@ export const ForesightPlanningRepository = {
       [businessId, threadId],
     );
     return rows.map((row) => ({ ...row, message_json: row.message_json == null ? null : json(row.message_json) }));
+  },
+
+  async listThreadFacts(businessId: string, threadId: number): Promise<PlanningFactSnapshot[]> {
+    const rows = await query<{ result_json: Record<string, unknown> | string }>(
+      `SELECT tool.result_json
+       FROM foresight_planning_tool_calls tool
+       INNER JOIN foresight_planning_threads thread
+         ON thread.business_id = tool.business_id AND thread.id = tool.thread_id
+       WHERE tool.business_id = ? AND tool.thread_id = ?
+         AND tool.state = 'succeeded' AND tool.result_json IS NOT NULL
+       ORDER BY tool.id DESC
+       LIMIT 100`,
+      [businessId, threadId],
+    );
+    const facts = new Map<string, PlanningFactSnapshot>();
+    for (const row of [...rows].reverse()) {
+      try {
+        const result = json<Record<string, unknown>>(row.result_json);
+        if (!Array.isArray(result.facts)) continue;
+        for (const value of result.facts) {
+          const fact = planningFactSnapshot(value);
+          if (fact) facts.set(fact.factId, fact);
+        }
+      } catch {
+        continue;
+      }
+    }
+    return [...facts.values()];
   },
 
   async appendMessage(businessId: string, threadId: number, input: {
@@ -326,6 +400,20 @@ export const ForesightPlanningRepository = {
       [businessId, threadId],
     );
     return rows[0] ? normalizePlanVersion(rows[0]) : null;
+  },
+
+  async latestPlanValidation(businessId: string, threadId: number): Promise<PlanValidationRow | null> {
+    const rows = await query<PlanValidationRow>(
+      `SELECT validation.*
+       FROM foresight_plan_validations validation
+       INNER JOIN foresight_plan_versions plan
+         ON plan.business_id = validation.business_id AND plan.id = validation.plan_version_id
+       WHERE validation.business_id = ? AND validation.thread_id = ?
+       ORDER BY plan.version DESC, validation.id DESC
+       LIMIT 1`,
+      [businessId, threadId],
+    );
+    return rows[0] ? { ...rows[0], findings_json: json(rows[0].findings_json) } : null;
   },
 
   async listThreadLinks(businessId: string, threadId: number): Promise<PlanningLinkRow[]> {
