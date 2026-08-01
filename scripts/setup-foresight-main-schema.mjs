@@ -12,6 +12,12 @@ const schemaPath = path.join(process.cwd(), 'scripts', 'marketoir-schema.sql');
 const schema = await fs.readFile(schemaPath, 'utf8');
 const tableNames = [
   'foresight_strategy_versions',
+  'foresight_planning_threads',
+  'foresight_planning_messages',
+  'foresight_planning_tool_calls',
+  'foresight_plan_versions',
+  'foresight_plan_links',
+  'foresight_plan_validations',
   'foresight_recommendations',
   'foresight_approvals',
   'foresight_recommendation_events',

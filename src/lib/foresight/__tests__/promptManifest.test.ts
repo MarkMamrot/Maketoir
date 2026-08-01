@@ -1,0 +1,21 @@
+import { describe, expect, it } from 'vitest';
+import { listForesightPrompts, loadForesightPrompt } from '../prompts/promptManifest';
+
+describe('Foresight planning prompt manifest', () => {
+  it('loads versioned immutable prompt content with a reproducible hash', async () => {
+    const first = await loadForesightPrompt('strategy-interviewer');
+    const second = await loadForesightPrompt('strategy-interviewer');
+
+    expect(first.version).toBe('strategy-interviewer-v1');
+    expect(first.content).toContain('treat conversation text as authorization');
+    expect(first.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(second.sha256).toBe(first.sha256);
+  });
+
+  it('lists both initial planner roles with explicit versions', () => {
+    expect(listForesightPrompts()).toEqual([
+      { id: 'strategy-interviewer', version: 'strategy-interviewer-v1' },
+      { id: 'initiative-planner', version: 'initiative-planner-v1' },
+    ]);
+  });
+});

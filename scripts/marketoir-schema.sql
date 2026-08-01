@@ -413,6 +413,101 @@ CREATE TABLE IF NOT EXISTS foresight_strategy_versions (
   INDEX idx_foresight_strategy_latest (business_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS foresight_planning_threads (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(100) NOT NULL,
+  thread_type           VARCHAR(32) NOT NULL,
+  state                 VARCHAR(32) NOT NULL DEFAULT 'discovering',
+  title                 VARCHAR(255) NOT NULL,
+  strategy_version_id   BIGINT,
+  created_by            INT NOT NULL,
+  revision              INT NOT NULL DEFAULT 1,
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_foresight_planning_thread_inbox (business_id, state, updated_at),
+  INDEX idx_foresight_planning_thread_type (business_id, thread_type, updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS foresight_planning_messages (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(100) NOT NULL,
+  thread_id             BIGINT NOT NULL,
+  actor_type            VARCHAR(32) NOT NULL,
+  actor_user_id         INT,
+  model_id              VARCHAR(100),
+  prompt_version        VARCHAR(100),
+  content               LONGTEXT NOT NULL,
+  message_json          JSON,
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_foresight_planning_message_thread (business_id, thread_id, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS foresight_planning_tool_calls (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(100) NOT NULL,
+  thread_id             BIGINT NOT NULL,
+  message_id            BIGINT,
+  tool_name             VARCHAR(100) NOT NULL,
+  arguments_json        JSON NOT NULL,
+  result_json           JSON,
+  result_hash           VARCHAR(64),
+  fact_ids_json         JSON,
+  state                 VARCHAR(32) NOT NULL DEFAULT 'running',
+  error_text            TEXT,
+  duration_ms           INT,
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  completed_at          DATETIME,
+  INDEX idx_foresight_planning_tool_thread (business_id, thread_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS foresight_plan_versions (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(100) NOT NULL,
+  thread_id             BIGINT NOT NULL,
+  version               INT NOT NULL,
+  parent_id             BIGINT,
+  state                 VARCHAR(32) NOT NULL DEFAULT 'drafting',
+  schema_version        INT NOT NULL,
+  plan_json             JSON NOT NULL,
+  markdown_text         LONGTEXT NOT NULL,
+  plan_hash             VARCHAR(64) NOT NULL,
+  model_id              VARCHAR(100),
+  prompt_version        VARCHAR(100),
+  tool_manifest_version VARCHAR(100),
+  authored_by           INT,
+  change_reason         VARCHAR(500),
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_foresight_plan_version (business_id, thread_id, version),
+  UNIQUE KEY uq_foresight_plan_hash (business_id, thread_id, plan_hash),
+  INDEX idx_foresight_plan_latest (business_id, thread_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS foresight_plan_links (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(100) NOT NULL,
+  thread_id             BIGINT NOT NULL,
+  plan_version_id       BIGINT,
+  link_type             VARCHAR(32) NOT NULL,
+  link_id               VARCHAR(255) NOT NULL,
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_foresight_plan_link (business_id, thread_id, link_type, link_id),
+  INDEX idx_foresight_plan_link_target (business_id, link_type, link_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS foresight_plan_validations (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(100) NOT NULL,
+  thread_id             BIGINT NOT NULL,
+  plan_version_id       BIGINT NOT NULL,
+  plan_hash             VARCHAR(64) NOT NULL,
+  state                 VARCHAR(32) NOT NULL,
+  findings_json         JSON NOT NULL,
+  validator_version     VARCHAR(100) NOT NULL,
+  validated_by          INT,
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_foresight_plan_validation (business_id, plan_version_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS foresight_recommendations (
   id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id           VARCHAR(100) NOT NULL,
